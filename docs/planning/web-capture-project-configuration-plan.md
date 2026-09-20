@@ -3,7 +3,7 @@ title: Project configuration for web data capture and routing, and closing every
 doc_type: planning
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # Project configuration for web data capture and routing, and closing every open question
@@ -336,7 +336,16 @@ sources" (language, locale code, source workbook, project, ODK form id,
 download date, who assigned it). The importer refuses a workbook that is
 not the documented source for that locale unless run with an explicit
 cross-check flag, in which case it only reports differences. Changing a
-language's source is a policy change: edit the doc first. Instrument
+language's source is a policy change: edit the doc first.
+
+> **Superseded 2026-09-20.** The enforcement described in this paragraph was
+> removed: the importer no longer reads the "Translation sources" table and
+> accepts any readable workbook for any locale. The table remains as
+> provenance for humans. The cross-check flag survives as a plain dry run.
+> The decision and its reason are recorded in
+> `docs/policy/va-form-project-configuration.md` ("Translation sources").
+> The rest of this paragraph -- translations as data, seeded from a workbook,
+> editable per string -- still holds. Instrument
 locale codes are a separate axis from `mas_languages` codes (`kha` versus
 `khasi`); nothing maps between them.
 

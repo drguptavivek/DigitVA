@@ -1296,17 +1296,24 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
         self.project = db.session.get(VaProjectMaster, self.PROJECT)
 
     def _locale(self, code, name, *, active):
-        from app.models.mas_instrument_locales import MasInstrumentLocales
+        from app.models.mas_instrument_locales import (
+            LIFECYCLE_APPROVED,
+            MasInstrumentLocales,
+        )
 
+        # An active row must be 'approved' (ck_mas_instrument_locales_active_
+        # requires_approved, decided 2026-09-20).
+        lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
         row = db.session.get(MasInstrumentLocales, ("WHO_2022_VA", code))
         if row is None:
             row = MasInstrumentLocales(
                 instrument_code="WHO_2022_VA", locale_code=code,
                 language_name=name, version=7, is_active=active,
-                updated_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC), lifecycle_state=lifecycle_state,
             )
             db.session.add(row)
         row.is_active = active
+        row.lifecycle_state = lifecycle_state
         db.session.flush()
         return row
 

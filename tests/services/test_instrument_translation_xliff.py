@@ -29,6 +29,7 @@ import pandas as pd
 
 from app import db
 from app.models.mas_instrument_locales import (
+    LIFECYCLE_APPROVED,
     SOURCE_EDITED,
     SOURCE_IMPORTED,
     MapInstrumentTranslations,
@@ -44,22 +45,6 @@ Q = f"{{{NS}}}"
 # Re-serializing a parsed export (the way a translator's tool hands one back)
 # should write the same default-namespaced form the service writes.
 ET.register_namespace("", NS)
-
-POLICY_DOC = """---
-title: test
----
-
-# Test
-
-## Translation sources
-
-| Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |
-| --- | --- | --- | --- | --- | --- | --- |
-| Hindi | hi | source_hi.xlsx | TESTPROJ | TEST_FORM | 2026-09-19 | tester |
-
-## After
-"""
-
 
 def _write_workbook(path, survey_rows, choice_rows):
     settings = pd.DataFrame(
@@ -159,9 +144,6 @@ class InstrumentTranslationXliffTests(BaseTestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
 
-        self.doc = self.tmp / "policy.md"
-        self.doc.write_text(POLICY_DOC, encoding="utf-8")
-
         self.reference = _write_workbook(
             self.tmp / "reference.xlsx",
             [
@@ -211,7 +193,7 @@ class InstrumentTranslationXliffTests(BaseTestCase):
                 {"list_name": "yes_no", "name": "no", "label::English (en)": "No"},
             ],
         )
-        svc.import_translations(INSTRUMENT, "hi", self.source, doc_path=self.doc)
+        svc.import_translations(INSTRUMENT, "hi", self.source)
         db.session.flush()
 
     def _patch(self, module, name, value):
@@ -459,9 +441,6 @@ class LayerXliffTests(BaseTestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
 
-        self.doc = self.tmp / "policy.md"
-        self.doc.write_text(POLICY_DOC, encoding="utf-8")
-
         self.reference = _write_workbook(
             self.tmp / "reference.xlsx",
             [{"type": "text", "name": "Q1", "label::English (en)": "First question"}],
@@ -493,7 +472,7 @@ class LayerXliffTests(BaseTestCase):
               "label::Hindi (hi)": "पहला प्रश्न"}],
             [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        svc.import_translations(self.INSTRUMENT, "hi", source, doc_path=self.doc)
+        svc.import_translations(self.INSTRUMENT, "hi", source)
         db.session.flush()
 
     def _patch(self, module, name, value):
@@ -556,7 +535,7 @@ class InstrumentTranslationXliffRealWorkbookTests(BaseTestCase):
 
     def test_the_real_hindi_round_trip_changes_nothing(self):
         report = svc.import_translations(
-            self.REAL, "hi", svc.WORKBOOK_DIR / svc.documented_sources()["hi"].workbook
+            self.REAL, "hi", svc.WORKBOOK_DIR / "ND01_ICMRVA_WHOVA2022.xlsx"
         )
         db.session.flush()
         self.assertGreater(report.written, 400, "fixture guard: Hindi was imported")
@@ -600,6 +579,9 @@ class InstrumentTranslationEnglishFallbackTests(BaseTestCase):
             row = MasInstrumentLocales(
                 instrument_code=self.REAL, locale_code="hi", language_name="Hindi",
                 version=3, is_active=True, updated_at=datetime.now(UTC),
+                # An active row must be 'approved' (ck_mas_instrument_locales_
+                # active_requires_approved, decided 2026-09-20).
+                lifecycle_state=LIFECYCLE_APPROVED,
             )
             db.session.add(row)
             db.session.flush()

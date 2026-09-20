@@ -147,12 +147,20 @@ codes and its active rules.
 
 ## Translation sources
 
-**Exactly one source form per language, documented here.** A language's
-strings are imported from one deployed ODK form definition and no other. This
-table *is* the rule: `app/services/instrument_translation_service.py` parses it
-and refuses any workbook that is not the documented source for the locale, so
-changing a language's source means editing this table first. The workbooks live
-in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
+**Decided 2026-09-20: this table records provenance for a human reader; no
+code reads it.** Earlier, `app/services/instrument_translation_service.py`
+parsed this table and refused any workbook that was not the row named for a
+locale. That rule is gone: importing a questionnaire source is a reviewed
+one-time activity, not something the importer gates, and any readable
+workbook may be imported for any locale (path containment against the
+workbook directory and the repository still applies). The reason is that a
+re-import was never the way to change a translation already in service — the
+admin string editor is — so gating imports on this table bought no safety and
+cost the ability to seed or cross-check a language from whatever workbook an
+operator actually has in hand. This table still records, for each deployed
+language, which one deployed ODK form definition its strings were reviewed
+against. The workbooks live in `docs/kb/WHO_VA_2022_Docs/`, inventoried by
+that folder's README.
 
 | Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -170,9 +178,11 @@ in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
 | Swahili | sw | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Spanish | es | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
 
-Cross-check workbooks carry the same language but are *not* its source. They
-are read only with `--cross-check`, which reports differences and writes
-nothing: Hindi against `RJ01_ICMRVA_WHOVA2022.xlsx` (structurally identical to ND01; one Hindi string differs), `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
+Cross-check workbooks carry the same language but are *not* its source. By
+convention they are read only with `--cross-check`, which reports differences
+and writes nothing — a convention now, not an enforced rule: since 2026-09-20
+the importer accepts any readable workbook for any locale, so importing one of
+these as a source is possible and simply unwise. The pairs: Hindi against `RJ01_ICMRVA_WHOVA2022.xlsx` (structurally identical to ND01; one Hindi string differs), `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
 Tamil against `PY01_ICMRVA_WHOVA2022.xlsx`, Marathi against
 `KA01_DS_WHOVA2022.xlsx`. The curated reference form
 `whova2022_xls_form_for_odk.xlsx` (V1.1) carries French on its choices sheet
@@ -345,8 +355,9 @@ see "Where no translation exists the form shows English" in
 [VA Web Form Options Contract](va-web-form-options.md)), so a whole-locale
 coverage percentage was never a fact about whether the language could be
 served safely — it only measured how much of it was done. A locale is served
-once an administrator **activates** it (`set_locale_active`), full stop;
-there is no coverage threshold to pass, and the `--force` flag/`force=`
+once an administrator **approves and then activates** it (see "Approval
+before activation" below — activation alone stopped being sufficient on
+2026-09-20); there is still no coverage threshold to pass, and the `--force` flag/`force=`
 parameter that existed only to bypass that threshold have been removed from
 the importer, `set_locale_active`, the CLI, the admin API and the panel.
 Coverage (base and per-extension) stays **computed and reported** everywhere
@@ -358,7 +369,7 @@ edit; every submission records the locale and the version it was filled in
 (`intake_locale`, `intake_translation_version`), so what the respondent saw
 stays reconstructible.
 
-Importing the documented source for each language is an **operator step**, not
+Importing a source workbook for each language is an **operator step**, not
 a migration: `flask instrument-translations import <instrument_code> <locale>
 <workbook>` per language on a new install, or the Instrument Translations admin
 panel. Migrations import no application code and must not read reference
@@ -392,9 +403,10 @@ DigitVA's own convention.
 works in a CAT tool, not in this application's editor and not in a spreadsheet,
 so a language is handed out and taken back as an XLIFF 2.0 document
 (`urn:oasis:names:tc:xliff:document:2.0`, `version="2.0"`, `srcLang="en"`,
-`trgLang` the locale). The seeding path is unchanged: a language still *begins*
-by importing its one documented source workbook from the table above, and XLIFF
-exchanges the strings of a language that already exists.
+`trgLang` the locale). The seeding path is unchanged in shape: a language still
+*begins* with a workbook import, and XLIFF exchanges the strings of a language
+that already exists. Which workbook is a human decision recorded in the table
+above, not a rule the importer enforces (see "Translation sources").
 
 **Resource ids.** One canonical id per stored string, used wherever XLIFF is
 concerned and nowhere translated into something else:
@@ -437,6 +449,59 @@ namespace, `srcLang` or `trgLang` is not the one asked for.
 CLI: `flask instrument-translations export-xliff` / `import-xliff`. Admin:
 `GET`/`POST /admin/api/instrument-translations/<instrument_code>/<locale>/xliff`,
 admin-only, CSRF on the upload, 5 MB cap.
+
+### Approval before activation (decided 2026-09-20)
+
+**A locale must not be served to interviewers unless a human has approved it,
+and that approval must be recorded.** `mas_instrument_locales.lifecycle_state`
+moves through three states:
+
+| State | Meaning |
+| --- | --- |
+| `draft` | Every locale starts here, including a freshly imported one. |
+| `in_review` | A human is looking at it. |
+| `approved` | A human has reviewed it and it may be activated. |
+
+Two invariants hold at every point, enforced in
+`instrument_translation_service.set_locale_active` /
+`set_locale_lifecycle_state` **and** by the database CHECK constraint
+`ck_mas_instrument_locales_active_requires_approved` on
+`mas_instrument_locales` (belt-and-suspenders, both deliberate — the service
+gives a named, actionable error; the constraint is the backstop if some other
+code path ever writes the row directly):
+
+1. **Only an `approved` locale may be activated.** Activating a `draft` or
+   `in_review` locale is refused, naming the locale and its current state.
+2. **A locale may not leave `approved` while it is still active.** Moving an
+   active, approved locale to `draft` or `in_review` is refused with a
+   message to deactivate first — this keeps the CHECK constraint always
+   satisfiable; there is never a moment where an active row could fail it.
+
+Entering `approved` records who approved it and when
+(`approved_by_user_id`, `approved_at`); leaving `approved` (to `draft` or
+`in_review`) clears both back to `NULL` — an approval record must not survive
+a locale being sent back for more work.
+
+**Coverage still decides nothing** (2026-09-19 decision stands): a locale's
+survey-label or per-extension coverage percentage is not consulted by either
+the lifecycle transition or the activation check. This is a *human* approval
+gate, not an automated quality gate — an administrator may approve a locale
+at any coverage level, and the reverse (declining to approve a
+high-coverage locale) is equally their call.
+
+**Why now (2026-09-20):** importing a questionnaire source stopped requiring
+a documented source workbook (see "Translation sources" above) the same day
+this was decided — any readable workbook may now be imported for any locale.
+That widened who can get a locale into the servable state; this narrows who
+can put it in front of an interviewer, by requiring an explicit, recorded
+human sign-off in between.
+
+**Operator note:** this lifecycle was added by a migration that deactivates
+every existing locale (`lifecycle_state` backfilled to `in_review`,
+`is_active` forced to `false` — there is no history to infer an "approved"
+state from). See "Instrument Translations Panel" in
+[Admin & Setup](../current-state/admin-and-setup.md) for the operator
+checklist and the estimated translation work remaining per locale.
 
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 

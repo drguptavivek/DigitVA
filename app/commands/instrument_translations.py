@@ -1,27 +1,31 @@
 """``flask instrument-translations`` — manage a standard instrument's languages.
 
-Importing the documented source workbook for each language is an **operator
-step**, not a migration: the workbooks are reference material, the import is
-re-runnable, and a migration that read them would pin a historical revision to
-today's files. See docs/current-state/cli-reference.md.
+Importing a language's questionnaire source is an **operator step**, not a
+migration: it is a reviewed one-time activity, the import is re-runnable
+against any readable workbook, and a migration that read one would pin a
+historical revision to today's files. See docs/current-state/cli-reference.md.
 """
 
 import json
+import uuid
 
 import click
+import sqlalchemy as sa
 
 from app import db
-from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
+from app.models.mas_instrument_locales import LIFECYCLE_APPROVED, SOURCE_EDITED, SOURCE_IMPORTED
+from app.models.va_users import VaUsers
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
+    LIFECYCLE_STATES,
     InstrumentTranslationError,
-    documented_sources,
     export_translations,
     export_xliff,
     import_translations,
     import_xliff,
     locale_status,
     set_locale_active,
+    set_locale_lifecycle_state,
 )
 
 
@@ -34,6 +38,32 @@ def _fail(exc: InstrumentTranslationError) -> None:
     raise click.ClickException(str(exc))
 
 
+def _resolve_approver(raw: str) -> uuid.UUID:
+    """A CLI-supplied user id or email, resolved to a ``va_users.user_id``.
+
+    The CLI has no logged-in session, so approving from here requires the
+    operator to name who is approving -- ``--approved-by`` is required for the
+    'approved' transition (not optional/NULL): an approval with no recorded
+    approver would defeat the point of the approval gate this bead adds.
+    """
+    value = (raw or "").strip()
+    if not value:
+        raise click.ClickException(
+            "--approved-by is required to approve a locale: name the "
+            "approving administrator by user id or email."
+        )
+    try:
+        user_id = uuid.UUID(value)
+        user = db.session.get(VaUsers, user_id)
+    except ValueError:
+        user = db.session.scalar(
+            sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == value.lower())
+        )
+    if user is None:
+        raise click.ClickException(f"No DigitVA user found for --approved-by {value!r}.")
+    return user.user_id
+
+
 @instrument_translations_group.command("import")
 @click.argument("instrument_code")
 @click.argument("locale")
@@ -42,17 +72,29 @@ def _fail(exc: InstrumentTranslationError) -> None:
     "--cross-check",
     is_flag=True,
     default=False,
-    help="Report differences against a workbook that is not the documented source; writes nothing.",
+    help="Dry run: read the workbook and report, writing nothing.",
 )
-def import_workbook(instrument_code, locale, workbook, cross_check):
+@click.option(
+    "--language-name",
+    default=None,
+    help="Display name for a locale imported for the first time, when the "
+    "workbook's own language column does not carry one.",
+)
+def import_workbook(instrument_code, locale, workbook, cross_check, language_name):
     """Import LOCALE for INSTRUMENT_CODE from WORKBOOK.
 
-    This never activates or deactivates the locale -- coverage is reported
-    here but decides nothing; run ``activate`` explicitly once you are ready
-    to serve it.
+    Importing a questionnaire source is a reviewed one-time activity: any
+    readable workbook is accepted for any locale. This never activates or
+    deactivates the locale -- coverage is reported here but decides nothing;
+    run ``activate`` explicitly once you are ready to serve it. Changing a
+    translation already served is the admin string editor's job, not a
+    re-import.
     """
     try:
-        report = import_translations(instrument_code, locale, workbook, cross_check=cross_check)
+        report = import_translations(
+            instrument_code, locale, workbook,
+            cross_check=cross_check, language_name=language_name,
+        )
     except InstrumentTranslationError as exc:
         db.session.rollback()
         _fail(exc)
@@ -178,6 +220,36 @@ def deactivate(instrument_code, locale):
     click.echo(f"{locale} deactivated.")
 
 
+@instrument_translations_group.command("lifecycle")
+@click.argument("instrument_code")
+@click.argument("locale")
+@click.argument("state", type=click.Choice(LIFECYCLE_STATES))
+@click.option(
+    "--approved-by", default=None,
+    help="Required when STATE is 'approved': the approving administrator, "
+    "by user id or email. Not recorded for 'draft' or 'in_review'.",
+)
+def lifecycle(instrument_code, locale, state, approved_by):
+    """Move LOCALE to STATE (draft, in_review or approved).
+
+    Only an 'approved' locale may be activated (see 'activate'). Leaving
+    'approved' while a locale is still active is refused -- deactivate first.
+    """
+    actor_id = _resolve_approver(approved_by) if state == LIFECYCLE_APPROVED else None
+    try:
+        result = set_locale_lifecycle_state(
+            instrument_code, locale, state, actor_id=actor_id,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        _fail(exc)
+    db.session.commit()
+    click.echo(
+        f"{result['locale_code']} lifecycle_state={result['lifecycle_state']} "
+        f"approved_by={result['approved_by_user_id']} approved_at={result['approved_at']}"
+    )
+
+
 @instrument_translations_group.command("status")
 @click.option("--instrument-code", default=BASE_INSTRUMENT_CODE, show_default=True)
 @click.option(
@@ -192,23 +264,20 @@ def status(instrument_code, extensions):
     """
     try:
         rows = locale_status(instrument_code)
-        documented = documented_sources()
     except InstrumentTranslationError as exc:
         _fail(exc)
     click.echo(
-        f"{'locale':<8}{'active':<8}{'ver':<5}{'coverage':>9}  "
-        f"{'source':<34}documented"
+        f"{'locale':<8}{'active':<8}{'lifecycle':<11}{'ver':<5}{'coverage':>9}  source"
     )
     for row in rows:
-        expected = documented.get(row["locale_code"])
         coverage = f"{row['coverage']:.1%}"
         click.echo(
             f"{row['locale_code']:<8}"
             f"{('yes' if row['is_active'] else 'no'):<8}"
+            f"{row['lifecycle_state']:<11}"
             f"{row['version']:<5}"
             f"{coverage:>9}  "
-            f"{(row['source_document'] or '-'):<34}"
-            f"{expected.workbook if expected else '-'}"
+            f"{row['source_document'] or '-'}"
         )
         if extensions:
             for name, counts in sorted(row.get("extension_coverage", {}).items()):

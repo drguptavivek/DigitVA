@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # CLI Reference
@@ -73,6 +73,8 @@ Policy: `docs/policy/organization-model.md`.
 docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA] [--extensions]
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/RJ01_ICMRVA_WHOVA2022.xlsx
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --cross-check
+docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi in_review
+docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi approved --approved-by testadmin@digitva.com
 docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
@@ -80,19 +82,37 @@ docker compose exec minerva_app_service uv run flask instrument-translations exp
 docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi hi.xlf [--as imported|edited]
 ```
 
-`import` reads the language's **documented source workbook** — the one named
-for that locale in the "Translation sources" table of
-`docs/policy/va-form-project-configuration.md` — and refuses any other unless
-`--cross-check`, which reports differences and writes nothing. It merges by
+`import` accepts any readable workbook for any locale (decided 2026-09-20:
+importing a questionnaire source is a reviewed one-time activity, not a policy
+gate the importer enforces — the "Translation sources" table in
+`docs/policy/va-form-project-configuration.md` records which workbook a
+language was reviewed against, for a human reader; no code reads it).
+`--cross-check` is a plain dry run: read the workbook and report, writing
+nothing. `--language-name` names a locale being seeded for the first time, if
+the workbook's own language column does not carry one. `import` merges by
 question `name` and by `list_name`/`name` for choices (against the WHO base
 workbook **and** the DigitVA layer questions from the committed
 `vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact),
 splits cells packing English and the target language, keeps rows an
-administrator has edited, and never creates a question. `import` never
-activates or deactivates a locale — `activate`/`deactivate` are the only way,
-independent of coverage (decided 2026-09-19; no `--force` flag exists any
-more, since there is no threshold left to bypass). `status --extensions` also
-prints each locale's per-extension coverage.
+administrator has edited, and never creates a question. A workbook path is
+still checked for containment: it must resolve under the workbook directory
+(`docs/kb/WHO_VA_2022_Docs/`), the repository, or the process's temp
+directory (where an admin upload writes its file); anything else is refused.
+`import` never activates or deactivates a locale — `activate`/`deactivate` are
+the only way, independent of coverage (decided 2026-09-19; no `--force` flag
+exists any more, since there is no threshold left to bypass).
+
+`lifecycle` moves a locale through its approval states: `draft` ->
+`in_review` -> `approved` (decided 2026-09-20 — see "Approval before
+activation" in `docs/policy/va-form-project-configuration.md`). `activate`
+refuses a locale that is not `approved`, naming its current state; leaving
+`approved` while a locale is still active is refused — deactivate first. The
+CLI has no logged-in session, so approving from here requires
+`--approved-by <user id or email>`, resolved to a `va_users.user_id` and
+recorded as `approved_by_user_id`/`approved_at`; it is not accepted (and not
+recorded) for `draft` or `in_review`. `status --extensions` also prints each
+locale's per-extension coverage, and `status`'s own table now carries a
+`lifecycle` column between `active` and `ver`.
 
 `export-xliff` writes the locale as an **XLIFF 2.0** document — the standard a
 translator's CAT tool reads — with one `<unit>` per reference item: `<source>`

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # Current Data Model
@@ -311,6 +311,17 @@ pre-built and immutable.
   `set_locale_active` call; coverage is reported but never gates it, decided
   2026-09-19), `source_document`, `source_sha256`, `imported_at`, `version`,
   `updated_at`
+- `lifecycle_state` (`draft` default / `in_review` / `approved`),
+  `approved_by_user_id` (FK `va_users`, nullable), `approved_at` (nullable) —
+  added 2026-09-20: a locale must be `approved` before it can be `is_active`,
+  enforced both in `set_locale_active`/`set_locale_lifecycle_state` and by
+  `ck_mas_instrument_locales_active_requires_approved`
+  (`is_active = false OR lifecycle_state = 'approved'`). Entering `approved`
+  sets `approved_by_user_id`/`approved_at`; leaving it clears both to `NULL`.
+  Migration `a3f7c1d9e6b4` backfills every existing row to `in_review` and
+  forces `is_active` to `false` — a deliberate mass-deactivation, not a
+  no-op (see the migration's docstring and "Instrument Translations Panel" in
+  `docs/current-state/admin-and-setup.md`).
 - `version` is bumped by every import and every edit; clients cache a locale by
   it and revalidate against `translation_versions` in the form-options payload
   or the serving endpoint's `ETag`

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from app import db
 from app.models.mas_instrument_locales import (
+    LIFECYCLE_APPROVED,
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
@@ -20,16 +21,23 @@ from tests.base import BaseTestCase
 INSTRUMENT = "WHO_2022_VA"
 
 
-def _locale(code, *, active, version=1, name="Hindi"):
+def _locale(code, *, active, version=1, name="Hindi", lifecycle_state=None):
+    # An active row must be 'approved' (ck_mas_instrument_locales_active_
+    # requires_approved, decided 2026-09-20): a fixture building an active
+    # locale directly stands in for a locale that has already cleared review.
+    if lifecycle_state is None:
+        lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
     row = db.session.get(MasInstrumentLocales, (INSTRUMENT, code))
     if row is None:
         row = MasInstrumentLocales(
             instrument_code=INSTRUMENT, locale_code=code, language_name=name,
             version=version, is_active=active, updated_at=datetime.now(UTC),
+            lifecycle_state=lifecycle_state,
         )
         db.session.add(row)
     row.is_active = active
     row.version = version
+    row.lifecycle_state = lifecycle_state
     db.session.flush()
     return row
 
@@ -186,10 +194,11 @@ class InstrumentTranslationAdminTests(BaseTestCase):
 
     # -- locales ------------------------------------------------------------
 
-    def test_the_locale_list_carries_coverage_version_source_and_documented(self):
+    def test_the_locale_list_carries_coverage_version_and_its_own_source(self):
         self._login(self.base_admin_id)
         payload = self.client.get(self.LOCALES_URL).get_json()
         self.assertNotIn("coverage_threshold", payload)
+        self.assertNotIn("documented_locales", payload)
         by_code = {row["locale_code"]: row for row in payload["locales"]}
 
         self.assertEqual(payload["locales"][0]["locale_code"], "en")
@@ -197,9 +206,10 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(by_code["hi"]["version"], 4)
         self.assertTrue(by_code["hi"]["is_active"])
         self.assertGreaterEqual(by_code["hi"]["reference_labels"], 400)
-        self.assertEqual(
-            by_code["hi"]["documented_source"], svc.documented_sources()["hi"].workbook
-        )
+        # A row reports its own recorded source, never a policy-doc lookup:
+        # the fixture set up "hi" without one, and none is invented here.
+        self.assertNotIn("documented_source", by_code["hi"])
+        self.assertIsNone(by_code["hi"]["source_document"])
         # Coverage is still reported, purely informational: one string out of
         # 400-odd labels is a low percentage, but nothing about the response
         # depends on where it sits relative to any threshold.
@@ -236,6 +246,82 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertTrue(response.get_json()["is_active"])
+
+    # -- lifecycle: only 'approved' may be activated (decided 2026-09-20) ---
+
+    def test_activating_a_draft_locale_is_refused_over_the_api(self):
+        _locale("zz", active=False, version=1, name="Zulu")  # defaults to draft
+        db.session.commit()
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/activate", "zz"), json={}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("draft", response.get_json()["error"])
+
+    def test_the_lifecycle_route_moves_a_locale_to_approved_and_then_activates(self):
+        _locale("zz", active=False, version=1, name="Zulu")
+        db.session.commit()
+        self._login(self.base_admin_id)
+        headers = self._csrf_headers()
+
+        review = self.client.post(
+            self._api("/lifecycle", "zz"), json={"state": "in_review"}, headers=headers,
+        )
+        self.assertEqual(review.status_code, 200, review.get_json())
+        self.assertEqual(review.get_json()["lifecycle_state"], "in_review")
+
+        approve = self.client.post(
+            self._api("/lifecycle", "zz"), json={"state": "approved"}, headers=headers,
+        )
+        self.assertEqual(approve.status_code, 200, approve.get_json())
+        self.assertEqual(approve.get_json()["lifecycle_state"], "approved")
+        self.assertIsNotNone(approve.get_json()["approved_at"])
+
+        activated = self.client.post(
+            self._api("/activate", "zz"), json={}, headers=headers,
+        )
+        self.assertEqual(activated.status_code, 200, activated.get_json())
+        self.assertTrue(activated.get_json()["is_active"])
+
+    def test_leaving_approved_while_active_is_refused_over_the_api(self):
+        # setUp's "hi" is active and approved (see the _locale helper).
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/lifecycle"), json={"state": "in_review"}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("deactivate", response.get_json()["error"].lower())
+
+    def test_lifecycle_route_requires_csrf_and_admin(self):
+        _locale("zz", active=False, version=1, name="Zulu")
+        db.session.commit()
+        anon = self.client.post(self._api("/lifecycle", "zz"), json={"state": "in_review"})
+        # CSRF is checked ahead of login, so an anonymous POST with no token
+        # can surface as 400 rather than a redirect/401 (see the XLIFF route's
+        # own anonymous-POST test above for the same shape).
+        self.assertIn(anon.status_code, (302, 400, 401))
+
+        self._login(self.base_admin_id)
+        no_csrf = self.client.post(self._api("/lifecycle", "zz"), json={"state": "in_review"})
+        self.assertEqual(no_csrf.status_code, 400)
+
+        self._login(str(self.plain_user.user_id))
+        as_plain = self.client.post(
+            self._api("/lifecycle", "zz"), json={"state": "in_review"},
+            headers=self._csrf_headers(),
+        )
+        self.assertIn(as_plain.status_code, (302, 403))
+
+    def test_lifecycle_route_refuses_an_unknown_state(self):
+        _locale("zz", active=False, version=1, name="Zulu")
+        db.session.commit()
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/lifecycle", "zz"), json={"state": "whatever"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
 
     # -- strings ------------------------------------------------------------
 
@@ -499,7 +585,14 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("xlsx", response.get_json()["error"])
 
-    def test_import_refuses_an_undocumented_workbook(self):
+    def test_an_import_for_a_different_language_still_succeeds(self):
+        """Any readable workbook is accepted for any locale (decided 2026-09-20).
+
+        KA01_DS_WHOVA2022.xlsx is Kannada's source, not Hindi's, but it is
+        uploaded here as an import *for* "hi": the old refusal is gone, so
+        whatever Hindi strings that workbook happens to carry (its layer over
+        the same reference structure) are written.
+        """
         self._login(self.base_admin_id)
         path = svc.WORKBOOK_DIR / "KA01_DS_WHOVA2022.xlsx"
         with path.open("rb") as handle:
@@ -509,20 +602,21 @@ class InstrumentTranslationAdminTests(BaseTestCase):
                 content_type="multipart/form-data",
                 headers=self._csrf_headers(),
             )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(svc.documented_sources()["hi"].workbook, response.get_json()["error"])
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["report"]["workbook"], "KA01_DS_WHOVA2022.xlsx")
 
-    def test_import_of_the_documented_workbook_writes_but_does_not_activate(self):
+    def test_import_of_a_workbook_writes_but_does_not_activate(self):
         """The whole path: upload, parse, write, then an explicit activate, serve."""
         self._login(self.base_admin_id)
         # setUp starts "hi" active; deactivate first so the import's own
         # effect on is_active (none) is what this test observes.
         self.client.post(self._api("/deactivate"), json={}, headers=self._csrf_headers())
-        path = svc.WORKBOOK_DIR / svc.documented_sources()["hi"].workbook
+        workbook_name = "ND01_ICMRVA_WHOVA2022.xlsx"
+        path = svc.WORKBOOK_DIR / workbook_name
         with path.open("rb") as handle:
             response = self.client.post(
                 self._api("/import"),
-                data={"file": (handle, svc.documented_sources()["hi"].workbook)},
+                data={"file": (handle, workbook_name)},
                 content_type="multipart/form-data",
                 headers=self._csrf_headers(),
             )

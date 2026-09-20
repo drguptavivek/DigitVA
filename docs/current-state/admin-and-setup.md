@@ -312,15 +312,65 @@ dashboard's history.
 Admin-only. Lists each instrument locale from `mas_instrument_locales`:
 language, locale code, base coverage (WHO survey labels, informational —
 decided 2026-09-19 it never gates activation) alongside per-extension
-(layer) coverage badges, version, the workbook it was imported from against
-the documented source (a `drift` badge when they differ), and the active
-flag. Actions: import a workbook (xlsx only, 5 MB cap; `cross-check` reports
-differences without writing), activate, deactivate, edit one string (search
-by question name or English text, English reference shown alongside; an edit
-marks the row `edited`, survives re-import and bumps the locale version),
-export JSON, and exchange the language as **XLIFF 2.0**. All state changes go
-through JSON routes under `/admin/api/instrument-translations/` with
-`X-CSRFToken`.
+(layer) coverage badges, version, the workbook it was actually imported from
+(`source_document`, recorded on the row), the active flag, and an
+**Approval** column (below). Importing a questionnaire source is a reviewed
+one-time activity, not something the panel gates (decided 2026-09-20): any
+readable workbook is accepted for any locale, so there is no separate
+"documented source" to compare against and no drift badge. Actions: import a
+workbook (xlsx only, 5 MB cap; an optional language name for a locale seeded
+here for the first time; `cross-check` is a dry run that reads and reports
+without writing), move a locale through its approval lifecycle, activate,
+deactivate, edit one string (search by question name or English text, English
+reference shown alongside; an edit marks the row `edited`, survives
+re-import and bumps the locale version), export JSON, and exchange the
+language as **XLIFF 2.0**. All state changes go through JSON routes under
+`/admin/api/instrument-translations/` with `X-CSRFToken`.
+
+**Approval before activation (decided 2026-09-20).** The Approval column
+shows a badge for the locale's `lifecycle_state` (Draft, In review,
+Approved) and, once approved, who approved it (rendered from
+`approved_by_user_id`, the same way a coder's name is rendered from a
+`user_id` elsewhere in this application: joined against `va_users.name`).
+Buttons move the locale between states: **Send for review**
+(`draft` -> `in_review`), **Approve** (`in_review` -> `approved`), and
+**Back to draft** (`in_review`/`approved` -> `draft`; `approved` also offers
+**Send for review** back to `in_review`) — each posts to
+`POST .../<instrument_code>/<locale>/lifecycle` with `{"state": ...}`.
+Entering `approved` records the acting admin and the timestamp; leaving it
+clears both. The **Activate** button is disabled, with a tooltip, unless the
+locale is `approved` — the service refuses the same request server-side
+(naming the locale and its current state) and the database CHECK constraint
+`ck_mas_instrument_locales_active_requires_approved` is the backstop under
+both. **Deactivate** is never disabled: a locale must be deactivated before
+it can leave `approved`, so the panel never blocks the one action that makes
+that possible.
+
+**Operator note after this upgrade.** The migration that adds this lifecycle
+(`a3f7c1d9e6b4`) deactivates every existing locale as a deliberate,
+one-time behaviour change — not a no-op backfill (see the migration's own
+docstring). After upgrading, **all locales are deactivated pending
+approval** until an administrator approves and reactivates each one;
+interviewers fall back to English per string in the meantime. Sizing for that
+re-approval pass, measured 2026-09-20 against the 80 DigitVA layer
+question-label items, after both a plain re-import of each language's own
+workbook and migration `b6d2f4a9c1e7` (which seeds the DigitVA-authored
+strings no workbook carries):
+
+| Locale | Short by | What remains |
+| --- | --- | --- |
+| Hindi | 3 | social autopsy section headings ND01 left in English |
+| Odia | 4 | social autopsy headings |
+| Marathi | 8 | death summary 7, one social autopsy heading |
+| Khasi | 8 | all of it — Khasi is deliberately absent from the seed |
+| Bangla, Kannada, Malayalam, Tamil | 34 each | the whole social autopsy layer; their DS workbooks lack it |
+| Arabic, French, Portuguese, Spanish, Swahili | 75 each | the WHO multilingual workbook carries no DigitVA layer |
+
+ABHA is seeded for the seven Indian locales only, since Ayushman Bharat
+Health Account is an Indian scheme and other locales' projects do not enable
+the `abha` extension. This is sizing information for the admin doing the
+re-approval work, not a programmatic gate — coverage still decides nothing
+(2026-09-19 decision stands).
 
 The reference a language is translated against is the WHO base workbook plus
 the DigitVA layer questions from the committed
@@ -351,7 +401,7 @@ outranks a later workbook re-import. The result panel reports units read,
 written, unchanged, kept edited, empty targets left alone, units the reference
 form does not have, and targets over the length cap. XLIFF exchanges the
 strings of a language that already exists; a *new* language still starts from
-its documented source workbook. Rules:
+a workbook import. Rules:
 `docs/policy/va-form-project-configuration.md` ("Interchange format").
 
 The interviewer's form fetches

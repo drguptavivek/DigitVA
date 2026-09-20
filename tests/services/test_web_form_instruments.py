@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app import db
-from app.models.mas_instrument_locales import MasInstrumentLocales
+from app.models.mas_instrument_locales import LIFECYCLE_APPROVED, MasInstrumentLocales
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
     FALLBACK_INSTRUMENT_CODE,
@@ -47,14 +47,19 @@ def _has_label_translations(text, code):
 
 
 def _locale(instrument_code, code, name, *, active):
+    # An active row must be 'approved' (ck_mas_instrument_locales_active_
+    # requires_approved, decided 2026-09-20).
+    lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
     row = db.session.get(MasInstrumentLocales, (instrument_code, code))
     if row is None:
         row = MasInstrumentLocales(
             instrument_code=instrument_code, locale_code=code, language_name=name,
             version=1, is_active=active, updated_at=datetime.now(UTC),
+            lifecycle_state=lifecycle_state,
         )
         db.session.add(row)
     row.is_active = active
+    row.lifecycle_state = lifecycle_state
     db.session.flush()
     return row
 

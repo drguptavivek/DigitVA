@@ -1,10 +1,96 @@
 # Handoff
 
-Updated 2026-09-20 (layer translation session). `digitva-thr` is closed:
-all four work packages landed, the social autopsy layer is authored, and
-layer questions can be translated. On top of the previous session's
-`e0164d9`; `origin/main` is at the commit that updated this file, working
-tree clean.
+Updated 2026-09-20 (translation management: de-gating, approval lifecycle,
+seeded layer strings). Three related changes, all on `e1b6c9a3d7f4`.
+
+**1. The importer no longer reads a policy document** (`digitva-dsj`, closed).
+`SOURCE_POLICY_DOC`, `DocumentedSource` and `documented_sources()` are gone.
+Any readable workbook may be imported for any locale; `_resolve_workbook`
+still contains the path to the repo root or the system temp dir. The
+"Translation sources" table in `docs/policy/va-form-project-configuration.md`
+stays as provenance for humans and no code reads it. `--cross-check` survives
+as a plain dry run. `language_name` now comes from the workbook's own
+`field::Name (code)` header, then `--language-name`, then the locale code.
+Decided by the owner: importing a questionnaire source is a reviewed one-time
+activity, and the runtime path for changing translations is the admin string
+editor, not a re-import.
+
+**2. Per-locale approval lifecycle** (`digitva-j23`). `mas_instrument_locales`
+gains `lifecycle_state` (`draft`/`in_review`/`approved`),
+`approved_by_user_id` and `approved_at`, plus CHECK constraint
+`ck_mas_instrument_locales_active_requires_approved`: only an `approved`
+locale may be `is_active`, and leaving `approved` while active is refused.
+Migration `a3f7c1d9e6b4` backfills every locale to `in_review` and
+`is_active=false` — **a deliberate mass-deactivation**, per the owner's
+decision that nothing unreviewed is served. Because `upgrade` clears
+`is_active`, it first captures the prior active set into
+`_mig_a3f7c1d9e6b4_prior_active` and `downgrade` restores from it; without
+that the thirteen active locales would have been unrecoverable. `_mig_` is
+excluded from drift detection in `app/schema_filters.py`, prefix-based so a
+table the app should own cannot hide behind the rule. New
+`set_locale_lifecycle_state`, CLI `instrument-translations lifecycle`
+(`--approved-by` required for `approved`, since the CLI has no session),
+route `POST .../<instrument_code>/<locale>/lifecycle`, panel badges with
+**Activate** disabled until approved. Coverage still decides nothing.
+
+**3. DigitVA-authored layer strings seeded** (migration `b6d2f4a9c1e7`).
+The layers add questions no workbook carries — consent mode and its choices,
+the medical-certificate upload, the shared "Medical and death documents"
+heading, the two image-count hints, narration language and its choices, and
+the two ABHA fields. 214 strings across twelve locales, as literals; the
+migration reads no workbook and imports no application code. Khasi is
+deliberately absent (no reliable source; a wrong label is worse than a gap
+that falls back to English) and ABHA is seeded for the seven Indian locales
+only. Rows land as `imported`, so a real translated workbook or an XLIFF
+hand-back outranks them and an administrator's edit is never overwritten.
+**These are machine translations awaiting a speaker's review** — which is what
+the lifecycle in (2) is for.
+
+Verified on a throwaway database (never `minerva_test`/dev): the full chain
+reaches a single head `b6d2f4a9c1e7`; two active locales were deactivated on
+upgrade, captured, and **restored on downgrade**, with the recovery table then
+dropped; the seed inserts 20/12/16 rows for hi/fr/sw and 0 on an empty
+database; `downgrade` deleted 46 of 48 seeded rows and preserved both rows a
+human had touched; two consecutive upgrades leave the `edited` row unchanged.
+Full suite: **1,641 passed**, `PYTEST_EXIT=0` read from pytest itself,
+including `tests/migrations/test_schema_drift.py`. One full run in between
+failed `tests/test_admin_api.py::test_odk_site_mappings`, which passed 45/45
+three times in isolation and in three other full runs — the known
+`digitva-ssi`, now with a second data point that weakens its load hypothesis
+(see its notes). Five pre-existing test fixtures across `tests/services/test_instrument_translation_xliff.py`,
+`tests/services/test_web_form_instruments.py` and
+`tests/routes/test_form_options_api.py` built an active
+`mas_instrument_locales` row directly and needed `lifecycle_state='approved'`
+added to stay valid against the new CHECK constraint; behaviour unchanged.
+
+**Do these next, in this order.** Two of them are consequences of this work
+that were deliberately left open rather than fixed in scope:
+
+* `digitva-dms` (P2) — the 214 seeded strings reach **only an
+  already-deployed database**. Verified: the migration inserts 0 rows on an
+  empty one, because locales are created later by an operator import, and
+  alembic will never run it again. A fresh install therefore never gets them
+  and has no documented path to. Needs the strings in a committed data file
+  plus an idempotent `flask instrument-translations seed-layers`.
+* `digitva-dqh` (P2) — the approval gate holds for a *new* locale and is
+  defeated for an *existing* one: an admin can re-import a workbook or push an
+  XLIFF hand-back into a live, approved locale, rewrite every string, and it
+  stays approved and served. Needs an owner decision (knock it back to
+  `in_review`, or write down that bulk rewrites of a live locale are trusted).
+* Operator step on this dev database after upgrading: re-import each language
+  (eight of thirteen land within 3-34 items of complete), then approve and
+  activate the ones a speaker has reviewed. Sizing table in
+  `docs/current-state/admin-and-setup.md`.
+
+Also filed today and out of scope: `digitva-ssi` (second occurrence, notes
+updated), and from earlier sessions `digitva-c48`, `digitva-cal`,
+`digitva-ybt`, `digitva-3jj`.
+
+Previously: `digitva-thr` is closed: all four work packages landed, the
+social autopsy layer is authored, and layer questions can be translated. On
+top of the previous session's `e0164d9`; `origin/main` is at the commit that
+updated this file, working tree clean before this session's uncommitted
+change above.
 
 ## What landed
 
@@ -245,10 +331,13 @@ proposes removing it so the invariant becomes testable.
 **The web-capture configuration plan is fully landed**
 (`docs/planning/web-capture-project-configuration-plan.md`, beads
 `digitva-6v1`, `xv9`, `shz`, `mze`, `9ff`, `0by` all closed). Operator
-step on any database, dev included: import and activate each documented
+step on any database, dev included: import, **approve** and activate each
 language with `flask instrument-translations import WHO_2022_VA <locale>
-docs/kb/WHO_VA_2022_Docs/<workbook>`; nothing serves Hindi until that is
-done. All thirteen documented languages reach 100 percent coverage on the
+docs/kb/WHO_VA_2022_Docs/<workbook>`, then
+`flask instrument-translations lifecycle WHO_2022_VA <locale> approved
+--approved-by <admin>`, then `activate`. Since 2026-09-20 activation alone is
+refused: only an approved locale may be served. Nothing serves Hindi until all
+three are done. All thirteen documented languages reach 100 percent coverage on the
 survey labels (eight from the deployed Indian forms, five from WHO's
 multilingual V2.0 form). Translators exchange a locale as XLIFF 2.0 through
 the panel or `flask instrument-translations export-xliff` / `import-xliff`;

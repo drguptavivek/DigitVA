@@ -17,23 +17,34 @@ serializes their English strings to the committed
 ``vendor/who-va-2022/src/generated/digitva-layers.reference.json`` artifact;
 this module reads it rather than duplicating the layer definitions in Python.
 
-Two rules this module exists to enforce:
+The rule this module still exists to enforce:
 
-* **One documented source workbook per language.** Which workbook is a
-  language's source is policy, recorded in the "Translation sources" table of
-  ``docs/policy/va-form-project-configuration.md``. This module parses that
-  table rather than keeping a second copy, so changing a source means editing
-  the doc. Any other workbook is refused unless the caller asks for a
-  cross-check, which reports differences and writes nothing.
 * **A layer item never overwrites a WHO base item.** The WHO base and the
   DigitVA layers are disjoint namespaces today; a collision is a bug in one of
   the two sources, so it raises rather than silently letting one shadow the
   other.
 
+Which workbook a language was seeded from is recorded in the "Translation
+sources" table of ``docs/policy/va-form-project-configuration.md`` for human
+provenance only (decided 2026-09-20): no code here reads that table. Importing
+a questionnaire source is a reviewed one-time activity; any readable workbook
+may be imported for any locale, and ``--cross-check`` is a plain dry run --
+read, report, write nothing. The runtime path for changing a served
+translation is the admin string editor (:func:`update_string`), not a
+re-import.
+
 Locale activation (whether a language is served to forms) is an explicit
 administrative action, independent of coverage (decided 2026-09-19: English
 fallback is per-string, so a coverage percentage is not a serving decision).
 Coverage is still computed and reported everywhere it was before.
+
+A locale must also be **approved** before it may be activated (decided
+2026-09-20): ``lifecycle_state`` moves ``draft`` -> ``in_review`` ->
+``approved``, and only an ``approved`` locale may be activated
+(:func:`set_locale_active`) -- enforced here and, belt-and-suspenders, by the
+database CHECK constraint on ``mas_instrument_locales``. A locale may not
+leave ``approved`` while still active; deactivate first. This is a human
+approval gate, not a coverage gate: coverage still decides nothing.
 """
 
 from __future__ import annotations
@@ -42,6 +53,7 @@ import hashlib
 import json
 import logging
 import re
+import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -59,11 +71,15 @@ from app.models.mas_instrument_locales import (
     FIELD_LABEL,
     ITEM_KIND_CHOICE,
     ITEM_KIND_QUESTION,
+    LIFECYCLE_APPROVED,
+    LIFECYCLE_DRAFT,
+    LIFECYCLE_IN_REVIEW,
     SOURCE_EDITED,
     SOURCE_IMPORTED,
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
+from app.models.va_users import VaUsers
 from app.services.xlsform_instrument_builder import (
     _default_language,
     _language_columns,
@@ -81,10 +97,8 @@ REFERENCE_WORKBOOK = (
     REPO_ROOT / "docs/kb/WHO_VA_2022_Docs/whova2022_xls_form_for_odk.xlsx"
 )
 
-#: The policy document whose "Translation sources" table is the source rule.
-SOURCE_POLICY_DOC = REPO_ROOT / "docs/policy/va-form-project-configuration.md"
-
-#: Where a documented source workbook is looked up by file name.
+#: Where a bare workbook file name is looked up. Also one of the two roots an
+#: import path must resolve under -- see :func:`_resolve_workbook`.
 WORKBOOK_DIR = REPO_ROOT / "docs/kb/WHO_VA_2022_Docs"
 
 #: Generated artifact carrying the DigitVA-only delta (layer questions,
@@ -101,6 +115,9 @@ BASE_LOCALE = "en"
 
 #: The standard instrument DigitVA bundles today.
 BASE_INSTRUMENT_CODE = "WHO_2022_VA"
+
+#: The three lifecycle states a locale may be in, in review order.
+LIFECYCLE_STATES = (LIFECYCLE_DRAFT, LIFECYCLE_IN_REVIEW, LIFECYCLE_APPROVED)
 
 #: Cap on one page of the admin string list, applied server-side.
 MAX_STRING_PAGE_SIZE = 200
@@ -123,19 +140,6 @@ _LOG_TEXT_LIMIT = 120
 
 class InstrumentTranslationError(RuntimeError):
     """The import or edit cannot be performed as asked."""
-
-
-@dataclass(frozen=True)
-class DocumentedSource:
-    """One row of the policy doc's "Translation sources" table."""
-
-    locale_code: str
-    language_name: str
-    workbook: str
-    project: str
-    odk_form_id: str
-    download_date: str
-    assigned_by: str
 
 
 @dataclass
@@ -198,79 +202,6 @@ class ImportReport:
                 for name, counts in sorted(self.extension_coverage.items())
             },
         }
-
-
-# ---------------------------------------------------------------------------
-# The documented-source rule
-# ---------------------------------------------------------------------------
-
-
-def _cell(value: str) -> str:
-    """One markdown table cell as plain text: backticks and emphasis removed."""
-    return value.strip().strip("`").strip("*").strip()
-
-
-def documented_sources(doc_path: Path | None = None) -> dict[str, DocumentedSource]:
-    """``{locale_code: DocumentedSource}`` from the policy doc's table.
-
-    The doc is the source of this rule, so it is parsed rather than mirrored in
-    code: a second copy here would let the two disagree, and the doc is what a
-    reviewer reads. A malformed or missing table raises -- refusing to import
-    beats importing against a rule nobody can see.
-    """
-    path = Path(doc_path) if doc_path else SOURCE_POLICY_DOC
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        raise InstrumentTranslationError(
-            f"The translation-sources policy {path} could not be read: {exc}"
-        ) from exc
-
-    heading = re.compile(r"^#{2,4}\s+Translation sources\s*$", re.IGNORECASE)
-    start = next((i for i, line in enumerate(lines) if heading.match(line)), None)
-    if start is None:
-        raise InstrumentTranslationError(
-            f"{path} has no 'Translation sources' section; a language's source "
-            "workbook is policy and must be documented before it is imported."
-        )
-
-    header: list[str] | None = None
-    sources: dict[str, DocumentedSource] = {}
-    for line in lines[start + 1 :]:
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            break
-        if not stripped.startswith("|"):
-            # The sources table is the first table in the section; once it
-            # has ended, a later table (an inventory, a layer list) must not
-            # be read as more sources.
-            if header is not None and sources:
-                break
-            continue
-        cells = [_cell(c) for c in stripped.strip("|").split("|")]
-        if header is None:
-            header = [c.lower() for c in cells]
-            continue
-        if all(set(c) <= {"-", ":"} for c in cells if c):
-            continue
-        row = dict(zip(header, cells))
-        locale = row.get("locale", "").lower()
-        if not locale:
-            continue
-        sources[locale] = DocumentedSource(
-            locale_code=locale,
-            language_name=row.get("language", ""),
-            workbook=row.get("source workbook", ""),
-            project=row.get("project", ""),
-            odk_form_id=row.get("odk form id", ""),
-            download_date=row.get("download date", ""),
-            assigned_by=row.get("assigned by", ""),
-        )
-    if not sources:
-        raise InstrumentTranslationError(
-            f"{path}'s 'Translation sources' table has no rows."
-        )
-    return sources
 
 
 # ---------------------------------------------------------------------------
@@ -612,13 +543,32 @@ def _sha256(path: Path) -> str:
 
 
 def _resolve_workbook(workbook: Path | str) -> Path:
-    """A bare file name resolves inside the reference workbook folder."""
+    """Resolve a workbook path, refusing to read outside an allowed directory.
+
+    A bare file name (no directory component) resolves inside
+    :data:`WORKBOOK_DIR`, where every workbook this repository ships lives.
+    Anything else -- a relative path with directories, or an absolute one --
+    is resolved and accepted only when it lands under the repository (a
+    committed workbook referenced by its repo-relative path) or under the
+    process's temp directory (an admin upload or a test fixture writes its
+    own file there). This is the containment that replaces the old
+    documented-workbook-name check: removing that check must not widen what
+    an import can read.
+    """
     path = Path(workbook)
-    if not path.is_absolute() and not path.exists():
+    if not path.is_absolute() and path.parent == Path("."):
         candidate = WORKBOOK_DIR / path.name
         if candidate.exists():
             return candidate
-    return path
+
+    resolved = path.resolve() if path.is_absolute() else (Path.cwd() / path).resolve()
+    allowed_roots = (REPO_ROOT.resolve(), Path(tempfile.gettempdir()).resolve())
+    if not any(resolved.is_relative_to(root) for root in allowed_roots):
+        raise InstrumentTranslationError(
+            f"{path} resolves outside the workbook directory and the "
+            "repository; refusing to read it."
+        )
+    return resolved
 
 
 def import_translations(
@@ -628,15 +578,19 @@ def import_translations(
     *,
     cross_check: bool = False,
     actor_id=None,
-    doc_path: Path | None = None,
+    language_name: str | None = None,
 ) -> ImportReport:
     """Import one language from one workbook, or cross-check it.
 
-    ``cross_check`` reads and reports without writing a single row, and is the
-    only way to look at a workbook that is not the documented source for this
-    locale. This never activates or deactivates the locale: activation is a
-    separate, explicit administrative action (:func:`set_locale_active`),
-    independent of coverage.
+    ``cross_check`` reads and reports without writing a single row -- a plain
+    dry run of exactly the import that would otherwise happen. This never
+    activates or deactivates the locale: activation is a separate, explicit
+    administrative action (:func:`set_locale_active`), independent of
+    coverage.
+
+    ``language_name`` names a locale being seeded for the first time, when the
+    workbook's own ``field::Name (code)`` header does not carry one (see
+    :func:`_locale_names`); it is ignored once the locale row already exists.
     """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
@@ -649,21 +603,6 @@ def import_translations(
     path = _resolve_workbook(workbook)
     if not path.exists():
         raise InstrumentTranslationError(f"Workbook not found: {path}")
-
-    sources = documented_sources(doc_path)
-    documented = sources.get(locale_code)
-    if documented is None:
-        raise InstrumentTranslationError(
-            f"{locale_code!r} has no row in the 'Translation sources' table of "
-            f"{SOURCE_POLICY_DOC.relative_to(REPO_ROOT)}. Adding a language is a "
-            "policy change: document its source workbook first."
-        )
-    if not cross_check and path.name != documented.workbook:
-        raise InstrumentTranslationError(
-            f"{path.name} is not the documented source for {locale_code!r} "
-            f"({documented.workbook}). Edit the policy doc to change the source, "
-            "or re-run with --cross-check to report differences without writing."
-        )
 
     reference = reference_items(instrument_code)
     label_keys = reference_label_keys(instrument_code)
@@ -716,7 +655,7 @@ def import_translations(
     locale_row = _get_or_create_locale(
         instrument_code,
         locale_code,
-        names.get(locale_code) or documented.language_name or locale_code,
+        names.get(locale_code) or language_name or locale_code,
     )
     existing = {
         (row.item_kind, row.item_key, row.field): row
@@ -905,8 +844,25 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
             "source_sha256": None,
             "imported_at": None,
             "is_base": True,
+            "lifecycle_state": LIFECYCLE_APPROVED,
+            "approved_by": None,
+            "approved_at": None,
         }
     ]
+    # One extra query total, not one per row: a locale count in the dozens
+    # must not turn into a name lookup per row.
+    approver_ids = {row.approved_by_user_id for row in rows if row.approved_by_user_id}
+    approver_names = (
+        dict(
+            db.session.execute(
+                sa.select(VaUsers.user_id, VaUsers.name).where(
+                    VaUsers.user_id.in_(approver_ids)
+                )
+            ).all()
+        )
+        if approver_ids
+        else {}
+    )
     for row in rows:
         if row.locale_code == BASE_LOCALE:
             continue
@@ -939,6 +895,9 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
                 "source_sha256": row.source_sha256,
                 "imported_at": row.imported_at.isoformat() if row.imported_at else None,
                 "is_base": False,
+                "lifecycle_state": row.lifecycle_state,
+                "approved_by": approver_names.get(row.approved_by_user_id),
+                "approved_at": row.approved_at.isoformat() if row.approved_at else None,
             }
         )
     return out
@@ -1110,6 +1069,11 @@ def set_locale_active(
     2026-09-19): English fallback is per-string, so a coverage percentage is
     never a serving decision. Coverage is reported here for context, not
     consulted.
+
+    Activating requires the locale to be ``approved`` (decided 2026-09-20): a
+    human must have reviewed it first. The database CHECK constraint enforces
+    the same rule belt-and-suspenders; this check exists so the caller gets a
+    named, actionable error instead of a bare integrity error.
     """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
@@ -1121,6 +1085,11 @@ def set_locale_active(
     if row is None:
         raise InstrumentTranslationError(
             f"No {locale_code!r} translation exists for {instrument_code}."
+        )
+    if active and row.lifecycle_state != LIFECYCLE_APPROVED:
+        raise InstrumentTranslationError(
+            f"{locale_code!r} is {row.lifecycle_state!r}, not approved; a "
+            "locale must be approved before it can be activated."
         )
     label_keys = reference_label_keys(instrument_code)
     reference_labels = len(label_keys)
@@ -1142,6 +1111,66 @@ def set_locale_active(
         "is_active": row.is_active,
         "coverage": round(coverage, 4),
         "version": row.version,
+    }
+
+
+def set_locale_lifecycle_state(
+    instrument_code: str, locale_code: str, state: str, *, actor_id=None,
+) -> dict:
+    """Move a locale between ``draft``, ``in_review`` and ``approved``.
+
+    Entering ``approved`` records who approved it and when
+    (``approved_by_user_id``, ``approved_at``); leaving ``approved`` (to
+    ``draft`` or ``in_review``) clears both back to ``NULL`` -- an old
+    approval record must not survive a locale being sent back for more work.
+    A locale may not leave ``approved`` while it is still ``is_active``: that
+    would make the CHECK constraint on ``mas_instrument_locales``
+    unsatisfiable, so it is refused here first, with a message telling the
+    administrator to deactivate first. Coverage plays no part in this: the
+    2026-09-19 decision that coverage never gates a serving decision stands.
+    """
+    instrument_code = (instrument_code or "").strip().upper()
+    locale_code = (locale_code or "").strip()
+    state = (state or "").strip()
+    if state not in LIFECYCLE_STATES:
+        raise InstrumentTranslationError(
+            f"{state!r} is not a lifecycle state; use one of {LIFECYCLE_STATES}."
+        )
+    if locale_code == BASE_LOCALE:
+        raise InstrumentTranslationError(
+            f"{BASE_LOCALE!r} is the base locale and has no lifecycle state."
+        )
+    row = get_locale(instrument_code, locale_code)
+    if row is None:
+        raise InstrumentTranslationError(
+            f"No {locale_code!r} translation exists for {instrument_code}."
+        )
+    if row.lifecycle_state == LIFECYCLE_APPROVED and state != LIFECYCLE_APPROVED and row.is_active:
+        raise InstrumentTranslationError(
+            f"{locale_code!r} is active; deactivate it before moving it out "
+            "of 'approved'."
+        )
+
+    now = datetime.now(UTC)
+    previous_state = row.lifecycle_state
+    if state == LIFECYCLE_APPROVED:
+        row.approved_by_user_id = actor_id
+        row.approved_at = now
+    elif previous_state == LIFECYCLE_APPROVED:
+        row.approved_by_user_id = None
+        row.approved_at = None
+    row.lifecycle_state = state
+    row.updated_at = now
+    db.session.flush()
+    log.info(
+        "instrument locale lifecycle | %s/%s | %s -> %s | by=%s",
+        instrument_code, locale_code, previous_state, state, actor_id,
+    )
+    return {
+        "locale_code": locale_code,
+        "lifecycle_state": row.lifecycle_state,
+        "approved_by_user_id": str(row.approved_by_user_id) if row.approved_by_user_id else None,
+        "approved_at": row.approved_at.isoformat() if row.approved_at else None,
     }
 
 
@@ -1352,8 +1381,8 @@ def _xliff_locale(instrument_code: str, locale_code: str) -> tuple[str, str, Mas
     if row is None:
         raise InstrumentTranslationError(
             f"No {locale_code!r} translation exists for {instrument_code}. A "
-            "language is seeded by importing its documented source workbook; "
-            "XLIFF exchanges the strings of a language that already exists."
+            "language is seeded by importing its source workbook; XLIFF "
+            "exchanges the strings of a language that already exists."
         )
     return instrument_code, locale_code, row
 

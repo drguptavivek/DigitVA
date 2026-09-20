@@ -16,12 +16,24 @@ EXTERNAL_TABLE_PREFIXES = ("celery_",)
 # shape follows the extension's version rather than anything this repo controls.
 EXTERNAL_TABLE_NAMES = frozenset({"va_sessions"})
 
+# Owned by a migration, not by a model: a migration that overwrites existing data
+# captures what it overwrote here so its own ``downgrade`` can put it back, which
+# means the table has to outlive the upgrade. It is deliberately not a model --
+# nothing in the application reads it -- so autogenerate would otherwise report
+# it as a table to drop.
+#
+# Prefix-based for the same reason as EXTERNAL_TABLE_PREFIXES above: a name this
+# app is supposed to own cannot hide behind the rule by accident, because owning
+# it would mean not calling it ``_mig_``.
+MIGRATION_TABLE_PREFIXES = ("_mig_",)
+
 
 def _is_external_table_name(table_name: str | None) -> bool:
     if not table_name:
         return False
     return (
         table_name.startswith(EXTERNAL_TABLE_PREFIXES)
+        or table_name.startswith(MIGRATION_TABLE_PREFIXES)
         or table_name in EXTERNAL_TABLE_NAMES
     )
 

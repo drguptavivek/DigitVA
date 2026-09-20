@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # VA Web Form Options Contract
@@ -212,26 +212,36 @@ across switches, and the draft records the new `locale` and
 **Changed 2026-09-19 (WP6).** A display language is no longer vendored into the
 instrument bundle and is no longer a code in a Python registry. It is data:
 
-1. **Document the source.** Add the language to the "Translation sources"
-   table in
-   [VA Form Project Configuration Policy](va-form-project-configuration.md) —
-   language, locale code, the one source workbook, project, ODK form id,
-   download date and who assigned it. The importer parses that table and
-   refuses any other workbook for that locale, so this step is not optional and
-   comes first.
-2. **Import it.** `flask instrument-translations import <instrument_code>
+1. **Import it.** `flask instrument-translations import <instrument_code>
    <locale> <workbook>`, or upload the workbook in the Instrument Translations
-   admin panel. The importer merges by question `name` and by
-   `list_name`/`name` for choices, splits cells that pack English and the
-   target language on one line, and reports every reference item the workbook
-   lacks and every workbook item the reference lacks. It can never create a
-   question.
-3. **Activate it.** `flask instrument-translations activate <instrument_code>
-   <locale>`, or the **Activate** button in the admin panel. Activation is an
+   admin panel. Importing a questionnaire source is a reviewed one-time
+   activity, not a policy gate the importer enforces (decided 2026-09-20): any
+   readable workbook is accepted for any locale. The importer merges by
+   question `name` and by `list_name`/`name` for choices, splits cells that
+   pack English and the target language on one line, and reports every
+   reference item the workbook lacks and every workbook item the reference
+   lacks. It can never create a question.
+2. **Record the source.** Add the language to the "Translation sources" table
+   in
+   [VA Form Project Configuration Policy](va-form-project-configuration.md) —
+   language, locale code, the one workbook it was reviewed against, project,
+   ODK form id, download date and who assigned it. This is provenance for a
+   human reader, not something the importer reads back.
+3. **Approve it, then activate it.** Activation is refused until a human has
+   approved the locale (decided 2026-09-20: see "Approval before activation"
+   in
+   [VA Form Project Configuration Policy](va-form-project-configuration.md)).
+   Move it through its lifecycle — `flask instrument-translations lifecycle
+   <instrument_code> <locale> in_review`, then `... approved --approved-by
+   <user id or email>` — or use the **Send for review** / **Approve** buttons
+   in the admin panel, then `flask instrument-translations activate
+   <instrument_code> <locale>` or the **Activate** button (disabled in the
+   panel until the locale is approved). Activation itself is still an
    explicit administrative decision, independent of coverage (changed
    2026-09-19: see "Activation is explicit, not gated on coverage" in
    [VA Form Project Configuration Policy](va-form-project-configuration.md));
-   coverage is still shown, for context, on every locale's row.
+   coverage is still shown, for context, on every locale's row, and neither
+   step is gated on it.
 4. **The project opts in.** An active locale is only offered by a project that
    lists it in `web_intake_available_locales` (or stores NULL, which means all
    of them).

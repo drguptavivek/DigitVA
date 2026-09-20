@@ -1,13 +1,15 @@
-"""Importing a language from a documented source workbook.
+"""Importing a language from a workbook.
 
 WP6 of docs/planning/web-capture-project-configuration-plan.md, extended by
 digitva-thr.4 (WP2) for the DigitVA layer questions. The rules this holds the
-importer to, all of them from
-docs/policy/va-form-project-configuration.md ("Translation sources" and
-"The reference also carries the DigitVA layers"):
+importer to:
 
 * a workbook supplies text, never structure;
-* one documented source workbook per language, and the doc is the rule;
+* any readable workbook under an allowed directory may be imported for any
+  locale (decided 2026-09-20: which workbook a language was seeded from is
+  provenance for humans, recorded in the "Translation sources" table of
+  docs/policy/va-form-project-configuration.md, and no code reads that table);
+* path containment still refuses a workbook outside the allowed directories;
 * an administrator's edit outranks a re-import;
 * the reference is the WHO base workbook plus the DigitVA layer entries, and a
   layer item may never silently overwrite a WHO base one;
@@ -21,9 +23,11 @@ silently dropping a language.
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import pandas as pd
+import sqlalchemy as sa
 
 from app import db
 from app.models.mas_instrument_locales import (
@@ -34,23 +38,6 @@ from app.services import instrument_translation_service as svc
 from tests.base import BaseTestCase
 
 INSTRUMENT = "TEST_VA"
-
-#: A "Translation sources" policy doc the importer parses, so these tests do
-#: not depend on the real table's contents.
-POLICY_DOC = """---
-title: test
----
-
-# Test
-
-## Translation sources
-
-| Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |
-| --- | --- | --- | --- | --- | --- | --- |
-| Hindi | hi | source_hi.xlsx | TESTPROJ | TEST_FORM | 2026-09-19 | tester |
-
-## After
-"""
 
 
 def _write_workbook(path, survey_rows, choice_rows):
@@ -95,9 +82,6 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
 
-        self.doc = self.tmp / "policy.md"
-        self.doc.write_text(POLICY_DOC, encoding="utf-8")
-
         self.reference = _write_workbook(
             self.tmp / "reference.xlsx",
             [
@@ -133,7 +117,6 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.addCleanup(setattr, module, name, old)
 
     def _import(self, path, **kwargs):
-        kwargs.setdefault("doc_path", self.doc)
         return svc.import_translations(INSTRUMENT, "hi", path, **kwargs)
 
     def _rows(self):
@@ -463,6 +446,43 @@ class InstrumentTranslationImportTests(BaseTestCase):
         second = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
         self.assertGreater(second, first)
 
+    # -- lifecycle_state is untouched by import or edit (decided 2026-09-20) -
+
+    def test_a_reimport_of_an_approved_locale_leaves_it_approved(self):
+        """A re-import must never move a locale off 'approved' behind an
+        administrator's back -- present first: it really is approved."""
+        self._import(self._full_workbook())
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        row.lifecycle_state = svc.LIFECYCLE_APPROVED
+        db.session.flush()
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
+
+        self._import(self._full_workbook(q1="नया पहला प्रश्न"))
+        db.session.flush()
+        self.assertEqual(
+            db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).lifecycle_state,
+            svc.LIFECYCLE_APPROVED,
+        )
+
+    def test_editing_a_string_leaves_lifecycle_state_untouched(self):
+        self._import(self._full_workbook())
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        row.lifecycle_state = svc.LIFECYCLE_IN_REVIEW
+        db.session.flush()
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_IN_REVIEW)
+
+        svc.update_string(
+            INSTRUMENT, "hi", item_kind="question", item_key="Q1",
+            field="label", text="बदला हुआ",
+        )
+        db.session.flush()
+        self.assertEqual(
+            db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).lifecycle_state,
+            svc.LIFECYCLE_IN_REVIEW,
+        )
+
     # -- activation is explicit, never gated on coverage ---------------------
     #
     # Decided 2026-09-19: English fallback is per-string, so a coverage
@@ -515,6 +535,10 @@ class InstrumentTranslationImportTests(BaseTestCase):
         status = {row["locale_code"]: row for row in svc.locale_status(INSTRUMENT)}
         self.assertLess(status["hi"]["coverage"], 1.0)
 
+        # Approval (decided 2026-09-20) is a human gate, not a coverage one --
+        # this partial locale is approved at the same low coverage to prove
+        # that point, then activated.
+        svc.set_locale_lifecycle_state(INSTRUMENT, "hi", svc.LIFECYCLE_APPROVED)
         result = svc.set_locale_active(INSTRUMENT, "hi", True)
         self.assertTrue(result["is_active"])
         self.assertLess(result["coverage"], 1.0)
@@ -527,21 +551,26 @@ class InstrumentTranslationImportTests(BaseTestCase):
         with self.assertRaises(TypeError):
             svc.set_locale_active(INSTRUMENT, "hi", True, force=True)
 
-    # -- the documented-source rule -----------------------------------------
+    # -- any readable workbook is accepted (decided 2026-09-20) -------------
+    #
+    # Importing a questionnaire source is a reviewed one-time activity, not a
+    # policy gate the importer enforces: any workbook under an allowed
+    # directory may be imported for any locale, named however its author
+    # named it. Path containment (below) is what still refuses a read.
 
-    def test_an_undocumented_workbook_is_refused(self):
+    def test_a_workbook_with_any_name_is_accepted(self):
         other = _write_workbook(
             self.tmp / "not_the_source.xlsx",
             [{"type": "text", "name": "Q1", "label::English (en)": "First question",
               "label::Hindi (hi)": "पहला प्रश्न"}],
             [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
-            self._import(other)
-        self.assertIn("source_hi.xlsx", str(ctx.exception))
-        self.assertEqual(self._rows(), {})
+        report = self._import(other)
+        db.session.flush()
+        self.assertEqual(report.written, 1)
+        self.assertEqual(self._rows()[("question", "Q1", "label")].text, "पहला प्रश्न")
 
-    def test_cross_check_reads_an_undocumented_workbook_and_writes_nothing(self):
+    def test_cross_check_reads_a_workbook_and_writes_nothing(self):
         other = _write_workbook(
             self.tmp / "not_the_source.xlsx",
             [{"type": "text", "name": "Q1", "label::English (en)": "First question",
@@ -555,18 +584,45 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertEqual(self._rows(), {})
         self.assertIsNone(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")))
 
-    def test_an_undocumented_locale_is_refused(self):
+    def test_a_new_locale_takes_its_name_from_the_workbook_or_the_argument(self):
+        workbook = _write_workbook(
+            self.tmp / "source_zz.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Zulu (zz)": "Okuqala"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        svc.import_translations(INSTRUMENT, "zz", workbook)
+        db.session.flush()
+        self.assertEqual(
+            db.session.get(MasInstrumentLocales, (INSTRUMENT, "zz")).language_name,
+            "Zulu",
+        )
+
+    def test_a_new_locale_with_no_language_column_name_falls_back_to_the_argument(self):
+        # "label::(zz)" carries data for locale "zz" but, with nothing between
+        # "::" and the parenthesis, no display name -- see _locale_names.
+        workbook = _write_workbook(
+            self.tmp / "source_zz.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::(zz)": "Okuqala"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        svc.import_translations(INSTRUMENT, "zz", workbook, language_name="Zulu")
+        db.session.flush()
+        self.assertEqual(
+            db.session.get(MasInstrumentLocales, (INSTRUMENT, "zz")).language_name,
+            "Zulu",
+        )
+
+    def test_a_path_outside_the_workbook_directory_and_the_repo_is_refused(self):
         with self.assertRaises(svc.InstrumentTranslationError) as ctx:
-            svc.import_translations(
-                INSTRUMENT, "zz", self._full_workbook(), doc_path=self.doc
-            )
-        self.assertIn("Translation sources", str(ctx.exception))
+            self._import("/no-such-root-on-this-machine/x.xlsx")
+        self.assertIn("outside", str(ctx.exception))
+        self.assertEqual(self._rows(), {})
 
     def test_the_base_locale_is_never_imported(self):
         with self.assertRaises(svc.InstrumentTranslationError):
-            svc.import_translations(
-                INSTRUMENT, "en", self._full_workbook(), doc_path=self.doc
-            )
+            svc.import_translations(INSTRUMENT, "en", self._full_workbook())
 
     # -- editing ------------------------------------------------------------
 
@@ -613,7 +669,9 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertIn("en", versions)
         self.assertNotIn("hi", versions)
 
-        # ...only the explicit activation adds it.
+        # ...only the explicit activation adds it (after the equally explicit
+        # approval a 2026-09-20 locale now needs first).
+        svc.set_locale_lifecycle_state(INSTRUMENT, "hi", svc.LIFECYCLE_APPROVED)
         svc.set_locale_active(INSTRUMENT, "hi", True)
         db.session.flush()
         versions = svc.active_locale_versions(INSTRUMENT)
@@ -736,8 +794,6 @@ class LayerReferenceMergeTests(BaseTestCase):
         self.assertEqual(notes[("choice", "CONSENT_MODE/in_person")], "digitva_core")
 
     def test_a_layer_item_is_translated_like_any_other(self):
-        doc = self.tmp / "policy.md"
-        doc.write_text(POLICY_DOC, encoding="utf-8")
         workbook = _write_workbook(
             self.tmp / "source_hi.xlsx",
             [
@@ -749,7 +805,7 @@ class LayerReferenceMergeTests(BaseTestCase):
             ],
             [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        report = svc.import_translations(self.INSTRUMENT, "hi", workbook, doc_path=doc)
+        report = svc.import_translations(self.INSTRUMENT, "hi", workbook)
         db.session.flush()
         rows = {
             (r.item_kind, r.item_key, r.field): r
@@ -771,48 +827,139 @@ class LayerReferenceMergeTests(BaseTestCase):
         )
 
 
-class DocumentedSourceTableTests(unittest.TestCase):
-    """The shipped policy table is the rule the importer reads."""
+class LocaleApprovalLifecycleTests(BaseTestCase):
+    """The 2026-09-20 approval gate (docs/policy/va-form-project-configuration.md,
+    "Approval before activation"): only an ``approved`` locale may be
+    activated, a locale may not leave ``approved`` while still active, and
+    both rules hold twice over -- once in the service (a named, actionable
+    error) and once as the database CHECK constraint
+    ``ck_mas_instrument_locales_active_requires_approved`` (the backstop).
+    """
 
-    def test_a_later_table_in_the_section_is_not_read_as_sources(self):
-        import tempfile
-        from pathlib import Path
+    INSTRUMENT = "LIFECYCLE_VA"
 
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "policy.md"
-            path.write_text(
-                "## Translation sources\n\n"
-                "| Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |\n"
-                "| --- | --- | --- | --- | --- | --- | --- |\n"
-                "| Hindi | hi | ND01.xlsx | ND01 | ND01 | 2026-09-19 | owner |\n\n"
-                "Prose between tables.\n\n"
-                "| Layer | Structure |\n| --- | --- |\n| intake_screen | begin_screen |\n",
-                encoding="utf-8",
-            )
-            sources = svc.documented_sources(path)
-        self.assertIn("hi", sources)
-        self.assertEqual(set(sources), {"hi"})
-
-    def test_the_policy_doc_documents_every_committed_language(self):
-        sources = svc.documented_sources()
-        self.assertEqual(
-            set(sources),
-            {"hi", "ta", "kn", "mr", "ml", "kha", "or", "bn",
-             "fr", "pt", "ar", "sw", "es"},
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.reference = _write_workbook(
+            self.tmp / "reference.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        for locale, source in sources.items():
-            with self.subTest(locale=locale):
-                self.assertTrue((svc.WORKBOOK_DIR / source.workbook).exists())
-                self.assertTrue(source.project)
-                self.assertTrue(source.odk_form_id)
-                self.assertTrue(source.download_date)
-                self.assertTrue(source.assigned_by)
+        self.layers = _write_layer_reference(self.tmp / "layers.json")
+        self._clear_reference_caches()
+        self.addCleanup(self._clear_reference_caches)
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
+        self._patch(svc, "BASE_INSTRUMENT_CODE", self.INSTRUMENT)
 
-    def test_each_language_has_exactly_one_source(self):
-        """One source per language: the dict key enforces it, the count proves it."""
-        sources = svc.documented_sources()
-        workbooks = [s.workbook for s in sources.values()]
-        self.assertEqual(len(sources), len(workbooks))
+    def _clear_reference_caches(self):
+        svc._reference_items_cached.cache_clear()
+        svc._reference_extensions_cached.cache_clear()
+        svc._layer_entries_cached.cache_clear()
+
+    def _patch(self, module, name, value):
+        old = getattr(module, name)
+        setattr(module, name, value)
+        self.addCleanup(setattr, module, name, old)
+
+    def _make_locale(self, code="hi", *, lifecycle_state=svc.LIFECYCLE_DRAFT, active=False):
+        row = MasInstrumentLocales(
+            instrument_code=self.INSTRUMENT, locale_code=code,
+            language_name="Hindi", is_active=active, lifecycle_state=lifecycle_state,
+        )
+        db.session.add(row)
+        db.session.flush()
+        return row
+
+    # -- only 'approved' may be activated ------------------------------------
+
+    def test_activating_a_draft_locale_is_refused_naming_locale_and_state(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_DRAFT)
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            svc.set_locale_active(self.INSTRUMENT, "hi", True)
+        self.assertIn("hi", str(ctx.exception))
+        self.assertIn("draft", str(ctx.exception))
+        self.assertFalse(
+            db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi")).is_active
+        )
+
+    def test_activating_an_in_review_locale_is_refused(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_IN_REVIEW)
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            svc.set_locale_active(self.INSTRUMENT, "hi", True)
+        self.assertIn("in_review", str(ctx.exception))
+
+    def test_an_approved_locale_may_be_activated(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_APPROVED)
+        result = svc.set_locale_active(self.INSTRUMENT, "hi", True)
+        self.assertTrue(result["is_active"])
+
+    def test_the_database_check_constraint_refuses_a_non_approved_active_row_too(self):
+        """Belt-and-suspenders: a write that bypasses the service entirely
+        (as if some other code path wrote the row directly) is still refused,
+        not just the service's own call."""
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_DRAFT)
+        row = db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi"))
+        row.is_active = True
+        with self.assertRaises(sa.exc.IntegrityError):
+            db.session.flush()
+        db.session.rollback()
+
+    # -- a locale may not leave 'approved' while active ----------------------
+
+    def test_leaving_approved_while_active_is_refused(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_APPROVED, active=True)
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            svc.set_locale_lifecycle_state(self.INSTRUMENT, "hi", svc.LIFECYCLE_IN_REVIEW)
+        self.assertIn("deactivate", str(ctx.exception).lower())
+        # Refused before anything changed.
+        row = db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
+        self.assertTrue(row.is_active)
+
+    def test_deactivating_first_then_leaving_approved_succeeds(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_APPROVED, active=True)
+        svc.set_locale_active(self.INSTRUMENT, "hi", False)
+        result = svc.set_locale_lifecycle_state(self.INSTRUMENT, "hi", svc.LIFECYCLE_DRAFT)
+        self.assertEqual(result["lifecycle_state"], svc.LIFECYCLE_DRAFT)
+
+    # -- entering/leaving 'approved' records or clears who and when ---------
+
+    def test_entering_approved_records_the_approver_and_the_time(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_IN_REVIEW)
+        result = svc.set_locale_lifecycle_state(
+            self.INSTRUMENT, "hi", svc.LIFECYCLE_APPROVED,
+            actor_id=self.base_admin_user.user_id,
+        )
+        self.assertEqual(result["lifecycle_state"], svc.LIFECYCLE_APPROVED)
+        row = db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi"))
+        self.assertEqual(row.approved_by_user_id, self.base_admin_user.user_id)
+        self.assertIsNotNone(row.approved_at)
+        self.assertIsNotNone(row.approved_at.tzinfo)
+
+    def test_leaving_approved_clears_the_approver_and_the_time(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_IN_REVIEW)
+        svc.set_locale_lifecycle_state(
+            self.INSTRUMENT, "hi", svc.LIFECYCLE_APPROVED,
+            actor_id=self.base_admin_user.user_id,
+        )
+        row = db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi"))
+        # Present first: it really was recorded before this test clears it.
+        self.assertIsNotNone(row.approved_by_user_id)
+        self.assertIsNotNone(row.approved_at)
+
+        svc.set_locale_lifecycle_state(self.INSTRUMENT, "hi", svc.LIFECYCLE_IN_REVIEW)
+        db.session.refresh(row)
+        self.assertIsNone(row.approved_by_user_id)
+        self.assertIsNone(row.approved_at)
+
+    def test_an_unknown_lifecycle_state_is_refused(self):
+        self._make_locale(lifecycle_state=svc.LIFECYCLE_DRAFT)
+        with self.assertRaises(svc.InstrumentTranslationError):
+            svc.set_locale_lifecycle_state(self.INSTRUMENT, "hi", "not_a_state")
 
 
 class RealWorkbookCoverageTests(unittest.TestCase):
@@ -824,6 +971,12 @@ class RealWorkbookCoverageTests(unittest.TestCase):
     serving gate, but a deployed language is still expected to be
     near-complete; this test still holds that quality bar, it just is not the
     mechanism that decides whether the language may be served.
+
+    The workbook each locale is read from is this test's own fixed knowledge
+    of what was downloaded and reviewed on 2026-09-19 (see the "Translation
+    sources" table in docs/policy/va-form-project-configuration.md, which
+    records the same provenance for humans) -- not something the importer
+    itself looks up any more (decided 2026-09-20).
     """
 
     #: The quality bar a documented, deployed language is expected to clear.
@@ -831,18 +984,36 @@ class RealWorkbookCoverageTests(unittest.TestCase):
     #: expectation of what "near-complete" means.
     EXPECTED_COVERAGE = 0.95
 
-    #: The eight deployed Indian-language forms plus the five languages of
-    #: the WHO multilingual V2.0 form, all fully translated as downloaded on
-    #: 2026-09-19.
-    COVERED = ("hi", "ta", "kn", "mr", "ml", "kha", "or", "bn", "fr", "pt", "ar", "sw", "es")
+    #: {locale: source workbook}, one reviewed source per deployed language,
+    #: as of 2026-09-19. The eight Indian-language forms plus the WHO
+    #: multilingual form's five languages.
+    SOURCE_WORKBOOKS = {
+        "hi": "ND01_ICMRVA_WHOVA2022.xlsx",
+        "ta": "JIPMER_DS_WHOVA2022.xlsx",
+        "kn": "KA01_DS_WHOVA2022.xlsx",
+        "mr": "KEM_VAADU_WHOVA2022.xlsx",
+        "ml": "KL01_DS_WHOVA2022.xlsx",
+        "kha": "ML01_ICMRVA_WHOVA2022.xlsx",
+        "or": "OD01_ICMRVA_WHOVA2022.xlsx",
+        "bn": "TR01_DS_WHOVA2022.xlsx",
+        "fr": "2022whova_xls_form_for_odk_multilingual.xlsx",
+        "pt": "2022whova_xls_form_for_odk_multilingual.xlsx",
+        "ar": "2022whova_xls_form_for_odk_multilingual.xlsx",
+        "sw": "2022whova_xls_form_for_odk_multilingual.xlsx",
+        "es": "2022whova_xls_form_for_odk_multilingual.xlsx",
+    }
+
+    def test_every_source_workbook_is_present(self):
+        for locale, workbook in self.SOURCE_WORKBOOKS.items():
+            with self.subTest(locale=locale):
+                self.assertTrue((svc.WORKBOOK_DIR / workbook).exists())
 
     def test_every_deployed_language_reaches_the_threshold(self):
-        sources = svc.documented_sources()
-        for locale in self.COVERED:
+        for locale, workbook in self.SOURCE_WORKBOOKS.items():
             with self.subTest(locale=locale):
                 report = svc.import_translations(
                     "WHO_2022_VA", locale,
-                    svc.WORKBOOK_DIR / sources[locale].workbook,
+                    svc.WORKBOOK_DIR / workbook,
                     cross_check=True,
                 )
                 self.assertGreater(report.reference_labels, 400)
@@ -868,3 +1039,41 @@ class RealWorkbookCoverageTests(unittest.TestCase):
         )
         self.assertEqual(report.translated_labels, 0)
         self.assertLess(report.coverage, self.EXPECTED_COVERAGE)
+
+
+class NoPolicyDocReadDuringImportTests(unittest.TestCase):
+    """Acceptance: no module under app/ reads a file under docs/ at import time.
+
+    Decided 2026-09-20: the "Translation sources" table in
+    docs/policy/va-form-project-configuration.md is provenance for a human
+    reader, not a rule the importer enforces. This spies on every text read
+    through :meth:`pathlib.Path.read_text` -- how the old, removed
+    ``documented_sources()`` read the markdown table -- during a real import
+    and a real cross-check, and fails if either ever opens anything under
+    ``docs/policy``.
+    """
+
+    def _watched_import(self, **kwargs):
+        opened: list[Path] = []
+        real_read_text = Path.read_text
+
+        def spy(path_self, *args, **kw):
+            opened.append(Path(path_self))
+            return real_read_text(path_self, *args, **kw)
+
+        with unittest.mock.patch.object(Path, "read_text", spy):
+            svc.import_translations(
+                "WHO_2022_VA", "hi",
+                svc.WORKBOOK_DIR / "ND01_ICMRVA_WHOVA2022.xlsx",
+                **kwargs,
+            )
+        return opened
+
+    def test_a_cross_check_reads_nothing_under_docs_policy(self):
+        policy_dir = (svc.REPO_ROOT / "docs" / "policy").resolve()
+        opened = self._watched_import(cross_check=True)
+        for path in opened:
+            self.assertFalse(
+                policy_dir in path.resolve().parents or path.resolve() == policy_dir,
+                f"{path} under docs/policy was read during a cross-check import",
+            )

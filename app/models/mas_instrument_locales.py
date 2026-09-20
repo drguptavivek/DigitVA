@@ -16,6 +16,13 @@ is set, which is an explicit administrative action. Coverage is reported but
 decides nothing: an untranslated string is absent from the served payload, so
 the form falls back to English for that string alone
 (``app/services/instrument_translation_service.py``).
+
+A locale must also be human-**approved** before it may be activated (decided
+2026-09-20): ``lifecycle_state`` moves ``draft`` -> ``in_review`` ->
+``approved``, only ``approved`` may be activated, and leaving ``approved``
+while still active is refused -- both in
+:func:`app.services.instrument_translation_service.set_locale_active` and by
+``ck_mas_instrument_locales_active_requires_approved``.
 """
 
 import uuid
@@ -40,11 +47,26 @@ FIELD_GUIDANCE = "guidance_hint"
 SOURCE_IMPORTED = "imported"
 SOURCE_EDITED = "edited"
 
+#: ``lifecycle_state`` values (decided 2026-09-20: a locale must not be served
+#: to interviewers unless a human has approved it, and that approval must be
+#: recorded). Every locale starts ``draft``; only ``approved`` may be
+#: activated -- enforced both in :func:`app.services.instrument_translation_service.set_locale_active`
+#: and by ``ck_mas_instrument_locales_active_requires_approved`` below.
+LIFECYCLE_DRAFT = "draft"
+LIFECYCLE_IN_REVIEW = "in_review"
+LIFECYCLE_APPROVED = "approved"
+
 
 class MasInstrumentLocales(db.Model):
     """One display language of one standard instrument."""
 
     __tablename__ = "mas_instrument_locales"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "is_active = false OR lifecycle_state = 'approved'",
+            name="ck_mas_instrument_locales_active_requires_approved",
+        ),
+    )
 
     instrument_code: so.Mapped[str] = so.mapped_column(
         sa.String(32), primary_key=True
@@ -53,6 +75,20 @@ class MasInstrumentLocales(db.Model):
     language_name: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
+    # Human approval gate (decided 2026-09-20): a locale is servable only once
+    # an administrator has reviewed it and moved it to "approved" -- coverage
+    # still decides nothing. Leaving "approved" clears both fields; entering it
+    # sets them (see set_locale_lifecycle_state).
+    lifecycle_state: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default=LIFECYCLE_DRAFT,
+        server_default=LIFECYCLE_DRAFT,
+    )
+    approved_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
+    )
+    approved_at: so.Mapped[object | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
     )
     # The workbook this locale was imported from, as named in the policy doc's
     # "Translation sources" table, with its digest so a re-downloaded file that

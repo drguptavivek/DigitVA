@@ -1,9 +1,12 @@
 {#
   Instrument Translations panel
   Lists a standard instrument's display languages with coverage, version and
-  source workbook; imports a documented source workbook; activates or
-  deactivates a locale; edits one string at a time against the English
-  reference; exports the serving JSON.
+  source workbook; imports any readable workbook for a locale (decided
+  2026-09-20: not gated on a documented source); moves a locale through its
+  approval lifecycle (draft -> in_review -> approved) and activates or
+  deactivates it (only an approved locale may be activated, decided
+  2026-09-20); edits one string at a time against the English reference;
+  exports the serving JSON.
 
   A JavaScript client of /admin/api/instrument-translations/... — every value
   below the instrument code comes from those endpoints, never from template
@@ -20,11 +23,13 @@
 
   <div class="alert alert-light border small py-2">
     A language is served to the browser form once an administrator
-    <strong>activates</strong> it &mdash; coverage is shown for context but does not
-    gate activation; whatever is translated is served, and English is the
-    per-string fallback for the rest. The source workbook for each language is
-    policy: see
-    <code>docs/policy/va-form-project-configuration.md</code> &rarr; Translation sources.
+    <strong>approves</strong> it and then <strong>activates</strong> it
+    (decided 2026-09-20: activation is refused until a human has approved the
+    locale) &mdash; coverage is shown for context but gates neither approval
+    nor activation; whatever is translated is served, and English is the
+    per-string fallback for the rest. Importing a questionnaire source is a
+    reviewed one-time activity, not the way to change a translation already in
+    use &mdash; correct a string with the editor below instead.
   </div>
 
   <div id="itr-alert" class="alert d-none small py-2"></div>
@@ -42,7 +47,12 @@
           <input type="text" class="form-control form-control-sm" id="itr-import-locale"
                  placeholder="hi" maxlength="16">
         </div>
-        <div class="col-sm-5">
+        <div class="col-sm-2">
+          <label class="form-label small mb-1" for="itr-import-language-name">Language name (new locale only)</label>
+          <input type="text" class="form-control form-control-sm" id="itr-import-language-name"
+                 placeholder="Hindi" maxlength="64">
+        </div>
+        <div class="col-sm-3">
           <label class="form-label small mb-1" for="itr-import-file">Workbook (.xlsx, max 5 MB)</label>
           <input type="file" class="form-control form-control-sm" id="itr-import-file" accept=".xlsx">
         </div>
@@ -168,15 +178,48 @@
     });
   }
 
+  // Lifecycle state a locale must reach before Activate is allowed (decided
+  // 2026-09-20: a human must approve a locale before it is served).
+  var LIFECYCLE_BADGE = { draft: 'secondary', in_review: 'info', approved: 'success' };
+  var LIFECYCLE_LABEL = { draft: 'Draft', in_review: 'In review', approved: 'Approved' };
+
+  function lifecycleBadge(state) {
+    return '<span class="badge text-bg-' + (LIFECYCLE_BADGE[state] || 'secondary') + '">'
+      + (LIFECYCLE_LABEL[state] || esc(state)) + '</span>';
+  }
+
+  function lifecycleButtons(l) {
+    var buttons = [];
+    function btn(label, target) {
+      return '<button class="btn btn-sm py-0 px-2 btn-outline-secondary itr-lifecycle-btn"'
+        + ' data-locale="' + esc(l.locale_code) + '" data-state="' + esc(target) + '">'
+        + esc(label) + '</button>';
+    }
+    if (l.lifecycle_state === 'draft') {
+      buttons.push(btn('Send for review', 'in_review'));
+    } else if (l.lifecycle_state === 'in_review') {
+      buttons.push(btn('Approve', 'approved'));
+      buttons.push(btn('Back to draft', 'draft'));
+    } else if (l.lifecycle_state === 'approved') {
+      buttons.push(btn('Send for review', 'in_review'));
+      buttons.push(btn('Back to draft', 'draft'));
+    }
+    return buttons.join(' ');
+  }
+
   function renderLocales(locales) {
     var rows = locales.map(function (l) {
       var actions = '';
       if (!l.is_base) {
-        actions = '<button class="btn btn-sm py-0 px-2 btn-outline-'
-          + (l.is_active ? 'danger' : 'success') + ' itr-toggle-btn"'
-          + ' data-locale="' + esc(l.locale_code) + '"'
-          + ' data-active="' + (l.is_active ? '1' : '0') + '">'
-          + (l.is_active ? 'Deactivate' : 'Activate') + '</button>'
+        var approved = l.lifecycle_state === 'approved';
+        var activateBtn = l.is_active
+          ? '<button class="btn btn-sm py-0 px-2 btn-outline-danger itr-toggle-btn"'
+            + ' data-locale="' + esc(l.locale_code) + '" data-active="1">Deactivate</button>'
+          : '<button class="btn btn-sm py-0 px-2 btn-outline-success itr-toggle-btn"'
+            + ' data-locale="' + esc(l.locale_code) + '" data-active="0"'
+            + (approved ? '' : ' disabled title="Approve this locale before activating it."')
+            + '>Activate</button>';
+        actions = activateBtn
           + ' <button class="btn btn-sm py-0 px-2 btn-outline-primary itr-edit-btn"'
           + ' data-locale="' + esc(l.locale_code) + '">Strings</button>'
           + ' <a class="btn btn-sm py-0 px-2 btn-outline-secondary" target="_blank" rel="noopener"'
@@ -196,6 +239,13 @@
           + 'title="' + esc(c.translated) + '/' + esc(c.total) + ' labels">'
           + esc(name) + ' ' + pct(c.coverage) + '</span>';
       }).join('');
+      var lifecycleCell = l.is_base
+        ? '<span class="text-muted small">—</span>'
+        : lifecycleBadge(l.lifecycle_state)
+          + '<div class="mt-1 d-flex gap-1 flex-wrap">' + lifecycleButtons(l) + '</div>'
+          + (l.approved_by
+              ? '<div class="text-muted small mt-1">by ' + esc(l.approved_by) + '</div>'
+              : '');
       return '<tr class="' + (l.is_active ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(l.locale_code) + '</span></td>'
         + '<td class="align-middle py-2 small">' + esc(l.language_name) + '</td>'
@@ -204,14 +254,11 @@
         + '<span class="text-muted">' + l.translated_labels + '/' + l.reference_labels + '</span>'
         + (extBadges ? '<div class="mt-1">' + extBadges + '</div>' : '') + '</td>'
         + '<td class="align-middle py-2 small text-center">' + esc(l.version) + '</td>'
-        + '<td class="align-middle py-2 small">' + esc(l.source_document || '—')
-        + (l.documented_source && l.source_document && l.documented_source !== l.source_document
-            ? ' <span class="badge text-bg-danger" title="Not the documented source">drift</span>' : '')
-        + '</td>'
-        + '<td class="align-middle py-2 small">' + esc(l.documented_source || '—') + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(l.source_document || '—') + '</td>'
         + '<td class="align-middle py-2">' + (l.is_active
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>') + '</td>'
+        + '<td class="align-middle py-2 small">' + lifecycleCell + '</td>'
         + '<td class="align-middle py-2 text-end">' + actions + '</td>'
         + '</tr>';
     }).join('');
@@ -224,13 +271,17 @@
       + '<th class="fw-medium small text-muted text-center">Coverage</th>'
       + '<th class="fw-medium small text-muted text-center">Version</th>'
       + '<th class="fw-medium small text-muted">Imported from</th>'
-      + '<th class="fw-medium small text-muted">Documented source</th>'
       + '<th class="fw-medium small text-muted">Status</th>'
+      + '<th class="fw-medium small text-muted">Approval</th>'
       + '<th class="fw-medium small text-muted text-end">Actions</th>'
       + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 
     bindAll('.itr-toggle-btn', function () {
+      if (this.disabled) return;
       toggleLocale(this.getAttribute('data-locale'), this.getAttribute('data-active') === '1');
+    });
+    bindAll('.itr-lifecycle-btn', function () {
+      setLifecycle(this.getAttribute('data-locale'), this.getAttribute('data-state'));
     });
     bindAll('.itr-edit-btn', function () {
       openStrings(this.getAttribute('data-locale'));
@@ -241,6 +292,17 @@
       input.value = '';
       input.click();
     });
+  }
+
+  function setLifecycle(locale, state) {
+    alertBox();
+    apiJson(
+      API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/lifecycle',
+      'POST', { state: state }
+    ).then(function (res) {
+      if (!res.ok) { alertBox('danger', res.data.error || 'Failed.'); return; }
+      loadLocales();
+    }).catch(function () { alertBox('danger', 'Network error.'); });
   }
 
   function bindAll(selector, handler) {
@@ -272,6 +334,8 @@
     var form = new FormData();
     form.append('file', input.files[0]);
     if (document.getElementById('itr-cross-check').checked) form.append('cross_check', '1');
+    var languageName = document.getElementById('itr-import-language-name').value.trim();
+    if (languageName) form.append('language_name', languageName);
 
     var btn = this;
     btn.disabled = true;

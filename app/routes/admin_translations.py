@@ -1,8 +1,8 @@
 """Admin JSON API and panel for instrument display translations.
 
 Thin HTTP layer over ``app.services.instrument_translation_service``; every
-rule -- the documented-source check, the coverage gate, what an edit may touch
--- lives there. Routes hang off the ``admin`` blueprint
+rule -- what an edit may touch, what an import writes -- lives there. Routes
+hang off the ``admin`` blueprint
 (``/admin/api/instrument-translations/...``) the same way
 ``app/routes/admin_organization.py`` and ``app/routes/admin_icd11.py`` do.
 
@@ -31,7 +31,6 @@ from app.services.instrument_translation_service import (
     XLIFF_EXTENSIONS,
     XLIFF_MEDIA_TYPE,
     InstrumentTranslationError,
-    documented_sources,
     export_translations,
     export_xliff,
     import_translations,
@@ -39,6 +38,7 @@ from app.services.instrument_translation_service import (
     list_strings,
     locale_status,
     set_locale_active,
+    set_locale_lifecycle_state,
     update_string,
     xliff_filename,
 )
@@ -94,20 +94,9 @@ def admin_instrument_translation_locales():
     instrument_code = _instrument(request.args.get("instrument_code"))
     try:
         rows = locale_status(instrument_code)
-        documented = documented_sources()
     except InstrumentTranslationError as exc:
         return _json_error(str(exc), 400)
-    for row in rows:
-        source = documented.get(row["locale_code"])
-        row["documented_source"] = source.workbook if source else None
-        row["documented_project"] = source.project if source else None
-    return jsonify(
-        {
-            "instrument_code": instrument_code,
-            "locales": rows,
-            "documented_locales": sorted(documented),
-        }
-    )
+    return jsonify({"instrument_code": instrument_code, "locales": rows})
 
 
 @admin.post(f"{_API}/<instrument_code>/<locale>/import")
@@ -123,10 +112,12 @@ def admin_instrument_translation_import(instrument_code, locale):
         return _json_error("Only .xlsx workbooks are accepted.", 400)
 
     cross_check = request.form.get("cross_check") == "1"
+    language_name = (request.form.get("language_name") or "").strip() or None
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # The documented-source rule matches on the file name, so the upload
-        # keeps its own name inside a private directory rather than a random one.
+        # The upload keeps its own (sanitised) name inside a private,
+        # process-temp directory -- one of the two roots import_translations'
+        # path containment allows a workbook to be read from.
         path = Path(tmpdir) / name
         written = 0
         with path.open("wb") as handle:
@@ -145,6 +136,7 @@ def admin_instrument_translation_import(instrument_code, locale):
                 path,
                 cross_check=cross_check,
                 actor_id=current_user.user_id,
+                language_name=language_name,
             )
         except InstrumentTranslationError as exc:
             db.session.rollback()
@@ -181,6 +173,27 @@ def _set_active(instrument_code, locale, active):
     try:
         result = set_locale_active(
             instrument_code, locale, active, actor_id=current_user.user_id,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/lifecycle")
+@role_required("admin")
+def admin_instrument_translation_lifecycle(instrument_code, locale):
+    """Move a locale between draft, in_review and approved."""
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    state = (payload.get("state") or "").strip()
+    if not state:
+        return _json_error("state is required.", 400)
+    try:
+        result = set_locale_lifecycle_state(
+            instrument_code, locale, state, actor_id=current_user.user_id,
         )
     except InstrumentTranslationError as exc:
         db.session.rollback()

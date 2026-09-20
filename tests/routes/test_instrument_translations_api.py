@@ -162,11 +162,16 @@ class InstrumentTranslationAdminTests(BaseTestCase):
 
     # -- auth ---------------------------------------------------------------
 
+    def _editor_url(self, locale="hi", code=INSTRUMENT):
+        return f"/admin/instrument-translations/{code}/{locale}"
+
     def test_anonymous_is_refused_everywhere(self):
         for url in (
             "/admin/panels/instrument-translations",
+            self._editor_url(),
             self.LOCALES_URL,
             self._api("/strings"),
+            self._api("/questions"),
             self._api("/export"),
         ):
             with self.subTest(url=url):
@@ -179,10 +184,12 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             self.client.get("/admin/panels/instrument-translations").status_code,
             (302, 403),
         )
+        self.assertIn(self.client.get(self._editor_url()).status_code, (302, 403))
 
     def test_a_coder_is_refused(self):
         self._login(self.base_coder_id)
         self.assertIn(self.client.get(self.LOCALES_URL).status_code, (302, 403))
+        self.assertIn(self.client.get(self._editor_url()).status_code, (302, 403))
 
     def test_the_panel_renders_for_an_admin(self):
         self._login(self.base_admin_id)
@@ -191,6 +198,24 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         body = response.get_data(as_text=True)
         self.assertIn("panel-instrument-translations", body)
         self.assertIn("/admin/api/instrument-translations", body)
+
+    def test_the_editor_page_renders_for_an_admin(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(self._editor_url("hi"))
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('id="ite-root"', body)
+        self.assertIn('data-instrument-code="WHO_2022_VA"', body)
+        self.assertIn('data-locale="hi"', body)
+        self.assertIn("/admin/api/instrument-translations", body)
+
+    def test_the_editor_page_uppercases_and_strips_the_instrument_code(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(f"/admin/instrument-translations/{INSTRUMENT.lower()}/hi")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'data-instrument-code="WHO_2022_VA"', response.get_data(as_text=True)
+        )
 
     # -- locales ------------------------------------------------------------
 
@@ -425,6 +450,173 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 400)
+
+    # -- questions (digitva-8go) -----------------------------------------
+
+    def test_questions_are_ordered_by_form_position_not_alphabetically(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?page_size=5")).get_json()
+        names = [item["name"] for item in payload["items"]]
+        # Id10010 (order 2) comes before Id10010a (order 3) comes before
+        # Id10010b (order 4) -- alphabetical order would put Id10010a first.
+        self.assertEqual(names[:3], ["Id10010", "Id10010a", "Id10010b"])
+        orders = [item["order"] for item in payload["items"]]
+        self.assertEqual(orders, sorted(orders))
+
+    def test_questions_are_paginated_by_question_not_by_string(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?page_size=1")).get_json()
+        self.assertEqual(len(payload["items"]), 1)
+        # 536: the 446 base-instrument questions (449 minus the 3 with no
+        # display text: the audit trail, two calculated-only fields) plus the
+        # DigitVA layer's 80 questions/sections and 10 choice lists that no
+        # question can be linked to as owner (digitva-8go follow-up).
+        self.assertEqual(payload["total"], 536)
+
+    def test_layer_questions_appear_after_every_base_question(self):
+        """digitva-8go follow-up: the layers were missing entirely at first,
+        which made their machine-drafted strings unreachable for Accept."""
+        self._login(self.base_admin_id)
+        all_items = []
+        for page in (1, 2, 3):
+            payload = self.client.get(
+                self._api(f"/questions?page_size=200&page={page}")
+            ).get_json()
+            all_items.extend(payload["items"])
+        self.assertEqual(len(all_items), 536)
+
+        by_name = {item["name"]: item for item in all_items}
+        for name in ("consent_mode", "abha_number", "socialautopsy", "sa01"):
+            self.assertIn(name, by_name, name)
+
+        base_names = {q["name"] for q in svc._generated_questions(INSTRUMENT)}
+        base_orders = [item["order"] for item in all_items if item["name"] in base_names]
+        layer_orders = [
+            item["order"] for item in all_items if item["name"] not in base_names
+        ]
+        self.assertTrue(layer_orders, "fixture guard: some layer rows present")
+        self.assertGreater(min(layer_orders), max(base_orders))
+
+        orders = [item["order"] for item in all_items]
+        self.assertEqual(orders, sorted(orders))
+
+        # A layer question is not universal: it only exists in a project with
+        # that extension enabled, so it carries which one(s).
+        self.assertEqual(by_name["consent_mode"]["extensions"], ["digitva_core"])
+        self.assertNotIn("extensions", by_name["Id10010"])
+
+    def test_a_machine_drafted_layer_row_carries_its_source_for_accept(self):
+        """The layers file arrives with 'machine' rows awaiting a human
+        Accept; the per-question view must not hide that, or the Accept
+        workflow the old flat list offered becomes unreachable."""
+        _string("hi", "consent_mode", "सहमति किस माध्यम से ली गई", source="machine")
+        db.session.commit()
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?q=consent_mode")).get_json()
+        item = next(i for i in payload["items"] if i["name"] == "consent_mode")
+        self.assertEqual(item["source"], "machine")
+        self.assertEqual(item["translated_label"], "सहमति किस माध्यम से ली गई")
+
+    def test_a_layer_choice_list_with_no_known_question_owner_gets_its_own_row(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?q=CONSENT_MODE")).get_json()
+        item = next(i for i in payload["items"] if i["name"] == "CONSENT_MODE")
+        self.assertTrue(item["is_choice_list"])
+        self.assertEqual(item["list_name"], "CONSENT_MODE")
+        self.assertEqual(item["extensions"], ["digitva_core"])
+        values = {choice["value"] for choice in item["choices"]}
+        self.assertEqual(values, {"in_person", "telephonic"})
+        self.assertNotIn("english_label", item)
+
+    def test_a_layer_extends_a_base_choice_list_on_the_same_row(self):
+        """"language" is a base list (used by the base "language" question)
+        that narration_language adds more values to -- it must stay one row,
+        not a second one for the same list (digitva-8go)."""
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?q=Interview+language")).get_json()
+        rows = [i for i in payload["items"] if i.get("list_name") == "language"]
+        self.assertEqual(len(rows), 1)
+        item = rows[0]
+        self.assertEqual(item["name"], "language")
+        values = {choice["value"] for choice in item["choices"]}
+        self.assertIn("en", values)
+        self.assertIn("bangla", values)
+        added = next(c for c in item["choices"] if c["value"] == "bangla")
+        self.assertEqual(added["extensions"], ["narration_language"])
+        base_choice = next(c for c in item["choices"] if c["value"] == "en")
+        self.assertNotIn("extensions", base_choice)
+
+    def test_a_shared_choice_list_reports_how_many_questions_use_it(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?q=Id10002")).get_json()
+        item = next(i for i in payload["items"] if i["name"] == "Id10002")
+        self.assertEqual(item["list_name"], "HIGH_LOW_VERY")
+        self.assertEqual(item["shared_with"], 2)
+        values = {choice["value"] for choice in item["choices"]}
+        self.assertEqual(values, {"high", "low", "veryl"})
+
+    def test_search_matches_question_code_or_english_text(self):
+        self._login(self.base_admin_id)
+        by_code = self.client.get(self._api("/questions?q=Id10002")).get_json()
+        self.assertTrue(any(i["name"] == "Id10002" for i in by_code["items"]))
+
+        by_text = self.client.get(
+            self._api("/questions?q=Age+of+VA+interviewer")
+        ).get_json()
+        self.assertTrue(any(i["name"] == "Id10010a" for i in by_text["items"]))
+
+        no_match = self.client.get(self._api("/questions?q=NoSuchThingAtAll")).get_json()
+        self.assertEqual(no_match["total"], 0)
+
+    def test_a_question_with_no_hint_or_choices_is_handled(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?q=Id10012")).get_json()
+        item = next(i for i in payload["items"] if i["name"] == "Id10012")
+        self.assertNotIn("hint", item)
+        self.assertNotIn("list_name", item)
+        self.assertNotIn("choices", item)
+        self.assertTrue(item["english_label"])
+
+    def test_a_page_size_above_the_cap_is_clamped_on_questions_too(self):
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/questions?page_size=100000")).get_json()
+        self.assertEqual(payload["page_size"], svc.MAX_STRING_PAGE_SIZE)
+        self.assertLessEqual(len(payload["items"]), svc.MAX_STRING_PAGE_SIZE)
+
+    def test_questions_route_requires_admin(self):
+        self.assertIn(
+            self.client.get(self._api("/questions")).status_code, (302, 401)
+        )
+        self._login(self.base_coder_id)
+        self.assertIn(self.client.get(self._api("/questions")).status_code, (302, 403))
+
+    def test_saving_a_choice_option_reports_how_many_questions_share_it(self):
+        """The choice edit stays global (keyed by list_name/value); the
+        response carries ``shared_with`` so the UI can warn about it."""
+        self._login(self.base_admin_id)
+        response = self.client.put(
+            self._api("/strings"),
+            json={
+                "item_kind": "choice", "item_key": "HIGH_LOW_VERY/high",
+                "field": "label", "text": "ऊँचा",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["shared_with"], 2)
+
+    def test_saving_a_label_carries_no_shared_with(self):
+        self._login(self.base_admin_id)
+        response = self.client.put(
+            self._api("/strings"),
+            json={
+                "item_kind": "question", "item_key": self.item_key,
+                "field": "label", "text": "बदला हुआ",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertNotIn("shared_with", response.get_json())
 
     # -- accept-as-is (digitva-4kj) -------------------------------------
 

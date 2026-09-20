@@ -36,6 +36,7 @@ from app.services.instrument_translation_service import (
     export_xliff,
     import_translations,
     import_xliff,
+    list_questions,
     list_strings,
     locale_status,
     set_locale_active,
@@ -79,6 +80,24 @@ def admin_panel_instrument_translations():
     return render_template(
         "admin/panels/instrument_translations.html",
         instrument_code=_instrument(request.args.get("instrument_code")),
+    )
+
+
+@admin.get("/instrument-translations/<instrument_code>/<locale>")
+@role_required("admin")
+def admin_instrument_translations_editor(instrument_code, locale):
+    """The per-question translation workspace (digitva-8go).
+
+    A page of its own, not an admin-console panel: the console shell tracks
+    only one query parameter (``panel``), and this editor needs ``?page=``
+    and ``?q=`` to survive a reload, a bookmark and browser back/forward --
+    the whole reason it is a page rather than the string list the old panel
+    buried a click away.
+    """
+    return render_template(
+        "admin/instrument_translations_editor.html",
+        instrument_code=_instrument(instrument_code),
+        locale=(locale or "").strip(),
     )
 
 
@@ -223,6 +242,33 @@ def admin_instrument_translation_strings(instrument_code, locale):
     try:
         return jsonify(
             list_strings(
+                instrument_code,
+                locale,
+                search=request.args.get("q"),
+                page=page,
+                # Clamped again in the service; the ceiling is never the
+                # caller's to choose.
+                page_size=min(page_size, MAX_STRING_PAGE_SIZE),
+            )
+        )
+    except InstrumentTranslationError as exc:
+        return _json_error(str(exc), 400)
+
+
+@admin.get(f"{_API}/<instrument_code>/<locale>/questions")
+@role_required("admin")
+def admin_instrument_translation_questions(instrument_code, locale):
+    """One page of the questionnaire in form order, one row per question."""
+    if err := _guard():
+        return err
+    try:
+        page = int(request.args.get("page") or 1)
+        page_size = int(request.args.get("page_size") or 50)
+    except ValueError:
+        return _json_error("page and page_size must be whole numbers.", 400)
+    try:
+        return jsonify(
+            list_questions(
                 instrument_code,
                 locale,
                 search=request.args.get("q"),

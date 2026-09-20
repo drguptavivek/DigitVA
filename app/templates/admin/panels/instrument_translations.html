@@ -5,8 +5,8 @@
   2026-09-20: not gated on a documented source); moves a locale through its
   approval lifecycle (draft -> in_review -> approved) and activates or
   deactivates it (only an approved locale may be activated, decided
-  2026-09-20); edits one string at a time against the English reference;
-  exports the serving JSON.
+  2026-09-20); exports the serving JSON. Editing a locale's strings happens on
+  its own page (digitva-8go), reached from the "Edit" link on its row.
 
   A JavaScript client of /admin/api/instrument-translations/... — every value
   below the instrument code comes from those endpoints, never from template
@@ -92,29 +92,6 @@
       </div>
       <input type="file" id="itr-xliff-file" accept=".xlf,.xliff" class="d-none">
       <div id="itr-xliff-result" class="small mt-3"></div>
-    </div>
-  </div>
-
-  {# String editor #}
-  <div class="card d-none" id="itr-strings-card">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="card-title mb-0">Strings &mdash; <span id="itr-strings-locale"></span></h6>
-        <div class="d-flex gap-2">
-          <input type="search" class="form-control form-control-sm" id="itr-search"
-                 placeholder="Search question name or English text" style="width:18rem;">
-          <button class="btn btn-sm btn-outline-secondary" id="itr-search-btn">Search</button>
-          <button class="btn btn-sm btn-outline-secondary" id="itr-strings-close">Close</button>
-        </div>
-      </div>
-      <div id="itr-strings-wrap"></div>
-      <div class="d-flex justify-content-between align-items-center mt-2">
-        <div class="small text-muted" id="itr-strings-count"></div>
-        <div class="btn-group btn-group-sm">
-          <button class="btn btn-outline-secondary" id="itr-prev">Previous</button>
-          <button class="btn btn-outline-secondary" id="itr-next">Next</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -249,8 +226,9 @@
             + (approved ? '' : ' disabled title="Approve this locale before activating it."')
             + '>Activate</button>';
         actions = activateBtn
-          + ' <button class="btn btn-sm py-0 px-2 btn-outline-primary itr-edit-btn"'
-          + ' data-locale="' + esc(l.locale_code) + '">Strings</button>'
+          + ' <a class="btn btn-sm py-0 px-2 btn-outline-primary"'
+          + ' href="/admin/instrument-translations/' + encodeURIComponent(INSTRUMENT) + '/'
+          + encodeURIComponent(l.locale_code) + '">Edit</a>'
           + ' <a class="btn btn-sm py-0 px-2 btn-outline-secondary" target="_blank" rel="noopener"'
           + ' href="' + API + '/' + encodeURIComponent(INSTRUMENT) + '/'
           + encodeURIComponent(l.locale_code) + '/export">JSON</a>'
@@ -316,9 +294,6 @@
     });
     bindAll('.itr-lifecycle-btn', function () {
       setLifecycle(this.getAttribute('data-locale'), this.getAttribute('data-state'));
-    });
-    bindAll('.itr-edit-btn', function () {
-      openStrings(this.getAttribute('data-locale'));
     });
     bindAll('.itr-xliff-btn', function () {
       _xliffLocale = this.getAttribute('data-locale');
@@ -475,143 +450,6 @@
     document.getElementById('itr-xliff-result').innerHTML =
       '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
   }
-
-  // ── strings ───────────────────────────────────────────────────────────────
-
-  var _locale = null;
-  var _page = 1;
-  var _pageSize = 50;
-  var _total = 0;
-
-  function openStrings(locale) {
-    _locale = locale;
-    _page = 1;
-    document.getElementById('itr-strings-locale').textContent = locale;
-    document.getElementById('itr-strings-card').classList.remove('d-none');
-    loadStrings();
-  }
-
-  function loadStrings() {
-    var wrap = document.getElementById('itr-strings-wrap');
-    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
-    var url = API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(_locale)
-      + '/strings?page=' + _page + '&page_size=' + _pageSize
-      + '&q=' + encodeURIComponent(document.getElementById('itr-search').value || '');
-    apiJson(url).then(function (res) {
-      if (!res.ok) {
-        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed.') + '</div>';
-        return;
-      }
-      _total = res.data.total;
-      renderStrings(res.data.items || []);
-      document.getElementById('itr-strings-count').textContent =
-        _total + ' item(s), page ' + res.data.page + ' of ' + Math.max(1, Math.ceil(_total / res.data.page_size));
-    }).catch(function () {
-      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
-    });
-  }
-
-  function renderStrings(items) {
-    if (!items.length) {
-      document.getElementById('itr-strings-wrap').innerHTML =
-        '<p class="text-muted small text-center py-3">No matching items.</p>';
-      return;
-    }
-    var SOURCE_BADGE = { edited: 'info', machine: 'warning', imported: 'light' };
-
-    var rows = items.map(function (it) {
-      var isMachine = it.source === 'machine';
-      return '<tr' + (isMachine ? ' class="table-warning"' : '') + '>'
-        + '<td class="align-middle py-2 small"><code>' + esc(it.item_key) + '</code>'
-        + '<div class="text-muted">' + esc(it.item_kind) + ' · ' + esc(it.field) + '</div></td>'
-        + '<td class="align-middle py-2 small">' + esc(it.english) + '</td>'
-        + '<td class="py-2"><textarea class="form-control form-control-sm itr-text" rows="2"'
-        + ' data-kind="' + esc(it.item_kind) + '" data-key="' + esc(it.item_key) + '"'
-        + ' data-field="' + esc(it.field) + '">' + esc(it.text || '') + '</textarea></td>'
-        + '<td class="align-middle py-2 text-center small">'
-        + (it.source ? '<span class="badge text-bg-' + (SOURCE_BADGE[it.source] || 'light') + ' border" '
-            + 'title="' + (isMachine ? 'Machine-translated draft, not served until reviewed' : '') + '">'
-            + esc(it.source) + '</span>' : '<span class="text-muted">—</span>')
-        + '</td>'
-        + '<td class="align-middle py-2 text-end">'
-        + (isMachine
-            ? '<button class="btn btn-sm py-0 px-2 btn-outline-warning me-1 itr-accept-btn"'
-              + ' data-kind="' + esc(it.item_kind) + '" data-key="' + esc(it.item_key) + '"'
-              + ' data-field="' + esc(it.field) + '" title="Accept this draft as-is">Accept</button>'
-            : '')
-        + '<button class="btn btn-sm py-0 px-2 btn-outline-success itr-save-btn">Save</button></td>'
-        + '</tr>';
-    }).join('');
-
-    document.getElementById('itr-strings-wrap').innerHTML =
-      '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
-      + '<thead class="table-light"><tr>'
-      + '<th class="fw-medium small text-muted" style="width:20%;">Item</th>'
-      + '<th class="fw-medium small text-muted" style="width:32%;">English reference</th>'
-      + '<th class="fw-medium small text-muted" style="width:34%;">Translation</th>'
-      + '<th class="fw-medium small text-muted text-center" style="width:7%;">Source</th>'
-      + '<th class="fw-medium small text-muted text-end" style="width:7%;"></th>'
-      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-
-    bindAll('.itr-save-btn', function () {
-      var row = this.closest('tr');
-      var box = row.querySelector('.itr-text');
-      saveString(this, box);
-    });
-    bindAll('.itr-accept-btn', function () {
-      acceptString(this);
-    });
-  }
-
-  function acceptString(btn) {
-    alertBox();
-    btn.disabled = true;
-    apiJson(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(_locale) + '/strings/accept', 'POST', {
-      item_kind: btn.getAttribute('data-kind'),
-      item_key: btn.getAttribute('data-key'),
-      field: btn.getAttribute('data-field'),
-    }).then(function (res) {
-      btn.disabled = false;
-      if (!res.ok) { alertBox('danger', res.data.error || 'Accept failed.'); return; }
-      alertBox('success', 'Accepted. ' + _locale + ' is now version ' + res.data.version + '.');
-      loadStrings();
-      loadLocales();
-    }).catch(function () {
-      btn.disabled = false;
-      alertBox('danger', 'Network error.');
-    });
-  }
-
-  function saveString(btn, box) {
-    alertBox();
-    btn.disabled = true;
-    apiJson(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(_locale) + '/strings', 'PUT', {
-      item_kind: box.getAttribute('data-kind'),
-      item_key: box.getAttribute('data-key'),
-      field: box.getAttribute('data-field'),
-      text: box.value,
-    }).then(function (res) {
-      btn.disabled = false;
-      if (!res.ok) { alertBox('danger', res.data.error || 'Save failed.'); return; }
-      alertBox('success', 'Saved. ' + _locale + ' is now version ' + res.data.version + '.');
-      loadLocales();
-    }).catch(function () {
-      btn.disabled = false;
-      alertBox('danger', 'Network error.');
-    });
-  }
-
-  document.getElementById('itr-search-btn').addEventListener('click', function () { _page = 1; loadStrings(); });
-  document.getElementById('itr-prev').addEventListener('click', function () {
-    if (_page > 1) { _page -= 1; loadStrings(); }
-  });
-  document.getElementById('itr-next').addEventListener('click', function () {
-    if (_page * _pageSize < _total) { _page += 1; loadStrings(); }
-  });
-  document.getElementById('itr-strings-close').addEventListener('click', function () {
-    document.getElementById('itr-strings-card').classList.add('d-none');
-    _locale = null;
-  });
 
   // ── init ──────────────────────────────────────────────────────────────────
 

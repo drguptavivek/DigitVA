@@ -239,7 +239,10 @@ class AdminShellInstrumentTranslationsPanelTests(BaseTestCase):
             "/admin/api/instrument-translations",
             'id="itr-locales-wrap"',
             'id="itr-import-file"',
-            'id="itr-strings-wrap"',
+            # The per-string editor moved out of this panel into its own page
+            # (digitva-8go): the panel now links to it rather than embedding it,
+            # so that the editor keeps its position on reload.
+            "/admin/instrument-translations/",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, body)

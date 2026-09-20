@@ -4,6 +4,7 @@ export * from "@digitva/who-va-2022/web-component.tsx";
 export { createWhoVaInitialDataFromPrefill } from "@digitva/who-va-2022/prefill.ts";
 export { createWhoVa2022Instrument, whoVa2022Instrument } from "@digitva/who-va-2022/instrument.ts";
 export { createDraftId, decodeWhoVaDraft } from "@digitva/who-va-2022/draft.ts";
+export { parseRichText, hasRichText, richTextToPlain } from "@digitva/who-va-2022/ui/rich-text.ts";
 export { DIGITVA_NARRATION_LANGUAGES, DIGITVA_MEDICAL_IMAGE_SLOTS, DIGITVA_DEATH_IMAGE_SLOTS } from "@digitva/who-va-2022/digitva-extension.ts";
 import { defineWhoVaElement } from "@digitva/who-va-2022/web-component.tsx";
 defineWhoVaElement();

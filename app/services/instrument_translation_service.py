@@ -111,6 +111,16 @@ LAYER_REFERENCE_PATH = (
     REPO_ROOT / "vendor/who-va-2022/src/generated/digitva-layers.reference.json"
 )
 
+#: The built WHO base instrument (``tooling/who-va-2022/build-instrument.mjs``):
+#: the only source that carries a question's form ``order``, its ``listName``
+#: and its ``choices`` -- ``map_instrument_translations`` has none of that, see
+#: digitva-8go. DigitVA layer questions (consent_mode, md_im1..30, ds_*, ...)
+#: are not in this file, so :func:`list_questions` orders the WHO base form
+#: only, the same 449-question scope the rest of this module's docstrings cite.
+GENERATED_INSTRUMENT_PATH = (
+    REPO_ROOT / "vendor/who-va-2022/src/generated/who-va-2022.instrument.json"
+)
+
 #: The base locale of every bundled instrument: always served, never imported.
 BASE_LOCALE = "en"
 
@@ -330,6 +340,54 @@ def _layer_entries_cached(path: str) -> tuple[dict, ...]:
 
 def _layer_key(entry: dict) -> tuple[str, str, str]:
     return (entry["itemKind"], entry["itemKey"], entry["field"])
+
+
+@lru_cache(maxsize=1)
+def _generated_instrument_cached(path: str) -> tuple[dict, ...]:
+    """The built instrument's ``questions``, in file order.
+
+    Cached the same way :func:`app.services.web_form_relevance_service._load_instrument`
+    caches the sibling server-instrument artifact: this is committed, generated
+    output that does not change between requests, and reading + parsing a
+    1.3&nbsp;MB JSON file on every list-questions call would be wasted work.
+    """
+    text_path = Path(path)
+    if not text_path.exists():
+        raise InstrumentTranslationError(
+            f"{text_path} does not exist; run `cd tooling/who-va-2022 && "
+            "npm run build:instrument`."
+        )
+    try:
+        data = json.loads(text_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise InstrumentTranslationError(
+            f"{text_path.name} could not be read as the generated instrument: {exc}"
+        ) from exc
+    return tuple(data.get("questions", ()))
+
+
+def _generated_questions(instrument_code: str) -> tuple[dict, ...]:
+    if (instrument_code or "").strip().upper() != BASE_INSTRUMENT_CODE:
+        raise InstrumentTranslationError(
+            f"No generated instrument is bundled for instrument {instrument_code!r}."
+        )
+    return _generated_instrument_cached(str(GENERATED_INSTRUMENT_PATH))
+
+
+def _choice_list_counts(instrument_code: str) -> dict[str, int]:
+    """``{list_name: number of questions using it}``, from the generated instrument.
+
+    The one place this join is computed: :func:`list_questions` groups a
+    question's choices under it with this count attached as ``shared_with``,
+    and :func:`update_string` reports the same count on a choice edit so the
+    caller can warn the editor the change is not local to one question.
+    """
+    counts: dict[str, int] = {}
+    for question in _generated_questions(instrument_code):
+        list_name = question.get("listName")
+        if list_name:
+            counts[list_name] = counts.get(list_name, 0) + 1
+    return counts
 
 
 @lru_cache(maxsize=4)
@@ -1111,6 +1169,345 @@ def list_strings(
     }
 
 
+def _layer_group_data() -> tuple[
+    dict[str, frozenset[str]], dict[str, frozenset[str]], dict[str, frozenset[str]]
+]:
+    """Group every entry of the DigitVA layer reference generically.
+
+    Iterates all of ``LAYER_REFERENCE_PATH``'s entries -- every extension,
+    not a named few -- keyed only by ``itemKind``/``itemKey``, the same as
+    the file itself. Returns ``(question_extensions, list_extensions,
+    list_values)``: ``{question name: extensions that add it}``, ``{choice
+    list name: extensions that add to it}``, ``{choice list name: the choice
+    values it carries}``.
+
+    A layer "question" entry is a survey question *or* a section/group
+    heading -- the generator (``build-layer-reference.mjs``) files both under
+    ``itemKind: "question"`` (its own docstring: "a group -- ...treats a
+    group as a 'question' row"), and so does this grouping: a section
+    heading is translatable text a reviewer must be able to reach, so it
+    becomes an ordinary row in :func:`list_questions`, the same as any
+    question (digitva-8go).
+
+    The file has no linkage from a question to the choice list it uses --
+    no ``listName``, unlike the generated base instrument -- so
+    ``list_values``/``list_extensions`` are grouped by list name alone;
+    :func:`list_questions` attaches a list to a question when the base
+    instrument already names that question as the list's owner (a layer
+    extension may add options to a base list, e.g. "language" gains more
+    languages from ``narration_language``) and otherwise gives the list its
+    own row rather than guessing an owner.
+    """
+    question_extensions: dict[str, set[str]] = {}
+    list_extensions: dict[str, set[str]] = {}
+    list_values: dict[str, set[str]] = {}
+    for entry in _layer_entries_cached(str(LAYER_REFERENCE_PATH)):
+        if entry["itemKind"] == ITEM_KIND_QUESTION:
+            question_extensions.setdefault(entry["itemKey"], set()).update(entry["extensions"])
+        else:
+            list_name, _sep, value = entry["itemKey"].partition("/")
+            list_extensions.setdefault(list_name, set()).update(entry["extensions"])
+            list_values.setdefault(list_name, set()).add(value)
+    return (
+        {name: frozenset(exts) for name, exts in question_extensions.items()},
+        {name: frozenset(exts) for name, exts in list_extensions.items()},
+        {name: frozenset(values) for name, values in list_values.items()},
+    )
+
+
+def _choice_option_payload(
+    list_name: str,
+    value: str,
+    reference: dict[tuple[str, str, str], str],
+    translations: dict[tuple[str, str, str], MapInstrumentTranslations],
+    *,
+    fallback_english: str = "",
+    extensions: frozenset[str] | None = None,
+) -> dict:
+    """One choice option: value, English, translation and its source.
+
+    ``extensions`` is set only for a layer-contributed option (one added to
+    an existing list, or belonging to a list with no known question owner):
+    it exists only in a project that has that extension enabled, unlike a
+    base option, so the key is present exactly when that is true rather than
+    always populated with an empty list.
+    """
+    choice_key = f"{list_name}/{value}"
+    row = translations.get((ITEM_KIND_CHOICE, choice_key, FIELD_LABEL))
+    option = {
+        "value": value,
+        "english": reference.get((ITEM_KIND_CHOICE, choice_key, FIELD_LABEL))
+        or fallback_english,
+        "translated": row.text if row else None,
+        "source": row.source if row else None,
+    }
+    if extensions:
+        option["extensions"] = sorted(extensions)
+    return option
+
+
+def _question_payload(
+    question: dict,
+    reference: dict[tuple[str, str, str], str],
+    translations: dict[tuple[str, str, str], MapInstrumentTranslations],
+    list_counts: dict[str, int],
+    layer_list_values: dict[str, frozenset[str]],
+    layer_list_extensions: dict[str, frozenset[str]],
+) -> dict:
+    """One row of :func:`list_questions` for a base WHO question."""
+    name = question["name"]
+
+    def _row(item_kind: str, item_key: str, fld: str) -> MapInstrumentTranslations | None:
+        return translations.get((item_kind, item_key, fld))
+
+    label_row = _row(ITEM_KIND_QUESTION, name, FIELD_LABEL)
+    payload = {
+        "name": name,
+        "order": question.get("order", 0),
+        "english_label": reference.get((ITEM_KIND_QUESTION, name, FIELD_LABEL)) or "",
+        "translated_label": label_row.text if label_row else None,
+        "source": label_row.source if label_row else None,
+    }
+
+    hint_en = reference.get((ITEM_KIND_QUESTION, name, FIELD_HINT))
+    if hint_en:
+        hint_row = _row(ITEM_KIND_QUESTION, name, FIELD_HINT)
+        payload["hint"] = {
+            "english": hint_en,
+            "translated": hint_row.text if hint_row else None,
+            "source": hint_row.source if hint_row else None,
+        }
+
+    # Read-only: neither field is in _TRANSLATABLE_FIELDS (digitva-8go.1 is the
+    # follow-up to author them), so there is no stored translation to show.
+    constraint_en = (question.get("constraintMessage") or {}).get(BASE_LOCALE)
+    if constraint_en:
+        payload["constraint_message"] = {"english": constraint_en}
+    guidance_en = reference.get((ITEM_KIND_QUESTION, name, FIELD_GUIDANCE))
+    if guidance_en:
+        payload["guidance"] = {"english": guidance_en}
+
+    list_name = question.get("listName")
+    if list_name:
+        choices = []
+        seen_values: set[str] = set()
+        for choice in question.get("choices") or []:
+            value = choice.get("value")
+            seen_values.add(value)
+            choices.append(
+                _choice_option_payload(
+                    list_name, value, reference, translations,
+                    fallback_english=(choice.get("label") or {}).get(BASE_LOCALE) or "",
+                )
+            )
+        # A layer extension can add options to a list the base form already
+        # uses instead of defining its own (e.g. "language" gains more
+        # languages from narration_language) -- digitva-8go. Those values are
+        # already merged into `reference` by _reference_items_cached; they
+        # belong on this same row, not a second one for the same list.
+        for value in sorted(layer_list_values.get(list_name, frozenset()) - seen_values):
+            choices.append(
+                _choice_option_payload(
+                    list_name, value, reference, translations,
+                    extensions=layer_list_extensions.get(list_name),
+                )
+            )
+        payload["list_name"] = list_name
+        payload["choices"] = choices
+        payload["shared_with"] = list_counts.get(list_name, 0)
+
+    return payload
+
+
+def _layer_question_payload(
+    name: str,
+    order: int,
+    extensions: frozenset[str],
+    reference: dict[tuple[str, str, str], str],
+    translations: dict[tuple[str, str, str], MapInstrumentTranslations],
+) -> dict:
+    """One row of :func:`list_questions` for a DigitVA layer question (or a
+    section/group heading -- see :func:`_layer_group_data`).
+
+    ``LAYER_REFERENCE_PATH`` carries only label and hint text for a question
+    -- never guidance, never a constraint message, and never a choice-list
+    link -- so this payload never carries ``guidance``/``constraint_message``,
+    and ``choices``/``list_name`` are attached by the caller only when the
+    layer's own choice-list grouping can place them (see
+    :func:`list_questions`), not by this function.
+    """
+    label_row = translations.get((ITEM_KIND_QUESTION, name, FIELD_LABEL))
+    payload = {
+        "name": name,
+        "order": order,
+        "english_label": reference.get((ITEM_KIND_QUESTION, name, FIELD_LABEL)) or "",
+        "translated_label": label_row.text if label_row else None,
+        "source": label_row.source if label_row else None,
+        "extensions": sorted(extensions),
+    }
+    hint_en = reference.get((ITEM_KIND_QUESTION, name, FIELD_HINT))
+    if hint_en:
+        hint_row = translations.get((ITEM_KIND_QUESTION, name, FIELD_HINT))
+        payload["hint"] = {
+            "english": hint_en,
+            "translated": hint_row.text if hint_row else None,
+            "source": hint_row.source if hint_row else None,
+        }
+    return payload
+
+
+def _layer_choice_list_payload(
+    list_name: str,
+    order: int,
+    values: frozenset[str],
+    extensions: frozenset[str],
+    reference: dict[tuple[str, str, str], str],
+    translations: dict[tuple[str, str, str], MapInstrumentTranslations],
+) -> dict:
+    """One row of :func:`list_questions` for a DigitVA choice list that no
+    question -- base or layer -- can be linked to as its owner.
+
+    ``LAYER_REFERENCE_PATH`` names the list a choice belongs to but never the
+    question that uses it. Rather than guess an owner, the list gets its own
+    row: ``is_choice_list`` marks it as not a question, so a caller does not
+    read ``english_label``/``hint`` off it as if it were one -- it has
+    neither, because there is no question here to have them.
+    """
+    return {
+        "name": list_name,
+        "order": order,
+        "is_choice_list": True,
+        "list_name": list_name,
+        "extensions": sorted(extensions),
+        "choices": [
+            _choice_option_payload(list_name, value, reference, translations)
+            for value in sorted(values)
+        ],
+    }
+
+
+def _question_row_matches(row: dict, needle: str) -> bool:
+    if needle in row["name"].lower():
+        return True
+    if needle in (row.get("english_label") or "").lower():
+        return True
+    return any(
+        needle in (choice.get("value") or "").lower()
+        or needle in (choice.get("english") or "").lower()
+        for choice in row.get("choices") or []
+    )
+
+
+def list_questions(
+    instrument_code: str,
+    locale_code: str,
+    *,
+    search: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> dict:
+    """One page of a locale's questions, in form order, each with its whole
+    translatable package: label, hint, read-only constraint message and
+    guidance, and the options of any choice list it uses.
+
+    Paginated over *questions*, not strings (digitva-8go): a question with a
+    hint and five choices is still one row and one page slot. Ordering and
+    choice-list grouping for the base WHO form come from the generated
+    instrument (:data:`GENERATED_INSTRUMENT_PATH`), because
+    ``map_instrument_translations`` has no notion of either.
+
+    Every DigitVA layer question (``consent_mode``, ``abha_*``, ``md_*``,
+    ``ds_*``, the ``social_autopsy`` questions and section headings, ...) is
+    included too, sourced from :data:`LAYER_REFERENCE_PATH` via
+    :func:`_layer_group_data`, and always ordered *after* every base
+    question -- never interleaved by name -- matching how
+    ``createWhoVa2022Instrument`` itself numbers a layer question, from
+    ``maxOrder + 1`` onward. A layer row carries ``extensions``: the
+    project extension(s) that add it, since unlike a base question it is not
+    universal. This matters because a layer string can be a ``machine``
+    draft awaiting an administrator's Accept (:func:`accept_machine_translation`)
+    -- the same as any other row here -- and the old flat string list showed
+    those; leaving layer questions out of this one would make that review
+    workflow unreachable in the UI that replaces it.
+
+    The English and translated text throughout still come from
+    :func:`reference_items` and the stored rows, the same source every other
+    function in this module reads.
+    """
+    instrument_code = (instrument_code or "").strip().upper()
+    locale_code = (locale_code or "").strip()
+    page = max(1, int(page or 1))
+    page_size = max(1, min(int(page_size or 50), MAX_STRING_PAGE_SIZE))
+
+    reference = reference_items(instrument_code)
+    list_counts = _choice_list_counts(instrument_code)
+    generated = sorted(
+        _generated_questions(instrument_code), key=lambda q: q.get("order", 0)
+    )
+    translations = {
+        (row.item_kind, row.item_key, row.field): row
+        for row in db.session.scalars(
+            sa.select(MapInstrumentTranslations).where(
+                MapInstrumentTranslations.instrument_code == instrument_code,
+                MapInstrumentTranslations.locale_code == locale_code,
+            )
+        )
+    }
+    question_extensions, list_extensions, list_values = _layer_group_data()
+
+    # -- base WHO questions, in form order -------------------------------
+    # Only a question the reference actually has a label for is a
+    # translatable row -- excludes the handful of system/calculated entries
+    # (e.g. the audit trail) that carry no display text at all.
+    rows = [
+        _question_payload(
+            q, reference, translations, list_counts, list_values, list_extensions
+        )
+        for q in generated
+        if reference.get((ITEM_KIND_QUESTION, q["name"], FIELD_LABEL))
+    ]
+
+    # -- DigitVA layer questions and sections, after every base question --
+    order = max((q.get("order", 0) for q in generated), default=0)
+    for name in sorted(question_extensions):
+        order += 1
+        rows.append(
+            _layer_question_payload(
+                name, order, question_extensions[name], reference, translations
+            )
+        )
+
+    # -- layer choice lists with no question this data can name as owner --
+    # (a list a base question already uses -- e.g. "language" -- was merged
+    # into that question's row above, not repeated here.)
+    for list_name in sorted(list_extensions):
+        if list_name in list_counts:
+            continue
+        order += 1
+        rows.append(
+            _layer_choice_list_payload(
+                list_name, order, list_values[list_name], list_extensions[list_name],
+                reference, translations,
+            )
+        )
+
+    needle = (search or "").strip().lower()
+    if needle:
+        rows = [row for row in rows if _question_row_matches(row, needle)]
+
+    total = len(rows)
+    start = (page - 1) * page_size
+
+    return {
+        "instrument_code": instrument_code,
+        "locale": locale_code,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "items": rows[start : start + page_size],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Editing
 # ---------------------------------------------------------------------------
@@ -1190,7 +1587,7 @@ def update_string(
         instrument_code, locale_code, item_kind, item_key, field, actor_id,
         _trim(old), _trim(text), locale_row.version,
     )
-    return {
+    result = {
         "item_kind": item_kind,
         "item_key": item_key,
         "field": field,
@@ -1199,6 +1596,19 @@ def update_string(
         "source": row.source,
         "version": locale_row.version,
     }
+    if item_kind == ITEM_KIND_CHOICE:
+        # A choice list is shared across questions (digitva-8go): this edit
+        # just changed every one of them, not just the one the caller had
+        # open, so the count travels back with the response for the UI to warn.
+        # Only counted for a list the base instrument names a question owner
+        # for -- a DigitVA-layer-only list (see list_questions/
+        # _layer_group_data) has no such linkage in the data this module has,
+        # so the key is omitted rather than reported as a misleading 0.
+        list_name = item_key.split("/", 1)[0]
+        counts = _choice_list_counts(instrument_code)
+        if list_name in counts:
+            result["shared_with"] = counts[list_name]
+    return result
 
 
 def accept_machine_translation(

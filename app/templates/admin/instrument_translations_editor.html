@@ -1,0 +1,712 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}Instrument Translations — {{ locale }} — DigitVA{% endblock %}
+{% block content %}
+{#
+  Instrument Translations editor (digitva-8go).
+
+  A page of its own, not an admin-console panel: the console shell's
+  `history.replaceState` tracks a single `panel` query parameter, which
+  cannot also carry this editor's `?page=`/`?q=` -- and losing position on
+  reload is the whole reason this replaces the old flat-string panel. The
+  list is read-only and ordered by form position; a row opens a modal that
+  edits a question's whole package (label, hint, choices) together, because
+  reviewing one string out of context is exactly how translation defects
+  escaped notice before.
+
+  Vanilla JS in a template, same conventions as
+  app/templates/admin/panels/instrument_translations.html, except for one
+  ES module import: parseRichText / richTextToPlain from the WHO VA 2022
+  bundle, re-exported for this reason (digitva-8go) -- reused rather than
+  reimplemented so the admin editor renders the same markup the form does.
+#}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<div id="ite-root" data-instrument-code="{{ instrument_code }}" data-locale="{{ locale }}">
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <a class="small text-muted" href="/admin/?panel={{ '/admin/panels/instrument-translations' | urlencode }}">
+        <i class="fa-solid fa-arrow-left me-1"></i>Instrument Translations
+      </a>
+      <h5 class="mb-0 mt-1">
+        <i class="fa-solid fa-language me-2 text-secondary"></i>{{ instrument_code }}
+        <span class="text-muted">/ {{ locale }}</span>
+      </h5>
+    </div>
+    <div class="d-flex gap-2">
+      <input type="search" class="form-control form-control-sm" id="ite-search"
+             placeholder="Search question code or English text" style="width:20rem;">
+      <button class="btn btn-sm btn-outline-secondary" id="ite-search-btn">Search</button>
+    </div>
+  </div>
+
+  <div id="ite-alert" class="alert d-none small py-2"></div>
+
+  <div id="ite-table-wrap"></div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <div class="small text-muted" id="ite-count"></div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" id="ite-prev">Previous</button>
+      <button class="btn btn-outline-secondary" id="ite-next">Next</button>
+    </div>
+  </div>
+
+  {# Question modal -- filled by JS on open #}
+  <div class="modal fade" id="ite-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title mb-0" id="ite-modal-title"></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="ite-modal-body"></div>
+        <div class="modal-footer py-2">
+          <div class="small text-muted me-auto" id="ite-modal-status"></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="ite-undo-btn">Undo</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-sm btn-primary" id="ite-save-btn">Save</button>
+          <button type="button" class="btn btn-sm btn-success" id="ite-savenext-btn">Save and next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .ite-richtext { white-space: pre-wrap; word-break: break-word; }
+  .ite-field { border: 1px solid var(--bs-border-color); border-radius: .375rem; padding: .75rem; margin-bottom: .75rem; }
+  .ite-field-label { font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; color: #667085; }
+  .ite-english { background: #f8f9fa; border-radius: .25rem; padding: .4rem .5rem; margin: .25rem 0; }
+  .ite-toolbar .btn { padding: .1rem .4rem; }
+  #ite-table-wrap tbody tr { cursor: pointer; }
+  #ite-table-wrap tbody tr:hover { background-color: #f1f5f9; }
+  .ite-readonly-badge { font-size: .7rem; }
+</style>
+
+<script type="module">
+import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+
+(function () {
+  'use strict';
+
+  var ROOT = document.getElementById('ite-root');
+  var INSTRUMENT = ROOT.getAttribute('data-instrument-code');
+  var LOCALE = ROOT.getAttribute('data-locale');
+  var API = '/admin/api/instrument-translations';
+  var PAGE_SIZE = 50;
+
+  // Locale codes Google Translate accepts, mapped from our XLSForm locale
+  // codes (digitva-8go). Verified against Google Translate's supported
+  // languages: every deployed locale maps 1:1 except Khasi ('kha'), which
+  // Google Translate does not support -- its button is hidden rather than
+  // opening a page that cannot help.
+  var GOOGLE_TRANSLATE_LOCALES = {
+    hi: 'hi', ta: 'ta', kn: 'kn', mr: 'mr', ml: 'ml', or: 'or', bn: 'bn', fr: 'fr'
+  };
+
+  function csrf() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
+  }
+
+  function apiJson(url, method, body) {
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: method || 'GET', headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function alertBox(kind, msg) {
+    var el = document.getElementById('ite-alert');
+    if (!msg) { el.className = 'alert d-none small py-2'; el.textContent = ''; return; }
+    el.className = 'alert alert-' + kind + ' small py-2';
+    el.textContent = msg;
+  }
+
+  // ── rich text rendering (parseRichText is the single source of truth --
+  // the same parser the WHO VA 2022 form uses, so the admin editor never
+  // shows something different from what an interviewer sees) ─────────────
+
+  function renderRichInto(container, text) {
+    container.textContent = '';
+    container.classList.add('ite-richtext');
+    var spans = parseRichText(text || '');
+    spans.forEach(function (span) {
+      var node = span.href ? document.createElement('a') : document.createElement('span');
+      if (span.href) { node.href = span.href; node.target = '_blank'; node.rel = 'noopener'; }
+      node.textContent = span.text;
+      if (span.bold) node.style.fontWeight = 'bold';
+      if (span.italic) node.style.fontStyle = 'italic';
+      if (span.underline) node.style.textDecoration = 'underline';
+      if (span.color) node.style.color = span.color;
+      if (span.backgroundColor) node.style.backgroundColor = span.backgroundColor;
+      if (span.heading) { node.style.fontWeight = 'bold'; node.style.fontSize = (1.3 - span.heading * 0.06) + 'em'; }
+      container.appendChild(node);
+    });
+    if (!spans.length || (spans.length === 1 && !spans[0].text)) {
+      container.innerHTML = '<span class="text-muted">—</span>';
+    }
+  }
+
+  // ── Google Translate, one button per field (digitva-8go, clarified
+  // 2026-09-21): always the English reference text of THAT field alone,
+  // never a draft, an answer, or anything concatenated. Opens in a new
+  // window/tab so it never disturbs unsaved edits in the modal. ──────────
+
+  function googleTranslateUrl(englishSource) {
+    var tl = GOOGLE_TRANSLATE_LOCALES[LOCALE];
+    var plain = richTextToPlain(englishSource || '');
+    if (!tl || !plain) return null;
+    // Google Translate's URL has no documented hard cap, but a very long
+    // query string is unreliable in practice; truncate visibly (never
+    // silently) well under that. Only long guidance can approach this --
+    // every other field here is short.
+    var MAX_CHARS = 1500;
+    var text = plain.length > MAX_CHARS ? plain.slice(0, MAX_CHARS) + '…' : plain;
+    return 'https://translate.google.com/?sl=en&tl=' + encodeURIComponent(tl)
+      + '&text=' + encodeURIComponent(text) + '&op=translate';
+  }
+
+  function translateButtonHtml(englishSource) {
+    var url = googleTranslateUrl(englishSource);
+    if (!url) return '';
+    return '<a class="btn btn-sm btn-outline-secondary ite-gt-btn" target="_blank" rel="noopener"'
+      + ' href="' + esc(url) + '" title="Open this text in Google Translate">'
+      + '<i class="fa-solid fa-language"></i></a>';
+  }
+
+  // ── URL-carried state: ?page= and ?q= (digitva-8go) -- the point of this
+  // being a page rather than a panel section. Reload, bookmark and browser
+  // back/forward all restore the same page and search. ────────────────────
+
+  var state = { page: 1, q: '', total: 0, items: [] };
+
+  function readUrlState() {
+    var p = new URLSearchParams(window.location.search);
+    var page = parseInt(p.get('page') || '1', 10);
+    return { page: page > 0 ? page : 1, q: p.get('q') || '' };
+  }
+
+  function pushUrlState() {
+    var p = new URLSearchParams();
+    if (state.page > 1) p.set('page', String(state.page));
+    if (state.q) p.set('q', state.q);
+    var qs = p.toString();
+    history.pushState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+  }
+
+  window.addEventListener('popstate', function () {
+    var s = readUrlState();
+    state.page = s.page;
+    state.q = s.q;
+    document.getElementById('ite-search').value = state.q;
+    closeModalDiscarding(); // the browser already navigated; nothing to warn about
+    loadQuestions();
+  });
+
+  function loadQuestions(afterLoad) {
+    var wrap = document.getElementById('ite-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-5 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    var url = API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(LOCALE)
+      + '/questions?page=' + state.page + '&page_size=' + PAGE_SIZE + '&q=' + encodeURIComponent(state.q);
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      state.total = res.data.total;
+      state.items = res.data.items || [];
+      renderTable(state.items);
+      renderPager();
+      if (afterLoad) afterLoad();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderPager() {
+    document.getElementById('ite-count').textContent =
+      state.total + ' question(s) — page ' + state.page + ' of ' + Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+    document.getElementById('ite-prev').disabled = state.page <= 1;
+    document.getElementById('ite-next').disabled = state.page * PAGE_SIZE >= state.total;
+  }
+
+  var SOURCE_BADGE = { edited: 'info', machine: 'warning', imported: 'light' };
+
+  function sourceBadgeHtml(source) {
+    if (!source) return '<span class="text-muted">—</span>';
+    return '<span class="badge text-bg-' + (SOURCE_BADGE[source] || 'light') + ' border">' + esc(source) + '</span>';
+  }
+
+  function extensionsHtml(row) {
+    if (!row.extensions || !row.extensions.length) return '';
+    return row.extensions.map(function (e) {
+      return '<span class="badge text-bg-light border me-1">' + esc(e) + '</span>';
+    }).join('');
+  }
+
+  function renderTable(items) {
+    var wrap = document.getElementById('ite-table-wrap');
+    if (!items.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-4">No matching questions.</p>';
+      return;
+    }
+    var table = document.createElement('table');
+    table.className = 'table table-sm table-hover align-middle mb-0';
+    table.innerHTML =
+      '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted" style="width:16%;">Question</th>'
+      + '<th class="fw-medium small text-muted" style="width:34%;">English</th>'
+      + '<th class="fw-medium small text-muted" style="width:34%;">' + esc(LOCALE) + '</th>'
+      + '<th class="fw-medium small text-muted text-center" style="width:8%;">Source</th>'
+      + '<th class="fw-medium small text-muted" style="width:8%;">Extensions</th>'
+      + '</tr></thead>';
+    var tbody = document.createElement('tbody');
+    items.forEach(function (row, idx) {
+      var tr = document.createElement('tr');
+      if (row.source === 'machine') tr.className = 'table-warning';
+      tr.setAttribute('data-idx', String(idx));
+
+      var codeTd = document.createElement('td');
+      codeTd.className = 'small';
+      codeTd.innerHTML = '<code>' + esc(row.name) + '</code>'
+        + (row.is_choice_list ? '<div class="text-muted">choice list</div>' : '');
+      tr.appendChild(codeTd);
+
+      var enTd = document.createElement('td');
+      enTd.className = 'small';
+      if (row.is_choice_list) {
+        enTd.innerHTML = '<span class="text-muted fst-italic">' + row.choices.length + ' option(s), no owning question</span>';
+      } else {
+        renderRichInto(enTd, row.english_label);
+      }
+      tr.appendChild(enTd);
+
+      var locTd = document.createElement('td');
+      locTd.className = 'small';
+      if (row.is_choice_list) {
+        locTd.innerHTML = '<span class="text-muted">—</span>';
+      } else {
+        renderRichInto(locTd, row.translated_label || '');
+      }
+      tr.appendChild(locTd);
+
+      var srcTd = document.createElement('td');
+      srcTd.className = 'text-center small';
+      srcTd.innerHTML = row.is_choice_list ? '<span class="text-muted">—</span>' : sourceBadgeHtml(row.source);
+      tr.appendChild(srcTd);
+
+      var extTd = document.createElement('td');
+      extTd.className = 'small';
+      extTd.innerHTML = extensionsHtml(row);
+      tr.appendChild(extTd);
+
+      tr.addEventListener('click', function () { openModal(idx); });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.innerHTML = '';
+    var responsive = document.createElement('div');
+    responsive.className = 'table-responsive';
+    responsive.appendChild(table);
+    wrap.appendChild(responsive);
+  }
+
+  // ── question modal ───────────────────────────────────────────────────
+
+  var modalEl = document.getElementById('ite-modal');
+  var bsModal = null;
+  var openIndex = null;
+  var fieldRefs = []; // editable fields open in the modal right now
+  var suppressDirtyConfirm = false;
+
+  function isDirty() {
+    return fieldRefs.some(function (f) { return f.editable && f.textarea.value !== f.originalText; });
+  }
+
+  modalEl.addEventListener('hide.bs.modal', function (evt) {
+    if (suppressDirtyConfirm) return;
+    if (isDirty() && !confirm('This question has unsaved changes. Discard them?')) {
+      evt.preventDefault();
+    }
+  });
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    openIndex = null;
+    fieldRefs = [];
+  });
+
+  function closeModalDiscarding() {
+    if (!bsModal) return;
+    suppressDirtyConfirm = true;
+    bsModal.hide();
+    suppressDirtyConfirm = false;
+  }
+
+  // True and lets the caller proceed; false means the operator declined to
+  // discard, so the caller must not navigate.
+  function confirmLeaveModal() {
+    if (openIndex === null) return true;
+    if (isDirty() && !confirm('This question has unsaved changes. Discard them?')) return false;
+    closeModalDiscarding();
+    return true;
+  }
+
+  function buildFieldRow(descriptor) {
+    // descriptor: { kind, key, field, label, english, translated, source, editable, extensions, note }
+    var idx = fieldRefs.length;
+    var wrap = document.createElement('div');
+    wrap.className = 'ite-field';
+
+    var head = document.createElement('div');
+    head.className = 'd-flex justify-content-between align-items-start';
+    var label = document.createElement('div');
+    label.className = 'ite-field-label';
+    label.textContent = descriptor.label;
+    head.appendChild(label);
+    var badges = document.createElement('div');
+    badges.className = 'd-flex gap-1 align-items-center';
+    if (descriptor.extensions && descriptor.extensions.length) {
+      descriptor.extensions.forEach(function (e) {
+        var b = document.createElement('span');
+        b.className = 'badge text-bg-light border';
+        b.textContent = e;
+        badges.appendChild(b);
+      });
+    }
+    if (descriptor.source) {
+      var sb = document.createElement('span');
+      sb.className = 'badge text-bg-' + (SOURCE_BADGE[descriptor.source] || 'light') + ' border';
+      sb.textContent = descriptor.source;
+      badges.appendChild(sb);
+    }
+    if (descriptor.note) {
+      var nb = document.createElement('span');
+      nb.className = 'badge text-bg-secondary ite-readonly-badge';
+      nb.textContent = descriptor.note;
+      badges.appendChild(nb);
+    }
+    head.appendChild(badges);
+    wrap.appendChild(head);
+
+    var enRow = document.createElement('div');
+    enRow.className = 'd-flex align-items-start gap-2';
+    var enBox = document.createElement('div');
+    enBox.className = 'ite-english flex-grow-1';
+    renderRichInto(enBox, descriptor.english);
+    enRow.appendChild(enBox);
+    var gt = translateButtonHtml(descriptor.english);
+    if (gt) {
+      var gtWrap = document.createElement('div');
+      gtWrap.innerHTML = gt;
+      enRow.appendChild(gtWrap.firstChild);
+    }
+    wrap.appendChild(enRow);
+
+    if (!descriptor.editable) {
+      fieldRefs.push({ editable: false });
+      return wrap;
+    }
+
+    var toolbar = document.createElement('div');
+    toolbar.className = 'ite-toolbar btn-group btn-group-sm mt-2 mb-1';
+    toolbar.innerHTML =
+      '<button type="button" class="btn btn-outline-secondary" data-act="bold"><b>B</b></button>'
+      + '<button type="button" class="btn btn-outline-secondary" data-act="italic"><i>I</i></button>'
+      + '<button type="button" class="btn btn-outline-secondary" data-act="color">Colour</button>'
+      + '<input type="color" class="form-control form-control-color ms-1" value="#2563eb" title="Colour for the Colour button" style="width:2rem;">';
+    wrap.appendChild(toolbar);
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'form-control form-control-sm';
+    textarea.rows = 2;
+    textarea.value = descriptor.translated || '';
+    wrap.appendChild(textarea);
+
+    var preview = document.createElement('div');
+    preview.className = 'ite-richtext small text-muted mt-1';
+    renderRichInto(preview, textarea.value);
+    wrap.appendChild(preview);
+
+    textarea.addEventListener('input', function () { renderRichInto(preview, textarea.value); });
+
+    var colorInput = toolbar.querySelector('input[type=color]');
+    toolbar.querySelectorAll('button[data-act]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var act = btn.getAttribute('data-act');
+        if (act === 'bold') wrapSelection(textarea, '**', '**');
+        else if (act === 'italic') wrapSelection(textarea, '*', '*');
+        else if (act === 'color') wrapSelection(textarea, '<span style="color:' + colorInput.value + '">', '</span>');
+      });
+    });
+
+    var footer = document.createElement('div');
+    footer.className = 'd-flex justify-content-end mt-1';
+    if (descriptor.source === 'machine') {
+      var acceptBtn = document.createElement('button');
+      acceptBtn.type = 'button';
+      acceptBtn.className = 'btn btn-sm btn-outline-warning';
+      acceptBtn.textContent = 'Accept draft';
+      acceptBtn.addEventListener('click', function () { acceptField(idx, acceptBtn, sb); });
+      footer.appendChild(acceptBtn);
+    }
+    wrap.appendChild(footer);
+
+    fieldRefs.push({
+      kind: descriptor.kind, key: descriptor.key, field: descriptor.field,
+      textarea: textarea,
+      // `originalText` is the last-saved baseline (what a diff and the dirty
+      // check compare against); `openedText` never changes after the modal
+      // opens -- Undo restores that one, not the last save, per digitva-8go
+      // ("revert ... to the values the modal opened with").
+      originalText: textarea.value, openedText: textarea.value, editable: true,
+      source: descriptor.source, badgeEl: sb || null,
+    });
+
+    return wrap;
+  }
+
+  function wrapSelection(textarea, before, after) {
+    var start = textarea.selectionStart, end = textarea.selectionEnd;
+    var value = textarea.value;
+    var selected = value.slice(start, end);
+    textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
+    textarea.focus();
+    textarea.selectionStart = start + before.length;
+    textarea.selectionEnd = start + before.length + selected.length;
+    textarea.dispatchEvent(new Event('input'));
+  }
+
+  function acceptField(fieldIdx, btnEl, badgeEl) {
+    var f = fieldRefs[fieldIdx];
+    btnEl.disabled = true;
+    apiJson(
+      API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(LOCALE) + '/strings/accept',
+      'POST', { item_kind: f.kind, item_key: f.key, field: f.field }
+    ).then(function (res) {
+      btnEl.disabled = false;
+      if (!res.ok) { alertBox('danger', res.data.error || 'Accept failed.'); return; }
+      f.source = res.data.source;
+      f.originalText = f.textarea.value; // accept never changes text, only source
+      if (badgeEl) badgeEl.className = 'badge text-bg-' + (SOURCE_BADGE[f.source] || 'light') + ' border';
+      if (badgeEl) badgeEl.textContent = f.source;
+      btnEl.remove();
+      applyFieldToItemCache(f);
+      renderTable(state.items);
+      alertBox('success', 'Accepted. ' + LOCALE + ' is now version ' + res.data.version + '.');
+    }).catch(function () {
+      btnEl.disabled = false;
+      alertBox('danger', 'Network error.');
+    });
+  }
+
+  function applyFieldToItemCache(f) {
+    var row = state.items[openIndex];
+    if (!row) return;
+    if (f.kind === 'question' && f.field === 'label') {
+      row.translated_label = f.textarea.value; row.source = f.source;
+    } else if (f.kind === 'question' && f.field === 'hint' && row.hint) {
+      row.hint.translated = f.textarea.value; row.hint.source = f.source;
+    } else if (f.kind === 'choice') {
+      var value = f.key.split('/').slice(1).join('/');
+      (row.choices || []).forEach(function (c) {
+        if (c.value === value) { c.translated = f.textarea.value; c.source = f.source; }
+      });
+    }
+  }
+
+  function renderModal(idx) {
+    var row = state.items[idx];
+    openIndex = idx;
+    fieldRefs = [];
+
+    document.getElementById('ite-modal-title').textContent =
+      row.is_choice_list ? row.name + ' (choice list)' : row.name + ' · order ' + row.order;
+    document.getElementById('ite-modal-status').textContent = '';
+
+    var body = document.getElementById('ite-modal-body');
+    body.innerHTML = '';
+
+    if (!row.is_choice_list) {
+      body.appendChild(buildFieldRow({
+        kind: 'question', key: row.name, field: 'label', label: 'Label',
+        english: row.english_label, translated: row.translated_label,
+        source: row.source, editable: true,
+      }));
+      if (row.hint) {
+        body.appendChild(buildFieldRow({
+          kind: 'question', key: row.name, field: 'hint', label: 'Hint',
+          english: row.hint.english, translated: row.hint.translated,
+          source: row.hint.source, editable: true,
+        }));
+      }
+      if (row.constraint_message) {
+        body.appendChild(buildFieldRow({
+          label: 'Constraint message', english: row.constraint_message.english,
+          editable: false, note: 'Untranslated in every locale',
+        }));
+      }
+      if (row.guidance) {
+        body.appendChild(buildFieldRow({
+          label: 'Guidance', english: row.guidance.english,
+          editable: false, note: 'Untranslated in every locale',
+        }));
+      }
+    }
+
+    if (row.list_name || row.is_choice_list) {
+      if (row.shared_with && row.shared_with > 1) {
+        var note = document.createElement('div');
+        note.className = 'alert alert-warning small py-2';
+        note.textContent = 'This choice list (' + row.list_name + ') is used by '
+          + row.shared_with + ' questions. Editing an option here changes it everywhere it is used.';
+        body.appendChild(note);
+      }
+      (row.choices || []).forEach(function (c) {
+        body.appendChild(buildFieldRow({
+          kind: 'choice', key: row.list_name + '/' + c.value, field: 'label',
+          label: 'Option — ' + c.value, english: c.english, translated: c.translated,
+          source: c.source, editable: true, extensions: c.extensions,
+        }));
+      });
+    }
+
+    if (!bsModal) bsModal = new bootstrap.Modal(modalEl);
+    if (!modalEl.classList.contains('show')) bsModal.show();
+  }
+
+  function openModal(idx) {
+    renderModal(idx);
+  }
+
+  function doSave() {
+    var diffs = fieldRefs.filter(function (f) { return f.editable && f.textarea.value !== f.originalText; });
+    if (!diffs.length) return Promise.resolve({ ok: true, changed: 0 });
+    var errors = [];
+    var changed = 0;
+    function next(i) {
+      if (i >= diffs.length) return { ok: errors.length === 0, changed: changed, errors: errors };
+      var f = diffs[i];
+      return apiJson(
+        API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(LOCALE) + '/strings',
+        'PUT', { item_kind: f.kind, item_key: f.key, field: f.field, text: f.textarea.value }
+      ).then(function (res) {
+        if (!res.ok) {
+          errors.push((f.key + '/' + f.field) + ': ' + (res.data.error || 'save failed'));
+          return { ok: false, changed: changed, errors: errors };
+        }
+        f.originalText = f.textarea.value;
+        f.source = res.data.source;
+        if (f.badgeEl) { f.badgeEl.className = 'badge text-bg-' + (SOURCE_BADGE[f.source] || 'light') + ' border'; f.badgeEl.textContent = f.source; }
+        applyFieldToItemCache(f);
+        changed += 1;
+        return next(i + 1);
+      }).catch(function () {
+        errors.push((f.key + '/' + f.field) + ': network error');
+        return { ok: false, changed: changed, errors: errors };
+      });
+    }
+    return Promise.resolve(next(0));
+  }
+
+  document.getElementById('ite-save-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    doSave().then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) {
+        document.getElementById('ite-modal-status').innerHTML =
+          '<span class="text-danger">' + esc(result.errors.join('; ')) + '</span>';
+        return;
+      }
+      renderTable(state.items);
+      document.getElementById('ite-modal-status').textContent =
+        result.changed ? 'Saved.' : 'Nothing to save.';
+    });
+  });
+
+  document.getElementById('ite-undo-btn').addEventListener('click', function () {
+    fieldRefs.forEach(function (f) {
+      if (!f.editable) return;
+      f.textarea.value = f.openedText;
+      f.textarea.dispatchEvent(new Event('input'));
+    });
+    document.getElementById('ite-modal-status').textContent = 'Reverted.';
+  });
+
+  document.getElementById('ite-savenext-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    doSave().then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) {
+        document.getElementById('ite-modal-status').innerHTML =
+          '<span class="text-danger">' + esc(result.errors.join('; ')) + '</span>';
+        return; // never advance past a failed write
+      }
+      renderTable(state.items);
+      advanceToNext();
+    });
+  });
+
+  function advanceToNext() {
+    if (openIndex + 1 < state.items.length) {
+      renderModal(openIndex + 1);
+      return;
+    }
+    var nextPageStart = state.page * PAGE_SIZE;
+    if (nextPageStart >= state.total) {
+      document.getElementById('ite-modal-status').textContent = 'Saved — that was the last question.';
+      return;
+    }
+    state.page += 1;
+    pushUrlState();
+    loadQuestions(function () { renderModal(0); });
+  }
+
+  // ── pagination and search ────────────────────────────────────────────
+
+  document.getElementById('ite-search-btn').addEventListener('click', runSearch);
+  document.getElementById('ite-search').addEventListener('keydown', function (evt) {
+    if (evt.key === 'Enter') runSearch();
+  });
+  function runSearch() {
+    if (!confirmLeaveModal()) return;
+    state.q = document.getElementById('ite-search').value.trim();
+    state.page = 1;
+    pushUrlState();
+    loadQuestions();
+  }
+
+  document.getElementById('ite-prev').addEventListener('click', function () {
+    if (state.page <= 1 || !confirmLeaveModal()) return;
+    state.page -= 1;
+    pushUrlState();
+    loadQuestions();
+  });
+  document.getElementById('ite-next').addEventListener('click', function () {
+    if (state.page * PAGE_SIZE >= state.total || !confirmLeaveModal()) return;
+    state.page += 1;
+    pushUrlState();
+    loadQuestions();
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────
+
+  var initial = readUrlState();
+  state.page = initial.page;
+  state.q = initial.q;
+  document.getElementById('ite-search').value = state.q;
+  loadQuestions();
+
+}());
+</script>
+{% endblock %}

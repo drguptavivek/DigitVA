@@ -35,10 +35,15 @@ await build({
 
 const bytes = readFileSync(outfile);
 const version = JSON.parse(readFileSync(path.join(vendorDir, "package.json"), "utf8")).version;
+// No built_at: the bundle is committed, so "when" is already git history,
+// and a timestamp only made every rebuild dirty the manifest even when
+// `bytes`/`sha256` -- the fields that actually identify this artifact --
+// were unchanged (that's how the drift in 926c212 went unnoticed; see
+// digitva-cw9). Regenerating on an unmodified tree must reproduce this file
+// byte for byte, which a timestamp would break by construction.
 const manifest = {
   package: "@drguptavivek/who-2022-va",
   vendored_version: version,
-  built_at: new Date().toISOString(),
   file: path.basename(outfile),
   bytes: bytes.length,
   sha256: createHash("sha256").update(bytes).digest("hex")

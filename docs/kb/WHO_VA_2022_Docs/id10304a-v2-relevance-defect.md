@@ -128,6 +128,8 @@ evidence.
 
 ## Status
 
-Reported to WHO on 2026-09-20. Until a corrected release, adopting V2.0 must
-retain V1.1's condition for `Id10304_a` as a recorded `DEVIATION`. Tracked as
-`digitva-mdj`, blocking `digitva-13x`.
+A report to WHO was drafted 2026-09-20 and is **not yet sent**; update this
+line with the date and the reply when it is. Until a corrected release,
+adopting V2.0 must retain V1.1's condition for `Id10304_a` as a recorded
+`DEVIATION`. Tracked as `digitva-mdj`, which stays open until WHO answers and
+blocks `digitva-13x`.

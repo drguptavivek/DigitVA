@@ -47,7 +47,7 @@ fainting question) unreachable: its `relevant` requires `Id10334` and
 `Id10305` to both be "yes", which the form's own logic forbids. All ten
 deployed project workbooks above carry the correct V1.1 rule and are
 unaffected. Analysis, diagram and reproduction:
-`id10304a-v2-relevance-defect.md`. Reported to WHO 2026-09-20; tracked as
-`digitva-mdj`, blocking `digitva-13x`.
+`id10304a-v2-relevance-defect.md`. Report to WHO drafted 2026-09-20, not yet
+sent; tracked as `digitva-mdj`, blocking `digitva-13x`.
 
 The PDFs in this folder are the WHO manuals the forms implement.

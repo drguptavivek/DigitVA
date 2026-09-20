@@ -3,6 +3,7 @@ import click
 from app.services.cod_bucket_mapping_service import (
     DEFAULT_CMEA10_WORKBOOK_PATH,
     DEFAULT_SRS_WORKBOOK_PATH,
+    DEFAULT_WHO_2022_VA_ADMIN_OVERRIDES_PATH,
     DEFAULT_WHO_2022_VA_WORKBOOK_PATH,
     DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH,
     aggregate_coded_submissions_by_bucket,
@@ -41,8 +42,14 @@ def import_cmea10(path):
 
 @cod_buckets_group.command("import-who-2022-va")
 @click.option("--path", default=DEFAULT_WHO_2022_VA_WORKBOOK_PATH, show_default=True)
-def import_who_2022_va(path):
-    scheme = import_who_2022_va_scheme(path)
+@click.option(
+    "--overrides-path",
+    default=DEFAULT_WHO_2022_VA_ADMIN_OVERRIDES_PATH,
+    show_default=True,
+    help="CSV of frozen admin-editor overrides to reapply on top of the workbook.",
+)
+def import_who_2022_va(path, overrides_path):
+    scheme = import_who_2022_va_scheme(path, overrides_path)
     click.echo(
         f"Imported {scheme.scheme_code} from {path} "
         f"(mapping_version={scheme.mapping_version})"

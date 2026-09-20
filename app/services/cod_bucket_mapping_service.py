@@ -96,6 +96,10 @@ MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx"
 )
+MIGRATION_ARTIFACT_WHO_2022_VA_ADMIN_OVERRIDES_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_admin_overrides.csv"
+)
 MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "who-2022-va-icd-cod-2026-revision/"
@@ -104,6 +108,7 @@ MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH = (
 DEFAULT_SRS_WORKBOOK_PATH = MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH
 DEFAULT_CMEA10_WORKBOOK_PATH = MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH
 DEFAULT_WHO_2022_VA_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH
+DEFAULT_WHO_2022_VA_ADMIN_OVERRIDES_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_ADMIN_OVERRIDES_PATH
 DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
@@ -988,6 +993,87 @@ def _populate_who_2022_va_scheme(
         )
 
 
+def _apply_who_2022_va_admin_overrides(
+    *,
+    scheme: MasCodBucketScheme,
+    overrides_path: str | Path,
+    live_overrides: dict[str, str],
+) -> None:
+    """Layer the frozen admin-editor overrides onto a freshly imported scheme.
+
+    `overrides_path` is a CSV of ICD codes the WHO derivation missed, added
+    through the admin bucket editor and frozen here so a fresh import reaches
+    the same mapping count as a long-lived deployment. `live_overrides` is a
+    snapshot of `{icd_code: node_code}` taken from the scheme's admin-sourced
+    rows before this import wiped them -- if an administrator has since
+    repointed one of these codes to a different bucket, that live choice wins
+    over the frozen CSV value, since it reflects a decision made after the
+    freeze.
+    """
+    with open(overrides_path, newline="", encoding="utf-8") as handle:
+        override_rows = list(csv.DictReader(handle))
+
+    nodes_by_code: dict[str, MasCodBucketNode] = {
+        node.node_code: node
+        for node in db.session.scalars(
+            sa.select(MasCodBucketNode).where(MasCodBucketNode.scheme_id == scheme.scheme_id)
+        )
+    }
+    category_nodes_by_label = {
+        node.node_label: node
+        for node in nodes_by_code.values()
+        if node.node_type == NODE_TYPE_CATEGORY
+    }
+    existing_mappings_by_icd: dict[str, MapIcdCodBucket] = {
+        mapping.icd_code: mapping
+        for mapping in db.session.scalars(
+            sa.select(MapIcdCodBucket).where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
+        )
+    }
+
+    for row in override_rows:
+        icd_code = _normalize_icd_code(row["icd_code"])
+        if not icd_code:
+            continue
+
+        node_code = live_overrides.get(icd_code) or row["node_code"]
+        node = nodes_by_code.get(node_code)
+        if node is None:
+            # The live target no longer exists post-rebuild; fall back to the
+            # frozen value rather than dropping the row.
+            node_code = row["node_code"]
+            node = nodes_by_code.get(node_code)
+        if node is None:
+            node = MasCodBucketNode(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                node_type=row["node_type"] or NODE_TYPE_FIELD,
+                parent=category_nodes_by_label.get(row["category_label"]),
+                node_code=node_code,
+                node_label=row["node_label"],
+                sort_order=0,
+                is_active=True,
+            )
+            db.session.add(node)
+            db.session.flush()
+            nodes_by_code[node_code] = node
+
+        mapping = existing_mappings_by_icd.get(icd_code)
+        if mapping is None:
+            mapping = MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code=icd_code)
+            db.session.add(mapping)
+            existing_mappings_by_icd[icd_code] = mapping
+        mapping.node_id = node.node_id
+        mapping.source_sheet = MANUAL_OVERRIDE_SOURCE_SHEET
+        mapping.source_row_number = None
+        mapping.source_category = row["source_category"] or None
+        mapping.match_type = row["match_type"] or MANUAL_OVERRIDE_MATCH_TYPE
+        mapping.mapping_note = row["mapping_note"] or None
+        mapping.is_active = True
+
+    db.session.flush()
+
+
 def _replace_scheme_scope_contents(scheme: MasCodBucketScheme, age_scope: str | None) -> None:
     db.session.execute(
         sa.delete(MapIcdCodBucket).where(
@@ -1079,11 +1165,52 @@ def import_cmea10_scheme(workbook_path: str | Path = DEFAULT_CMEA10_WORKBOOK_PAT
     return scheme
 
 
+#: Sentinel so the default overrides can be tied to the default workbook.
+_USE_DEFAULT_OVERRIDES = object()
+
+
 def import_who_2022_va_scheme(
     workbook_path: str | Path = DEFAULT_WHO_2022_VA_WORKBOOK_PATH,
+    overrides_path: str | Path | None = _USE_DEFAULT_OVERRIDES,
 ) -> MasCodBucketScheme:
-    """Replace the WHO 2022 VA bucket scheme from the generated workbook source."""
+    """Replace the WHO 2022 VA bucket scheme from the generated workbook source.
+
+    Reapplies the frozen `overrides_path` admin-editor additions on top of the
+    workbook rows, so a fresh import reaches the same mapping count as a
+    long-lived deployment. See `_apply_who_2022_va_admin_overrides`.
+
+    The frozen overrides are **tied to the workbook they supplement**: they are
+    applied by default only when `workbook_path` is that same frozen workbook.
+    Those 34 rows are corrections to one specific derivation, so layering them
+    onto a different or updated workbook would contradict whatever that
+    workbook says about the same codes -- and would silently inflate the
+    mapping count of any other WHO_2022_VA source. Pass `overrides_path`
+    explicitly to apply them anyway, or `None` to skip them.
+    """
     workbook_path = str(workbook_path)
+    if overrides_path is _USE_DEFAULT_OVERRIDES:
+        same_workbook = (
+            Path(workbook_path).resolve()
+            == Path(DEFAULT_WHO_2022_VA_WORKBOOK_PATH).resolve()
+        )
+        overrides_path = DEFAULT_WHO_2022_VA_ADMIN_OVERRIDES_PATH if same_workbook else None
+    existing_scheme = db.session.scalar(
+        sa.select(MasCodBucketScheme).where(
+            MasCodBucketScheme.scheme_code == SCHEME_CODE_WHO_2022_VA
+        )
+    )
+    live_overrides: dict[str, str] = {}
+    if existing_scheme is not None:
+        live_overrides = {
+            mapping.icd_code: mapping.node.node_code
+            for mapping in db.session.scalars(
+                sa.select(MapIcdCodBucket).where(
+                    MapIcdCodBucket.scheme_id == existing_scheme.scheme_id,
+                    MapIcdCodBucket.source_sheet == MANUAL_OVERRIDE_SOURCE_SHEET,
+                )
+            )
+        }
+
     scheme = _get_or_create_scheme(
         scheme_code=SCHEME_CODE_WHO_2022_VA,
         scheme_name="WHO 2022 VA",
@@ -1107,6 +1234,12 @@ def import_who_2022_va_scheme(
         sort_order=meta["sort_order"],
     )
     _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+    if overrides_path:
+        _apply_who_2022_va_admin_overrides(
+            scheme=scheme,
+            overrides_path=overrides_path,
+            live_overrides=live_overrides,
+        )
 
     db.session.commit()
     return scheme

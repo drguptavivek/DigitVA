@@ -3,7 +3,7 @@ title: WHO 2022 VA ICD And COD Migration Artifacts
 doc_type: migration-artifact
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-20
 ---
 
 # WHO 2022 VA ICD And COD Migration Artifacts
@@ -23,6 +23,18 @@ Files:
     row has a COD bucket mapping at import time
   - was derived using archived review workbooks for final transport and
     assignability decisions
+- `WHO_2022_VA_Bucket_Mapping_admin_overrides.csv`
+  - 34 ICD-to-bucket mappings added through the live admin bucket editor
+    (`source_sheet=admin_cod_bucket_editor`) that the WHO derivation above
+    never produced -- clinically plausible gaps such as heart failure (I50),
+    the K70-K76 liver group, and unknown-cause codes
+  - frozen 2026-09-20 (bead `digitva-2g7`) so a fresh import reaches the same
+    2,414 mappings a long-lived deployment has, instead of the workbook's
+    2,380
+  - applied by `flask cod-buckets import-who-2022-va` after the workbook rows,
+    via `_apply_who_2022_va_admin_overrides` in
+    `app/services/cod_bucket_mapping_service.py`; a live admin edit made after
+    this freeze wins over the frozen value on re-import
 
 Archived supporting inputs:
 

@@ -1,0 +1,35 @@
+icd_code,node_code,node_label,node_type,category_label,match_type,source_category,mapping_note
+G46,vas_04_02,Stroke,field,Diseases of the circulatory system,manual_override,,Manual override to default COD bucket scheme mapping.
+G47,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+I11,vas_04_01,Acute cardiac disease,field,Diseases of the circulatory system,manual_override,,Manual override to default COD bucket scheme mapping.
+I46,vas_04_01,Acute cardiac disease,field,Diseases of the circulatory system,manual_override,,Manual override to default COD bucket scheme mapping.
+I50,vas_04_01,Acute cardiac disease,field,Diseases of the circulatory system,manual_override,,Manual override to default COD bucket scheme mapping.
+K64,other_gastrointestinal_diseases,Other Gastrointestinal Diseases,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+K70,vas_06_02,Liver cirrhosis,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+K72,vas_06_02,Liver cirrhosis,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+K73,vas_06_02,Liver cirrhosis,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+K75,other_gastrointestinal_diseases,Other Gastrointestinal Diseases,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+K76,other_gastrointestinal_diseases,Other Gastrointestinal Diseases,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+R03,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R04,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R06,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R07,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R10,other_gastrointestinal_diseases,Other Gastrointestinal Diseases,field,Gastrointestinal disorders,manual_override,,Manual override to default COD bucket scheme mapping.
+R11,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R13,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R17,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R18,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R21,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R39,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R50,vas_01_99,Unspecified infectious disease,field,Infectious and parasitic diseases,manual_override,,Manual override to default COD bucket scheme mapping.
+R52,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R54,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R56,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R57,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R60,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R65,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+R69,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+U07,vas_01_13,Coronavirus disease (COVID-19),field,Infectious and parasitic diseases,manual_override,,Manual override to default COD bucket scheme mapping.
+UU1,vas_98,Other and unspecified non-communicable disease,field,Non-communicable diseases,manual_override,,Manual override to default COD bucket scheme mapping.
+UU2,other_defined_cuase_of_child_death,Other Defined cause of Child Death,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.
+Y91,vas_99,Cause of death unknown,field,Cause of death unknown,manual_override,,Manual override to default COD bucket scheme mapping.

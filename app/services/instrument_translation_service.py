@@ -164,6 +164,11 @@ class ImportReport:
     translated_labels: int = 0
     written: int = 0
     kept_edited: int = 0
+    #: True when this import found the locale ``approved`` and, with the
+    #: caller's acknowledgement, demoted it back to ``in_review`` and
+    #: deactivated it (decided 2026-09-20, digitva-dqh). Named here so it
+    #: shows up in CLI output and logs, not only in the database.
+    demoted: bool = False
     missing_from_workbook: list[str] = dataclass_field(default_factory=list)
     unknown_in_workbook: list[str] = dataclass_field(default_factory=list)
     #: ``{extension: {"translated", "total", "label_translated", "label_total"}}``
@@ -200,6 +205,7 @@ class ImportReport:
             "translated_labels": self.translated_labels,
             "written": self.written,
             "kept_edited": self.kept_edited,
+            "demoted": self.demoted,
             # Capped: a workbook missing everything would otherwise return the
             # whole reference as a JSON body.
             "missing_from_workbook": self.missing_from_workbook[:50],
@@ -635,6 +641,46 @@ def _resolve_workbook(workbook: Path | str) -> Path:
     return resolved
 
 
+def _demote_if_approved(
+    locale_row: MasInstrumentLocales, *, acknowledge_demotion: bool, actor_id
+) -> bool:
+    """Demote an ``approved`` locale before a bulk import writes into it.
+
+    Decided 2026-09-20 (digitva-dqh): a bulk re-import (workbook or XLIFF
+    hand-back) into a locale an administrator already approved returns it to
+    ``in_review``, clears the approval record, and deactivates it -- the
+    import still proceeds. ``update_string`` and
+    :func:`accept_machine_translation` are unaffected: an administrator
+    editing or accepting one string *is* the reviewer.
+
+    This never happens silently: the caller must set ``acknowledge_demotion``,
+    or this raises before anything is written -- so the demotion and the
+    string writes that follow always land in the same transaction the caller
+    commits, and can never half-apply.
+    """
+    if locale_row.lifecycle_state != LIFECYCLE_APPROVED:
+        return False
+    if not acknowledge_demotion:
+        raise InstrumentTranslationError(
+            f"{locale_row.locale_code!r} is approved"
+            + (" and active" if locale_row.is_active else "")
+            + "; importing into it will move it back to 'in_review', clear "
+            "its approval"
+            + (" and deactivate it -- taking it off the forms" if locale_row.is_active else "")
+            + " until it is re-approved. Acknowledge this to proceed."
+        )
+    locale_row.lifecycle_state = LIFECYCLE_IN_REVIEW
+    locale_row.approved_by_user_id = None
+    locale_row.approved_at = None
+    locale_row.is_active = False
+    log.info(
+        "instrument locale demoted by import | %s/%s | approved -> in_review, "
+        "deactivated | by=%s",
+        locale_row.instrument_code, locale_row.locale_code, actor_id,
+    )
+    return True
+
+
 def import_translations(
     instrument_code: str,
     locale_code: str,
@@ -643,6 +689,7 @@ def import_translations(
     cross_check: bool = False,
     actor_id=None,
     language_name: str | None = None,
+    acknowledge_demotion: bool = False,
 ) -> ImportReport:
     """Import one language from one workbook, or cross-check it.
 
@@ -655,6 +702,9 @@ def import_translations(
     ``language_name`` names a locale being seeded for the first time, when the
     workbook's own ``field::Name (code)`` header does not carry one (see
     :func:`_locale_names`); it is ignored once the locale row already exists.
+
+    ``acknowledge_demotion`` is required to write into a locale that is
+    already ``approved`` -- see :func:`_demote_if_approved`.
     """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
@@ -724,6 +774,9 @@ def import_translations(
         locale_code,
         names.get(locale_code) or language_name or locale_code,
     )
+    report.demoted = _demote_if_approved(
+        locale_row, acknowledge_demotion=acknowledge_demotion, actor_id=actor_id,
+    )
     existing = {
         (row.item_kind, row.item_key, row.field): row
         for row in db.session.scalars(
@@ -778,9 +831,10 @@ def import_translations(
 
     log.info(
         "instrument translations imported | %s/%s | workbook=%s | version=%d | "
-        "coverage=%.3f | written=%d | kept_edited=%d | active=%s",
+        "coverage=%.3f | written=%d | kept_edited=%d | active=%s | demoted=%s",
         instrument_code, locale_code, path.name, locale_row.version,
         report.coverage, report.written, report.kept_edited, locale_row.is_active,
+        report.demoted,
     )
     return report
 
@@ -1666,6 +1720,7 @@ def import_xliff(
     *,
     actor_id=None,
     mark_as: str = SOURCE_IMPORTED,
+    acknowledge_demotion: bool = False,
 ) -> dict:
     """Write the targets of an XLIFF 2.0 document back into one locale.
 
@@ -1677,8 +1732,9 @@ def import_xliff(
     an administrator's ``edited`` corrections standing, and ``edited`` for a
     reviewed file that is meant to outrank them.
 
-    Coverage and activation are untouched: a locale becomes servable by the
-    same gate as before.
+    Coverage is untouched. Activation is untouched too, except that writing
+    into an already-``approved`` locale demotes it -- see
+    :func:`_demote_if_approved`; ``acknowledge_demotion`` is required for that.
     """
     if mark_as not in (SOURCE_IMPORTED, SOURCE_EDITED):
         raise InstrumentTranslationError(
@@ -1707,6 +1763,14 @@ def import_xliff(
         raise InstrumentTranslationError(
             f"The document's target language is {trg_lang!r}, not {locale_code!r}."
         )
+
+    # The document is well-formed and targets the right locale -- only now,
+    # right before anything is written, is the approval gate checked. This
+    # keeps a malformed or misdirected upload failing with its own error
+    # rather than the demotion refusal masking it.
+    demoted = _demote_if_approved(
+        locale_row, acknowledge_demotion=acknowledge_demotion, actor_id=actor_id,
+    )
 
     reference = reference_items(instrument_code)
     existing = {
@@ -1774,7 +1838,7 @@ def import_xliff(
         row.updated_at = now
         written += 1
 
-    if written:
+    if written or demoted:
         locale_row.version = (locale_row.version or 0) + 1
         locale_row.updated_at = now
     db.session.flush()
@@ -1782,10 +1846,10 @@ def import_xliff(
     log.info(
         "instrument translations xliff imported | %s/%s | mark_as=%s | by=%s | "
         "units=%d | written=%d | unchanged=%d | empty=%d | unknown=%d | "
-        "too_long=%d | kept_edited=%d | version=%d",
+        "too_long=%d | kept_edited=%d | demoted=%s | version=%d",
         instrument_code, locale_code, mark_as, actor_id, units, written, unchanged,
         skipped_empty, len(skipped_unknown), len(skipped_too_long), kept_edited,
-        locale_row.version,
+        demoted, locale_row.version,
     )
     return {
         "instrument_code": instrument_code,
@@ -1795,6 +1859,7 @@ def import_xliff(
         "written": written,
         "unchanged": unchanged,
         "kept_edited": kept_edited,
+        "demoted": demoted,
         "skipped_empty": skipped_empty,
         # Capped: a document keyed to the wrong instrument would otherwise
         # return every one of its ids as a JSON body.

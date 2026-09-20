@@ -80,7 +80,17 @@ def _resolve_approver(raw: str) -> uuid.UUID:
     help="Display name for a locale imported for the first time, when the "
     "workbook's own language column does not carry one.",
 )
-def import_workbook(instrument_code, locale, workbook, cross_check, language_name):
+@click.option(
+    "--acknowledge-demotion",
+    is_flag=True,
+    default=False,
+    help="Required to import into an already-approved locale: it will be "
+    "moved back to in_review and deactivated. Without this flag, importing "
+    "into an approved locale is refused.",
+)
+def import_workbook(
+    instrument_code, locale, workbook, cross_check, language_name, acknowledge_demotion
+):
     """Import LOCALE for INSTRUMENT_CODE from WORKBOOK.
 
     Importing a questionnaire source is a reviewed one-time activity: any
@@ -89,11 +99,16 @@ def import_workbook(instrument_code, locale, workbook, cross_check, language_nam
     run ``activate`` explicitly once you are ready to serve it. Changing a
     translation already served is the admin string editor's job, not a
     re-import.
+
+    Importing into a locale that is already ``approved`` demotes it back to
+    ``in_review`` and deactivates it (decided 2026-09-20, digitva-dqh) --
+    refused unless ``--acknowledge-demotion`` is passed.
     """
     try:
         report = import_translations(
             instrument_code, locale, workbook,
             cross_check=cross_check, language_name=language_name,
+            acknowledge_demotion=acknowledge_demotion,
         )
     except InstrumentTranslationError as exc:
         db.session.rollback()
@@ -122,6 +137,11 @@ def import_workbook(instrument_code, locale, workbook, cross_check, language_nam
         click.echo(
             f"  {name}: {pct:.1%} ({counts['translated']}/{total}) -- "
             f"labels {label_pct:.1%} ({counts['label_translated']}/{label_total})"
+        )
+    if report.demoted:
+        click.echo(
+            f"  {locale} was approved; it has been moved back to in_review "
+            "and deactivated pending re-approval."
         )
     if report.cross_check:
         click.echo("Cross-check only: nothing was written.")
@@ -182,12 +202,28 @@ def export_xliff_command(instrument_code, locale, output_path):
     show_default=True,
     help="How the written rows are marked. 'edited' outranks a later workbook re-import.",
 )
-def import_xliff_command(instrument_code, locale, path, mark_as):
-    """Write the targets of the XLIFF 2.0 document at PATH back into LOCALE."""
+@click.option(
+    "--acknowledge-demotion",
+    is_flag=True,
+    default=False,
+    help="Required to import into an already-approved locale: it will be "
+    "moved back to in_review and deactivated. Without this flag, importing "
+    "into an approved locale is refused.",
+)
+def import_xliff_command(instrument_code, locale, path, mark_as, acknowledge_demotion):
+    """Write the targets of the XLIFF 2.0 document at PATH back into LOCALE.
+
+    Importing into a locale that is already ``approved`` demotes it back to
+    ``in_review`` and deactivates it (decided 2026-09-20, digitva-dqh) --
+    refused unless ``--acknowledge-demotion`` is passed.
+    """
     with open(path, encoding="utf-8") as handle:
         document = handle.read()
     try:
-        report = import_xliff(instrument_code, locale, document, mark_as=mark_as)
+        report = import_xliff(
+            instrument_code, locale, document, mark_as=mark_as,
+            acknowledge_demotion=acknowledge_demotion,
+        )
     except InstrumentTranslationError as exc:
         db.session.rollback()
         _fail(exc)
@@ -199,6 +235,11 @@ def import_xliff_command(instrument_code, locale, path, mark_as):
         f"empty={report['skipped_empty']}, unknown={report['skipped_unknown_count']}, "
         f"too_long={report['skipped_too_long_count']}, version={report['version']}"
     )
+    if report["demoted"]:
+        click.echo(
+            f"  {locale} was approved; it has been moved back to in_review "
+            "and deactivated pending re-approval."
+        )
 
 
 @instrument_translations_group.command("activate")

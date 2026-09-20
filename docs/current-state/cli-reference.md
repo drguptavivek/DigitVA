@@ -73,13 +73,14 @@ Policy: `docs/policy/organization-model.md`.
 docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA] [--extensions]
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/RJ01_ICMRVA_WHOVA2022.xlsx
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --cross-check
+docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --acknowledge-demotion
 docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi in_review
 docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi approved --approved-by testadmin@digitva.com
 docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
 docker compose exec minerva_app_service uv run flask instrument-translations export-xliff WHO_2022_VA hi [--output hi.xlf]
-docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi hi.xlf [--as imported|edited]
+docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi hi.xlf [--as imported|edited] [--acknowledge-demotion]
 ```
 
 `import` accepts any readable workbook for any locale (decided 2026-09-20:
@@ -104,6 +105,15 @@ directory (where an admin upload writes its file); anything else is refused.
 `import` never activates or deactivates a locale — `activate`/`deactivate` are
 the only way, independent of coverage (decided 2026-09-19; no `--force` flag
 exists any more, since there is no threshold left to bypass).
+
+**Importing into an already-`approved` locale demotes it (decided
+2026-09-20, digitva-dqh)** — see "A bulk re-import demotes an approved
+locale, after warning" in `docs/policy/va-form-project-configuration.md`.
+`import` and `import-xliff` are refused, naming the locale and the
+consequence, unless `--acknowledge-demotion` is passed; with it, the import
+proceeds and the locale ends `in_review`, deactivated, with its approval
+cleared. Importing into a `draft` or `in_review` locale needs no flag and
+never changes its state.
 
 `lifecycle` moves a locale through its approval states: `draft` ->
 `in_review` -> `approved` (decided 2026-09-20 — see "Approval before
@@ -140,6 +150,13 @@ install, not a migration** — migrations import no application code and must no
 read reference workbooks. The Instrument Translations admin panel does the same
 work through the browser. Policy: `docs/policy/va-web-form-options.md`
 ("Adding a language").
+
+A fresh install already arrives with the twelve DigitVA-layer locales (`ar`,
+`bn`, `es`, `fr`, `hi`, `kn`, `ml`, `mr`, `or`, `pt`, `sw`, `ta`) as `draft`
+and inactive, carrying their `machine`-sourced strings — migration
+`7134cb5dc7b6` (decided 2026-09-20, digitva-dms). Nothing is served until an
+operator imports a real workbook (which finds and fills in the locale row
+this migration created) and an administrator reviews and approves it.
 
 ## `icd11` — ICD-11 MMS master data
 

@@ -356,6 +356,19 @@ pre-built and immutable.
 - FK `(instrument_code, locale_code)` -> `mas_instrument_locales`, ON DELETE
   CASCADE
 - roughly 2,800 rows per fully translated locale of `WHO_2022_VA`
+- **Seeded on a fresh install (added 2026-09-20, digitva-dms):** migration
+  `7134cb5dc7b6` creates the twelve DigitVA-layer locale rows (`draft`,
+  inactive) when absent and inserts the same 214 strings `b6d2f4a9c1e7`
+  seeds, as `source='machine'` from the start (`b6d2f4a9c1e7` only inserts
+  where a locale row already exists, so a fresh database got none of them).
+  `7134cb5dc7b6` reads its rows from the checked-in
+  `resource/digitva_layer_translations_2026_09_20.csv` rather than a third
+  copy of the literal — `b6d2f4a9c1e7` and `c1a4b6e8d3f2` are applied and
+  must not be edited, so they keep their own inlined literal copies;
+  `tests/migrations/test_seed_layer_translations_on_fresh_install.py` checks
+  the CSV against both, byte-for-byte. Precedent for a checked-in data file
+  read by a migration: `resource/icd11_mms_2026_01_hierarchy.csv` /
+  `mas_icd11_mms`, below.
 
 ### The reference an item's key is checked against
 

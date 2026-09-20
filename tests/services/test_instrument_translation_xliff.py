@@ -496,6 +496,57 @@ class InstrumentTranslationXliffTests(BaseTestCase):
         with self.assertRaises(svc.InstrumentTranslationError):
             svc.import_xliff(INSTRUMENT, "hi", document, mark_as="whatever")
 
+    # -- demotion of an approved locale (decided 2026-09-20, digitva-dqh) ----
+
+    def _approve_and_activate(self):
+        row = self._locale()
+        row.lifecycle_state = LIFECYCLE_APPROVED
+        row.is_active = True
+        db.session.flush()
+        return row
+
+    def test_a_hand_back_into_an_approved_locale_is_refused_without_acknowledgement(self):
+        self._approve_and_activate()
+        document = self._retarget(
+            svc.export_xliff(INSTRUMENT, "hi"), "question.Q1.label", "नया पाठ"
+        )
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            svc.import_xliff(INSTRUMENT, "hi", document)
+        self.assertIn("hi", str(ctx.exception))
+        self.assertIn("approved", str(ctx.exception))
+
+        row = self._locale()
+        self.assertEqual(row.lifecycle_state, LIFECYCLE_APPROVED)
+        self.assertTrue(row.is_active)
+        # Refused before anything was written.
+        self.assertEqual(self._row("question", "Q1", "label").text, "पहला प्रश्न")
+
+    def test_a_hand_back_into_an_approved_locale_demotes_it_when_acknowledged(self):
+        self._approve_and_activate()
+        document = self._retarget(
+            svc.export_xliff(INSTRUMENT, "hi"), "question.Q1.label", "नया पाठ"
+        )
+        report = svc.import_xliff(
+            INSTRUMENT, "hi", document, acknowledge_demotion=True,
+        )
+        db.session.flush()
+
+        self.assertTrue(report["demoted"])
+        row = self._locale()
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_IN_REVIEW)
+        self.assertIsNone(row.approved_by_user_id)
+        self.assertIsNone(row.approved_at)
+        self.assertFalse(row.is_active)
+        # The import still proceeds.
+        self.assertEqual(self._row("question", "Q1", "label").text, "नया पाठ")
+
+    def test_a_hand_back_into_a_draft_locale_needs_no_acknowledgement(self):
+        document = svc.export_xliff(INSTRUMENT, "hi")
+        report = svc.import_xliff(INSTRUMENT, "hi", document)
+        db.session.flush()
+        self.assertFalse(report["demoted"])
+        self.assertEqual(self._locale().lifecycle_state, svc.LIFECYCLE_DRAFT)
+
 
 class LayerXliffTests(BaseTestCase):
     """A DigitVA layer item exports and imports through XLIFF like any other.

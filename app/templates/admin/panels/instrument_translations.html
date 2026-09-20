@@ -164,6 +164,11 @@
     return 'secondary';
   }
 
+  // Last-loaded locale rows, keyed by locale_code -- so the import form (a
+  // free-text locale field) and the XLIFF import can tell, before sending
+  // anything, whether the target is already 'approved' and warn accordingly.
+  var _localesByCode = {};
+
   function loadLocales() {
     var wrap = document.getElementById('itr-locales-wrap');
     wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
@@ -176,6 +181,28 @@
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
     });
+  }
+
+  // True when importing into `locale` would demote it (decided 2026-09-20,
+  // digitva-dqh: a bulk import into an approved locale returns it to
+  // in_review and deactivates it). Confirms with the operator first, in the
+  // same wording the CLI and the route refuse with absent acknowledgement.
+  // Returns 'proceed' (no approved locale involved, send nothing extra),
+  // 'acknowledged' (the operator was warned and agreed) or 'declined'.
+  //
+  // A cache miss returns 'proceed', NOT 'acknowledged': the locale list may be
+  // stale -- approved in another tab, or the form used before it loaded -- and
+  // guessing would send the acknowledgement without anyone having been warned,
+  // which is the one thing this must never do. Proceeding without it makes the
+  // server refuse and say why, and the operator retries having been told.
+  function confirmDemotionIfApproved(locale) {
+    var row = _localesByCode[locale];
+    if (!row || row.lifecycle_state !== 'approved') return 'proceed';
+    var msg = locale + ' is approved' + (row.is_active ? ' and active' : '')
+      + '. Importing into it will move it back to in_review, clear its approval'
+      + (row.is_active ? ' and deactivate it -- taking it off the forms' : '')
+      + ' until it is re-approved. Continue?';
+    return confirm(msg) ? 'acknowledged' : 'declined';
   }
 
   // Lifecycle state a locale must reach before Activate is allowed (decided
@@ -208,6 +235,8 @@
   }
 
   function renderLocales(locales) {
+    _localesByCode = {};
+    locales.forEach(function (l) { _localesByCode[l.locale_code] = l; });
     var rows = locales.map(function (l) {
       var actions = '';
       if (!l.is_base) {
@@ -335,10 +364,14 @@
     var input = document.getElementById('itr-import-file');
     if (!locale) { alertBox('warning', 'Enter the locale code.'); return; }
     if (!input.files || !input.files.length) { alertBox('warning', 'Choose a workbook.'); return; }
+    var crossCheck = document.getElementById('itr-cross-check').checked;
+    var demotion = crossCheck ? 'proceed' : confirmDemotionIfApproved(locale);
+    if (demotion === 'declined') return;
 
     var form = new FormData();
     form.append('file', input.files[0]);
-    if (document.getElementById('itr-cross-check').checked) form.append('cross_check', '1');
+    if (crossCheck) form.append('cross_check', '1');
+    else if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
     var languageName = document.getElementById('itr-import-language-name').value.trim();
     if (languageName) form.append('language_name', languageName);
 
@@ -378,6 +411,10 @@
       lines.push(esc(name) + ' coverage ' + pct(c.coverage) + ' (' + c.translated + '/' + c.total + ') -- '
         + 'labels ' + pct(c.label_coverage) + ' (' + c.label_translated + '/' + c.label_total + ')');
     });
+    if (report.demoted) {
+      lines.push('<span class="text-warning">' + esc(report.locale_code)
+        + ' was approved; it has been moved back to in_review and deactivated pending re-approval.</span>');
+    }
     if (report.cross_check) lines.push('<em>Cross-check only — nothing was written.</em>');
     else lines.push('<em>Import does not activate a locale — use Activate below once ready.</em>');
     out.innerHTML = '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
@@ -392,10 +429,13 @@
     var out = document.getElementById('itr-xliff-result');
     out.innerHTML = '';
     if (!_xliffLocale || !this.files || !this.files.length) return;
+    var demotion = confirmDemotionIfApproved(_xliffLocale);
+    if (demotion === 'declined') { this.value = ''; return; }
 
     var form = new FormData();
     form.append('file', this.files[0]);
     form.append('as', document.getElementById('itr-xliff-as').value);
+    if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
 
     var locale = _xliffLocale;
     out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the XLIFF document…';
@@ -424,6 +464,10 @@
       'targets over the length cap: ' + esc(report.skipped_too_long_count),
       'version now ' + esc(report.version),
     ];
+    if (report.demoted) {
+      lines.push('<span class="text-warning">' + esc(report.locale_code)
+        + ' was approved; it has been moved back to in_review and deactivated pending re-approval.</span>');
+    }
     if (report.skipped_unknown && report.skipped_unknown.length) {
       lines.push('<span class="text-warning">skipped: <code>'
         + report.skipped_unknown.map(esc).join('</code>, <code>') + '</code></span>');

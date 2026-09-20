@@ -557,7 +557,9 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         before = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
         response = self.client.post(
             self._api("/xliff"),
-            data=self._upload(self._xliff_document(), **{"as": "edited"}),
+            data=self._upload(
+                self._xliff_document(), **{"as": "edited", "acknowledge_demotion": "1"}
+            ),
             content_type="multipart/form-data",
             headers=self._csrf_headers(),
         )
@@ -565,6 +567,9 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         report = response.get_json()["report"]
         self.assertEqual(report["units"], 1)
         self.assertEqual(report["written"], 1)
+        # setUp's "hi" is approved+active (digitva-dqh): a bulk hand-back
+        # demoted it, and that bumps the version too.
+        self.assertTrue(report["demoted"])
         self.assertEqual(report["version"], before + 1)
 
         db.session.expire_all()
@@ -583,10 +588,13 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 400)
-        # Present first: the same upload with a token is accepted.
+        # Present first: the same upload with a token is accepted. setUp's
+        # "hi" is approved+active, so this also needs the demotion
+        # acknowledgement (digitva-dqh) to reach 200 rather than the
+        # approval refusal.
         accepted = self.client.post(
             self._api("/xliff"),
-            data=self._upload(self._xliff_document()),
+            data=self._upload(self._xliff_document(), acknowledge_demotion="1"),
             content_type="multipart/form-data",
             headers=self._csrf_headers(),
         )
@@ -624,6 +632,26 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         )
         self.assertEqual(bad_mark.status_code, 400)
 
+    def test_an_xliff_upload_into_an_approved_locale_is_refused_without_acknowledgement(self):
+        """digitva-dqh: same refusal, named for the locale and the consequence,
+        for the XLIFF route as for the workbook import route."""
+        self._login(self.base_admin_id)
+        before = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
+        response = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document()),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        error = response.get_json()["error"]
+        self.assertIn("hi", error)
+        self.assertIn("approved", error)
+        db.session.expire_all()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, LIFECYCLE_APPROVED)
+        self.assertEqual(row.version, before)
+
     def test_an_upload_for_another_language_is_refused(self):
         self._login(self.base_admin_id)
         response = self.client.post(
@@ -659,19 +687,48 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         with path.open("rb") as handle:
             response = self.client.post(
                 self._api("/import"),
-                data={"file": (handle, "KA01_DS_WHOVA2022.xlsx")},
+                # setUp's "hi" is approved+active: this bulk re-import needs
+                # the demotion acknowledgement (digitva-dqh).
+                data={"file": (handle, "KA01_DS_WHOVA2022.xlsx"), "acknowledge_demotion": "1"},
                 content_type="multipart/form-data",
                 headers=self._csrf_headers(),
             )
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(response.get_json()["report"]["workbook"], "KA01_DS_WHOVA2022.xlsx")
 
-    def test_import_of_a_workbook_writes_but_does_not_activate(self):
-        """The whole path: upload, parse, write, then an explicit activate, serve."""
+    def test_an_import_into_an_approved_locale_is_refused_without_acknowledgement(self):
+        """digitva-dqh: refused, naming the locale and the consequence,
+        without the acknowledgement field -- and nothing is written."""
         self._login(self.base_admin_id)
-        # setUp starts "hi" active; deactivate first so the import's own
-        # effect on is_active (none) is what this test observes.
-        self.client.post(self._api("/deactivate"), json={}, headers=self._csrf_headers())
+        before = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
+        path = svc.WORKBOOK_DIR / "KA01_DS_WHOVA2022.xlsx"
+        with path.open("rb") as handle:
+            response = self.client.post(
+                self._api("/import"),
+                data={"file": (handle, "KA01_DS_WHOVA2022.xlsx")},
+                content_type="multipart/form-data",
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 400)
+        error = response.get_json()["error"]
+        self.assertIn("hi", error)
+        self.assertIn("approved", error)
+        db.session.expire_all()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, LIFECYCLE_APPROVED)
+        self.assertTrue(row.is_active)
+        self.assertEqual(row.version, before)
+
+    def test_import_of_a_workbook_writes_but_does_not_activate(self):
+        """The whole path: upload, parse, write, then an explicit approve,
+        activate, serve -- against a locale nobody has approved yet, so this
+        is not the approved-locale demotion path (digitva-dqh), which has its
+        own tests above."""
+        self._login(self.base_admin_id)
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        row.lifecycle_state = "draft"
+        row.is_active = False
+        db.session.commit()
         workbook_name = "ND01_ICMRVA_WHOVA2022.xlsx"
         path = svc.WORKBOOK_DIR / workbook_name
         with path.open("rb") as handle:
@@ -684,6 +741,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         report = response.get_json()["report"]
         self.assertGreaterEqual(report["label_coverage"], 0.95)
+        self.assertFalse(report["demoted"])
         self.assertNotIn("activated", report)
         self.assertGreater(report["written"], 400)
         self.assertIn("extension_coverage", report)
@@ -693,7 +751,11 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         by_code = {row["locale_code"]: row for row in locales}
         self.assertFalse(by_code["hi"]["is_active"])
 
-        # ...activation is the separate, explicit step.
+        # ...approval and activation are the separate, explicit steps.
+        approved = self.client.post(
+            self._api("/lifecycle"), json={"state": "approved"}, headers=self._csrf_headers()
+        )
+        self.assertEqual(approved.status_code, 200, approved.get_json())
         activated = self.client.post(
             self._api("/activate"), json={}, headers=self._csrf_headers()
         )

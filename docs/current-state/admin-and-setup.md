@@ -330,6 +330,26 @@ re-import and bumps the locale version), export JSON, and exchange the
 language as **XLIFF 2.0**. All state changes go through JSON routes under
 `/admin/api/instrument-translations/` with `X-CSRFToken`.
 
+**Re-importing into an already-approved locale (decided 2026-09-20,
+digitva-dqh).** Both the workbook Import button and dropping an XLIFF file
+onto an **Import XLIFF** button first check, client-side, whether the target
+locale is `approved`; if it is, a `confirm()` dialog states that it is
+approved (and active, if so), that proceeding moves it back to `in_review`,
+clears its approval and deactivates it, and asks to continue before anything
+is sent. Cancelling sends nothing.
+
+`acknowledge_demotion=1` is sent **only when that dialog was shown and
+accepted**. It is deliberately not sent when the panel's cached locale list
+does not know the locale is approved — stale because it was approved in
+another tab, or the form was used before the list loaded. Guessing there would
+mean acknowledging a warning nobody saw, so the request goes without the
+field, the route refuses it and names the consequence, and the operator
+retries having been told. The client dialog is the convenience; the route is
+the gate — see "A bulk re-import
+demotes an approved locale, after warning" in
+[VA Form Project Configuration Policy](../policy/va-form-project-configuration.md).
+The import result panel shows the demotion when it happened.
+
 A row whose `source` is `machine` (an LLM draft, never a workbook or a
 reviewer — decided 2026-09-20, see "Machine-translated strings are not
 served" in `docs/policy/va-form-project-configuration.md`) is highlighted in
@@ -451,10 +471,12 @@ picker" resolves to one of those two.
 row of the "Translation sources" table in
 `docs/policy/va-form-project-configuration.md`, run
 `flask instrument-translations import WHO_2022_VA <locale> docs/kb/WHO_VA_2022_Docs/<workbook>`
-or upload through the panel, then activate. A fresh database serves `en`
-only until this is done. Changing a language's source workbook is a policy
-edit to that table first; the importer refuses an undocumented workbook
-unless run as a cross-check.
+or upload through the panel, then approve and activate. A fresh database
+serves `en` only until this is done — even though, since migration
+`7134cb5dc7b6` (decided 2026-09-20, digitva-dms), the twelve DigitVA-layer
+locales already exist as `draft` and inactive with their `machine`-sourced
+strings, so they appear in this panel from the first install rather than
+only after someone runs an import.
 
 ## Languages Panel
 

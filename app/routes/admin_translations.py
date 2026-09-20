@@ -114,6 +114,7 @@ def admin_instrument_translation_import(instrument_code, locale):
 
     cross_check = request.form.get("cross_check") == "1"
     language_name = (request.form.get("language_name") or "").strip() or None
+    acknowledge_demotion = request.form.get("acknowledge_demotion") == "1"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # The upload keeps its own (sanitised) name inside a private,
@@ -138,6 +139,7 @@ def admin_instrument_translation_import(instrument_code, locale):
                 cross_check=cross_check,
                 actor_id=current_user.user_id,
                 language_name=language_name,
+                acknowledge_demotion=acknowledge_demotion,
             )
         except InstrumentTranslationError as exc:
             db.session.rollback()
@@ -333,6 +335,7 @@ def admin_instrument_translation_import_xliff(instrument_code, locale):
         return _json_error(
             f"'as' must be {SOURCE_IMPORTED!r} or {SOURCE_EDITED!r}.", 400
         )
+    acknowledge_demotion = request.form.get("acknowledge_demotion") == "1"
 
     # Read under the cap before anything parses it, the same way the workbook
     # upload does: an unbounded document is never fully read into memory.
@@ -358,6 +361,7 @@ def admin_instrument_translation_import_xliff(instrument_code, locale):
             document,
             actor_id=current_user.user_id,
             mark_as=mark_as,
+            acknowledge_demotion=acknowledge_demotion,
         )
     except InstrumentTranslationError as exc:
         db.session.rollback()

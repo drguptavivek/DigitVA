@@ -563,6 +563,60 @@ correctly as-is, clicks **Accept** (`accept_machine_translation`), which
 promotes `machine` straight to `edited` without retyping. Either action makes
 the string servable on the locale's next version bump.
 
+**Seeded on a fresh install too (decided 2026-09-20, digitva-dms).**
+`b6d2f4a9c1e7` only inserts its 214 strings where a locale row already
+exists, so a brand-new database got none of them (an operator creates locale
+rows later, by importing a workbook). Migration `7134cb5dc7b6` creates the
+twelve locale rows (`draft`, inactive) when absent and inserts the same 214
+strings as `machine` from the start, reading them from the checked-in
+`resource/digitva_layer_translations_2026_09_20.csv` rather than pasting the
+literal a third time (`b6d2f4a9c1e7` and `c1a4b6e8d3f2` are applied and must
+not be edited, so they keep their own copies).
+`tests/migrations/test_seed_layer_translations_on_fresh_install.py` checks
+the CSV against both byte-for-byte. A later operator workbook import still
+finds and fills in the locale row this migration created, exactly as before.
+
+### A bulk re-import demotes an approved locale, after warning (decided 2026-09-20)
+
+**Re-importing into a locale an administrator already approved returns it to
+`in_review` -- but never silently.** The approval gate above holds for a
+locale nobody has approved yet; it did nothing to stop a re-import (a
+workbook or an XLIFF hand-back) from silently rewriting every string of a
+locale that is already approved and being served, with nobody re-reviewing
+the new content (found by audit 2026-09-20, digitva-dqh).
+
+When `import_translations` or `import_xliff` writes into a locale whose
+`lifecycle_state` is `approved`:
+
+* `lifecycle_state` returns to `in_review`;
+* `approved_by_user_id` and `approved_at` are cleared;
+* `is_active` is set `false` (the CHECK constraint requires it once
+  `lifecycle_state` is no longer `approved`);
+* the import still proceeds -- this is a demotion, not a refusal to import.
+
+`update_string` and the per-string **Accept** action are **not affected**: an
+administrator editing or accepting one string *is* the reviewer, the same way
+entering `approved` always required a human in the first place.
+
+**Never silently.** The caller must acknowledge the consequence before
+anything is written, or the whole call is refused (nothing written, nothing
+demoted) with a message naming the locale and what proceeding would do:
+
+| Surface | How it warns |
+| --- | --- |
+| CLI (`instrument-translations import` / `import-xliff`) | Refused unless `--acknowledge-demotion` is passed. |
+| Admin panel | A `confirm()` dialog states the consequence before the request is sent, and `acknowledge_demotion=1` is sent **only** if it was accepted. When the panel's cached locale list does not know the locale is approved (stale, or not yet loaded) no dialog fires and the field is deliberately omitted, so the route refuses and the operator is told -- acknowledging a warning nobody saw would defeat the rule. |
+| Route (`POST .../import`, `POST .../xliff`) | Refused unless the multipart payload carries `acknowledge_demotion=1`. |
+
+The demotion and the string writes happen in the same database transaction
+the caller commits (or rolls back on any error), so they can never
+half-apply: the refusal itself is raised before any row is written -- for the
+XLIFF route, after the document is validated as well-formed XLIFF 2.0 for the
+right locale, so a malformed or misdirected upload still fails with its own
+error rather than the demotion refusal masking it. The import report names
+the demotion (`"demoted": true`), so it shows up in CLI output and in the
+logged `instrument locale demoted by import` line.
+
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 
 **The admin who saves the setting is the sign-off.** There is no pending

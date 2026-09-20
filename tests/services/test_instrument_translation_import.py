@@ -448,9 +448,10 @@ class InstrumentTranslationImportTests(BaseTestCase):
 
     # -- lifecycle_state is untouched by import or edit (decided 2026-09-20) -
 
-    def test_a_reimport_of_an_approved_locale_leaves_it_approved(self):
-        """A re-import must never move a locale off 'approved' behind an
-        administrator's back -- present first: it really is approved."""
+    def test_a_reimport_of_an_approved_locale_is_refused_without_acknowledgement(self):
+        """Decided 2026-09-20 (digitva-dqh): a bulk re-import into an approved
+        locale demotes it, but never silently -- present first: it really is
+        approved and untouched by the refused attempt."""
         self._import(self._full_workbook())
         db.session.flush()
         row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
@@ -458,12 +459,64 @@ class InstrumentTranslationImportTests(BaseTestCase):
         db.session.flush()
         self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
 
-        self._import(self._full_workbook(q1="नया पहला प्रश्न"))
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            self._import(self._full_workbook(q1="नया पहला प्रश्न"))
+        self.assertIn("hi", str(ctx.exception))
+        self.assertIn("approved", str(ctx.exception))
+
         db.session.flush()
-        self.assertEqual(
-            db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).lifecycle_state,
-            svc.LIFECYCLE_APPROVED,
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
+        # Refused before anything was written: the old text is still there.
+        self.assertNotEqual(
+            self._rows()[("question", "Q1", "label")].text, "नया पहला प्रश्न"
         )
+
+    def test_a_reimport_of_an_approved_locale_demotes_it_when_acknowledged(self):
+        self._import(self._full_workbook())
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        row.lifecycle_state = svc.LIFECYCLE_APPROVED
+        row.approved_by_user_id = None
+        row.is_active = True
+        db.session.flush()
+
+        report = self._import(
+            self._full_workbook(q1="नया पहला प्रश्न"), acknowledge_demotion=True
+        )
+        db.session.flush()
+        self.assertTrue(report.demoted)
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_IN_REVIEW)
+        self.assertIsNone(row.approved_by_user_id)
+        self.assertIsNone(row.approved_at)
+        self.assertFalse(row.is_active)
+        # The import still proceeds: the new text landed.
+        self.assertEqual(
+            self._rows()[("question", "Q1", "label")].text, "नया पहला प्रश्न"
+        )
+
+    def test_a_reimport_of_a_draft_or_in_review_locale_needs_no_acknowledgement(self):
+        for state in (svc.LIFECYCLE_DRAFT, svc.LIFECYCLE_IN_REVIEW):
+            with self.subTest(state=state):
+                self._import(self._full_workbook())
+                db.session.flush()
+                row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+                row.lifecycle_state = state
+                db.session.flush()
+
+                report = self._import(self._full_workbook(q1="फिर से"))
+                db.session.flush()
+                self.assertFalse(report.demoted)
+                self.assertEqual(
+                    db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).lifecycle_state,
+                    state,
+                )
+
+    def test_a_first_import_of_a_new_locale_needs_no_acknowledgement(self):
+        report = self._import(self._full_workbook())
+        db.session.flush()
+        self.assertFalse(report.demoted)
 
     def test_editing_a_string_leaves_lifecycle_state_untouched(self):
         self._import(self._full_workbook())
@@ -482,6 +535,26 @@ class InstrumentTranslationImportTests(BaseTestCase):
             db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).lifecycle_state,
             svc.LIFECYCLE_IN_REVIEW,
         )
+
+    def test_update_string_never_demotes_an_approved_locale(self):
+        """Decided 2026-09-20 (digitva-dqh): an administrator editing one
+        string IS the reviewer -- update_string is explicitly excluded from
+        the re-import demotion rule."""
+        self._import(self._full_workbook())
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        row.lifecycle_state = svc.LIFECYCLE_APPROVED
+        row.is_active = True
+        db.session.flush()
+
+        svc.update_string(
+            INSTRUMENT, "hi", item_kind="question", item_key="Q1",
+            field="label", text="बदला हुआ",
+        )
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
+        self.assertTrue(row.is_active)
 
     # -- activation is explicit, never gated on coverage ---------------------
     #
@@ -1083,6 +1156,12 @@ class MachineSourceTests(BaseTestCase):
         statuses = {row["locale_code"]: row for row in svc.locale_status(self.INSTRUMENT)}
         self.assertEqual(statuses["hi"]["translated_labels"], 2)
 
+        # Accepting is not a bulk re-import: the approval gate (digitva-dqh)
+        # does not apply -- this locale is still approved and active.
+        row = db.session.get(MasInstrumentLocales, (self.INSTRUMENT, "hi"))
+        self.assertEqual(row.lifecycle_state, svc.LIFECYCLE_APPROVED)
+        self.assertTrue(row.is_active)
+
     def test_accepting_a_non_machine_row_is_refused(self):
         with self.assertRaises(svc.InstrumentTranslationError):
             svc.accept_machine_translation(
@@ -1109,7 +1188,9 @@ class MachineSourceTests(BaseTestCase):
             ],
             [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        report = svc.import_translations(self.INSTRUMENT, "hi", workbook)
+        report = svc.import_translations(
+            self.INSTRUMENT, "hi", workbook, acknowledge_demotion=True,
+        )
         db.session.flush()
         row = self._row("Q2")
         self.assertEqual(row.text, "समीक्षित अनुवाद")
@@ -1134,7 +1215,9 @@ class MachineSourceTests(BaseTestCase):
             ],
             [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
         )
-        report = svc.import_translations(self.INSTRUMENT, "hi", workbook)
+        report = svc.import_translations(
+            self.INSTRUMENT, "hi", workbook, acknowledge_demotion=True,
+        )
         db.session.flush()
         row = self._row("Q2")
         self.assertEqual(row.text, "व्यवस्थापक का सुधार")

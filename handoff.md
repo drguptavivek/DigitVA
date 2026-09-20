@@ -1,7 +1,41 @@
 # Handoff
 
-Updated 2026-09-20. Two commits today; the second is described first because
-it corrects the first.
+Updated 2026-09-20. Five commits today, newest first. `origin/main` is at
+`e77c293`, working tree clean apart from an untracked `dailybackups/`.
+
+**`e77c293` -- Python has its own expression evaluator** (`digitva-cal.1`,
+closed). `app/services/xform_expression_evaluator.py`, plus a conformance
+corpus of 347 unique expressions and 1,903 cases generated from the TypeScript
+engine by `tooling/who-va-2022/build-expression-corpus.mjs` and committed to
+`vendor/who-va-2022/src/generated/expression-conformance-corpus.json`. The
+corpus is the deliverable, not the port: two evaluators that drift are worse
+than one that is merely trusted, and `78757d4` showed this codebase can carry a
+silent evaluator defect for a year. Not vacuous -- 334 true, 1,351 false, 60
+NaN, 59 strings. `now` and timezone pinned so regeneration reproduces it byte
+for byte. Removing the six `re.ASCII` guards makes the corpus report "1 of 1903
+corpus cases diverged"; verified independently in the main session, not taken on
+report. Intake behaviour unchanged: `web_intake_service` still trusts the client
+boolean until `digitva-cal.2`. Policy: `docs/policy/xform-expression-evaluator.md`,
+which records the locale-independence invariant (a choice *value* is never a
+translation target, so `selected(${sa01}, '1')` compares the same `'1'` in all
+thirteen languages) and the two JS behaviours that did not port.
+
+**`6d94656` -- re-import demotes an approved locale; fresh installs get the
+drafts** (`digitva-dqh`, `digitva-dms`, both closed). A bulk re-import or XLIFF
+hand-back into an `approved` locale returns it to `in_review`, clears the
+approver and deactivates it; the import proceeds. Refused before any write
+unless acknowledged -- `--acknowledge-demotion`, a form field on both import
+routes, a panel confirmation. The panel sends the field **only** when its dialog
+fired and was accepted; a stale locale list sends nothing so the route refuses
+and explains, because acknowledging a warning nobody saw defeats the rule.
+Migration `7134cb5dc7b6` creates the twelve locale rows when absent (draft,
+inactive) and seeds the 214 strings as `machine`, so a fresh install with no
+workbook ever imported now has them. Strings live in
+`resource/digitva_layer_translations_2026_09_20.csv` rather than a third inlined
+copy, with a test parsing both applied migrations' literals to catch drift.
+
+Updated 2026-09-20. Earlier the same day, three commits; the second is described first
+because it corrects the first.
 
 **Machine drafts are no longer served** (`digitva-4kj`, `digitva-we0`, both
 closed). `b6d2f4a9c1e7` seeded 214 LLM-authored strings as `source='imported'`,
@@ -90,8 +124,33 @@ three times in isolation and in three other full runs — the known
 `mas_instrument_locales` row directly and needed `lifecycle_state='approved'`
 added to stay valid against the new CHECK constraint; behaviour unchanged.
 
-**Do these next, in this order.** Two of them are consequences of this work
-that were deliberately left open rather than fixed in scope:
+**Do these next, in this order.** The first two are now unblocked and are the
+owner's decided direction for web-intake trust:
+
+* `digitva-cal.2` (P1) -- re-derive submission validity on the server with the
+  new evaluator. Decided: **log and accept, do not reject.** A server that
+  starts refusing what the client accepted leaves a field interviewer unable to
+  complete a death record. Each disagreement is stored as a `validation_err` on
+  `va_submission_payload_versions` (per-version, so a resubmission carries its
+  own record) naming the question and the rule, never an answer value, and is
+  returned in the HTTP response. A later release may flip to refusing; the data
+  this collects is what should inform that.
+* `digitva-aiy.1` (P2) -- strip irrelevant answers at final submit, drafts keep
+  them so a mis-tap is recoverable. Needs the evaluator, which now exists.
+  Cascade must resolve transitively (`md_available` -> `md_count` -> `md_im*`),
+  and what happens to an already-uploaded attachment behind a stripped answer
+  must be decided, not left implicit -- attachments phase 2 turns that into real
+  wasted storage.
+* `digitva-liu` (P3) -- eleven of fourteen CHECK constraints carry doubled,
+  sometimes truncated names. Harmless today because create and drop are
+  self-consistent, but no name in the database matches what the models declare,
+  and `test_schema_drift.py` is structurally blind to it because alembic does not
+  compare CHECK names.
+* `digitva-ajn` (P4) -- `sa13`-`sa19` keep ND01's constraint verbatim by the
+  owner's decision 2026-09-20, and real synced data contains `'0'`, which that
+  constraint rejects. An observation to know about, not a defect to fix here.
+
+Also still open from earlier in this work:
 
 * `digitva-dms` (P2) — the 214 seeded strings reach **only an
   already-deployed database**. Verified: the migration inserts 0 rows on an

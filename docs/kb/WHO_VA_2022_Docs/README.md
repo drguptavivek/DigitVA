@@ -3,7 +3,7 @@ title: WHO 2022 VA reference forms and deployed project workbooks
 doc_type: reference
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # WHO 2022 VA reference forms and deployed project workbooks
@@ -39,5 +39,15 @@ definitions only. `sha256` is the first twelve hex characters.
 Locale codes here are the XLSForm `label::Name (code)` codes and are the
 instrument's locale axis. They are not `mas_languages` codes (`kha` here is
 `khasi` there); nothing maps between the two.
+
+## Known upstream defect in V2.0
+
+The WHO multilingual V2.0 release makes `Id10304_a` (ruptured-ectopic
+fainting question) unreachable: its `relevant` requires `Id10334` and
+`Id10305` to both be "yes", which the form's own logic forbids. All ten
+deployed project workbooks above carry the correct V1.1 rule and are
+unaffected. Analysis, diagram and reproduction:
+`id10304a-v2-relevance-defect.md`. Reported to WHO 2026-09-20; tracked as
+`digitva-mdj`, blocking `digitva-13x`.
 
 The PDFs in this folder are the WHO manuals the forms implement.

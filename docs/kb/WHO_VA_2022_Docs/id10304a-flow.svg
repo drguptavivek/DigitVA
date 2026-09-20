@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1190" viewBox="0 0 1680 1190" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#44505f"/>
+    </marker>
+  </defs>
+  <rect width="1680" height="1190" fill="#ffffff"/>
+
+  <text x="840" y="46" text-anchor="middle" font-size="29" font-weight="700" fill="#16202c">WHO VA 2022 instrument — routing to Id10304_a</text>
+  <text x="840" y="76" text-anchor="middle" font-size="17" fill="#44505f">“Did she faint when she had the sharp abdominal pain?” — survey row 386, suspected ruptured ectopic pregnancy</text>
+
+  <!-- ============ LEFT PANEL : V1.1 ============ -->
+  <rect x="34" y="104" width="768" height="1010" rx="10" fill="#fbfdfb" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="34" y="104" width="768" height="50" rx="10" fill="#2e7d32"/>
+  <rect x="34" y="140" width="768" height="14" fill="#2e7d32"/>
+  <text x="418" y="137" text-anchor="middle" font-size="19" font-weight="700" fill="#ffffff">V1.1 — version 2023072701 — question is reachable</text>
+
+  <rect x="118" y="206" width="600" height="86" rx="8" fill="#eef1f5" stroke="#5b6b7f" stroke-width="1.6"/>
+  <text x="418" y="236" text-anchor="middle" font-size="17" font-weight="700" fill="#1f2933">Id10304</text>
+  <text x="418" y="260" text-anchor="middle" font-size="15.5" fill="#1f2933">Did she have a sharp abdominal pain in the</text>
+  <text x="418" y="280" text-anchor="middle" font-size="15.5" fill="#1f2933">first 3 months of pregnancy?</text>
+
+  <path d="M418,292 L418,338" stroke="#44505f" stroke-width="1.8" fill="none"/>
+  <path d="M418,338 L243,338 L243,386" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <path d="M418,338 L595,338 L595,386" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <text x="300" y="330" text-anchor="middle" font-size="14.5" font-weight="700" fill="#2e7d32">yes</text>
+  <text x="545" y="330" text-anchor="middle" font-size="14.5" fill="#5b6b7f">no / dk / ref</text>
+
+  <rect x="78" y="386" width="330" height="104" rx="8" fill="#d9efdd" stroke="#2e7d32" stroke-width="2.2"/>
+  <text x="243" y="418" text-anchor="middle" font-size="17" font-weight="700" fill="#1b3d1f">Id10304_a  ASKED</text>
+  <text x="243" y="444" text-anchor="middle" font-size="15" fill="#1b3d1f">Did she faint when she had</text>
+  <text x="243" y="464" text-anchor="middle" font-size="15" fill="#1b3d1f">the sharp abdominal pain?</text>
+
+  <rect x="470" y="386" width="250" height="104" rx="8" fill="#eef1f5" stroke="#5b6b7f" stroke-width="1.6"/>
+  <text x="595" y="432" text-anchor="middle" font-size="15.5" fill="#1f2933">Id10304_a</text>
+  <text x="595" y="454" text-anchor="middle" font-size="15.5" fill="#1f2933">not applicable</text>
+
+  <rect x="982" y="656" width="560" height="98" rx="8" fill="#e8f4ea" stroke="#2e7d32" stroke-width="2.2" transform="translate(-864,0)"/>
+  <text x="418" y="692" text-anchor="middle" font-size="14" font-weight="700" fill="#1b3d1f">relevant</text>
+  <text x="418" y="724" text-anchor="middle" font-size="15.5" font-family="Menlo, Consolas, monospace" fill="#1b3d1f">selected(${Id10304},'yes')</text>
+
+  <path d="M418,754 L418,794" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <rect x="118" y="794" width="600" height="92" rx="8" fill="#2e7d32" stroke="#1b5e20" stroke-width="2"/>
+  <text x="418" y="828" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">Id10304_a  IS REACHED</text>
+  <text x="418" y="858" text-anchor="middle" font-size="15.5" fill="#e5f4e7">8,245 of 41,225 coherent form states</text>
+
+  <!-- ============ RIGHT PANEL : V2.0 ============ -->
+  <rect x="878" y="104" width="768" height="1010" rx="10" fill="#fffbfb" stroke="#c62828" stroke-width="2"/>
+  <rect x="878" y="104" width="768" height="50" rx="10" fill="#c62828"/>
+  <rect x="878" y="140" width="768" height="14" fill="#c62828"/>
+  <text x="1262" y="137" text-anchor="middle" font-size="19" font-weight="700" fill="#ffffff">V2.0 — version 2026081401 — question is unreachable</text>
+
+  <rect x="962" y="182" width="600" height="86" rx="8" fill="#eef1f5" stroke="#5b6b7f" stroke-width="1.6"/>
+  <text x="1262" y="212" text-anchor="middle" font-size="17" font-weight="700" fill="#1f2933">Id10305</text>
+  <text x="1262" y="236" text-anchor="middle" font-size="15.5" fill="#1f2933">Was she pregnant and not yet in labour</text>
+  <text x="1262" y="256" text-anchor="middle" font-size="15.5" fill="#1f2933">at the time of death?</text>
+
+  <path d="M1262,268 L1262,306" stroke="#44505f" stroke-width="1.8" fill="none"/>
+  <path d="M1262,306 L1060,306 L1060,342" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <path d="M1262,306 L1464,306 L1464,342" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <text x="1120" y="298" text-anchor="middle" font-size="14.5" font-weight="700" fill="#c62828">yes</text>
+  <text x="1406" y="298" text-anchor="middle" font-size="14.5" fill="#5b6b7f">no / dk / ref</text>
+
+  <rect x="902" y="342" width="316" height="122" rx="8" fill="#fff6e0" stroke="#b8860b" stroke-width="1.6"/>
+  <text x="1060" y="370" text-anchor="middle" font-size="16" font-weight="700" fill="#4a3a06">Id10334  NOT ASKED</text>
+  <text x="1060" y="394" text-anchor="middle" font-size="13.5" fill="#4a3a06">its own relevant contains</text>
+  <text x="1060" y="418" text-anchor="middle" font-size="13.5" font-family="Menlo, Consolas, monospace" fill="#4a3a06">not(selected(${Id10305},'yes'))</text>
+  <text x="1060" y="444" text-anchor="middle" font-size="13.5" fill="#4a3a06">so no value is stored</text>
+
+  <rect x="1306" y="342" width="316" height="122" rx="8" fill="#fff6e0" stroke="#b8860b" stroke-width="1.6"/>
+  <text x="1464" y="370" text-anchor="middle" font-size="16" font-weight="700" fill="#4a3a06">Id10334  ASKED</text>
+  <text x="1464" y="394" text-anchor="middle" font-size="13.5" fill="#4a3a06">Pregnancy ending in abortion</text>
+  <text x="1464" y="414" text-anchor="middle" font-size="13.5" fill="#4a3a06">or miscarriage within 6 weeks?</text>
+  <text x="1464" y="442" text-anchor="middle" font-size="13.5" font-style="italic" fill="#4a3a06">may be answered “yes”</text>
+
+  <path d="M1060,464 L1060,506" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <path d="M1464,464 L1464,506" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="902" y="506" width="316" height="82" rx="8" fill="#fadbd9" stroke="#c62828" stroke-width="1.8"/>
+  <text x="1060" y="534" text-anchor="middle" font-size="14" font-family="Menlo, Consolas, monospace" fill="#4a1513">selected(${Id10334},'yes')</text>
+  <text x="1060" y="564" text-anchor="middle" font-size="17" font-weight="700" fill="#c62828">= FALSE</text>
+
+  <rect x="1306" y="506" width="316" height="82" rx="8" fill="#fadbd9" stroke="#c62828" stroke-width="1.8"/>
+  <text x="1464" y="534" text-anchor="middle" font-size="14" font-family="Menlo, Consolas, monospace" fill="#4a1513">selected(${Id10305},'yes')</text>
+  <text x="1464" y="564" text-anchor="middle" font-size="17" font-weight="700" fill="#c62828">= FALSE</text>
+
+  <path d="M1060,588 L1060,624 L1262,624 L1262,656" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <path d="M1464,588 L1464,624 L1262,624" stroke="#44505f" stroke-width="1.8" fill="none"/>
+
+  <rect x="982" y="656" width="560" height="98" rx="8" fill="#fadbd9" stroke="#c62828" stroke-width="2.2"/>
+  <text x="1262" y="683" text-anchor="middle" font-size="14" font-weight="700" fill="#4a1513">relevant</text>
+  <text x="1262" y="709" text-anchor="middle" font-size="15.5" font-family="Menlo, Consolas, monospace" fill="#4a1513">selected(${Id10334},'yes')</text>
+  <text x="1262" y="733" text-anchor="middle" font-size="15.5" font-family="Menlo, Consolas, monospace" font-weight="700" fill="#c62828">and selected(${Id10305},'yes')</text>
+
+  <path d="M1262,754 L1262,794" stroke="#44505f" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="962" y="794" width="600" height="92" rx="8" fill="#c62828" stroke="#8e1b1b" stroke-width="2"/>
+  <text x="1262" y="828" text-anchor="middle" font-size="20" font-weight="700" fill="#ffffff">Id10304_a  NEVER ASKED</text>
+  <text x="1262" y="858" text-anchor="middle" font-size="15.5" fill="#ffe8e8">0 of 41,225 coherent form states</text>
+
+  <rect x="902" y="916" width="720" height="86" rx="8" fill="#fff6e0" stroke="#b8860b" stroke-width="1.6" stroke-dasharray="6 4"/>
+  <text x="1262" y="944" text-anchor="middle" font-size="14.5" font-weight="700" fill="#4a3a06">The two conjuncts are mutually exclusive.</text>
+  <text x="1262" y="968" text-anchor="middle" font-size="14" fill="#4a3a06">Id10334 is asked only when Id10305 is not “yes”, so the two can</text>
+  <text x="1262" y="988" text-anchor="middle" font-size="14" fill="#4a3a06">never both hold and the conjunction is false in every reachable state.</text>
+
+  <text x="34" y="1152" font-size="13" fill="#5b6b7f">Source: 2022whova_xls_form_for_odk_multilingual.xlsx (V2.0, survey!D386) compared with whova2022_xls_form_for_odk.xlsx (V1.1, survey!D386).</text>
+  <text x="34" y="1174" font-size="13" fill="#5b6b7f">States enumerated over Id10299, Id10305, Id10306, Id10312, Id10313, Id10334, Id10304 × {yes, no, dk, ref, unanswered}, excluding states where Id10334 holds a value while irrelevant.</text>
+</svg>

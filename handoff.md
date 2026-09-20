@@ -1,6 +1,42 @@
 # Handoff
 
-Updated 2026-09-20. Five commits today, newest first. `origin/main` is at
+Updated 2026-09-20 (second pass). `origin/main` is at `8cdb1fd`. Working tree
+clean; `dailybackups/` is now gitignored. Full suite **1,711 passed**,
+`PYTEST_EXIT=0`. Dev is at migration head `120f783ea138`.
+
+Nine beads closed in this pass, four commits:
+
+**`8cdb1fd` -- dev's authorization constraint repaired, and live drift made
+detectable** (`digitva-88e`, plus the pass's shared docs). Dev's
+`va_user_access_grants` CHECK *and* its `access_role_enum` both omitted
+`collaborator_pii`, so that grant was refused on dev and accepted on a fresh
+install. Migration `120f783ea138` repairs both idempotently. The real fix is
+`flask schema drift-check`: nothing here ever compared a *running* database
+against the migration chain -- `test_schema_drift.py` validates migrations
+against models, and alembic's autogenerate does not compare CHECK constraints at
+all. The new command diffs a target against a throwaway chain-built reference on
+constraint names and text, column defaults and enum members, read-only on the
+target and normalising definitions so it does not cry wolf. Also corrects the
+extension table (`geography` and `intake_screen` contribute **no** instrument
+questions, citing O4), adds the `va_submission_payload_versions` section
+data-model.md never had, and documents all four bucket schemes.
+
+**`0343730` -- the 34 admin-editor bucket mappings frozen** (`digitva-2g7`).
+Measured rather than assumed: nothing was lost on dev, and the whole delta is 34
+deliberate additions. Frozen to a CSV the importer reapplies, with a live
+snapshot so an administrator's later repointing beats the freeze. The overrides
+are tied to the workbook they correct -- the first version applied them to every
+import, which would have layered stale corrections onto an updated derivation.
+
+**`bf5394f` -- the server judges a submission** (`digitva-cal.2`,
+`digitva-aiy.1`). Relevance and constraints re-derived server-side, recorded as
+`validation_err` per payload version, never refusing. Irrelevant answers
+stripped at final submit with the draft intact, resolved to a fixed point.
+
+**`b14362a` -- bundle reproducibility, two untested commands, a stale label**
+(`digitva-cw9`, `digitva-28a`, `digitva-2c1`).
+
+Earlier the same day, five commits, newest first. `origin/main` is at
 `e77c293`, working tree clean apart from an untracked `dailybackups/`.
 
 **`e77c293` -- Python has its own expression evaluator** (`digitva-cal.1`,
@@ -124,8 +160,35 @@ three times in isolation and in three other full runs — the known
 `mas_instrument_locales` row directly and needed `lifecycle_state='approved'`
 added to stay valid against the new CHECK constraint; behaviour unchanged.
 
-**Do these next, in this order.** The first two are now unblocked and are the
-owner's decided direction for web-intake trust:
+**Do these next.** Only three remain open, and one needs a decision rather than
+code:
+
+* `digitva-13x` (P2) -- **needs the owner's word.** The V1.1-to-V2.0 reference
+  diff is done: all 479 names, all 52 choice lists and all 332 coded choice
+  values are byte-identical, and no constraint, calculation or required flag
+  differs. Exactly one `relevant` changed, and it is clinical: WHO rewired
+  `Id10304_a` from `selected(${Id10304},'yes')` to
+  `selected(${Id10334},'yes') and selected(${Id10305},'yes')`, changing which
+  interviews reach a maternal-death follow-up in both directions. 13 English
+  label/hint strings changed, all 13 with stored translations in all 13 locales
+  -- harmless until someone re-imports, since the equal-to-English rule fires
+  only at import. And `instrument.ts` is hand-authored, not generated from the
+  workbook, so adopting V2.0 is editorial work plus a `DEVIATIONS` re-audit,
+  not a rebuild command.
+* `digitva-ssi` (P3) -- ODK site-mapping POST idempotency. Did not reproduce in
+  ten runs; second occurrence came in a normally-paced suite, which weakens the
+  load hypothesis and favours order dependence.
+* `digitva-3jj` (P3) -- vendored vitest flaky under load; a different test fails
+  each time, which is how you tell it from a regression.
+
+Closed this pass with reasoning worth reading in the bead rather than repeated
+here: `digitva-ybt` (the geography flag is declarative, not dead),
+`digitva-ajn` (ND01's constraint rejects a value its own data contains; fix
+belongs upstream), and the `digitva-cal` parent, which notes that flipping from
+record-and-accept to actual refusal is a separate decision that the new
+`validation_err` data should inform.
+
+Previously queued, now done:
 
 * `digitva-cal.2` (P1) -- re-derive submission validity on the server with the
   new evaluator. Decided: **log and accept, do not reject.** A server that

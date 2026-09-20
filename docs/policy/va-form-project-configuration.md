@@ -200,7 +200,11 @@ own move from V1.1 to V2.0 is decided separately, below.
 
 ### The curated reference form moves to V2.0, English only
 
-Decided 2026-09-20 by the owner (`digitva-13x`). The reference form becomes
+Decided 2026-09-20 by the owner (`digitva-13x`), and **final**: the two
+deviations below are accepted platform behaviour, not a holding position
+awaiting WHO. They are revisited only if WHO publishes a correction, and
+`tooling/who-va-2022/check-id10304a-relevance.py` is what tells you a new
+release changed either one. The reference form becomes
 `2022whova_xls_form_for_odk_multilingual.xlsx` (V2.0, `2026081401`), rebuilt
 through `app/services/xlsform_instrument_builder.py`, with three decisions
 fixed here because each was a judgement call rather than a mechanical

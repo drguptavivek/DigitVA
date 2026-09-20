@@ -1,5 +1,94 @@
 # Handoff
 
+Updated 2026-09-20 (third pass). `origin/main` is at `d41c353`, working tree
+clean. Full suite **1,714 passed**, `PYTEST_EXIT=0` read from pytest itself;
+vendored JS suite 28 passed. Dev is at migration head `120f783ea138`; this pass
+added no migration.
+
+**The curated reference form is now WHO V2.0** (`2026081401`), English only,
+with two accepted deviations. `digitva-13x` and `digitva-13x.1` are closed and
+the decision is final -- not a holding position awaiting WHO.
+
+Two defects were found in V2.0 and reported upstream. Neither reached our data:
+
+* **`Id10304_a` can never be asked** under V2.0's rewired `relevant`.
+  `selected(${Id10334},'yes') and selected(${Id10305},'yes')` is unsatisfiable,
+  because `Id10334`'s own relevance contains `not(selected(${Id10305},'yes'))`.
+  Enumerated with our own evaluator: reachable in 8,245 of 41,225 coherent
+  states under V1.1, **0** under V2.0. It is the ruptured-ectopic fainting
+  question, so adopting V2.0 verbatim would have silently dropped it from every
+  interview. [SwissTPH/WHO-VA#94](https://github.com/SwissTPH/WHO-VA/issues/94).
+* **`Id10230`'s `agegroup` narrowed to `a`** -- adult-only, and the only
+  lowercase value among 508 -- while its own relevance, its five follow-up rows
+  and its sibling `Id10227` all still say child-or-adult. Clinically arguable
+  (its guidance names the elderly and diabetics) but applied to one cell and
+  neither place that governs behaviour. [SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95).
+
+Both are `DEVIATIONS`: we keep V1.1's relevance and `C_A`. All ten deployed
+project workbooks were checked and are unaffected -- the whole eight-question
+relevance neighbourhood is byte-identical to V1.1, and those files came from
+ODK Central, so that is a check of what is live. Analysis, diagram and a
+standalone re-checker: `docs/kb/WHO_VA_2022_Docs/id10304a-v2-relevance-defect.md`
+and `tooling/who-va-2022/check-id10304a-relevance.py` (runs under `uv run` with
+no repo, exits 0/1/2 where 2 means "logic I was not written for" rather than a
+false all-clear).
+
+**Three things the previous handoff got wrong**, corrected here because they
+cost this pass real time:
+
+1. `instrument.ts` is hand-authored glue, but the 449 questions come from
+   `generated/who-va-2022.instrument.json`, which
+   `app/services/xlsform_instrument_builder.py` regenerates **faithfully** --
+   a V1.1 rebuild reproduced the shipped JSON exactly outside its eleven
+   recorded deviations. The move was a rebuild and a reconciliation, not the
+   editorial work that was queued.
+2. There was not one substantive change but two: the second is `Id10230` above.
+   The brief's "no constraint, calculation or required change" was true and
+   still missed it, because `agegroup` is none of those.
+3. The dominant issue was never text. V2.0 is the *multilingual* workbook, so
+   of 435 questions differing from the shipped instrument, **417 differ only in
+   injected `ar`/`es`/`pt`/`sw` or rewritten `fr`**. Only 18 differ in English
+   or structure.
+
+**The instrument carries English only; every other language comes from the
+translation engine.** Decided because the alternative was a second, staler copy
+of served text: `map_instrument_translations` holds 260 French choice labels to
+the bundle's 144, plus 476 question labels and 207 hints the bundle had none of,
+and of the 142 keys in both, 53 differed with the engine holding the newer V2.0
+text. `applyTranslations` already wrote the payload over the bundle, so the
+database copy was winning anyway. The builder gained a `locales` parameter
+defaulting to every language the workbook carries, so existing callers are
+untouched. One accepted cost, recorded in policy: if a translation request
+fails, a French interviewer now sees English for those 144 choice labels, which
+is how all twelve other locales already behave.
+
+Two smaller things worth knowing. The expression conformance corpus and the
+layer reference **regenerate byte-identical** -- the right result, since
+deviating `Id10304_a` back means the expression surface never moved. And the
+shipped JSON now stores expressions as `source` without the precomputed `ast`
+earlier revisions carried; semantically neutral (the runtime parses on demand
+and verified a supplied `ast` against its source anyway), but no test asserts
+it, so `vendor/who-va-2022/README.md` records it.
+
+Also closed: `digitva-xv9`, which shipped in `fe498e6` and had sat
+`in_progress` with an expired lease. Verified before closing, not assumed.
+
+**Do these next.** Nothing is queued that needs a decision:
+
+* `digitva-mdj` (P2) -- open only to track WHO's reply on #94 and #95. Blocks
+  nothing. If WHO publishes a correction, re-run
+  `tooling/who-va-2022/check-id10304a-relevance.py` against the new workbook
+  before adopting anything from it.
+* `digitva-ssi` (P3) and `digitva-3jj` (P3) -- both flakiness beads, both still
+  needing a recurrence to be worth chasing. Neither reproduced this pass.
+
+A trap that cost time here and will again: `bd close` and `bd unclaim` do not
+rewrite `.beads/issues.jsonl` the way `bd update` does, so `git status` reads
+clean while the tracked export still says `in_progress`. Run `bd export -o
+.beads/issues.jsonl` after closing anything.
+
+---
+
 Updated 2026-09-20 (second pass). `origin/main` is at `8cdb1fd`. Working tree
 clean; `dailybackups/` is now gitignored. Full suite **1,711 passed**,
 `PYTEST_EXIT=0`. Dev is at migration head `120f783ea138`.
@@ -163,18 +252,11 @@ added to stay valid against the new CHECK constraint; behaviour unchanged.
 **Do these next.** Only three remain open, and one needs a decision rather than
 code:
 
-* `digitva-13x` (P2) -- **needs the owner's word.** The V1.1-to-V2.0 reference
-  diff is done: all 479 names, all 52 choice lists and all 332 coded choice
-  values are byte-identical, and no constraint, calculation or required flag
-  differs. Exactly one `relevant` changed, and it is clinical: WHO rewired
-  `Id10304_a` from `selected(${Id10304},'yes')` to
-  `selected(${Id10334},'yes') and selected(${Id10305},'yes')`, changing which
-  interviews reach a maternal-death follow-up in both directions. 13 English
-  label/hint strings changed, all 13 with stored translations in all 13 locales
-  -- harmless until someone re-imports, since the equal-to-English rule fires
-  only at import. And `instrument.ts` is hand-authored, not generated from the
-  workbook, so adopting V2.0 is editorial work plus a `DEVIATIONS` re-audit,
-  not a rebuild command.
+* `digitva-13x` (P2) -- **done in the third pass; see the top of this file.**
+  This bullet's analysis was wrong in three ways and is kept only so the
+  corrections have something to point at: the instrument *is* regenerable from
+  the workbook, there were two substantive changes rather than one, and the
+  multilingual payload mattered more than the text.
 * `digitva-ssi` (P3) -- ODK site-mapping POST idempotency. Did not reproduce in
   ten runs; second occurrence came in a normally-paced suite, which weakens the
   load hypothesis and favours order dependence.

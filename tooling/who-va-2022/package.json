@@ -8,6 +8,7 @@
     "check": "node check.mjs",
     "build:validator": "node build-validator.mjs",
     "build:layer-reference": "node build-layer-reference.mjs",
+    "build:expression-corpus": "node build-expression-corpus.mjs",
     "validator": "node validator-server.mjs",
     "dev": "vite",
     "build:web": "vite build",

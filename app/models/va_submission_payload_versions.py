@@ -122,6 +122,21 @@ class VaSubmissionPayloadVersion(db.Model):
         nullable=True,
     )
 
+    # Server-derived disagreements between the client's own "valid: true"
+    # and this application's own relevant/constraint re-evaluation of the
+    # same answers (beads digitva-cal.2). Never enforced -- see
+    # app/services/web_form_relevance_service.py's derive_validation_errors.
+    # Each entry is {"question": <name>, "rule": "relevant" | "constraint"};
+    # no answer value, by design (these records are PII). Per-version, not
+    # per-submission: a resubmission gets its own record rather than
+    # overwriting its predecessor's.
+    validation_err: so.Mapped[list] = so.mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=sa.text("'[]'::jsonb"),
+    )
+
     def __repr__(self) -> str:
         return (
             "VaSubmissionPayloadVersion("

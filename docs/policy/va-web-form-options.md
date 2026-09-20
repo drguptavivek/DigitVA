@@ -284,6 +284,61 @@ Adding a row to `mas_languages` does *not* add a web form language; that list
 is for narration recordings, and its codes are a different axis (`khasi` there,
 `kha` here). Nothing maps between them.
 
+## Submission validity: the server no longer only trusts the client
+
+**Landed 2026-09-20 (beads digitva-cal.2, digitva-aiy.1).** The browser is
+still the only engine that gates data entry — a field interviewer's session
+is validated exactly as before, question by question, as they type. What
+changed is what happens once `completion.valid` reaches the server in
+`POST /intake/api/drafts/<id>/submit`.
+
+`app/services/web_form_relevance_service.py` is a second, independent
+evaluation of the same composed instrument (WHO base plus every enabled
+DigitVA extension) built from
+`vendor/who-va-2022/src/generated/who-va-2022.server-instrument.json`
+(`tooling/who-va-2022/build-server-instrument.mjs`) and parsed with
+`app/services/xform_expression_evaluator.py` — the Python port kept honest
+by the conformance corpus (docs/policy/xform-expression-evaluator.md). It
+ports `isQuestionRelevantWithCalculatedData` / `applyCalculations` /
+`validateAnswer`'s constraint check from
+`vendor/who-va-2022/src/engine/validation.ts`, not a rewrite from scratch.
+
+Two separate behaviours, both inside `submit_draft`:
+
+1. **Accept and record, never refuse.** The server re-derives `relevant` and
+   `constraint` over the client's raw submitted answers and records every
+   place the two engines disagree — it never rejects a submission the client
+   itself marked valid. If the client marks the questionnaire invalid, the
+   server still refuses it, exactly as before; the client's boolean keeps
+   its power in that one direction only. Each disagreement is
+   `{"question": <name>, "rule": "relevant" | "constraint"}` — no answer
+   value, ever — stored as `validation_err` on the *payload version*
+   (`va_submission_payload_versions`, not `va_submissions`: a resubmission
+   gets its own record) and returned in the submit response body. This is a
+   diagnostic, deliberately: the owner's decision is to learn the real
+   disagreement rate from live data before any later change considers
+   refusing on it.
+2. **Strip irrelevant answers at final submit only.** Before the payload is
+   built, `strip_irrelevant_answers` removes answers to questions the server
+   considers not relevant, resolved to a fixed point — stripping one answer
+   can itself change what else is relevant (`md_available` gates `md_count`
+   gates `md_im1..30`), so this iterates until nothing more is removed. This
+   runs on the submitted copy only; a **draft** is never touched, so
+   flipping a gate back during editing restores whatever was captured
+   behind it. An attachment reference stripped this way is simply never
+   added to the submission's attachment references — today that orphans no
+   server storage, because nothing is uploaded server-side at this stage
+   (`who-va-attachment:*` values are client-local blob ids); a later
+   attachments-upload phase must check relevance the same way before
+   uploading, not treat every reference on a draft as eligible.
+
+Regenerate the server instrument after any change to
+`vendor/who-va-2022/src/instrument.ts` or `digitva-extension.ts`:
+
+```bash
+cd tooling/who-va-2022 && npm run build:server-instrument
+```
+
 ## Open questions
 
 | # | Question |

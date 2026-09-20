@@ -443,11 +443,87 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(version.payload_data["intake_source"], "web")
         self.assertEqual(version.payload_data["unique_id"], draft.unique_id)
         self.assertEqual(version.payload_data["death_register_id"], str(death.death_id))
+        # Nothing in the client's answers disagrees with the server's own
+        # relevant/constraint re-derivation (beads digitva-cal.2).
+        self.assertEqual(version.validation_err, [])
 
         # No attachments -> the attachment step is skipped straight to SmartVA.
         self.assertEqual(
             get_submission_workflow_state(submission.va_sid), WORKFLOW_SMARTVA_PENDING
         )
+
+    def test_submit_draft_stores_a_constraint_disagreement_instead_of_refusing(self):
+        """beads digitva-cal.2, PART 1: the server re-derives ``constraint``
+        itself and records the disagreement, but never refuses a submission
+        the client itself marked valid."""
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        # Id10021 (date of birth) is relevant once Id10020='yes', and its
+        # constraint (". <= today()") rejects a future date -- yet the
+        # client still claims valid=True.
+        submission = intake_svc.submit_draft(
+            draft,
+            self.interviewer,
+            completion=self._completion(data={"Id10020": "yes", "Id10021": "2099-01-01"}),
+        )
+
+        version = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == submission.va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
+        self.assertIn({"question": "Id10021", "rule": "constraint"}, version.validation_err)
+        # The submission is still stored, not refused.
+        self.assertIsNotNone(db.session.get(VaSubmissions, submission.va_sid))
+        # No answer value anywhere in the stored entries.
+        self.assertNotIn("2099-01-01", str(version.validation_err))
+
+    def test_submit_draft_strips_irrelevant_image_answers_but_keeps_them_in_the_draft(self):
+        """beads digitva-aiy.1: a gate answered "no" after images were
+        captured must not carry those images into the submission, and the
+        cascade (md_available -> md_count -> md_im*) must resolve
+        transitively, not one level."""
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        captured = {
+            "md_available": "yes",
+            "md_count": "4",
+            "md_im1": "who-va-attachment:slot1",
+            "md_im2": "who-va-attachment:slot2",
+            "md_im3": "who-va-attachment:slot3",
+            "md_im4": "who-va-attachment:slot4",
+        }
+        # The draft itself keeps the images the interviewer captured while
+        # md_available was still "yes" -- submit_draft never touches
+        # draft.sections.
+        intake_svc.save_draft_sections(draft, sections={"documents": dict(captured)})
+
+        # At final submit the interviewer has since flipped the gate to
+        # "no" without deleting the images already photographed.
+        submitted_data = dict(captured)
+        submitted_data["md_available"] = "no"
+        submission = intake_svc.submit_draft(
+            draft, self.interviewer, completion=self._completion(data=submitted_data)
+        )
+
+        version = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == submission.va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
+        for name in ("md_count", "md_im1", "md_im2", "md_im3", "md_im4"):
+            self.assertIsNone(
+                version.payload_data.get(name), f"{name} should have been stripped"
+            )
+        self.assertEqual(draft.meta.get("attachmentReferences"), {})
+
+        # The draft's own saved section still holds every captured answer.
+        draft_section = next(s for s in draft.sections if s.section_name == "documents")
+        self.assertEqual(draft_section.data, captured)
 
     def test_submit_draft_requires_valid_completion_and_consent(self):
         draft = intake_svc.start_draft(

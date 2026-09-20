@@ -253,6 +253,48 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(
             db.session.get(VaDeathRegister, death["death_id"]).status, "va_submitted"
         )
+        # A submission whose answers don't disagree with the server's own
+        # relevant/constraint re-derivation carries no validation_err entries.
+        self.assertEqual(submitted.get_json()["validation_err"], [])
+
+    def test_submit_returns_a_constraint_disagreement_without_refusing_the_submission(self):
+        """beads digitva-cal.2: the server re-derives constraint itself and
+        records a disagreement, but a client "valid: true" is still accepted
+        -- see docs/policy/xform-expression-evaluator.md and the owner's
+        accept-and-record decision on that bead."""
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+
+        submitted = self.client.post(
+            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            json={
+                "completion": {
+                    "valid": True,
+                    "issues": [],
+                    "data": {
+                        "Id10013": "yes",
+                        "Id10019": "female",
+                        "finalAgeInYears": "71",
+                        "narr_language": "english",
+                        # Id10021 (date of birth) is relevant once Id10020 is
+                        # "yes", and its constraint is ". <= today()" -- a
+                        # future date fails it even though the client claims
+                        # the whole questionnaire is valid.
+                        "Id10020": "yes",
+                        "Id10021": "2099-01-01",
+                    },
+                }
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        body = submitted.get_json()
+        self.assertIn(
+            {"question": "Id10021", "rule": "constraint"}, body["validation_err"]
+        )
+        # No answer value anywhere in the response -- these entries are
+        # PII-free by design.
+        self.assertNotIn("2099-01-01", submitted.get_data(as_text=True))
 
     def test_form_page_takes_its_locale_and_instrument_from_form_options(self):
         """The rendered page must not decide anything the project owns.

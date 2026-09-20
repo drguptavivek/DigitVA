@@ -16,6 +16,7 @@ import re
 import uuid
 from datetime import UTC, date, datetime
 
+import pytz
 import sqlalchemy as sa
 
 from app import db
@@ -45,6 +46,10 @@ from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services import org_unit_routing_service as org_routing
 from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.web_form_relevance_service import (
+    derive_validation_errors,
+    strip_irrelevant_answers,
+)
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     build_submission_projection,
     consent_is_valid,
@@ -145,6 +150,21 @@ class WebIntakeError(ValueError):
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _expression_now(user: VaUsers, at: datetime) -> datetime:
+    """``at`` read in the interviewer's own timezone, for the expression
+    evaluator's ``today()`` -- the same "whatever the device considers
+    local" the browser's ``formatLocalDate`` uses (see
+    docs/policy/xform-expression-evaluator.md). Falls back to this
+    application's primary deployment timezone, matching
+    ``app._current_user_timezone``."""
+    tz_name = getattr(user, "timezone", None) or "Asia/Kolkata"
+    try:
+        tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        tz = pytz.timezone("Asia/Kolkata")
+    return at.astimezone(tz)
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +719,18 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
 
     Attachment answers are lifted out of the payload (phase 2 uploads them
     through the attachment store) and their slot names returned separately.
+
+    ``data`` is expected to already have had ``strip_irrelevant_answers``
+    applied (see ``submit_draft``): an attachment reference for a question
+    that became irrelevant (e.g. an ``md_im*`` slot after ``md_available``
+    flips to "no") must never reach ``references`` here, or it is counted in
+    ``AttachmentsExpected`` and becomes phase 2's to upload. Today this is
+    free -- ``who-va-attachment:`` values are client-local blob ids; nothing
+    server-side is uploaded until a later phase reads
+    ``draft.meta["attachmentReferences"]``, so dropping the reference here
+    orphans no server storage. Phase 2 must not re-derive relevance from
+    scratch against the browser's local blob store; it should trust that a
+    reference present here was already relevant at submit time.
     """
     payload: dict = {}
     references: dict = {}
@@ -801,7 +833,16 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     _require_live_org_unit(draft)
 
     submitted_at = _utcnow()
-    payload, references = build_web_payload(draft, data, user, submitted_at=submitted_at)
+    expression_now = _expression_now(user, submitted_at)
+    # Re-derive relevance and constraint over the client's raw answers before
+    # anything is stripped: this is the diagnostic the client's own
+    # "valid: true" is checked against (beads digitva-cal.2). It does not
+    # block the submission -- see derive_validation_errors' docstring.
+    validation_err = derive_validation_errors(data, now=expression_now)
+    # Final submit only (never a draft save): remove answers to questions
+    # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
+    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
+    payload, references = build_web_payload(draft, stripped_data, user, submitted_at=submitted_at)
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
     va_sid = fields["va_sid"]
@@ -847,6 +888,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
         source_updated_at=fields["va_odk_updatedat"],
         created_by_role=PAYLOAD_ROLE,
         created_by=user.user_id,
+        validation_err=validation_err,
     )
     valid_consent = consent_is_valid(consent)
     route_synced_submission(

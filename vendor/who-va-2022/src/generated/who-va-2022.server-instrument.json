@@ -1,0 +1,6923 @@
+{
+  "questions": [
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "system",
+      "dataType": "audit",
+      "name": "audit",
+      "relevant": null,
+      "sectionPath": []
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(., '^[A-Za-z ]+$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10010",
+      "relevant": null,
+      "sectionPath": [
+        "Interviewer"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=18 and .<90) or .=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10010a",
+      "relevant": null,
+      "sectionPath": [
+        "Interviewer"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10010b",
+      "relevant": null,
+      "sectionPath": [
+        "Interviewer"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10010c",
+      "relevant": null,
+      "sectionPath": [
+        "Interviewer"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "language",
+      "relevant": null,
+      "sectionPath": [
+        "Interviewer"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10002",
+      "relevant": null,
+      "sectionPath": [
+        "presets"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10003",
+      "relevant": null,
+      "sectionPath": [
+        "presets"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10004",
+      "relevant": null,
+      "sectionPath": [
+        "presets"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(., '^[A-Za-z ]+$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10007",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10007a",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=18 and .<=90",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10007b",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10008",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10009",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "system",
+      "dataType": "date",
+      "name": "Id10012",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10013",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "consent_mode",
+      "relevant": "selected(${Id10013}, 'yes')",
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "system",
+      "dataType": "dateTime",
+      "name": "Id10011",
+      "relevant": null,
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10017",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10018",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(., '^([0-9]{14}|[0-9]{2}-[0-9]{4}-[0-9]{4}-[0-9]{4})$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "abha_number",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(., '^[A-Za-z0-9._]{4,32}@(abdm|sbx)$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "abha_address",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10019",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10020",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today()",
+      "control": "date",
+      "dataType": "date",
+      "name": "Id10021",
+      "relevant": "selected(${Id10020}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10022",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=${Id10021} and . <= today()",
+      "control": "date",
+      "dataType": "date",
+      "name": "Id10023_a",
+      "relevant": "selected(${Id10022}, 'yes') and selected(${Id10020}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today()",
+      "control": "date",
+      "dataType": "date",
+      "name": "Id10023_b",
+      "relevant": "selected(${Id10022}, 'yes') and (selected(${Id10020}, 'no') or selected(${Id10020}, 'ref'))",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(selected(${Id10022}, 'yes') and selected(${Id10020}, 'yes'),${Id10023_a},${Id10023_b})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10023",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today() and .>= date(date('1915-01-01'))",
+      "control": "date",
+      "dataType": "date",
+      "name": "Id10024",
+      "relevant": "selected(${Id10022}, 'no') or selected(${Id10022}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "(${Id10023} - ${Id10021})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInDays",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "(${Id10024} - ${Id10021})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInDays2",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "int(${ageInDays} div 365.25)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInYears",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "${ageInDays} mod 365.25",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInYearsRemain",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "int(${ageInYearsRemain} div 30.4375)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInMonths",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "int(${ageInYearsRemain} mod 30.4375)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInMonthsRemain",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} <=27, '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isNeonatal1",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} >27 and ${ageInDays} <12*365.25, '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isChild1",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} >=12*365.25, '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isAdult1",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "displayAgeNeonate",
+      "relevant": "${isNeonatal1} = '1'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "displayAgeChild",
+      "relevant": "${isChild1} = '1'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "displayAgeAdult",
+      "relevant": "${isAdult1} = '1'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((${ageInDays2}>11*365.25 and selected(.,'child'))) and not(${ageInDays2}>27 and selected(.,'neonate'))",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "age_group",
+      "relevant": "${Id10020} != 'yes' or ${Id10022} != 'yes'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=27",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_neonate_days",
+      "relevant": "${age_group} = 'neonate'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=23",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_neonate_hours",
+      "relevant": "${age_neonate_days} = 0",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "age_child_unit",
+      "relevant": "${age_group} = 'child'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>27 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_child_days",
+      "relevant": "${age_child_unit} = 'days'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>0 and .<=59",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_child_months",
+      "relevant": "${age_child_unit} = 'months'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>0 and .<=11",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_child_years",
+      "relevant": "${age_child_unit} = 'years'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>11 and .<120",
+      "control": "integer",
+      "dataType": "number",
+      "name": "age_adult",
+      "relevant": "${age_group} = 'adult'",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if (${ageInYears} != 'NaN' and string-length(${ageInYears}) > 0, int(${ageInYears} * 12 + ${ageInMonths}), if(${age_group} = 'adult', int(${age_adult} * 12),if (${age_child_unit} = 'months',${age_child_months}, int(${age_child_years} * 12))))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInMonthsByYear",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${age_group} = 'adult', ${age_adult},  int(${ageInMonthsByYear} div 12))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInYears2",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${age_group} = 'neonate', '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isNeonatal2",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${age_group} = 'child', '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isChild2",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${age_group} = 'adult', '1', '0')",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isAdult2",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isNeonatal2}, ${isNeonatal1})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isNeonatal",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isChild2}, ${isChild1})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isChild",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isAdult2}, ${isAdult1})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "isAdult",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${age_neonate_days}, ${ageInDays})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "ageInDaysNeonate",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "Id10008_check",
+      "relevant": "selected(${Id10008}, 'child')  and (selected(${isNeonatal}, '1') or selected(${isChild}, '1'))",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10058",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10487",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10051",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10052",
+      "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10053",
+      "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10054",
+      "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10055",
+      "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10057",
+      "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10059",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10063",
+      "relevant": "((selected(${isChild}, '1') and ${ageInMonthsByYear} >=48 ) or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10064",
+      "relevant": "selected(${Id10063}, 'no_formal_education') or selected(${Id10063}, 'primary_school') or selected(${Id10063}, 'DK') or selected(${Id10063}, 'Ref')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10065",
+      "relevant": "((selected(${isChild}, '1') and ${ageInMonthsByYear} >=96 ) or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10066",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes') and selected(${Id10065}, 'mainly_employed')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10061",
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10062",
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "noteon",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "audio",
+      "dataType": "attachment",
+      "name": "Id10476_audio",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10476",
+      "relevant": "string-length(${Id10476_audio})=0",
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "narr_language",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "imagenarr",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10477",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10478",
+      "relevant": "selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10479",
+      "relevant": "selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "notenarr",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "narrat"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10104",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10105",
+      "relevant": "selected(${Id10104}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=60) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10106",
+      "relevant": "selected(${Id10104}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10107",
+      "relevant": "selected(${Id10104}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10377",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10376",
+      "relevant": "selected(${Id10377}, 'yes') or selected(${Id10377}, 'dk') or selected(${Id10377}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10109",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10110",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10111",
+      "relevant": "selected(${Id10110}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10112",
+      "relevant": "selected(${Id10110}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10113",
+      "relevant": "selected(${Id10110}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10114",
+      "relevant": "not(selected(${Id10104}, 'yes')) and not(selected(${Id10109}, 'yes'))  and not(selected(${Id10110}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10115",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10116",
+      "relevant": "selected(${Id10114}, 'yes') or selected(${Id10114}, 'ref') or selected(${Id10114}, 'dk')",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "note_s_s",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10125",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10126",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10127",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10128",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10129",
+      "relevant": "not(selected(${Id10128}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10482",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10483",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10484",
+      "relevant": "selected(${Id10483}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10130",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10131",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10132",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10133",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10134",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10135",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10136",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10137",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10138",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10139",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10140",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10141",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10142",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10143",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10144",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "med_hist_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "nmh",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "injuries_accidents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10077",
+      "relevant": "${Id10114}!='yes'",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10077_a",
+      "relevant": "selected(${Id10077}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "confirm",
+      "dataType": "boolean",
+      "name": "Id10077_b",
+      "relevant": "selected(${Id10077_a}, 'less')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10079",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10082",
+      "relevant": "selected(${Id10079}, 'no') or selected(${Id10079}, 'dk') or selected(${Id10079}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10083",
+      "relevant": "selected(${Id10082}, 'no') or selected(${Id10082}, 'dk') or selected(${Id10082}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10084",
+      "relevant": "selected(${Id10083}, 'no') or selected(${Id10083}, 'dk') or selected(${Id10083}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10085",
+      "relevant": "selected(${Id10084}, 'no') or selected(${Id10084}, 'dk') or selected(${Id10084}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10086",
+      "relevant": "selected(${Id10085}, 'no') or selected(${Id10085}, 'dk') or selected(${Id10085}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10087",
+      "relevant": "selected(${Id10086}, 'no') or selected(${Id10086}, 'dk') or selected(${Id10086}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10088",
+      "relevant": "selected(${Id10087}, 'yes') or selected(${Id10086}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10089",
+      "relevant": "selected(${Id10087}, 'no') or selected(${Id10087}, 'dk') or selected(${Id10087}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10091",
+      "relevant": "selected(${Id10089}, 'no') or selected(${Id10089}, 'dk') or selected(${Id10089}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10092",
+      "relevant": "selected(${Id10091}, 'no') or selected(${Id10091}, 'dk') or selected(${Id10091}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10093",
+      "relevant": "selected(${Id10092}, 'no') or selected(${Id10092}, 'dk') or selected(${Id10092}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10096",
+      "relevant": "selected(${Id10093}, 'no') or selected(${Id10093}, 'dk') or selected(${Id10093}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10094",
+      "relevant": "selected(${Id10096}, 'no') or selected(${Id10096}, 'dk') or selected(${Id10096}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10095",
+      "relevant": "selected(${Id10096}, 'no') or selected(${Id10096}, 'dk') or selected(${Id10096}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10097",
+      "relevant": "selected(${Id10095}, 'no') or selected(${Id10095}, 'dk') or selected(${Id10095}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10098",
+      "relevant": "not(selected(${Id10095}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10099",
+      "relevant": "${ageInYears2}>=10 and (selected(${Id10098}, 'no') or selected(${Id10098}, 'dk') or selected(${Id10098}, 'ref'))",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10100",
+      "relevant": "not(selected(${Id10098}, 'yes')) and (selected(${Id10099}, 'no') or selected(${Id10099}, 'dk') or selected(${Id10099}, 'ref')  or ${ageInYears2}<10 or selected(${isNeonatal}, '1'))",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10351",
+      "relevant": "(selected(${Id10114}, 'no') or ${Id10114} = 'NaN' or string-length(${Id10114}) = 0) and selected(${isNeonatal}, '1') and (selected(${Id10098}, 'yes') or ${Id10098} = 'NaN' or string-length(${Id10098}) = 0) and not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10408",
+      "relevant": "(((selected(${Id10114}, 'no') or ${Id10114} = 'NaN' or string-length(${Id10114}) = 0)  and selected(${isNeonatal}, '1')) or selected(${isChild}, '1') ) and not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10120_0",
+      "relevant": "selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "id10120_unit",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and (.<= ${ageInMonthsByYear}  and .<=11)",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10121",
+      "relevant": "${id10120_unit}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=${ageInYears2}",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10122",
+      "relevant": "${id10120_unit}='years'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10120_1",
+      "relevant": "${id10120_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isNeonatal}, '1'),${Id10120_0}, if(${id10120_unit}='days', ${Id10120_1},if(${id10120_unit}='months', ${Id10121} * 30, ${Id10122} * 365)))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10120",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "illdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10123",
+      "relevant": "not(selected(${Id10114}, 'yes')) and not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10147",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10148_a",
+      "relevant": "selected(${Id10147}, 'yes') and selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10148_units",
+      "relevant": "selected(${Id10147}, 'yes') and (selected(${isChild}, '1') or selected(${isAdult}, '1'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10148_b",
+      "relevant": "${Id10148_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10148_c",
+      "relevant": "${Id10148_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10148_a},if(${Id10148_units}='days', ${Id10148_b},int(${Id10148_c} * 30)))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10148",
+      "relevant": "selected(${Id10147}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10149",
+      "relevant": "selected(${Id10147}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10150",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10147}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10151",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10147}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10153",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10154_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10154_a",
+      "relevant": "${Id10154_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10154_b",
+      "relevant": "${Id10154_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10154_units}='days', ${Id10154_a},int(${Id10154_b} * 30))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10154",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10155",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10156",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10157",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10158",
+      "relevant": "(selected(${isChild}, '1')  and selected(${Id10153}, 'yes')) or (selected(${isNeonatal}, '1') and  not(selected(${Id10114}, 'yes')) and selected(${Id10153}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10159",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10161_0",
+      "relevant": "selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "id10161_unit",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10161_1",
+      "relevant": "${id10161_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=11",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10162",
+      "relevant": "${id10161_unit}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=${ageInYears2}",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10163",
+      "relevant": "${id10161_unit}='years'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isNeonatal}, '1'),${Id10161_0}, if(${id10161_unit}='days', ${Id10161_1},if(${id10161_unit}='months', ${Id10162} * 30, ${Id10163} * 365)))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10161",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "breathdur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10165",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10159}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10170",
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10159}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10171",
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10159}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10166",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10167_a",
+      "relevant": "selected(${Id10166}, 'yes') and selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10167_units",
+      "relevant": "selected(${Id10166}, 'yes') and (selected(${isChild}, '1') or selected(${isAdult}, '1'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10167_b",
+      "relevant": "${Id10167_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10167_c",
+      "relevant": "${Id10167_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10167_a},if(${Id10167_units}='days', ${Id10167_b},${Id10167_c} * 30))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10167",
+      "relevant": "selected(${Id10166}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10172",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'dk')) and count-selected(.) > 1) and not((selected(., 'ref')) and count-selected(.) > 1) and not((selected(., 'no')) and count-selected(.) > 1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10173_nc",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10173_a",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isAdult}, '1'),${Id10173_a} ,${Id10173_nc})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10173",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10174",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10175",
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10174}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10176",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10174}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10178_unit",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "paindur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=23",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10179",
+      "relevant": "${Id10178_unit}='hours'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "paindur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=${Id10176}",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10179_1",
+      "relevant": "${Id10178_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "paindur"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10181",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10182_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10181}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10182_a",
+      "relevant": "${Id10182_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10182_b",
+      "relevant": "${Id10182_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10182_units}='days', ${Id10182_a},${Id10182_b} * 30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10182",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10181}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=20) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10183",
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10181}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10184_a",
+      "relevant": "selected(${Id10181}, 'yes') and selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10184_units",
+      "relevant": "selected(${Id10181}, 'yes') and selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10184_b",
+      "relevant": "${Id10184_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10184_c",
+      "relevant": "${Id10184_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10185",
+      "relevant": "selected(${isChild}, '1') and selected(${Id10181}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10186",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10188",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10190_units",
+      "relevant": "selected(${Id10188}, 'yes') and selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10190_a",
+      "relevant": "${Id10190_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10190_b",
+      "relevant": "${Id10190_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10189",
+      "relevant": "not(${ageInDaysNeonate}<7 and selected(${isNeonatal}, '1')) and selected(${Id10188}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10189_1",
+      "relevant": "selected(${Id10188}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10191",
+      "relevant": "(selected(${Id10188}, 'yes') or selected(${Id10189}, 'yes'))  and ${isNeonatal} !='1'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10192",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and (selected(${Id10188}, 'yes') or selected(${Id10189}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10194",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10195",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10194}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "id10196_unit",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "abdominal_pain"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=23)  or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10196",
+      "relevant": "${id10196_unit}='hours'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "abdominal_pain"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10197_a",
+      "relevant": "${id10196_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "abdominal_pain"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10198",
+      "relevant": "${id10196_unit}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "abdominal_pain"
+      ]
+    },
+    {
+      "calculation": "if(selected(${id10196_unit}, 'days'),${Id10197_a}, if(${id10196_unit}='months', ${Id10198} * 30, int(${Id10196} div 24)))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10197",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "abdominal_pain"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'all_over')) and count-selected(.)>1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10199",
+      "relevant": "(selected(${isChild}, '1') and selected(${Id10195}, 'yes')) or (selected(${isAdult}, '1') and selected(${Id10194}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10200",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10201_unit",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10201_a",
+      "relevant": "${Id10201_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10202",
+      "relevant": "${Id10201_unit}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${Id10201_unit}, 'days'),${Id10201_a}, if(${Id10201_unit}='months', ${Id10202} * 30, null))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10201",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10203",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10204",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10205_unit",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10204}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10205_a",
+      "relevant": "${Id10205_unit}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10206",
+      "relevant": "${Id10205_unit}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${Id10205_unit}, 'days'),${Id10205_a}, if(${Id10205_unit}='months', ${Id10206} * 30, null))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10205",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10204}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10207",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10208",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10209_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10208}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10209_a",
+      "relevant": "${Id10209_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10209_b",
+      "relevant": "${Id10209_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10209_units}='days', ${Id10209_a},${Id10209_b} * 30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10209",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10208}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10212",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10213_units",
+      "relevant": "(selected(${isAdult}, '1')) and selected(${Id10212}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10213_a",
+      "relevant": "${Id10213_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10213_b",
+      "relevant": "${Id10213_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10213_units}='days', ${Id10213_a} div 30,${Id10213_b})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10213",
+      "relevant": "(selected(${isAdult}, '1')) and selected(${Id10212}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10214",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10216_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10214}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=23",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10216_a",
+      "relevant": "${Id10216_units}='hours'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10216_b",
+      "relevant": "${Id10216_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10216_units}='days', ${Id10216_b} * 24,${Id10216_a})",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10216",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10217",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10214}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10220",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10222",
+      "relevant": "selected(${Id10220}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10275",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${Id10220}, 'yes') and selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10276",
+      "relevant": "selected(${Id10275}, 'no') or selected(${Id10275}, 'dk') or selected(${Id10275}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10223",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10226",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10223}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10224",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10223}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10230",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10231",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10230}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10232_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10231}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10232_a",
+      "relevant": "${Id10232_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10232_b",
+      "relevant": "${Id10232_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10232_units}='days', ${Id10232_a},${Id10232_b}*30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10232",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10231}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10227",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10229",
+      "relevant": "(selected(${isAdult}, '1') or selected(${isChild}, '1')) and selected(${Id10227}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10233",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10234",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not((selected(., 'DK') or selected(., 'Ref')) and count-selected(.)>1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "Id10235",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10236",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10237",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10238",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10239",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10240",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10242",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10243",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10244",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10245",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10246",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10247",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10248_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10247}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10248_a",
+      "relevant": "${Id10248_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10248_b",
+      "relevant": "${Id10248_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10248_units}='days', ${Id10248_a},${Id10248_b}*30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10248",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10247}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10249",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10250_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10250_a",
+      "relevant": "${Id10250_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10250_b",
+      "relevant": "${Id10250_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10250_units}='days', ${Id10250_a},${Id10250_b}*30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10250",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10251",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10252",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10254",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10253",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10255",
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10256",
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10257",
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10258",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10259",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10258}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(${Id10259}, 'yes') and (selected(., 'whole_body') or  (selected(., 'left_side')  and selected(., 'right_side')))) and not((selected(., 'DK') or selected(., 'Ref')) and count-selected(.)>1)",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10260",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and (selected(${Id10259}, 'no') or selected(${Id10259}, 'ref') or selected(${Id10259}, 'dk'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10261",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10262_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10262_a",
+      "relevant": "${Id10262_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10262_b",
+      "relevant": "${Id10262_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10262_units}='days', ${Id10262_a},${Id10262_b}*30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10262",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10262_c",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10265",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10266_units",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10265}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10266_a",
+      "relevant": "${Id10266_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=60",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10266_b",
+      "relevant": "${Id10266_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(${Id10266_units}='days', ${Id10266_a},${Id10266_b}*30)",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10266",
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10265}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10267",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10268",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10269",
+      "relevant": "selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10271",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10272",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10273",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10274_a",
+      "relevant": "selected(${Id10273}, 'yes') and selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10274_units",
+      "relevant": "selected(${Id10273}, 'yes') and selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10274_b",
+      "relevant": "${Id10274_units}='days'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=1 and .<=11",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10274_c",
+      "relevant": "${Id10274_units}='months'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10274_a},if(${Id10274_units}='days', ${Id10274_b},${Id10274_c} * 30))",
+      "constraint": null,
+      "control": "calculated",
+      "dataType": "calculated",
+      "name": "Id10274",
+      "relevant": "selected(${Id10273}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10277",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10278",
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10279",
+      "relevant": "${Id10278} ='no' or ${Id10278} ='dk' or ${Id10278} ='ref'",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10281",
+      "relevant": "selected(${isNeonatal}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10282",
+      "relevant": "selected(${Id10281}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10283",
+      "relevant": "selected(${Id10282}, 'no') or selected(${Id10282}, 'dk')  or selected(${Id10282}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10284",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "neonatal_childC"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10286",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "neonatal_childC"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10287",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "neonatal_childC"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10288",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "neonatal_childC"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10289",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness",
+        "neonatal_childC"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10485",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10486",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "signs_symptoms_final_illness"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10294",
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10296",
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10299",
+      "relevant": "(selected(${Id10296}, 'yes') or selected(${Id10296}, 'ref') or selected(${Id10296}, 'dk'))   and ${ageInYears2}>39",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10300",
+      "relevant": "selected(${Id10299}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10301",
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10302",
+      "relevant": "not(selected(${Id10299}, 'yes')) and (selected(${Id10296}, 'yes') or selected(${Id10296}, 'ref') or selected(${Id10296}, 'dk') )",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10303",
+      "relevant": "selected(${Id10302}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10305",
+      "relevant": "selected(${Id10299}, 'dk') or selected(${Id10299}, 'no') or selected(${Id10299}, 'ref') or (selected(${Id10299}, 'yes')   and ${ageInYears2}<50)  or selected(${Id10077_a}, 'less') or selected(${Id10296}, 'no')  or (selected(${Id10296}, 'yes')   and ${ageInYears2}<40)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10312",
+      "relevant": "selected(${Id10305}, 'dk') or selected(${Id10305}, 'no') or selected(${Id10305}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10313",
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10314",
+      "relevant": "selected(${Id10313}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10306",
+      "relevant": "selected(${Id10314}, 'no') or selected(${Id10314}, 'dk') or selected(${Id10314}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10334",
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)   and not(selected(${Id10306}, 'yes')) and not(selected(${Id10313}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10333",
+      "relevant": "selected(${Id10334},'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10308",
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)   and not(selected(${Id10306}, 'yes')) and not(selected(${Id10334}, 'yes')) and not(selected(${Id10314}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10310",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10312}, 'yes')) and not(selected(${Id10314}, 'yes')) and not(selected(${Id10306}, 'yes')) and not(selected(${Id10334}, 'yes')) and not(selected(${Id10308}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10304",
+      "relevant": "(((selected(${Id10314}, 'no') or selected(${Id10314}, 'ref') or selected(${Id10314}, 'dk')) and not(selected(${Id10306}, 'yes')) and not(selected(${Id10308}, 'yes'))  and not(selected(${Id10310}, 'yes'))) or (selected(${Id10308}, 'yes') and not(selected(${Id10313}, 'yes')))) and not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10304_a",
+      "relevant": "selected(${Id10304},'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=11) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10309",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10317",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10321",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10322_a",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10325",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10327",
+      "relevant": "${Id10309}>5 and selected(${Id10325}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10323",
+      "relevant": "${Id10309}>5",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10324",
+      "relevant": "${Id10309}>5",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10328",
+      "relevant": "not(selected(${Id10305}, 'yes'))  and not(selected(${Id10334}, 'yes'))  and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10329_a",
+      "relevant": "not(selected(${Id10305}, 'yes'))  and not(selected(${Id10334}, 'yes'))  and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))  and not(selected(${Id10312}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10329_b",
+      "relevant": "not(selected(${Id10305}, 'yes'))   and not(selected(${Id10312}, 'yes'))  and not(selected(${Id10306}, 'yes')) and not(selected(${Id10308}, 'yes') and selected(${Id10313}, 'yes'))  and (selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') )) )",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10322_b",
+      "relevant": "not(selected(${Id10305}, 'yes'))   and not(selected(${Id10312}, 'yes')) and selected(${Id10313}, 'yes') or (selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') )))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10331",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ".>=0 and .<=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10332",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10342",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal",
+        "deliverytype"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10343",
+      "relevant": "selected(${Id10342}, 'no') or selected(${Id10342}, 'ref') or selected(${Id10342}, 'dk')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal",
+        "deliverytype"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10344",
+      "relevant": "not(selected(${Id10342}, 'yes')) and (selected(${Id10343}, 'no') or selected(${Id10343}, 'dk') or selected(${Id10343}, 'ref'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal",
+        "deliverytype"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10330",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10337",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=20) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10319",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10320",
+      "relevant": "${Id10319} > 0",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women",
+        "group_maternal"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10340",
+      "relevant": "(not(selected(${Id10305}, 'yes'))   and ((selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))) or selected(${Id10299}, 'yes')) and not((selected(${Id10299}, 'no') or selected(${Id10299}, 'dk') or selected(${Id10299}, 'ref')) and selected(${Id10310}, 'yes')) or selected(${Id10313}, 'yes') or selected(${Id10312}, 'yes') )and not(selected(${Id10077_a}, 'less'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "pregnancy_women"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10354",
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10366_check",
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "n10366",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA",
+        "g10366"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=9999)",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10366",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA",
+        "g10366"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10363",
+      "relevant": "(selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12))  and selected(${Id10366_check},'no')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10365",
+      "relevant": "selected(${Id10363}, 'dk') or selected(${Id10363}, 'no') or selected(${Id10363}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=11) or .=99 or .=88",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10367",
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10369",
+      "relevant": "selected(${isChild}, '1') and ${ageInMonthsByYear}<12",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10370",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10371",
+      "relevant": "selected(${Id10370}, 'yes') or  selected(${Id10370}, 'dk') or  selected(${Id10370}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10372",
+      "relevant": "selected(${Id10370}, 'yes') or  selected(${Id10370}, 'dk') or  selected(${Id10370}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10373",
+      "relevant": "selected(${Id10372}, 'no') or  selected(${Id10372}, 'dk') or  selected(${Id10372}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(.>=0 and .<=98) or .=99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10382",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10383",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10384",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10385",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10387",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB",
+        "mother_deliv"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10388",
+      "relevant": "not(selected(${Id10387}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB",
+        "mother_deliv"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(${Id10387}, 'no') and selected(${Id10388}, 'no')  and selected(., 'no'))",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10389",
+      "relevant": "not(selected(${Id10387}, 'yes')) and not(selected(${Id10388}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB",
+        "mother_deliv"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10391",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10393",
+      "relevant": "selected(${Id10391}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10395",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10396",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10397",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10398",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10399",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10400",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10401",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10402",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10403",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10404",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10405",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10406",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childB"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10411",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10413",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10413_a",
+      "relevant": "selected(${Id10413}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10413_d",
+      "relevant": "selected(${Id10413_a}, 'months')  or selected(${Id10413_a}, 'years')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10413_b",
+      "relevant": "selected(${Id10413}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10414",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10414_a",
+      "relevant": "selected(${Id10414}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "integer",
+      "dataType": "number",
+      "name": "Id10414_d",
+      "relevant": "selected(${Id10414_a}, 'months')  or selected(${Id10414_a}, 'years')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10414_b",
+      "relevant": "selected(${Id10414}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "risk_factors"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10418",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10419",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10420",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10421",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10422",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10423",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10424",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10425",
+      "relevant": "selected(${Id10418}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10426",
+      "relevant": "(selected(${Id10418}, 'yes') and ${isNeonatal} !='1') and selected(${Id10425}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10435",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10436",
+      "relevant": "selected(${Id10435}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10446",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "health_service_utilization"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "botecrn",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10069_a",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10070",
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10071_check",
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "date",
+      "dataType": "date",
+      "name": "Id10071",
+      "relevant": "selected(${Id10071_check}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10072",
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10073",
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "vital_reg_certif"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "noteccd",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10462",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "Id10463",
+      "relevant": "selected(${Id10462}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10464",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10465",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10466",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10467",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10468",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10469",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10470",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10471",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10472",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "Id10473",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "file",
+      "dataType": "attachment",
+      "name": "custom_medical_certificate_upload",
+      "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "system",
+      "dataType": "dateTime",
+      "name": "Id10481",
+      "relevant": null,
+      "sectionPath": [
+        "consented"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "noteend",
+      "relevant": null,
+      "sectionPath": [
+        "consented"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "comment",
+      "relevant": null,
+      "sectionPath": [
+        "consented"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "md_available",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". >= 0 and . <= 30",
+      "control": "integer",
+      "dataType": "number",
+      "name": "md_count",
+      "relevant": "selected(${md_available}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im1",
+      "relevant": "${md_count} >= 1",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im2",
+      "relevant": "${md_count} >= 2",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im3",
+      "relevant": "${md_count} >= 3",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im4",
+      "relevant": "${md_count} >= 4",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im5",
+      "relevant": "${md_count} >= 5",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im6",
+      "relevant": "${md_count} >= 6",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im7",
+      "relevant": "${md_count} >= 7",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im8",
+      "relevant": "${md_count} >= 8",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im9",
+      "relevant": "${md_count} >= 9",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im10",
+      "relevant": "${md_count} >= 10",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im11",
+      "relevant": "${md_count} >= 11",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im12",
+      "relevant": "${md_count} >= 12",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im13",
+      "relevant": "${md_count} >= 13",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im14",
+      "relevant": "${md_count} >= 14",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im15",
+      "relevant": "${md_count} >= 15",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im16",
+      "relevant": "${md_count} >= 16",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im17",
+      "relevant": "${md_count} >= 17",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im18",
+      "relevant": "${md_count} >= 18",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im19",
+      "relevant": "${md_count} >= 19",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im20",
+      "relevant": "${md_count} >= 20",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im21",
+      "relevant": "${md_count} >= 21",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im22",
+      "relevant": "${md_count} >= 22",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im23",
+      "relevant": "${md_count} >= 23",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im24",
+      "relevant": "${md_count} >= 24",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im25",
+      "relevant": "${md_count} >= 25",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im26",
+      "relevant": "${md_count} >= 26",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im27",
+      "relevant": "${md_count} >= 27",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im28",
+      "relevant": "${md_count} >= 28",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im29",
+      "relevant": "${md_count} >= 29",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "md_im30",
+      "relevant": "${md_count} >= 30",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "ds_available",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". >= 0 and . <= 5",
+      "control": "integer",
+      "dataType": "number",
+      "name": "ds_count",
+      "relevant": "selected(${ds_available}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "ds_im1",
+      "relevant": "${ds_count} >= 1",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "ds_im2",
+      "relevant": "${ds_count} >= 2",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "ds_im3",
+      "relevant": "${ds_count} >= 3",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "ds_im4",
+      "relevant": "${ds_count} >= 4",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "image",
+      "dataType": "attachment",
+      "name": "ds_im5",
+      "relevant": "${ds_count} >= 5",
+      "sectionPath": [
+        "consented",
+        "digitva_documents"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa01",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa06",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "sa06_a",
+      "relevant": "selected(${sa06}, '4')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa02",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "sa03",
+      "relevant": "selected(${sa02}, 'no')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "sa04",
+      "relevant": "selected(${sa03}, '6')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa05",
+      "relevant": "selected(${sa02}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "sa05_a",
+      "relevant": "selected(${sa05}, '6')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "socioeconomic"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa07",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "sa07_a",
+      "relevant": "selected(${sa07}, '8')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". >= 0 and . < 100",
+      "control": "integer",
+      "dataType": "number",
+      "name": "sa09",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa10",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "sa11",
+      "relevant": "selected(${sa10}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa12",
+      "relevant": "selected(${sa10}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa08",
+      "relevant": "selected(${sa12}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "reachinghealthcare"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "note",
+      "dataType": "none",
+      "name": "sa_note",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu13",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa13",
+      "relevant": "${sa_tu13}!=\"na\" and ${sa_tu13}!=\"Na\" and ${sa_tu13}!=\"nA\" and ${sa_tu13}!=\"NA\" and ${sa_tu13}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu14",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa14",
+      "relevant": "${sa_tu14}!=\"na\" and ${sa_tu14}!=\"Na\" and ${sa_tu14}!=\"nA\" and ${sa_tu14}!=\"NA\" and ${sa_tu14}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu15",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa15",
+      "relevant": "${sa_tu15}!=\"na\" and ${sa_tu15}!=\"Na\" and ${sa_tu15}!=\"nA\" and ${sa_tu15}!=\"NA\" and ${sa_tu15}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu16",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa16",
+      "relevant": "${sa_tu16}!=\"na\" and ${sa_tu16}!=\"Na\" and ${sa_tu16}!=\"nA\" and ${sa_tu16}!=\"NA\" and ${sa_tu16}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu17",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa17",
+      "relevant": "${sa_tu17}!=\"na\" and ${sa_tu17}!=\"Na\" and ${sa_tu17}!=\"nA\" and ${sa_tu17}!=\"NA\" and ${sa_tu17}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu18",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa18",
+      "relevant": "${sa_tu18}!=\"na\" and ${sa_tu18}!=\"Na\" and ${sa_tu18}!=\"nA\" and ${sa_tu18}!=\"NA\" and ${sa_tu18}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "sa_tu19",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+      "control": "text",
+      "dataType": "string",
+      "name": "sa19",
+      "relevant": "${sa_tu19}!=\"na\" and ${sa_tu19}!=\"Na\" and ${sa_tu19}!=\"nA\" and ${sa_tu19}!=\"NA\" and ${sa_tu19}!=\"\"",
+      "sectionPath": [
+        "consented",
+        "socialautopsy",
+        "eventchronology"
+      ]
+    }
+  ],
+  "schemaVersion": 1,
+  "sections": [
+    {
+      "name": "Interviewer",
+      "parent": null,
+      "relevant": null
+    },
+    {
+      "name": "presets",
+      "parent": null,
+      "relevant": null
+    },
+    {
+      "name": "respondent_backgr",
+      "parent": null,
+      "relevant": null
+    },
+    {
+      "name": "consented",
+      "parent": null,
+      "relevant": "selected(${Id10013}, 'yes')"
+    },
+    {
+      "name": "deceased_CRVS",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "info_on_deceased",
+      "parent": "deceased_CRVS",
+      "relevant": null
+    },
+    {
+      "name": "narrat",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "stillbirth",
+      "parent": "consented",
+      "relevant": "selected(${isNeonatal},'1')"
+    },
+    {
+      "name": "med_hist_final_illness",
+      "parent": "consented",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')"
+    },
+    {
+      "name": "injuries_accidents",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "injuries_accidents_yes",
+      "parent": "injuries_accidents",
+      "relevant": "selected(${Id10077}, 'yes') or selected(${Id10077}, 'dk') or selected(${Id10077}, 'ref')"
+    },
+    {
+      "name": "illhistory",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "illdur",
+      "parent": "illhistory",
+      "relevant": "not(selected(${Id10114}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "signs_symptoms_final_illness",
+      "parent": "illhistory",
+      "relevant": "not(selected(${Id10114}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "breathdur",
+      "parent": "signs_symptoms_final_illness",
+      "relevant": "selected(${Id10159}, 'yes')"
+    },
+    {
+      "name": "paindur",
+      "parent": "signs_symptoms_final_illness",
+      "relevant": "selected(${Id10174}, 'yes')"
+    },
+    {
+      "name": "abdominal_pain",
+      "parent": "signs_symptoms_final_illness",
+      "relevant": "(selected(${isChild}, '1')  or selected(${isAdult}, '1')) and selected(${Id10194}, 'yes')"
+    },
+    {
+      "name": "neonatal_childC",
+      "parent": "signs_symptoms_final_illness",
+      "relevant": "(selected(${isNeonatal}, '1')) and ${Id10114}!='yes'"
+    },
+    {
+      "name": "pregnancy_women",
+      "parent": "illhistory",
+      "relevant": "selected(${isAdult}, '1') and (${Id10019} = 'female' or ${Id10019} = 'undetermined')"
+    },
+    {
+      "name": "group_maternal",
+      "parent": "pregnancy_women",
+      "relevant": "not(selected(${Id10310}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "deliverytype",
+      "parent": "group_maternal",
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))"
+    },
+    {
+      "name": "neonatal_child",
+      "parent": "illhistory",
+      "relevant": "not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "neonatal_childA",
+      "parent": "neonatal_child",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')"
+    },
+    {
+      "name": "g10366",
+      "parent": "neonatal_childA",
+      "relevant": "(selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)) and selected(${Id10366_check},'yes')"
+    },
+    {
+      "name": "neonatal_childB",
+      "parent": "neonatal_child",
+      "relevant": "(selected(${isNeonatal}, '1'))"
+    },
+    {
+      "name": "mother_deliv",
+      "parent": "neonatal_childB",
+      "relevant": null
+    },
+    {
+      "name": "risk_factors",
+      "parent": "illhistory",
+      "relevant": "selected(${isAdult}, '1')  and not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "health_service_utilization",
+      "parent": "illhistory",
+      "relevant": "not(selected(${Id10114}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
+    },
+    {
+      "name": "vital_reg_certif",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "deathcert",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "digitva_documents",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "socialautopsy",
+      "parent": "consented",
+      "relevant": null
+    },
+    {
+      "name": "socioeconomic",
+      "parent": "socialautopsy",
+      "relevant": null
+    },
+    {
+      "name": "reachinghealthcare",
+      "parent": "socialautopsy",
+      "relevant": "selected(${sa02}, 'yes')"
+    },
+    {
+      "name": "eventchronology",
+      "parent": "socialautopsy",
+      "relevant": "selected(${sa02}, 'yes')"
+    }
+  ],
+  "source": {
+    "instrumentId": "va_who_2022",
+    "instrumentVersion": "2023072701"
+  }
+}

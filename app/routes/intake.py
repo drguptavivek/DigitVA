@@ -14,6 +14,7 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db
 from app.decorators import role_required
+from app.models import VaSubmissionPayloadVersion
 from app.services import web_intake_service as intake_svc
 
 log = logging.getLogger(__name__)
@@ -208,7 +209,20 @@ def api_submit_draft(draft_id):
     def run():
         draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
         submission = intake_svc.submit_draft(draft, current_user, completion=p.get("completion") or {})
+        # Re-derived server/client disagreements (beads digitva-cal.2), never
+        # blocking: surfaced here so a field problem is debuggable, not just
+        # logged. No answer value is ever in these entries.
+        version = db.session.get(
+            VaSubmissionPayloadVersion, submission.active_payload_version_id
+        )
+        validation_err = version.validation_err if version else []
         db.session.commit()
-        return jsonify({"va_sid": submission.va_sid, "draft": intake_svc.serialize_draft(draft)}), 201
+        return jsonify(
+            {
+                "va_sid": submission.va_sid,
+                "draft": intake_svc.serialize_draft(draft),
+                "validation_err": validation_err,
+            }
+        ), 201
 
     return _handle(run)

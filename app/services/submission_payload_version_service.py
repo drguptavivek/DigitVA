@@ -188,11 +188,18 @@ def ensure_active_payload_version(
     source_updated_at=None,
     created_by_role: str = "vasystem",
     created_by=None,
+    validation_err: list[dict] | None = None,
 ) -> VaSubmissionPayloadVersion:
-    """Ensure a submission has an active payload version matching payload_data."""
+    """Ensure a submission has an active payload version matching payload_data.
+
+    ``validation_err`` (beads digitva-cal.2) is per-version, not merged with
+    whatever a previous version recorded: a resubmission gets its own
+    disagreement record for the answers it actually carries.
+    """
     active = get_active_payload_version(submission.va_sid)
     fingerprint = canonical_payload_fingerprint(payload_data)
     has_meta, att_expected = _derive_payload_metadata(payload_data)
+    validation_err = validation_err or []
 
     if active and canonical_payload_fingerprint(active.payload_data or {}) == fingerprint:
         if submission.active_payload_version_id != active.payload_version_id:
@@ -200,6 +207,7 @@ def ensure_active_payload_version(
         active.payload_data = payload_data
         active.has_required_metadata = has_meta
         active.attachments_expected = att_expected
+        active.validation_err = validation_err
         if source_updated_at is not None:
             active.source_updated_at = source_updated_at
         return active
@@ -212,6 +220,7 @@ def ensure_active_payload_version(
             active.payload_data = payload_data
             active.has_required_metadata = has_meta
             active.attachments_expected = att_expected
+            active.validation_err = validation_err
             if source_updated_at is not None:
                 active.source_updated_at = source_updated_at
             return active
@@ -233,6 +242,7 @@ def ensure_active_payload_version(
         version_activated_at=now,
         has_required_metadata=has_meta,
         attachments_expected=att_expected,
+        validation_err=validation_err,
     )
     db.session.add(version)
     db.session.flush()

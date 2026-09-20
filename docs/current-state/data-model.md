@@ -327,7 +327,16 @@ pre-built and immutable.
   `ck_mas_instrument_locales_ck_mas_instrument_locales_act_5121`
   (digitva-we0); migration `d2b5c7f9e4a3` renames the live constraint to the
   name above, and the model now passes only the discriminator so a fresh
-  database gets the same name directly.
+  database gets the same name directly. The same mistake was present in
+  thirteen other `CheckConstraint` declarations across the models (four
+  truncated the same way); migration `fd232fab5987` renames each live
+  constraint and every model now passes only the discriminator (digitva-liu).
+  **When declaring a `CheckConstraint` name, pass only the discriminator**
+  (e.g. `name="depth_positive"`), never the already-prefixed form (e.g.
+  `name="ck_mas_org_level_depth_positive"`) — the naming convention in
+  `app/__init__.py` (`ck_%(table_name)s_%(constraint_name)s`) adds the
+  `ck_<table>_` prefix itself, and passing it again doubles it, truncating
+  past 63 characters on longer names.
 - `version` is bumped by every import and every edit; clients cache a locale by
   it and revalidate against `translation_versions` in the form-options payload
   or the serving endpoint's `ETag`

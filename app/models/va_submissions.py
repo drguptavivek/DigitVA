@@ -25,21 +25,23 @@ class VaSubmissions(db.Model):
         ),
         # A submission is either routed to a unit with a stated resolution, or
         # neither. See docs/policy/organization-model.md.
+        # The naming convention (app/__init__.py) already prefixes these with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             "(org_unit_id IS NULL AND org_unit_resolution IS NULL) OR "
             "(org_unit_id IS NOT NULL AND org_unit_resolution IS NOT NULL)",
-            name="ck_va_submissions_org_unit_resolution_pair",
+            name="org_unit_resolution_pair",
         ),
         sa.CheckConstraint(
             "org_unit_resolution IS NULL OR "
             "org_unit_resolution IN ('form_field', 'mapping_fallback', 'manual')",
-            name="ck_va_submissions_org_unit_resolution_value",
+            name="org_unit_resolution_value",
         ),
         # Pin metadata belongs to a manual routing decision only.
         sa.CheckConstraint(
             "(org_unit_pinned_by IS NULL AND org_unit_pinned_at IS NULL) OR "
             "org_unit_resolution = 'manual'",
-            name="ck_va_submissions_org_unit_pin_manual",
+            name="org_unit_pin_manual",
         ),
         sa.Index(
             "ix_va_submissions_org_unit_resolution",

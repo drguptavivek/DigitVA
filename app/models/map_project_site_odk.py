@@ -26,9 +26,11 @@ class MapProjectSiteOdk(db.Model):
             "odk_form_id",
             name="uq_map_project_site_odk_project_site_form",
         ),
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             "icd_classification IN ('icd10', 'icd11')",
-            name="ck_map_project_site_odk_icd_classification",
+            name="icd_classification",
         ),
     )
 

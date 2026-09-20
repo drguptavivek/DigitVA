@@ -10,9 +10,11 @@ from app import db
 class VaSmartvaFormRun(db.Model):
     __tablename__ = "va_smartva_form_runs"
     __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             "outcome IN ('success', 'partial', 'failed')",
-            name="ck_va_smartva_form_runs_outcome",
+            name="outcome",
         ),
         # Legacy index names from the creating migration, kept as-is.
         sa.Index("ix_va_smartva_form_runs_id", "form_run_id"),

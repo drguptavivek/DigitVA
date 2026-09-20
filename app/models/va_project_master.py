@@ -12,13 +12,15 @@ from app.models.va_selectives import VaStatuses
 class VaProjectMaster(db.Model):
     __tablename__ = "va_project_master"
     __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes these with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             "web_intake_mode IN ('off', 'direct', 'death_register', 'both')",
-            name="ck_va_project_master_web_intake_mode",
+            name="web_intake_mode",
         ),
         sa.CheckConstraint(
             "above_scope_coding_mode IN ('code_any', 'view_only')",
-            name="ck_va_project_master_above_scope_coding_mode",
+            name="above_scope_coding_mode",
         ),
     )
     project_id: so.Mapped[str] = so.mapped_column(

@@ -72,3 +72,5 @@ vendor/who-va-2022/dist/
 .trace-mcp/
 issue-export.jsonl
 .tasks/scripts/
+
+dailybackups/

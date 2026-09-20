@@ -9,7 +9,9 @@ from app.models.va_selectives import VaStatuses
 class VaForms(db.Model):
     __tablename__ = "va_forms"
     __table_args__ = (
-        sa.CheckConstraint("form_source IN ('odk', 'web')", name="ck_va_forms_form_source"),
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
+        sa.CheckConstraint("form_source IN ('odk', 'web')", name="form_source"),
     )
     form_id: so.Mapped[str] = so.mapped_column(
         sa.String(12), index=True, primary_key=True

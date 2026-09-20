@@ -19,6 +19,8 @@ class VaUserAccessGrants(db.Model):
         values_callable=lambda enum_cls: [member.value for member in enum_cls],
     )
     __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes these with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             """
             (scope_type = 'global' AND project_id IS NULL AND project_site_id IS NULL AND org_unit_id IS NULL) OR
@@ -26,7 +28,7 @@ class VaUserAccessGrants(db.Model):
             (scope_type = 'project_site' AND project_id IS NULL AND project_site_id IS NOT NULL AND org_unit_id IS NULL) OR
             (scope_type = 'org_unit' AND project_id IS NULL AND project_site_id IS NULL AND org_unit_id IS NOT NULL)
             """,
-            name="ck_va_user_access_grants_scope_shape",
+            name="scope_shape",
         ),
         sa.CheckConstraint(
             """
@@ -35,13 +37,13 @@ class VaUserAccessGrants(db.Model):
             (role = 'site_pi' AND scope_type IN ('project_site', 'org_unit')) OR
             (role IN ('collaborator', 'collaborator_pii', 'coder', 'coding_tester', 'reviewer', 'data_manager', 'interviewer') AND scope_type IN ('project', 'project_site', 'org_unit'))
             """,
-            name="ck_va_user_access_grants_role_scope",
+            name="role_scope",
         ),
         # A cadre is descriptive and only meaningful on a unit-scoped grant
         # (decision O3 in docs/planning/health-system-organization-model-plan.md).
         sa.CheckConstraint(
             "cadre_id IS NULL OR scope_type = 'org_unit'",
-            name="ck_va_user_access_grants_cadre_scope",
+            name="cadre_scope",
         ),
         sa.Index(
             "ix_va_user_access_grants_user_status",

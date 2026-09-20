@@ -47,7 +47,9 @@ class MasOrgLevel(db.Model):
     __table_args__ = (
         sa.UniqueConstraint("project_id", "level_code", name="uq_mas_org_level_project_code"),
         sa.UniqueConstraint("project_id", "depth", name="uq_mas_org_level_project_depth"),
-        sa.CheckConstraint("depth >= 1", name="ck_mas_org_level_depth_positive"),
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
+        sa.CheckConstraint("depth >= 1", name="depth_positive"),
     )
 
     org_level_id: so.Mapped[uuid.UUID] = so.mapped_column(

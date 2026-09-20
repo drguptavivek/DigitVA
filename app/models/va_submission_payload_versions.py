@@ -24,9 +24,11 @@ PAYLOAD_VERSION_STATUSES = (
 class VaSubmissionPayloadVersion(db.Model):
     __tablename__ = "va_submission_payload_versions"
     __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
             "version_status IN ('active', 'pending_upstream', 'superseded', 'rejected')",
-            name="ck_va_submission_payload_versions_status",
+            name="status",
         ),
         sa.Index(
             "ix_va_submission_payload_versions_active_unique",

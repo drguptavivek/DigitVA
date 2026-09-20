@@ -128,8 +128,20 @@ evidence.
 
 ## Status
 
-A report to WHO was drafted 2026-09-20 and is **not yet sent**; update this
-line with the date and the reply when it is. Until a corrected release,
-adopting V2.0 must retain V1.1's condition for `Id10304_a` as a recorded
-`DEVIATION`. Tracked as `digitva-mdj`, which stays open until WHO answers and
-blocks `digitva-13x`.
+Reported to WHO by the owner on **2026-09-20**; no reply yet. Record the reply
+here when it comes. Until a corrected release, adopting V2.0 must retain
+V1.1's condition for `Id10304_a` as a recorded `DEVIATION`. Tracked as
+`digitva-mdj`, which stays open until WHO answers and blocks `digitva-13x`.
+
+Re-check any newly released workbook with:
+
+```
+python3 tooling/who-va-2022/check-id10304a-relevance.py [workbook-dir]
+```
+
+It exits 0 when every workbook can ask `Id10304_a`, 1 when one cannot, and 2
+when one carries a rule the analysis does not cover -- so a future WHO release
+that changes this logic again reports `UNKNOWN` rather than a false all-clear.
+Inside this repo it also re-runs each verdict through
+`app/services/xform_expression_evaluator`, the evaluator the application judges
+submissions with; outside it, it runs on openpyxl alone.

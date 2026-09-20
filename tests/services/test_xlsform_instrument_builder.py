@@ -27,11 +27,20 @@ from tests.base import BaseTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-XLSFORM = REPO_ROOT / "vendor/who-va-2022/whova2022_xls_form_for_odk.xlsx"
+XLSFORM = REPO_ROOT / "vendor/who-va-2022/2022whova_xls_form_for_odk_multilingual.xlsx"
 INSTRUMENT = REPO_ROOT / "vendor/who-va-2022/src/generated/who-va-2022.instrument.json"
 
+# The instrument moved to this workbook (V2.0, English only) 2026-09-20;
+# see docs/policy/va-form-project-configuration.md, "The curated reference
+# form moves to V2.0, English only" (digitva-13x).
+LOCALES = {"en"}
 
 # question name -> the field paths where the package departs from the workbook.
+# Every entry predates digitva-13x except the last two (see
+# vendor/who-va-2022/README.md, "Deliberate departures from the WHO
+# XLSForm"); none are resolved by the move to V2.0 -- the raw V2.0 workbook
+# still carries the same issue each one works around. Kept in step with
+# tooling/who-va-2022/build-instrument-from-xlsform.py, which applies them.
 DEVIATIONS = {
     # Documented in the package README.
     "Id10365": {"constraint", "validation.constraint", "constraintMessage.en",
@@ -52,6 +61,11 @@ DEVIATIONS = {
     "Id10477": {"choices", "validation.choiceValues"},  # package choice list differs
     "Id10478": {"choices", "validation.choiceValues"},
     "Id10479": {"choices", "validation.choiceValues"},
+    # digitva-13x, decided in docs/policy/va-form-project-configuration.md:
+    # V2.0's relevant is unsatisfiable (id10304a-v2-relevance-defect.md).
+    "Id10304_a": {"relevant.source"},
+    # digitva-13x: V2.0 narrows this to adult-only 'a'; kept wider deliberately.
+    "Id10230": {"ageGroup"},
 }
 
 SECTION_DEVIATIONS = {
@@ -89,7 +103,7 @@ class WhoVa2022ConformanceTests(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.built = build_instrument_from_xlsform(XLSFORM)
+        cls.built = build_instrument_from_xlsform(XLSFORM, locales=LOCALES)
         cls.target = json.loads(INSTRUMENT.read_text())
 
     def test_metadata_matches(self):
@@ -146,13 +160,45 @@ class WhoVa2022ConformanceTests(BaseTestCase):
         self.assertEqual(by_name["Id10021"]["constraint"]["source"], ". <= today()")
         self.assertTrue(by_name["Id10023"]["calculation"]["source"].startswith("if(selected("))
 
-    def test_choice_lists_are_inlined_with_every_language(self):
+    def test_choice_lists_are_inlined(self):
         sex = next(q for q in self.built["questions"] if q["name"] == "Id10019")
         self.assertEqual(sex["listName"], "select_2")
         self.assertEqual(sex["choices"][0]["value"], "female")
         self.assertEqual(sex["choices"][0]["label"]["en"], "Female")
-        self.assertIn("fr", sex["choices"][0]["label"])
         self.assertIn("female", sex["validation"]["choiceValues"])
+
+    def test_locales_defaults_to_every_language_the_workbook_carries(self):
+        """`locales=None` (the default) must not change existing callers' output."""
+        unrestricted = build_instrument_from_xlsform(XLSFORM)
+        sex = next(q for q in unrestricted["questions"] if q["name"] == "Id10019")
+        self.assertIn("fr", sex["choices"][0]["label"])
+        self.assertIn("es", sex["choices"][0]["label"])
+
+    def test_locales_restricts_labels_hints_and_choices_to_the_given_set(self):
+        restricted = build_instrument_from_xlsform(XLSFORM, locales={"en"})
+        sex = next(q for q in restricted["questions"] if q["name"] == "Id10019")
+        self.assertLessEqual(set(sex["label"].keys()), {"en"})
+        self.assertEqual(set(sex["choices"][0]["label"].keys()), {"en"})
+
+    def test_shipped_instrument_carries_no_locale_but_english(self):
+        """digitva-13x: the reference instrument is English only; every other
+        locale comes from the translation engine, not the instrument itself."""
+        allowed = {"en"}
+
+        def locale_keys(node):
+            if isinstance(node, dict):
+                for field in ("label", "hint", "guidance", "constraintMessage"):
+                    value = node.get(field)
+                    if isinstance(value, dict):
+                        yield from value.keys()
+                for value in node.values():
+                    yield from locale_keys(value)
+            elif isinstance(node, list):
+                for item in node:
+                    yield from locale_keys(item)
+
+        found = set(locale_keys(self.target))
+        self.assertLessEqual(found, allowed, f"unexpected locales in shipped instrument: {found - allowed}")
 
 
 class TypeCoverageTests(BaseTestCase):

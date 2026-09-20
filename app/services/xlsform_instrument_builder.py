@@ -166,6 +166,18 @@ def _language_columns(frame: pd.DataFrame, default_language: str) -> dict[str, d
     return columns
 
 
+def _restrict_locales(
+    columns: dict[str, dict[str, str]], locales: set[str] | None
+) -> dict[str, dict[str, str]]:
+    """Drop every locale not in `locales`; None keeps everything unchanged."""
+    if locales is None:
+        return columns
+    return {
+        field: {locale: column for locale, column in locale_map.items() if locale in locales}
+        for field, locale_map in columns.items()
+    }
+
+
 def _expression(value: Any) -> dict[str, str] | None:
     """Keep an XLSForm expression as its source; the runtime parses it."""
     source = _text(value)
@@ -196,9 +208,11 @@ def _default_language(raw: str | None) -> str:
     return match.group(1) if match else raw
 
 
-def _read_choices(path: Path, default_language: str) -> dict[str, list[dict]]:
+def _read_choices(
+    path: Path, default_language: str, locales: set[str] | None = None
+) -> dict[str, list[dict]]:
     frame = pd.read_excel(path, sheet_name="choices")
-    columns = _language_columns(frame, default_language)
+    columns = _restrict_locales(_language_columns(frame, default_language), locales)
     lists: dict[str, list[dict]] = {}
     for index, row in frame.iterrows():
         list_name = _text(row.get("list_name"))
@@ -216,7 +230,10 @@ def _read_choices(path: Path, default_language: str) -> dict[str, list[dict]]:
 
 
 def build_instrument_from_xlsform(
-    path: str | Path, *, form_type_code: str | None = None
+    path: str | Path,
+    *,
+    form_type_code: str | None = None,
+    locales: set[str] | None = None,
 ) -> dict:
     """Return the instrument definition for an ODK XLSForm workbook.
 
@@ -228,6 +245,12 @@ def build_instrument_from_xlsform(
     to them would silently re-point a project's mappings on the next form
     republish. Those values are still recorded, under ``source``, as the audit
     trail of which workbook produced this instrument.
+
+    ``locales`` restricts which locale columns are emitted into every label,
+    hint, guidance, constraint message and choice label (e.g. ``{"en"}`` for
+    an English-only instrument). Defaults to ``None``, which keeps every
+    locale the workbook carries -- the behaviour every existing caller
+    already depends on.
     """
     path = Path(path)
     if not path.exists():
@@ -235,10 +258,10 @@ def build_instrument_from_xlsform(
 
     settings = _read_settings(path)
     default_language = settings["defaultLocale"]
-    choice_lists = _read_choices(path, default_language)
+    choice_lists = _read_choices(path, default_language, locales)
 
     survey = pd.read_excel(path, sheet_name="survey")
-    columns = _language_columns(survey, default_language)
+    columns = _restrict_locales(_language_columns(survey, default_language), locales)
 
     sections: list[dict] = []
     questions: list[dict] = []

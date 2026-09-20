@@ -417,12 +417,16 @@ The package build and automated tests read only the checked-in JSON. The retaine
 
 ### Deviations from WHO form / gotchas
 
-The canonical JSON intentionally keeps a few runtime adaptations separate from the retained XLSForm:
+The canonical JSON is built from the WHO V2.0 multilingual workbook (`2022whova_xls_form_for_odk_multilingual.xlsx`, form version `2026081401`) by `tooling/who-va-2022/build-instrument-from-xlsform.py`, and carries **English only** — every other language is served from DigitVA's translation engine rather than inlined here. It also stores each expression as `source` alone, without the precomputed `ast` earlier revisions carried; the runtime parses on demand, and verified a supplied `ast` against its source anyway.
+
+It intentionally keeps a few runtime adaptations separate from the retained XLSForm:
 
 - `nmh` is shown under `consented > injuries_accidents` so the mid-form guidance appears with the injury section instead of as a detached completion-screen item.
 - `Id10365` omits the source constraint because the upstream rule rejects a valid normal-birth-weight combination.
 - `Id10382` uses `(.>=0 and .<=98) or .=99` instead of `.>=0 and .<=99`, matching the interviewer guidance that `99` means do not know and actual `88` hours should be entered as `87`.
 - `Id10023_a`, `Id10023_b`, and `Id10382` use clearer app-supplied English constraint messages.
+- `Id10304_a` keeps V1.1's `relevant`, `selected(${Id10304},'yes')`. WHO's V2.0 rewires it to `selected(${Id10334},'yes') and selected(${Id10305},'yes')`, which can never be true: `Id10334` is asked only when `Id10305` is not `yes`. Taking it verbatim would silently drop the ruptured-ectopic fainting question from every interview. Reported upstream as [SwissTPH/WHO-VA#94](https://github.com/SwissTPH/WHO-VA/issues/94).
+- `Id10230` keeps `agegroup` `C_A`. V2.0 narrows it to `a` — adult-only, and the only lowercase value among the 508 rows that carry one — while the question's own relevance, its five follow-up rows and its sibling `Id10227` all still say child-or-adult. Reported upstream as [SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95).
 - Four source constraints are retained and evaluable but inert for valid app inputs: `Id10260`, `Id10414`, `Id10414_a`, and `Id10414_b`. Their constraint formulas mention values that are not in the compiled app choice lists for those questions, so normal runtime validation cannot raise a constraint error from them.
 
 See [Form schema and WHO differences](https://github.com/drguptavivek/WHO-va-2022/blob/main/docs/form-schema.md) for the normative implementation schema, the [XLSForm to app audit](https://github.com/drguptavivek/WHO-va-2022/blob/main/docs/xlsform-app-audit.md) for the manual provenance record, and `tests/exhaustive-runtime-expressions.test.ts` for exhaustive runtime constraint/calculation coverage.

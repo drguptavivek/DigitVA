@@ -48,7 +48,8 @@ fainting question) unreachable: its `relevant` requires `Id10334` and
 deployed project workbooks above carry the correct V1.1 rule and are
 unaffected. Analysis, diagram and reproduction:
 `id10304a-v2-relevance-defect.md`, with a re-check for future releases at
-`tooling/who-va-2022/check-id10304a-relevance.py`. Reported to WHO 2026-09-20,
-awaiting reply; tracked as `digitva-mdj`, blocking `digitva-13x`.
+`tooling/who-va-2022/check-id10304a-relevance.py`. Reported to WHO 2026-09-20 as
+[SwissTPH/WHO-VA#94](https://github.com/SwissTPH/WHO-VA/issues/94), awaiting
+reply; tracked as `digitva-mdj`, blocking `digitva-13x`.
 
 The PDFs in this folder are the WHO manuals the forms implement.

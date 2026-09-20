@@ -128,8 +128,11 @@ evidence.
 
 ## Status
 
-Reported to WHO by the owner on **2026-09-20**; no reply yet. Record the reply
-here when it comes. Until a corrected release, adopting V2.0 must retain
+Reported to WHO by the owner on **2026-09-20** and filed upstream as
+[SwissTPH/WHO-VA#94](https://github.com/SwissTPH/WHO-VA/issues/94); no reply
+yet. Record the outcome here when it comes -- in particular whether WHO's fix
+restores V1.1's condition or supplies a different one, since a different one
+has to be re-derived rather than assumed correct. Until a corrected release, adopting V2.0 must retain
 V1.1's condition for `Id10304_a` as a recorded `DEVIATION`. Tracked as
 `digitva-mdj`, which stays open until WHO answers and blocks `digitva-13x`.
 

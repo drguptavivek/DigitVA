@@ -3,7 +3,7 @@ title: ICD-11 Reference Catalog Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-21
 ---
 
 # ICD-11 Reference Catalog Policy
@@ -83,19 +83,55 @@ its age/sex exceptions are a pending clinical decision (D3 in
 Policy fields are editable only on `class_kind = "category"` rows; chapters
 and blocks are structural hierarchy rows with no coding policy.
 
-## Curation Path (phases 1-2)
+## Curation Path
 
-Only the CLI curates ICD-11 policy for now:
+ICD-11 policy is curated either in the admin ICD-11 browser panel
+(`/admin/panels/icd11-browser`) or through the CLI. Both read and write the
+same policy JSON format (`export_icd11_mms_policy_json` /
+`import_icd11_mms_policy_json` in `app/services/icd11_mms_service.py`):
 
 ```bash
 flask icd11 policy-export --release 2026-01 --output policy.json
 flask icd11 policy-import policy.json --release 2026-01
 ```
 
-The admin ICD-11 browser panel (`/admin/panels/icd11-browser`) is read-only:
-hierarchy browsing, node details, and search only. It does not yet expose an
-in-panel policy editor the way the ICD-10 browser does — that is deferred
-until the allowability policy (D3) is confirmed.
+The panel mirrors the ICD-10 browser: a hierarchy tree with status dots
+(category selectable = green; not selectable but a direct child is = amber;
+otherwise red), child counters, coding/sex/age filters, search, and a node
+detail pane with an editable policy form on category rows. Its endpoints
+are admin-only, under `/admin/api/icd11/mms/` with an optional
+`release=YYYY-MM` argument; state changes require `X-CSRFToken`:
+
+- `GET children`, `GET node`, `GET search`, `GET policy-options`
+- `PATCH node/policy?linearization_uri=...` — one category's
+  `is_coding_selectable`, `sex_selectable`, `age_group_selectable`,
+  `restriction_note`, and optionally `policy_status`
+- `GET policy-export` (JSON), `GET policy-export.xlsx` (every active
+  category with its policy)
+- `POST policy-import` (multipart `file`; `dry_run=1` returns the counts
+  without writing). The panel always previews first and applies only after
+  the admin confirms.
+
+Policy writes and applied imports are logged with the acting user id and
+the new values (not the restriction note text).
+
+Policy JSON format rules:
+
+- Each item is keyed by `linearization_uri`; `code`, `title`,
+  `class_kind`, `chapter_no` are informational.
+- Listed categories take the item's `is_coding_selectable`,
+  `sex_selectable`, `age_group_selectable` and `restriction_note` (absent
+  means null). Every active category not listed is reset to not selectable
+  with no sex/age/note.
+- `policy_status` (`unreviewed` | `reviewed`) is set only when the item
+  carries it and is left unchanged otherwise, including on reset rows. It is
+  informational: the coding search reads only the selectable/sex/age fields.
+- The export carries `restriction_note` and `policy_status`, so an export
+  imports back without loss.
+
+Allowed values match the ICD-10 catalog: `sex_selectable` in
+`both | female | male`, `age_group_selectable` in
+`all | neonate | infant | child | adult`, null for either when unset.
 
 ## Form-Level Classification
 

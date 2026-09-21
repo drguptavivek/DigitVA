@@ -1,8 +1,12 @@
 {#
-  ICD-11 MMS browser panel — admin-only, read-only.
-  Curating local coding policy for ICD-11 currently happens through the
-  `flask icd11 policy-export`/`policy-import` CLI (docs/policy/icd11-reference-catalog.md);
-  this panel is for browsing the hierarchy only.
+  ICD-11 MMS browser and policy editor panel — admin-only.
+  Mirrors the ICD-10 2019 browser (icd10_browser.html): filters, status dots,
+  child counters, node details with an editable policy form, and policy
+  JSON import (previewed, then applied) / JSON and XLSX export. The JSON
+  format is the same one `flask icd11 policy-export`/`policy-import` uses
+  (docs/policy/icd11-reference-catalog.md). ICD-11 nests to a variable
+  depth, so the hierarchy is one expandable tree instead of ICD-10's four
+  fixed columns.
 #}
 <div id="panel-icd11-browser">
   <div class="mb-1">
@@ -10,40 +14,103 @@
       <i class="fa-solid fa-book-medical me-2 text-secondary"></i>ICD-11 MMS Browser
     </h5>
     <div class="small text-muted">
-      Read-only view of the WHO ICD-11 MMS linearization ({{ stats.total_rows }} rows,
-      {{ stats.active_rows }} active). Local coding policy is curated via the
-      <code>flask icd11 policy-export</code> / <code>policy-import</code> CLI.
+      Browse the WHO ICD-11 MMS {{ release }} linearization ({{ stats.total_rows }} rows,
+      {{ stats.active_rows }} active, {{ stats.categories }} categories) and curate local
+      coding policy fields without changing source structure.
     </div>
   </div>
   <hr class="my-2">
 
-  <div class="mb-3">
-    <input
-      type="text"
-      class="form-control form-control-sm"
-      id="icd11-browser-search"
-      placeholder="Search by code or title (min 2 characters)"
-      style="max-width:420px;"
-    >
-    <div id="icd11-browser-search-results" class="list-group mt-1 d-none" style="max-width:640px;"></div>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div class="d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <div class="small text-muted mb-1">Coding</div>
+        <select class="form-select form-select-sm" id="icd11-browser-filter-active">
+          <option value="any">All</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Sex</div>
+        <select class="form-select form-select-sm" id="icd11-browser-filter-sex">
+          <option value="any">All</option>
+          <option value="both">Both</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Age</div>
+        <select class="form-select form-select-sm" id="icd11-browser-filter-age">
+          <option value="any">All</option>
+          <option value="all">All ages</option>
+          <option value="adult">Adult</option>
+          <option value="child">Child</option>
+          <option value="infant">Infant</option>
+          <option value="neonate">Neonate</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Search</div>
+        <input
+          type="text"
+          class="form-control form-control-sm"
+          id="icd11-browser-search"
+          placeholder="Code or title (min 2 characters)"
+          autocomplete="off"
+          style="min-width:260px;"
+        >
+        <div id="icd11-browser-search-results" class="list-group mt-1 d-none position-absolute" style="z-index:10; max-width:560px;"></div>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <input
+        type="file"
+        id="icd11-policy-import-file"
+        accept="application/json,.json"
+        class="d-none"
+      >
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd11-policy-import-btn">
+        Import JSON
+      </button>
+      <a
+        class="btn btn-sm btn-outline-secondary"
+        href="/admin/api/icd11/mms/policy-export?release={{ release|urlencode }}"
+      >
+        Export JSON
+      </a>
+      <a
+        class="btn btn-sm btn-outline-success"
+        href="/admin/api/icd11/mms/policy-export.xlsx?release={{ release|urlencode }}"
+      >
+        <i class="fa-solid fa-file-excel me-1"></i>Export XLSX
+      </a>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd11-browser-clear-filters-btn">
+        Clear Filters
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd11-browser-reset-btn">
+        Reset Browser
+      </button>
+    </div>
   </div>
 
   <div id="icd11-browser-status" class="alert alert-info py-2 px-3 d-none" role="status"></div>
 
   <div class="row g-3">
-    <div class="col-xl-8">
+    <div class="col-xl-9">
       <div class="card h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
           <div class="fw-semibold">Hierarchy</div>
           <div id="icd11-browser-path" class="small text-muted">Select a chapter to start.</div>
         </div>
         <div class="card-body p-0">
-          <div class="list-group list-group-flush" id="icd11-browser-tree" style="max-height:640px; overflow-y:auto;"></div>
+          <div class="list-group list-group-flush" id="icd11-browser-tree"></div>
         </div>
       </div>
     </div>
 
-    <div class="col-xl-4">
+    <div class="col-xl-3">
       <div class="card h-100">
         <div class="card-header">
           <div class="fw-semibold">Node Details</div>
@@ -52,20 +119,69 @@
           <div id="icd11-browser-empty-state" class="text-muted small">
             No ICD-11 entity selected yet.
           </div>
-          <div id="icd11-browser-details" class="d-none small">
-            <div id="icd11-browser-node-path" class="mb-3"></div>
-            <dl class="row mb-0">
+
+          <div id="icd11-browser-details" class="d-none">
+            <div class="mb-3">
+              <div id="icd11-browser-node-path" class="small"></div>
+            </div>
+            <dl class="row small mb-2">
               <dt class="col-5">Code</dt><dd class="col-7" id="icd11-browser-node-code"></dd>
               <dt class="col-5">Class kind</dt><dd class="col-7" id="icd11-browser-node-kind"></dd>
               <dt class="col-5">Chapter</dt><dd class="col-7" id="icd11-browser-node-chapter"></dd>
               <dt class="col-5">Residual</dt><dd class="col-7" id="icd11-browser-node-residual"></dd>
               <dt class="col-5">Leaf</dt><dd class="col-7" id="icd11-browser-node-leaf"></dd>
-              <dt class="col-5">Coding selectable</dt><dd class="col-7" id="icd11-browser-node-selectable"></dd>
-              <dt class="col-5">Sex</dt><dd class="col-7" id="icd11-browser-node-sex"></dd>
-              <dt class="col-5">Age group</dt><dd class="col-7" id="icd11-browser-node-age"></dd>
             </dl>
-            <div class="mt-2" id="icd11-browser-node-note"></div>
-            <div class="mt-2 text-muted" id="icd11-browser-node-coding-note"></div>
+            <div class="small text-muted mb-3" id="icd11-browser-node-coding-note"></div>
+
+            <div id="icd11-browser-policy-readonly" class="alert alert-light border d-none small mb-0">
+              Chapters and blocks are structural hierarchy rows. Local coding policy fields are only available on ICD-11 categories.
+            </div>
+
+            <form id="icd11-browser-policy-form">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="icd11-policy-is-coding-selectable">
+                <label class="form-check-label" for="icd11-policy-is-coding-selectable">
+                  Coding Selectable
+                </label>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd11-policy-sex-selectable" class="form-label small text-muted text-uppercase">
+                  Sex Selectable
+                </label>
+                <select class="form-select" id="icd11-policy-sex-selectable"></select>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd11-policy-age-group-selectable" class="form-label small text-muted text-uppercase">
+                  Age Group Selectable
+                </label>
+                <select class="form-select" id="icd11-policy-age-group-selectable"></select>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd11-policy-status" class="form-label small text-muted text-uppercase">
+                  Policy Status
+                </label>
+                <select class="form-select" id="icd11-policy-status"></select>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd11-policy-note" class="form-label small text-muted text-uppercase">
+                  Restriction Note
+                </label>
+                <textarea class="form-control" id="icd11-policy-note" rows="4"></textarea>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="icd11-policy-reset-btn">
+                  Reset
+                </button>
+                <button type="submit" class="btn btn-sm btn-primary" id="icd11-policy-save-btn">
+                  Save Policy
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -74,6 +190,12 @@
 </div>
 
 <style>
+  #panel-icd11-browser #icd11-browser-tree {
+    min-height: 420px;
+    max-height: 640px;
+    overflow-y: auto;
+  }
+
   #panel-icd11-browser .icd11-browser-item {
     border: 0;
     border-bottom: 1px solid #f1f3f5;
@@ -81,10 +203,57 @@
     padding: 0.5rem 0.75rem;
     cursor: pointer;
   }
+
   #panel-icd11-browser .icd11-browser-item.active {
     background: #eef5ff;
     color: #0d6efd;
   }
+
+  #panel-icd11-browser .icd11-browser-item-toggle {
+    display: inline-flex;
+    width: 0.9rem;
+    color: #6c757d;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  #panel-icd11-browser .icd11-browser-item-code {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  #panel-icd11-browser .icd11-browser-item-title {
+    font-size: 0.82rem;
+    color: #6c757d;
+    line-height: 1.35;
+  }
+
+  #panel-icd11-browser .icd11-browser-item.active .icd11-browser-item-title {
+    color: #0a58ca;
+  }
+
+  #panel-icd11-browser .icd11-browser-status-dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+
+  #panel-icd11-browser .icd11-browser-status-dot.is-active {
+    background: #198754;
+  }
+
+  #panel-icd11-browser .icd11-browser-status-dot.is-disabled {
+    background: #dc3545;
+  }
+
+  #panel-icd11-browser .icd11-browser-status-dot.is-mixed {
+    background: #f0ad4e;
+  }
+
   #panel-icd11-browser #icd11-browser-search-results .list-group-item {
     cursor: pointer;
     font-size: 0.8rem;
@@ -100,12 +269,117 @@
   if (!panel) return;
 
   var apiBase = '/admin/api/icd11/mms';
+  var release = {{ release|tojson }};
   var state = {
-    expanded: {},       // linearization_uri -> bool
-    childrenByParent: {},
+    options: null,
+    expanded: {},          // linearization_uri -> true while open
+    childrenByParent: {},  // linearization_uri | 'root' -> rows
     selectedUri: null,
+    currentNode: null,
     searchResults: [],
+    filters: {
+      active: 'any',
+      sex: 'any',
+      age: 'any',
+    },
   };
+  function csrf() {
+    return window._adminCsrf || '';
+  }
+
+  function statusEl() {
+    return panel.querySelector('#icd11-browser-status');
+  }
+
+  function showStatus(message, tone) {
+    var el = statusEl();
+    el.className = 'alert py-2 px-3';
+    el.classList.add(
+      tone === 'danger' ? 'alert-danger' : tone === 'success' ? 'alert-success' : 'alert-info'
+    );
+    el.textContent = message;
+    el.classList.remove('d-none');
+  }
+
+  function clearStatus() {
+    statusEl().classList.add('d-none');
+    statusEl().textContent = '';
+  }
+
+  function setUrlParams(updates) {
+    var params = new URLSearchParams(window.location.search);
+    Object.keys(updates).forEach(function (key) {
+      var value = updates[key];
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
+    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    history.replaceState(null, '', newUrl);
+  }
+
+  function syncFiltersToUrl() {
+    setUrlParams({
+      coding_filter: state.filters.active !== 'any' ? state.filters.active : null,
+      sex_filter: state.filters.sex !== 'any' ? state.filters.sex : null,
+      age_filter: state.filters.age !== 'any' ? state.filters.age : null,
+    });
+  }
+
+  function allowedValue(selectEl, value) {
+    return Array.prototype.some.call(selectEl.options, function (option) {
+      return option.value === value;
+    }) ? value : 'any';
+  }
+
+  function applyFiltersFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var activeEl = panel.querySelector('#icd11-browser-filter-active');
+    var sexEl = panel.querySelector('#icd11-browser-filter-sex');
+    var ageEl = panel.querySelector('#icd11-browser-filter-age');
+    state.filters.active = activeEl.value = allowedValue(activeEl, params.get('coding_filter') || 'any');
+    state.filters.sex = sexEl.value = allowedValue(sexEl, params.get('sex_filter') || 'any');
+    state.filters.age = ageEl.value = allowedValue(ageEl, params.get('age_filter') || 'any');
+  }
+
+  function codingSelectableInput() {
+    return panel.querySelector('#icd11-policy-is-coding-selectable');
+  }
+
+  function sexSelectableInput() {
+    return panel.querySelector('#icd11-policy-sex-selectable');
+  }
+
+  function ageGroupSelectableInput() {
+    return panel.querySelector('#icd11-policy-age-group-selectable');
+  }
+
+  function policyStatusInput() {
+    return panel.querySelector('#icd11-policy-status');
+  }
+
+  function policyFormEl() {
+    return panel.querySelector('#icd11-browser-policy-form');
+  }
+
+  function policyReadonlyEl() {
+    return panel.querySelector('#icd11-browser-policy-readonly');
+  }
+
+  function withRelease(url) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'release=' + encodeURIComponent(release);
+  }
+
+  async function requestJson(url, options) {
+    var response = await fetch(withRelease(url), options || {});
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || 'Request failed.');
+    }
+    return payload;
+  }
 
   function escapeHtml(value) {
     return String(value || '')
@@ -116,55 +390,81 @@
       .replace(/'/g, '&#39;');
   }
 
-  function statusEl() { return panel.querySelector('#icd11-browser-status'); }
-
-  function showStatus(message, tone) {
-    var el = statusEl();
-    el.className = 'alert py-2 px-3';
-    el.classList.add(tone === 'danger' ? 'alert-danger' : 'alert-info');
-    el.textContent = message;
-    el.classList.remove('d-none');
+  function labelFor(row) {
+    return row.code ? (row.code + ' ' + row.title) : row.title;
   }
 
-  async function requestJson(url) {
-    var response = await fetch(url);
-    var payload = await response.json().catch(function () { return {}; });
-    if (!response.ok) {
-      throw new Error(payload.error || 'Request failed.');
+  function setSelectOptions(selectEl, options, allowNull) {
+    var html = allowNull ? '<option value="">Not Set</option>' : '';
+    html += options.map(function (value) {
+      return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
+    }).join('');
+    selectEl.innerHTML = html;
+  }
+
+  function statusDotHtml(row) {
+    if (row.status_indicator === 'green') {
+      return '<span class="icd11-browser-status-dot is-active" title="Active/selectable"></span>';
     }
-    return payload;
+    if (row.status_indicator === 'yellow') {
+      return '<span class="icd11-browser-status-dot is-mixed" title="Not selectable; has selectable child categories"></span>';
+    }
+    if (row.status_indicator === 'red') {
+      return '<span class="icd11-browser-status-dot is-disabled" title="Disabled"></span>';
+    }
+    return '';
   }
 
   function getChildren(parentUri) {
-    var key = parentUri || 'root';
-    return state.childrenByParent[key] || [];
+    return state.childrenByParent[parentUri || 'root'] || [];
+  }
+
+  function findLoadedRow(uri) {
+    var keys = Object.keys(state.childrenByParent);
+    for (var i = 0; i < keys.length; i += 1) {
+      var rows = state.childrenByParent[keys[i]];
+      for (var j = 0; j < rows.length; j += 1) {
+        if (rows[j].linearization_uri === uri) return rows[j];
+      }
+    }
+    return null;
   }
 
   async function loadChildren(parentUri) {
-    var url = apiBase + '/children';
-    if (parentUri) {
-      url += '?parent_linearization_uri=' + encodeURIComponent(parentUri);
-    }
+    var params = new URLSearchParams();
+    if (parentUri) params.set('parent_linearization_uri', parentUri);
+    if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
+    if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
+    if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
+    var url = apiBase + '/children' + (params.toString() ? '?' + params.toString() : '');
     var payload = await requestJson(url);
     state.childrenByParent[parentUri || 'root'] = payload.children || [];
     return payload.children || [];
   }
 
   function renderNode(row, depth) {
-    var isActive = state.selectedUri === row.linearization_uri;
-    var isExpanded = !!state.expanded[row.linearization_uri];
-    var toggle = row.child_count
-      ? '<i class="fa-solid ' + (isExpanded ? 'fa-caret-down' : 'fa-caret-right') + ' me-1"></i>'
-      : '<span class="me-1" style="display:inline-block;width:0.9em;"></span>';
-    var label = row.code ? (row.code + ' ' + row.title) : row.title;
-    var badge = row.child_count ? '<span class="badge text-bg-light ms-2">' + row.child_count + '</span>' : '';
-    var html = '<button type="button" class="list-group-item list-group-item-action icd11-browser-item' +
-      (isActive ? ' active' : '') + '" data-uri="' + escapeHtml(row.linearization_uri) + '" ' +
-      'style="padding-left:' + (0.75 + depth * 1.1) + 'rem;">' +
-      toggle + escapeHtml(label) + badge +
-      '</button>';
+    var uri = row.linearization_uri;
+    var isActive = state.selectedUri === uri;
+    var isExpanded = !!state.expanded[uri];
+    var toggleHtml = row.child_count
+      ? '<span class="icd11-browser-item-toggle"><i class="fa-solid ' + (isExpanded ? 'fa-caret-down' : 'fa-caret-right') + '"></i></span>'
+      : '<span class="icd11-browser-item-toggle"></span>';
+    var badge = row.child_count ? '<span class="badge text-bg-light">' + Number(row.child_count) + '</span>' : '';
+    var contentHtml = row.class_kind === 'category'
+      ? '<div class="icd11-browser-item-code">' + escapeHtml(row.code || '') + statusDotHtml(row) + '</div>' +
+        '<div class="icd11-browser-item-title">' + escapeHtml(row.title) + '</div>'
+      : '<div class="icd11-browser-item-code">' + escapeHtml(labelFor(row)) + '</div>';
+    var html = (
+      '<button type="button" class="list-group-item list-group-item-action icd11-browser-item' + (isActive ? ' active' : '') + '" ' +
+        'data-uri="' + escapeHtml(uri) + '" style="padding-left:' + (0.75 + depth * 1.1) + 'rem;">' +
+        '<div class="d-flex justify-content-between gap-2 align-items-start">' +
+          '<div class="d-flex gap-1">' + toggleHtml + '<div>' + contentHtml + '</div></div>' +
+          badge +
+        '</div>' +
+      '</button>'
+    );
     if (isExpanded) {
-      html += getChildren(row.linearization_uri).map(function (child) {
+      html += getChildren(uri).map(function (child) {
         return renderNode(child, depth + 1);
       }).join('');
     }
@@ -175,66 +475,230 @@
     var tree = panel.querySelector('#icd11-browser-tree');
     var roots = getChildren(null);
     if (!roots.length) {
-      tree.innerHTML = '<div class="p-3 text-muted small">No chapters loaded.</div>';
+      tree.innerHTML = '<div class="p-3 text-muted small">No chapters match the current filters.</div>';
       return;
     }
     tree.innerHTML = roots.map(function (row) { return renderNode(row, 0); }).join('');
   }
 
+  function showEmptyDetails() {
+    state.currentNode = null;
+    panel.querySelector('#icd11-browser-empty-state').classList.remove('d-none');
+    panel.querySelector('#icd11-browser-details').classList.add('d-none');
+    panel.querySelector('#icd11-browser-path').textContent = 'Select a chapter to start.';
+  }
+
   function renderNodeDetails(node) {
+    state.currentNode = node;
     panel.querySelector('#icd11-browser-empty-state').classList.add('d-none');
     panel.querySelector('#icd11-browser-details').classList.remove('d-none');
     var ancestors = (node.ancestors || []).map(function (item) {
-      return '<div>' + escapeHtml(item.code ? (item.code + ' ' + item.title) : item.title) + '</div>';
+      return '<div>' + escapeHtml(labelFor(item)) + '</div>';
     });
-    ancestors.push('<div><strong>' + escapeHtml(node.code ? (node.code + ' ' + node.title) : node.title) + '</strong></div>');
+    ancestors.push('<div><strong>' + escapeHtml(labelFor(node)) + statusDotHtml(node) + '</strong></div>');
     panel.querySelector('#icd11-browser-node-path').innerHTML = ancestors.join('');
     panel.querySelector('#icd11-browser-node-code').textContent = node.code || '(no code)';
     panel.querySelector('#icd11-browser-node-kind').textContent = node.class_kind;
     panel.querySelector('#icd11-browser-node-chapter').textContent = node.chapter_no || '';
     panel.querySelector('#icd11-browser-node-residual').textContent = node.is_residual ? 'Yes' : 'No';
     panel.querySelector('#icd11-browser-node-leaf').textContent = node.is_leaf ? 'Yes' : 'No';
-    panel.querySelector('#icd11-browser-node-selectable').textContent =
-      node.is_coding_selectable === true ? 'Yes' : (node.is_coding_selectable === false ? 'No' : 'Not set');
-    panel.querySelector('#icd11-browser-node-sex').textContent = node.sex_selectable || 'Not set';
-    panel.querySelector('#icd11-browser-node-age').textContent = node.age_group_selectable || 'Not set';
-    panel.querySelector('#icd11-browser-node-note').textContent = node.restriction_note
-      ? 'Restriction note: ' + node.restriction_note : '';
     panel.querySelector('#icd11-browser-node-coding-note').textContent = node.coding_note
       ? 'WHO coding note: ' + node.coding_note : '';
 
-    var path = [];
-    (node.ancestors || []).forEach(function (item) { path.push(item.code || item.title); });
+    codingSelectableInput().checked = !!node.is_coding_selectable;
+    sexSelectableInput().value = node.sex_selectable || '';
+    ageGroupSelectableInput().value = node.age_group_selectable || '';
+    policyStatusInput().value = node.policy_status || 'unreviewed';
+    panel.querySelector('#icd11-policy-note').value = node.restriction_note || '';
+
+    if (node.is_policy_editable) {
+      policyReadonlyEl().classList.add('d-none');
+      policyFormEl().classList.remove('d-none');
+    } else {
+      policyFormEl().classList.add('d-none');
+      policyReadonlyEl().classList.remove('d-none');
+    }
+
+    var path = (node.ancestors || []).map(function (item) { return item.code || item.title; });
     path.push(node.code || node.title);
     panel.querySelector('#icd11-browser-path').textContent = path.join(' / ');
   }
 
-  async function selectNode(uri) {
-    state.selectedUri = uri;
-    if (!state.expanded[uri]) {
-      state.expanded[uri] = true;
-      if (!state.childrenByParent[uri]) {
-        await loadChildren(uri);
+  async function loadNode(uri) {
+    var node = await requestJson(apiBase + '/node?linearization_uri=' + encodeURIComponent(uri));
+    renderNodeDetails(node);
+    return node;
+  }
+
+  // Select a node and open every ancestor so it is visible in the tree
+  // (used for tree clicks, search results and the ?node= URL parameter).
+  async function revealNode(uri) {
+    var node = await loadNode(uri);
+    for (var i = 0; i < (node.ancestors || []).length; i += 1) {
+      var ancestorUri = node.ancestors[i].linearization_uri;
+      state.expanded[ancestorUri] = true;
+      if (!state.childrenByParent[ancestorUri]) {
+        await loadChildren(ancestorUri);
       }
     }
+    state.selectedUri = uri;
+    setUrlParams({ node: uri });
     renderTree();
+    var button = panel.querySelector('.icd11-browser-item[data-uri="' + CSS.escape(uri) + '"]');
+    if (button) button.scrollIntoView({ block: 'nearest' });
+  }
+
+  async function handleTreeClick(uri) {
+    var row = findLoadedRow(uri);
+    if (row && row.child_count) {
+      if (state.expanded[uri] && state.selectedUri === uri) {
+        delete state.expanded[uri];
+      } else {
+        state.expanded[uri] = true;
+        if (!state.childrenByParent[uri]) {
+          await loadChildren(uri);
+        }
+      }
+    }
+    state.selectedUri = uri;
+    setUrlParams({ node: uri });
+    renderTree();
+    await loadNode(uri);
+  }
+
+  // Reload the root and every open node under the current filters, keeping
+  // the selection when it is still loaded.
+  async function refreshTree() {
+    state.childrenByParent = {};
+    await loadChildren(null);
+    var openUris = Object.keys(state.expanded);
+    for (var i = 0; i < openUris.length; i += 1) {
+      await loadChildren(openUris[i]);
+    }
+    renderTree();
+    if (state.selectedUri) {
+      await loadNode(state.selectedUri);
+    }
+  }
+
+  async function savePolicy(event) {
+    event.preventDefault();
+    if (!state.currentNode) return;
+    if (!state.currentNode.is_policy_editable) {
+      showStatus('Policy fields are not editable for structural hierarchy rows.', 'danger');
+      return;
+    }
+
+    var payload = {
+      is_coding_selectable: codingSelectableInput().checked,
+      sex_selectable: sexSelectableInput().value || null,
+      age_group_selectable: ageGroupSelectableInput().value || null,
+      policy_status: policyStatusInput().value || null,
+      restriction_note: panel.querySelector('#icd11-policy-note').value || null,
+    };
+
+    if (payload.is_coding_selectable) {
+      if (!payload.sex_selectable) {
+        payload.sex_selectable = 'both';
+        sexSelectableInput().value = 'both';
+      }
+      if (!payload.age_group_selectable) {
+        payload.age_group_selectable = 'all';
+        ageGroupSelectableInput().value = 'all';
+      }
+    }
+
     try {
-      var node = await requestJson(apiBase + '/node?linearization_uri=' + encodeURIComponent(uri));
-      renderNodeDetails(node);
+      clearStatus();
+      var updated = await requestJson(
+        apiBase + '/node/policy?linearization_uri=' + encodeURIComponent(state.currentNode.linearization_uri),
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf(),
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      renderNodeDetails(updated);
+      await refreshTree();
+      showStatus('Policy saved for ' + labelFor(updated) + '.', 'success');
     } catch (error) {
       showStatus(error.message, 'danger');
     }
   }
 
-  function toggleNode(uri) {
-    state.expanded[uri] = !state.expanded[uri];
-    if (state.expanded[uri] && !state.childrenByParent[uri]) {
-      loadChildren(uri).then(renderTree).catch(function (error) {
-        showStatus(error.message, 'danger');
-      });
+  function resetPolicyForm() {
+    if (state.currentNode) {
+      renderNodeDetails(state.currentNode);
+    }
+  }
+
+  async function postPolicyFile(file, dryRun) {
+    var formData = new FormData();
+    formData.append('file', file);
+    if (dryRun) formData.append('dry_run', '1');
+    return requestJson(apiBase + '/policy-import', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf(),
+      },
+      body: formData,
+    });
+  }
+
+  function importSummary(payload) {
+    var message =
+      payload.total_items + ' rows in file; ' +
+      payload.updated_items + ' categories change; ' +
+      payload.reset_items + ' categories not in the file are reset to not selectable.';
+    if ((payload.failed_codes || []).length) {
+      message += ' Skipped: ' + payload.failed_codes.map(function (item) {
+        return item.code + ' (' + item.reason + ')';
+      }).join(', ') + '.';
+    }
+    return message;
+  }
+
+  // Preview the import first, then apply only after the admin confirms.
+  async function importPolicyFile(file) {
+    var preview = await postPolicyFile(file, true);
+    if (!window.confirm('Import preview: ' + importSummary(preview) + '\n\nApply this import?')) {
+      showStatus('Import cancelled; nothing was changed.', 'info');
       return;
     }
+    var applied = await postPolicyFile(file, false);
+    showStatus('Imported. ' + importSummary(applied), 'success');
+    await refreshTree();
+  }
+
+  function resetBrowser() {
+    clearStatus();
+    state.expanded = {};
+    state.selectedUri = null;
+    showEmptyDetails();
+    setUrlParams({ node: null });
     renderTree();
+  }
+
+  async function updateFiltersFromInputs() {
+    state.filters.active = panel.querySelector('#icd11-browser-filter-active').value;
+    state.filters.sex = panel.querySelector('#icd11-browser-filter-sex').value;
+    state.filters.age = panel.querySelector('#icd11-browser-filter-age').value;
+    syncFiltersToUrl();
+    try {
+      await refreshTree();
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    }
+  }
+
+  async function clearFilters() {
+    panel.querySelector('#icd11-browser-filter-active').value = 'any';
+    panel.querySelector('#icd11-browser-filter-sex').value = 'any';
+    panel.querySelector('#icd11-browser-filter-age').value = 'any';
+    await updateFiltersFromInputs();
   }
 
   function renderSearchResults() {
@@ -266,24 +730,33 @@
     renderSearchResults();
   }
 
-  panel.querySelector('#icd11-browser-tree').addEventListener('click', function (event) {
-    var button = event.target.closest('.icd11-browser-item');
-    if (!button) return;
-    var uri = button.dataset.uri;
-    var row = getChildren(null).concat.apply(
-      [], Object.keys(state.childrenByParent).map(function (k) { return state.childrenByParent[k]; })
-    ).find(function (r) { return r.linearization_uri === uri; });
-    if (row && row.child_count) {
-      toggleNode(uri);
-    }
-    selectNode(uri).catch(function (error) { showStatus(error.message, 'danger'); });
-  });
-
-  panel.querySelector('#icd11-browser-search').addEventListener('input', function () {
-    runSearch().catch(function () {
+  panel.addEventListener('click', function (event) {
+    var resultButton = event.target.closest('.icd11-browser-search-result');
+    if (resultButton) {
+      panel.querySelector('#icd11-browser-search').value = '';
       state.searchResults = [];
       renderSearchResults();
+      revealNode(resultButton.dataset.uri).catch(function (error) {
+        showStatus(error.message, 'danger');
+      });
+      return;
+    }
+    var button = event.target.closest('.icd11-browser-item');
+    if (!button) return;
+    handleTreeClick(button.dataset.uri).catch(function (error) {
+      showStatus(error.message, 'danger');
     });
+  });
+
+  var searchTimer = null;
+  panel.querySelector('#icd11-browser-search').addEventListener('input', function () {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(function () {
+      runSearch().catch(function () {
+        state.searchResults = [];
+        renderSearchResults();
+      });
+    }, 200);
   });
   panel.querySelector('#icd11-browser-search').addEventListener('blur', function () {
     window.setTimeout(function () {
@@ -291,18 +764,49 @@
       renderSearchResults();
     }, 150);
   });
-  panel.addEventListener('click', function (event) {
-    var resultButton = event.target.closest('.icd11-browser-search-result');
-    if (!resultButton) return;
-    panel.querySelector('#icd11-browser-search').value = '';
-    state.searchResults = [];
-    renderSearchResults();
-    selectNode(resultButton.dataset.uri).catch(function (error) {
-      showStatus(error.message, 'danger');
-    });
+
+  panel.querySelector('#icd11-policy-import-btn').addEventListener('click', function () {
+    panel.querySelector('#icd11-policy-import-file').click();
+  });
+  panel.querySelector('#icd11-policy-import-file').addEventListener('change', function (event) {
+    var file = event.target.files && event.target.files[0];
+    if (!file) return;
+    clearStatus();
+    importPolicyFile(file)
+      .catch(function (error) {
+        showStatus(error.message, 'danger');
+      })
+      .finally(function () {
+        event.target.value = '';
+      });
   });
 
-  loadChildren(null).then(renderTree).catch(function (error) {
+  policyFormEl().addEventListener('submit', savePolicy);
+  codingSelectableInput().addEventListener('change', function () {
+    if (!codingSelectableInput().checked) return;
+    sexSelectableInput().value = 'both';
+    ageGroupSelectableInput().value = 'all';
+  });
+  panel.querySelector('#icd11-browser-filter-active').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd11-browser-filter-sex').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd11-browser-filter-age').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd11-browser-clear-filters-btn').addEventListener('click', clearFilters);
+  panel.querySelector('#icd11-policy-reset-btn').addEventListener('click', resetPolicyForm);
+  panel.querySelector('#icd11-browser-reset-btn').addEventListener('click', resetBrowser);
+
+  applyFiltersFromUrl();
+  Promise.all([
+    requestJson(apiBase + '/policy-options'),
+    loadChildren(null),
+  ]).then(function (results) {
+    state.options = results[0];
+    setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
+    setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
+    setSelectOptions(policyStatusInput(), state.options.policy_status || [], false);
+    renderTree();
+    var nodeUri = new URLSearchParams(window.location.search).get('node');
+    return nodeUri ? revealNode(nodeUri) : null;
+  }).catch(function (error) {
     showStatus(error.message, 'danger');
   });
 })();

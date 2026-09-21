@@ -3,7 +3,7 @@ title: ICD-11 in the Coding Screen — Form-Level Classification and Optional St
 doc_type: planning
 status: in-progress
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-21
 ---
 
 # ICD-11 in the Coding Screen — Form-Level Classification and Optional Step 1
@@ -121,6 +121,11 @@ CSV, following `docs/policy/icd10-reference-catalog.md`.
   `WHO_2022_VA_CODES_ICD11.pdf` from the annex CSV, or the WHO 2026 manual
   pages if the PDF is not ready). WHO attribution string shown for ICD-11.
 - Admin: ICD-11 browser and policy editor panel cloned from the ICD-10 one.
+  **Done (2026-09-21):** `/admin/panels/icd11-browser` now has the ICD-10
+  panel's filters, status dots, counters, editable per-category policy
+  (including `policy_status`), previewed JSON import, and JSON/XLSX export,
+  sharing the CLI's policy JSON format. See
+  docs/policy/icd11-reference-catalog.md "Curation Path".
 
 ### 4. Settings
 
@@ -180,7 +185,8 @@ export is read-only input.
    `b6edb1b7d01a` seeded from the checked-in generated CSV, read-only admin
    browser (`app/routes/admin_icd11.py`,
    `app/templates/admin/panels/icd11_browser.html`; no coding-screen UI
-   change). See docs/policy/icd11-reference-catalog.md.
+   change). See docs/policy/icd11-reference-catalog.md. The browser became
+   the policy editor (ICD-10 panel parity) on 2026-09-21; see section 3.
 2. **Partially done (2026-09-17).** `map_project_site_odk.icd_classification`
    (migration `f4b8dd6e3568`, decision D1 implemented as recommended) is
    wired into the Project Forms admin panel/API, defaulting to `icd10`.

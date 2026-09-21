@@ -12,9 +12,14 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
 import sqlalchemy as sa
+import sqlalchemy.orm as so
+from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
+from openpyxl.styles import Font, PatternFill
 
 from app import db
 from app.models import MasIcd11Mms
@@ -30,6 +35,10 @@ SOURCE_VERSION = "ICD-11-MMS-2026-01"
 
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
+# Same values the ICD-10 catalog carries; informational only (coding search
+# reads is_coding_selectable/sex/age, never policy_status).
+POLICY_STATUS_OPTIONS = ("unreviewed", "reviewed")
+CODING_FILTER_OPTIONS = ("any", "active", "disabled")
 POLICY_EDITABLE_CLASS_KINDS = frozenset({"category"})
 
 _IMPORT_BATCH_SIZE = 1000
@@ -76,6 +85,19 @@ class Icd11MmsPolicyUpdate:
     sex_selectable: str | None
     age_group_selectable: str | None
     restriction_note: str | None
+    # None means "leave the row's policy_status as it is".
+    policy_status: str | None = None
+
+    def values(self) -> dict:
+        values = {
+            "is_coding_selectable": self.is_coding_selectable,
+            "sex_selectable": self.sex_selectable,
+            "age_group_selectable": self.age_group_selectable,
+            "restriction_note": self.restriction_note,
+        }
+        if self.policy_status is not None:
+            values["policy_status"] = self.policy_status
+        return values
 
 
 @dataclass(frozen=True)
@@ -388,28 +410,156 @@ def _serialize_row(row: MasIcd11Mms, *, child_count: int | None = None) -> dict:
     }
 
 
+def _policy_filters_applied(*, coding_filter: str, sex_filter: str, age_filter: str) -> bool:
+    return coding_filter != "any" or sex_filter != "any" or age_filter != "any"
+
+
+def _policy_filter_clause(*, coding_filter: str, sex_filter: str, age_filter: str):
+    clause = sa.true()
+    if coding_filter == "active":
+        clause = sa.and_(clause, MasIcd11Mms.is_coding_selectable.is_(True))
+    elif coding_filter == "disabled":
+        clause = sa.and_(
+            clause,
+            sa.or_(
+                MasIcd11Mms.is_coding_selectable.is_(False),
+                MasIcd11Mms.is_coding_selectable.is_(None),
+            ),
+        )
+    if sex_filter != "any":
+        clause = sa.and_(clause, MasIcd11Mms.sex_selectable == sex_filter)
+    if age_filter != "any":
+        clause = sa.and_(clause, MasIcd11Mms.age_group_selectable == age_filter)
+    return clause
+
+
+def _policy_filter_hits_cte(
+    release: str, *, coding_filter: str, sex_filter: str, age_filter: str
+):
+    """Recursive CTE of categories matching the filters plus all their ancestors.
+
+    ICD-11 nests to a variable depth, so unlike ICD-10's fixed chapter/block/
+    three-character/detailed levels a node is kept when it or any descendant
+    category matches. UNION (not UNION ALL) dedupes shared ancestors.
+    """
+    hits = (
+        sa.select(
+            MasIcd11Mms.linearization_uri.label("linearization_uri"),
+            MasIcd11Mms.parent_linearization_uri.label("parent_linearization_uri"),
+        )
+        .where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+            _policy_filter_clause(
+                coding_filter=coding_filter, sex_filter=sex_filter, age_filter=age_filter
+            ),
+        )
+        .cte("icd11_filter_hits", recursive=True)
+    )
+    parent = so.aliased(MasIcd11Mms)
+    return hits.union(
+        sa.select(parent.linearization_uri, parent.parent_linearization_uri)
+        .join(hits, parent.linearization_uri == hits.c.parent_linearization_uri)
+        .where(parent.release == release, parent.is_active.is_(True))
+    )
+
+
+def _status_indicator_for_row(row: MasIcd11Mms, *, selectable_child_count: int) -> str | None:
+    """Tree dot for a category, mirroring ICD-10's three-character rule.
+
+    green: selectable itself; yellow: not selectable but a direct child is;
+    red: neither. Chapters and blocks carry no dot, as in the ICD-10 panel.
+    """
+    if row.class_kind not in POLICY_EDITABLE_CLASS_KINDS:
+        return None
+    if row.is_coding_selectable:
+        return "green"
+    if selectable_child_count > 0:
+        return "yellow"
+    return "red"
+
+
 def list_icd11_mms_children(
     parent_linearization_uri: str | None,
     release: str = DEFAULT_ICD11_RELEASE,
+    *,
+    coding_filter: str = "any",
+    sex_filter: str = "any",
+    age_filter: str = "any",
 ) -> list[dict]:
-    child_count_sq = (
+    """Direct children of one node (roots when ``parent_linearization_uri`` is None).
+
+    With any policy filter set, only children that match or have a matching
+    descendant category are returned, and ``child_count`` counts only such
+    children. Filter values are expected to be validated by the caller.
+    """
+    selectable_child_count_sq = (
         sa.select(
             MasIcd11Mms.parent_linearization_uri.label("parent_linearization_uri"),
             sa.func.count().label("child_count"),
+            sa.func.count()
+            .filter(MasIcd11Mms.is_coding_selectable.is_(True))
+            .label("selectable_child_count"),
         )
         .where(MasIcd11Mms.release == release, MasIcd11Mms.is_active.is_(True))
         .group_by(MasIcd11Mms.parent_linearization_uri)
         .subquery()
     )
+    filters_applied = _policy_filters_applied(
+        coding_filter=coding_filter, sex_filter=sex_filter, age_filter=age_filter
+    )
+    hits = None
+    if filters_applied:
+        hits = _policy_filter_hits_cte(
+            release, coding_filter=coding_filter, sex_filter=sex_filter, age_filter=age_filter
+        )
+        filtered_child_count_sq = (
+            sa.select(
+                hits.c.parent_linearization_uri.label("parent_linearization_uri"),
+                sa.func.count().label("child_count"),
+            )
+            .group_by(hits.c.parent_linearization_uri)
+            .subquery()
+        )
+        child_count_col = filtered_child_count_sq.c.child_count
+    else:
+        child_count_col = selectable_child_count_sq.c.child_count
+
     query = (
-        sa.select(MasIcd11Mms, child_count_sq.c.child_count)
+        sa.select(
+            MasIcd11Mms,
+            child_count_col,
+            selectable_child_count_sq.c.selectable_child_count,
+        )
         .outerjoin(
-            child_count_sq,
-            child_count_sq.c.parent_linearization_uri == MasIcd11Mms.linearization_uri,
+            selectable_child_count_sq,
+            selectable_child_count_sq.c.parent_linearization_uri
+            == MasIcd11Mms.linearization_uri,
         )
         .where(MasIcd11Mms.release == release, MasIcd11Mms.is_active.is_(True))
         .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
     )
+    if filters_applied:
+        # A row is in the hit set when it matches itself or has a child in it;
+        # testing that directly avoids a semi-join that sorts every hit URI.
+        query = query.outerjoin(
+            filtered_child_count_sq,
+            filtered_child_count_sq.c.parent_linearization_uri
+            == MasIcd11Mms.linearization_uri,
+        ).where(
+            sa.or_(
+                sa.and_(
+                    MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+                    _policy_filter_clause(
+                        coding_filter=coding_filter,
+                        sex_filter=sex_filter,
+                        age_filter=age_filter,
+                    ),
+                ),
+                filtered_child_count_sq.c.child_count > 0,
+            )
+        )
     if parent_linearization_uri is None:
         query = query.where(MasIcd11Mms.parent_linearization_uri.is_(None))
     else:
@@ -417,10 +567,14 @@ def list_icd11_mms_children(
             MasIcd11Mms.parent_linearization_uri == parent_linearization_uri
         )
 
-    rows = db.session.execute(query).all()
-    return [
-        _serialize_row(row, child_count=int(child_count or 0)) for row, child_count in rows
-    ]
+    payload = []
+    for row, child_count, selectable_child_count in db.session.execute(query).all():
+        item = _serialize_row(row, child_count=int(child_count or 0))
+        item["status_indicator"] = _status_indicator_for_row(
+            row, selectable_child_count=int(selectable_child_count or 0)
+        )
+        payload.append(item)
+    return payload
 
 
 def get_icd11_mms_node_details(
@@ -435,15 +589,16 @@ def get_icd11_mms_node_details(
     if row is None or not row.is_active:
         return None
 
-    child_count = db.session.scalar(
-        sa.select(sa.func.count())
-        .select_from(MasIcd11Mms)
-        .where(
+    child_count, selectable_child_count = db.session.execute(
+        sa.select(
+            sa.func.count(),
+            sa.func.count().filter(MasIcd11Mms.is_coding_selectable.is_(True)),
+        ).where(
             MasIcd11Mms.release == release,
             MasIcd11Mms.parent_linearization_uri == linearization_uri,
             MasIcd11Mms.is_active.is_(True),
         )
-    ) or 0
+    ).one()
 
     ancestors: list[dict[str, str]] = []
     current_uri = row.parent_linearization_uri
@@ -466,7 +621,10 @@ def get_icd11_mms_node_details(
         current_uri = ancestor.parent_linearization_uri
     ancestors.reverse()
 
-    payload = _serialize_row(row, child_count=int(child_count))
+    payload = _serialize_row(row, child_count=int(child_count or 0))
+    payload["status_indicator"] = _status_indicator_for_row(
+        row, selectable_child_count=int(selectable_child_count or 0)
+    )
     payload["ancestors"] = ancestors
     return payload
 
@@ -475,11 +633,17 @@ def get_icd11_mms_policy_options() -> dict[str, list[str]]:
     return {
         "sex_selectable": list(SEX_SELECTABLE_OPTIONS),
         "age_group_selectable": list(AGE_GROUP_SELECTABLE_OPTIONS),
+        "policy_status": list(POLICY_STATUS_OPTIONS),
     }
 
 
 def _validate_policy_update(
-    *, is_coding_selectable, sex_selectable, age_group_selectable, restriction_note
+    *,
+    is_coding_selectable,
+    sex_selectable,
+    age_group_selectable,
+    restriction_note,
+    policy_status=None,
 ) -> Icd11MmsPolicyUpdate:
     if is_coding_selectable not in (True, False, None):
         raise ValueError("is_coding_selectable must be true, false, or null.")
@@ -491,12 +655,31 @@ def _validate_policy_update(
         )
     if restriction_note is not None and not isinstance(restriction_note, str):
         raise ValueError("restriction_note must be a string or null.")
+    if policy_status not in (*POLICY_STATUS_OPTIONS, None):
+        raise ValueError("policy_status must be one of unreviewed, reviewed, or omitted.")
     return Icd11MmsPolicyUpdate(
         is_coding_selectable=is_coding_selectable,
         sex_selectable=sex_selectable,
         age_group_selectable=age_group_selectable,
         restriction_note=_optional_text(restriction_note or ""),
+        policy_status=policy_status,
     )
+
+
+def _apply_policy_values(row: MasIcd11Mms, values: dict, *, dry_run: bool) -> bool:
+    """Set each changed policy field on ``row``; return whether any differed.
+
+    With ``dry_run`` the row is only compared, never mutated, so a preview
+    leaves the session clean.
+    """
+    changed = False
+    for field, value in values.items():
+        if getattr(row, field) == value:
+            continue
+        changed = True
+        if not dry_run:
+            setattr(row, field, value)
+    return changed
 
 
 def update_icd11_mms_policy(
@@ -507,7 +690,13 @@ def update_icd11_mms_policy(
     sex_selectable,
     age_group_selectable,
     restriction_note,
+    policy_status=None,
 ) -> dict:
+    """Set one category's policy fields; ``policy_status=None`` keeps it as is.
+
+    Raises LookupError for an unknown/inactive entity and ValueError for a
+    non-category entity or an invalid value.
+    """
     row = db.session.scalar(
         sa.select(MasIcd11Mms).where(
             MasIcd11Mms.release == release,
@@ -524,16 +713,19 @@ def update_icd11_mms_policy(
         sex_selectable=sex_selectable,
         age_group_selectable=age_group_selectable,
         restriction_note=restriction_note,
+        policy_status=policy_status,
     )
-    row.is_coding_selectable = update.is_coding_selectable
-    row.sex_selectable = update.sex_selectable
-    row.age_group_selectable = update.age_group_selectable
-    row.restriction_note = update.restriction_note
+    _apply_policy_values(row, update.values(), dry_run=False)
     db.session.commit()
     return get_icd11_mms_node_details(linearization_uri, release) or _serialize_row(row)
 
 
 def export_icd11_mms_policy_json(release: str = DEFAULT_ICD11_RELEASE) -> dict:
+    """Curated category rows in the policy JSON format read by the importer.
+
+    Carries ``restriction_note`` and ``policy_status`` so an export imports
+    back unchanged.
+    """
     rows = db.session.scalars(
         sa.select(MasIcd11Mms)
         .where(
@@ -544,6 +736,8 @@ def export_icd11_mms_policy_json(release: str = DEFAULT_ICD11_RELEASE) -> dict:
                 MasIcd11Mms.is_coding_selectable.is_not(None),
                 MasIcd11Mms.sex_selectable.is_not(None),
                 MasIcd11Mms.age_group_selectable.is_not(None),
+                MasIcd11Mms.restriction_note.is_not(None),
+                MasIcd11Mms.policy_status != "unreviewed",
             ),
         )
         .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
@@ -559,6 +753,8 @@ def export_icd11_mms_policy_json(release: str = DEFAULT_ICD11_RELEASE) -> dict:
             "is_coding_selectable": row.is_coding_selectable,
             "sex_selectable": row.sex_selectable,
             "age_group_selectable": row.age_group_selectable,
+            "policy_status": row.policy_status,
+            "restriction_note": row.restriction_note,
         }
         for row in rows
     ]
@@ -570,9 +766,123 @@ def export_icd11_mms_policy_json(release: str = DEFAULT_ICD11_RELEASE) -> dict:
     }
 
 
+_XLSX_HEADERS = (
+    "ICD-11 Code",
+    "Title",
+    "Class Kind",
+    "Chapter",
+    "Residual",
+    "Leaf",
+    "Coding Allowed",
+    "Age Selectable",
+    "Sex Selectable",
+    "Policy Status",
+    "Restriction Note",
+    "Linearization URI",
+)
+_XLSX_COLUMN_WIDTHS = (12, 48, 12, 9, 9, 7, 15, 15, 15, 14, 40, 48)
+
+
+def export_icd11_mms_policy_xlsx(release: str = DEFAULT_ICD11_RELEASE) -> bytes:
+    """Every active category of ``release`` with its policy, as an xlsx workbook.
+
+    Write-only workbook over plain column tuples: the release has ~35k
+    categories, which a regular openpyxl sheet of ORM rows holds in memory
+    several times over. Styling mirrors the ICD-10 export's header.
+    """
+    rows = db.session.execute(
+        sa.select(
+            MasIcd11Mms.code,
+            MasIcd11Mms.title,
+            MasIcd11Mms.class_kind,
+            MasIcd11Mms.chapter_no,
+            MasIcd11Mms.is_residual,
+            MasIcd11Mms.is_leaf,
+            MasIcd11Mms.is_coding_selectable,
+            MasIcd11Mms.age_group_selectable,
+            MasIcd11Mms.sex_selectable,
+            MasIcd11Mms.policy_status,
+            MasIcd11Mms.restriction_note,
+            MasIcd11Mms.linearization_uri,
+        )
+        .where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+        )
+        .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
+    )
+
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet("ICD11 Policy")
+    for index, width in enumerate(_XLSX_COLUMN_WIDTHS):
+        sheet.column_dimensions[chr(ord("A") + index)].width = width
+    sheet.freeze_panes = "A2"
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+    header = []
+    for label in _XLSX_HEADERS:
+        cell = WriteOnlyCell(sheet, value=label)
+        cell.fill = header_fill
+        cell.font = header_font
+        header.append(cell)
+    sheet.append(header)
+
+    row_count = 0
+    for (
+        code,
+        title,
+        class_kind,
+        chapter_no,
+        is_residual,
+        is_leaf,
+        is_coding_selectable,
+        age_group_selectable,
+        sex_selectable,
+        policy_status,
+        restriction_note,
+        linearization_uri,
+    ) in rows:
+        sheet.append(
+            [
+                code,
+                title,
+                class_kind,
+                chapter_no,
+                "Yes" if is_residual else "No",
+                "Yes" if is_leaf else "No",
+                "Yes" if is_coding_selectable else "No",
+                age_group_selectable,
+                sex_selectable,
+                policy_status,
+                restriction_note,
+                linearization_uri,
+            ]
+        )
+        row_count += 1
+    sheet.auto_filter.ref = f"A1:L{row_count + 1}"
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 def import_icd11_mms_policy_json(
-    payload: str | bytes | dict, release: str = DEFAULT_ICD11_RELEASE
+    payload: str | bytes | dict,
+    release: str = DEFAULT_ICD11_RELEASE,
+    *,
+    dry_run: bool = False,
 ) -> Icd11MmsPolicyImportResult:
+    """Apply a policy JSON (the ``export_icd11_mms_policy_json`` format).
+
+    Listed categories take the file's values; every other active category is
+    reset to not selectable with no sex/age/note. ``policy_status`` is set
+    only for items that carry it and is left alone on reset rows. With
+    ``dry_run`` the counts are computed and nothing is written.
+
+    Raises ValueError for a malformed file; bad items are reported in
+    ``skipped_items`` instead.
+    """
     if isinstance(payload, (str, bytes)):
         try:
             data = json.loads(payload)
@@ -583,6 +893,8 @@ def import_icd11_mms_policy_json(
     else:
         raise ValueError("Policy import payload must be JSON.")
 
+    if not isinstance(data, dict):
+        raise ValueError("Policy import JSON must be an object with an items array.")
     items = data.get("items")
     if not isinstance(items, list):
         raise ValueError("Policy import JSON must include an items array.")
@@ -594,7 +906,8 @@ def import_icd11_mms_policy_json(
     for item in items:
         if not isinstance(item, dict):
             raise ValueError("Each policy import item must be an object.")
-        linearization_uri = _optional_text(item.get("linearization_uri", ""))
+        raw_uri = item.get("linearization_uri")
+        linearization_uri = _optional_text(raw_uri) if isinstance(raw_uri, str) else None
         if not linearization_uri:
             raise ValueError("Each policy import item must include a linearization_uri.")
         if linearization_uri in seen_uris:
@@ -607,6 +920,7 @@ def import_icd11_mms_policy_json(
                 sex_selectable=item.get("sex_selectable"),
                 age_group_selectable=item.get("age_group_selectable"),
                 restriction_note=item.get("restriction_note"),
+                policy_status=item.get("policy_status"),
             )
         except ValueError:
             skipped_items.append(
@@ -631,44 +945,25 @@ def import_icd11_mms_policy_json(
                 {"code": linearization_uri, "reason": "unknown_or_non_editable_code"}
             )
             continue
-        changed = False
-        if row.is_coding_selectable != update.is_coding_selectable:
-            row.is_coding_selectable = update.is_coding_selectable
-            changed = True
-        if row.sex_selectable != update.sex_selectable:
-            row.sex_selectable = update.sex_selectable
-            changed = True
-        if row.age_group_selectable != update.age_group_selectable:
-            row.age_group_selectable = update.age_group_selectable
-            changed = True
-        if row.restriction_note != update.restriction_note:
-            row.restriction_note = update.restriction_note
-            changed = True
-        if changed:
+        if _apply_policy_values(row, update.values(), dry_run=dry_run):
             updated_items += 1
         imported_uris.add(linearization_uri)
 
+    reset_values = {
+        "is_coding_selectable": False,
+        "sex_selectable": None,
+        "age_group_selectable": None,
+        "restriction_note": None,
+    }
     reset_items = 0
     for row in rows:
         if row.linearization_uri in imported_uris:
             continue
-        changed = False
-        if row.is_coding_selectable is not False:
-            row.is_coding_selectable = False
-            changed = True
-        if row.sex_selectable is not None:
-            row.sex_selectable = None
-            changed = True
-        if row.age_group_selectable is not None:
-            row.age_group_selectable = None
-            changed = True
-        if row.restriction_note is not None:
-            row.restriction_note = None
-            changed = True
-        if changed:
+        if _apply_policy_values(row, reset_values, dry_run=dry_run):
             reset_items += 1
 
-    db.session.commit()
+    if not dry_run:
+        db.session.commit()
     return Icd11MmsPolicyImportResult(
         total_items=len(items),
         updated_items=updated_items,

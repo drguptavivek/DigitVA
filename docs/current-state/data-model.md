@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # Current Data Model
@@ -492,9 +492,9 @@ docs/planning/icd11-coding-screen-integration-plan.md):
   `(release, linearization_uri)`; source-missing rows are marked inactive,
   never deleted; policy columns are preserved on rerun unless
   `apply_policy_columns` is set
-- read-only admin browser at `/admin/panels/icd11-browser`
-  (`app/routes/admin_icd11.py`); local policy curation for phases 1-2 happens
-  through `flask icd11 policy-export`/`policy-import`, not the panel
+- admin browser and policy editor at `/admin/panels/icd11-browser`
+  (`app/routes/admin_icd11.py`); policy is curated there or through
+  `flask icd11 policy-export`/`policy-import`, which share one JSON format
 - `map_project_site_odk.icd_classification` (`icd10` | `icd11`, default
   `icd10`) selects which catalog a project-site's form uses; resolved for a
   submission by `app/services/icd_coding_value.py::get_icd_classification_for_submission`

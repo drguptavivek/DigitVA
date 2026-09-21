@@ -5,7 +5,7 @@
 <div id="panel-projects">
 
   {# Header #}
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3" id="project-list-header">
     <h5 class="mb-0">
       <i class="fa-solid fa-folder me-2 text-secondary"></i>Projects
     </h5>
@@ -20,42 +20,55 @@
     </div>
   </div>
 
-  {# Inline form for create / edit #}
-  <div id="project-form-container" class="card mb-4 d-none">
+  {# Create / edit view: replaces the list while open #}
+  <div id="project-form-container" class="d-none">
+    <button type="button" class="btn btn-sm btn-link px-0 mb-2" id="project-back-btn">
+      <i class="fa-solid fa-arrow-left me-1"></i>Back to projects
+    </button>
+    <div class="card mb-4">
     <div class="card-body">
-      <h6 class="card-title mb-3" id="project-form-title">Create Project</h6>
-      <div class="row g-2 align-items-start">
-        <div class="col-sm-2">
+      <h5 class="card-title mb-3" id="project-form-title">Create Project</h5>
+      <div class="row g-2">
+        <div class="col-6 col-md-2">
           <label class="form-label small mb-1">Project ID <span class="text-danger">*</span></label>
           <input type="text" class="form-control form-control-sm" id="project-id-input" placeholder="e.g. PRJ001" maxlength="6" style="text-transform: uppercase;">
         </div>
-        <div class="col-sm-2">
+        <div class="col-6 col-md-2">
           <label class="form-label small mb-1">Code</label>
           <input type="text" class="form-control form-control-sm" id="project-code-input" placeholder="(Optional)" maxlength="6" style="text-transform: uppercase;">
         </div>
-        <div class="col-sm-4">
+        <div class="col-12 col-md-4">
           <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
           <input type="text" class="form-control form-control-sm" id="project-name-input" placeholder="e.g. Test Project">
         </div>
-        <div class="col-sm-2">
+        <div class="col-6 col-md-2">
           <label class="form-label small mb-1">Nickname <span class="text-danger">*</span></label>
           <input type="text" class="form-control form-control-sm" id="project-nickname-input" placeholder="e.g. TST">
         </div>
-        <div class="col-sm-2">
+        <div class="col-6 col-md-2">
           <label class="form-label small mb-1">Status</label>
           <select class="form-select form-select-sm" id="project-status-input">
             <option value="active">Active</option>
             <option value="deactive">Inactive</option>
           </select>
         </div>
-        <div class="col-sm-4">
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-12 col-md-4">
+          <label class="form-label small mb-1" for="project-structure-mode-input">Structure</label>
+          <select class="form-select form-select-sm" id="project-structure-mode-input" title="Sites: Project > Site > Form. Organization: a health-system unit tree, built in the Organization panel.">
+            <option value="sites">Sites (legacy)</option>
+            <option value="organization">Organization</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-4">
           <label class="form-label small mb-1">Coding Intake Mode</label>
           <select class="form-select form-select-sm" id="project-coding-intake-mode-input">
             <option value="random_form_allocation">Random form allocation</option>
             <option value="pick_and_choose">Pick and choose</option>
           </select>
         </div>
-        <div class="col-sm-4">
+        <div class="col-12 col-md-4">
           <label class="form-label small mb-1">Web Intake (WHO VA form)</label>
           <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
             <option value="off">Off (ODK only)</option>
@@ -64,30 +77,65 @@
             <option value="both">Both routes</option>
           </select>
         </div>
-        <div class="col-sm-2">
-          <label class="form-label small mb-1">Coder SA</label>
-          <div class="form-check form-switch pt-2">
-            <input class="form-check-input" type="checkbox" id="project-social-autopsy-enabled-input" role="switch" checked>
-            <label class="form-check-label small" for="project-social-autopsy-enabled-input">Enabled</label>
-          </div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center column-gap-4 row-gap-2 mt-3">
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="project-social-autopsy-enabled-input" role="switch" checked>
+          <label class="form-check-label small" for="project-social-autopsy-enabled-input">Coder Social Autopsy</label>
         </div>
-        <div class="col-sm-2">
-          <label class="form-label small mb-1">Reviewer SA</label>
-          <div class="form-check form-switch pt-2">
-            <input class="form-check-input" type="checkbox" id="project-reviewer-social-autopsy-enabled-input" role="switch" checked>
-            <label class="form-check-label small" for="project-reviewer-social-autopsy-enabled-input">Enabled</label>
-          </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="project-reviewer-social-autopsy-enabled-input" role="switch" checked>
+          <label class="form-check-label small" for="project-reviewer-social-autopsy-enabled-input">Reviewer Social Autopsy</label>
         </div>
-        <div class="col-sm-2">
-          <label class="form-label small mb-1">Demo / Training</label>
-          <div class="form-check form-switch pt-2">
-            <input class="form-check-input" type="checkbox" id="project-demo-training-enabled-input" role="switch">
-            <label class="form-check-label small" for="project-demo-training-enabled-input">Enabled</label>
-          </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="project-demo-training-enabled-input" role="switch">
+          <label class="form-check-label small" for="project-demo-training-enabled-input">Demo / Training</label>
         </div>
-        <div class="col-sm-2">
-          <label class="form-label small mb-1">Retention (min)</label>
-          <input type="number" min="1" class="form-control form-control-sm" id="project-demo-retention-minutes-input" value="10">
+        <div class="d-flex align-items-center gap-2">
+          <label class="small text-nowrap mb-0" for="project-demo-retention-minutes-input">Retention (min)</label>
+          <input type="number" min="1" class="form-control form-control-sm" id="project-demo-retention-minutes-input" value="10" style="width:5rem;">
+        </div>
+      </div>
+
+      {# Web questionnaire and its two extensions — WP1 of
+         docs/planning/web-capture-project-configuration-plan.md #}
+      <div class="border rounded p-2 mt-3">
+        <div class="fw-semibold small mb-1">Web form questionnaire</div>
+        <div class="text-muted small mb-2">
+          Which questionnaire the browser VA form renders for this project, and
+          the two optional sections. A form type whose PII set is unconfirmed
+          cannot collect real interviews
+          (docs/policy/new-form-type-onboarding.md).
+        </div>
+        <div id="project-web-intake-form-types-error" class="text-danger small mb-2 d-none">
+          Could not load form types.
+        </div>
+        <div class="row g-2 align-items-start">
+          <div class="col-12">
+            <label class="form-label small mb-1" for="project-web-intake-form-type-input">Questionnaire</label>
+            <select class="form-select form-select-sm" id="project-web-intake-form-type-input"></select>
+          </div>
+          <div class="col-12">
+            <div class="form-check form-switch mb-1">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-death-summary-input" role="switch" checked>
+              <label class="form-check-label small" for="project-web-intake-death-summary-input">Death summary upload: offer document upload</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-medical-records-input" role="switch" checked>
+              <label class="form-check-label small" for="project-web-intake-medical-records-input">Medical records: offer medical-record fields</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1" for="project-web-intake-intake-note-input">Welcome note</label>
+            <textarea class="form-control form-control-sm" rows="2" id="project-web-intake-intake-note-input"></textarea>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="form-text small">
+                Shown before the questionnaire starts.
+                <span id="project-web-intake-intake-note-state" class="fst-italic"></span>
+              </div>
+              <button type="button" class="btn btn-sm btn-link p-0 small" id="project-web-intake-intake-note-default-btn">Use default note</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -133,53 +181,6 @@
         </div>
       </div>
 
-      {# Web questionnaire and its two extensions — WP1 of
-         docs/planning/web-capture-project-configuration-plan.md #}
-      <div class="border rounded p-2 mt-3">
-        <div class="fw-semibold small mb-1">Web form questionnaire</div>
-        <div class="text-muted small mb-2">
-          Which questionnaire the browser VA form renders for this project, and
-          the two optional sections. A form type whose PII set is unconfirmed
-          cannot collect real interviews
-          (docs/policy/new-form-type-onboarding.md).
-        </div>
-        <div id="project-web-intake-form-types-error" class="text-danger small mb-2 d-none">
-          Could not load form types.
-        </div>
-        <div class="row g-2 align-items-start">
-          <div class="col-sm-6">
-            <label class="form-label small mb-1" for="project-web-intake-form-type-input">Questionnaire</label>
-            <select class="form-select form-select-sm" id="project-web-intake-form-type-input"></select>
-            <div class="form-text small">Default: WHO 2022 VA.</div>
-          </div>
-          <div class="col-sm-6">
-            <label class="form-label small mb-1">Death summary upload</label>
-            <div class="form-check form-switch pt-2">
-              <input class="form-check-input" type="checkbox" id="project-web-intake-death-summary-input" role="switch" checked>
-              <label class="form-check-label small" for="project-web-intake-death-summary-input">Offer document upload</label>
-            </div>
-          </div>
-          <div class="col-sm-6">
-            <label class="form-label small mb-1">Medical records</label>
-            <div class="form-check form-switch pt-2">
-              <input class="form-check-input" type="checkbox" id="project-web-intake-medical-records-input" role="switch" checked>
-              <label class="form-check-label small" for="project-web-intake-medical-records-input">Offer medical-record fields</label>
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label small mb-1" for="project-web-intake-intake-note-input">Welcome note</label>
-            <textarea class="form-control form-control-sm" rows="2" id="project-web-intake-intake-note-input"></textarea>
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="form-text small">
-                Shown before the questionnaire starts.
-                <span id="project-web-intake-intake-note-state" class="fst-italic"></span>
-              </div>
-              <button type="button" class="btn btn-sm btn-link p-0 small" id="project-web-intake-intake-note-default-btn">Use default note</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {# Web-capture readiness — WP2 of
          docs/planning/web-capture-project-configuration-plan.md. Read-only,
          fetched per project when an existing project is opened for editing.
@@ -205,6 +206,7 @@
         </div>
       </div>
       <div id="project-form-error" class="text-danger small mt-2"></div>
+    </div>
     </div>
   </div>
 
@@ -287,9 +289,20 @@
       }
       _projects = res.data.projects || [];
       renderTable(showInactive);
+      restoreFormFromUrl();
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
     });
+  }
+
+  // Reopen the form a reload left open (?project=NEW|<id>), once per panel load.
+  var _restored = false;
+  function restoreFormFromUrl() {
+    if (_restored) return;
+    _restored = true;
+    var key = new URLSearchParams(window.location.search).get('project');
+    if (key === 'NEW') document.getElementById('project-show-form-btn').click();
+    else if (key) openEditForm(key);
   }
 
   function renderTable(showInactive) {
@@ -342,12 +355,14 @@
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(p.project_id) + '</span></td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_code || '') + '</td>'
-        + '<td class="align-middle py-2 small">' + esc(p.project_name) + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(p.project_name)
+        +   (p.project_structure_mode === 'organization' ? ' <span class="badge text-bg-light border">Organization</span>' : '')
+        + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
         + '<td class="align-middle py-2 small">'
         +   esc(intakeLabel)
-        +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder SA On</span></div>' : '')
-        +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer SA On</span></div>' : '')
+        +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder Social Autopsy On</span></div>' : '')
+        +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer Social Autopsy On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
         + '</td>'
         + '<td class="align-middle py-2 small project-readiness-cell"'
@@ -520,6 +535,7 @@
   var statusInput = document.getElementById('project-status-input');
   var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
   var webIntakeModeInput = document.getElementById('project-web-intake-mode-input');
+  var structureModeInput = document.getElementById('project-structure-mode-input');
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
@@ -566,7 +582,14 @@
     var counts = countIssues(result.checks || []);
     if (!counts.total) return '<span class="badge text-bg-success">Ready</span>';
     var cls = counts.fails ? 'text-bg-danger' : 'text-bg-warning';
-    return '<span class="badge ' + cls + '">' + counts.total
+    // Hover lists what is wrong and how to fix it (popover wired in
+    // loadReadinessBadges).
+    var tip = (result.checks || []).filter(function (c) { return c.status !== 'ok'; })
+      .map(function (c) {
+        return '<div class="mb-2"><strong>' + (c.status === 'fail' ? '✗ ' : '! ') + esc(c.code) + '</strong>: ' + esc(c.message)
+          + (c.fix_hint ? '<div class="text-muted">→ ' + esc(c.fix_hint) + '</div>' : '') + '</div>';
+      }).join('');
+    return '<span class="badge ' + cls + ' readiness-issues" style="cursor:help;" tabindex="0" data-tip="' + esc(tip) + '">' + counts.total
       + (counts.total === 1 ? ' issue' : ' issues') + '</span>';
   }
 
@@ -586,6 +609,13 @@
             return;
           }
           cell.innerHTML = readinessBadge(res.data);
+          var badge = cell.querySelector('.readiness-issues');
+          if (badge && window.bootstrap) {
+            new bootstrap.Popover(badge, {
+              trigger: 'hover focus', html: true, placement: 'left',
+              title: 'Web capture readiness', content: badge.getAttribute('data-tip'),
+            });
+          }
         }).catch(function () {
           cell.innerHTML = '<span class="text-danger">unavailable</span>';
         });
@@ -728,10 +758,17 @@
 
   // ── questionnaire, welcome note and death summary ─────────────────────────
 
+  // A stored NULL form type means WHO_2022_VA, so the blank option *is* that
+  // form type; its own row is left out rather than offered twice.
+  var DEFAULT_FORM_TYPE_CODE = 'WHO_2022_VA';
+
   function renderFormTypeInputs() {
-    var html = '<option value="">WHO 2022 VA (default)</option>';
+    var who = _formTypes.find(function (ft) { return ft.form_type_code === DEFAULT_FORM_TYPE_CODE; });
+    var html = '<option value="">' + esc(DEFAULT_FORM_TYPE_CODE)
+      + (who ? ' — ' + esc(who.form_type_name) : '') + ' (default)</option>';
     for (var i = 0; i < _formTypes.length; i++) {
       var ft = _formTypes[i];
+      if (ft.form_type_code === DEFAULT_FORM_TYPE_CODE) continue;
       // A form type with no bundled instrument has no questionnaire to
       // render, and one whose PII set is unconfirmed may not collect real
       // interviews (docs/policy/new-form-type-onboarding.md). The server
@@ -888,7 +925,9 @@
       project.web_intake_narration_languages || []
     );
     showGuidanceInput.checked = !!project.web_intake_show_guidance;
-    formTypeInput.value = project.web_intake_form_type_id || '';
+    // An explicit WHO_2022_VA id shows as the default option it is.
+    formTypeInput.value = project.web_intake_form_type_code === DEFAULT_FORM_TYPE_CODE
+      ? '' : (project.web_intake_form_type_id || '');
     deathSummaryInput.checked = project.web_intake_death_summary_enabled !== false;
     medicalRecordsInput.checked = project.web_intake_medical_records_enabled !== false;
     _intakeNoteIsDefault = (project.web_intake_intake_note === null
@@ -911,6 +950,7 @@
     statusInput.disabled = true; // New projects are always active
     codingIntakeModeInput.value = 'random_form_allocation';
     webIntakeModeInput.value = 'off';
+    structureModeInput.value = 'sites';
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
@@ -919,6 +959,16 @@
     // A project that does not exist yet has nothing to be ready for.
     hideReadiness();
     errEl.textContent = '';
+  }
+
+  // The form is its own view: the list hides while it is open, and the URL
+  // (?project=NEW|<id>) lets a reload come back to it.
+  function showFormView(on, key) {
+    formContainer.classList.toggle('d-none', !on);
+    document.getElementById('project-list-header').classList.toggle('d-none', on);
+    document.getElementById('project-table-wrap').classList.toggle('d-none', on);
+    if (window.setUrlParam) window.setUrlParam('project', on ? key : null);
+    if (on) window.scrollTo(0, 0);
   }
 
   function openEditForm(projectId) {
@@ -937,6 +987,7 @@
     statusInput.disabled = false; // Existing projects can change status
     codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
     webIntakeModeInput.value = project.web_intake_mode || 'off';
+    structureModeInput.value = project.project_structure_mode || 'sites';
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
@@ -945,20 +996,22 @@
     loadReadiness(projectId);
     errEl.textContent = '';
     
-    formContainer.classList.remove('d-none');
+    showFormView(true, projectId);
     nameInput.focus();
   }
 
   document.getElementById('project-show-form-btn').addEventListener('click', function () {
     resetForm();
-    formContainer.classList.remove('d-none');
+    showFormView(true, 'NEW');
     idInput.focus();
   });
 
-  document.getElementById('project-cancel-btn').addEventListener('click', function () {
-    formContainer.classList.add('d-none');
+  function closeForm() {
+    showFormView(false);
     resetForm();
-  });
+  }
+  document.getElementById('project-cancel-btn').addEventListener('click', closeForm);
+  document.getElementById('project-back-btn').addEventListener('click', closeForm);
 
   document.getElementById('project-submit-btn').addEventListener('click', function () {
     errEl.textContent = '';
@@ -969,6 +1022,7 @@
       project_nickname: nicknameInput.value.trim(),
       coding_intake_mode: codingIntakeModeInput.value,
       web_intake_mode: webIntakeModeInput.value,
+      project_structure_mode: structureModeInput.value,
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
       reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,
@@ -1005,6 +1059,12 @@
       }
     }
 
+    // The select shows an explicit WHO_2022_VA id as the blank default, so an
+    // untouched select on edit must not rewrite that id to null.
+    if (_editingId && !_touched.web_intake_form_type_id) {
+      delete data.web_intake_form_type_id;
+    }
+
     // Creating a web-capture project: whatever the admin did not touch is
     // left out so the server applies its own defaults (WEB_PROJECT_DEFAULTS).
     // Sending this form's initial values instead would store them as if they
@@ -1032,7 +1092,7 @@
     apiJson(url, method, data).then(function (res) {
       btn.disabled = false;
       if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
-      formContainer.classList.add('d-none');
+      showFormView(false);
       loadProjects();
     }).catch(function () { 
       btn.disabled = false; 

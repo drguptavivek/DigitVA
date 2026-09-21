@@ -143,6 +143,7 @@ def project_units(project_id: str):
       ``include_inactive=1`` also returns deactivated rows, each flagged
       ``is_active: false``. Off by default: a form should not offer a closed
       unit, but an editor showing an old submission may need to name one.
+      Unplaced units and their subtrees are never returned.
       ``role`` narrows scoping to that one role's grants (e.g.
       ``role=interviewer`` for the web intake picker) instead of the union of
       every role the user holds on the project. Unknown value -> 400.
@@ -175,6 +176,13 @@ def project_units(project_id: str):
     units = org.list_units(project_id, include_inactive=include_inactive)
     if reachable is not None:
         units = [u for u in units if u["org_unit_id"] in {str(x) for x in reachable}]
+    # An unplaced unit (imported, parent not yet mapped) and its subtree are
+    # not offered: a picker cannot cascade to them, and their ancestor codes
+    # would be wrong once they are placed. docs/policy/organization-model.md
+    # ("Unplaced units").
+    unplaced = set(org.unplaced_unit_codes(project_id, include_inactive=include_inactive))
+    if unplaced:
+        units = [u for u in units if str(u["path"]).split(".")[0] not in unplaced]
 
     # A scoped caller's `units` are their reachable subtree only -- a
     # PHC-scoped interviewer never gets the District or CHC rows above it.

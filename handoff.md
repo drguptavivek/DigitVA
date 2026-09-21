@@ -4,6 +4,31 @@ Updated 2026-09-21 (fifth pass). Full suite **1,736 passed**, `PYTEST_EXIT=0`;
 tooling node suite 28 passed. No migration this pass; dev stays at
 **`d5b71c3e9a84`**.
 
+### Organization admin and project structure (2026-09-21, sixth pass)
+
+Full suite **1,765 passed**. Migration **`a4c7e2f9b1d6`** (head): additive
+`va_project_master.project_structure_mode` ('sites' | 'organization'),
+backfilled 'organization' where a tree exists.
+
+* Explicit per-project structure mode; organization writes refused (409) for
+  sites projects; the Organization panel lists only organization projects and
+  never preselects one.
+* Organization projects get one automatic site `Sites_in_project_<id>`
+  (`O###`), re-ensured on every save; `flask org ensure-site`.
+* Unplaced units: imports may omit parents below the top level; map them in the
+  Units tab's "Map parents" modal or by drag and drop
+  (`POST .../units/place`). Excluded from the intake picker; readiness warns.
+* Units tab is a Wunderbaum tree-grid (vendored 0.14.1) with side-panel editors;
+  Workers tab rebuilt; worker code optional (generated `W#####`); CSV import of
+  any one sheet; cadres placed per level; coding scope box on Levels tab;
+  in-page confirmations replace `confirm()` in the Organization panel.
+* Projects panel: create/edit on its own view, readiness hover popover.
+
+Open, in order: Project Setup home epic `digitva-r1p` (phase 1 next); ICD-11
+browser parity `digitva-4yq` (in progress, uncommitted); COD buckets for
+ICD-11 (native-first + crosswalk, awaiting owner decisions); six other admin
+screens still use native `confirm()`.
+
 ### English alongside the translation (`digitva-mxn`, closed)
 
 Owner decided 2026-09-21, recorded in `docs/policy/va-web-form-options.md`

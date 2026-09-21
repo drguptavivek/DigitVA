@@ -22,6 +22,10 @@ class VaProjectMaster(db.Model):
             "above_scope_coding_mode IN ('code_any', 'view_only')",
             name="above_scope_coding_mode",
         ),
+        sa.CheckConstraint(
+            "project_structure_mode IN ('sites', 'organization')",
+            name="project_structure_mode",
+        ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
         sa.String(6), primary_key=True, index=True
@@ -65,6 +69,13 @@ class VaProjectMaster(db.Model):
         nullable=False,
         default="random_form_allocation",
         server_default="random_form_allocation",
+    )
+    # How the project is structured: 'sites' (the older Project > Site > Form
+    # shape) or 'organization' (a health-system unit tree). Only an
+    # organization project may have its tree edited.
+    # Policy: docs/policy/organization-model.md ("Project structure mode").
+    project_structure_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="sites", server_default="sites"
     )
     # Health-system projects: the level within which a death may be coded.
     # A coder assigned at or below this level codes inside their own unit's

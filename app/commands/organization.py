@@ -1,9 +1,11 @@
-"""``flask org`` commands: seed template, export, import, ODK choices."""
+"""``flask org`` commands: seed template, export, import, ODK choices, ensure-site."""
 import sys
 
 import click
+import sqlalchemy as sa
 
 from app import db
+from app.models import VaProjectMaster
 from app.services import organization_service as org
 
 
@@ -17,6 +19,7 @@ def org_group():
 @click.option("--no-cadres", is_flag=True, default=False, help="Seed levels only.")
 def seed_template(project_id: str, no_cadres: bool) -> None:
     try:
+        org.require_organization_mode(project_id)
         counts = org.seed_default_organization(project_id, include_cadres=not no_cadres)
     except org.OrganizationError as exc:
         raise click.ClickException(str(exc))
@@ -56,6 +59,10 @@ def odk_choices(project_id: str, out_path: str | None) -> None:
 @click.option("--apply", is_flag=True, default=False, help="Apply changes (default is a dry run).")
 @click.option("--deactivate-missing", is_flag=True, default=False, help="Deactivate rows absent from supplied sheets.")
 def import_cmd(project_id: str, xlsx_path: str, apply: bool, deactivate_missing: bool) -> None:
+    try:
+        org.require_organization_mode(project_id)
+    except org.OrganizationError as exc:
+        raise click.ClickException(str(exc))
     with open(xlsx_path, "rb") as handle:
         sheets = org.parse_organization_workbook(handle)
     plan = org.import_organization(
@@ -74,6 +81,33 @@ def import_cmd(project_id: str, xlsx_path: str, apply: bool, deactivate_missing:
         click.echo("Dry run only; nothing written." if not summary["errors"] else "Not applied.")
         if summary["errors"]:
             sys.exit(1)
+
+
+@org_group.command("ensure-site")
+@click.option("--project", "project_id", default=None, help="One project (default: every organization project).")
+def ensure_site(project_id: str | None) -> None:
+    """Give organization projects their automatic site. Idempotent.
+
+    For projects set to organization before the app created the site itself.
+    Policy: docs/policy/organization-model.md ("Project structure mode").
+    """
+    if project_id:
+        project_ids = [project_id]
+    else:
+        project_ids = db.session.scalars(
+            sa.select(VaProjectMaster.project_id)
+            .where(VaProjectMaster.project_structure_mode == "organization")
+            .order_by(VaProjectMaster.project_id)
+        ).all()
+    for pid in project_ids:
+        try:
+            org.require_organization_mode(pid)
+            site = org.ensure_organization_site(pid)
+        except (org.OrganizationError, ValueError) as exc:
+            db.session.rollback()
+            raise click.ClickException(f"{pid}: {exc}")
+        db.session.commit()
+        click.echo(f"{pid}: site {site.site_id} ({site.site_name})")
 
 
 def init_app(app) -> None:

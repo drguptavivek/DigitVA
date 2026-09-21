@@ -1,0 +1,3 @@
+Wunderbaum 0.14.1 (MIT, see LICENSE), by Martin Wendt.
+Source: https://cdn.jsdelivr.net/npm/wunderbaum@0.14.1/dist/ (wunderbaum.umd.min.js, wunderbaum.css)
+Used by: app/templates/admin/panels/organization.html (Units tab).

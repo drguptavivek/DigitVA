@@ -61,6 +61,29 @@ unit is renamed or moved.
 
 Deactivating a unit cascades to its subtree. Nothing is deleted.
 
+A unit with no parent below the top active level is *unplaced*: the importer
+may create one from a row with a blank `parent_code` (a facility list with no
+hierarchy), and nothing else may. It is derived (`is_unplaced` on the unit
+JSON, `organization_service.unplaced_unit_codes`), with no schema change. The
+Units tab shows a banner and a *Map parents* modal, and supports dragging a
+unit onto a new parent; both call `POST .../units/place`
+(`organization_service.place_units`, all or nothing). The intake unit picker
+leaves unplaced subtrees out and readiness warns (`org_unplaced`). Rules:
+[Unplaced units](../policy/organization-model.md#unplaced-units).
+
+Which projects may have a tree at all is explicit:
+`va_project_master.project_structure_mode` is `sites` (default) or
+`organization` (migration `a4c7e2f9b1d6` backfilled `organization` for
+projects that already had org rows). The admin organization API refuses every
+write for a `sites` project in its shared `_guard`
+(`app/routes/admin_organization.py`, via
+`organization_service.require_organization_mode`), and the Organization panel
+lists only `organization` projects. An `organization` project gets one
+automatic site (`Sites_in_project_<id>`, code `O###`) from
+`organization_service.ensure_organization_site`, called by project create and
+update in `app/routes/admin.py` and by `flask org ensure-site`. Rules:
+[Project structure mode](../policy/organization-model.md#project-structure-mode).
+
 ### People
 
 Rules: [Unit-scoped grants](../policy/organization-model.md#unit-scoped-grants) for what a grant may

@@ -60,6 +60,7 @@ CHECK_CODES = (
     "web_forms",
     "form_type",
     "org_tree",
+    "org_unplaced",
     "geography_fields",
     "interviewers",
     "coding_scope",
@@ -165,14 +166,29 @@ def _active_site_ids(project_id: str) -> list[str]:
     )
 
 
-def _check_sites(site_ids: list[str]) -> dict:
+#: Fix hint for an organization project, whose one site the app creates
+#: (docs/policy/organization-model.md, "Project structure mode").
+_ORGANIZATION_SITE_HINT = (
+    "An organization project's site is created automatically. Re-save the "
+    "project in the Projects panel, or run "
+    "`flask org ensure-site --project {project_id}`."
+)
+
+
+def _is_organization(project: VaProjectMaster) -> bool:
+    return project.project_structure_mode == "organization"
+
+
+def _check_sites(project: VaProjectMaster, site_ids: list[str]) -> dict:
     if not site_ids:
         return _check(
             "sites",
             "fail",
             "The project has no active site. Web forms are created per "
             "project-site, so there is nothing to collect against.",
-            "Add a site to the project in the Project Sites panel.",
+            _ORGANIZATION_SITE_HINT.format(project_id=project.project_id)
+            if _is_organization(project)
+            else "Add a site to the project in the Project Sites panel.",
         )
     return _check("sites", "ok", f"{len(site_ids)} active site(s).")
 
@@ -192,7 +208,9 @@ def _check_web_forms(project: VaProjectMaster, site_ids: list[str]) -> dict:
             "web_forms",
             "fail",
             "No web form rows exist, because the project has no active site.",
-            "Add a site first; the web forms are materialized with it.",
+            _ORGANIZATION_SITE_HINT.format(project_id=project.project_id)
+            if _is_organization(project)
+            else "Add a site first; the web forms are materialized with it.",
         )
     rows = db.session.execute(
         sa.select(VaForms.site_id, VaForms.form_type_id).where(
@@ -342,6 +360,27 @@ def _check_org_tree(project_id: str, levels: list[MasOrgLevel]) -> dict:
         f"{sum(counts.values())} active unit(s); the deepest required level "
         f"({deepest.level_code}) is populated.",
     )
+
+
+def _check_unplaced_units(project_id: str, levels: list[MasOrgLevel]) -> dict:
+    """Imported units still waiting for a parent are not offered to interviewers.
+
+    The intake picker leaves out unplaced units and their subtrees
+    (docs/policy/organization-model.md, "Unplaced units"), so a half-mapped
+    import is safe but incomplete: a warning, never a failure.
+    """
+    if not levels:
+        return _check("org_unplaced", "ok", "No organization tree, so nothing to place.")
+    count = len(org.unplaced_unit_codes(project_id))
+    if count:
+        return _check(
+            "org_unplaced",
+            "warn",
+            f"{count} unit(s) are not yet placed under a parent; interviewers "
+            "are not offered them or anything below them.",
+            "Map parents in the Organization panel → Units.",
+        )
+    return _check("org_unplaced", "ok", "Every unit below the top level has a parent.")
 
 
 def _check_geography_fields(
@@ -568,10 +607,11 @@ def assess_web_intake_readiness(project_id: str) -> dict:
 
     checks = [
         _check_mode(project),
-        _check_sites(site_ids),
+        _check_sites(project, site_ids),
         _check_web_forms(project, site_ids),
         form_type_check,
         _check_org_tree(project_id, levels),
+        _check_unplaced_units(project_id, levels),
         _check_geography_fields(levels, instrument_code),
         _check_interviewers(project_id, levels),
         _check_coding_scope(project),

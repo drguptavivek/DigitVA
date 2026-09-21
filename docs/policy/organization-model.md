@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-21
 ---
 
 # Organization Model Policy
@@ -103,6 +103,44 @@ and keep working exactly as they did.
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.
 
+## Project structure mode
+
+Every project states how it is structured, in
+`va_project_master.project_structure_mode`:
+
+- **`sites`** (default) — the older Project > Site > Form shape.
+- **`organization`** — the newer health-system unit tree this policy governs.
+
+Rules:
+
+- Only an `organization` project may have its tree written: levels, units,
+  cadres, the level × cadre grid, workers, per-unit coding gates, workbook
+  import (dry run included) and the seed template. Writes to a `sites`
+  project are refused (HTTP 409; the `flask org` seed/import commands exit
+  with an error). Reads and exports stay open.
+- The admin Organization panel lists only `organization` projects and selects
+  none until the admin picks one.
+- The mode is set explicitly in the Projects panel ("Structure"). A project
+  moves to `organization` freely. It may not move back to `sites` while it has
+  any active unit; the admin deactivates the units first. Nothing is deleted.
+- Every `organization` project has one automatic site, created and mapped by
+  the app, because web forms are materialized per project-site and a project
+  with no site can collect nothing. Its `site_name` is
+  `Sites_in_project_<project_id>` (that name, mapped to the project, is how
+  the app finds it again), its `site_abbr` is the project id, and its
+  `site_id` is the first unused `O` + three digits (`O001`, `O002`, ...):
+  `site_id` is four characters, and a form id is project id + site id + two
+  digits. It is ensured when a project is created as `organization` and on
+  every save of an `organization` project (the switch from `sites` included);
+  a deactivated auto site or mapping is reactivated, and when web intake is on
+  its web form is materialized. Switching back to `sites` leaves the site and
+  its mapping as they are. Projects that became `organization` before this
+  rule get theirs from `flask org ensure-site [--project ID]`.
+- Existing projects were backfilled: any project that already had a level or
+  unit row became `organization`; every other project is `sites`.
+- The mode gates editing only. Coding scope, submission routing and grants
+  still key off the tree itself, exactly as described below.
+
 ## Codes
 
 - Unit, cadre and worker codes are unique **within one project only**. The
@@ -188,6 +226,42 @@ project ever has to carry two coding systems at once, that is when to add one.
   whole import; nothing is written.
 - Worker names and phone numbers are personal data: export and import are
   restricted to admins and project PIs of that project and are logged.
+
+### Unplaced units
+
+Health facilities usually arrive as one workbook or CSV with no hierarchy
+(decision 2026-09-21). They are imported first and their parents mapped
+afterwards.
+
+- An **unplaced unit** is an active or inactive unit with no parent whose
+  level is not the project's top active level. It is derived, not stored:
+  there is no flag column. Its `path` is just its own code, like a root's.
+- **Only the import creates them.** A `units` row with a blank `parent_code`
+  below the top level creates the unit unplaced instead of failing. A
+  non-blank `parent_code` that names no unit still fails the import.
+- **A blank `parent_code` never detaches.** Re-importing an existing unit with
+  a blank `parent_code` keeps its current parent; blank means "no change".
+- The import plan lists the project's active unplaced unit codes
+  (`plan.unplaced`), in the dry run too.
+- The admin Units form stays strict: below the top level a parent is
+  required. Editing an unplaced unit may set its parent.
+- **Placing** goes through the normal parent rules (the parent is at a
+  shallower level and only optional levels are skipped) and rewrites the
+  moved subtree's paths. `POST /admin/api/organization/<project_id>/units/place`
+  takes `{"placements": [{"org_unit_id", "parent_org_unit_id"}]}` (at most
+  500), all or nothing, through the same guard, structure-mode check and
+  audit log as every other organization write. The panel's *Map parents*
+  modal and the Units tree's drag-and-drop both use it. A blank parent is
+  refused: moving a unit to the top level is not a placement.
+- **Exclusions**, so a half-mapped import is safe:
+  - the unit picker API (`/api/v1/organization/<project_id>/units`, used by
+    web intake) never returns an unplaced unit or anything below it;
+  - web intake readiness warns (`org_unplaced`) while any exist.
+- **Not excluded:** routing and grants. Routing resolves a unit by code and
+  level, so a synced submission naming an unplaced facility's code routes to
+  it. Grant scope is by `path`, so an unplaced unit is reached only by
+  project- or site-wide grants and grants on itself, not by a grant on the
+  district it will later sit under, until it is placed. Nothing widens.
 
 ### Unit columns in submission exports
 

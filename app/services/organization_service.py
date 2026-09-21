@@ -31,6 +31,10 @@ from app.models import (
     MasOrgUnit,
     MasOrgUnitWorker,
     VaProjectMaster,
+    VaProjectSites,
+    VaSiteMaster,
+    VaSites,
+    VaStatuses,
     VaUsers,
 )
 
@@ -48,6 +52,7 @@ __all__ = [
     "list_levels", "create_level", "update_level",
     # units
     "list_units", "list_units_by_codes", "get_unit_tree", "create_unit", "update_unit", "set_unit_active",
+    "place_units", "unplaced_unit_codes", "MAX_PLACEMENTS",
     "find_unit_by_code", "subtree_unit_ids",
     "get_unit_coding_gate", "set_unit_coding_gate", "clear_unit_coding_gate",
     "serialize_unit_coding_gate",
@@ -60,11 +65,13 @@ __all__ = [
     "seed_default_organization",
     "export_organization_rows", "export_organization_xlsx", "export_organization_csv",
     "export_odk_choices_rows", "export_odk_choices_csv",
-    "parse_organization_workbook", "import_organization",
+    "parse_organization_workbook", "parse_organization_csv", "import_organization",
     # serializers
     "serialize_level", "serialize_unit", "serialize_cadre", "serialize_level_cadre", "serialize_worker",
     # export dimensions
     "resolve_org_unit_export_labels",
+    # project structure
+    "require_organization_mode", "organization_site_name", "ensure_organization_site",
 ]
 
 # ltree labels accept [A-Za-z0-9_]; codes are stored upper-case.
@@ -186,6 +193,119 @@ def _get_project(project_id: str) -> VaProjectMaster:
     return project
 
 
+def require_organization_mode(project_id: str) -> VaProjectMaster:
+    """The project, or OrganizationError when its tree may not be edited.
+
+    Only a project whose ``project_structure_mode`` is 'organization' may have
+    levels, units, cadres, workers or gates written. Callers that write (the
+    admin organization API's guard, the ``flask org`` seed/import commands)
+    call this first; reads do not. Policy: docs/policy/organization-model.md
+    ("Project structure mode").
+    """
+    project = _get_project(project_id)
+    if project.project_structure_mode != "organization":
+        raise OrganizationError(
+            "This project uses sites, not organization. Set its Structure to "
+            "Organization in the Projects panel first."
+        )
+    return project
+
+
+#: Prefix of the automatic site's code: 'O' + three digits (O001, O002, ...).
+#: site_id is String(4) and the admin site API accepts only [A-Z0-9]{4}, and a
+#: form id is project_id + site_id + two digits, so the code must fit in four.
+_ORGANIZATION_SITE_PREFIX = "O"
+
+
+def organization_site_name(project_id: str) -> str:
+    """The name that identifies a project's automatic site."""
+    return f"Sites_in_project_{project_id}"
+
+
+def _next_organization_site_id() -> str:
+    """First 'O###' code unused in va_site_master and the legacy va_sites.
+
+    Raises OrganizationError when all 999 are taken.
+    """
+    pattern = f"{_ORGANIZATION_SITE_PREFIX}___"
+    used = set(
+        db.session.scalars(
+            sa.select(VaSiteMaster.site_id).where(VaSiteMaster.site_id.like(pattern))
+        ).all()
+    ) | set(
+        db.session.scalars(
+            sa.select(VaSites.site_id).where(VaSites.site_id.like(pattern))
+        ).all()
+    )
+    for number in range(1, 1000):
+        site_id = f"{_ORGANIZATION_SITE_PREFIX}{number:03d}"
+        if site_id not in used:
+            return site_id
+    raise OrganizationError("No free automatic site code is left (O001-O999).")
+
+
+def ensure_organization_site(project_id: str) -> VaSiteMaster:
+    """Give an organization project its one automatic site, mapped and active.
+
+    Web forms are materialized per project-site, so an organization project
+    with no site could collect nothing. The site is found by its name,
+    ``Sites_in_project_<project_id>``, among the sites mapped to the project
+    (a mapping is never deleted, only deactivated), so repeated calls create
+    nothing new; a deactivated site or mapping is reactivated. When the
+    project has web intake on, its web forms are materialized for every
+    active site, the same call the Projects panel makes when web intake is
+    switched on.
+
+    Flushes, never commits. Raises OrganizationError when the project is
+    missing, and ValueError (from ``resolve_web_form_type``) when the project
+    names a deactivated web form type. Policy: docs/policy/organization-model.md
+    ("Project structure mode").
+    """
+    from app.services.runtime_form_sync_service import ensure_web_forms_for_project
+
+    project = _get_project(project_id)
+    site_name = organization_site_name(project_id)
+    mapping = db.session.scalar(
+        sa.select(VaProjectSites)
+        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+        .where(
+            VaProjectSites.project_id == project_id,
+            VaSiteMaster.site_name == site_name,
+        )
+        .order_by(VaProjectSites.site_id)
+        .limit(1)
+    )
+    if mapping is None:
+        # ponytail: first-free code with no lock; two concurrent first saves
+        # collide on the primary key and one fails. Admin-only and rare.
+        site = VaSiteMaster(
+            site_id=_next_organization_site_id(),
+            site_name=site_name,
+            site_abbr=project_id,
+            site_status=VaStatuses.active,
+        )
+        db.session.add(site)
+        # No ORM relationship orders these inserts; the mapping's FK needs the site.
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=project_id,
+                site_id=site.site_id,
+                project_site_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+    else:
+        site = db.session.get(VaSiteMaster, mapping.site_id)
+        site.site_status = VaStatuses.active
+        mapping.project_site_status = VaStatuses.active
+        db.session.flush()
+
+    if (project.web_intake_mode or "off") != "off":
+        ensure_web_forms_for_project(project_id)
+    return site
+
+
 def _uuid(raw: object, *, what: str) -> uuid.UUID:
     if isinstance(raw, uuid.UUID):
         return raw
@@ -214,8 +334,20 @@ def serialize_level(level: MasOrgLevel) -> dict:
     }
 
 
-def serialize_unit(unit: MasOrgUnit, *, level: MasOrgLevel | None = None, parent_code: str | None = None) -> dict:
+def serialize_unit(
+    unit: MasOrgUnit,
+    *,
+    level: MasOrgLevel | None = None,
+    parent_code: str | None = None,
+    top_depth: int | None = None,
+) -> dict:
+    """One unit as JSON. ``top_depth`` is the project's top active level depth
+    (see ``_top_level_depth``); list callers pass it once so flagging
+    ``is_unplaced`` costs no query per row. Omitted, it is looked up.
+    """
     level = level or unit.level
+    if top_depth is None:
+        top_depth = _top_level_depth(unit.project_id)
     return {
         "org_unit_id": str(unit.org_unit_id),
         "project_id": unit.project_id,
@@ -235,6 +367,7 @@ def serialize_unit(unit: MasOrgUnit, *, level: MasOrgLevel | None = None, parent
         "google_maps_url": unit.google_maps_url,
         "remarks": unit.remarks,
         "is_active": unit.is_active,
+        "is_unplaced": _is_unplaced(unit, level, top_depth),
     }
 
 
@@ -403,7 +536,11 @@ def list_units(project_id: str, *, include_inactive: bool = False) -> list[dict]
     if not include_inactive:
         stmt = stmt.where(MasOrgUnit.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
-    return [serialize_unit(unit, level=level, parent_code=parent_code) for unit, level, parent_code in rows]
+    top_depth = _top_level_depth(project_id)
+    return [
+        serialize_unit(unit, level=level, parent_code=parent_code, top_depth=top_depth)
+        for unit, level, parent_code in rows
+    ]
 
 
 def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool = False) -> list[dict]:
@@ -431,7 +568,11 @@ def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool =
     if not include_inactive:
         stmt = stmt.where(MasOrgUnit.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
-    return [serialize_unit(unit, level=level, parent_code=parent_code) for unit, level, parent_code in rows]
+    top_depth = _top_level_depth(project_id)
+    return [
+        serialize_unit(unit, level=level, parent_code=parent_code, top_depth=top_depth)
+        for unit, level, parent_code in rows
+    ]
 
 
 def resolve_org_unit_export_labels(org_unit_ids) -> dict[uuid.UUID, dict]:
@@ -496,8 +637,50 @@ def _aliased_parent():
     return aliased(MasOrgUnit)
 
 
+def _top_level_depth(project_id: str) -> int | None:
+    """Depth of the project's top active level, or None with no active level."""
+    return db.session.scalar(
+        sa.select(sa.func.min(MasOrgLevel.depth)).where(
+            MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True)
+        )
+    )
+
+
+def _is_unplaced(unit: MasOrgUnit, level: MasOrgLevel, top_depth: int | None) -> bool:
+    """A unit with no parent below the top active level: imported, not yet mapped.
+
+    Policy: docs/policy/organization-model.md ("Unplaced units").
+    """
+    return unit.parent_org_unit_id is None and top_depth is not None and level.depth != top_depth
+
+
+def unplaced_unit_codes(project_id: str, *, include_inactive: bool = False) -> list[str]:
+    """Codes of the project's unplaced units, in one query, sorted.
+
+    Their descendants are not included; a descendant's ``path`` starts with
+    its unplaced root's code, which is how callers exclude whole subtrees.
+    """
+    stmt = (
+        sa.select(MasOrgUnit.unit_code)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.parent_org_unit_id.is_(None),
+            MasOrgLevel.depth != sa.select(sa.func.min(MasOrgLevel.depth))
+            .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
+            .scalar_subquery(),
+        )
+    )
+    if not include_inactive:
+        stmt = stmt.where(MasOrgUnit.is_active.is_(True))
+    return list(db.session.scalars(stmt.order_by(MasOrgUnit.unit_code)).all())
+
+
 def get_unit_tree(project_id: str, *, include_inactive: bool = False) -> list[dict]:
-    """Nested tree (children under ``children``) in path order."""
+    """Nested tree (children under ``children``) in path order.
+
+    Unplaced units (``is_unplaced``) come back as extra roots.
+    """
     flat = list_units(project_id, include_inactive=include_inactive)
     by_id = {u["org_unit_id"]: {**u, "children": []} for u in flat}
     roots: list[dict] = []
@@ -517,13 +700,21 @@ def _get_unit(project_id: str, org_unit_id: object) -> MasOrgUnit:
     return unit
 
 
-def _validate_parent_for_level(project_id: str, level: MasOrgLevel, parent: MasOrgUnit | None) -> None:
+def _validate_parent_for_level(
+    project_id: str, level: MasOrgLevel, parent: MasOrgUnit | None, *, allow_unplaced: bool = False
+) -> None:
+    """Refuse a parent that does not fit *level* (optional levels may be skipped).
+
+    ``allow_unplaced`` lets a unit below the top level have no parent. Only the
+    importer passes it; the admin forms stay strict. Policy:
+    docs/policy/organization-model.md ("Unplaced units").
+    """
     levels = list_levels(project_id, include_inactive=False)
     if not levels:
         raise OrganizationError("Define the project's levels before adding units.")
     top_depth = levels[0].depth
     if parent is None:
-        if level.depth != top_depth:
+        if level.depth != top_depth and not allow_unplaced:
             raise OrganizationError(
                 f"Units at level {level.level_code!r} need a parent; only the top level "
                 f"({levels[0].level_code!r}) may have none."
@@ -559,6 +750,7 @@ def create_unit(
     longitude: object = None,
     google_maps_url: object = None,
     remarks: object = None,
+    allow_unplaced: bool = False,
 ) -> MasOrgUnit:
     _get_project(project_id)
     level = _get_level(project_id, org_level_id)
@@ -569,7 +761,7 @@ def create_unit(
     parent = _get_unit(project_id, parent_org_unit_id) if parent_org_unit_id else None
     if parent is not None and not parent.is_active:
         raise OrganizationError("Parent unit is inactive.")
-    _validate_parent_for_level(project_id, level, parent)
+    _validate_parent_for_level(project_id, level, parent, allow_unplaced=allow_unplaced)
     dup = db.session.scalar(
         sa.select(MasOrgUnit.org_unit_id).where(
             MasOrgUnit.project_id == project_id, MasOrgUnit.unit_code == code
@@ -614,7 +806,12 @@ def _rewrite_subtree_paths(old_path: str, new_path: str) -> None:
     db.session.expire_all()
 
 
-def update_unit(project_id: str, org_unit_id: object, **fields) -> MasOrgUnit:
+def update_unit(project_id: str, org_unit_id: object, *, allow_unplaced: bool = False, **fields) -> MasOrgUnit:
+    """Update a unit; a parent or level change is validated and moves the subtree.
+
+    ``allow_unplaced`` is for the importer only (see ``_validate_parent_for_level``).
+    Setting a parent on an unplaced unit is the normal path, so it needs no flag.
+    """
     unit = _get_unit(project_id, org_unit_id)
     old_path = str(unit.path)
     level = unit.level
@@ -634,7 +831,7 @@ def update_unit(project_id: str, org_unit_id: object, **fields) -> MasOrgUnit:
         (parent.org_unit_id if parent else None) != unit.parent_org_unit_id
     )
     if level_or_parent_changed:
-        _validate_parent_for_level(project_id, level, parent)
+        _validate_parent_for_level(project_id, level, parent, allow_unplaced=allow_unplaced)
         if level.org_level_id != unit.org_level_id:
             # Children must still sit below the new level.
             child_depth = db.session.scalar(
@@ -686,6 +883,45 @@ def update_unit(project_id: str, org_unit_id: object, **fields) -> MasOrgUnit:
         set_unit_active(project_id, unit.org_unit_id, bool(fields["is_active"]))
         unit = db.session.get(MasOrgUnit, unit.org_unit_id)
     return unit
+
+
+#: Most placements one ``place_units`` call accepts.
+MAX_PLACEMENTS = 500
+
+
+def place_units(project_id: str, placements: object) -> list[MasOrgUnit]:
+    """Set the parent of several units, all or nothing.
+
+    *placements* is a list of ``{"org_unit_id", "parent_org_unit_id"}``. Each
+    goes through ``update_unit``, so the usual level rules apply (optional
+    levels may be skipped) and each moved subtree's paths are rewritten. A
+    blank parent is refused: detaching a unit is not a placement. Raises
+    ``OrganizationError`` naming the unit on the first bad item; the caller
+    rolls back. Works on placed units too (the Units tree's drag-and-drop).
+    """
+    if not isinstance(placements, list) or not placements:
+        raise OrganizationError("placements must be a non-empty list.")
+    if len(placements) > MAX_PLACEMENTS:
+        raise OrganizationError(f"At most {MAX_PLACEMENTS} placements per request.")
+    seen: set[uuid.UUID] = set()
+    moved = []
+    # ponytail: one update_unit per item (a few queries each); batch the reads if imports reach thousands.
+    for item in placements:
+        if not isinstance(item, dict):
+            raise OrganizationError("Each placement must be an object.")
+        unit_id = _uuid(item.get("org_unit_id"), what="Unit id")
+        if unit_id in seen:
+            raise OrganizationError("A unit is listed twice.")
+        seen.add(unit_id)
+        if not item.get("parent_org_unit_id"):
+            raise OrganizationError("Choose a parent for every unit.")
+        unit = _get_unit(project_id, unit_id)
+        code = unit.unit_code
+        try:
+            moved.append(update_unit(project_id, unit_id, parent_org_unit_id=item["parent_org_unit_id"]))
+        except OrganizationError as exc:
+            raise OrganizationError(f"{code}: {exc}") from exc
+    return moved
 
 
 def set_unit_active(project_id: str, org_unit_id: object, active: bool) -> int:
@@ -986,13 +1222,24 @@ def _resolve_user(raw: object) -> VaUsers | None:
     return user
 
 
+def _next_worker_code(project_id: str) -> str:
+    """Next free generated code, W00001, W00002, ... (one scan of this project's codes)."""
+    codes = db.session.scalars(
+        sa.select(MasOrgUnitWorker.worker_code).where(
+            MasOrgUnitWorker.project_id == project_id, MasOrgUnitWorker.worker_code.like("W%")
+        )
+    ).all()
+    numbers = [int(c[1:]) for c in codes if c[1:].isdigit()]
+    return f"W{(max(numbers, default=0) + 1):05d}"
+
+
 def create_worker(
     project_id: str,
     *,
     org_unit_id: object,
     cadre_id: object,
-    worker_code: object,
     worker_name: object,
+    worker_code: object = None,
     phone: object = None,
     user: object = None,
     remarks: object = None,
@@ -1001,7 +1248,11 @@ def create_worker(
     unit = _get_unit(project_id, org_unit_id)
     cadre = _get_cadre(project_id, cadre_id)
     _require_cadre_at_unit_level(unit, cadre)
-    code = normalize_code(worker_code, what="Worker code")
+    # The code is an internal key (import matching); admins need not give one.
+    if worker_code is None or not str(worker_code).strip():
+        code = _next_worker_code(project_id)
+    else:
+        code = normalize_code(worker_code, what="Worker code")
     dup = db.session.scalar(
         sa.select(MasOrgUnitWorker.worker_id).where(
             MasOrgUnitWorker.project_id == project_id, MasOrgUnitWorker.worker_code == code
@@ -1237,6 +1488,8 @@ class ImportPlan:
     creates: dict[str, list[str]] = field(default_factory=dict)
     updates: dict[str, list[str]] = field(default_factory=dict)
     deactivates: dict[str, list[str]] = field(default_factory=dict)
+    #: Active units left with no parent below the top level after the import.
+    unplaced: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     applied: bool = False
 
@@ -1245,6 +1498,7 @@ class ImportPlan:
             "creates": self.creates,
             "updates": self.updates,
             "deactivates": self.deactivates,
+            "unplaced": self.unplaced,
             "errors": self.errors,
             "applied": self.applied,
             "counts": {
@@ -1283,6 +1537,28 @@ def parse_organization_workbook(file_obj) -> dict[str, list[dict]]:
     return sheets
 
 
+def parse_organization_csv(file_obj, sheet: str) -> dict[str, list[dict]]:
+    """Read one sheet's CSV (the per-sheet export layout) into import rows.
+
+    Blank cells become None, as empty workbook cells do, so an empty
+    ``is_active`` keeps the existing value instead of reading as false.
+    """
+    if sheet not in EXPORT_SHEETS:
+        raise OrganizationError(f"Unknown sheet {sheet!r}; choose one of {', '.join(EXPORT_SHEETS)}.")
+    text = io.TextIOWrapper(file_obj, encoding="utf-8-sig", newline="")
+    reader = csv.DictReader(text)
+    rows = []
+    for raw in reader:
+        row = {
+            (key or "").strip(): (value.strip() if isinstance(value, str) and value.strip() else None)
+            for key, value in raw.items()
+            if key
+        }
+        if any(v is not None for v in row.values()):
+            rows.append(row)
+    return {sheet: rows}
+
+
 def import_organization(project_id: str, sheets: dict[str, list[dict]], *, dry_run: bool = True, deactivate_missing: bool = False) -> ImportPlan:
     """Upsert master data by business codes. Never deletes.
 
@@ -1303,6 +1579,8 @@ def import_organization(project_id: str, sheets: dict[str, list[dict]], *, dry_r
         _import_cadres(project_id, sheets.get("cadres"), plan, deactivate_missing)
         _import_level_cadres(project_id, sheets.get("level_cadres"), plan, deactivate_missing)
         _import_units(project_id, sheets.get("units"), plan, deactivate_missing)
+        if sheets.get("units") is not None:
+            plan.unplaced = unplaced_unit_codes(project_id)
         _import_workers(project_id, sheets.get("workers"), plan, deactivate_missing)
     except OrganizationError as exc:
         plan.errors.append(str(exc))
@@ -1431,6 +1709,7 @@ def _import_units(project_id, rows, plan, deactivate_missing):
         return
     levels = {lv.level_code: lv for lv in list_levels(project_id, include_inactive=True)}
     existing = {u["unit_code"]: u for u in list_units(project_id, include_inactive=True)}
+    top_depth = _top_level_depth(project_id)
     seen = set()
     # Parents must exist before children: sort by level depth, keep file order otherwise.
     indexed = []
@@ -1449,6 +1728,9 @@ def _import_units(project_id, rows, plan, deactivate_missing):
             parent_id = existing[parent_code]["org_unit_id"] if parent_code in existing else None
             if parent_code and parent_id is None:
                 raise OrganizationError(f"unknown parent unit {parent_code!r}")
+            # A blank parent_code never detaches: an existing unit keeps its
+            # parent, a new one below the top level is created unplaced.
+            placement = {"parent_org_unit_id": parent_id} if parent_code else {}
             seen.add(code)
             fields = dict(
                 unit_name=row.get("unit_name"),
@@ -1464,7 +1746,8 @@ def _import_units(project_id, rows, plan, deactivate_missing):
                     project_id,
                     existing[code]["org_unit_id"],
                     org_level_id=level.org_level_id,
-                    parent_org_unit_id=parent_id,
+                    allow_unplaced=True,
+                    **placement,
                     is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else existing[code]["is_active"],
                     **fields,
                 )
@@ -1475,9 +1758,10 @@ def _import_units(project_id, rows, plan, deactivate_missing):
                     org_level_id=level.org_level_id,
                     unit_code=code,
                     parent_org_unit_id=parent_id,
+                    allow_unplaced=True,
                     **fields,
                 )
-                existing[code] = serialize_unit(unit, level=level, parent_code=parent_code or None)
+                existing[code] = serialize_unit(unit, level=level, parent_code=parent_code or None, top_depth=top_depth)
                 plan.creates["units"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"units row {i}: {exc}") from exc
@@ -1496,13 +1780,20 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
     cadres = {c.cadre_code: c for c in list_cadres(project_id, include_inactive=True)}
     units_by_code = {u["unit_code"]: u["org_unit_id"] for u in list_units(project_id, include_inactive=True)}
     existing = {w["worker_code"]: w for w in list_workers(project_id, include_inactive=True)}
+    # Rows without a worker_code match an existing worker by unit and name.
+    by_unit_name = {(w["org_unit_id"], (w["worker_name"] or "").strip().casefold()): w["worker_code"] for w in existing.values()}
     seen = set()
     for i, row in enumerate(rows, start=2):
         try:
-            code = normalize_code(row.get("worker_code"), what="Worker code")
             unit_id = units_by_code.get(str(row.get("unit_code") or "").strip().upper())
             if unit_id is None:
                 raise OrganizationError(f"unknown unit {row.get('unit_code')!r}")
+            if str(row.get("worker_code") or "").strip():
+                code = normalize_code(row.get("worker_code"), what="Worker code")
+            else:
+                name_key = (unit_id, str(row.get("worker_name") or "").strip().casefold())
+                code = by_unit_name.get(name_key) or _next_worker_code(project_id)
+                by_unit_name[name_key] = code
             cadre = cadres.get(normalize_code(row.get("cadre_code"), what="Cadre code"))
             if cadre is None:
                 raise OrganizationError(f"unknown cadre {row.get('cadre_code')!r}")
@@ -1524,13 +1815,16 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
                 )
                 plan.updates["workers"].append(code)
             else:
-                create_worker(
+                worker = create_worker(
                     project_id,
                     org_unit_id=unit_id,
                     cadre_id=cadre.cadre_id,
                     worker_code=code,
                     **fields,
                 )
+                if not str(row.get("worker_code") or "").strip():
+                    # A repeat of this code-less row later in the file updates it.
+                    existing[code] = {"worker_id": str(worker.worker_id), "is_active": True}
                 plan.creates["workers"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"workers row {i}: {exc}") from exc

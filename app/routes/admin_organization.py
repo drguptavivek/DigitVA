@@ -21,9 +21,22 @@ _API = "/api/organization/<project_id>"
 
 
 def _guard(project_id):
-    """Return an error response when the user may not manage this project."""
+    """Return an error response when the user may not manage this project.
+
+    Every route here calls this first, so it is also the one place that
+    refuses writes (any non-GET: seed, levels, units, cadres, level-cadre grid,
+    workers, coding gates, import including its dry run) to a project not in
+    'organization' structure mode. Reads stay open so an existing tree can
+    still be inspected and exported. Policy: docs/policy/organization-model.md
+    ("Project structure mode").
+    """
     if not _current_user_can_manage_project(project_id):
         return _json_error("You do not have access to that project.", 403)
+    if request.method != "GET":
+        try:
+            org.require_organization_mode(project_id)
+        except org.OrganizationError as exc:
+            return _json_error(str(exc), 409)
     return None
 
 
@@ -195,6 +208,26 @@ def admin_org_update_unit(project_id, org_unit_id):
         return _json_error(str(exc), 400)
     _commit_and_log("unit-update", project_id, unit.unit_code)
     return jsonify({"unit": serialized})
+
+
+@admin.post(f"{_API}/units/place")
+@role_required("admin", "project_pi")
+def admin_org_place_units(project_id):
+    """Set parents for several units in one transaction (Map parents, drag-and-drop).
+
+    Body: ``{"placements": [{"org_unit_id", "parent_org_unit_id"}, ...]}``.
+    All or nothing; see ``organization_service.place_units``.
+    """
+    if err := _guard(project_id):
+        return err
+    try:
+        units = org.place_units(project_id, _payload().get("placements"))
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    codes = [unit.unit_code for unit in units]
+    _commit_and_log("unit-place", project_id, f"placed={len(codes)} units={','.join(codes)}")
+    return jsonify({"placed": len(codes), "unit_codes": codes})
 
 
 @admin.post(f"{_API}/units/<org_unit_id>/toggle")
@@ -507,12 +540,17 @@ def admin_org_import(project_id):
     uploaded = request.files.get("file")
     if uploaded is None or not uploaded.filename:
         return _json_error("Upload the organization workbook as 'file'.", 400)
-    if not uploaded.filename.lower().endswith(".xlsx"):
-        return _json_error("Only .xlsx workbooks are accepted.", 400)
+    filename = uploaded.filename.lower()
+    if not filename.endswith((".xlsx", ".csv")):
+        return _json_error("Upload an .xlsx workbook or a .csv of one sheet.", 400)
     dry_run = request.form.get("dry_run", "1") != "0"
     deactivate_missing = request.form.get("deactivate_missing") == "1"
     try:
-        sheets = org.parse_organization_workbook(uploaded.stream)
+        if filename.endswith(".csv"):
+            # One sheet per CSV, in the per-sheet export layout.
+            sheets = org.parse_organization_csv(uploaded.stream, (request.form.get("sheet") or "").strip())
+        else:
+            sheets = org.parse_organization_workbook(uploaded.stream)
         plan = org.import_organization(
             project_id, sheets, dry_run=dry_run, deactivate_missing=deactivate_missing
         )
@@ -522,7 +560,7 @@ def admin_org_import(project_id):
     except Exception:  # malformed workbook
         db.session.rollback()
         log.exception("organization import failed | project=%s", project_id)
-        return _json_error("The workbook could not be read.", 400)
+        return _json_error("The file could not be read.", 400)
     if plan.applied:
         _commit_and_log("import", project_id, {k: v for k, v in plan.as_dict()["counts"].items()})
     else:

@@ -393,6 +393,7 @@ def _serialize_project(project, form_type_codes=None):
         "social_autopsy_enabled": project.social_autopsy_enabled,
         "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,
+        "project_structure_mode": project.project_structure_mode,
         "coding_scope_level_id": str(project.coding_scope_level_id)
         if project.coding_scope_level_id
         else None,
@@ -537,6 +538,12 @@ def _web_intake_form_option_updates(payload):
 
 #: Valid values of va_project_master.coding_intake_mode.
 CODING_INTAKE_MODES = {"random_form_allocation", "pick_and_choose"}
+
+#: Valid values of va_project_master.project_structure_mode
+#: (docs/policy/organization-model.md, "Project structure mode"). A tuple,
+#: not a set, so an unhashable JSON value (list, object) fails membership
+#: with a 400 instead of raising TypeError.
+PROJECT_STRUCTURE_MODES = ("sites", "organization")
 
 
 def _default_web_form_type_id(form_type_code):
@@ -1285,6 +1292,10 @@ def admin_create_project():
     if coding_intake_mode not in CODING_INTAKE_MODES:
         return _json_error("Invalid coding_intake_mode.", 400)
 
+    project_structure_mode = payload.get("project_structure_mode") or "sites"
+    if project_structure_mode not in PROJECT_STRUCTURE_MODES:
+        return _json_error("Invalid project_structure_mode.", 400)
+
     # Validated before the row is built so a rejected payload adds nothing.
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
@@ -1304,6 +1315,7 @@ def admin_create_project():
             )
         ),
         coding_intake_mode=coding_intake_mode,
+        project_structure_mode=project_structure_mode,
         web_intake_mode=web_intake_mode,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
@@ -1311,6 +1323,18 @@ def admin_create_project():
         **form_option_updates,
     )
     db.session.add(project)
+    if project_structure_mode == "organization":
+        # Web forms are materialized per project-site, so an organization
+        # project gets one automatic site. Policy:
+        # docs/policy/organization-model.md ("Project structure mode").
+        from app.services import organization_service as org
+
+        db.session.flush()
+        try:
+            org.ensure_organization_site(project.project_id)
+        except (org.OrganizationError, ValueError) as exc:
+            db.session.rollback()
+            return _json_error(str(exc), 400)
     db.session.commit()
     return jsonify({"project": _serialize_project(project)}), 201
 
@@ -1372,6 +1396,32 @@ def admin_update_project(project_id):
         if coding_intake_mode not in CODING_INTAKE_MODES:
             return _json_error("Invalid coding_intake_mode.", 400)
         updates["coding_intake_mode"] = coding_intake_mode
+
+    if "project_structure_mode" in payload:
+        project_structure_mode = payload["project_structure_mode"]
+        if project_structure_mode not in PROJECT_STRUCTURE_MODES:
+            return _json_error("Invalid project_structure_mode.", 400)
+        # Going back to sites would strand a live tree that coding scope and
+        # sync routing still key off; the admin deactivates the units first.
+        if (
+            project_structure_mode == "sites"
+            and project.project_structure_mode == "organization"
+            and db.session.scalar(
+                sa.select(MasOrgUnit.org_unit_id)
+                .where(
+                    MasOrgUnit.project_id == project.project_id,
+                    MasOrgUnit.is_active.is_(True),
+                )
+                .limit(1)
+            )
+            is not None
+        ):
+            return _json_error(
+                "This project still has active organization units. Deactivate "
+                "them in the Organization panel before switching it to sites.",
+                409,
+            )
+        updates["project_structure_mode"] = project_structure_mode
 
     if "above_scope_coding_mode" in payload:
         above_scope_coding_mode = (payload["above_scope_coding_mode"] or "").strip()
@@ -1444,6 +1494,18 @@ def admin_update_project(project_id):
     # Everything validated: apply.
     for field, value in updates.items():
         setattr(project, field, value)
+
+    if project.project_structure_mode == "organization":
+        # Idempotent: creates the automatic site on the switch from sites and
+        # repairs it on any later save. Switching back to sites leaves it.
+        # Policy: docs/policy/organization-model.md ("Project structure mode").
+        from app.services import organization_service as org
+
+        try:
+            org.ensure_organization_site(project.project_id)
+        except (org.OrganizationError, ValueError) as exc:
+            db.session.rollback()
+            return _json_error(str(exc), 400)
 
     if web_intake_mode is not None and web_intake_mode != "off":
         # Interviewer access resolves through va_forms, so the web form has

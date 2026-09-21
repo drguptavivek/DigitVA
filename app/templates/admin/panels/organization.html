@@ -3,7 +3,13 @@
   level×cadre permissions, workers, export/import.
   API: /admin/api/organization/<project_id>/...  (app/routes/admin_organization.py)
 #}
-<div id="panel-organization">
+<div id="panel-organization" class="org-no-project">
+  <style>
+    /* Nothing can be built until a project is chosen. */
+    #panel-organization.org-no-project #org-tabs,
+    #panel-organization.org-no-project .org-tab,
+    #panel-organization.org-no-project #org-seed-btn { display: none !important; }
+  </style>
 
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-3">
@@ -26,72 +32,154 @@
 
   <div id="org-alert" class="alert d-none small py-2"></div>
 
+  <div class="border rounded p-2 mb-3 small">
+    <div class="fw-semibold mb-1">How to set up an organization</div>
+    <div class="mb-1">Pick an organization-mode project above (set <em>Structure: Organization</em> in the Projects panel), then work through the tabs in order:</div>
+    <ol class="mb-1 ps-3">
+      <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Seed template</em> adds a standard set.</li>
+      <li><strong>Units</strong>: add the actual places at each level, top level first, each under its parent. A facility list with no parents can be imported first (Export / Import), then placed with <em>Map parents</em> or by dragging.</li>
+      <li><strong>Cadres &amp; permissions</strong>: the worker types, and at which level each may fill or code VA forms.</li>
+      <li><strong>Workers</strong>: attach health workers to units.</li>
+    </ol>
+    <div>Optional: <strong>ODK form fields</strong> for projects that also collect through ODK; <strong>Export / Import</strong> to copy a tree.</div>
+  </div>
+
   <ul class="nav nav-tabs mb-3" id="org-tabs" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-org-tab="units" type="button">Units</button></li>
-    <li class="nav-item"><button class="nav-link" data-org-tab="levels" type="button">Levels</button></li>
-    <li class="nav-item"><button class="nav-link" data-org-tab="cadres" type="button">Cadres &amp; permissions</button></li>
-    <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">Workers</button></li>
+    <li class="nav-item"><button class="nav-link active" data-org-tab="levels" type="button">1. Levels</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="units" type="button">2. Units</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="cadres" type="button">3. Cadres &amp; permissions</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">4. Workers</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="odkform" type="button">ODK form fields</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="transfer" type="button">Export / Import</button></li>
   </ul>
 
   {# ---- Units ---- #}
-  <div class="org-tab" data-org-pane="units">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <span class="text-muted small">Codes are unique within the project and appear in the ODK form as <code>org_&lt;level&gt;_code</code>.</span>
-      <button class="btn btn-sm btn-primary" id="org-unit-add-btn"><i class="fa-solid fa-plus me-1"></i>Add unit</button>
+  <div class="org-tab d-none" data-org-pane="units">
+    <style>
+      /* Wunderbaum ships its own palette; map it onto Bootstrap's tokens. */
+      #org-unit-tree.wunderbaum {
+        --wb-font-stack: var(--bs-body-font-family);
+        --wb-node-text-color: var(--bs-body-color);
+        --wb-border-color: var(--bs-border-color);
+        --wb-focus-border-color: var(--bs-primary);
+        --wb-background-color: var(--bs-body-bg);
+        --wb-header-color: var(--bs-tertiary-bg);
+        --wb-alternate-row-color: var(--bs-tertiary-bg);
+        --wb-alternate-row-color-hover: var(--bs-secondary-bg);
+        --wb-hover-color: var(--bs-secondary-bg);
+        --wb-hover-border-color: var(--bs-secondary-bg);
+        --wb-active-color: var(--bs-primary-bg-subtle);
+        --wb-active-hover-color: var(--bs-primary-bg-subtle);
+        --wb-active-border-color: var(--bs-primary-border-subtle);
+        --wb-active-hover-border-color: var(--bs-primary-border-subtle);
+        --wb-active-column-color: transparent;
+        --wb-grid-color: var(--bs-border-color-translucent);
+        --wb-row-outer-height: 32px;
+        --wb-row-inner-height: 30px;
+        --wb-header-height: 32px;
+        font-size: .875rem;
+        border-width: 1px;
+        border-radius: var(--bs-border-radius);
+      }
+      #org-unit-tree div.wb-header span.wb-col { font-weight: 600; }
+      #org-unit-tree span.wb-title[data-lvl]::before {
+        content: attr(data-lvl);
+        display: inline-block; margin-right: .4rem; padding: 0 .35rem;
+        font-size: .7rem; line-height: 1.4; vertical-align: 1px;
+        color: var(--bs-secondary-color); background: var(--bs-tertiary-bg);
+        border: 1px solid var(--bs-border-color); border-radius: var(--bs-border-radius-sm);
+      }
+      #org-unit-tree div.wb-row.org-inactive { opacity: .55; }
+      #org-unit-tree .org-act .btn { padding: 0 .35rem; line-height: 1.5; }
+    </style>
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <span class="text-muted small">Codes are unique within the project and are recorded on every VA form, ODK and web, as <code>org_&lt;level&gt;_code</code>.</span>
+      <button class="btn btn-sm btn-primary" id="org-unit-add-btn"><i class="fa-solid fa-plus me-1"></i>Add top-level unit</button>
     </div>
-    <div id="org-unit-form" class="card mb-3 d-none"><div class="card-body">
-      <h6 class="card-title mb-3" id="org-unit-form-title">Add unit</h6>
+    <div id="org-unit-toolbar" class="d-flex align-items-center gap-2 mb-2 d-none">
+      <div class="input-group input-group-sm" style="max-width:320px;">
+        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <input type="search" id="org-unit-search" class="form-control" placeholder="Filter by code or name" aria-label="Filter units by code or name">
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" id="org-unit-expand-all" type="button"><i class="fa-solid fa-angles-down me-1"></i>Expand all</button>
+      <button class="btn btn-sm btn-outline-secondary" id="org-unit-collapse-all" type="button"><i class="fa-solid fa-angles-up me-1"></i>Collapse all</button>
+    </div>
+    <div id="org-unplaced-banner" class="alert alert-warning small py-2 d-flex align-items-center gap-2 d-none" role="status">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span id="org-unplaced-text"></span>
+      <button type="button" class="btn btn-sm btn-warning ms-auto" id="org-unplaced-open"><i class="fa-solid fa-diagram-project me-1"></i>Map parents</button>
+    </div>
+    <div class="text-muted small mb-1">Drag a unit onto another to move it under that unit.</div>
+    <div id="org-unit-empty" class="small"></div>
+    <div id="org-unit-tree-wrap" class="d-none" style="height:60vh; min-height:320px;"><div id="org-unit-tree"></div></div>
+  </div>
+
+  {# Add/edit unit form. An offcanvas is position:fixed, so it is not clipped by
+     the admin column and needs no move to <body>; it leaves with the panel. #}
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-unit-canvas" aria-labelledby="org-unit-form-title" style="--bs-offcanvas-width:460px;">
+    <div class="offcanvas-header border-bottom">
+      <h6 class="offcanvas-title mb-0" id="org-unit-form-title">Add unit</h6>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="ou-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
       <input type="hidden" id="ou-id">
       <div class="row g-2">
-        <div class="col-md-3"><label class="form-label small mb-1">Level <span class="text-danger">*</span></label><select id="ou-level" class="form-select form-select-sm"></select></div>
-        <div class="col-md-3"><label class="form-label small mb-1">Parent unit</label><select id="ou-parent" class="form-select form-select-sm"><option value="">(none — top level)</option></select></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Code <span class="text-danger">*</span></label><input id="ou-code" class="form-control form-control-sm" maxlength="32" placeholder="PHC01"></div>
-        <div class="col-md-4"><label class="form-label small mb-1">Name <span class="text-danger">*</span></label><input id="ou-name" class="form-control form-control-sm"></div>
-        <div class="col-md-6"><label class="form-label small mb-1">Address</label><input id="ou-address" class="form-control form-control-sm"></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Phone</label><input id="ou-phone" class="form-control form-control-sm" maxlength="32"></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Latitude</label><input id="ou-lat" class="form-control form-control-sm" placeholder="12.971600"></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Longitude</label><input id="ou-lng" class="form-control form-control-sm" placeholder="77.594600"></div>
-        <div class="col-md-6"><label class="form-label small mb-1">Google Maps URL</label><input id="ou-map" class="form-control form-control-sm" placeholder="https://maps.app.goo.gl/..."></div>
-        <div class="col-md-6"><label class="form-label small mb-1">Remarks</label><input id="ou-remarks" class="form-control form-control-sm"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ou-parent">Parent unit</label><select id="ou-parent" class="form-select form-select-sm"><option value="">(none — top level)</option></select></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ou-level">Level <span class="text-danger">*</span></label><select id="ou-level" class="form-select form-select-sm"></select>
+          <div class="form-text">Set from the parent; change it only to skip an optional level.</div></div>
+        <div class="col-4"><label class="form-label small mb-1" for="ou-code">Code <span class="text-danger">*</span></label><input id="ou-code" class="form-control form-control-sm" maxlength="32" placeholder="PHC01"></div>
+        <div class="col-8"><label class="form-label small mb-1" for="ou-name">Name <span class="text-danger">*</span></label><input id="ou-name" class="form-control form-control-sm"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ou-address">Address</label><input id="ou-address" class="form-control form-control-sm"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ou-phone">Phone</label><input id="ou-phone" class="form-control form-control-sm" maxlength="32"></div>
+        <div class="col-6"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ou-lat">Latitude</label><input id="ou-lat" class="form-control form-control-sm" placeholder="12.971600"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ou-lng">Longitude</label><input id="ou-lng" class="form-control form-control-sm" placeholder="77.594600"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ou-map">Google Maps URL</label><input id="ou-map" class="form-control form-control-sm" placeholder="https://maps.app.goo.gl/..."></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ou-remarks">Remarks</label><input id="ou-remarks" class="form-control form-control-sm"></div>
       </div>
       <div class="mt-3 d-flex gap-2">
         <button class="btn btn-sm btn-success" id="ou-save-btn"><i class="fa-solid fa-check me-1"></i>Save</button>
-        <button class="btn btn-sm btn-outline-secondary" id="ou-cancel-btn">Cancel</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
       </div>
-    </div></div>
-    <div id="org-unit-gate-form" class="card mb-3 d-none"><div class="card-body">
-      <h6 class="card-title mb-1" id="org-unit-gate-form-title">Coding gate</h6>
+    </div>
+  </div>
+
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-unit-gate-canvas" aria-labelledby="org-unit-gate-form-title" style="--bs-offcanvas-width:460px;">
+    <div class="offcanvas-header border-bottom">
+      <h6 class="offcanvas-title mb-0" id="org-unit-gate-form-title">Coding gate</h6>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
       <p class="text-muted small mb-3">
         Narrows coding for this unit's whole subtree unless a descendant sets its own gate.
         Never opens coding the project-site gate has closed — the stricter of the two always wins.
         No gate here means this unit simply inherits its nearest gated ancestor, if any.
       </p>
+      <div id="oug-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
       <input type="hidden" id="oug-unit-id">
       <div class="row g-2">
-        <div class="col-md-3">
-          <label class="form-label small mb-1">Coding</label>
+        <div class="col-6">
+          <label class="form-label small mb-1" for="oug-enabled">Coding</label>
           <select id="oug-enabled" class="form-select form-select-sm">
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
           </select>
         </div>
-        <div class="col-md-3"><label class="form-label small mb-1">Start date</label><input type="date" id="oug-start" class="form-control form-control-sm"></div>
-        <div class="col-md-3"><label class="form-label small mb-1">End date</label><input type="date" id="oug-end" class="form-control form-control-sm"></div>
-        <div class="col-md-3"><label class="form-label small mb-1">Daily coder limit</label><input type="number" min="1" id="oug-limit" class="form-control form-control-sm" placeholder="no unit limit"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="oug-limit">Daily coder limit</label><input type="number" min="1" id="oug-limit" class="form-control form-control-sm" placeholder="no unit limit"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="oug-start">Start date</label><input type="date" id="oug-start" class="form-control form-control-sm"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="oug-end">End date</label><input type="date" id="oug-end" class="form-control form-control-sm"></div>
       </div>
       <div class="mt-3 d-flex gap-2">
         <button class="btn btn-sm btn-success" id="oug-save-btn"><i class="fa-solid fa-check me-1"></i>Save gate</button>
         <button class="btn btn-sm btn-outline-danger" id="oug-clear-btn"><i class="fa-solid fa-trash me-1"></i>Clear gate</button>
-        <button class="btn btn-sm btn-outline-secondary" id="oug-cancel-btn">Cancel</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
       </div>
-    </div></div>
-    <div id="org-unit-tree" class="small"></div>
+    </div>
   </div>
 
   {# ---- Levels ---- #}
-  <div class="org-tab d-none" data-org-pane="levels">
+  <div class="org-tab" data-org-pane="levels">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <span class="text-muted small">Depth orders the tree (1 = top). Optional levels may be skipped when placing a unit.</span>
       <button class="btn btn-sm btn-primary" id="org-level-add-btn"><i class="fa-solid fa-plus me-1"></i>Add level</button>
@@ -107,14 +195,43 @@
       </div>
     </div></div>
     <div id="org-level-table"></div>
+
+    {# Project coding scope — docs/policy/organization-model.md, "Coding scope" #}
+    <div class="border rounded p-2 mt-3">
+      <div class="fw-semibold small mb-1">Coding scope</div>
+      <div class="text-muted small mb-2">
+        A coder only ever codes deaths from the unit they are granted and the units beneath it;
+        the pool never crosses that boundary. The scope level says within which level coding
+        happens, and what people granted above it may do. Needs <em>Pick and choose</em> coding intake.
+      </div>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label small mb-1" for="org-scope-level">Coding confined within</label>
+          <select id="org-scope-level" class="form-select form-select-sm"></select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small mb-1" for="org-scope-above">People granted above that level</label>
+          <select id="org-scope-above" class="form-select form-select-sm">
+            <option value="view_only">View only (see, code nothing)</option>
+            <option value="code_any">Code anything in their area</option>
+          </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-sm btn-success w-100" id="org-scope-save">Save</button></div>
+      </div>
+    </div>
   </div>
 
   {# ---- Cadres & permissions ---- #}
   <div class="org-tab d-none" data-org-pane="cadres">
-    <div class="row g-3">
-      <div class="col-lg-4">
+    {# Sub-tabs: define cadres first, then place them at levels. #}
+    <ul class="nav nav-pills nav-sm mb-3 small" role="tablist">
+      <li class="nav-item"><button class="nav-link py-1 active" data-bs-toggle="tab" data-bs-target="#org-sub-cadres" type="button" role="tab">a. Cadres</button></li>
+      <li class="nav-item"><button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#org-sub-perms" type="button" role="tab">b. Permissions by level</button></li>
+    </ul>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="org-sub-cadres" role="tabpanel">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <strong class="small">Cadres</strong>
+          <span class="text-muted small">The kinds of health worker in this project. Then say at which levels each exists in <em>Permissions by level</em>.</span>
           <button class="btn btn-sm btn-primary" id="org-cadre-add-btn"><i class="fa-solid fa-plus me-1"></i>Add cadre</button>
         </div>
         <div id="org-cadre-form" class="card mb-2 d-none"><div class="card-body p-2">
@@ -127,8 +244,8 @@
         </div></div>
         <div id="org-cadre-table"></div>
       </div>
-      <div class="col-lg-8">
-        <strong class="small d-block mb-2">Permissions per level (F = can fill VA form, C = can code VA form)</strong>
+      <div class="tab-pane fade" id="org-sub-perms" role="tabpanel">
+        <div class="text-muted small mb-2">Add the cadres that exist at each level, then tick what each may do there.</div>
         <div id="org-perm-grid" class="table-responsive"></div>
       </div>
     </div>
@@ -136,24 +253,50 @@
 
   {# ---- Workers ---- #}
   <div class="org-tab d-none" data-org-pane="workers">
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <style>
+      #org-worker-table tr.org-inactive td { opacity: .55; }
+      #org-worker-toolbar .ts-wrapper { min-width: 260px; }
+    </style>
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
       <span class="text-muted small">Health workers attached to units. Names and phones are personal data.</span>
       <button class="btn btn-sm btn-primary" id="org-worker-add-btn"><i class="fa-solid fa-plus me-1"></i>Add worker</button>
     </div>
-    <div id="org-worker-form" class="card mb-3 d-none"><div class="card-body">
+    <div id="org-worker-toolbar" class="d-flex align-items-center gap-2 mb-2 flex-wrap d-none">
+      <div class="input-group input-group-sm" style="max-width:280px;">
+        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+        <input type="search" id="org-worker-search" class="form-control" placeholder="Name or phone" aria-label="Filter workers by name or phone">
+      </div>
+      <select id="org-worker-unit-filter" class="form-select form-select-sm" style="max-width:280px;" aria-label="Filter by unit (includes units below it)"></select>
+      <select id="org-worker-cadre-filter" class="form-select form-select-sm w-auto" aria-label="Filter by cadre"></select>
+      <span class="text-muted small ms-auto" id="org-worker-count"></span>
+    </div>
+    <div id="org-worker-empty" class="small"></div>
+    <div id="org-worker-table" class="table-responsive"></div>
+  </div>
+
+  {# Add/edit worker form, an offcanvas like the unit form. #}
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-worker-canvas" aria-labelledby="org-worker-form-title" style="--bs-offcanvas-width:460px;">
+    <div class="offcanvas-header border-bottom">
+      <h6 class="offcanvas-title mb-0" id="org-worker-form-title">Add worker</h6>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="ow-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
       <input type="hidden" id="ow-id">
       <div class="row g-2">
-        <div class="col-md-3"><label class="form-label small mb-1">Unit <span class="text-danger">*</span></label><select id="ow-unit" class="form-select form-select-sm"></select></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-select-sm"></select></div>
-        <div class="col-md-2"><label class="form-label small mb-1">Code <span class="text-danger">*</span></label><input id="ow-code" class="form-control form-control-sm" maxlength="32"></div>
-        <div class="col-md-5"><label class="form-label small mb-1">Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
-        <div class="col-md-3"><label class="form-label small mb-1">Phone</label><input id="ow-phone" class="form-control form-control-sm" maxlength="32"></div>
-        <div class="col-md-4"><label class="form-label small mb-1">DigitVA user (email, optional)</label><input id="ow-user" class="form-control form-control-sm"></div>
-        <div class="col-md-5"><label class="form-label small mb-1">Remarks</label><input id="ow-remarks" class="form-control form-control-sm"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-unit">Unit <span class="text-danger">*</span></label><select id="ow-unit" class="form-select form-select-sm"></select></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-cadre">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-select-sm"></select>
+          <div class="form-text" id="ow-cadre-hint"></div></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-name">Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ow-phone">Phone</label><input id="ow-phone" class="form-control form-control-sm" maxlength="32"></div>
+        <div class="col-6"><label class="form-label small mb-1" for="ow-user">DigitVA user (email)</label><input id="ow-user" class="form-control form-control-sm" placeholder="optional"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-remarks">Remarks</label><input id="ow-remarks" class="form-control form-control-sm"></div>
       </div>
-      <div class="mt-3 d-flex gap-2"><button class="btn btn-sm btn-success" id="ow-save-btn">Save</button><button class="btn btn-sm btn-outline-secondary" id="ow-cancel-btn">Cancel</button></div>
-    </div></div>
-    <div id="org-worker-table"></div>
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-sm btn-success" id="ow-save-btn"><i class="fa-solid fa-check me-1"></i>Save</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+      </div>
+    </div>
   </div>
 
   {# ---- Export / Import ---- #}
@@ -173,8 +316,25 @@
       <div class="col-md-7">
         <div class="card"><div class="card-body">
           <h6 class="card-title">Import</h6>
-          <p class="small text-muted">Upload a workbook in the export layout. Rows are matched by code; nothing is deleted. Run the dry run first, then apply.</p>
-          <input type="file" id="org-import-file" class="form-control form-control-sm mb-2" accept=".xlsx">
+          <p class="small text-muted">Upload a workbook in the export layout, or a CSV of one sheet for quick adding. Rows are matched by code; nothing is deleted. Run the dry run first, then apply.</p>
+          <p class="small mb-2">CSV templates (current data, edit and re-upload):
+            <a href="#" class="org-csv-template" data-sheet="cadres">cadres</a> ·
+            <a href="#" class="org-csv-template" data-sheet="level_cadres">level_cadres</a> ·
+            <a href="#" class="org-csv-template" data-sheet="units">units</a> ·
+            <a href="#" class="org-csv-template" data-sheet="workers">workers</a>
+          </p>
+          <input type="file" id="org-import-file" class="form-control form-control-sm mb-2" accept=".xlsx,.csv">
+          <div id="org-import-sheet-wrap" class="mb-2 d-none">
+            <label class="form-label small mb-1" for="org-import-sheet">This CSV holds</label>
+            <select id="org-import-sheet" class="form-select form-select-sm">
+              <option value="cadres">cadres: cadre_code, cadre_name</option>
+              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form</option>
+              <option value="units">units</option>
+              <option value="workers">workers: worker_name, unit_code, cadre_code, phone, user_email, remarks (worker_code optional)</option>
+              <option value="levels">levels</option>
+            </select>
+            <div class="form-text small">Import cadres before level_cadres, and both before workers: a worker's cadre must exist at its unit's level.</div>
+          </div>
           <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="org-import-deactivate"><label class="form-check-label small" for="org-import-deactivate">Deactivate rows missing from the supplied sheets</label></div>
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-primary" id="org-import-dry"><i class="fa-solid fa-magnifying-glass me-1"></i>Dry run</button>
@@ -237,11 +397,64 @@
   </div>
 </div>
 
+{# In-page confirmation: native confirm() is suppressed in some browsers
+   (it returns false at once), which made these actions silently do nothing. #}
+<div class="modal fade" id="org-confirm-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body small" id="org-confirm-text"></div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="org-confirm-ok">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+{# Map parents for unplaced units (an import without parent codes).
+   docs/policy/organization-model.md, "Unplaced units". admin_index.html moves
+   panel modals to <body> on show, so listeners hang off the modal itself. #}
+<div class="modal fade" id="org-place-modal" tabindex="-1" aria-labelledby="org-place-title" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="org-place-title">Map parents</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">These units have no parent yet. Interviewers are not offered them, or anything below them, until they are placed. Each list offers only parents valid for that unit's level (an optional level in between may be skipped).</p>
+        <div id="op-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
+        <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
+          <input type="search" id="op-filter" class="form-control form-control-sm" style="max-width:240px;" placeholder="Filter by level, code or name" aria-label="Filter unplaced units">
+          <div style="min-width:300px;"><select id="op-bulk-parent" aria-label="Parent for the selected units"></select></div>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="op-bulk-apply" disabled>Set parent for selected</button>
+          <span class="small text-muted ms-auto" id="op-count"></span>
+        </div>
+        <table class="table table-sm align-middle small mb-0">
+          <thead><tr>
+            <th style="width:2rem;"><input type="checkbox" class="form-check-input" id="op-all" aria-label="Select all shown"></th>
+            <th>Level</th><th>Code</th><th>Name</th><th style="width:42%;">Parent</th>
+          </tr></thead>
+          <tbody id="op-rows"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-sm btn-success" id="op-save"><i class="fa-solid fa-check me-1"></i>Save parents</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 (function () {
   var PROJECT_ID = {{ project_id | tojson }};
   var STATE = { levels: [], units: [], tree: [], cadres: [], level_cadres: [], workers: [] };
   var _lastDryRunOk = false;
+  var ASSETS = {
+    wbCss: {{ (url_for('static', filename='vendor/wunderbaum/wunderbaum.css') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
+    wbJs: {{ (url_for('static', filename='vendor/wunderbaum/wunderbaum.umd.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
+    tsCss: {{ (url_for('static', filename='vendor/tom-select/tom-select.bootstrap5.min.css') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
+    tsJs: {{ (url_for('static', filename='vendor/tom-select/tom-select.complete.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }}
+  };
 
   function csrf() { return window._adminCsrf || ''; }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -260,16 +473,67 @@
     el.textContent = msg;
   }
   function $(id) { return document.getElementById(id); }
+
+  // Vendor assets for the Units tab. htmx does not wait for <script src> in a
+  // swapped panel, so they are injected here and awaited. The panel is swapped
+  // in afresh each time it is opened: a library already on window, or a load
+  // already in flight (cached on window), is not fetched twice.
+  function loadCss(href) {
+    if (document.querySelector('link[href="' + href + '"]')) return;
+    var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href;
+    document.head.appendChild(link);
+  }
+  function loadJs(src, isLoaded) {
+    if (isLoaded()) return Promise.resolve();
+    var loads = window._orgPanelScriptLoads = window._orgPanelScriptLoads || {};
+    if (!loads[src]) {
+      loads[src] = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'); el.src = src;
+        el.onload = resolve;
+        el.onerror = function () { delete loads[src]; el.remove(); reject(new Error('load failed: ' + src)); };
+        document.head.appendChild(el);
+      });
+    }
+    return loads[src];
+  }
+  loadCss(ASSETS.wbCss); loadCss(ASSETS.tsCss);
+  // Settles either way: a failed load degrades the Units tab, not the panel.
+  var _libsReady = Promise.all([
+    loadJs(ASSETS.wbJs, function () { return !!(window.mar10 && window.mar10.Wunderbaum); }),
+    loadJs(ASSETS.tsJs, function () { return !!window.TomSelect; })
+  ]).catch(function () {});
+  var _confirmModalEl = document.getElementById('org-confirm-modal');
+  function askConfirm(msg, onYes) {
+    document.getElementById('org-confirm-text').textContent = msg;
+    var modal = bootstrap.Modal.getOrCreateInstance(_confirmModalEl);
+    document.getElementById('org-confirm-ok').onclick = function () { modal.hide(); onYes(); };
+    modal.show();
+  }
   function show(id, on) { $(id).classList.toggle('d-none', !on); }
   function val(id) { return $(id).value.trim(); }
   function fail(res) { alertBox('danger', (res.data && res.data.error) || 'Request failed.'); }
 
-  // ── project selector (from bootstrap) ─────────────────────────────────────
-  api('/admin/api/bootstrap').then(function (res) {
+  // ── project selector ──────────────────────────────────────────────────────
+  // Only organization-mode projects are offered, and none is picked for the
+  // admin: building a tree in the wrong project is the mistake this prevents.
+  // A pre-set PROJECT_ID is honoured only if it is one of them.
+  var PROJECTS = {};  // organization projects by id, for the coding-scope settings
+  api('/admin/api/projects').then(function (res) {
     var sel = $('org-project-select');
-    var projects = (res.data && res.data.accessible_projects) || [];
-    sel.innerHTML = projects.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
-    if (!PROJECT_ID || projects.indexOf(PROJECT_ID) < 0) PROJECT_ID = projects[0] || null;
+    var orgProjects = ((res.data && res.data.projects) || [])
+      .filter(function (p) { return p.project_structure_mode === 'organization'; });
+    orgProjects.forEach(function (p) { PROJECTS[p.project_id] = p; });
+    var ids = orgProjects.map(function (p) { return p.project_id; });
+    if (!ids.length) {
+      sel.innerHTML = '';
+      sel.disabled = true;
+      PROJECT_ID = null;
+      alertBox('info', 'No project uses organization mode. Set Structure to Organization in the Projects panel.');
+      return;
+    }
+    sel.innerHTML = '<option value="" disabled selected>Select a project…</option>'
+      + ids.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
+    if (ids.indexOf(PROJECT_ID) < 0) PROJECT_ID = null;
     if (PROJECT_ID) sel.value = PROJECT_ID;
     sel.addEventListener('change', function () { PROJECT_ID = this.value; loadAll(); });
     loadAll();
@@ -288,9 +552,11 @@
 
   // ── load ──────────────────────────────────────────────────────────────────
   function loadAll() {
-    if (!PROJECT_ID) return;
+    $('panel-organization').classList.toggle('org-no-project', !PROJECT_ID);
+    if (!PROJECT_ID) return Promise.resolve();
     alertBox();
-    api(base() + '?include_inactive=' + (showInactive() ? '1' : '0')).then(function (res) {
+    return Promise.all([api(base() + '?include_inactive=' + (showInactive() ? '1' : '0')), _libsReady]).then(function (out) {
+      var res = out[0];
       if (!res.ok) { fail(res); return; }
       STATE.levels = res.data.levels; STATE.cadres = res.data.cadres; STATE.level_cadres = res.data.level_cadres;
       STATE.tree = res.data.units; STATE.workers = res.data.workers;
@@ -298,17 +564,37 @@
       renderAll();
     });
   }
-  function renderAll() { renderLevels(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); renderOdkForm(); }
+  function renderAll() { renderLevels(); renderScope(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); renderOdkForm(); }
 
   $('org-seed-btn').addEventListener('click', function () {
-    if (!confirm('Add the template levels, cadres and permissions to project ' + PROJECT_ID + '? Existing codes are kept.')) return;
-    api(base() + '/seed-template', 'POST', {}).then(function (res) {
-      if (!res.ok) { fail(res); return; }
-      var c = res.data.seeded; alertBox('success', 'Seeded levels=' + c.levels + ' cadres=' + c.cadres + ' permissions=' + c.level_cadres + '.'); loadAll();
+    if (!PROJECT_ID) { alertBox('warning', 'Select a project first.'); return; }
+    askConfirm('Add the template levels, cadres and permissions to project ' + PROJECT_ID + '? Existing codes are kept.', function () {
+      api(base() + '/seed-template', 'POST', {}).then(function (res) {
+        if (!res.ok) { fail(res); return; }
+        var c = res.data.seeded; alertBox('success', 'Seeded levels=' + c.levels + ' cadres=' + c.cadres + ' permissions=' + c.level_cadres + '.'); loadAll();
+      });
     });
   });
 
   // ── levels ────────────────────────────────────────────────────────────────
+  // ── coding scope ─────────────────────────────────────────────────────────
+  function renderScope() {
+    var p = PROJECTS[PROJECT_ID] || {};
+    var levels = STATE.levels.filter(function (l) { return l.is_active; });
+    $('org-scope-level').innerHTML = '<option value="">No scope (coders code their own subtree)</option>'
+      + levels.map(function (l) { return '<option value="' + esc(l.org_level_id) + '">' + esc(l.level_name) + '</option>'; }).join('');
+    $('org-scope-level').value = p.coding_scope_level_id || '';
+    $('org-scope-above').value = p.above_scope_coding_mode || 'view_only';
+  }
+  $('org-scope-save').addEventListener('click', function () {
+    var body = { coding_scope_level_id: $('org-scope-level').value || null, above_scope_coding_mode: $('org-scope-above').value };
+    api('/admin/api/projects/' + encodeURIComponent(PROJECT_ID), 'PUT', body).then(function (res) {
+      if (!res.ok) { fail(res); return; }
+      Object.assign(PROJECTS[PROJECT_ID], body);
+      alertBox('success', 'Coding scope saved.');
+    });
+  });
+
   function renderLevels() {
     var rows = STATE.levels.map(function (l) {
       return '<tr class="' + (l.is_active ? '' : 'text-muted') + '"><td>' + l.depth + '</td><td><code>' + esc(l.level_code) + '</code></td><td>' + esc(l.level_name) + '</td>'
@@ -320,7 +606,9 @@
       : '<p class="text-muted small">No levels yet. Use “Seed template” or add levels.</p>';
     document.querySelectorAll('.ol-edit').forEach(function (b) { b.addEventListener('click', function () { openLevelForm(findBy(STATE.levels, 'org_level_id', b.dataset.id)); }); });
     document.querySelectorAll('.ol-toggle').forEach(function (b) { b.addEventListener('click', function () {
-      api(base() + '/levels/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+      var on = b.dataset.active !== '1';
+      var go = function () { api(base() + '/levels/' + b.dataset.id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
+      if (on) go(); else askConfirm('Deactivate this level? Units can no longer be placed at it.', go);
     }); });
   }
   function openLevelForm(l) {
@@ -337,45 +625,286 @@
   });
 
   // ── units ─────────────────────────────────────────────────────────────────
-  function renderTree() {
-    var wrap = $('org-unit-tree');
-    if (!STATE.tree.length) { wrap.innerHTML = '<p class="text-muted small">No units yet.</p>'; return; }
-    function node(u) {
-      var meta = [];
-      if (u.phone) meta.push('<i class="fa-solid fa-phone me-1"></i>' + esc(u.phone));
-      if (u.latitude && u.longitude) meta.push('<i class="fa-solid fa-location-dot me-1"></i>' + esc(u.latitude) + ', ' + esc(u.longitude));
-      if (u.google_maps_url) meta.push('<a href="' + esc(u.google_maps_url) + '" target="_blank" rel="noopener"><i class="fa-solid fa-map me-1"></i>map</a>');
-      return '<li class="mb-1 ' + (u.is_active ? '' : 'text-muted') + '">'
-        + '<span class="badge text-bg-light border me-1">' + esc(u.level_code) + '</span><code>' + esc(u.unit_code) + '</code> ' + esc(u.unit_name)
-        + (meta.length ? ' <span class="text-muted ms-2">' + meta.join(' &middot; ') + '</span>' : '')
-        + ' <button class="btn btn-sm btn-link py-0 px-1 ou-edit" data-id="' + u.org_unit_id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
-        + '<button class="btn btn-sm btn-link py-0 px-1 ou-add-child" data-id="' + u.org_unit_id + '" title="Add child"><i class="fa-solid fa-plus"></i></button>'
-        + '<button class="btn btn-sm btn-link py-0 px-1 ou-gate" data-id="' + u.org_unit_id + '" title="Coding gate"><i class="fa-solid fa-gauge"></i></button>'
-        + '<button class="btn btn-sm btn-link py-0 px-1 ou-toggle ' + (u.is_active ? 'text-danger' : 'text-success') + '" data-id="' + u.org_unit_id + '" data-active="' + (u.is_active ? 1 : 0) + '" title="' + (u.is_active ? 'Deactivate (with subtree)' : 'Activate') + '"><i class="fa-solid ' + (u.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
-        + (u.children && u.children.length ? '<ul class="list-unstyled ps-4 mt-1">' + u.children.map(node).join('') + '</ul>' : '')
-        + '</li>';
-    }
-    wrap.innerHTML = '<ul class="list-unstyled">' + STATE.tree.map(node).join('') + '</ul>';
-    document.querySelectorAll('.ou-edit').forEach(function (b) { b.addEventListener('click', function () { openUnitForm(findBy(STATE.units, 'org_unit_id', b.dataset.id), null); }); });
-    document.querySelectorAll('.ou-add-child').forEach(function (b) { b.addEventListener('click', function () { openUnitForm(null, findBy(STATE.units, 'org_unit_id', b.dataset.id)); }); });
-    document.querySelectorAll('.ou-gate').forEach(function (b) { b.addEventListener('click', function () { openUnitGateForm(findBy(STATE.units, 'org_unit_id', b.dataset.id)); }); });
-    document.querySelectorAll('.ou-toggle').forEach(function (b) { b.addEventListener('click', function () {
-      var on = b.dataset.active !== '1';
-      if (!on && !confirm('Deactivate this unit and everything below it?')) return;
-      api(base() + '/units/' + b.dataset.id + '/toggle', 'POST', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
-    }); });
+  //
+  // A Wunderbaum tree-grid over STATE.tree. The tree is rebuilt on every
+  // loadAll(); expanded rows are carried across by org_unit_id.
+  var _unitTree = null;
+  var _expandedUnitIds = null; // null until the first tree exists: expand top level then
+  var _parentPicker = null;
+
+  function unitCanvas(id) { return bootstrap.Offcanvas.getOrCreateInstance($(id)); }
+  function canvasFail(alertId, res) { var el = $(alertId); el.textContent = (res.data && res.data.error) || 'Request failed.'; el.classList.remove('d-none'); }
+  function unitById(id) { return findBy(STATE.units, 'org_unit_id', id); }
+
+  function unitNodes(units, depth) {
+    return units.map(function (u) {
+      var open = _expandedUnitIds ? _expandedUnitIds[u.org_unit_id] : depth === 0;
+      return { key: u.org_unit_id, title: u.unit_name, expanded: !!open,
+        classes: u.is_active ? '' : 'org-inactive',
+        children: (u.children || []).length ? unitNodes(u.children, depth + 1) : undefined };
+    });
   }
+
+  function unitActions(u) {
+    var id = esc(u.org_unit_id);
+    return '<span class="org-act">'
+      + '<button type="button" class="btn btn-sm btn-link" data-act="child" data-id="' + id + '" title="Add child"' + (u.is_active ? '' : ' disabled') + '><i class="fa-solid fa-plus"></i></button>'
+      + '<button type="button" class="btn btn-sm btn-link" data-act="worker" data-id="' + id + '" title="Add worker here"' + (u.is_active ? '' : ' disabled') + '><i class="fa-solid fa-user-plus"></i></button>'
+      + '<button type="button" class="btn btn-sm btn-link" data-act="edit" data-id="' + id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
+      + '<button type="button" class="btn btn-sm btn-link" data-act="gate" data-id="' + id + '" title="Coding gate"><i class="fa-solid fa-gauge"></i></button>'
+      + '<button type="button" class="btn btn-sm btn-link ' + (u.is_active ? 'text-danger' : 'text-success') + '" data-act="toggle" data-id="' + id + '" title="' + (u.is_active ? 'Deactivate (with subtree)' : 'Activate') + '"><i class="fa-solid ' + (u.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
+      + '</span>';
+  }
+
+  function renderUnitRow(e) {
+    var u = unitById(e.node.key);
+    if (!u) return;
+    // The level badge is drawn by CSS from data-lvl, because Wunderbaum
+    // rewrites the title text (and sizes the title span) on every render.
+    var title = e.nodeElem.querySelector('span.wb-title');
+    if (title) title.setAttribute('data-lvl', u.level_code);
+    var cols = e.renderColInfosById;
+    cols.code.elem.innerHTML = '<code>' + esc(u.unit_code) + '</code>';
+    cols.level.elem.textContent = u.level_name;
+    cols.phone.elem.textContent = u.phone || '';
+    cols.status.elem.innerHTML = (u.is_active ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>')
+      + (u.is_unplaced ? ' <span class="badge text-bg-warning" title="No parent yet: Map parents">unplaced</span>' : '');
+    cols.actions.elem.innerHTML = unitActions(u);
+  }
+
+  function applyUnitFilter() {
+    if (!_unitTree) return;
+    var q = $('org-unit-search').value.trim().toLowerCase();
+    if (!q) { _unitTree.clearFilter(); return; }
+    _unitTree.filterNodes(function (node) {
+      var u = unitById(node.key);
+      return !!u && (u.unit_code.toLowerCase().indexOf(q) >= 0 || u.unit_name.toLowerCase().indexOf(q) >= 0);
+    }, { mode: 'hide', autoExpand: true });
+  }
+
+  function renderTree() {
+    renderUnplacedBanner();
+    var levels = activeLevels();
+    var hasLevels = levels.length > 0;
+    var empty = $('org-unit-empty');
+    $('org-unit-add-btn').disabled = !hasLevels;
+    if (_unitTree) {
+      _expandedUnitIds = {};
+      _unitTree.visit(function (n) { if (n.expanded) _expandedUnitIds[n.key] = true; });
+      _unitTree.destroy(); // replaces #org-unit-tree with a fresh clone
+      _unitTree = null;
+    }
+    var showTree = hasLevels && STATE.tree.length > 0 && !!(window.mar10 && window.mar10.Wunderbaum);
+    show('org-unit-toolbar', showTree);
+    show('org-unit-tree-wrap', showTree);
+    if (!hasLevels) { empty.innerHTML = '<p class="text-muted small">Create levels first (tab 1), then add units here.</p>'; return; }
+    if (!STATE.tree.length) {
+      empty.innerHTML = '<div class="text-center border rounded py-5">'
+        + '<p class="text-muted mb-3">No units yet. Start with the top level.</p>'
+        + '<button type="button" class="btn btn-primary" id="org-unit-first-btn"><i class="fa-solid fa-plus me-1"></i>Add the first ' + esc(levels[0].level_name) + '</button></div>';
+      $('org-unit-first-btn').addEventListener('click', function () { openUnitForm(null, null); });
+      return;
+    }
+    if (!showTree) { empty.innerHTML = '<p class="text-danger small">The tree component did not load. Reload the page.</p>'; return; }
+    empty.innerHTML = '';
+    _unitTree = new mar10.Wunderbaum({
+      element: $('org-unit-tree'),
+      id: 'org-units',
+      source: unitNodes(STATE.tree, 0),
+      iconMap: 'fontawesome6',
+      icon: false,
+      rowHeightPx: 32,
+      navigationModeOption: 'row', // row selection only; cells are not editable
+      columns: [
+        { id: '*', title: 'Name', width: '*', minWidth: '260px' },
+        { id: 'code', title: 'Code', width: '120px' },
+        { id: 'level', title: 'Level', width: '130px' },
+        { id: 'phone', title: 'Phone', width: '130px' },
+        { id: 'status', title: 'Status', width: '150px' },
+        { id: 'actions', title: 'Actions', width: '190px' }
+      ],
+      render: renderUnitRow,
+      // Drag a unit onto its new parent. Siblings have no order, so 'over' is
+      // the only drop region; the server re-validates and rewrites paths.
+      dnd: {
+        dragStart: function (e) { var u = unitById(e.node.key); return !!(u && u.is_active); },
+        dragEnter: function (e) {
+          var src = e.sourceNode && unitById(e.sourceNode.key);
+          return canPlaceUnder(src, unitById(e.node.key)) ? 'over' : false;
+        },
+        drop: function (e) {
+          var src = e.sourceNode && unitById(e.sourceNode.key), tgt = unitById(e.node.key);
+          if (canPlaceUnder(src, tgt)) moveUnit(src, tgt);
+        }
+      }
+    });
+    applyUnitFilter();
+  }
+
+  // ── placing units: drag-and-drop and the Map parents modal ─────────────
+  // Parent levels valid for a unit at levelId: the level directly above, and
+  // further up while the level passed over is optional (the server's rule in
+  // _validate_parent_for_level; allowedLevels() is the same rule downwards).
+  function parentLevelIds(levelId) {
+    var all = activeLevels(), idx = -1, out = {};
+    all.forEach(function (l, i) { if (l.org_level_id === levelId) idx = i; });
+    for (var j = idx - 1; j >= 0; j--) { out[all[j].org_level_id] = true; if (!all[j].is_optional) break; }
+    return out;
+  }
+  function inSubtree(u, root) { return u.path === root.path || u.path.indexOf(root.path + '.') === 0; }
+  function canPlaceUnder(src, tgt) {
+    return !!(src && tgt && src.is_active && tgt.is_active && tgt.org_unit_id !== src.parent_org_unit_id
+      && !inSubtree(tgt, src) && parentLevelIds(src.org_level_id)[tgt.org_level_id]);
+  }
+  function placeUnits(placements) { return api(base() + '/units/place', 'POST', { placements: placements }); }
+  function moveUnit(src, tgt) {
+    var n = STATE.units.filter(function (u) { return u !== src && inSubtree(u, src); }).length;
+    askConfirm('Move ' + src.unit_name + ' (' + src.unit_code + ') under ' + tgt.unit_name + ' (' + tgt.unit_code + ')? Its ' + n + ' descendant unit' + (n === 1 ? '' : 's') + ' move with it.', function () {
+      placeUnits([{ org_unit_id: src.org_unit_id, parent_org_unit_id: tgt.org_unit_id }]).then(function (res) {
+        if (!res.ok) fail(res); else alertBox('success', src.unit_code + ' moved under ' + tgt.unit_code + '.');
+        loadAll();
+      });
+    });
+  }
+
+  function unplacedUnits() {
+    return STATE.units.filter(function (u) { return u.is_unplaced && u.is_active; })
+      .sort(function (a, b) { return a.depth - b.depth || a.unit_code.localeCompare(b.unit_code); });
+  }
+  function renderUnplacedBanner() {
+    var n = unplacedUnits().length;
+    show('org-unplaced-banner', n > 0);
+    $('org-unplaced-text').textContent = n + ' unit' + (n === 1 ? ' needs' : 's need') + ' a parent. Interviewers are not offered them until they are placed.';
+  }
+  // Active units that may parent every unit in *units*: at a level valid for
+  // all of them, and outside each one's own subtree.
+  function parentCandidates(units) {
+    var ok = null;
+    units.forEach(function (u) {
+      var ids = parentLevelIds(u.org_level_id);
+      if (ok === null) ok = ids;
+      else Object.keys(ok).forEach(function (k) { if (!ids[k]) delete ok[k]; });
+    });
+    ok = ok || {};
+    return STATE.units.filter(function (p) {
+      return p.is_active && ok[p.org_level_id] && !units.some(function (u) { return inSubtree(p, u); });
+    }).sort(function (a, b) { return a.depth - b.depth || a.unit_name.localeCompare(b.unit_name); })
+      .map(function (p) { return { value: p.org_unit_id, text: workerUnitLabel(p) }; });
+  }
+
+  var _placeModalEl = $('org-place-modal'), _bulkPicker = null;
+  function placeModal() { return bootstrap.Modal.getOrCreateInstance(_placeModalEl); }
+  function placeRows() { return Array.prototype.slice.call(_placeModalEl.querySelectorAll('#op-rows tr[data-id]')); }
+  function openPlaceModal() {
+    var units = unplacedUnits();
+    if (!units.length) { placeModal().hide(); return; }
+    show('op-alert', false);
+    $('op-all').checked = false;
+    // Row pickers start as an empty <select>; Tom Select is built on first
+    // focus, so hundreds of rows do not each copy hundreds of options up front.
+    $('op-rows').innerHTML = units.map(function (u) {
+      return '<tr data-id="' + esc(u.org_unit_id) + '" data-search="' + esc((u.level_name + ' ' + u.unit_code + ' ' + u.unit_name).toLowerCase()) + '">'
+        + '<td><input type="checkbox" class="form-check-input op-pick" aria-label="Select ' + esc(u.unit_code) + '"></td>'
+        + '<td>' + esc(u.level_name) + '</td><td><code>' + esc(u.unit_code) + '</code></td><td>' + esc(u.unit_name) + '</td>'
+        + '<td><select class="form-select form-select-sm op-parent" data-id="' + esc(u.org_unit_id) + '" aria-label="Parent for ' + esc(u.unit_code) + '"><option value="">Choose parent…</option></select></td></tr>';
+    }).join('');
+    applyPlaceFilter();
+    refreshBulkPicker();
+    placeModal().show();
+  }
+  function ensureRowPicker(sel) {
+    if (sel.tomselect || sel.dataset.filled) return;
+    var opts = parentCandidates([unitById(sel.dataset.id)]);
+    if (window.TomSelect) {
+      new TomSelect(sel, { options: opts, maxOptions: 200, placeholder: 'Choose parent…' });
+      sel.tomselect.focus();
+    } else {
+      opts = opts.filter(function (o) { return !sel.querySelector('option[value="' + o.value + '"]'); });
+      sel.insertAdjacentHTML('beforeend', opts.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.text) + '</option>'; }).join(''));
+    }
+    sel.dataset.filled = '1';
+  }
+  function setRowParent(sel, opt) {
+    if (sel.tomselect) { sel.tomselect.addOption(opt); sel.tomselect.setValue(opt.value, true); return; }
+    if (!sel.querySelector('option[value="' + opt.value + '"]')) sel.insertAdjacentHTML('beforeend', '<option value="' + esc(opt.value) + '">' + esc(opt.text) + '</option>');
+    sel.value = opt.value;
+  }
+  function selectedPlaceUnits() {
+    return placeRows().filter(function (tr) { return !tr.classList.contains('d-none') && tr.querySelector('.op-pick').checked; })
+      .map(function (tr) { return unitById(tr.dataset.id); });
+  }
+  function refreshBulkPicker() {
+    if (_bulkPicker) { _bulkPicker.destroy(); _bulkPicker = null; }
+    var units = selectedPlaceUnits(), opts = units.length ? parentCandidates(units) : [];
+    var sel = $('op-bulk-parent');
+    sel.innerHTML = '<option value="">' + (units.length ? (opts.length ? 'Parent for ' + units.length + ' selected…' : 'No parent fits every selected level') : 'Select units first') + '</option>'
+      + opts.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.text) + '</option>'; }).join('');
+    if (window.TomSelect) _bulkPicker = new TomSelect(sel, { maxOptions: 200 });
+    $('op-bulk-apply').disabled = !opts.length;
+  }
+  function applyPlaceFilter() {
+    var q = $('op-filter').value.trim().toLowerCase(), shown = 0, rows = placeRows();
+    rows.forEach(function (tr) { var on = !q || tr.dataset.search.indexOf(q) >= 0; tr.classList.toggle('d-none', !on); if (on) shown++; });
+    $('op-count').textContent = shown + ' of ' + rows.length + ' unplaced';
+  }
+  _placeModalEl.addEventListener('focusin', function (ev) { if (ev.target.classList.contains('op-parent')) ensureRowPicker(ev.target); });
+  _placeModalEl.addEventListener('mousedown', function (ev) { if (ev.target.classList.contains('op-parent')) ensureRowPicker(ev.target); });
+  _placeModalEl.addEventListener('change', function (ev) {
+    if (ev.target.id === 'op-all') placeRows().forEach(function (tr) { if (!tr.classList.contains('d-none')) tr.querySelector('.op-pick').checked = ev.target.checked; });
+    if (ev.target.id === 'op-all' || ev.target.classList.contains('op-pick')) refreshBulkPicker();
+  });
+  _placeModalEl.addEventListener('input', function (ev) { if (ev.target.id === 'op-filter') applyPlaceFilter(); });
+  _placeModalEl.addEventListener('click', function (ev) {
+    if (ev.target.closest('#op-bulk-apply')) {
+      var v = $('op-bulk-parent').value, p = unitById(v);
+      if (!p) return;
+      var opt = { value: p.org_unit_id, text: workerUnitLabel(p) };
+      selectedPlaceUnits().forEach(function (u) { setRowParent(_placeModalEl.querySelector('.op-parent[data-id="' + u.org_unit_id + '"]'), opt); });
+    } else if (ev.target.closest('#op-save')) {
+      var placements = Array.prototype.slice.call(_placeModalEl.querySelectorAll('.op-parent'))
+        .filter(function (sel) { return sel.value; })
+        .map(function (sel) { return { org_unit_id: sel.dataset.id, parent_org_unit_id: sel.value }; });
+      if (!placements.length) { $('op-alert').textContent = 'Choose a parent for at least one unit.'; show('op-alert', true); return; }
+      placeUnits(placements).then(function (res) {
+        if (!res.ok) { $('op-alert').textContent = (res.data && res.data.error) || 'Request failed.'; show('op-alert', true); return; }
+        alertBox('success', res.data.placed + ' unit(s) placed.');
+        loadAll().then(openPlaceModal);
+      });
+    }
+  });
+  $('org-unplaced-open').addEventListener('click', openPlaceModal);
+
+  // Row buttons: one delegated listener on the wrapper, which (unlike the
+  // tree element) survives Wunderbaum's destroy().
+  $('org-unit-tree-wrap').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-act]');
+    if (!b || b.disabled) return;
+    var u = unitById(b.dataset.id);
+    if (!u) return;
+    if (b.dataset.act === 'edit') openUnitForm(u, null);
+    else if (b.dataset.act === 'child') openUnitForm(null, u);
+    else if (b.dataset.act === 'gate') openUnitGateForm(u);
+    else if (b.dataset.act === 'worker') openWorkerForm(null, u);
+    else if (b.dataset.act === 'toggle') {
+      var on = !u.is_active;
+      var go = function () { api(base() + '/units/' + u.org_unit_id + '/toggle', 'POST', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
+      if (on) go(); else askConfirm('Deactivate ' + u.unit_code + ' and everything below it?', go);
+    }
+  });
+  $('org-unit-search').addEventListener('input', applyUnitFilter);
+  $('org-unit-expand-all').addEventListener('click', function () { if (_unitTree) _unitTree.expandAll(true); });
+  $('org-unit-collapse-all').addEventListener('click', function () { if (_unitTree) _unitTree.expandAll(false, { deep: true }); });
 
   // ── unit coding gate ────────────────────────────────────────────────────
   function openUnitGateForm(u) {
     if (!u) return;
-    show('org-unit-form', false);
     $('org-unit-gate-form-title').textContent = 'Coding gate — ' + u.unit_code + ' (' + u.unit_name + ')';
     $('oug-unit-id').value = u.org_unit_id;
     $('oug-enabled').value = 'true'; $('oug-start').value = ''; $('oug-end').value = ''; $('oug-limit').value = '';
-    show('org-unit-gate-form', true);
+    show('oug-alert', false);
+    unitCanvas('org-unit-gate-canvas').show();
     api(base() + '/units/' + u.org_unit_id + '/coding-gate').then(function (res) {
-      if (!res.ok) { fail(res); return; }
+      if (!res.ok) { canvasFail('oug-alert', res); return; }
       var g = res.data.coding_gate;
       if (g) {
         $('oug-enabled').value = g.coding_enabled ? 'true' : 'false';
@@ -385,7 +914,6 @@
       }
     });
   }
-  $('oug-cancel-btn').addEventListener('click', function () { show('org-unit-gate-form', false); });
   $('oug-save-btn').addEventListener('click', function () {
     var id = val('oug-unit-id');
     if (!id) return;
@@ -396,47 +924,81 @@
       daily_coder_limit: val('oug-limit') ? parseInt(val('oug-limit'), 10) : null,
     };
     api(base() + '/units/' + id + '/coding-gate', 'PUT', body).then(function (res) {
-      if (!res.ok) { fail(res); return; }
-      alertBox('success', 'Coding gate saved.'); show('org-unit-gate-form', false);
+      if (!res.ok) { canvasFail('oug-alert', res); return; }
+      alertBox('success', 'Coding gate saved.'); unitCanvas('org-unit-gate-canvas').hide();
     });
   });
   $('oug-clear-btn').addEventListener('click', function () {
     var id = val('oug-unit-id');
     if (!id) return;
-    if (!confirm('Clear this unit\'s own coding gate? It will then inherit its nearest gated ancestor, if any.')) return;
-    api(base() + '/units/' + id + '/coding-gate', 'DELETE').then(function (res) {
-      if (!res.ok) { fail(res); return; }
-      alertBox('success', 'Coding gate cleared.'); show('org-unit-gate-form', false);
+    askConfirm('Clear this unit\'s own coding gate? It will then inherit its nearest gated ancestor, if any.', function () {
+      api(base() + '/units/' + id + '/coding-gate', 'DELETE').then(function (res) {
+        if (!res.ok) { canvasFail('oug-alert', res); return; }
+        alertBox('success', 'Coding gate cleared.'); unitCanvas('org-unit-gate-canvas').hide();
+      });
     });
   });
   function fillUnitSelect(sel, excludeId, allowNone) {
     sel.innerHTML = (allowNone ? '<option value="">(none — top level)</option>' : '') + STATE.units.filter(function (u) { return u.is_active && u.org_unit_id !== excludeId; })
       .map(function (u) { return '<option value="' + u.org_unit_id + '">' + esc(u.path.replace(/\./g, ' › ')) + ' — ' + esc(u.unit_name) + '</option>'; }).join('');
   }
+  // The level a new child takes: the next active level below its parent, or
+  // the top level when there is no parent.
+  // Levels a unit may take under this parent: every level below it down to
+  // and including the first required one (optional levels may be skipped —
+  // docs/policy/organization-model.md). No parent: the top level only.
+  function allowedLevels(parentId) {
+    var all = activeLevels(), p = parentId ? unitById(parentId) : null;
+    if (!p) return all.slice(0, 1);
+    var out = [];
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].depth <= p.depth) continue;
+      out.push(all[i]);
+      if (!all[i].is_optional) break;
+    }
+    return out;
+  }
+  function fillLevelSelect(parentId, keepId) {
+    var opts = allowedLevels(parentId);
+    if (keepId && !opts.some(function (l) { return l.org_level_id === keepId; })) {
+      var cur = activeLevels().filter(function (l) { return l.org_level_id === keepId; })[0];
+      if (cur) opts = opts.concat([cur]);
+    }
+    $('ou-level').innerHTML = opts.map(function (l) {
+      return '<option value="' + l.org_level_id + '">' + l.depth + ' · ' + esc(l.level_name) + (l.is_optional ? ' (optional — may skip)' : '') + '</option>';
+    }).join('');
+    $('ou-level').value = keepId || (opts[0] ? opts[0].org_level_id : '');
+  }
+
   function openUnitForm(u, parent) {
-    $('org-unit-form-title').textContent = u ? 'Edit unit ' + u.unit_code : 'Add unit';
-    $('ou-level').innerHTML = STATE.levels.filter(function (l) { return l.is_active; }).map(function (l) { return '<option value="' + l.org_level_id + '">' + l.depth + ' · ' + esc(l.level_name) + '</option>'; }).join('');
+    $('org-unit-form-title').textContent = u ? 'Edit unit ' + u.unit_code : (parent ? 'Add unit under ' + parent.unit_code : 'Add top-level unit');
+    if (_parentPicker) { _parentPicker.destroy(); _parentPicker = null; }
     fillUnitSelect($('ou-parent'), u ? u.org_unit_id : null, true);
     $('ou-id').value = u ? u.org_unit_id : '';
-    $('ou-level').value = u ? u.org_level_id : (parent ? nextLevelAfter(parent.depth) : ($('ou-level').options[0] ? $('ou-level').options[0].value : ''));
     $('ou-parent').value = u ? (u.parent_org_unit_id || '') : (parent ? parent.org_unit_id : '');
+    fillLevelSelect($('ou-parent').value, u ? u.org_level_id : null);
     ['code','name','address','phone','lat','lng','map','remarks'].forEach(function (k) {
       var map = { code: 'unit_code', name: 'unit_name', address: 'address', phone: 'phone', lat: 'latitude', lng: 'longitude', map: 'google_maps_url', remarks: 'remarks' };
       $('ou-' + k).value = u ? (u[map[k]] || '') : '';
     });
-    show('org-unit-form', true); $('ou-code').focus();
+    if (window.TomSelect) {
+      _parentPicker = new TomSelect($('ou-parent'), {
+        maxOptions: null,
+        onChange: function (v) { fillLevelSelect(v, null); }
+      });
+    }
+    show('ou-alert', false);
+    unitCanvas('org-unit-canvas').show();
   }
-  function nextLevelAfter(depth) {
-    var next = STATE.levels.filter(function (l) { return l.is_active && l.depth > depth; }).sort(function (a, b) { return a.depth - b.depth; })[0];
-    return next ? next.org_level_id : '';
-  }
+  $('org-unit-canvas').addEventListener('shown.bs.offcanvas', function () { $('ou-code').focus(); });
+  // Without Tom Select (failed load) the plain select still drives the level.
+  $('ou-parent').addEventListener('change', function () { if (!_parentPicker) fillLevelSelect(this.value, null); });
   $('org-unit-add-btn').addEventListener('click', function () { openUnitForm(null, null); });
-  $('ou-cancel-btn').addEventListener('click', function () { show('org-unit-form', false); });
   $('ou-save-btn').addEventListener('click', function () {
     var id = val('ou-id');
     var body = { org_level_id: val('ou-level'), parent_org_unit_id: val('ou-parent') || null, unit_code: val('ou-code'), unit_name: val('ou-name'),
       address: val('ou-address'), phone: val('ou-phone'), latitude: val('ou-lat'), longitude: val('ou-lng'), google_maps_url: val('ou-map'), remarks: val('ou-remarks') };
-    api(base() + '/units' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { fail(res); return; } show('org-unit-form', false); loadAll(); });
+    api(base() + '/units' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { canvasFail('ou-alert', res); return; } unitCanvas('org-unit-canvas').hide(); loadAll(); });
   });
 
   // ── cadres & permissions ──────────────────────────────────────────────────
@@ -449,7 +1011,9 @@
     $('org-cadre-table').innerHTML = rows ? '<table class="table table-sm small align-middle"><tbody>' + rows + '</tbody></table>' : '<p class="text-muted small">No cadres yet.</p>';
     document.querySelectorAll('.oc-edit').forEach(function (b) { b.addEventListener('click', function () { var c = findBy(STATE.cadres, 'cadre_id', b.dataset.id); $('oc-id').value = c.cadre_id; $('oc-code').value = c.cadre_code; $('oc-name').value = c.cadre_name; show('org-cadre-form', true); }); });
     document.querySelectorAll('.oc-toggle').forEach(function (b) { b.addEventListener('click', function () {
-      api(base() + '/cadres/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+      var on = b.dataset.active !== '1';
+      var go = function () { api(base() + '/cadres/' + b.dataset.id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
+      if (on) go(); else askConfirm('Deactivate this cadre? It disappears from the level lists and the worker form; workers who already have it keep it.', go);
     }); });
   }
   $('org-cadre-add-btn').addEventListener('click', function () { $('oc-id').value = ''; $('oc-code').value = ''; $('oc-name').value = ''; show('org-cadre-form', true); });
@@ -458,56 +1022,235 @@
     var id = val('oc-id');
     api(base() + '/cadres' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', { cadre_code: val('oc-code'), cadre_name: val('oc-name') }).then(function (res) { if (!res.ok) { fail(res); return; } show('org-cadre-form', false); loadAll(); });
   });
+  // One row per level listing only the cadres that exist there (an active
+  // map_org_level_cadre row), each with its Fill / Code permissions. Adding a
+  // cadre creates the row; removing it deactivates the row, never deletes.
   function renderPermGrid() {
     var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
     if (!levels.length || !cadres.length) { $('org-perm-grid').innerHTML = '<p class="text-muted small">Define levels and cadres first.</p>'; return; }
     var lookup = {}; STATE.level_cadres.forEach(function (lc) { lookup[lc.org_level_id + '|' + lc.cadre_id] = lc; });
-    var head = '<tr><th></th>' + cadres.map(function (c) { return '<th class="text-center"><code>' + esc(c.cadre_code) + '</code></th>'; }).join('') + '</tr>';
     var body = levels.map(function (l) {
-      return '<tr><th class="text-nowrap">' + esc(l.level_name) + '</th>' + cadres.map(function (c) {
-        var lc = lookup[l.org_level_id + '|' + c.cadre_id], on = lc && lc.is_active;
-        return '<td class="text-center text-nowrap">'
-          + '<label class="me-1" title="can fill VA form"><input type="checkbox" class="perm-box" data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '" data-k="fill" ' + (on && lc.can_fill_va_form ? 'checked' : '') + '> F</label>'
-          + '<label title="can code VA form"><input type="checkbox" class="perm-box" data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '" data-k="code" ' + (on && lc.can_code_va_form ? 'checked' : '') + '> C</label>'
-          + '</td>';
-      }).join('') + '</tr>';
+      var here = cadres.filter(function (c) { var lc = lookup[l.org_level_id + '|' + c.cadre_id]; return lc && lc.is_active; });
+      var missing = cadres.filter(function (c) { return here.indexOf(c) < 0; });
+      var chips = here.map(function (c) {
+        var lc = lookup[l.org_level_id + '|' + c.cadre_id];
+        var attrs = ' data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '"';
+        return '<span class="d-inline-flex align-items-center gap-2 border rounded px-2 py-1 me-1 mb-1">'
+          + '<code title="' + esc(c.cadre_name) + '">' + esc(c.cadre_code) + '</code>'
+          + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '>Fill VA</label>'
+          + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
+          + '<button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from this level"><i class="fa-solid fa-xmark"></i></button>'
+          + '</span>';
+      }).join('');
+      var add = missing.length
+        ? '<select class="form-select form-select-sm d-inline-block w-auto perm-add" data-l="' + l.org_level_id + '"><option value="">+ Add cadre…</option>'
+          + missing.map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('') + '</select>'
+        : '';
+      return '<tr><th class="text-nowrap align-top">' + esc(l.level_name) + '</th><td>'
+        + (chips || '<span class="text-muted me-2">No cadres at this level.</span>') + add + '</td></tr>';
     }).join('');
-    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><tbody>' + body + '</tbody></table>';
+    function save(l, c, fill, code, active) {
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, is_active: active })
+        .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
+    }
     document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
       var l = box.dataset.l, c = box.dataset.c;
       var fill = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="fill"]').checked;
       var code = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="code"]').checked;
-      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, is_active: fill || code }).then(function (res) { if (!res.ok) { fail(res); loadAll(); } else { alertBox(); } });
+      save(l, c, fill, code, true);
+    }); });
+    document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
+      if (sel.value) save(sel.dataset.l, sel.value, false, false, true);
+    }); });
+    document.querySelectorAll('.perm-remove').forEach(function (btn) { btn.addEventListener('click', function () {
+      var lc = lookup[btn.dataset.l + '|' + btn.dataset.c];
+      var cadre = findBy(cadres, 'cadre_id', btn.dataset.c), level = findBy(levels, 'org_level_id', btn.dataset.l);
+      askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; existing ones stay.', function () {
+        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, false);
+      });
     }); });
   }
 
   // ── workers ───────────────────────────────────────────────────────────────
+  //
+  // A filtered table over STATE.workers (the server already drops inactive
+  // workers unless Show inactive is on) and an offcanvas editor like the
+  // unit form. A worker's cadre must be placed at its unit's level (an active
+  // map_org_level_cadre row); the server enforces that too.
+  // ponytail: the API returns every worker of the project; past a few
+  // thousand, page it server-side instead of capping the rendered rows.
+  var WORKER_ROW_LIMIT = 500;
+  var _workerUnitPicker = null, _workerFormUnitPicker = null, _editingWorker = null;
+
+  function workerUnitLabel(u) { return u.level_name + ' · ' + u.unit_name + ' (' + u.unit_code + ')'; }
+  function fillWorkerUnitSelect(sel, units, first) {
+    sel.innerHTML = first + units.map(function (u) { return '<option value="' + esc(u.org_unit_id) + '">' + esc(workerUnitLabel(u)) + '</option>'; }).join('');
+  }
+  // Active cadres with an active placement at this level, as {lc, cadre}.
+  function cadresAtLevel(levelId) {
+    return STATE.level_cadres
+      .filter(function (lc) { return lc.is_active && lc.org_level_id === levelId; })
+      .map(function (lc) { return { lc: lc, cadre: findBy(STATE.cadres, 'cadre_id', lc.cadre_id) }; })
+      .filter(function (x) { return x.cadre && x.cadre.is_active; });
+  }
+  function byId(list, key) { var out = {}; list.forEach(function (x) { out[x[key]] = x; }); return out; }
+
   function renderWorkers() {
-    var rows = STATE.workers.map(function (w) {
-      return '<tr class="' + (w.is_active ? '' : 'text-muted') + '"><td><code>' + esc(w.worker_code) + '</code></td><td>' + esc(w.worker_name) + '</td><td>' + esc(w.cadre_code) + '</td><td>' + esc(w.unit_code) + ' ' + esc(w.unit_name) + '</td><td>' + esc(w.phone) + '</td><td>' + esc(w.user_email) + '</td>'
-        + '<td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2 ow-edit" data-id="' + w.worker_id + '"><i class="fa-solid fa-pen"></i></button> '
-        + '<button class="btn btn-sm py-0 px-2 ow-toggle ' + (w.is_active ? 'btn-outline-danger' : 'btn-outline-success') + '" data-id="' + w.worker_id + '" data-active="' + (w.is_active ? 1 : 0) + '"><i class="fa-solid ' + (w.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button></td></tr>';
+    var hasUnits = STATE.units.some(function (u) { return u.is_active; });
+    var hasCadres = activeLevels().some(function (l) { return cadresAtLevel(l.org_level_id).length > 0; });
+    var addBtn = $('org-worker-add-btn');
+    addBtn.disabled = !hasUnits || !hasCadres;
+    addBtn.title = !hasUnits ? 'Add units first' : (!hasCadres ? 'Place cadres at levels first' : '');
+    var hasWorkers = STATE.workers.length > 0;
+    show('org-worker-toolbar', hasWorkers);
+    var empty = $('org-worker-empty');
+    if (!hasWorkers) {
+      $('org-worker-table').innerHTML = '';
+      if (!hasUnits) empty.innerHTML = '<p class="text-muted small">Add units first (<a href="#" data-org-goto="units">tab 2</a>), then attach workers to them.</p>';
+      else if (!hasCadres) empty.innerHTML = '<p class="text-muted small">No cadres are placed at any level. Add them in <a href="#" data-org-goto="perms">Cadres &amp; permissions → Permissions by level</a>.</p>';
+      else empty.innerHTML = '<div class="text-center border rounded py-5">'
+        + '<p class="text-muted mb-3">No workers yet.</p>'
+        + '<button type="button" class="btn btn-primary" data-org-goto="first"><i class="fa-solid fa-user-plus me-1"></i>Add the first worker</button></div>';
+      return;
+    }
+    empty.innerHTML = '';
+
+    // Filters are rebuilt from the fresh STATE, keeping what was chosen.
+    var unitSel = $('org-worker-unit-filter');
+    var keepUnit = unitSel.value;
+    if (_workerUnitPicker) { _workerUnitPicker.destroy(); _workerUnitPicker = null; }
+    fillWorkerUnitSelect(unitSel, STATE.units, '<option value="">All units</option>');
+    unitSel.value = unitById(keepUnit) ? keepUnit : '';
+    if (window.TomSelect) _workerUnitPicker = new TomSelect(unitSel, { maxOptions: null, allowEmptyOption: true });
+    var cadreSel = $('org-worker-cadre-filter'), keepCadre = cadreSel.value;
+    cadreSel.innerHTML = '<option value="">All cadres</option>' + STATE.cadres.map(function (c) {
+      return '<option value="' + esc(c.cadre_id) + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>';
     }).join('');
-    $('org-worker-table').innerHTML = rows ? '<table class="table table-sm small align-middle"><thead><tr><th>Code</th><th>Name</th><th>Cadre</th><th>Unit</th><th>Phone</th><th>User</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="text-muted small">No workers yet.</p>';
-    document.querySelectorAll('.ow-edit').forEach(function (b) { b.addEventListener('click', function () { openWorkerForm(findBy(STATE.workers, 'worker_id', b.dataset.id)); }); });
-    document.querySelectorAll('.ow-toggle').forEach(function (b) { b.addEventListener('click', function () {
-      api(base() + '/workers/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
-    }); });
+    cadreSel.value = findBy(STATE.cadres, 'cadre_id', keepCadre) ? keepCadre : '';
+    drawWorkerRows();
   }
-  function openWorkerForm(w) {
-    fillUnitSelect($('ow-unit'), null, false);
-    $('ow-cadre').innerHTML = STATE.cadres.filter(function (c) { return c.is_active; }).map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('');
-    $('ow-id').value = w ? w.worker_id : ''; if (w) { $('ow-unit').value = w.org_unit_id; $('ow-cadre').value = w.cadre_id; }
-    $('ow-code').value = w ? w.worker_code : ''; $('ow-name').value = w ? w.worker_name : ''; $('ow-phone').value = w ? (w.phone || '') : '';
+
+  function drawWorkerRows() {
+    var units = byId(STATE.units, 'org_unit_id'), cadres = byId(STATE.cadres, 'cadre_id');
+    var q = $('org-worker-search').value.trim().toLowerCase();
+    var within = units[$('org-worker-unit-filter').value], cadreId = $('org-worker-cadre-filter').value;
+    var inactiveOk = showInactive();
+    var matches = STATE.workers.filter(function (w) {
+      if (!w.is_active && !inactiveOk) return false;
+      if (cadreId && w.cadre_id !== cadreId) return false;
+      if (within) {
+        // The chosen unit and everything below it, by ltree path prefix.
+        var wu = units[w.org_unit_id];
+        if (!wu || (wu.path !== within.path && wu.path.indexOf(within.path + '.') !== 0)) return false;
+      }
+      return !q || [w.worker_name, w.phone].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    var total = STATE.workers.length;
+    $('org-worker-count').textContent = (matches.length === total ? '' : matches.length + ' of ') + total + ' worker' + (total === 1 ? '' : 's');
+    if (!matches.length) { $('org-worker-table').innerHTML = '<p class="text-muted small">No workers match these filters.</p>'; return; }
+    var rows = matches.slice(0, WORKER_ROW_LIMIT).map(function (w) {
+      var u = units[w.org_unit_id], c = cadres[w.cadre_id], id = esc(w.worker_id);
+      return '<tr class="' + (w.is_active ? '' : 'org-inactive') + '">'
+        + '<td>' + esc(w.worker_name) + '</td>'
+        + '<td><span class="badge text-bg-light border" title="' + esc(c ? c.cadre_name : w.cadre_code) + '">' + esc(w.cadre_code) + '</span></td>'
+        + '<td>' + (u ? '<span class="badge text-bg-light border text-secondary me-1" title="' + esc(u.level_name) + '">' + esc(u.level_code) + '</span>' : '')
+        + esc(w.unit_name) + ' <code class="small">' + esc(w.unit_code) + '</code></td>'
+        + '<td class="text-nowrap">' + esc(w.phone) + '</td>'
+        + '<td>' + (w.user_email ? esc(w.user_email) : '<span class="text-muted">—</span>') + '</td>'
+        + '<td>' + (w.is_active ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>') + '</td>'
+        + '<td class="text-end text-nowrap">'
+        + '<button type="button" class="btn btn-sm btn-link py-0 px-1" data-act="edit" data-id="' + id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
+        + '<button type="button" class="btn btn-sm btn-link py-0 px-1 ' + (w.is_active ? 'text-danger' : 'text-success') + '" data-act="toggle" data-id="' + id + '" title="' + (w.is_active ? 'Deactivate' : 'Activate') + '"><i class="fa-solid ' + (w.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
+        + '</td></tr>';
+    }).join('');
+    $('org-worker-table').innerHTML = '<table class="table table-sm small align-middle"><thead><tr><th>Name</th><th>Cadre</th><th>Unit</th><th>Phone</th><th>DigitVA user</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+      + (matches.length > WORKER_ROW_LIMIT ? '<p class="text-muted small">Showing the first ' + WORKER_ROW_LIMIT + '. Narrow the filters to see the rest.</p>' : '');
+  }
+  $('org-worker-search').addEventListener('input', drawWorkerRows);
+  // Tom Select fires change on the underlying select, so one listener serves both.
+  $('org-worker-unit-filter').addEventListener('change', drawWorkerRows);
+  $('org-worker-cadre-filter').addEventListener('change', drawWorkerRows);
+  $('org-worker-table').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-act]');
+    if (!b) return;
+    var w = findBy(STATE.workers, 'worker_id', b.dataset.id);
+    if (!w) return;
+    if (b.dataset.act === 'edit') { openWorkerForm(w, null); return; }
+    var on = !w.is_active;
+    var go = function () { api(base() + '/workers/' + w.worker_id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
+    if (on) go(); else askConfirm('Deactivate worker ' + w.worker_name + '?', go);
+  });
+  $('org-worker-empty').addEventListener('click', function (ev) {
+    var a = ev.target.closest('[data-org-goto]');
+    if (!a) return;
+    ev.preventDefault();
+    var to = a.dataset.orgGoto;
+    if (to === 'first') { openWorkerForm(null, null); return; }
+    document.querySelector('#org-tabs [data-org-tab="' + (to === 'perms' ? 'cadres' : 'units') + '"]').click();
+    if (to === 'perms') bootstrap.Tab.getOrCreateInstance(document.querySelector('[data-bs-target="#org-sub-perms"]')).show();
+  });
+
+  // Cadres offered = those placed at the chosen unit's level. While editing,
+  // the worker's own cadre stays listed at its own unit even if it has since
+  // been removed from that level, so opening the form changes nothing.
+  function fillWorkerCadreSelect(preferId) {
+    var u = unitById(val('ow-unit')), w = _editingWorker;
+    var here = u ? cadresAtLevel(u.org_level_id) : [];
+    var opts = here.map(function (x) { return '<option value="' + esc(x.cadre.cadre_id) + '">' + esc(x.cadre.cadre_code) + ' — ' + esc(x.cadre.cadre_name) + '</option>'; });
+    if (w && w.org_unit_id === val('ow-unit') && !here.some(function (x) { return x.cadre.cadre_id === w.cadre_id; })) {
+      opts.unshift('<option value="' + esc(w.cadre_id) + '">' + esc(w.cadre_code) + ' (not placed at this level)</option>');
+    }
+    var sel = $('ow-cadre');
+    sel.innerHTML = opts.join('');
+    if (preferId && sel.querySelector('option[value="' + CSS.escape(preferId) + '"]')) sel.value = preferId;
+    updateWorkerCadreHint();
+  }
+  function updateWorkerCadreHint() {
+    var u = unitById(val('ow-unit')), cid = $('ow-cadre').value, hint = $('ow-cadre-hint');
+    $('ow-cadre').disabled = !cid;
+    $('ow-save-btn').disabled = !cid;
+    hint.className = 'form-text';
+    if (!val('ow-unit')) { hint.textContent = 'Choose a unit first.'; return; }
+    if (!cid) {
+      hint.className = 'form-text text-danger';
+      hint.textContent = 'No cadres at this level — add them in Cadres & permissions → Permissions by level.';
+      return;
+    }
+    var lc = u ? STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0] : null;
+    hint.textContent = lc
+      ? 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + '.'
+      : 'This cadre is not placed at this unit\'s level; saving may be refused.';
+  }
+
+  function openWorkerForm(w, unit) {
+    _editingWorker = w;
+    $('org-worker-form-title').textContent = w ? 'Edit worker ' + w.worker_name : (unit ? 'Add worker at ' + unit.unit_code : 'Add worker');
+    if (_workerFormUnitPicker) { _workerFormUnitPicker.destroy(); _workerFormUnitPicker = null; }
+    var sel = $('ow-unit');
+    fillWorkerUnitSelect(sel, STATE.units.filter(function (u) { return u.is_active; }), '<option value="">Choose a unit…</option>');
+    var unitId = w ? w.org_unit_id : (unit ? unit.org_unit_id : '');
+    if (unitId && !sel.querySelector('option[value="' + CSS.escape(unitId) + '"]')) {
+      // An edited worker whose unit is inactive: keep it selectable rather than silently move them.
+      sel.insertAdjacentHTML('beforeend', '<option value="' + esc(unitId) + '">' + esc((w ? w.unit_name + ' (' + w.unit_code + ')' : unitId)) + ' — inactive</option>');
+    }
+    sel.value = unitId;
+    $('ow-id').value = w ? w.worker_id : '';
+    $('ow-name').value = w ? w.worker_name : ''; $('ow-phone').value = w ? (w.phone || '') : '';
     $('ow-user').value = w ? (w.user_email || '') : ''; $('ow-remarks').value = w ? (w.remarks || '') : '';
-    show('org-worker-form', true);
+    fillWorkerCadreSelect(w ? w.cadre_id : null);
+    if (window.TomSelect) _workerFormUnitPicker = new TomSelect(sel, { maxOptions: null });
+    show('ow-alert', false);
+    unitCanvas('org-worker-canvas').show();
   }
-  $('org-worker-add-btn').addEventListener('click', function () { openWorkerForm(null); });
-  $('ow-cancel-btn').addEventListener('click', function () { show('org-worker-form', false); });
+  $('org-worker-canvas').addEventListener('shown.bs.offcanvas', function () { if (val('ow-unit')) $('ow-name').focus(); });
+  $('ow-unit').addEventListener('change', function () { fillWorkerCadreSelect($('ow-cadre').value); });
+  $('ow-cadre').addEventListener('change', updateWorkerCadreHint);
+  $('org-worker-add-btn').addEventListener('click', function () { openWorkerForm(null, null); });
   $('ow-save-btn').addEventListener('click', function () {
     var id = val('ow-id');
-    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_code: val('ow-code'), worker_name: val('ow-name'), phone: val('ow-phone'), user: val('ow-user'), remarks: val('ow-remarks') };
-    api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { fail(res); return; } show('org-worker-form', false); loadAll(); });
+    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_name: val('ow-name'), phone: val('ow-phone'), user: val('ow-user'), remarks: val('ow-remarks') };
+    api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { canvasFail('ow-alert', res); return; } unitCanvas('org-worker-canvas').hide(); loadAll(); });
   });
 
   // ── export / import ───────────────────────────────────────────────────────
@@ -684,27 +1427,41 @@
   function renderTransfer() {
     $('org-export-xlsx').href = base() + '/export.xlsx';
     $('org-export-choices').href = base() + '/odk-choices.csv';
+    document.querySelectorAll('.org-csv-template').forEach(function (a) { a.href = base() + '/export/' + a.dataset.sheet + '.csv'; });
     $('org-export-csv-links').innerHTML = 'CSV: ' + ['levels','units','cadres','level_cadres','workers'].map(function (s) { return '<a href="' + base() + '/export/' + s + '.csv">' + s + '</a>'; }).join(' · ');
   }
   function runImport(apply) {
     var file = $('org-import-file').files[0];
-    if (!file) { alertBox('warning', 'Choose a workbook first.'); return; }
-    var fd = new FormData(); fd.append('file', file); fd.append('dry_run', apply ? '0' : '1'); fd.append('deactivate_missing', $('org-import-deactivate').checked ? '1' : '0');
+    if (!file) { alertBox('warning', 'Choose a file first.'); return; }
+    var fd = new FormData(); fd.append('file', file);
+    if (/\.csv$/i.test(file.name)) fd.append('sheet', $('org-import-sheet').value); fd.append('dry_run', apply ? '0' : '1'); fd.append('deactivate_missing', $('org-import-deactivate').checked ? '1' : '0');
     api(base() + '/import', 'POST', fd).then(function (res) {
       var out = $('org-import-result'); out.classList.remove('d-none');
       if (!res.data || !res.data.plan) { out.textContent = (res.data && res.data.error) || 'Import failed.'; _lastDryRunOk = false; $('org-import-apply').disabled = true; return; }
       var p = res.data.plan, lines = [];
       Object.keys(p.counts).forEach(function (s) { var c = p.counts[s]; lines.push(s.padEnd(13) + ' rows=' + c.rows + ' create=' + c.create + ' update=' + c.update + ' deactivate=' + c.deactivate); });
+      if ((p.unplaced || []).length) lines.push('unplaced      ' + p.unplaced.length + ' unit(s) without a parent: map them in Units → Map parents.');
       (p.errors || []).forEach(function (e) { lines.push('ERROR: ' + e); });
       lines.push(p.applied ? 'Applied.' : (p.errors.length ? 'Not applied.' : 'Dry run only.'));
       out.textContent = lines.join('\n');
       _lastDryRunOk = res.ok && !apply; $('org-import-apply').disabled = !_lastDryRunOk;
-      if (p.applied) { $('org-import-apply').disabled = true; loadAll(); }
+      if (p.applied) {
+        $('org-import-apply').disabled = true;
+        loadAll().then(function () { if ((p.unplaced || []).length) openPlaceModal(); });
+      }
     });
   }
   $('org-import-dry').addEventListener('click', function () { runImport(false); });
-  $('org-import-apply').addEventListener('click', function () { if (confirm('Apply the import to project ' + PROJECT_ID + '?')) runImport(true); });
-  $('org-import-file').addEventListener('change', function () { $('org-import-apply').disabled = true; });
+  $('org-import-apply').addEventListener('click', function () { askConfirm('Apply the import to project ' + PROJECT_ID + '?', function () { runImport(true); }); });
+  $('org-import-file').addEventListener('change', function () {
+    $('org-import-apply').disabled = true;
+    var f = this.files[0], isCsv = !!f && /\.csv$/i.test(f.name);
+    show('org-import-sheet-wrap', isCsv);
+    // Guess the sheet from the export's file name (organization_<id>_<sheet>.csv).
+    if (isCsv) { var m = /_(level_cadres|cadres|units|workers|levels)\.csv$/i.exec(f.name); if (m) $('org-import-sheet').value = m[1].toLowerCase(); }
+  });
+  // Changing what the CSV holds invalidates the last dry run.
+  $('org-import-sheet').addEventListener('change', function () { $('org-import-apply').disabled = true; });
 
   function findBy(list, key, value) { for (var i = 0; i < list.length; i++) if (list[i][key] === value) return list[i]; return null; }
 }());

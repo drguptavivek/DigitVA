@@ -3,7 +3,7 @@ title: WHO ICD-10 to ICD-11 Mapping Tables, 2025-01 (frozen 2026-09-16)
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-09-16
+last_updated: 2026-09-21
 ---
 
 # WHO ICD-10 to ICD-11 Mapping Tables, 2025-01 (frozen 2026-09-16)
@@ -21,7 +21,10 @@ ICD-11 work planned in `docs/planning/icd11-self-hosted-api-and-ect-plan.md`:
 - reviewing which ICD-10 codes have no exact ICD-11 equivalent (the
   `Subclass` relations in the foundation table).
 
-No migration, service or command reads these files yet.
+The native ICD-11 bucket generator
+(`app/services/cod_bucket_icd11_generator.py`, `flask cod-buckets
+generate-icd11`) reads `11To10MapToOneCategory.txt` for its cross-check;
+nothing else reads these files yet.
 
 ## Provenance
 

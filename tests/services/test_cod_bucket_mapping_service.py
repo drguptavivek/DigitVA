@@ -2648,3 +2648,229 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(rows[0]["coded_count"], 1)
         self.assertIn("uuid:cod-bucket-in-odk", csv_body)
         self.assertNotIn("uuid:cod-bucket-retired", csv_body)
+
+    def _seed_icd11_collision_scheme(self, scheme_code: str) -> MasCodBucketScheme:
+        """A scheme whose ICD-11 row reuses an ICD-10 code string (I22).
+
+        Real ICD-10 and ICD-11 codes cannot collide (their second characters
+        differ), so the collision is artificial: it is the only way to prove
+        an ICD-10 consumer filters on icd_classification rather than getting
+        the right answer by luck.
+        """
+        scheme = MasCodBucketScheme(
+            scheme_code=scheme_code,
+            scheme_name=scheme_code,
+            mapping_version=1,
+            is_active=True,
+            icd11_method="native",
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="all_causes",
+            node_label="All Causes",
+            sort_order=1,
+        )
+        matched = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="matched_field",
+            node_label="Matched Disease",
+            sort_order=1,
+        )
+        icd11_only = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="icd11_field",
+            node_label="ICD-11 Only Disease",
+            sort_order=2,
+        )
+        db.session.add_all([category, matched, icd11_only])
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                    icd_classification="icd10",
+                    icd_code="I21",
+                    node_id=matched.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                    icd_classification="icd11",
+                    icd_code="I22",
+                    node_id=icd11_only.node_id,
+                    match_type="range",
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.flush()
+        return scheme
+
+    def test_icd10_reporting_and_panel_ignore_icd11_rows(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        now = datetime.now(timezone.utc)
+        scheme = self._seed_icd11_collision_scheme("TEST_ICD11_IGNORED")
+        db.session.merge(
+            MasIcd1020192(
+                code="I22",
+                title="Subsequent myocardial infarction",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                parent_code=None,
+                chapter_code="IX",
+                chapter_title="Diseases of the circulatory system",
+                block_code="I20-I25",
+                block_title="Ischaemic heart diseases",
+                three_character_code="I22",
+                three_character_title="Subsequent myocardial infarction",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="allowed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
+        self._add_coded_submission(
+            sid="uuid:icd11-ignored-i21", icd="I21", submitted_at=now, normalized_years=Decimal("52")
+        )
+        self._add_coded_submission(
+            sid="uuid:icd11-ignored-i22", icd="I22", submitted_at=now, normalized_years=Decimal("53")
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        # Present first: the ICD-11 row really is there under code I22.
+        icd11_codes = db.session.scalars(
+            sa.select(MapIcdCodBucket.icd_code).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == "icd11",
+            )
+        ).all()
+        self.assertEqual(icd11_codes, ["I22"])
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_ICD11_IGNORED", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual([(row["bucket_field"], row["coded_count"]) for row in rows], [("Matched Disease", 1)])
+        unmatched = summarize_unmatched_coded_submissions_by_bucket(
+            scheme_code="TEST_ICD11_IGNORED", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual(unmatched[0]["unmatched_count"], 1)
+        unmatched_icds = list_unmatched_coded_submission_icds_by_bucket(
+            scheme_code="TEST_ICD11_IGNORED", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual([row["icd_code"] for row in unmatched_icds], ["I22"])
+        breakdowns = summarize_cod_bucket_reporting_breakdowns(
+            scheme_code="TEST_ICD11_IGNORED", form_id=self.FORM_ID
+        )
+        self.assertEqual(breakdowns["matched_total"], 1)
+        csv_body = export_cod_bucket_reporting_csv(scheme_code="TEST_ICD11_IGNORED", form_id=self.FORM_ID)
+        self.assertIn("Matched Disease", csv_body)
+        self.assertNotIn("ICD-11 Only Disease", csv_body)
+
+        unmapped_codes = {
+            row["code"]
+            for row in list_cod_bucket_unmapped_icd_rows(scheme_code="TEST_ICD11_IGNORED")["rows"]
+        }
+        self.assertIn("I22", unmapped_codes)
+        self.assertNotIn("I21", unmapped_codes)
+
+    def test_scheme_json_round_trips_icd11_rows_and_old_files_import_as_icd10(self):
+        source = self._seed_icd11_collision_scheme("TEST_ICD11_EXPORT")
+        target = MasCodBucketScheme(
+            scheme_code="TEST_ICD11_IMPORT", scheme_name="Target", mapping_version=1, is_active=True
+        )
+        db.session.add(target)
+        db.session.commit()
+
+        payload = export_cod_bucket_scheme_json(scheme_code=source.scheme_code)
+        self.assertEqual(payload["scheme"]["icd11_method"], "native")
+        self.assertEqual(
+            sorted((row["icd_classification"], row["icd_code"]) for row in payload["mappings"]),
+            [("icd10", "I21"), ("icd11", "I22")],
+        )
+
+        import_cod_bucket_scheme_json(scheme_code="TEST_ICD11_IMPORT", payload=payload)
+        imported = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == "TEST_ICD11_IMPORT")
+        )
+        self.assertEqual(imported.icd11_method, "native")
+        rows = db.session.execute(
+            sa.select(MapIcdCodBucket.icd_classification, MapIcdCodBucket.icd_code, MasCodBucketNode.node_code)
+            .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
+            .where(MapIcdCodBucket.scheme_id == imported.scheme_id)
+            .order_by(MapIcdCodBucket.icd_code)
+        ).all()
+        self.assertEqual(
+            [tuple(row) for row in rows],
+            [("icd10", "I21", "matched_field"), ("icd11", "I22", "icd11_field")],
+        )
+
+        # A file exported before ICD-11 support has neither field.
+        old_payload = json.loads(json.dumps(payload))
+        old_payload["scheme"].pop("icd11_method")
+        for row in old_payload["mappings"]:
+            row.pop("icd_classification")
+        old_payload["mappings"] = [row for row in old_payload["mappings"] if row["icd_code"] == "I21"]
+        import_cod_bucket_scheme_json(scheme_code="TEST_ICD11_IMPORT", payload=old_payload)
+        imported = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == "TEST_ICD11_IMPORT")
+        )
+        self.assertIsNone(imported.icd11_method)
+        classifications = db.session.execute(
+            sa.select(MapIcdCodBucket.icd_classification, MapIcdCodBucket.icd_code).where(
+                MapIcdCodBucket.scheme_id == imported.scheme_id
+            )
+        ).all()
+        self.assertEqual([tuple(row) for row in classifications], [("icd10", "I21")])
+
+        payload["mappings"][0]["icd_classification"] = "icd9"
+        with self.assertRaises(ValueError):
+            import_cod_bucket_scheme_json(scheme_code="TEST_ICD11_IMPORT", payload=payload)

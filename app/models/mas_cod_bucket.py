@@ -11,6 +11,14 @@ class MasCodBucketScheme(db.Model):
     """Versioned reporting taxonomy for cause-of-death bucket aggregation."""
 
     __tablename__ = "mas_cod_bucket_schemes"
+    __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
+        sa.CheckConstraint(
+            "icd11_method IN ('crosswalk', 'native')",
+            name="icd11_method",
+        ),
+    )
 
     scheme_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -23,6 +31,10 @@ class MasCodBucketScheme(db.Model):
     source_path: so.Mapped[str | None] = so.mapped_column(sa.String(512))
     mapping_version: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=1)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=True)
+    # How an ICD-11 code finds its bucket in this scheme: 'crosswalk' (via
+    # WHO 11-to-10 into the ICD-10 rows), 'native' (the scheme's own ICD-11
+    # rows) or NULL (ICD-10 only). Policy: docs/policy/icd11-cod-bucket-schemes.md.
+    icd11_method: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -179,13 +191,15 @@ class MapIcdCodBucket(db.Model):
     __table_args__ = (
         sa.UniqueConstraint(
             "scheme_id",
+            "icd_classification",
             "age_scope",
             "icd_code",
-            name="uq_map_icd_cod_buckets_scheme_scope_icd",
+            name="uq_map_icd_cod_buckets_scheme_class_scope_icd",
         ),
         sa.Index(
-            "ux_map_icd_cod_buckets_scheme_scope_icd_norm",
+            "ux_map_icd_cod_buckets_scheme_class_scope_icd_norm",
             "scheme_id",
+            "icd_classification",
             sa.text("COALESCE(age_scope, '')"),
             sa.text("upper(icd_code)"),
             unique=True,
@@ -193,6 +207,10 @@ class MapIcdCodBucket(db.Model):
         sa.Index("ix_map_icd_cod_buckets_scheme", "scheme_id"),
         sa.Index("ix_map_icd_cod_buckets_node", "node_id"),
         sa.Index("ix_map_icd_cod_buckets_icd_code", "icd_code"),
+        sa.CheckConstraint(
+            "icd_classification IN ('icd10', 'icd11')",
+            name="icd_classification",
+        ),
     )
 
     mapping_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -205,6 +223,11 @@ class MapIcdCodBucket(db.Model):
     )
     age_scope: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
     icd_code: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    # Which classification icd_code belongs to ('icd10' | 'icd11'). ICD-10
+    # consumers must filter on 'icd10' explicitly.
+    icd_classification: so.Mapped[str] = so.mapped_column(
+        sa.String(8), nullable=False, default="icd10", server_default="icd10"
+    )
     node_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("mas_cod_bucket_nodes.node_id", ondelete="CASCADE"),

@@ -82,8 +82,12 @@
         <div class="card h-100">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
-              <div class="fw-semibold">ICD-10 Mapping</div>
+              <div class="fw-semibold"><span id="cb-mapping-title">ICD-10</span> Mapping</div>
               <div id="cb-mapping-header" class="small text-muted">Select a last-level disease node above.</div>
+            </div>
+            <div class="btn-group btn-group-sm ms-auto me-2" role="group" aria-label="ICD classification">
+              <button type="button" class="btn btn-outline-secondary active cb-classification-btn" data-classification="icd10" aria-pressed="true">ICD-10</button>
+              <button type="button" class="btn btn-outline-secondary cb-classification-btn" data-classification="icd11" aria-pressed="false" title="Generated ICD-11 codes (read-only)">ICD-11</button>
             </div>
             <button
               type="button"
@@ -558,6 +562,7 @@
     ageScope: '',
     nodes: [],
     mappingNodeId: null,
+    mappingClassification: 'icd10',
     mappingEntries: [],
     mappingFilterQuery: '',
     mappingManualFilter: '',
@@ -609,6 +614,8 @@
     status: document.getElementById('cb-status'),
     panes: Array.from(document.querySelectorAll('.cb-pane')),
     mappingHeader: document.getElementById('cb-mapping-header'),
+    mappingTitle: document.getElementById('cb-mapping-title'),
+    classificationBtns: Array.from(document.querySelectorAll('.cb-classification-btn')),
     mappingBody: document.getElementById('cb-mapping-body'),
     openIcdModalBtn: document.getElementById('cb-open-icd-modal-btn'),
     unmappedIcdCount: document.getElementById('cb-unmapped-icd-count'),
@@ -964,7 +971,11 @@
 
   function renderMappingSection() {
     const leaf = currentLeaf();
-    els.openIcdModalBtn.disabled = !leaf;
+    // The ICD-11 view is a read-only review of the generated table
+    // (flask cod-buckets generate-icd11); editing stays ICD-10 only.
+    const isIcd11 = state.mappingClassification === 'icd11';
+    const icdLabel = isIcd11 ? 'ICD-11' : 'ICD-10';
+    els.openIcdModalBtn.disabled = !leaf || isIcd11;
     if (!leaf) {
       state.mappingNodeId = null;
       state.mappingEntries = [];
@@ -978,7 +989,7 @@
     els.mappingHeader.textContent = leaf.node_label;
     els.mappingHeader.title = leaf.path_label || leaf.node_label;
     if (state.mappingLoading && state.mappingNodeId === leaf.node_id) {
-      els.mappingBody.innerHTML = '<div class="text-muted small">Loading ICD-10 mappings...</div>';
+      els.mappingBody.innerHTML = `<div class="text-muted small">Loading ${icdLabel} mappings...</div>`;
       return;
     }
     const icdMappings = state.mappingNodeId === leaf.node_id ? (state.mappingEntries || []) : [];
@@ -1003,11 +1014,11 @@
           <input
             id="cb-mapped-filter"
             class="form-control form-control-sm"
-            placeholder="Search ICD-10 codes in this disease"
+            placeholder="Search ${icdLabel} codes in this disease"
             value="${esc(state.mappingFilterQuery)}"
           >
         </div>
-        <div class="mt-2">
+        <div class="mt-2${isIcd11 ? ' d-none' : ''}">
           <label for="cb-mapped-manual-filter" class="form-label small text-muted text-uppercase mb-1">Manual Override</label>
           <select id="cb-mapped-manual-filter" class="form-select form-select-sm">
             <option value="" ${state.mappingManualFilter === '' ? 'selected' : ''}>All mappings</option>
@@ -1021,7 +1032,7 @@
           !icdMappings.length
             ? '<div class="text-muted small">No ICD codes mapped to this disease yet.</div>'
             : !filteredMappings.length
-              ? '<div class="text-muted small">No mapped ICD-10 codes match this filter.</div>'
+              ? `<div class="text-muted small">No mapped ${icdLabel} codes match this filter.</div>`
               : `<div class="border rounded overflow-auto" style="max-height: 420px;">${filteredMappings.map(mapping => `
                   <div class="p-2 cb-icd-row">
                     <div class="d-flex align-items-start gap-2">
@@ -1031,8 +1042,11 @@
                         ${mapping.match_type === 'manual_override'
                           ? '<div class="small"><span class="badge text-bg-warning">Manual override</span></div>'
                           : ''}
+                        ${isIcd11
+                          ? `<div class="small text-muted">${esc(mapping.match_type || '')} · ${esc(mapping.mapping_note || '')}</div>`
+                          : ''}
                       </div>
-                      <button
+                      ${isIcd11 ? '' : `<button
                         type="button"
                         class="btn btn-sm btn-outline-danger cb-unmap-btn"
                         data-mapping-id="${esc(mapping.mapping_id)}"
@@ -1040,7 +1054,7 @@
                         title="Unmap ICD-10 code"
                       >
                         <i class="fa-solid fa-trash-can"></i>
-                      </button>
+                      </button>`}
                     </div>
                   </div>
                 `).join('')}</div>`
@@ -1336,7 +1350,7 @@
 
     try {
       const payload = await apiJson(
-        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/${encodeURIComponent(leaf.node_id)}/mappings`
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/${encodeURIComponent(leaf.node_id)}/mappings?icd_classification=${encodeURIComponent(state.mappingClassification)}`
       );
       if (state.mappingRequestToken !== requestToken) return;
       if (currentLeaf()?.node_id !== leaf.node_id) return;
@@ -2155,6 +2169,23 @@
       row.classList.remove('cb-drop-target');
       reorderPane(depth, state.draggedNodeId, row.dataset.nodeId)
         .catch(error => setStatus(error.message || 'Failed to reorder headings.', true));
+    });
+  });
+
+  els.classificationBtns.forEach(btn => {
+    btn.addEventListener('click', function () {
+      const classification = btn.dataset.classification === 'icd11' ? 'icd11' : 'icd10';
+      if (classification === state.mappingClassification) return;
+      state.mappingClassification = classification;
+      state.mappingFilterQuery = '';
+      state.mappingManualFilter = '';
+      els.mappingTitle.textContent = classification === 'icd11' ? 'ICD-11' : 'ICD-10';
+      els.classificationBtns.forEach(other => {
+        const isActive = other === btn;
+        other.classList.toggle('active', isActive);
+        other.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      loadCurrentLeafMappings();
     });
   });
 

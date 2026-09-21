@@ -5112,6 +5112,7 @@ def admin_cod_bucket_scheme_node_mappings(scheme_code, node_id):
         payload = get_cod_bucket_node_mappings_payload(
             scheme_code=scheme_code,
             node_id=node_id,
+            icd_classification=(request.args.get("icd_classification") or "icd10").strip().lower(),
         )
     except LookupError:
         return _json_error("COD bucket scheme or node not found.", 404)
@@ -5391,6 +5392,10 @@ def admin_cod_bucket_scheme_update_mapping(scheme_code, mapping_id):
     mapping = db.session.get(MapIcdCodBucket, mapping_id)
     if mapping is None or mapping.scheme_id != scheme.scheme_id:
         return _json_error("COD bucket mapping not found.", 404)
+    if mapping.icd_classification != "icd10":
+        # ICD-11 rows are generated (flask cod-buckets generate-icd11) and
+        # reviewed read-only in this panel for now.
+        return _json_error("ICD-11 mappings are read-only here.", 400)
 
     data = request.get_json(silent=True) or {}
     node_id_raw = (data.get("node_id") or "").strip()
@@ -5443,6 +5448,10 @@ def admin_cod_bucket_scheme_delete_mapping(scheme_code, mapping_id):
     mapping = db.session.get(MapIcdCodBucket, mapping_id)
     if mapping is None or mapping.scheme_id != scheme.scheme_id:
         return _json_error("COD bucket mapping not found.", 404)
+    if mapping.icd_classification != "icd10":
+        # ICD-11 rows are generated (flask cod-buckets generate-icd11) and
+        # reviewed read-only in this panel for now.
+        return _json_error("ICD-11 mappings are read-only here.", 400)
 
     icd_code = mapping.icd_code
     node_id = str(mapping.node_id)
@@ -5510,6 +5519,7 @@ def admin_cod_bucket_scheme_add_mappings(scheme_code):
         existing = db.session.scalar(
             sa.select(MapIcdCodBucket).where(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == "icd10",
                 MapIcdCodBucket.age_scope == node.age_scope,
                 MapIcdCodBucket.icd_code == icd_code,
             )
@@ -5518,6 +5528,7 @@ def admin_cod_bucket_scheme_add_mappings(scheme_code):
             existing = MapIcdCodBucket(
                 scheme_id=scheme.scheme_id,
                 age_scope=node.age_scope,
+                icd_classification="icd10",
                 icd_code=icd_code,
                 node_id=node.node_id,
                 is_active=True,

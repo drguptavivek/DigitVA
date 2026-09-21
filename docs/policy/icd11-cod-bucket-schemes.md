@@ -81,25 +81,33 @@ a bucket-scheme link; schemes stay a per-report choice.
 - Lookup is the exact code, then its ancestors along the catalogue's parent
   chain. ICD-11 codes are not prefix-ordered the way ICD-10 codes are, so no
   string truncation.
-- **Selectable codes come from the mapping (owner, 2026-09-21).** A coder can
-  select only ICD-11 codes that appear in a native scheme's mapping table. The
-  rule is global: there is no per-project scheme setting (owner, 2026-09-21).
-  - With more than one native scheme, a code is selectable if it appears in
-    any of them.
-  - The catalogue's own policy (`is_coding_selectable`, sex and age
-    restrictions, edited in the ICD-11 browser) still applies on top: a code
-    is offered only if it is in a native mapping **and** allowed by the
-    catalogue policy for that death's sex and age.
-  - Changing a mapping later does not invalidate codes already recorded; a
-    recorded code that is no longer mapped is reported as `unmapped` and
-    listed for review, never silently re-coded.
+- **Selectability is separate from bucketing (owner, 2026-09-21).** What a
+  coder may select is governed only by the classification's own policy:
+  the ICD-10 policy (ICD-10 browser) for ICD-10 codes, the ICD-11 policy
+  (`is_coding_selectable`, sex and age, ICD-11 browser) for ICD-11 codes. A
+  bucket mapping decides only which bucket a selected code falls in; it never
+  makes a code selectable or unselectable. (This replaces an earlier draft
+  rule that tied selectability to the mapping.)
+  - A selectable code with no bucket in a scheme reports as `unmapped` in that
+    scheme and is listed for review.
+  - Changing a mapping never re-codes a recorded death.
 - A code with no mapping on its chain in a given native scheme is `unmapped`
   in that scheme's reports and listed for review.
 - The WHO 2022 VA 2026 revision is seeded from the ICD-11 column of
-  `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv`.
-  Causes the cause list splits by circumstance rather than by code (e.g. road
-  traffic vs other transport, both `PA00-PA5Z`) need an owner rule before
-  seeding.
+  `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv`,
+  ranges expanded against the 2026-01 catalogue (owner, 2026-09-21):
+  - **More specific wins.** Where a code falls in more than one cause's range
+    (e.g. a specific cause and a residual "other/unspecified" range), the
+    narrower range wins; a tie is not guessed but listed for review.
+  - Ranges the cause list shares between causes are split **per code**, as
+    the owner already did for ICD-10: `PA0x` (traffic events) → road traffic
+    accident, `PA1x`-`PA5x` (nontraffic, water, air, other) → other transport
+    accident; `PJ2x` (maltreatment) listed for owner review.
+  - Every generated code is cross-checked against the owner's curated ICD-10
+    scheme through WHO's 11-to-10 crosswalk; disagreements are listed for
+    review, never silently resolved.
+  - Codes no range covers stay unmapped (selectability is unaffected) and are listed
+    with the crosswalk's suggestion.
 
 ## Data
 

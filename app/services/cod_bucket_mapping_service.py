@@ -20,10 +20,12 @@ from app.models import (
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
+    MasIcd11Mms,
     VaSmartvaResults,
     VaForms,
     VaSubmissions,
 )
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     COD_MV_NAME,
@@ -116,6 +118,11 @@ SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_WHO_2022_VA,
     SCHEME_CODE_WHO_2022_VA_2026,
 }
+ICD_CLASSIFICATION_ICD10 = "icd10"
+ICD_CLASSIFICATION_ICD11 = "icd11"
+ICD_CLASSIFICATIONS = (ICD_CLASSIFICATION_ICD10, ICD_CLASSIFICATION_ICD11)
+ICD11_METHODS = ("crosswalk", "native")
+
 MANUAL_OVERRIDE_SOURCE_SHEET = "admin_cod_bucket_editor"
 MANUAL_OVERRIDE_MATCH_TYPE = "manual_override"
 MANUAL_OVERRIDE_NOTE = "Manual override to default COD bucket scheme mapping."
@@ -431,6 +438,25 @@ def _icd_master_display_subquery():
     )
 
 
+def _icd11_display_subquery(release: str = DEFAULT_ICD11_RELEASE):
+    """`icd_code` / `icd_to_display` for the ICD-11 catalogue's categories."""
+    return (
+        sa.select(
+            MasIcd11Mms.code.label("icd_code"),
+            sa.func.min(
+                sa.func.concat(MasIcd11Mms.code, sa.literal("-"), MasIcd11Mms.title)
+            ).label("icd_to_display"),
+        )
+        .where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.class_kind == "category",
+            MasIcd11Mms.code.is_not(None),
+        )
+        .group_by(MasIcd11Mms.code)
+        .subquery()
+    )
+
+
 def _slugify(value: str, *, fallback_prefix: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
     return slug or fallback_prefix
@@ -648,9 +674,14 @@ def _get_or_create_scheme(
 
 
 def _replace_scheme_contents(scheme: MasCodBucketScheme) -> None:
+    # Every classification goes: the nodes are rebuilt, so ICD-11 rows would
+    # cascade with them anyway. A native scheme then has no ICD-11 table
+    # until `flask cod-buckets generate-icd11` runs again, so say so.
     db.session.execute(
         sa.delete(MapIcdCodBucket).where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
     )
+    if scheme.icd11_method == "native":
+        scheme.icd11_method = None
     db.session.execute(
         sa.delete(MasCodBucketNode).where(MasCodBucketNode.scheme_id == scheme.scheme_id)
     )
@@ -883,6 +914,7 @@ def _populate_srs_scope(
                 scheme_id=scheme.scheme_id,
                 age_scope=age_scope,
                 icd_code=row["icd_code"],
+                icd_classification=ICD_CLASSIFICATION_ICD10,
                 node_id=field_node.node_id,
                 source_sheet="ICD_Mapped",
                 source_row_number=row["row_number"],
@@ -923,6 +955,7 @@ def _populate_cmea10_scheme(
                 scheme_id=scheme.scheme_id,
                 age_scope=None,
                 icd_code=icd_code,
+                icd_classification=ICD_CLASSIFICATION_ICD10,
                 node_id=field_node.node_id,
                 source_sheet="ICD10_CMEA10",
                 source_row_number=row_number,
@@ -982,6 +1015,7 @@ def _populate_who_2022_va_scheme(
                 scheme_id=scheme.scheme_id,
                 age_scope=None,
                 icd_code=icd_code,
+                icd_classification=ICD_CLASSIFICATION_ICD10,
                 node_id=field_node.node_id,
                 source_sheet="ICD_Mapped",
                 source_row_number=row_number,
@@ -1027,7 +1061,10 @@ def _apply_who_2022_va_admin_overrides(
     existing_mappings_by_icd: dict[str, MapIcdCodBucket] = {
         mapping.icd_code: mapping
         for mapping in db.session.scalars(
-            sa.select(MapIcdCodBucket).where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+            )
         )
     }
 
@@ -1060,7 +1097,12 @@ def _apply_who_2022_va_admin_overrides(
 
         mapping = existing_mappings_by_icd.get(icd_code)
         if mapping is None:
-            mapping = MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code=icd_code)
+            mapping = MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code=icd_code,
+                icd_classification=ICD_CLASSIFICATION_ICD10,
+            )
             db.session.add(mapping)
             existing_mappings_by_icd[icd_code] = mapping
         mapping.node_id = node.node_id
@@ -1206,6 +1248,7 @@ def import_who_2022_va_scheme(
             for mapping in db.session.scalars(
                 sa.select(MapIcdCodBucket).where(
                     MapIcdCodBucket.scheme_id == existing_scheme.scheme_id,
+                    MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                     MapIcdCodBucket.source_sheet == MANUAL_OVERRIDE_SOURCE_SHEET,
                 )
             )
@@ -1915,10 +1958,12 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
         return " > ".join(reversed(labels))
 
     icd_master_sq = _icd_master_display_subquery()
+    icd11_display_sq = _icd11_display_subquery()
     mapping_rows = db.session.execute(
         sa.select(
             MapIcdCodBucket.mapping_id,
             MapIcdCodBucket.age_scope,
+            MapIcdCodBucket.icd_classification,
             MapIcdCodBucket.icd_code,
             MapIcdCodBucket.node_id,
             MapIcdCodBucket.source_sheet,
@@ -1927,15 +1972,28 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
             MapIcdCodBucket.match_type,
             MapIcdCodBucket.mapping_note,
             MapIcdCodBucket.is_active,
-            icd_master_sq.c.icd_to_display,
+            sa.func.coalesce(
+                icd_master_sq.c.icd_to_display, icd11_display_sq.c.icd_to_display
+            ).label("icd_to_display"),
         )
         .select_from(MapIcdCodBucket)
         .outerjoin(
             icd_master_sq,
-            icd_master_sq.c.icd_code == MapIcdCodBucket.icd_code,
+            sa.and_(
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                icd_master_sq.c.icd_code == MapIcdCodBucket.icd_code,
+            ),
+        )
+        .outerjoin(
+            icd11_display_sq,
+            sa.and_(
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+                icd11_display_sq.c.icd_code == MapIcdCodBucket.icd_code,
+            ),
         )
         .where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
         .order_by(
+            MapIcdCodBucket.icd_classification.asc(),
             sa.func.coalesce(MapIcdCodBucket.age_scope, "").asc(),
             MapIcdCodBucket.icd_code.asc(),
         )
@@ -1950,6 +2008,7 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
             "scheme_description": scheme.scheme_description,
             "mapping_version": scheme.mapping_version,
             "is_active": scheme.is_active,
+            "icd11_method": scheme.icd11_method,
             "can_reset_from_source": scheme_can_reset_from_source(scheme),
         },
         "age_bands": [
@@ -1981,6 +2040,7 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
             {
                 "mapping_id": str(row["mapping_id"]),
                 "age_scope": row["age_scope"],
+                "icd_classification": row["icd_classification"],
                 "icd_code": row["icd_code"],
                 "icd_to_display": row["icd_to_display"] or row["icd_code"],
                 "node_id": str(row["node_id"]),
@@ -2030,6 +2090,10 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
     if not normalized_name:
         raise ValueError("Imported scheme name is required.")
     normalized_description = _normalize_label(scheme_payload.get("scheme_description"))
+    # Absent in files exported before ICD-11 support: an ICD-10-only scheme.
+    icd11_method = _normalize_label(scheme_payload.get("icd11_method"))
+    if icd11_method is not None and icd11_method not in ICD11_METHODS:
+        raise ValueError("Imported scheme icd11_method must be crosswalk, native or empty.")
 
     cleaned_age_bands: list[dict] = []
     seen_age_scopes: set[str | None] = set()
@@ -2152,11 +2216,17 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
                 f"Node '{node['node_label']}' has an invalid parent hierarchy."
             )
 
-    cleaned_mappings_by_key: dict[tuple[str | None, str], dict] = {}
+    cleaned_mappings_by_key: dict[tuple[str, str | None, str], dict] = {}
     for index, raw_mapping in enumerate(mapping_payload, start=1):
         icd_code = _normalize_icd_code(raw_mapping.get("icd_code"))
         if not icd_code:
             raise ValueError(f"Mapping {index} requires an ICD code.")
+        # Absent in files exported before ICD-11 support: every row is ICD-10.
+        icd_classification = (
+            _normalize_label(raw_mapping.get("icd_classification")) or ICD_CLASSIFICATION_ICD10
+        ).lower()
+        if icd_classification not in ICD_CLASSIFICATIONS:
+            raise ValueError(f"Mapping '{icd_code}' has an invalid icd_classification.")
         node_import_id = str(raw_mapping.get("node_id") or "").strip()
         target_node = node_ids_by_import_id.get(node_import_id)
         if target_node is None:
@@ -2169,6 +2239,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
             raise ValueError(f"Mapping '{icd_code}' age scope does not match its target node.")
         cleaned_mapping = {
             "age_scope": age_scope,
+            "icd_classification": icd_classification,
             "icd_code": icd_code,
             "node_import_id": node_import_id,
             "source_sheet": _normalize_label(raw_mapping.get("source_sheet")),
@@ -2178,7 +2249,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
             "mapping_note": _normalize_label(raw_mapping.get("mapping_note")),
             "is_active": bool(raw_mapping.get("is_active", True)),
         }
-        mapping_key = (age_scope, icd_code)
+        mapping_key = (icd_classification, age_scope, icd_code)
         existing = cleaned_mappings_by_key.get(mapping_key)
         if existing is None:
             cleaned_mappings_by_key[mapping_key] = cleaned_mapping
@@ -2196,6 +2267,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
     scheme.is_active = bool(scheme_payload.get("is_active", True))
 
     _replace_scheme_contents(scheme)
+    scheme.icd11_method = icd11_method
 
     for age_band in cleaned_age_bands:
         _create_age_band(scheme=scheme, **age_band)
@@ -2234,6 +2306,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
             MapIcdCodBucket(
                 scheme_id=scheme.scheme_id,
                 age_scope=mapping["age_scope"],
+                icd_classification=mapping["icd_classification"],
                 icd_code=mapping["icd_code"],
                 node_id=created_nodes_by_import_id[mapping["node_import_id"]].node_id,
                 source_sheet=mapping["source_sheet"],
@@ -2319,7 +2392,11 @@ def export_cod_bucket_scheme_xlsx(*, scheme_code: str) -> bytes:
         "Node ID",
     ]
     mappings_sheet.append(mappings_headers)
+    # The workbook stays the ICD-10 table it always was; ICD-11 rows travel in
+    # the JSON export and the generator's review report.
     for mapping in payload["mappings"]:
+        if mapping["icd_classification"] != ICD_CLASSIFICATION_ICD10:
+            continue
         mappings_sheet.append(
             [
                 payload["scheme"]["scheme_code"],
@@ -2356,7 +2433,16 @@ def get_cod_bucket_node_mappings_payload(
     *,
     scheme_code: str,
     node_id,
+    icd_classification: str = ICD_CLASSIFICATION_ICD10,
 ) -> dict:
+    """Return one field node's mapped codes in one classification.
+
+    `icd_classification` is 'icd10' (the editable view) or 'icd11' (read-only
+    review of the generated table); ICD-11 titles come from the catalogue.
+    Raises LookupError for an unknown scheme/node, ValueError otherwise.
+    """
+    if icd_classification not in ICD_CLASSIFICATIONS:
+        raise ValueError("icd_classification must be icd10 or icd11.")
     scheme = get_cod_bucket_scheme(scheme_code)
     if scheme is None:
         raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
@@ -2367,7 +2453,11 @@ def get_cod_bucket_node_mappings_payload(
     if node.node_type != NODE_TYPE_FIELD:
         raise ValueError("ICD mappings can only be loaded for field nodes.")
 
-    icd_master_sq = _icd_master_display_subquery()
+    display_sq = (
+        _icd11_display_subquery()
+        if icd_classification == ICD_CLASSIFICATION_ICD11
+        else _icd_master_display_subquery()
+    )
     mapping_rows = db.session.execute(
         sa.select(
             MapIcdCodBucket.mapping_id,
@@ -2377,15 +2467,16 @@ def get_cod_bucket_node_mappings_payload(
             MapIcdCodBucket.mapping_note,
             MapIcdCodBucket.source_sheet,
             MapIcdCodBucket.source_row_number,
-            icd_master_sq.c.icd_to_display,
+            display_sq.c.icd_to_display,
         )
         .select_from(MapIcdCodBucket)
         .outerjoin(
-            icd_master_sq,
-            icd_master_sq.c.icd_code == MapIcdCodBucket.icd_code,
+            display_sq,
+            display_sq.c.icd_code == MapIcdCodBucket.icd_code,
         )
         .where(
             MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.icd_classification == icd_classification,
             MapIcdCodBucket.age_scope == node.age_scope,
             MapIcdCodBucket.node_id == node.node_id,
         )
@@ -2393,6 +2484,7 @@ def get_cod_bucket_node_mappings_payload(
     ).mappings().all()
 
     return {
+        "icd_classification": icd_classification,
         "node": {
             "node_id": str(node.node_id),
             "node_type": node.node_type,
@@ -2610,7 +2702,11 @@ def delete_cod_bucket_node(
         for mapping in mappings:
             mapping.node_id = replacement_leaf.node_id
 
-    affected_icd_codes = [mapping.icd_code for mapping in mappings]
+    affected_icd_codes = [
+        mapping.icd_code
+        for mapping in mappings
+        if mapping.icd_classification == ICD_CLASSIFICATION_ICD10
+    ]
     deleted_node_path = _node_path_label(target_node)
     db.session.delete(target_node)
     db.session.commit()
@@ -2673,6 +2769,7 @@ def search_cod_bucket_icd_candidates(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.age_scope == age_scope,
                 MapIcdCodBucket.icd_code == reporting_catalog_sq.c.code,
             ),
@@ -2736,6 +2833,7 @@ def list_cod_bucket_unmapped_icd_rows(
         sa.select(MapIcdCodBucket.icd_code.label("icd_code"))
         .where(
             MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
             MapIcdCodBucket.is_active.is_(True),
         )
         .group_by(MapIcdCodBucket.icd_code)
@@ -3110,6 +3208,7 @@ def aggregate_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3199,6 +3298,7 @@ def aggregate_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
@@ -3276,6 +3376,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3343,6 +3444,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
@@ -3430,6 +3532,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3503,6 +3606,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
                 MapIcdCodBucket,
                 sa.and_(
                     MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                    MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                     MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                     MapIcdCodBucket.age_scope.is_(None),
                     base_rows.c.age_scope.is_(None),
@@ -3584,6 +3688,7 @@ def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -4228,6 +4333,7 @@ def export_cod_bucket_reporting_csv(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(

@@ -949,6 +949,7 @@ def export_icd10_2019_2_policy_xlsx() -> bytes:
         .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
         .where(
             MapIcdCodBucket.is_active.is_(True),
+            MapIcdCodBucket.icd_classification == "icd10",
             MapIcdCodBucket.match_type == "manual_override",
         )
         .order_by(

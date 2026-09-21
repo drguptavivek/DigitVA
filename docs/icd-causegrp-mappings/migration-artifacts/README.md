@@ -3,7 +3,7 @@ title: Migration Artifacts Index
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-09-16
+last_updated: 2026-09-21
 ---
 
 # Migration Artifacts Index
@@ -94,7 +94,8 @@ them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
   - role: WHO's list of MMS changes between the 2025-01 and 2026-01 releases,
     bridging the 2026-01 catalog and the 2025-01 mapping tables and mortality
     tabulation list
-  - called from: nothing yet
+  - called from: `changes_MMS_2026-01_2025-01-main.xlsx` (its `MovedTo` rows) by
+    `app/services/cod_bucket_icd11_generator.py` (`flask cod-buckets generate-icd11`)
   - details: folder `README.md`
 
 ### `icd11-mms-2025-01-base-2026-09-16/`
@@ -122,7 +123,17 @@ them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
   `foundation_11To10MapToOneCategory`)
   - role: WHO's official ICD-10 to ICD-11 correspondence, for trending
     ICD-10-coded records and for cross-checking ICD-11 VA bucket assignment
-  - called from: nothing yet
+  - called from: `11To10MapToOneCategory.txt` by `app/services/cod_bucket_icd11_generator.py` (`flask cod-buckets generate-icd11`)
+  - details: folder `README.md`
+
+### `who-2022-va-icd11-native-2026-09-21/`
+
+- `icd11_generated_mappings.csv`, `icd11_review.csv`,
+  `icd11_unmapped_with_suggestion.csv`
+  - role: generator report for the native ICD-11 table of `WHO_2022_VA_2026`
+    (owner decisions 2026-09-21): what was mapped, what needs the owner's
+    review, and what stays unmapped with the crosswalk's suggestion
+  - called from: written by `app/services/cod_bucket_icd11_generator.py` (`flask cod-buckets generate-icd11`); read by nothing
   - details: folder `README.md`
 
 ### `icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`

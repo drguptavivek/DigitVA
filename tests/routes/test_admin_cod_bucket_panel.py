@@ -963,3 +963,62 @@ class AdminCodBucketPanelTests(BaseTestCase):
                 row.mapping_note,
                 "Manual override to default COD bucket scheme mapping.",
             )
+
+    def _add_icd11_mapping(self, icd_code="1D20"):
+        mapping = MapIcdCodBucket(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            icd_classification="icd11",
+            icd_code=icd_code,
+            node_id=self.field_a_id,
+            match_type="range",
+            mapping_note="ICD-11 test range",
+            is_active=True,
+        )
+        db.session.add(mapping)
+        db.session.commit()
+        return mapping
+
+    def test_cod_bucket_node_mappings_toggle_between_icd10_and_icd11(self):
+        self._login(self.base_admin_id)
+        self._add_icd11_mapping()
+        url = f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{self.field_a_id}/mappings"
+
+        icd10 = self.client.get(url).get_json()
+        icd10_codes = [mapping["icd_code"] for mapping in icd10["mappings"]]
+        self.assertIn("V01", icd10_codes)
+        self.assertNotIn("1D20", icd10_codes)
+
+        icd11 = self.client.get(f"{url}?icd_classification=icd11").get_json()
+        self.assertEqual(icd11["icd_classification"], "icd11")
+        self.assertEqual([mapping["icd_code"] for mapping in icd11["mappings"]], ["1D20"])
+        self.assertEqual(icd11["mappings"][0]["mapping_note"], "ICD-11 test range")
+
+        bad = self.client.get(f"{url}?icd_classification=icd9")
+        self.assertEqual(bad.status_code, 400)
+
+    def test_cod_bucket_icd11_mappings_are_read_only_in_the_panel(self):
+        self._login(self.base_admin_id)
+        mapping = self._add_icd11_mapping("1D21")
+        base = f"/admin/api/cod-bucket-schemes/{self.scheme_code}/mappings/{mapping.mapping_id}"
+
+        patched = self.client.patch(base, json={"node_id": str(self.field_b_id)}, headers=self._csrf_headers())
+        deleted = self.client.delete(base, headers=self._csrf_headers())
+
+        self.assertEqual(patched.status_code, 400)
+        self.assertEqual(deleted.status_code, 400)
+        row = db.session.get(MapIcdCodBucket, mapping.mapping_id)
+        self.assertIsNotNone(row)
+        self.assertEqual((row.node_id, row.match_type), (self.field_a_id, "range"))
+
+    def test_cod_bucket_xlsx_export_lists_icd10_rows_only(self):
+        self._login(self.base_admin_id)
+        self._add_icd11_mapping("1D2Z")
+
+        response = self.client.get(f"/admin/api/cod-bucket-schemes/{self.scheme_code}/export.xlsx")
+
+        self.assertEqual(response.status_code, 200)
+        sheet = load_workbook(BytesIO(response.data))["ICD Mappings"]
+        codes = [row[3] for row in sheet.iter_rows(min_row=2, values_only=True)]
+        self.assertIn("V01", codes)
+        self.assertNotIn("1D2Z", codes)

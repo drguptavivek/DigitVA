@@ -13,6 +13,17 @@ ICD-11 go live. Umbrella epic `digitva-dus`.
 
 ## Landed this pass (2026-09-21/22)
 
+* **DigitVA npj Digital Medicine manuscript draft** (`digitva-bsp`): generated
+  `docs/manuscript/DigitVA_NPJ_Digital_Medicine_Manuscript.docx` from
+  `scripts/build_digitva_npj_manuscript.py`. It describes Phase 1 UNSW and
+  Phase 2 ICMR, the batch-to-real-time evolution, architecture, security,
+  MINErVA/SRS lineage, CCVA-supported single PCVA, health-system and ICD-11
+  plans, additional form profiles and bounded LLM assistance. Database snapshot
+  (2026-09-22): 7,917 submissions, 7,877 active final-coded records, 82 distinct
+  final-assessment authors and 11 sites. The DOCX contains five live Zotero
+  citation fields and one live bibliography field; Benara et al. remains marked
+  for Zotero import/linking. Code availability records the public MIT-licensed
+  upstream at `https://github.com/drguptavivek/DigitVA`.
 * **Project structure mode** (sites | organization), organization writes
   refused for sites projects, automatic site `Sites_in_project_<id>` (`O###`),
   `flask org ensure-site`.

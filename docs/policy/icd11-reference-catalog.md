@@ -95,7 +95,9 @@ flask icd11 policy-export --release 2026-01 --output policy.json
 flask icd11 policy-import policy.json --release 2026-01
 ```
 
-The panel mirrors the ICD-10 browser: a hierarchy tree with status dots
+The panel mirrors the ICD-10 browser: Miller-column panes, one per
+hierarchy level (ICD-11 nests deeper than ICD-10's four fixed columns, so
+the panes scroll horizontally), with a breadcrumb, status dots
 (category selectable = green; not selectable but a direct child is = amber;
 otherwise red), child counters, coding/sex/age filters, search, and a node
 detail pane with an editable policy form on category rows. Its endpoints

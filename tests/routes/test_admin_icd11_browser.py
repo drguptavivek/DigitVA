@@ -194,6 +194,9 @@ class TestAdminIcd11Browser(BaseTestCase):
         self.assertIn('id="icd11-browser-policy-form"', body)
         self.assertIn("/admin/api/icd11/mms/policy-export.xlsx?release=2026-01", body)
         self.assertIn('id="icd11-policy-import-btn"', body)
+        self.assertIn('id="icd11-browser-columns"', body)
+        self.assertIn('id="icd11-browser-path"', body)
+        self.assertNotIn('id="icd11-browser-tree"', body)
 
     def test_children_api_reports_status_indicator(self):
         self._login(str(self.base_admin_user.user_id))

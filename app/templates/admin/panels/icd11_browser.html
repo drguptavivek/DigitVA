@@ -5,8 +5,8 @@
   JSON import (previewed, then applied) / JSON and XLSX export. The JSON
   format is the same one `flask icd11 policy-export`/`policy-import` uses
   (docs/policy/icd11-reference-catalog.md). ICD-11 nests to a variable
-  depth, so the hierarchy is one expandable tree instead of ICD-10's four
-  fixed columns.
+  depth, so instead of ICD-10's four fixed columns the hierarchy is a
+  horizontally scrolling row of Miller-column panes, one per level.
 #}
 <div id="panel-icd11-browser">
   <div class="mb-1">
@@ -100,12 +100,14 @@
   <div class="row g-3">
     <div class="col-xl-9">
       <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <div class="fw-semibold">Hierarchy</div>
-          <div id="icd11-browser-path" class="small text-muted">Select a chapter to start.</div>
+        <div class="card-header">
+          <div class="fw-semibold mb-1">Hierarchy</div>
+          <nav aria-label="ICD-11 path">
+            <ol class="breadcrumb small mb-0" id="icd11-browser-path"></ol>
+          </nav>
         </div>
         <div class="card-body p-0">
-          <div class="list-group list-group-flush" id="icd11-browser-tree"></div>
+          <div class="icd11-browser-columns" id="icd11-browser-columns"></div>
         </div>
       </div>
     </div>
@@ -190,9 +192,37 @@
 </div>
 
 <style>
-  #panel-icd11-browser #icd11-browser-tree {
+  /* Miller columns: panes scroll horizontally, about four fit at desktop width. */
+  #panel-icd11-browser .icd11-browser-columns {
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+  }
+
+  #panel-icd11-browser .icd11-browser-column {
+    flex: 0 0 25%;
+    min-width: 240px;
+    border-right: 1px solid #dee2e6;
+  }
+
+  #panel-icd11-browser .icd11-browser-column-header {
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #panel-icd11-browser .icd11-browser-list {
+    position: relative;
     min-height: 420px;
-    max-height: 640px;
+    max-height: 560px;
     overflow-y: auto;
   }
 
@@ -200,22 +230,13 @@
     border: 0;
     border-bottom: 1px solid #f1f3f5;
     border-radius: 0;
-    padding: 0.5rem 0.75rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
   }
 
   #panel-icd11-browser .icd11-browser-item.active {
     background: #eef5ff;
     color: #0d6efd;
-  }
-
-  #panel-icd11-browser .icd11-browser-item-toggle {
-    display: inline-flex;
-    width: 0.9rem;
-    color: #6c757d;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
   }
 
   #panel-icd11-browser .icd11-browser-item-code {
@@ -272,9 +293,8 @@
   var release = {{ release|tojson }};
   var state = {
     options: null,
-    expanded: {},          // linearization_uri -> true while open
+    path: [],              // selected linearization_uri per pane, left to right
     childrenByParent: {},  // linearization_uri | 'root' -> rows
-    selectedUri: null,
     currentNode: null,
     searchResults: [],
     filters: {
@@ -419,73 +439,11 @@
     return state.childrenByParent[parentUri || 'root'] || [];
   }
 
-  function findLoadedRow(uri) {
-    var keys = Object.keys(state.childrenByParent);
-    for (var i = 0; i < keys.length; i += 1) {
-      var rows = state.childrenByParent[keys[i]];
-      for (var j = 0; j < rows.length; j += 1) {
-        if (rows[j].linearization_uri === uri) return rows[j];
-      }
-    }
-    return null;
-  }
-
-  async function loadChildren(parentUri) {
-    var params = new URLSearchParams();
-    if (parentUri) params.set('parent_linearization_uri', parentUri);
-    if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
-    if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
-    if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
-    var url = apiBase + '/children' + (params.toString() ? '?' + params.toString() : '');
-    var payload = await requestJson(url);
-    state.childrenByParent[parentUri || 'root'] = payload.children || [];
-    return payload.children || [];
-  }
-
-  function renderNode(row, depth) {
-    var uri = row.linearization_uri;
-    var isActive = state.selectedUri === uri;
-    var isExpanded = !!state.expanded[uri];
-    var toggleHtml = row.child_count
-      ? '<span class="icd11-browser-item-toggle"><i class="fa-solid ' + (isExpanded ? 'fa-caret-down' : 'fa-caret-right') + '"></i></span>'
-      : '<span class="icd11-browser-item-toggle"></span>';
-    var badge = row.child_count ? '<span class="badge text-bg-light">' + Number(row.child_count) + '</span>' : '';
-    var contentHtml = row.class_kind === 'category'
-      ? '<div class="icd11-browser-item-code">' + escapeHtml(row.code || '') + statusDotHtml(row) + '</div>' +
-        '<div class="icd11-browser-item-title">' + escapeHtml(row.title) + '</div>'
-      : '<div class="icd11-browser-item-code">' + escapeHtml(labelFor(row)) + '</div>';
-    var html = (
-      '<button type="button" class="list-group-item list-group-item-action icd11-browser-item' + (isActive ? ' active' : '') + '" ' +
-        'data-uri="' + escapeHtml(uri) + '" style="padding-left:' + (0.75 + depth * 1.1) + 'rem;">' +
-        '<div class="d-flex justify-content-between gap-2 align-items-start">' +
-          '<div class="d-flex gap-1">' + toggleHtml + '<div>' + contentHtml + '</div></div>' +
-          badge +
-        '</div>' +
-      '</button>'
-    );
-    if (isExpanded) {
-      html += getChildren(uri).map(function (child) {
-        return renderNode(child, depth + 1);
-      }).join('');
-    }
-    return html;
-  }
-
-  function renderTree() {
-    var tree = panel.querySelector('#icd11-browser-tree');
-    var roots = getChildren(null);
-    if (!roots.length) {
-      tree.innerHTML = '<div class="p-3 text-muted small">No chapters match the current filters.</div>';
-      return;
-    }
-    tree.innerHTML = roots.map(function (row) { return renderNode(row, 0); }).join('');
-  }
-
   function showEmptyDetails() {
     state.currentNode = null;
     panel.querySelector('#icd11-browser-empty-state').classList.remove('d-none');
     panel.querySelector('#icd11-browser-details').classList.add('d-none');
-    panel.querySelector('#icd11-browser-path').textContent = 'Select a chapter to start.';
+    renderBreadcrumb(null);
   }
 
   function renderNodeDetails(node) {
@@ -519,9 +477,7 @@
       policyReadonlyEl().classList.remove('d-none');
     }
 
-    var path = (node.ancestors || []).map(function (item) { return item.code || item.title; });
-    path.push(node.code || node.title);
-    panel.querySelector('#icd11-browser-path').textContent = path.join(' / ');
+    renderBreadcrumb(node);
   }
 
   async function loadNode(uri) {
@@ -530,55 +486,147 @@
     return node;
   }
 
-  // Select a node and open every ancestor so it is visible in the tree
-  // (used for tree clicks, search results and the ?node= URL parameter).
+  function rowsForPane(depth) {
+    return getChildren(depth === 0 ? null : state.path[depth - 1]);
+  }
+
+  function findRow(depth, uri) {
+    var rows = rowsForPane(depth);
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i].linearization_uri === uri) return rows[i];
+    }
+    return null;
+  }
+
+  async function loadChildren(parentUri) {
+    var params = new URLSearchParams();
+    if (parentUri) params.set('parent_linearization_uri', parentUri);
+    if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
+    if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
+    if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
+    var url = apiBase + '/children' + (params.toString() ? '?' + params.toString() : '');
+    var payload = await requestJson(url);
+    state.childrenByParent[parentUri || 'root'] = payload.children || [];
+    return payload.children || [];
+  }
+
+  function paneRowHtml(row, depth) {
+    var uri = row.linearization_uri;
+    var isActive = state.path[depth] === uri;
+    var badge = row.child_count ? '<span class="badge text-bg-light">' + Number(row.child_count) + '</span>' : '';
+    var contentHtml = row.class_kind === 'category'
+      ? '<div class="icd11-browser-item-code">' + escapeHtml(row.code || '') + statusDotHtml(row) + '</div>' +
+        '<div class="icd11-browser-item-title">' + escapeHtml(row.title) + '</div>'
+      : '<div class="icd11-browser-item-code">' + escapeHtml(labelFor(row)) + '</div>';
+    return (
+      '<button type="button" class="list-group-item list-group-item-action icd11-browser-item' + (isActive ? ' active' : '') + '" ' +
+        'data-depth="' + depth + '" data-uri="' + escapeHtml(uri) + '">' +
+        '<div class="d-flex justify-content-between gap-2 align-items-start">' +
+          '<div>' + contentHtml + '</div>' +
+          badge +
+        '</div>' +
+      '</button>'
+    );
+  }
+
+  function paneHeaderLabel(depth) {
+    if (depth === 0) return 'Chapters';
+    var parent = findRow(depth - 1, state.path[depth - 1]);
+    return parent ? (parent.code || parent.title) : 'Children';
+  }
+
+  // Miller columns: pane 0 lists chapters, pane N the children of the node
+  // selected in pane N-1. A pane opens right of a selection that has
+  // children; everything right of a new selection is closed first.
+  function renderPanes() {
+    var container = panel.querySelector('#icd11-browser-columns');
+    var paneCount = state.path.length + 1;
+    var lastUri = state.path[state.path.length - 1];
+    if (lastUri) {
+      var lastRow = findRow(state.path.length - 1, lastUri);
+      if (!lastRow || !lastRow.child_count) paneCount = state.path.length;
+    }
+    var html = [];
+    for (var depth = 0; depth < Math.max(paneCount, 1); depth += 1) {
+      var rows = rowsForPane(depth);
+      var body = rows.length
+        ? rows.map(function (row) { return paneRowHtml(row, depth); }).join('')
+        : '<div class="p-3 text-muted small">' +
+          (depth === 0 ? 'No chapters match the current filters.' : 'No children match the current filters.') +
+          '</div>';
+      html.push(
+        '<div class="icd11-browser-column" data-depth="' + depth + '">' +
+          '<div class="icd11-browser-column-header">' + escapeHtml(paneHeaderLabel(depth)) + '</div>' +
+          '<div class="list-group list-group-flush icd11-browser-list" data-depth="' + depth + '">' + body + '</div>' +
+        '</div>'
+      );
+    }
+    container.innerHTML = html.join('');
+    container.querySelectorAll('.icd11-browser-list').forEach(function (list) {
+      var active = list.querySelector('.icd11-browser-item.active');
+      if (active) list.scrollTop = Math.max(active.offsetTop - list.clientHeight / 2, 0);
+    });
+    container.scrollLeft = container.scrollWidth;
+  }
+
+  function renderBreadcrumb(node) {
+    var crumbs = ['<li class="breadcrumb-item"><a href="#" data-crumb-depth="0">All chapters</a></li>'];
+    if (node) {
+      (node.ancestors || []).forEach(function (item, index) {
+        crumbs.push(
+          '<li class="breadcrumb-item"><a href="#" data-crumb-depth="' + (index + 1) + '">' +
+          escapeHtml(item.code || item.title) + '</a></li>'
+        );
+      });
+      crumbs.push('<li class="breadcrumb-item active" aria-current="page">' + escapeHtml(node.code || node.title) + '</li>');
+    }
+    panel.querySelector('#icd11-browser-path').innerHTML = crumbs.join('');
+  }
+
+  // Make ``uris`` the selected path (one per pane), loading each pane's
+  // children, then show the deepest node's details.
+  async function openPath(uris) {
+    state.path = uris.slice();
+    for (var i = 0; i < state.path.length; i += 1) {
+      if (!state.childrenByParent[state.path[i]]) {
+        await loadChildren(state.path[i]);
+      }
+    }
+    renderPanes();
+    var lastUri = state.path[state.path.length - 1];
+    setUrlParams({ node: lastUri || null });
+    if (lastUri) {
+      await loadNode(lastUri);
+    } else {
+      showEmptyDetails();
+    }
+  }
+
+  // Open every pane along a node's ancestor path (search results, ?node=).
   async function revealNode(uri) {
-    var node = await loadNode(uri);
-    for (var i = 0; i < (node.ancestors || []).length; i += 1) {
-      var ancestorUri = node.ancestors[i].linearization_uri;
-      state.expanded[ancestorUri] = true;
-      if (!state.childrenByParent[ancestorUri]) {
-        await loadChildren(ancestorUri);
-      }
-    }
-    state.selectedUri = uri;
-    setUrlParams({ node: uri });
-    renderTree();
-    var button = panel.querySelector('.icd11-browser-item[data-uri="' + CSS.escape(uri) + '"]');
-    if (button) button.scrollIntoView({ block: 'nearest' });
+    var node = await requestJson(apiBase + '/node?linearization_uri=' + encodeURIComponent(uri));
+    var uris = (node.ancestors || []).map(function (item) { return item.linearization_uri; });
+    uris.push(uri);
+    await openPath(uris);
   }
 
-  async function handleTreeClick(uri) {
-    var row = findLoadedRow(uri);
-    if (row && row.child_count) {
-      if (state.expanded[uri] && state.selectedUri === uri) {
-        delete state.expanded[uri];
-      } else {
-        state.expanded[uri] = true;
-        if (!state.childrenByParent[uri]) {
-          await loadChildren(uri);
-        }
-      }
-    }
-    state.selectedUri = uri;
-    setUrlParams({ node: uri });
-    renderTree();
-    await loadNode(uri);
+  async function selectInPane(depth, uri) {
+    await openPath(state.path.slice(0, depth).concat([uri]));
   }
 
-  // Reload the root and every open node under the current filters, keeping
-  // the selection when it is still loaded.
-  async function refreshTree() {
+  // Reload every open pane under the current filters; the selection is cut
+  // back to the deepest level still visible.
+  async function refreshPanes() {
+    var previous = state.path.slice();
     state.childrenByParent = {};
+    state.path = [];
     await loadChildren(null);
-    var openUris = Object.keys(state.expanded);
-    for (var i = 0; i < openUris.length; i += 1) {
-      await loadChildren(openUris[i]);
+    for (var i = 0; i < previous.length; i += 1) {
+      if (!findRow(i, previous[i])) break;
+      state.path.push(previous[i]);
+      await loadChildren(previous[i]);
     }
-    renderTree();
-    if (state.selectedUri) {
-      await loadNode(state.selectedUri);
-    }
+    await openPath(state.path);
   }
 
   async function savePolicy(event) {
@@ -622,7 +670,7 @@
         }
       );
       renderNodeDetails(updated);
-      await refreshTree();
+      await refreshPanes();
       showStatus('Policy saved for ' + labelFor(updated) + '.', 'success');
     } catch (error) {
       showStatus(error.message, 'danger');
@@ -670,16 +718,15 @@
     }
     var applied = await postPolicyFile(file, false);
     showStatus('Imported. ' + importSummary(applied), 'success');
-    await refreshTree();
+    await refreshPanes();
   }
 
   function resetBrowser() {
     clearStatus();
-    state.expanded = {};
-    state.selectedUri = null;
+    state.path = [];
     showEmptyDetails();
     setUrlParams({ node: null });
-    renderTree();
+    renderPanes();
   }
 
   async function updateFiltersFromInputs() {
@@ -688,7 +735,7 @@
     state.filters.age = panel.querySelector('#icd11-browser-filter-age').value;
     syncFiltersToUrl();
     try {
-      await refreshTree();
+      await refreshPanes();
     } catch (error) {
       showStatus(error.message, 'danger');
     }
@@ -741,9 +788,17 @@
       });
       return;
     }
+    var crumb = event.target.closest('[data-crumb-depth]');
+    if (crumb) {
+      event.preventDefault();
+      openPath(state.path.slice(0, Number(crumb.dataset.crumbDepth))).catch(function (error) {
+        showStatus(error.message, 'danger');
+      });
+      return;
+    }
     var button = event.target.closest('.icd11-browser-item');
     if (!button) return;
-    handleTreeClick(button.dataset.uri).catch(function (error) {
+    selectInPane(Number(button.dataset.depth), button.dataset.uri).catch(function (error) {
       showStatus(error.message, 'danger');
     });
   });
@@ -803,7 +858,8 @@
     setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
     setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
     setSelectOptions(policyStatusInput(), state.options.policy_status || [], false);
-    renderTree();
+    renderPanes();
+    renderBreadcrumb(null);
     var nodeUri = new URLSearchParams(window.location.search).get('node');
     return nodeUri ? revealNode(nodeUri) : null;
   }).catch(function (error) {

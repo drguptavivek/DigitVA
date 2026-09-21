@@ -39,6 +39,7 @@ dependencies = [
     "flask-mail>=0.10.0",
     "markdown2>=2.5.5",
     "boto3>=1.43.96",
+    "nh3>=0.3.7",
 ]
 
 [project.optional-dependencies]

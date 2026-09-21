@@ -26,6 +26,7 @@ def seed_run(test):
     _seed_form_types()
     _seed_who_2022_va_fields()
     _seed_pii_flags()
+    _seed_va_cause_definitions()
     if test:
         _seed_test_users()
 
@@ -184,6 +185,27 @@ def _seed_pii_flags():
         )
     else:
         click.echo(f"  [skip] PII flags already set ({totals['unchanged']} fields)")
+
+
+def _seed_va_cause_definitions():
+    """Load the WHO VA cause definitions from the shipped seed JSON.
+
+    Idempotent; never overwrites a row an admin edited. The migration seeds
+    the same file, so this only fills gaps (e.g. a create_all database).
+    """
+    from app.services.va_cause_definition_service import (
+        import_va_definitions,
+        load_seed_rows,
+    )
+
+    result = import_va_definitions(load_seed_rows())
+    if result.inserted or result.updated:
+        click.echo(
+            f"  [ok]   VA cause definitions (inserted {result.inserted}, "
+            f"updated {result.updated}, kept edited {result.skipped_edited})"
+        )
+    else:
+        click.echo("  [skip] VA cause definitions already loaded")
 
 
 def _seed_test_users():

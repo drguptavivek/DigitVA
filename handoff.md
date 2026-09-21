@@ -1,33 +1,104 @@
 # Handoff
 
-Updated 2026-09-21 (fifth pass). Full suite **1,736 passed**, `PYTEST_EXIT=0`;
-tooling node suite 28 passed. No migration this pass; dev stays at
-**`d5b71c3e9a84`**.
+Updated 2026-09-22 (sixth pass). Migration head **`fba41e2f1f9d`** (dev is
+there). Chain this pass: `a4c7e2f9b1d6` structure mode → `62a637f5c38a` ICD-11
+bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
+`fba41e2f1f9d` VA cause definitions. New dependency `nh3` (images rebuilt).
 
-### Organization admin and project structure (2026-09-21, sixth pass)
+## DigitVA V3
 
-Full suite **1,765 passed**. Migration **`a4c7e2f9b1d6`** (head): additive
-`va_project_master.project_structure_mode` ('sites' | 'organization'),
-backfilled 'organization' where a tree exists.
+Owner naming (2026-09-22): **V1** = initial work before Feb 2026, **V2** =
+Mar-Sep 2026, **V3** = Oct 2026 onwards, when organizations, web forms and
+ICD-11 go live. Umbrella epic `digitva-dus`.
 
-* Explicit per-project structure mode; organization writes refused (409) for
-  sites projects; the Organization panel lists only organization projects and
-  never preselects one.
-* Organization projects get one automatic site `Sites_in_project_<id>`
-  (`O###`), re-ensured on every save; `flask org ensure-site`.
-* Unplaced units: imports may omit parents below the top level; map them in the
-  Units tab's "Map parents" modal or by drag and drop
-  (`POST .../units/place`). Excluded from the intake picker; readiness warns.
-* Units tab is a Wunderbaum tree-grid (vendored 0.14.1) with side-panel editors;
-  Workers tab rebuilt; worker code optional (generated `W#####`); CSV import of
-  any one sheet; cadres placed per level; coding scope box on Levels tab;
-  in-page confirmations replace `confirm()` in the Organization panel.
-* Projects panel: create/edit on its own view, readiness hover popover.
+## Landed this pass (2026-09-21/22)
 
-Open, in order: Project Setup home epic `digitva-r1p` (phase 1 next); ICD-11
-browser parity `digitva-4yq` (in progress, uncommitted); COD buckets for
-ICD-11 (native-first + crosswalk, awaiting owner decisions); six other admin
-screens still use native `confirm()`.
+* **Project structure mode** (sites | organization), organization writes
+  refused for sites projects, automatic site `Sites_in_project_<id>` (`O###`),
+  `flask org ensure-site`.
+* **Organization panel rebuilt**: numbered workflow tabs, Wunderbaum tree-grid
+  (vendored 0.14.1) with drag-and-drop re-parenting, unplaced units + "Map
+  parents" modal, cadres per level (sub-tabs), Workers tab with side-panel
+  editor, worker code optional (`W#####`), CSV import of one sheet, coding
+  scope box, in-page confirmations.
+* **Projects panel**: create/edit on its own view, readiness hover popover.
+* **Project Setup home phase 1** (`digitva-r1p`): one page per project,
+  Overview (readiness with fix links) + Basics (the shared project form).
+* **ICD-11 browser** at parity with ICD-10: editable policy, JSON/XLSX
+  import/export, column panes with breadcrumb.
+* **ICD-11 COD buckets** (`digitva-712`): `icd_classification` on mappings,
+  `icd11_method` on schemes; WHO_2022_VA_2026 native ICD-11 buckets generated
+  from WHO's cause list (more specific wins, per-code splits), seeded by
+  migration from `resource/who_2022_va_2026_icd11_native_mappings.csv`;
+  Fresh stillbirth bucket added (KD3B.1). Review report:
+  `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd11-native-2026-09-21/`.
+  Policy draft: `docs/policy/icd11-cod-bucket-schemes.md`.
+* **VA cause definitions** (`digitva-oyq`): `mas_va_cause_definitions` (63
+  causes, groups and VAs-98 excluded), admin panel with read-only view + Quill
+  editor (shared `rich_text_editor.js`, server `sanitize_rich_text` via nh3),
+  coder "VA Definitions" button with filter, help page, and a floating
+  definition panel that auto-shows for the selected ICD code
+  (`/api/v1/va-definitions/for-icd`).
+* COD bucket scheme cards fit laptop screens.
+
+## Waiting on the owner
+
+1. ICD-11 buckets review (`icd11_review.csv`): confirm PJ20-PJ2Z → Assault;
+   PA20-PA2Z (traffic unknown) → Other transport; review 916 crosswalk
+   disagreements; decide the WHO range errors (`5C52.Y-5C52-Z`,
+   `3A00-3A4.Z`, three stale endpoints); whether any of the 2,351 uncovered
+   codes need buckets.
+2. VAs-99 has an empty definition in the source: keep or drop.
+3. VAs-09.99 "Other and unspecified maternal cause" has no WHO definition:
+   write one in the VA Definitions panel or leave empty.
+
+## Approved, not started (owner said yes 2026-09-21/22)
+
+1. `digitva-tet` (P1): snapshot a scheme's JSON export before
+   reset-from-source (new snapshot table, reset refused if the snapshot fails,
+   UI downloads it) **and** a data migration renaming three bucket labels in
+   both WHO schemes to the WHO manual titles (VAs-01.04 Diarrhoeal diseases,
+   VAs-01.13 COVID-19, VAs-12.07 ...noxious substances). Codes untouched.
+2. Crosswalk override list for ICD-11 → ICD-10 misses, sepsis first (draft for
+   owner review).
+3. ICD-11 selectable/sex/age policy draft from the WHO annex for owner review
+   (all 37,052 rows are `unreviewed`).
+4. Retire the per-form ICD setting (Project Forms) in favour of a project-level
+   ICD classification: icd10 | icd11 | selectable.
+5. Refuse removing a cadre from a level while workers of that cadre sit there;
+   refuse new workers with a deactivated cadre (server-side).
+6. HP2026 (dev): MO was removed from Community Health Centre unintentionally —
+   restore it (Code VA).
+7. Server check: web intake must refuse a submission against an unplaced unit
+   (today only the picker hides it).
+8. Project Setup home phase 2 (Structure + Coding incl. project coding gate).
+9. Replace native `confirm()` on the six remaining admin screens (sync
+   dashboard, project forms, field mapping categories, both translation
+   screens, reviewer dashboard).
+
+## Epics filed this pass
+
+* `digitva-sn1` (P1): passkeys/TOTP. Two-step login: username, then passkey if
+  registered else password; admin and data_manager without a passkey must use
+  TOTP; coders may register passkeys.
+* `digitva-ddv`: study and integrate WHO's ICD-11 Coding Tool (mortality rules)
+  into COD assessment — substantial.
+* `digitva-1eq`: more ML-based VA coding frameworks besides SmartVA.
+* `digitva-dus`: DigitVA V3 umbrella.
+
+## Known caveats
+
+* "Reset from source" on WHO_2022_VA_2026 drops the Fresh stillbirth node and
+  all ICD-11 rows (the source workbook predates them) — `digitva-tet` adds the
+  safety snapshot.
+* The floating VA definition panel and the Quill save round-trip were not
+  exercised on a live coding page with a real allocation.
+* `tests/test_admin_api.py::AdminApiTests::test_odk_site_mappings` failed
+  once in a full-suite run (1,850 passed, 1 failed) and passed alone, in its
+  file, and in a second full run: order-dependent leftover data, not yet traced.
+* Test databases created before this pass keep old table layouts
+  (`create_all` never alters); drop `mas_va_cause_definitions` there if tests
+  complain.
 
 ### English alongside the translation (`digitva-mxn`, closed)
 

@@ -1,0 +1,39 @@
+{# WHO VA cause definitions, opened from the "VA Definitions" button beside
+   the cause selects. Content comes from mas_va_cause_definitions through
+   GET /api/v1/va-definitions (app/static/js/va_definitions.js), loaded on
+   first open and filtered as the coder types. modal_id lets two panels
+   coexist on one page. Also loads the floating per-ICD-code reference
+   (app/static/js/va_definition_panel.js). Policy: docs/policy/va-cause-definitions.md. #}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" data-bs-keyboard="true" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content va-def-root" style="height:85vh;">
+      <div class="modal-header py-2 gap-2">
+        <h6 class="modal-title text-nowrap" id="{{ modal_id }}Label">VA Codes, Titles and Definitions</h6>
+        <input type="search" class="form-control form-control-sm va-def-filter ms-2" placeholder="Filter by VA cause name, code or definition" aria-label="Filter VA definitions" autocomplete="off">
+        <span class="small text-muted text-nowrap va-def-status" aria-live="polite"></span>
+        <a href="{{ url_for('help.page', slug='va-definitions') }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-link" title="Open in new tab"><i class="fas fa-external-link-alt"></i></a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body va-def-list"></div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/va_definitions.js') }}?v={{ config.STATIC_ASSET_VERSION }}"></script>
+{# Floating definition for the selected ICD code (one per page; the script
+   guards against a second include). #}
+<script src="{{ url_for('static', filename='js/va_definition_panel.js') }}?v={{ config.STATIC_ASSET_VERSION }}"></script>
+<script>
+(function () {
+  var modal = document.getElementById({{ modal_id | tojson }});
+  if (!modal) return;
+  modal.addEventListener("show.bs.modal", function () {
+    window.DigitVADefinitions && window.DigitVADefinitions.mount(modal.querySelector(".va-def-root"));
+  });
+  modal.addEventListener("shown.bs.modal", function () {
+    modal.querySelector(".va-def-filter").focus();
+  });
+  modal.addEventListener("hide.bs.modal", function () {
+    document.activeElement && document.activeElement.blur();
+  });
+})();
+</script>

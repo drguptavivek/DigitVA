@@ -14,6 +14,7 @@ from app.routes.intake import intake
 # Extends the `admin` blueprint in place (like app/routes/admin_organization.py);
 # imported here so its rules are registered before the blueprint is.
 from app.routes import admin_translations  # noqa: F401
+from app.routes import admin_va_definitions  # noqa: F401
 
 
 def register_blueprints(app):

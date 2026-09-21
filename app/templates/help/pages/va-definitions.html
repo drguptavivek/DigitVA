@@ -1,0 +1,31 @@
+{# Rendered from mas_va_cause_definitions through GET /api/v1/va-definitions,
+   the same source and script as the coder "VA Definitions" modal. #}
+<h2>VA Cause Definitions</h2>
+
+<p>
+  The WHO verbal autopsy cause codes, titles and definitions from the manual
+  for physician reviewers. Coders and reviewers open the same list from the
+  <strong>VA Definitions</strong> button beside the cause of death selects.
+  Type a cause name, a code such as <code>VAs-01.02</code>, or a word from a
+  definition to filter.
+</p>
+
+<p>
+  When you pick an ICD code in a cause of death field, the definition of the
+  VA cause that code maps to opens in a small panel at the bottom right of
+  the screen. It does not block the form; close it with its &times; button
+  and it stays closed until you pick another code.
+</p>
+
+<div class="va-def-root">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <input type="search" class="form-control va-def-filter" placeholder="Filter by VA cause name, code or definition" aria-label="Filter VA definitions" autocomplete="off">
+    <span class="small text-muted text-nowrap va-def-status" aria-live="polite"></span>
+  </div>
+  <div class="va-def-list"></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/va_definitions.js') }}?v={{ config.STATIC_ASSET_VERSION }}"></script>
+<script>
+  window.DigitVADefinitions.mount(document.querySelector('.va-def-root'));
+</script>

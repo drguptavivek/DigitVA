@@ -153,6 +153,20 @@ Current schemes:
 `mapping_version` moves when a scheme's mappings are re-imported, so a
 consumer can tell that a scheme's content changed without diffing its rows.
 
+`icd11_method` (`crosswalk` | `native` | NULL, CHECK-constrained; migration
+`62a637f5c38a`) says how an ICD-11 code finds its bucket in the scheme
+(policy: `docs/policy/icd11-cod-bucket-schemes.md`). NULL is an ICD-10-only
+scheme, which every scheme was before. `WHO_2022_VA_2026` is `native`:
+migration `6c11b620f48f` seeds its generated ICD-11 rows from
+`resource/who_2022_va_2026_icd11_native_mappings.csv` (output of
+`flask cod-buckets generate-icd11 --scheme WHO_2022_VA_2026 --apply`) and adds
+its `vas_11_01` "Fresh stillbirth" leaf beside `vas_11_02`. ICD-11 KD3B.1
+maps there; ICD-10 P95 cannot separate fresh from macerated and stays with
+`vas_11_02`. Re-importing or resetting a scheme from its workbook
+rebuilds its nodes, which drops the ICD-11 rows with them (and
+`vas_11_01`, which the source workbook does not have), so a `native` scheme
+falls back to NULL until the generator runs again.
+
 ### `mas_cod_bucket_scheme_age_bands`
 
 Purpose:
@@ -204,7 +218,24 @@ Purpose:
 
 Current behavior:
 
-- one ICD code can map to only one leaf per `scheme_id + age_scope`
+- one ICD code can map to only one leaf per `scheme_id + icd_classification +
+  age_scope` (unique constraint and the `upper(icd_code)` unique index)
+- `icd_classification` (`icd10` | `icd11`, default `icd10`; migration
+  `62a637f5c38a`) says which classification `icd_code` belongs to. Existing
+  rows are `icd10`. Every ICD-10 consumer (reporting, the COD bucket panel's
+  editor, search and unmapped grid, JSON import, the xlsx export, the ICD-10
+  browser's manual-override column) filters on `icd10` explicitly. The JSON
+  export carries the field and `icd11_method`; a file without them imports
+  as ICD-10 only.
+- ICD-11 rows are generated, not hand-edited: `match_type` `range` or `split`,
+  `source_category` the WHO VA cause code, `mapping_note` the covering range.
+  The panel shows them read-only behind an ICD-10 | ICD-11 toggle; the mapping
+  PATCH/DELETE endpoints refuse them.
+- `va_submission_cod_snapshot_mv` still joins `WHO_2022_VA` rows without a
+  classification filter: historical migrations rebuild that view through the
+  same SQL builder, so it cannot reference a column that did not yet exist.
+  `WHO_2022_VA` has no ICD-11 rows, and an ICD-10 code can never equal an
+  ICD-11 one (their second characters differ).
 
 ## Organization Master Tables
 
@@ -501,6 +532,35 @@ docs/planning/icd11-coding-screen-integration-plan.md):
 - ICD-11 coding-screen search, validation, and per-code allowability policy
   (phase 5 of the plan) are not implemented yet
 
+### `mas_va_cause_definitions`
+
+Purpose:
+
+- WHO VA cause codes, titles and definitions shown to coders and reviewers
+  (the "VA Definitions" modal and `/help/va-definitions`), editable by
+  admins. Policy: docs/policy/va-cause-definitions.md.
+
+Key fields:
+
+- `id` (uuid primary key), `va_code` (unique cause code, e.g. `VAs-01.01`;
+  WHO section headings and `VAs-98` are groups and are not stored)
+- `title`, `definition_html` (sanitized rich text, allowlist in
+  `app/utils/rich_text.py`), `is_active`, `source`
+- `created_at`, `updated_at`, `updated_by` (nullable FK to `va_users`,
+  `ON DELETE SET NULL`; set only by an admin edit, and protects the row from
+  `flask va-definitions import` unless `--force`)
+
+Current behavior:
+
+- migration `fba41e2f1f9d` creates the table and seeds 63 rows from
+  `resource/va_cause_definitions_who_2022.json`; `flask seed run` loads the
+  same file, skipping existing codes
+- read by `GET /api/v1/va-definitions` in one query, in `va_code` order;
+  `GET /api/v1/va-definitions/for-icd` joins `map_icd_cod_buckets` ->
+  `mas_cod_bucket_nodes` (`vas_01_02` -> `VAs-01.02`) to find the definition
+  for a selected ICD code; edited through
+  `/admin/api/va-definitions` (`app/routes/admin_va_definitions.py`)
+
 ## Submission Table
 
 ### `va_submissions`
@@ -704,6 +764,8 @@ Current behavior:
 
 - leaves coded submissions unchanged
 - drives reporting-only COD bucket aggregation
+- `icd_classification` (`icd10` | `icd11`) is part of the unique key; see the
+  COD Reporting Master Tables section above
 
 ### `va_initial_assessments`
 

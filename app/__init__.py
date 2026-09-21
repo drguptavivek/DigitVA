@@ -221,6 +221,8 @@ def create_app(config_class=None):
     init_icd10_commands(app)
     from app.commands.icd11 import init_app as init_icd11_commands
     init_icd11_commands(app)
+    from app.commands.va_definitions import init_app as init_va_definition_commands
+    init_va_definition_commands(app)
     from app.commands.organization import init_app as init_org_commands
     init_org_commands(app)
 

@@ -241,7 +241,7 @@
             <div class="card-body p-3">  
               <label for="conclusive-cod-select" class="form-label fw-bold">
                 Final Underlying / Antecedent Cause of Death <span style="color: red">*</span>
-                <a href="https://icd.who.int/browse10/2019/en" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary ms-2" title="Open ICD-10 Browser"><i class="fas fa-book-medical me-1"></i>ICD-10 Browser</a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#icdCodesModal" title="Selected ICD-10 and ICD-11 Codes"><i class="fas fa-file-pdf me-1"></i>Selected ICD Codes</button> <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="ms-1" title="Open in new tab" style="font-size:0.75rem;color:#6c757d;"><i class="fas fa-external-link-alt"></i></a>
+                <a href="https://icd.who.int/browse10/2019/en" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary ms-2" title="Open ICD-10 Browser"><i class="fas fa-book-medical me-1"></i>ICD-10 Browser</a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#icdCodesModal" title="Selected ICD-10 and ICD-11 Codes"><i class="fas fa-file-pdf me-1"></i>Selected ICD Codes</button> <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="ms-1" title="Open in new tab" style="font-size:0.75rem;color:#6c757d;"><i class="fas fa-external-link-alt"></i></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#vaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
               </label>  
               <select id="conclusive-cod-select" class="form-select form-select-lg mb-2"></select>  
               {{ form.va_conclusive_cod }}  
@@ -368,6 +368,7 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
     </div>
   </div>
 </div>
+{% with modal_id="vaDefinitionsModal" %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}
 <script>
 document.getElementById("icdCodesModal")?.addEventListener("hide.bs.modal", function () {
   document.activeElement?.blur();

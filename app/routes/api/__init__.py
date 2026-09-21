@@ -4,7 +4,7 @@ from flask import Blueprint
 
 api_v1 = Blueprint("api_v1", __name__)
 
-from app.routes.api import analytics, cod_buckets, coding, data_management, icd10, instruments, nqa, organization, profile, reviewing, so, workflow  # noqa: E402, F401
+from app.routes.api import analytics, cod_buckets, coding, data_management, icd10, instruments, nqa, organization, profile, reviewing, so, va_definitions, workflow  # noqa: E402, F401
 
 # DM KPI analytics sub-blueprints
 from app.routes.api.dm_kpi import (  # noqa: E402, F401
@@ -30,6 +30,7 @@ api_v1.register_blueprint(organization.bp, url_prefix="/organization")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")
 api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")
+api_v1.register_blueprint(va_definitions.bp, url_prefix="/va-definitions")
 api_v1.register_blueprint(workflow.bp, url_prefix="/workflow")
 
 # DM KPI dashboard endpoints

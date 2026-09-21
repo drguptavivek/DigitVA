@@ -1,0 +1,3 @@
+Quill 2.0.3 (BSD-3-Clause, see LICENSE; bundled third-party notices in quill.js.LICENSE.txt), by Slab.
+Source: https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/ (quill.js, quill.snow.css, quill.js.LICENSE.txt); LICENSE from the package root.
+Used by: app/static/js/rich_text_editor.js (the shared rich-text editor; first user: admin VA Definitions panel).

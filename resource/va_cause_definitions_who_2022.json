@@ -1,0 +1,380 @@
+[
+ {
+  "va_code": "VAs-01.01",
+  "title": "Sepsis",
+  "definition_html": "1. Fever AND mental confusion for less than 1 week AND one of the following:\n<ul><li>Inability to stand up (information needs to come from the open narrative)</li><li>Lethargy (information needs to come from the open narrative)</li></ul>\n<p><em>NOTE: If there is a more specific cause, like pneumonia, that would be the underlying cause. Sepsis in those cases would be considered the direct cause.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.02",
+  "title": "Acute respiratory infection, including pneumonia",
+  "definition_html": "1. Acute cough (dry or productive) AND fever AND any of the following:\n<ul><li>Fast breathing/breathlessness</li><li>Chest pain</li><li>Cough up blood (i.e., blood in sputum)</li><li>Wheezing</li></ul>\nAND none of the following:\n<ul><li>Swelling of legs</li><li>Distension of abdomen</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.03",
+  "title": "HIV/AIDS related death",
+  "definition_html": "1. H/O severe weight loss in less than 3 months (information on duration needs to come from the open narrative) AND HIV +ve serology.\n<p>OR</p>\n2. H/O severe weight loss in less than 3 months AND any two of the following:\n<ul><li>History of prolonged unexplained fever</li><li>Persistent diarrhoea</li><li>Persistent cough for more than 1 month (intermittent or continuous)</li><li>Mouth sores/white patches in mouth</li><li>Skin rash for prolonged periods of time</li><li>Generalised swelling of nodes (i.e., lumps) in armpits, neck, groin</li><li>History of spouse/partner with similar illness / death of spouse partner from similar illness (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.04",
+  "title": "Diarrhoeal diseases",
+  "definition_html": "1. Three or more loose/liquid/watery stools per day over &lt; 2 weeks AND any two of the following:\n<ul><li>Eyes sunken/depressed fontanelle</li><li>Low/nil urine output</li><li>Vomiting</li><li>Intravenous fluid intake/ORS</li><li>Mental confusion OR dizziness (open narrative)</li><li>Unconsciousness/lethargy (open narrative)</li><li>Decreased fluid intake (open narrative)</li></ul>\n<p>OR</p>\n2. Three or more loose/liquid/watery stools per day over &lt; 2 weeks AND blood in stool.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.05",
+  "title": "Malaria",
+  "definition_html": "1. Acute onset of severe fever (may be intermittent) AND NO stiff neck AND NO bulging of fontanelle (for children under 12 months old) AND any three of the following:\n<ul><li>Convulsions</li><li>Unconscious</li><li>Breathlessness</li><li>Pallor (pale palms, eyes, nail beds)</li><li>Jaundice</li><li>Severe headache</li><li>Chills/rigor (open narrative)</li></ul>\n<p>OR</p>\n2. Acute onset of severe fever AND recent test positive for malaria AND any two of the above-listed features.\n<p><em>NOTE: Presence of symptoms of ARI, diarrhoea or burning during micturition could be suggestive of immediate or contributory causes.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.06",
+  "title": "Measles",
+  "definition_html": "1. Age &gt; 4 months AND rash all over body &gt; 3 days AND fever &gt; 3 days AND any of the following:\n<ul><li>Rash started on the face (measles rash)</li><li>Cough</li><li>Red or watery eyes (open narrative)</li><li>Running nose (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.07",
+  "title": "Meningitis and encephalitis",
+  "definition_html": "1. (Continuous fever OR hypothermia in children &lt; 3 months old (open narrative)) AND any two of the following:\n<ul><li>Neck stiffness</li><li>Convulsions</li><li>Bulging fontanelle</li><li>Severe headache</li><li>Prolonged loss of consciousness</li><li>Vomiting / poor feeding (children)</li><li>Mental confusion</li><li>Irritability or lethargy (open narrative)</li><li>Ear discharge (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.08",
+  "title": "Tetanus",
+  "definition_html": "1. (Stiffness of the whole body AND/OR unable to open the mouth) AND any of the following:\n<ul><li>Arching of the back/whole body</li><li>History of injury (cut or pierced)</li><li>Difficulty breathing</li></ul>\n<p><em>Excludes: Neonatal tetanus VAs-10.05</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.09",
+  "title": "Pulmonary tuberculosis",
+  "definition_html": "1. Chronic cough of ≥ 2 weeks AND fever AND any two of the following:\n<ul><li>Cough up blood (i.e., blood in sputum)</li><li>Chest pain</li><li>Breathlessness</li><li>Diagnosis and/or treatment history of TB</li><li>Known HIV positive serology (especially if not on ART)</li><li>Loss of appetite (open narrative)</li><li>Chronic weight loss (duration from open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.10",
+  "title": "Pertussis",
+  "definition_html": "1. Severe cough AND any of the following:\n<ul><li>\"Whooping\" sound when coughing</li><li>Stridor</li><li>Vomiting after coughing (open narrative)</li><li>Breathlessness in the neonate (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.11",
+  "title": "Haemorrhagic fever",
+  "definition_html": "1. Fever &gt; 3 days AND bleeding from nose, mouth or anus AND blood test for dengue fever negative (open narrative).\n<p><em>Excludes: Dengue VAs-01.12</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.12",
+  "title": "Dengue fever",
+  "definition_html": "1. Sudden onset of severe fever AND any 2 of the following:\n<ul><li>Vomiting</li><li>Bleeding from nose, mouth, or anus</li><li>Severe pain in muscles, bones, forehead and behind eyeballs (open narrative)</li></ul>\n<p>OR</p>\n2. Diagnosis of dengue fever by a health professional.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.13",
+  "title": "COVID-19",
+  "definition_html": "1. Severe difficulty breathing or breathlessness (i.e., shortness of breath) until death AND positive test for COVID-19.\n<p>OR</p>\n2. Severe difficulty breathing or breathlessness until death AND not vaccinated against COVID-19 AND any three of the following:\n<ul><li>Fever/chills</li><li>Loss or change of smell/taste</li><li>Extreme fatigue</li><li>Cough</li><li>Known exposure to COVID-19</li><li>Diarrhoea/vomiting</li><li>Sore throat (open narrative)</li><li>Muscle or body aches (open narrative)</li></ul>\n<p><em>NOTE: The open narrative is very important to elicit the necessary details to make a correct diagnosis for COVID-19. Only tests conducted by health professionals are acceptable.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-01.99",
+  "title": "Unspecified infectious disease",
+  "definition_html": "1. Fever with no other specific signs or symptoms.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.01",
+  "title": "Oral neoplasms",
+  "definition_html": "1. (Lump or sores OR mass OR swelling on tongue/cheek/mouth cavity/gum/palate, usually progressive (swelling details from open narrative)) AND any of the following:\n<ul><li>H/O chewing tobacco</li><li>Weight loss</li><li>Non-healing sore or ulcer (narrative)</li><li>Restriction/difficulty in opening mouth (open narrative)</li><li>Bleeding on touch from the lump/mass/swelling (open narrative)</li></ul>\n<p>OR</p>\n2. Diagnosed as oral cancer.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.02",
+  "title": "Digestive neoplasms",
+  "definition_html": "<b>Oesophageal cancer</b>\n<ol><li>Progressive difficulty in taking foods AND weight loss over several months (duration from open narrative). OR 2. Diagnosed as oesophageal cancer.</li></ol>\n<b>Stomach cancer</b>\n<ol><li>Vomiting AND mass in upper abdomen (location from open narrative) AND any of the following:\n<ul><li>Blood in vomit</li><li>Weight loss</li><li>Difficulty in swallowing</li><li>Black stools (open narrative)</li><li>Black vomit</li></ul>\nOR 2. Diagnosed as stomach cancer.</li></ol>\n<b>Colorectal cancer</b>\n<ol><li>Bleeding from anal opening AND any of the following:\n<ul><li>Chronic H/O constipation alternating with loose stools OR constipation alone (open narrative)</li><li>Weight loss</li><li>Painful abdominal distension</li><li>Lump in lower part of abdomen (location from open narrative)</li></ul>\nOR 2. Diagnosed as colorectal cancer.</li></ol>\n<b>Liver cancer</b>\n<ol><li>Mass in the abdomen in the right upper quadrant (location from open narrative) AND any two of the following:\n<ul><li>Protrusion of abdomen developed slowly over months</li><li>Weight loss</li><li>Jaundice</li></ul>\nOR 2. Diagnosed as liver cancer.</li></ol>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.03",
+  "title": "Respiratory neoplasms",
+  "definition_html": "<b>Throat cancer</b>\n<ol><li>(Hoarseness of voice slowly developed over months (open narrative) OR swelling inside the throat (open narrative)) AND weight loss over several months (duration from open narrative). OR 2. Diagnosed as throat cancer.</li></ol>\n<b>Lung cancer</b>\n<ol><li>Chronic cough AND coughing blood AND NO diagnosis of tuberculosis during final illness AND any of the following:\n<ul><li>H/O smoking daily over a long period</li><li>Noticeable loss of weight</li><li>Recurrent H/O pneumonia (open narrative)</li></ul>\nOR 2. Diagnosed as lung cancer.</li></ol>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.04",
+  "title": "Breast neoplasms",
+  "definition_html": "1. Painless lump in one or both breasts (pain information from open narrative) AND any of the following:\n<ul><li>Skin ulceration over breast</li><li>Enlarged glands (i.e., lumps) in the neck/axilla</li><li>Discharge from nipple (open narrative)</li></ul>\n<p>OR</p>\n2. Diagnosed as breast cancer.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.05",
+  "title": "Female reproductive neoplasms",
+  "definition_html": "1. (Vaginal bleeding after menopause OR pre-menopausal foul smelling vaginal discharge with blood (open narrative)) AND any of the following:\n<ul><li>Weight loss</li><li>HIV positive/AIDS diagnosis</li><li>Bleeding after sex (open narrative)</li><li>HPV positive (open narrative)</li></ul>\n<p>OR</p>\n2. Diagnosed as carcinoma of cervix, uterus, ovary, or vulva.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.06",
+  "title": "Male reproductive neoplasms",
+  "definition_html": "1. (Palpable lesion/ulcer in the penis of prolonged duration (open narrative) OR hard swelling/lump on the testicle(s) (open narrative) OR difficulty in passing urine) AND chronic loss of weight (duration from open narrative).\n<p>OR</p>\n2. Diagnosed as prostate, penile, or testicular carcinoma.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-02.99",
+  "title": "Other and unspecified neoplasms",
+  "definition_html": "No specific guidelines.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-03.01",
+  "title": "Severe anaemia",
+  "definition_html": "1. Pallor (palms, eyes, oral mucous membranes) AND NO diagnosis of any cancer/malaria/sickle cell disease/TB/HIV/AIDS/cardiac failure AND any three of the following:\n<ul><li>Weight loss</li><li>Fatigue/weakness</li><li>Breathlessness on exertion</li><li>Swollen legs and feet</li><li>H/O bleeding anywhere</li><li>Dizziness (narrative)</li></ul>\n<p>OR</p>\n2. Diagnosed as anaemia.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-03.02",
+  "title": "Severe malnutrition",
+  "definition_html": "1. (Not growing properly OR losing weight and becoming very thin over months (duration from open narrative)) AND any 2 of the following:\n<ul><li>Recurrent febrile illness</li><li>Reddish brown discoloration of hair</li><li>Flaking of skin</li><li>Pallor</li><li>Protruding abdomen</li><li>Swelling of feet</li><li>Night-blindness (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-03.03",
+  "title": "Diabetes mellitus",
+  "definition_html": "1. H/O diabetes AND any of the following:\n<ul><li>Ulcer(s) in the foot over long period (duration from open narrative)</li><li>Frequent urination (open narrative)</li><li>Increased thirst/increased hunger (open narrative)</li><li>Recurrent infection (particularly respiratory) (open narrative)</li><li>Tingling or numbness of toes (open narrative)</li><li>Fruity-scented breath (open narrative)</li></ul>\n<p>OR</p>\n2. H/O diabetes AND no other cause of death identified.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-04.01",
+  "title": "Acute cardiac disease",
+  "definition_html": "1. Severe chest pain lasting for more than ½ hour but less than 24 hours AND any 2 of the following:\n<ul><li>Breathlessness (i.e., shortness of breath)</li><li>Nausea/vomiting</li><li>Sudden death</li><li>Pain radiating to left arm, back, jaw or shoulders (open narrative)</li><li>Pain between the shoulder blades (open narrative)</li><li>Sweating (open narrative)</li></ul>\n<p>OR</p>\n2. Sudden death with acute breathlessness AND (previous H/O heart disease OR hypertension).\n<p><em>NOTE: See Section 4.1.1.1 for definition of sudden death.</em></p>\n<p>OR</p>\n3. Diagnosed heart attack/myocardial infarction.\n<p><em>Includes: Ischaemic heart disease; pulmonary embolism; sudden cardiac death; cardiac arrest, unspecified; left ventricular failure; and hypertensive heart disease with heart failure.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-04.02",
+  "title": "Stroke",
+  "definition_html": "1. Sudden onset of paralysis of one side of the body in the month preceding death (onset/timing from open narrative) AND any of the following:\n<ul><li>Unconsciousness</li><li>Headache</li><li>Loss of vision (open narrative)</li><li>Urinary incontinence (open narrative)</li><li>Loss of sensations on one side of the body (open narrative)</li><li>Altered speech (open narrative)</li><li>Face pulled skew (open narrative)</li></ul>\n<p><em>NOTE: In long standing cases, commonly leading to development of bed sores with septicaemia, or features of pneumonia as the immediate cause of death.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-04.03",
+  "title": "Sickle cell with crisis",
+  "definition_html": "1. Pallor AND fast breathing AND H/O joint and bone pain (narrative) AND any of the following:\n<ul><li>Fever</li><li>Jaundice</li><li>H/O sickle cell</li><li>H/O blood transfusion</li><li>Fainting (collapse) (open narrative)</li><li>Dizziness (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-04.99",
+  "title": "Other and unspecified cardiac disease",
+  "definition_html": "No specific guidelines for this category.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-05.01",
+  "title": "Chronic obstructive pulmonary disease (COPD)",
+  "definition_html": "1. Recurrent episodes of productive cough &gt; 2 yrs AND breathlessness, initially episodic (more in winter) later progressive (mode of onset from open narrative) AND no H/O TB AND any of the following:\n<ul><li>Ankle swelling late in disease</li><li>Death is often preceded by signs of terminal pneumonia (open narrative)</li><li>Wheezing</li></ul>\n<p><em>NOTE: Respondents may suggest that a patient has asthma when referring to COPD, but the narrative may indicate adult onset which would be more in keeping with COPD.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-05.02",
+  "title": "Asthma",
+  "definition_html": "1. Severe acute breathlessness AND H/O asthma AND any of the following:\n<ul><li>Usually in children and young adults</li><li>Not responding to usual treatment for breathing problems (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-06.01",
+  "title": "Acute abdomen",
+  "definition_html": "1. Severe acute abdominal pain AND any of the following:\n<ul><li>Vomiting</li><li>Fever</li><li>Abdominal distension</li><li>Jaundice</li><li>Constipation (open narrative)</li><li>Rigidity of abdomen (open narrative)</li><li>Back pain that radiates to the buttocks, groin, or legs (open narrative)</li><li>Pallor/coldness in the legs (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-06.02",
+  "title": "Liver cirrhosis",
+  "definition_html": "1. Abdominal distension (i.e., fluid in abdomen; ascites) AND jaundice AND swelling of lower limbs AND with or without any of the following:\n<ul><li>Vomiting of blood</li><li>Passing of blood in stool</li><li>H/O chronic alcoholism</li><li>Drowsiness/coma (open narrative)</li></ul>\n<p><em>Includes: alcoholic fibrosis/cirrhosis; toxic liver cirrhosis; fibrosis and cirrhosis of liver, excluding alcoholic and toxic, but including 'unspecified liver cirrhosis'.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-07.01",
+  "title": "Renal failure",
+  "definition_html": "1. H/O renal dialysis/renal failure from health records AND no other specific cause of death.\n<p>OR</p>\n2. (Passing small amount of urine over a long period (open narrative) OR acute onset of decreasing urinary output for more than 1 day (open narrative)) AND any two of the following:\n<ul><li>H/O hypertension</li><li>H/O diabetes</li><li>Swelling of the eyelids/face</li><li>Swelling of the whole body</li><li>Lower abdominal pain</li><li>Confusion/drowsiness (open narrative)</li><li>Hiccups (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-08.01",
+  "title": "Epilepsy",
+  "definition_html": "1. (H/O epilepsy OR H/O generalized convulsions over a long period (duration from open narrative)) AND (general convulsions during final illness AND loss of consciousness after convulsions) AND:\n<ul><li>No fever</li><li>No neck stiffness</li><li>No H/O injury to head up to one week before death (open narrative)</li></ul>\n<p>OR</p>\n2. H/O epilepsy AND no other specific cause of death.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.01",
+  "title": "Ectopic pregnancy",
+  "definition_html": "1. Female aged 12–49 years AND sudden severe abdominal pain AND (vaginal bleeding OR fainted).\n<p><em>NOTE: H/O pregnancy &lt; 2 months is supporting evidence but not essential.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.02",
+  "title": "Abortion-related death",
+  "definition_html": "1. Female aged 12–49 years AND H/O abortion (i.e., termination before 28 weeks of pregnancy) AND died within 42 days of having an abortion AND any of the following:\n<ul><li>Lower abdominal pain and abnormal vaginal discharge</li><li>Excessive vaginal bleeding</li><li>Fever until death</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.03",
+  "title": "Pregnancy-induced hypertension",
+  "definition_html": "1. (Pregnancy &gt; 20 weeks of gestation OR up to 6 weeks postpartum) AND (diagnosis of high blood pressure by a health professional at &gt; 20 weeks gestation OR up to 6 weeks postpartum (timing from open narrative)).\n<p>OR</p>\n2. (Pregnancy &gt; 20 weeks gestation OR up to 6 weeks postpartum) AND any of the following:\n<ul><li>Convulsions for first time in pregnancy OR up to 6 weeks postpartum</li><li>Swelling of face</li><li>Blurred vision</li><li>Severe headache</li><li>Upper abdominal pain</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.04",
+  "title": "Obstetric haemorrhage",
+  "definition_html": "<b>Antepartum haemorrhage</b>\n<ol><li>Abdominal/back pain after 28 weeks of gestation but before birth of baby (open narrative) AND (excessive vaginal bleeding OR fainting attack (open narrative)). OR 2. H/O painless vaginal bleeding during pregnancy (pain information from open narrative) AND excessive bleeding during labour and delivery.</li></ol>\n<b>Postpartum haemorrhage</b>\n<ol><li>Excessive bleeding after delivery of baby OR fainting attack AND no abdominal pain AND any one of the following:\n<ul><li>Placenta was partially or fully retained</li><li>Abdominal pain had stopped after delivering the baby (timing from open narrative)</li></ul></li></ol>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.05",
+  "title": "Obstructed labour",
+  "definition_html": "1. Abnormal presentation (breech, shoulder, hand, or transverse) AND baby not delivered.\n<p>OR</p>\n2. (Difficulty in delivering baby OR forceps/vacuum/C-section delivery) AND prolonged labour &gt; 24 hours.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.06",
+  "title": "Pregnancy-related sepsis",
+  "definition_html": "1. H/O delivery/abortion within 42 days AND severe fever persisting till death AND any of the following:\n<ul><li>Foul smelling vaginal discharge</li><li>Lower abdominal pain/distension</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.07",
+  "title": "Anaemia of pregnancy",
+  "definition_html": "1. Death during pregnancy, labour, delivery or occurring soon after birth of child AND no other specific cause of death identified AND any of the following:\n<ul><li>(Paleness of tongue, lips or palms OR fatigue) AND breathlessness prior to death</li><li>H/O need/given blood transfusion</li><li>H/O diagnosis of severe anaemia (Hb &lt; 5 g/dl) (open narrative or medical records)</li></ul>\n<p><em>NOTE: Other symptoms available from the open narrative include palpitations/tachycardia, irritability, dizziness, and restless legs.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-09.08",
+  "title": "Ruptured uterus",
+  "definition_html": "1. H/O prolonged labour AND sudden severe abdominal pain AND any of the following:\n<ul><li>Vaginal bleeding</li><li>H/O C-section</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.01",
+  "title": "Prematurity or low birth weight",
+  "definition_html": "1. Born alive AND pregnancy duration less than 8 months (i.e., 7 months and below) AND no other obvious cause of death.\n<p>OR</p>\n2. If pregnancy duration not known: smaller than average size baby (if weighed, birth weight below 2.5 kilograms) AND no other obvious cause of death.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.02",
+  "title": "Birth asphyxia",
+  "definition_html": "1. (Delayed or no breathing at birth OR delayed or no crying at birth) AND any sign of life present at birth (i.e., exclude stillbirths) AND any of the following:\n<ul><li>Died within 24 hours of birth</li><li>Convulsions in first 24 hours</li><li>Prolonged or difficult labour</li><li>Poor suckling</li><li>Respiratory distress after birth in a term infant</li></ul>\n<p><em>Includes: hypoxia and respiratory distress.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.03",
+  "title": "Neonatal pneumonia",
+  "definition_html": "1. Breathed immediately at birth, even if a little AND (fever OR cold to touch) AND any of the following:\n<ul><li>Fast breathing</li><li>Nasal flaring/grunting</li><li>Chest in-drawing</li></ul>\n<p><em>Differs from \"pneumonia\", as this refers to a death within 28 days of life.</em></p>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.04",
+  "title": "Neonatal sepsis",
+  "definition_html": "1. (Fever OR cold to touch) AND no other obvious causes of death (e.g., acute respiratory infection, including pneumonia, meningitis, diarrhoea) AND any of the following:\n<ul><li>Purulent cord</li><li>Skin sores/ulcers</li><li>Poor suckling</li><li>Lethargic</li><li>Unconscious</li><li>Convulsions</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.05",
+  "title": "Neonatal tetanus",
+  "definition_html": "1. Baby able to suckle and cry after birth AND stopped suckling or crying after 2 days AND baby's body became rigid (stiff with the back arched backwards) AND any of the following:\n<ul><li>Convulsions</li><li>Umbilical cord inflammation (pus draining from the cord or redness extending to the skin)</li><li>Mother not vaccinated against tetanus in pregnancy</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.06",
+  "title": "Congenital malformation",
+  "definition_html": "1. Any of the following:\n<ul><li>Abnormally small head</li><li>Abnormally large head</li><li>Swelling or defect of the back</li><li>Open palate (cleft) (open narrative)</li><li>No anal opening (i.e., not being able to defecate) (open narrative)</li><li>Defect of the abdominal wall and visible internal organs (open narrative)</li></ul>",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-10.99",
+  "title": "Other and unspecified perinatal cause of death",
+  "definition_html": "Death within 7 days of birth; no specific guidelines for this category.",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-11.01",
+  "title": "Fresh stillbirth",
+  "definition_html": "1. Baby did not cry, move, or breathe at birth AND (stopped moving during labour OR no maceration).",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-11.02",
+  "title": "Macerated stillbirth",
+  "definition_html": "1. Baby did not cry, move, or breathe at birth AND (stopped moving before the onset of labour OR baby's body was soft, discoloured and the skin peeling away).",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.01",
+  "title": "Road traffic accident",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.02",
+  "title": "Other transport accident",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.03",
+  "title": "Accidental fall",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.04",
+  "title": "Accidental drowning and submersion",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.05",
+  "title": "Accidental exposure to smoke, fire and flames",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.06",
+  "title": "Contact with venomous animals and plants",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.07",
+  "title": "Accidental poisoning and exposure to noxious substances",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.08",
+  "title": "Intentional self-harm",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.09",
+  "title": "Assault",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.10",
+  "title": "Exposure to force of nature",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-12.99",
+  "title": "Other and unspecified external cause of death",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ },
+ {
+  "va_code": "VAs-99",
+  "title": "Cause of death unknown",
+  "definition_html": "",
+  "source": "WHO 2026 PCVA manual for physician reviewers"
+ }
+]

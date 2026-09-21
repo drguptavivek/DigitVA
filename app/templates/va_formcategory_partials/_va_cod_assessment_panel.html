@@ -169,6 +169,7 @@
                       title="Selected ICD-10 and ICD-11 Codes">
                 <i class="fas fa-file-pdf me-1"></i>Selected ICD Codes
               </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#reviewerVaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
             </label>
             <select id="reviewer-conclusive-cod-select" class="form-select form-select-lg mb-2"></select>
             <input type="hidden" id="reviewer-conclusive-cod" name="conclusive_cod">
@@ -366,6 +367,7 @@
     }());
   </script>
 
+  {% with modal_id="reviewerVaDefinitionsModal" %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}
   <div class="modal fade" id="reviewerIcdCodesModal" tabindex="-1" data-bs-keyboard="true" aria-labelledby="reviewerIcdCodesModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
       <div class="modal-content" style="height:85vh;">

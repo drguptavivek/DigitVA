@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-21
 ---
 
 # Policy Docs
@@ -38,6 +38,7 @@ Current policy docs:
 - [Password Breach Check Policy](password-breach-checks.md)
 - [Request Method Abuse Control Policy](request-method-abuse-control.md)
 - [Site Maintenance Mode Policy](site-maintenance-mode.md)
+- [VA Cause Definitions](va-cause-definitions.md) — WHO VA codes and definitions in the database, admin rich-text editing, coder lookup
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)

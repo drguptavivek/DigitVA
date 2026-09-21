@@ -1,0 +1,254 @@
+{#
+  VA Definitions panel — WHO VA cause codes, titles and definitions shown to
+  coders by the "VA Definitions" button and the help page.
+  API: /admin/api/va-definitions (app/routes/admin_va_definitions.py).
+  Editor: the shared rich-text component (app/static/js/rich_text_editor.js).
+  Policy: docs/policy/va-cause-definitions.md.
+#}
+<div id="panel-va-definitions">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h5 class="mb-0"><i class="fa-solid fa-list-check me-2 text-secondary"></i>VA Definitions</h5>
+    <div class="d-flex gap-2 align-items-center">
+      <input type="search" id="vad-filter" class="form-control form-control-sm" style="min-width:260px;" placeholder="Filter by code, title or definition" aria-label="Filter VA definitions" autocomplete="off">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="vad-show-inactive" role="switch" checked>
+        <label class="form-check-label small text-muted" for="vad-show-inactive">Show inactive</label>
+      </div>
+      <button class="btn btn-sm btn-primary" id="vad-add-btn"><i class="fa-solid fa-plus me-1"></i>Add VA code</button>
+    </div>
+  </div>
+
+  <div id="vad-alert" class="alert d-none small py-2"></div>
+  <p class="small text-muted mb-2">
+    Coders see active rows in the <em>VA Definitions</em> modal and on the help page.
+    An edited row is kept when <code>flask va-definitions import</code> refreshes from the WHO source, unless it is run with <code>--force</code>.
+  </p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle small">
+      <thead class="table-light">
+        <tr><th style="width:8em;">Code</th><th>Title</th><th style="width:7em;">Status</th><th style="width:11em;"></th></tr>
+      </thead>
+      <tbody id="vad-rows"><tr><td colspan="4" class="text-muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="vad-edit-modal" tabindex="-1" aria-labelledby="vad-edit-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="vad-edit-title">Edit VA definition</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="vad-edit-alert" class="alert d-none small py-2"></div>
+        {# Read-only view: shown when a code is clicked; Edit switches to the form. #}
+        <div id="vad-view" class="d-none">
+          <div class="small text-muted font-monospace" id="vad-view-code"></div>
+          <div class="fw-semibold mb-2" id="vad-view-title"></div>
+          <div id="vad-view-body" class="small"></div>
+        </div>
+        <div id="vad-form">
+        <div class="row g-2 mb-2">
+          <div class="col-sm-3">
+            <label for="vad-code" class="form-label small mb-0">VA code</label>
+            <input type="text" id="vad-code" class="form-control form-control-sm font-monospace" placeholder="VAs-01.14" maxlength="16">
+          </div>
+          <div class="col-sm-9">
+            <label for="vad-title" class="form-label small mb-0">Title</label>
+            <input type="text" id="vad-title" class="form-control form-control-sm" maxlength="500">
+          </div>
+        </div>
+        <label class="form-label small mb-0">Definition</label>
+        <div id="vad-editor" style="min-height:260px;"></div>
+        <div class="form-text">Bold, italic, bullet and numbered lists, indent. Other formatting is removed when saved.</div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-sm btn-primary d-none" id="vad-edit-btn"><i class="fa-solid fa-pen me-1"></i>Edit</button>
+        <button type="button" class="btn btn-sm btn-success" id="vad-save"><i class="fa-solid fa-check me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="vad-confirm-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body small" id="vad-confirm-text"></div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="vad-confirm-ok">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // A <script src> inside an htmx-swapped panel may not have run yet when
+  // this inline script does, so load the shared editor here and start once
+  // it is available (reused if another panel already loaded it).
+  var EDITOR_SRC = "{{ url_for('static', filename='js/rich_text_editor.js') }}?v={{ config.STATIC_ASSET_VERSION }}";
+  function withEditor(start) {
+    if (window.DigitVARichText) { start(); return; }
+    var existing = document.querySelector('script[data-digitva-rich-text]');
+    if (existing) { existing.addEventListener('load', start); return; }
+    var tag = document.createElement('script');
+    tag.src = EDITOR_SRC;
+    tag.setAttribute('data-digitva-rich-text', '1');
+    tag.addEventListener('load', start);
+    document.head.appendChild(tag);
+  }
+  withEditor(function () {
+  var API = '/admin/api/va-definitions';
+  var ROWS = [];
+  var EDITING = null;  // row being edited, or null when adding
+  var EDITOR = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function api(url, method, body) {
+    var headers = { 'X-CSRFToken': window._adminCsrf || '' };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method: method || 'GET', headers: headers, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+  function alertBox(id, kind, msg) {
+    var el = $(id);
+    el.className = 'alert small py-2 alert-' + kind;
+    el.textContent = msg;
+  }
+  function hideAlert(id) { $(id).className = 'alert d-none small py-2'; }
+  function errorOf(res) { return (res.data && res.data.error) || 'Request failed.'; }
+
+  var confirmModal = bootstrap.Modal.getOrCreateInstance($('vad-confirm-modal'));
+  function askConfirm(msg, onYes) {
+    $('vad-confirm-text').textContent = msg;
+    $('vad-confirm-ok').onclick = function () { confirmModal.hide(); onYes(); };
+    confirmModal.show();
+  }
+
+  function plain(html) {
+    // DOMParser documents are inert: nothing in them loads or runs.
+    return new DOMParser().parseFromString(html || '', 'text/html').body.textContent || '';
+  }
+
+  function render() {
+    var needle = $('vad-filter').value.trim().toLowerCase();
+    var showInactive = $('vad-show-inactive').checked;
+    var rows = ROWS.filter(function (r) {
+      if (!showInactive && !r.is_active) return false;
+      return !needle || (r.va_code + ' ' + r.title + ' ' + r._text).toLowerCase().indexOf(needle) !== -1;
+    });
+    $('vad-rows').innerHTML = rows.length ? rows.map(function (r) {
+      return '<tr class="' + (r.is_active ? '' : 'text-muted') + '">'
+        + '<td class="font-monospace"><a href="#" data-view="' + esc(r.id) + '">' + esc(r.va_code) + '</a></td>'
+        + '<td><a href="#" class="text-reset text-decoration-none" data-view="' + esc(r.id) + '">' + esc(r.title) + '</a>'
+        + (r.edited ? ' <span class="badge text-bg-info ms-1" title="Edited by an admin; kept on re-import">edited</span>' : '') + '</td>'
+        + '<td>' + (r.is_active ? '<span class="badge text-bg-success">active</span>' : '<span class="badge text-bg-secondary">inactive</span>') + '</td>'
+        + '<td class="text-end text-nowrap">'
+        + '<button class="btn btn-sm btn-outline-secondary" data-toggle="' + esc(r.id) + '">' + (r.is_active ? 'Deactivate' : 'Activate') + '</button>'
+        + '</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="text-muted">No VA definitions match.</td></tr>';
+  }
+
+  function store(row) {
+    row._text = plain(row.definition_html);
+    var i = ROWS.findIndex(function (r) { return r.id === row.id; });
+    if (i === -1) ROWS.push(row); else ROWS[i] = row;
+    ROWS.sort(function (a, b) { return a.va_code < b.va_code ? -1 : 1; });
+  }
+
+  function loadAll() {
+    api(API).then(function (res) {
+      if (!res.ok) { alertBox('vad-alert', 'danger', errorOf(res)); return; }
+      ROWS = [];
+      (res.data.definitions || []).forEach(store);
+      render();
+    });
+  }
+
+  var editorReady = window.DigitVARichText.attach($('vad-editor'), {}).then(function (handle) { EDITOR = handle; return handle; });
+  editorReady.catch(function () { alertBox('vad-alert', 'danger', 'The editor could not be loaded.'); });
+
+  var editModal = bootstrap.Modal.getOrCreateInstance($('vad-edit-modal'));
+  // mode 'view' shows the stored (server-sanitized) definition read-only;
+  // 'edit' shows the form. Adding a code always starts in edit.
+  function setMode(mode) {
+    var view = mode === 'view';
+    $('vad-view').classList.toggle('d-none', !view);
+    $('vad-form').classList.toggle('d-none', view);
+    $('vad-edit-btn').classList.toggle('d-none', !view);
+    $('vad-save').classList.toggle('d-none', view);
+  }
+  function openViewer(row) {
+    EDITING = row;
+    hideAlert('vad-edit-alert');
+    $('vad-edit-title').textContent = row.va_code;
+    $('vad-view-code').textContent = row.va_code + (row.is_active ? '' : ' · inactive');
+    $('vad-view-title').textContent = row.title;
+    $('vad-view-body').innerHTML = row.definition_html || '<p class="text-muted">No definition.</p>';
+    setMode('view');
+    editModal.show();
+  }
+  $('vad-edit-btn').addEventListener('click', function () { if (EDITING) openEditor(EDITING); });
+
+  function openEditor(row) {
+    setMode('edit');
+    EDITING = row;
+    hideAlert('vad-edit-alert');
+    $('vad-edit-title').textContent = row ? 'Edit ' + row.va_code : 'Add VA code';
+    $('vad-code').value = row ? row.va_code : '';
+    $('vad-code').disabled = !!row;
+    $('vad-title').value = row ? row.title : '';
+    editorReady.then(function (ed) { ed.setHtml(row ? row.definition_html : ''); });
+    editModal.show();
+  }
+
+  $('vad-save').addEventListener('click', function () {
+    if (!EDITOR) return;
+    var body = { title: $('vad-title').value, definition_html: EDITOR.getHtml() };
+    var request = EDITING
+      ? api(API + '/' + encodeURIComponent(EDITING.id), 'PATCH', body)
+      : api(API, 'POST', Object.assign({ va_code: $('vad-code').value.trim() }, body));
+    request.then(function (res) {
+      if (!res.ok) { alertBox('vad-edit-alert', 'danger', errorOf(res)); return; }
+      var row = res.data.definition;
+      store(row);
+      render();
+      // Show what the server kept (sanitized), read-only; Edit reopens it.
+      openViewer(row);
+      alertBox('vad-edit-alert', 'success', 'Saved ' + row.va_code + '.');
+    });
+  });
+
+  $('vad-rows').addEventListener('click', function (e) {
+    var viewLink = e.target.closest('[data-view]');
+    var toggleBtn = e.target.closest('[data-toggle]');
+    var id = (viewLink || toggleBtn || {}).dataset;
+    if (!id) return;
+    e.preventDefault();
+    var row = ROWS.find(function (r) { return r.id === (id.view || id.toggle); });
+    if (!row) return;
+    if (viewLink) { openViewer(row); return; }
+    var activate = !row.is_active;
+    askConfirm((activate ? 'Activate ' : 'Deactivate ') + row.va_code + ' ' + row.title + '? '
+      + (activate ? 'Coders will see it again.' : 'Coders will no longer see it.'), function () {
+      api(API + '/' + encodeURIComponent(row.id), 'PATCH', { is_active: activate }).then(function (res) {
+        if (!res.ok) { alertBox('vad-alert', 'danger', errorOf(res)); return; }
+        store(res.data.definition);
+        render();
+        alertBox('vad-alert', 'success', row.va_code + (activate ? ' activated.' : ' deactivated.'));
+      });
+    });
+  });
+
+  $('vad-add-btn').addEventListener('click', function () { openEditor(null); });
+  $('vad-filter').addEventListener('input', render);
+  $('vad-show-inactive').addEventListener('change', render);
+  loadAll();
+  });
+})();
+</script>

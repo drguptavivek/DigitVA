@@ -34,6 +34,7 @@ HELP_PAGES = [
     ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  ["coding_tester", "admin"]),
     ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("icd-codes",             "ICD-10 Codes & WHO Browser",   "fa-book-medical",         "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     # ── Data Manager ─────────────────────────────────────────────────

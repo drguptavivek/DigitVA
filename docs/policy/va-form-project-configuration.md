@@ -244,9 +244,11 @@ own relevance still reads `selected(${isChild}, '1') or selected(${isAdult},
 `C_A` with identical relevance. The owner chose the wider value deliberately:
 asking a child one more question costs a question, while not asking loses the
 observation irrecoverably. Reported to WHO as
-[SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95); if WHO
-confirms adult-only and publishes the matching relevance and chain changes,
-take their version rather than keep diverging.
+[SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95). WHO
+replied 2026-09-21 that `agegroup` is an internal marker that filters no
+question and has no effect on the flow, confirming the value is inert on both
+sides. The `C_A` deviation is therefore harmless either way; it is kept only
+because it records the value the question's own relevance implies.
 
 `Id10191`'s `agegroup` correction (`N` to `C_A`, resolving V1.1's own
 contradiction with `${isNeonatal} != '1'`) is accepted, as are V2.0's fifteen

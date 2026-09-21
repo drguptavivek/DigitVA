@@ -154,6 +154,17 @@ contradiction: `Id10191` ("Was there blood in the vomit?", row 242) was marked
 After both changes V2.0 has no agegroup/relevance contradictions left -- only
 the single non-canonical value above.
 
+### WHO's reply on #95
+
+WHO replied 2026-09-21: they were already aware, and `agegroup` "is not used to
+filter any question. Its only used as a internal marker" with no impact on the
+flow. That confirms what this audit had already found on DigitVA's side --
+nothing branches on `ageGroup`, and relevance does the real age gating -- so the
+`a` value is inert in WHO's tooling as well as ours.
+
+The reply addresses #95 only. It says nothing about `Id10304_a` (#94), which is
+the defect that actually removes a question from interviews.
+
 ## Status
 
 Reported to WHO by the owner on **2026-09-20** and filed upstream as

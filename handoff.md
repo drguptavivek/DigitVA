@@ -24,6 +24,12 @@ ICD-11 go live. Umbrella epic `digitva-dus`.
   citation fields and one live bibliography field; Benara et al. remains marked
   for Zotero import/linking. Code availability records the public MIT-licensed
   upstream at `https://github.com/drguptavivek/DigitVA`.
+* **DigitVA manuscript diagrams** (`digitva-7w7`): two-slide editable
+  PptxGenJS deck at `docs/manuscript/DigitVA_Architecture_and_Workflow.pptx`
+  with a platform architecture/concept diagram and a death-notification-to-
+  mortality-intelligence flowchart. Regenerator:
+  `scripts/build_digitva_diagrams.js`; 1600x900 PNG exports are under
+  `docs/manuscript/digitva_diagram_images/`. Slide tests report no overflow.
 * **Project structure mode** (sites | organization), organization writes
   refused for sites projects, automatic site `Sites_in_project_<id>` (`O###`),
   `flask org ensure-site`.

@@ -1,5 +1,99 @@
 # Handoff
 
+Updated 2026-09-21 (fourth pass). `origin/main` is at `4e2a8d1`, tree clean.
+Full suite **1,729 passed**, `PYTEST_EXIT=0`; vendored JS 28 passed. Dev is at
+migration head **`d5b71c3e9a84`** (two data migrations this pass, below).
+
+**Six of thirteen locales are now paused.** `bn, hi, kha, kn, mr, or` are
+`in_review` and inactive; `ar, es, fr, ml, pt, sw, ta` stay approved and live.
+This is deliberate, not a regression -- read the next section before
+re-activating anything.
+
+### Translation audit (`digitva-fb5`, P1, open)
+
+Every deployed ODK workbook packs the English and its translation into ONE cell,
+so each translation can be judged against the English it claims to render.
+Twelve audits did that across all ten workbooks. Findings:
+
+* `docs/current-state/translation-semantic-defects.md` -- **34 wrong-wording
+  defects**: code, English, current translation, what it actually says, and
+  **suggested corrections**, most sourced from the same workbook's own correct
+  usage. Four are marked *needs a speaker* rather than guessed.
+* `docs/current-state/translation-label-code-mismatches.md` (+ `.csv`) -- 68
+  labels showing the wrong question code. Mostly cosmetic.
+
+Worst: Hindi `Id10305` inverts "pregnant *and not yet* in labour" to "*or*",
+and `Id10317` asks "how many babies" as a yes/no question -- identical across
+ND01, RJ01, KEM and KA01. Odia `Id10191`-`Id10195` is pasted down by one row
+(correct strings are one row below; fix bottom-first). Bangla "Yes" is a
+Malayalam word on four questions. Kannada and Marathi ask *birth* year where
+English asks year of *death*. Tamil (0.06%) and Malayalam (0.11%) were audited
+to the same depth and are clean.
+
+Demoted by migrations `c8e4a1f7b209` (or, kn) and `d5b71c3e9a84` (hi, mr, kha,
+bn). Both capture prior state and `downgrade` restores it; verified on
+throwaway databases. **These defects live in the deployed ODK workbooks** --
+fixing them in DigitVA's string editor fixes only the web form. They must be
+corrected in the workbooks and republished to ODK Central. ODK collection was
+never switched off. Collected data is **not** shown to be affected: ODK shows
+the English beside the translation.
+
+### Translation editor rebuilt (`digitva-8go`, closed)
+
+`/admin/instrument-translations/<instrument>/<locale>`, linked as **Edit** from
+each locale row. One row per question in form order (code / English / locale
+text), 50 per page, `?page=` and `?q=` in the URL. Modal edits label, hint and
+choice options; constraint message and guidance show read-only, badged
+untranslated; shared lists state how many questions they change
+(`YES_NO_DK_REF` = 224); Save / Save and next / Undo / Close with dirty
+tracking; per-field Google Translate links, hidden for Khasi. Covers all 449
+WHO questions plus 80 DigitVA layer questions and 10 ownerless choice lists
+(536 rows). Markup renders via the form's own `parseRichText`, now re-exported
+from the bundle -- do not write a second parser.
+
+Known limit: browser back/forward while the modal is dirty cannot be vetoed,
+so that one path discards silently (commented in the template).
+
+### WHO
+
+#94 (`Id10304_a` unreachable) -- **unanswered**. #95 (`Id10230` agegroup) --
+WHO replied 2026-09-21 that agegroup is an internal marker filtering nothing;
+harmless on both sides. `digitva-mdj` stays open for #94 only.
+
+### Web-intake demo
+
+Project `ZZD001` (Demo) is READY: reactivated, web form `ZZD001Z00102`
+materialised via `ensure_web_forms_for_project` (not raw SQL -- the side effect
+matters). `testadmin@digitva.com` holds its interviewer grant. Verified in a
+browser to `/intake/`, questionnaire render, draft save and locale switching.
+No full submission has been completed.
+
+### Next
+
+1. `digitva-fb5` -- native speakers per language; corrections into the
+   workbooks, republished. Hindi first (four workbooks share its defects).
+2. `digitva-mxn` -- show English beside the translation in the web form. The
+   audit is the argument: ODK's packed cells already do this, which is why its
+   defects are survivable there and ours were not.
+3. `digitva-8go.1` -- author the 427 untranslated constraint messages and
+   guidance notes, seeded as `machine` so nothing unreviewed is served.
+
+### Traps from this pass
+
+* `bd close` refuses a blocked issue or one with an open child, and **piping it
+  to /dev/null hides the refusal**. `bd ready` omits blocked issues too, so
+  absence from it is not evidence of closure. Read the close output.
+* `bd close` / `bd unclaim` do not rewrite `.beads/issues.jsonl`; run
+  `bd export -o .beads/issues.jsonl` after.
+* The container cannot write to the host scratchpad. Print to stdout and
+  redirect on the host.
+* Subagents' reach claims need checking: two of the three "shifted" Marathi unit
+  lists are referenced by zero questions. Verify blast radius from the survey
+  `type` column before repeating it.
+* There are **ten** deployed workbooks, not eleven.
+
+---
+
 Updated 2026-09-20 (third pass). `origin/main` is at `d41c353`, working tree
 clean. Full suite **1,714 passed**, `PYTEST_EXIT=0` read from pytest itself;
 vendored JS suite 28 passed. Dev is at migration head `120f783ea138`; this pass

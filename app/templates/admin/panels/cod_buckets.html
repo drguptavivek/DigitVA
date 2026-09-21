@@ -766,47 +766,33 @@
         <div class="col-xl-4 col-lg-6">
           <div class="card h-100 cb-scheme-card${isActiveScheme ? ' border-primary shadow-sm' : ''}">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                <div>
-                  <div class="h5 mb-1">${esc(scheme.scheme_name)}</div>
-                  <div class="text-muted small">${esc(scheme.scheme_code)}${scheme.mapping_version ? ` · v${esc(scheme.mapping_version)}` : ''}</div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
+              <div class="mb-2">
+                <div class="d-flex align-items-start justify-content-between gap-2">
+                  <div class="h6 mb-0 text-break">${esc(scheme.scheme_name)}</div>
                   ${warningLines.length ? `
                     <span class="text-warning cb-scheme-warning" title="${esc(warningLines.join('\n'))}">
                       <i class="fa-solid fa-circle-exclamation"></i>
                     </span>
                   ` : ''}
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary cb-scheme-export-btn"
-                    data-scheme-code="${esc(scheme.scheme_code)}"
-                  >
-                    <i class="fa-solid fa-download me-1"></i>Export JSON
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-primary cb-scheme-import-btn"
-                    data-scheme-code="${esc(scheme.scheme_code)}"
-                  >
-                    <i class="fa-solid fa-upload me-1"></i>Import JSON
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-success cb-scheme-xlsx-export-btn"
-                    data-scheme-code="${esc(scheme.scheme_code)}"
-                  >
-                    <i class="fa-solid fa-file-excel me-1"></i>Buckets XLSX
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary cb-scheme-edit-btn"
-                    data-scheme-code="${esc(scheme.scheme_code)}"
-                  >
-                    <i class="fa-solid fa-pen me-1"></i>Edit
-                  </button>
-                  <span class="badge text-bg-secondary">${(scheme.age_bands || []).length} age group(s)</span>
                 </div>
+                <div class="text-muted small">
+                  ${esc(scheme.scheme_code)}${scheme.mapping_version ? ` · v${esc(scheme.mapping_version)}` : ''}
+                  · ${(scheme.age_bands || []).length} age group(s)
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-1 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary cb-scheme-export-btn" data-scheme-code="${esc(scheme.scheme_code)}" title="Export JSON">
+                  <i class="fa-solid fa-download me-1"></i>Export
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary cb-scheme-import-btn" data-scheme-code="${esc(scheme.scheme_code)}" title="Import JSON">
+                  <i class="fa-solid fa-upload me-1"></i>Import
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-success cb-scheme-xlsx-export-btn" data-scheme-code="${esc(scheme.scheme_code)}" title="Export buckets as XLSX">
+                  <i class="fa-solid fa-file-excel me-1"></i>XLSX
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary cb-scheme-edit-btn" data-scheme-code="${esc(scheme.scheme_code)}" title="Edit scheme">
+                  <i class="fa-solid fa-pen me-1"></i>Edit
+                </button>
               </div>
               <div class="d-grid gap-2 cb-scheme-actions">
                 ${(scheme.age_bands || []).map(ageBand => `

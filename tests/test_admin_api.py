@@ -1959,7 +1959,9 @@ class AdminWebFormLocalesApiTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         locales = response.get_json()["locales"]
-        self.assertEqual(locales[0], {"code": "en", "label": "English"})
+        self.assertEqual(
+            locales[0], {"code": "en", "label": "English", "under_review": False}
+        )
 
     def test_project_pi_is_refused(self):
         self._login(self.base_project_pi_id)

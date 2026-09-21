@@ -40,6 +40,7 @@ import {
   questionControlStyles,
   questionLabel
 } from "./question-control-support.js";
+import { englishAlongside, plainText } from "./localize.js";
 
 export { questionControlStyles } from "./question-control-support.js";
 
@@ -102,6 +103,8 @@ export interface WhoVaQuestionControlProps {
   value: AnswerValue | undefined;
   data: SubmissionData;
   locale: string;
+  /** Show the English beneath translated choice labels (`show-english`). */
+  showEnglish?: boolean | undefined;
   messages?: WhoVaUiMessages;
   issues: ValidationIssue[];
   platform?: WhoVaPlatformServices | undefined;
@@ -151,16 +154,35 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
   const { View, Text: PrimitiveText, TextInput, DateInput, Pressable, Image } = primitives;
   const RichText = primitives.RichText;
 
-  /** A choice label, with its markup rendered when a renderer is supplied. */
+  /**
+   * A choice label, with its markup rendered when a renderer is supplied, and
+   * with the English on a muted line beneath it when `showEnglish` is set.
+   */
   function ChoiceLabel({
     choice,
-    locale
+    locale,
+    showEnglish
   }: {
     choice: NonNullable<InstrumentQuestion["choices"]>[number];
     locale: string;
+    showEnglish?: boolean | undefined;
   }) {
-    if (!RichText) return <>{localized(choice.label, locale, choice.value)}</>;
-    return <RichText source={localizedRich(choice.label, locale, choice.value)} />;
+    const label = RichText ? (
+      <RichText source={localizedRich(choice.label, locale, choice.value)} />
+    ) : (
+      <>{localized(choice.label, locale, choice.value)}</>
+    );
+    const english = showEnglish ? englishAlongside(choice.label, locale) : "";
+    if (!english) return label;
+    return (
+      <>
+        {label}
+        {"\n"}
+        <PrimitiveText lang="en" style={questionControlStyles.choiceEnglish}>
+          {RichText ? <RichText source={english} /> : plainText(english)}
+        </PrimitiveText>
+      </>
+    );
   }
 
   function Text({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
@@ -909,7 +931,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <PrimitiveText style={questionControlStyles.choiceText}>
-            <ChoiceLabel choice={choice} locale={locale} />
+            <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>
       );
@@ -923,7 +945,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
-  function MultipleChoice({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+  function MultipleChoice(props: WhoVaQuestionControlProps) {
+    const { question, value, locale, issues, onAnswer } = props;
     const selectedValues = Array.isArray(value) ? value : EMPTY_SELECTED_VALUES;
     const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
     const hasIssues = issues.length > 0;
@@ -956,7 +979,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <PrimitiveText style={questionControlStyles.choiceText}>
-            <ChoiceLabel choice={choice} locale={locale} />
+            <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>
       );

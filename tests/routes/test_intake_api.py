@@ -323,6 +323,12 @@ class IntakeApiTests(BaseTestCase):
         self.assertIn("/api/v1/instruments/", body)
         self.assertIn("applyTranslations(baseInstrument, translations, locale)", body)
         self.assertIn("js/intake/translations.js", body)
+        # English beside the translation (digitva-mxn): a remembered toggle
+        # in the locale bar, forced on for a locale under review.
+        self.assertIn('"digitva.intake.showEnglish"', body)
+        self.assertIn('label.textContent = "Show English";', body)
+        self.assertIn('el.toggleAttribute("show-english"', body)
+        self.assertIn("entry.under_review", body)
         # The per-section autosave map must follow the selected instrument too,
         # or a second INSTRUMENTS entry would be split by WHO 2022's sections.
         self.assertNotIn("const instrument = WhoVa.whoVa2022Instrument", body)

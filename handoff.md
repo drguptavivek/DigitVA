@@ -1,5 +1,44 @@
 # Handoff
 
+Updated 2026-09-21 (fifth pass). Full suite **1,736 passed**, `PYTEST_EXIT=0`;
+tooling node suite 28 passed. No migration this pass; dev stays at
+**`d5b71c3e9a84`**.
+
+### English alongside the translation (`digitva-mxn`, closed)
+
+Owner decided 2026-09-21, recorded in `docs/policy/va-web-form-options.md`
+("English alongside the translation") and as an amendment to "Approval before
+activation" in `va-form-project-configuration.md`:
+
+* A non-English web form shows the English under every question label, hint
+  and choice label (`show-english` attribute on the web component, rendered
+  through `RichText`, `lang="en"`). "Show English" toggle beside the language
+  picker, **on by default**, remembered per browser.
+* **The six paused locales are selectable again, but only with English forced
+  on.** "Servable" is now `is_active OR lifecycle_state='in_review'`
+  (`SERVABLE_LOCALE`, `app/services/web_form_instruments.py`); they stay
+  `in_review` and inactive, the CHECK constraint is untouched, `draft` is never
+  served. The picker labels them "(under review)"; the toggle is locked on.
+  Re-approval still needs a native speaker -- this did not approve anything.
+* Verified in a browser on ZZD001: Hindi shows `(Id100010)` directly over the
+  English `(Id10010)`, which is the cross-check this restores.
+* Fixed in passing: a resumed non-English draft opened with the picker saying
+  "English" (picker built before the locale attribute was set; pre-existing).
+
+**Correction to earlier handoffs:** "vendored JS 28 passed" is the
+`tooling/who-va-2022` node suite. The `vendor/who-va-2022` vitest suite has
+**351 failures** in `question-by-question.test.ts`, identical at `bdf2e4e`:
+`digitva-19l`.
+
+### Next
+
+1. `digitva-fb5` -- native speakers; corrections into the workbooks,
+   republished. Unchanged: human-gated.
+2. `digitva-8go.1` -- the 427 untranslated constraint messages and guidance.
+3. `digitva-19l` -- the vitest failures.
+
+---
+
 Updated 2026-09-21 (fourth pass). `origin/main` is at `4e2a8d1`, tree clean.
 Full suite **1,729 passed**, `PYTEST_EXIT=0`; vendored JS 28 passed. Dev is at
 migration head **`d5b71c3e9a84`** (two data migrations this pass, below).

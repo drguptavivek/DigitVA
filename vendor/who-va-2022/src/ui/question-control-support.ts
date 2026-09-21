@@ -40,6 +40,11 @@ export const questionControlStyles = {
     { borderColor: "brand", backgroundColor: "brandSoft" }
   ),
   choiceText: withWebTheme({ color: "#213b34" }, { color: "inkSubtle" }),
+  // The English beneath a translated choice label (`show-english`).
+  choiceEnglish: withWebTheme(
+    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const },
+    { color: "muted" }
+  ),
   // Layout appearances: `columns`, `columns-n`, `columns-pack`, `likert`,
   // and the range `picker`/`rating` all lay choices out along a row.
   choiceRow: {

@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # VA Web Form Options Contract
@@ -64,7 +64,7 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | Option | Type | Set today | Notes |
 |---|---|---|---|
 | `locale` | string (attribute) | **Yes** — `default_locale` from the project (2026-09-19) | Always `en`, the instrument's base language. Decided 2026-09-19: there is no per-project default; the stored column is honoured only when it names a locale the instrument has, and is otherwise `en`. |
-| `available_locales` | string[] | **Yes** — served (2026-09-19) | `en` plus the languages the project adds, restricted to the instrument's **active** locales (`mas_instrument_locales`, queried by `app/services/web_form_instruments.py`). Not drawn from `mas_languages`; those codes describe narration recordings. |
+| `available_locales` | string[] | **Yes** — served (2026-09-19) | `en` plus the languages the project adds, restricted to the instrument's **servable** locales -- active, or `in_review` (changed 2026-09-21; see "English alongside the translation") -- (`mas_instrument_locales`, queried by `app/services/web_form_instruments.py`). Not drawn from `mas_languages`; those codes describe narration recordings. |
 | `uiTranslations` | `WhoVaUiTranslations` | **No** | Chrome strings (buttons, validation): "Next", "Required", the date picker. **Separate from instrument translations and staying separate** — they belong to the engine, not to a questionnaire, so they are not rows in `map_instrument_translations` and importing a workbook never touches them. |
 | `narration_languages` | `{code,label}[]` | **Yes** — served (2026-09-19) | Options for `narr_language` — the language the narrative was *recorded* in. Distinct from `locale` and from the instrument's own "Interview language" question. Per-project checkboxes. |
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
@@ -192,8 +192,9 @@ GET /api/v1/instruments/<instrument_code>/translations/<locale>
 `{"instrument_code", "locale", "version", "questions": {name: {label, hint, guidance_hint}}, "choices": {"list/value": {label}}}`
 with a weak `ETag` over the version, so a client revalidates with
 `If-None-Match` and gets a 304 when nothing moved. An unknown locale, an
-unknown instrument and an **inactive** locale are all 404: a locale reaches
-interviewers only once an administrator activates it. Activation is not gated
+unknown instrument and a locale that is neither active nor `in_review` are
+all 404 (changed 2026-09-21: an `in_review` locale is served, always with
+English beside it -- see "English alongside the translation" below). Activation is not gated
 on how much of the locale is translated -- an untranslated string is absent
 from this payload, so the form falls back to English for that string alone.
 `en` is always served, at version 0 with no strings, because the bundled
@@ -206,6 +207,34 @@ of the pre-built instrument with `label[locale]`, `hint[locale]` and
 re-fetches and re-applies **from the same base copy**, so nothing accumulates
 across switches, and the draft records the new `locale` and
 `translation_version` through the existing PATCH.
+
+### English alongside the translation
+
+**Decided 2026-09-21 by the owner (`digitva-mxn`), prompted by the translation
+audit (`digitva-fb5`).** The deployed ODK workbooks pack English and the
+translation into one cell, so an ODK interviewer always reads both, and a
+wrong translation sits directly under the right English. The web form served
+the translation alone and so lost that cross-check. It is restored:
+
+1. **When a non-English locale is shown, the English is shown beside it** —
+   question labels, hints and choice labels. It is a secondary, muted line in
+   `lang="en"`, rendered through the same rich-text path as the translation,
+   and omitted where the English is the only text (an untranslated string
+   already falls back to English).
+2. **A toggle, on by default.** "Show English" sits beside the language
+   picker; the interviewer's choice is remembered per browser. Not a project
+   setting.
+3. **An `in_review` locale is offered to interviewers, with English forced
+   on.** It is labelled as under review in the picker and the toggle cannot
+   be switched off for it. `draft` locales are never served. This amends
+   "Approval before activation" in
+   [VA Form Project Configuration Policy](va-form-project-configuration.md):
+   approval still gates **activation** and serving a locale on its own;
+   an unapproved `in_review` locale may only ever be read under its English.
+   A project still opts in through `web_intake_available_locales`.
+4. **Display only.** Nothing in a submission changes: answers are the same
+   choice values, and `intake_locale` / `intake_translation_version` are
+   recorded as before.
 
 ### Adding a language
 

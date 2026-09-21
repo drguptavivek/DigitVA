@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # VA Form Project Configuration Policy
@@ -524,6 +524,12 @@ admin-only, CSRF on the upload, 5 MB cap.
 **A locale must not be served to interviewers unless a human has approved it,
 and that approval must be recorded.** `mas_instrument_locales.lifecycle_state`
 moves through three states:
+
+*Amended 2026-09-21 (`digitva-mxn`):* an `in_review` locale may be served in
+the web form **only with its English shown beside every string**, and the
+interviewer cannot hide that English. It is still never *active*, and the
+invariants below are unchanged. See "English alongside the translation" in
+[VA Web Form Options Contract](va-web-form-options.md).
 
 | State | Meaning |
 | --- | --- |

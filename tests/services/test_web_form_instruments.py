@@ -16,12 +16,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app import db
-from app.models.mas_instrument_locales import LIFECYCLE_APPROVED, MasInstrumentLocales
+from app.models.mas_instrument_locales import (
+    LIFECYCLE_APPROVED,
+    LIFECYCLE_IN_REVIEW,
+    MasInstrumentLocales,
+)
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
     FALLBACK_INSTRUMENT_CODE,
     all_instrument_locales,
+    all_instrument_locales_under_review,
     instrument_locales,
+    instrument_locales_under_review,
 )
 from tests.base import BaseTestCase
 
@@ -46,10 +52,11 @@ def _has_label_translations(text, code):
     return bool(re.search(r"label:\{[^}]*\b" + re.escape(code) + r":", text))
 
 
-def _locale(instrument_code, code, name, *, active):
+def _locale(instrument_code, code, name, *, active, lifecycle_state=None):
     # An active row must be 'approved' (ck_mas_instrument_locales_active_
     # requires_approved, decided 2026-09-20).
-    lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
+    if lifecycle_state is None:
+        lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
     row = db.session.get(MasInstrumentLocales, (instrument_code, code))
     if row is None:
         row = MasInstrumentLocales(
@@ -133,3 +140,50 @@ class InstrumentLocaleQueryTests(BaseTestCase):
         self.assertEqual(merged["hi"], "Hindi")
         self.assertEqual(merged["ta"], "Tamil")
         self.assertNotIn("kn", merged)
+
+
+class ServableLocaleTests(BaseTestCase):
+    """An ``in_review`` locale is served (English forced on); ``draft`` never.
+
+    Decided 2026-09-21 (digitva-mxn), "English alongside the translation" in
+    docs/policy/va-web-form-options.md.
+    """
+
+    def test_an_in_review_locale_is_served_and_marked_under_review(self):
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        _locale(
+            FALLBACK_INSTRUMENT_CODE, "kn", "Kannada",
+            active=False, lifecycle_state=LIFECYCLE_IN_REVIEW,
+        )
+        db.session.flush()
+        locales = instrument_locales(FALLBACK_INSTRUMENT_CODE)
+        self.assertEqual(locales["kn"], "Kannada")
+        self.assertEqual(locales["hi"], "Hindi")
+        self.assertEqual(
+            instrument_locales_under_review(FALLBACK_INSTRUMENT_CODE), {"kn"}
+        )
+
+    def test_a_draft_locale_is_not_served(self):
+        """Present first: the draft row exists; it is still withheld."""
+        _locale(FALLBACK_INSTRUMENT_CODE, "ta", "Tamil", active=False)
+        db.session.flush()
+        row = db.session.get(MasInstrumentLocales, (FALLBACK_INSTRUMENT_CODE, "ta"))
+        self.assertEqual(row.lifecycle_state, "draft", "fixture guard")
+        self.assertNotIn("ta", instrument_locales(FALLBACK_INSTRUMENT_CODE))
+        self.assertNotIn("ta", all_instrument_locales())
+        self.assertNotIn("ta", instrument_locales_under_review(FALLBACK_INSTRUMENT_CODE))
+
+    def test_an_in_review_locale_alone_does_not_trigger_the_fallback(self):
+        _locale("OTHER_VA", "ta", "Tamil", active=False, lifecycle_state=LIFECYCLE_IN_REVIEW)
+        db.session.flush()
+        self.assertIn("ta", instrument_locales("OTHER_VA"))
+        self.assertEqual(instrument_locales_under_review("OTHER_VA"), {"ta"})
+
+    def test_all_locales_under_review_excludes_a_code_active_elsewhere(self):
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        _locale("OTHER_VA", "hi", "Hindi", active=False, lifecycle_state=LIFECYCLE_IN_REVIEW)
+        _locale("OTHER_VA", "kn", "Kannada", active=False, lifecycle_state=LIFECYCLE_IN_REVIEW)
+        db.session.flush()
+        self.assertIn("hi", all_instrument_locales())
+        self.assertIn("kn", all_instrument_locales())
+        self.assertEqual(all_instrument_locales_under_review(), {"kn"})

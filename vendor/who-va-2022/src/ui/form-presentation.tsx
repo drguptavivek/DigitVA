@@ -236,6 +236,11 @@ export const formStyles = {
   required: withWebTheme({ color: "#a23a2a" }, { color: "danger" }),
   hint: withWebTheme({ color: "#536b64", fontSize: 13, marginBottom: 10 }, { color: "muted" }),
   guidance: withWebTheme({ color: "#315e73", fontSize: 13, marginBottom: 10 }, { color: "guidance" }),
+  // The English beside a translation (`show-english`): secondary and muted.
+  english: withWebTheme(
+    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, marginBottom: 8 },
+    { color: "muted" }
+  ),
   note: withWebTheme(
     { backgroundColor: "#edf5f2", borderLeftWidth: 4, borderLeftColor: "#147d64" },
     { backgroundColor: "brandSoft", borderLeftColor: "brand" }

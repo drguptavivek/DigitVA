@@ -669,7 +669,8 @@
     for (var i = 0; i < _formLocales.length; i++) {
       var locale = _formLocales[i];
       html += languageCheckHtml(
-        AVAILABLE_LOCALE_CLASS, locale.code, locale.label,
+        AVAILABLE_LOCALE_CLASS, locale.code,
+        locale.label + (locale.under_review ? ' (under review)' : ''),
         locale.code === BASE_LOCALE
       );
     }

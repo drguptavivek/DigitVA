@@ -7,9 +7,11 @@ form-options payload) whenever it loads a form, and re-fetches only when the
 version moved — so an administrator's edit reaches interviewers on their next
 form without a rebuild or a redeploy.
 
-Read-only and signed-in only. A locale that is not active is not served;
-activating one is an explicit administrative action and is not gated on how
-much of it is translated. A half-translated locale is safe to serve because an
+Read-only and signed-in only. A locale is served when it is active or
+``in_review`` (the form shows an ``in_review`` locale only with its English
+beside it, decided 2026-09-21); a ``draft`` locale is not served. Activating
+one is an explicit administrative action and is not gated on how much of it
+is translated. A half-translated locale is safe to serve because an
 untranslated string is absent from this payload rather than empty, so the form
 falls back to English for that string alone.
 Policy: docs/policy/va-web-form-options.md.
@@ -25,6 +27,7 @@ from app.services.instrument_translation_service import (
     export_translations,
     get_locale,
 )
+from app.services.web_form_instruments import is_servable
 
 bp = Blueprint("instruments_api", __name__)
 
@@ -35,16 +38,17 @@ bp = Blueprint("instruments_api", __name__)
 def instrument_translations(instrument_code: str, locale: str):
     """One locale's strings for one standard instrument.
 
-    404 for an unknown instrument, an unknown locale and an inactive one
-    alike: whether a language exists but is being worked on is not something
-    this endpoint's callers need to tell apart.
+    Served for an active or ``in_review`` locale. 404 for an unknown
+    instrument, an unknown locale and a ``draft`` one alike: whether a
+    language exists but is still a draft is not something this endpoint's
+    callers need to tell apart.
     """
     code = (instrument_code or "").strip().upper()
     locale = (locale or "").strip()
 
     if locale != BASE_LOCALE:
         row = get_locale(code, locale)
-        if row is None or not row.is_active:
+        if row is None or not is_servable(row):
             return jsonify({"error": "Translation not found."}), 404
 
     try:

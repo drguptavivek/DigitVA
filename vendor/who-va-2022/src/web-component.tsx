@@ -26,6 +26,7 @@ export class WhoVaFormElement extends HTMLElement {
       "auto-save-draft-on-change",
       "draft-id",
       "locale",
+      "show-english",
       "show-guidance"
     ];
   }
@@ -199,6 +200,7 @@ export class WhoVaFormElement extends HTMLElement {
         locale={language.locale}
         uiTranslations={language.uiTranslations}
         showSourceGuidance={this.hasAttribute("show-guidance")}
+        showEnglish={this.hasAttribute("show-english")}
         autoSaveDraftOnChange={this.hasAttribute("auto-save-draft-on-change")}
         {...(autoSaveDraftIntervalMs !== undefined ? { autoSaveDraftIntervalMs } : {})}
         onChange={(data) =>

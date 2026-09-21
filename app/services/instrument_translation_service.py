@@ -81,6 +81,7 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.models.va_users import VaUsers
+from app.services.web_form_instruments import SERVABLE_LOCALE
 from app.services.xlsform_instrument_builder import (
     _default_language,
     _language_columns,
@@ -1792,6 +1793,8 @@ def set_locale_lifecycle_state(
 def active_locale_versions(instrument_code: str) -> dict[str, int]:
     """``{locale: version}`` for every locale a form may be served in.
 
+    Active and ``in_review`` locales (``SERVABLE_LOCALE``): a page showing an
+    ``in_review`` locale must be able to revalidate it like any other.
     ``en`` is included at version 0: it is always available and never has rows,
     and a client that revalidates must see it listed rather than infer it.
     """
@@ -1801,7 +1804,7 @@ def active_locale_versions(instrument_code: str) -> dict[str, int]:
         sa.select(MasInstrumentLocales.locale_code, MasInstrumentLocales.version)
         .where(
             MasInstrumentLocales.instrument_code == instrument_code,
-            MasInstrumentLocales.is_active.is_(True),
+            SERVABLE_LOCALE,
         )
         .order_by(MasInstrumentLocales.locale_code)
     ).all():

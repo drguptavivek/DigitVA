@@ -7286,14 +7286,17 @@ def admin_web_form_locales_list():
     which describes narration recordings. A project's available web form
     languages must come from the instrument bundle, so the Projects panel
     builds that checkbox list from here. ``en`` is always first and always
-    offered. Policy: docs/policy/va-web-form-options.md.
+    offered. ``under_review`` marks a locale no instrument has active yet: it
+    is served only with its English beside it. Policy:
+    docs/policy/va-web-form-options.md.
     """
-    from app.services.web_form_instruments import all_instrument_locales
+    from app.services.web_form_instruments import all_instrument_locale_catalogue
 
+    locales, under_review = all_instrument_locale_catalogue()
     return jsonify({
         "locales": [
-            {"code": code, "label": label}
-            for code, label in all_instrument_locales().items()
+            {"code": code, "label": label, "under_review": code in under_review}
+            for code, label in locales.items()
         ]
     })
 

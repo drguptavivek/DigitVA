@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # Admin And Setup Model
@@ -463,9 +463,15 @@ The interviewer's form fetches
 `GET /api/v1/instruments/<instrument_code>/translations/<locale>` by version
 and revalidates against `translation_versions` in the form-options
 payload, so an edit reaches interviewers on their next form. A locale is
-offered to a form only when it is active **and** the project lists it in
-`web_intake_available_locales`; "the language I imported is not in the
-picker" resolves to one of those two.
+offered to a form only when it is servable -- active, or `in_review`
+(since 2026-09-21, `digitva-mxn`; `draft` never) -- **and** the project lists
+it in `web_intake_available_locales`; "the language I imported is not in the
+picker" resolves to one of those two. The predicate is defined once,
+`SERVABLE_LOCALE` in `app/services/web_form_instruments.py`. Form-options
+entries and `/admin/api/web-form-locales` carry `under_review`; the Projects
+panel and the intake picker label such a locale "(under review)", and the
+intake page forces its "Show English" toggle on for it (see "English
+alongside the translation" in `docs/policy/va-web-form-options.md`).
 
 **New-install operator step, after seeding (not a migration):** for each
 row of the "Translation sources" table in

@@ -227,6 +227,31 @@ function recordLocale(locale, version) {
     .catch(() => {});
 }
 
+// English beside the translation ("English alongside the translation" in
+// docs/policy/va-web-form-options.md): on by default, remembered per browser,
+// and forced on for a locale still under review -- without overwriting the
+// interviewer's own choice, which applies again on an approved locale.
+const SHOW_ENGLISH_KEY = "digitva.intake.showEnglish";
+let showEnglishChoice = (() => {
+  try { return localStorage.getItem(SHOW_ENGLISH_KEY) !== "0"; } catch (e) { return true; }
+})();
+const rememberShowEnglish = (on) => {
+  showEnglishChoice = on;
+  try { localStorage.setItem(SHOW_ENGLISH_KEY, on ? "1" : "0"); } catch (e) { /* not remembered */ }
+};
+
+function syncShowEnglish(el, options, code) {
+  const entry = (options.available_locales || []).find((l) => l.code === code);
+  const underReview = Boolean(entry && entry.under_review);
+  el.toggleAttribute("show-english", code !== "en" && (underReview || showEnglishChoice));
+  const box = $("wv-show-english");
+  if (!box) return;
+  box.checked = underReview || showEnglishChoice;
+  box.disabled = underReview;
+  $("wv-show-english-wrap").classList.toggle("d-none", code === "en");
+  $("wv-show-english-note").classList.toggle("d-none", !underReview);
+}
+
 async function applyLocale(el, baseInstrument, instrumentCode, locale) {
   const translations = await translationsFor(instrumentCode, locale);
   el.instrument = applyTranslations(baseInstrument, translations, locale);
@@ -234,7 +259,7 @@ async function applyLocale(el, baseInstrument, instrumentCode, locale) {
   recordLocale(locale, translations ? translations.version : 0);
 }
 
-function renderLocalePicker(el, options, onChange) {
+function renderLocalePicker(el, options, locale, onChange) {
   const locales = options.available_locales || [];
   if (locales.length < 2) return;
   const select = document.createElement("select");
@@ -244,18 +269,41 @@ function renderLocalePicker(el, options, onChange) {
   for (const locale of locales) {
     const option = document.createElement("option");
     option.value = locale.code;
-    option.textContent = locale.label;
+    option.textContent = locale.label + (locale.under_review ? " (under review)" : "");
     select.appendChild(option);
   }
-  select.value = el.getAttribute("locale") || locales[0].code;
+  // The working locale, not the element's attribute: the picker is built
+  // before applyLocale sets it, so a resumed draft would otherwise show English.
+  select.value = locale;
   select.addEventListener("change", () => {
     rememberLocale(select.value);
     // Re-fetch and re-apply: the instrument is rebuilt from the base copy, so
     // switching back and forth cannot accumulate another locale's strings.
     onChange(select.value);
   });
+  const wrap = document.createElement("div");
+  wrap.id = "wv-show-english-wrap";
+  wrap.className = "form-check form-switch small mb-0 d-flex align-items-center gap-2";
+  const box = document.createElement("input");
+  box.id = "wv-show-english";
+  box.type = "checkbox";
+  box.className = "form-check-input";
+  const label = document.createElement("label");
+  label.className = "form-check-label";
+  label.htmlFor = box.id;
+  label.textContent = "Show English";
+  const note = document.createElement("span");
+  note.id = "wv-show-english-note";
+  note.className = "text-muted d-none";
+  note.textContent = "English is always shown for a language under review.";
+  wrap.append(box, label, note);
+  box.addEventListener("change", () => {
+    rememberShowEnglish(box.checked);
+    syncShowEnglish(el, options, select.value);
+  });
   const bar = $("wv-locale-bar");
-  bar.appendChild(select);
+  bar.classList.add("align-items-center", "gap-3");
+  bar.append(wrap, select);
   bar.classList.remove("d-none");
   bar.classList.add("d-flex");
 }
@@ -283,12 +331,14 @@ async function main() {
   el.setAttribute("draft-id", DRAFT.draft_id);
   const instrumentCode = defaultFormType.instrument_code;
   const locale = workingLocale(options);
-  renderLocalePicker(el, options, (code) => {
+  renderLocalePicker(el, options, locale, (code) => {
+    syncShowEnglish(el, options, code);
     applyLocale(el, chosenInstrument, instrumentCode, code)
       .catch((err) => alertBox("warning", "Could not switch language: " + (err.message || err)));
   });
   if (options.show_guidance) el.setAttribute("show-guidance", "");
   el.setAttribute("auto-save-draft-on-change", "");
+  syncShowEnglish(el, options, locale);
   await applyLocale(el, chosenInstrument, instrumentCode, locale);
   el.draftStore = draftStore;
   if (PREFILL.lockedQuestionNames && "lockedQuestionNames" in el) el.lockedQuestionNames = PREFILL.lockedQuestionNames;

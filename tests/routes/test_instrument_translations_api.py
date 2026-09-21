@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from app import db
 from app.models.mas_instrument_locales import (
     LIFECYCLE_APPROVED,
+    LIFECYCLE_IN_REVIEW,
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
@@ -111,6 +112,25 @@ class InstrumentTranslationServingTests(BaseTestCase):
         _locale("kn", active=True, version=2)
         db.session.commit()
         self.assertEqual(self.client.get(self._url("kn")).status_code, 200)
+
+    def test_an_in_review_locale_is_served_and_a_draft_one_is_not(self):
+        """in_review is served (with English beside it on the form, 2026-09-21);
+        draft is still 404. Present first: kn is a draft with strings."""
+        self.assertEqual(
+            db.session.get(MasInstrumentLocales, (INSTRUMENT, "kn")).lifecycle_state,
+            "draft",
+            "fixture guard: kn starts as a draft",
+        )
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.get(self._url("kn")).status_code, 404)
+
+        _locale("kn", active=False, version=2, lifecycle_state=LIFECYCLE_IN_REVIEW)
+        db.session.commit()
+        response = self.client.get(self._url("kn"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["questions"][self.item_key]["label"], "ಮೊದಲ ಪ್ರಶ್ನೆ"
+        )
 
     def test_an_unknown_locale_or_instrument_is_404(self):
         self._login(self.base_coder_id)

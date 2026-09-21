@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-21
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -415,6 +415,14 @@ attribute, and the `instrument` property, which it looks up by the default
 form type's `form_type_code`. A form type with no bundled instrument is an
 error shown in the page's alert box, never a WHO 2022 form rendered under
 another name.
+
+Since 2026-09-21 (`digitva-mxn`) the page's locale bar also carries a "Show
+English" switch that sets the component's `show-english` attribute, so the
+English renders as a muted `lang="en"` line beneath translated question
+labels, hints and choice labels. It is hidden for `en`, on by default, and
+remembered per browser (`localStorage` key `digitva.intake.showEnglish`). For a
+locale whose `available_locales` entry has `under_review: true` it is checked
+and disabled, with a note, without overwriting the remembered choice.
 
 ## Where the code lives
 

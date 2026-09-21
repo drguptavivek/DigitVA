@@ -41,7 +41,7 @@ from app.services.instrument_translation_service import active_locale_versions
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
     FALLBACK_INSTRUMENT_CODE,
-    instrument_locales,
+    instrument_locale_catalogue,
 )
 from app.services.web_intake_service import resolve_intake_note
 
@@ -513,8 +513,12 @@ def _resolve_locales(
     ``web_intake_available_locales`` NULL means every instrument locale; a
     stored list keeps the codes the instrument has, in stored order, and drops
     the rest. A misconfigured language degrades the form, never fails the page.
+
+    Each entry carries ``under_review``: true for an ``in_review`` locale, which
+    the form offers only with its English forced on beside every string
+    (decided 2026-09-21, "English alongside the translation").
     """
-    locales = instrument_locales(instrument_code)
+    locales, under_review = instrument_locale_catalogue(instrument_code)
 
     default = project.web_intake_default_locale
     if default not in locales:
@@ -536,7 +540,10 @@ def _resolve_locales(
     for code in [DEFAULT_LOCALE, *codes, default]:
         if code not in ordered:
             ordered.append(code)
-    return default, [{"code": code, "label": locales[code]} for code in ordered]
+    return default, [
+        {"code": code, "label": locales[code], "under_review": code in under_review}
+        for code in ordered
+    ]
 
 
 def _resolve_narration_languages(

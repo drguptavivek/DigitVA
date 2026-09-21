@@ -187,7 +187,7 @@ import { defineWhoVaElement } from "@drguptavivek/who-2022-va/web-component";
 defineWhoVaElement();
 ```
 
-`<who-va-2022-form>` observes `locale` and `show-guidance`, accepts `draft-id`, and exposes `getData()`, `setData()`, `getDraftId()`, `validate()`, and `complete()`.
+`<who-va-2022-form>` observes `locale`, `show-guidance` and `show-english` (the English beneath translated question labels, hints and choice labels), accepts `draft-id`, and exposes `getData()`, `setData()`, `getDraftId()`, `validate()`, and `complete()`.
 
 It emits bubbling custom events: `who-va-change`, `who-va-validation`, `who-va-draft-saved`, `who-va-draft-error`, and `who-va-complete`. Event data is available on `event.detail`.
 

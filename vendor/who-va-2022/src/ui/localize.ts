@@ -12,7 +12,7 @@
  * every distinction the form author drew, which is how 337 WHO guidance fields
  * lost their colour before this was separated.
  */
-import { localizeText } from "../i18n.js";
+import { localeCandidates, localizeText } from "../i18n.js";
 
 /**
  * ODK's inline markup, removed. `<br>` becomes a newline; the handful of
@@ -44,4 +44,16 @@ export function localizedRich(
   fallback: string
 ): string {
   return localizeText(text, locale, fallback);
+}
+
+/**
+ * The English to show beside a translated string (`show-english`), markup
+ * intact for `RichText`. Empty when the display locale is English, when the
+ * text has no English, or when the English is what is already displayed (an
+ * untranslated string falls back to it).
+ */
+export function englishAlongside(text: Record<string, string | undefined>, locale: string): string {
+  const english = text.en ?? "";
+  if (!english || localeCandidates(locale)[0]?.split("-")[0] === "en") return "";
+  return english === localizeText(text, locale) ? "" : english;
 }

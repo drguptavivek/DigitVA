@@ -294,7 +294,7 @@ class FormOptionsApiTests(BaseTestCase):
         self._login(str(self.granted_user.user_id))
         payload = self.client.get(self.URL).get_json()
         self.assertEqual(
-            payload["available_locales"], [{"code": "en", "label": "English"}]
+            payload["available_locales"], [{"code": "en", "label": "English", "under_review": False}]
         )
         self.assertEqual(payload["default_locale"], "en")
 
@@ -321,14 +321,14 @@ class FormOptionsApiTests(BaseTestCase):
         self._login(str(self.granted_user.user_id))
         self.assertEqual(
             self.client.get(self.URL).get_json()["available_locales"],
-            [{"code": "en", "label": "English"}],
+            [{"code": "en", "label": "English", "under_review": False}],
         )
 
         self.project.web_intake_available_locales = ["zz"]
         db.session.commit()
         self.assertEqual(
             self.client.get(self.URL).get_json()["available_locales"],
-            [{"code": "en", "label": "English"}],
+            [{"code": "en", "label": "English", "under_review": False}],
         )
 
     def test_a_stored_list_of_language_codes_serves_only_the_base_locale(self):
@@ -339,7 +339,7 @@ class FormOptionsApiTests(BaseTestCase):
         self._login(str(self.granted_user.user_id))
         payload = self.client.get(self.URL).get_json()
         self.assertEqual(
-            payload["available_locales"], [{"code": "en", "label": "English"}]
+            payload["available_locales"], [{"code": "en", "label": "English", "under_review": False}]
         )
 
     def test_a_stored_default_the_instrument_lacks_resolves_to_en(self):
@@ -1295,7 +1295,7 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
         super().setUp()
         self.project = db.session.get(VaProjectMaster, self.PROJECT)
 
-    def _locale(self, code, name, *, active):
+    def _locale(self, code, name, *, active, lifecycle_state=None):
         from app.models.mas_instrument_locales import (
             LIFECYCLE_APPROVED,
             MasInstrumentLocales,
@@ -1303,7 +1303,8 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
 
         # An active row must be 'approved' (ck_mas_instrument_locales_active_
         # requires_approved, decided 2026-09-20).
-        lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
+        if lifecycle_state is None:
+            lifecycle_state = LIFECYCLE_APPROVED if active else "draft"
         row = db.session.get(MasInstrumentLocales, ("WHO_2022_VA", code))
         if row is None:
             row = MasInstrumentLocales(
@@ -1326,14 +1327,14 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
         self._login(str(self.user.user_id))
         payload = self.client.get(self.URL).get_json()
         self.assertEqual(
-            payload["available_locales"], [{"code": "en", "label": "English"}]
+            payload["available_locales"], [{"code": "en", "label": "English", "under_review": False}]
         )
 
         self._locale("hi", "Hindi", active=True)
         db.session.commit()
         payload = self.client.get(self.URL).get_json()
         self.assertIn(
-            {"code": "hi", "label": "Hindi"}, payload["available_locales"]
+            {"code": "hi", "label": "Hindi", "under_review": False}, payload["available_locales"]
         )
         self.assertEqual(payload["available_locales"][0]["code"], "en")
 
@@ -1347,3 +1348,24 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
         self.assertEqual(payload["translation_versions"]["en"], 0)
         self.assertEqual(payload["translation_versions"]["hi"], 7)
         self.assertNotIn("kn", payload["translation_versions"])
+
+    def test_an_in_review_locale_is_served_flagged_under_review(self):
+        """2026-09-21 (digitva-mxn): in_review is offered, English forced on."""
+        self.project.web_intake_available_locales = ["en", "hi", "kn", "ta"]
+        self._locale("hi", "Hindi", active=True)
+        self._locale("kn", "Kannada", active=False, lifecycle_state="in_review")
+        self._locale("ta", "Tamil", active=False)
+        db.session.commit()
+
+        self._login(str(self.user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(
+            payload["available_locales"],
+            [
+                {"code": "en", "label": "English", "under_review": False},
+                {"code": "hi", "label": "Hindi", "under_review": False},
+                {"code": "kn", "label": "Kannada", "under_review": True},
+            ],
+        )
+        self.assertEqual(payload["translation_versions"]["kn"], 7)
+        self.assertNotIn("ta", payload["translation_versions"])

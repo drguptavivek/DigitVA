@@ -754,6 +754,16 @@ class InstrumentTranslationImportTests(BaseTestCase):
         versions = svc.active_locale_versions(INSTRUMENT)
         self.assertIn("hi", versions)
 
+    def test_active_locale_versions_includes_an_in_review_locale(self):
+        """A page showing an in_review locale must be able to revalidate it."""
+        self._import(self._full_workbook())
+        db.session.flush()
+        self.assertNotIn("hi", svc.active_locale_versions(INSTRUMENT))
+
+        svc.set_locale_lifecycle_state(INSTRUMENT, "hi", svc.LIFECYCLE_IN_REVIEW)
+        db.session.flush()
+        self.assertIn("hi", svc.active_locale_versions(INSTRUMENT))
+
 
 class LayerReferenceMergeTests(BaseTestCase):
     """The reference is the WHO base workbook plus the DigitVA layer entries.

@@ -27,6 +27,7 @@ import {
 } from "../engine/validation.js";
 import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } from "../i18n.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
+import { englishAlongside } from "./localize.js";
 import { createRichText } from "./rich-text-view.js";
 import {
   createWhoVaQuestionControls,
@@ -50,6 +51,11 @@ interface WhoVaFormCommonProps {
   locale?: string;
   uiTranslations?: WhoVaUiTranslations;
   showSourceGuidance?: boolean;
+  /**
+   * Show the English beneath translated question labels, hints and choice
+   * labels, so an interviewer can check the translation against it.
+   */
+  showEnglish?: boolean;
   platform?: WhoVaPlatformServices;
   draftId?: string;
   draftStore?: WhoVaDraftStore;
@@ -630,6 +636,12 @@ export function createWhoVaForm(
         localizedRich(question.guidance, locale, ""),
         snapshot.data
       );
+      const englishLabel = props.showEnglish ? englishAlongside(question.label, locale) : "";
+      const labelEnglish = englishLabel
+        ? interviewerQuestionLabel(interpolateSubmissionReferences(englishLabel, snapshot.data))
+        : "";
+      const englishHint = props.showEnglish ? englishAlongside(question.hint, locale) : "";
+      const hintEnglish = englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : "";
       const hasIssues = issues.length > 0;
       const isQuestionComplete = isAnswerableQuestion(question) && hasAnswer(value) && !hasIssues;
 
@@ -639,6 +651,7 @@ export function createWhoVaForm(
           value={value}
           data={snapshot.data}
           locale={locale}
+          showEnglish={props.showEnglish}
           messages={messages}
           issues={issues}
           platform={props.platform}
@@ -681,9 +694,19 @@ export function createWhoVaForm(
               </View>
             ) : null}
           </View>
+          {labelEnglish ? (
+            <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
+              <RichText source={labelEnglish} />
+            </Text>
+          ) : null}
           {hint ? (
             <Text style={styles.hint}>
               <RichText source={hint} />
+            </Text>
+          ) : null}
+          {hintEnglish ? (
+            <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
+              <RichText source={hintEnglish} />
             </Text>
           ) : null}
           {props.showSourceGuidance && guidance ? (

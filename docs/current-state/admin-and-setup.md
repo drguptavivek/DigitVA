@@ -25,6 +25,19 @@ The `/admin` interface provides the following management panels:
 - **Project Forms** — per-site ODK form mappings (ODK project ID and xmlFormId), with live dropdowns populated from ODK Central via pyODK. A site may map several ODK forms; the config row picks which one is being edited, adds another, or removes one
 - **Project PIs** — manage PI assignments scoped to a project
 - **Projects** — project master management (create, activate, deactivate)
+- **Project Setup home** — `/admin/panels/project-setup/<project_id>`, opened
+  by a row's **Setup** action in Projects (epic digitva-r1p). One page per
+  project with a section nav (Overview, Basics, Data collection, Structure,
+  Coding, People, Sync & activity); the chosen section is kept in `?section=`
+  and the shell restores `?panel=/admin/panels/project-setup/<id>` on reload,
+  highlighting Projects. Overview shows quick facts (structure, coding and web
+  intake modes, active site or unit count) and the web-capture readiness
+  checks, each problem linking to the section that fixes it. Basics embeds
+  the Projects panel's own edit form locked to the project (`locked_project_id`
+  in `admin/panels/projects.html`), so there is one form and one save path;
+  creating projects stays in Projects. The remaining sections are placeholders
+  that link to the sidebar panel still owning that configuration; the sidebar
+  panels are unchanged. Admin only, the same gate as Projects.
 - **Sites** — site master management (create, activate, deactivate)
 - **Users** — user account management (create, reset password, toggle active status, assign coder languages)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
@@ -32,7 +45,7 @@ The `/admin` interface provides the following management panels:
 - **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
 - **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, the integrity check, the S3 upload sweep and the manual local quarantine (see below)
 - **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, JSON export of curated code-policy rows, XLSX export of editable ICD rows with coding policy and COD manual override status, and a read-only legacy ICD reporting alias table for historical CoD normalization used by COD bucket reporting.
-- **ICD-11 Browser** — read-only admin browser for `mas_icd11_mms` (WHO ICD-11 MMS linearization, 2026-01 release): expandable chapter/block/category tree, node details (code, class kind, chapter, residual/leaf flags, coding policy), and a code/title search. Local policy curation happens via the `flask icd11 policy-export`/`policy-import` CLI, not this panel (see docs/policy/icd11-reference-catalog.md).
+- **ICD-11 Browser** — admin browser and policy editor for `mas_icd11_mms` (WHO ICD-11 MMS linearization, 2026-01 release), at parity with the ICD-10 browser: expandable chapter/block/category tree with status dots and child counters, coding/sex/age filters, code/title search, node details with an editable per-category policy form (including `policy_status`), policy JSON import (previewed with a dry run, then applied) and JSON/XLSX export. The JSON format is shared with the `flask icd11 policy-export`/`policy-import` CLI (see docs/policy/icd11-reference-catalog.md).
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -63,7 +76,7 @@ The following panels are restricted to application-level admins:
 - Attachments
 - Users
 - Sites
-- Projects
+- Projects (and each project's Setup home)
 - Languages
 - COD Buckets
 - ICD-10 Browser

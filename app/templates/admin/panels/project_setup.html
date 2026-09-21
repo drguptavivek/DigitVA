@@ -1,0 +1,225 @@
+{#
+  Project Setup home (epic digitva-r1p, phase 1): one page per project.
+  Sections switch client-side and persist as ?section=. Basics embeds the
+  Projects panel's own edit form locked to this project, so the form fields
+  and save logic stay in admin/panels/projects.html. Sections not built yet
+  point at the sidebar panel that still owns them.
+#}
+{% set is_org = project.project_structure_mode == 'organization' %}
+<div id="panel-project-setup" data-project-id="{{ project.project_id }}">
+
+  {# Header #}
+  <button type="button" class="btn btn-sm btn-link px-0 mb-2" id="setup-back-btn">
+    <i class="fa-solid fa-arrow-left me-1"></i>All projects
+  </button>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h5 class="mb-0"><i class="fa-solid fa-folder-open me-2 text-secondary"></i>{{ project.project_name }}</h5>
+    <span class="badge text-bg-light border">{{ project.project_id }}</span>
+    <span class="text-muted small">{{ project.project_nickname }}</span>
+    <span class="badge text-bg-light border">{{ 'Organization' if is_org else 'Sites' }}</span>
+    {% if project.project_status.value == 'active' %}
+      <span class="badge text-bg-success">Active</span>
+    {% else %}
+      <span class="badge text-bg-secondary">Inactive</span>
+    {% endif %}
+  </div>
+  {% if saved %}
+    <div class="alert alert-success small py-2">Project saved.</div>
+  {% endif %}
+
+  <div class="row g-3">
+    {# Section nav #}
+    <div class="col-12 col-md-3 col-xl-2">
+      <nav class="nav nav-pills flex-column gap-1 small" id="setup-section-nav">
+        <a class="nav-link py-1 px-2" href="#" data-section="overview">Overview</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="basics">Basics</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="data-collection">Data collection</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="structure">Structure</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="coding">Coding</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="people">People</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="sync">Sync &amp; activity</a>
+      </nav>
+    </div>
+
+    <div class="col-12 col-md-9 col-xl-10">
+
+      {# Overview #}
+      <section class="setup-section d-none" data-section="overview">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h6 class="card-title">Quick facts</h6>
+            <dl class="row small mb-0">
+              <dt class="col-sm-4">Structure</dt>
+              <dd class="col-sm-8">{{ 'Organization (unit tree)' if is_org else 'Sites (Project > Site > Form)' }}</dd>
+              <dt class="col-sm-4">Coding intake</dt>
+              <dd class="col-sm-8">{{ 'Pick and choose' if project.coding_intake_mode == 'pick_and_choose' else 'Random form allocation' }}</dd>
+              <dt class="col-sm-4">Web intake</dt>
+              <dd class="col-sm-8">{{ project.web_intake_mode or 'off' }}</dd>
+              {% if is_org %}
+                <dt class="col-sm-4">Active units</dt>
+                <dd class="col-sm-8">{{ unit_count }}</dd>
+              {% else %}
+                <dt class="col-sm-4">Active sites</dt>
+                <dd class="col-sm-8">{{ site_count }}</dd>
+              {% endif %}
+            </dl>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <h6 class="card-title mb-0">Web capture readiness</h6>
+              <span id="setup-readiness-summary"></span>
+            </div>
+            <div class="text-muted small mb-2">
+              What still has to line up before an interviewer can fill this
+              project's questionnaire and have the case reach a coder.
+            </div>
+            <div id="setup-readiness-list"><div class="text-muted small py-1">Loading…</div></div>
+          </div>
+        </div>
+      </section>
+
+      {# Basics: the Projects panel's edit form, locked to this project #}
+      <section class="setup-section d-none" data-section="basics">
+        {% include "admin/panels/projects.html" %}
+      </section>
+
+      {# Phases 2-4: placeholders pointing at the panel that owns the setting today #}
+      {% macro placeholder(name, panels) %}
+        <div class="card"><div class="card-body small">
+          <h6 class="card-title">{{ name }}</h6>
+          <p class="text-muted mb-2">Coming next. For now, use
+          {% for label, url in panels %}{% if not loop.first %}{{ ' or ' if loop.last else ', ' }}{% endif %}the
+          <a href="#" class="setup-panel-link" data-panel-link="{{ url }}">{{ label }}</a> panel{% endfor %}.</p>
+        </div></div>
+      {% endmacro %}
+      <section class="setup-section d-none" data-section="data-collection">
+        {{ placeholder('Data collection', [('Project Forms', '/admin/panels/project-forms'), ('ODK Connections', '/admin/panels/odk-connections')]) }}
+      </section>
+      <section class="setup-section d-none" data-section="structure">
+        {% if is_org %}
+          {{ placeholder('Structure', [('Organization', '/admin/panels/organization')]) }}
+        {% else %}
+          {{ placeholder('Structure', [('Project Sites', '/admin/panels/project-sites')]) }}
+        {% endif %}
+      </section>
+      <section class="setup-section d-none" data-section="coding">
+        {{ placeholder('Coding', [('Organization' if is_org else 'Project Sites', '/admin/panels/organization' if is_org else '/admin/panels/project-sites')]) }}
+      </section>
+      <section class="setup-section d-none" data-section="people">
+        {{ placeholder('People', [('Access Grants', '/admin/panels/access-grants'), ('Project PIs', '/admin/panels/project-pi')]) }}
+      </section>
+      <section class="setup-section d-none" data-section="sync">
+        {{ placeholder('Sync & activity', [('Data Sync', '/admin/panels/sync'), ('Attachments', '/admin/panels/attachments')]) }}
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.getElementById('panel-project-setup');
+  var projectId = root.getAttribute('data-project-id');
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── sections ──────────────────────────────────────────────────────────────
+
+  var SECTION_LABELS = {};
+  root.querySelectorAll('#setup-section-nav [data-section]').forEach(function (a) {
+    SECTION_LABELS[a.getAttribute('data-section')] = a.textContent;
+  });
+
+  function showSection(name) {
+    if (!SECTION_LABELS[name]) name = 'overview';
+    root.querySelectorAll('.setup-section').forEach(function (s) {
+      s.classList.toggle('d-none', s.getAttribute('data-section') !== name);
+    });
+    root.querySelectorAll('#setup-section-nav [data-section]').forEach(function (a) {
+      a.classList.toggle('active', a.getAttribute('data-section') === name);
+    });
+    if (window.setUrlParam) window.setUrlParam('section', name);
+  }
+
+  root.addEventListener('click', function (e) {
+    var sectionLink = e.target.closest('[data-section]:not(section)');
+    if (sectionLink) {
+      e.preventDefault();
+      showSection(sectionLink.getAttribute('data-section'));
+      return;
+    }
+    // Hand over to the sidebar link so the shell's active state and ?panel=
+    // stay the single navigation path.
+    var panelLink = e.target.closest('[data-panel-link]');
+    if (panelLink) {
+      e.preventDefault();
+      openShellPanel(panelLink.getAttribute('data-panel-link'));
+    }
+  });
+
+  function openShellPanel(url) {
+    if (window.setUrlParam) {
+      window.setUrlParam('section', null);
+      window.setUrlParam('project', null);
+    }
+    var link = document.querySelector('.admin-nav-link[data-panel="' + url + '"]');
+    if (link) link.click();
+  }
+
+  document.getElementById('setup-back-btn').addEventListener('click', function () {
+    openShellPanel('/admin/panels/projects');
+  });
+
+  // ── readiness ─────────────────────────────────────────────────────────────
+  // Same endpoint the Projects panel badge reads; each problem links to the
+  // section that fixes it.
+
+  var FIX_SECTION = {
+    mode: 'basics', form_type: 'basics', locales: 'basics', coding_scope: 'basics',
+    sites: 'structure', org_tree: 'structure', org_unplaced: 'structure', geography_fields: 'structure',
+    web_forms: 'data-collection',
+    interviewers: 'people'
+  };
+  var BADGE = { ok: 'text-bg-success', warn: 'text-bg-warning', fail: 'text-bg-danger' };
+
+  function renderReadiness(result) {
+    var html = (result.checks || []).map(function (c) {
+      var fix = c.status !== 'ok' && FIX_SECTION[c.code];
+      return '<div class="d-flex align-items-start gap-2 py-1 border-top">'
+        + '<span class="badge ' + (BADGE[c.status] || 'text-bg-secondary') + '" style="min-width:3.2rem;">' + esc(c.status) + '</span>'
+        + '<div class="small">'
+        +   '<div><span class="fw-semibold">' + esc(c.code) + '</span> — ' + esc(c.message) + '</div>'
+        +   (c.status !== 'ok' && c.fix_hint ? '<div class="text-muted">' + esc(c.fix_hint) + '</div>' : '')
+        +   (fix ? '<a href="#" data-section="' + esc(fix) + '">Go to ' + esc(SECTION_LABELS[fix]) + '</a>' : '')
+        + '</div></div>';
+    }).join('');
+    document.getElementById('setup-readiness-list').innerHTML = html;
+    document.getElementById('setup-readiness-summary').innerHTML = result.ready
+      ? '<span class="badge text-bg-success">Ready for web capture</span>'
+      : '<span class="badge text-bg-danger">Not ready</span>';
+  }
+
+  function readinessError(msg) {
+    document.getElementById('setup-readiness-list').innerHTML =
+      '<div class="text-danger small py-1">' + esc(msg) + '</div>';
+  }
+
+  fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/web-intake-readiness')
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.data || !res.data.checks) {
+        readinessError((res.data && res.data.error) || 'Could not load readiness.');
+        return;
+      }
+      renderReadiness(res.data);
+    })
+    .catch(function () { readinessError('Network error.'); });
+
+  showSection(new URLSearchParams(window.location.search).get('section'));
+}());
+</script>

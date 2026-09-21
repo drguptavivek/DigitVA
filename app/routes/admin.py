@@ -2550,6 +2550,39 @@ def admin_panel_projects():
     return render_template("admin/panels/projects.html")
 
 
+@admin.get("/panels/project-setup/<project_id>")
+@role_required("admin")
+def admin_panel_project_setup(project_id):
+    """One page per project holding its configuration (epic digitva-r1p).
+
+    Admin only, the same gate as the Projects panel whose edit form the Basics
+    section embeds. Counts are two indexed aggregates, not row loads.
+    """
+    project = db.session.get(VaProjectMaster, project_id)
+    if project is None:
+        abort(404)
+    site_count = db.session.scalar(
+        sa.select(sa.func.count()).select_from(VaProjectSites).where(
+            VaProjectSites.project_id == project_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+        )
+    )
+    unit_count = db.session.scalar(
+        sa.select(sa.func.count()).select_from(MasOrgUnit).where(
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.is_active.is_(True),
+        )
+    )
+    return render_template(
+        "admin/panels/project_setup.html",
+        project=project,
+        site_count=site_count,
+        unit_count=unit_count,
+        saved=request.args.get("saved") == "1",
+        locked_project_id=project.project_id,
+    )
+
+
 @admin.get("/panels/sites")
 @role_required("admin")
 def admin_panel_sites():

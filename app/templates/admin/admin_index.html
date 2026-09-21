@@ -360,6 +360,14 @@
       if (urlPanel) {
         var link = document.querySelector('.admin-nav-link[data-panel="' + urlPanel + '"]');
         if (link) { link.click(); return; }
+        // A project's Setup home has no sidebar link of its own: it lives
+        // under Projects. Only this exact shape is loaded from the URL.
+        if (/^\/admin\/panels\/project-setup\/[A-Za-z0-9_-]+$/.test(urlPanel)) {
+          var projectsLink = document.querySelector('.admin-nav-link[data-panel="/admin/panels/projects"]');
+          if (projectsLink) projectsLink.classList.add('active');
+          htmx.ajax('GET', urlPanel, { target: '#admin-panel', swap: 'innerHTML' });
+          return;
+        }
       }
 
     } catch (e) {

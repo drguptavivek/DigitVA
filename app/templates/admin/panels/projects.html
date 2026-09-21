@@ -1,11 +1,16 @@
 {#
   Project Master Management panel
   Lists all projects with edit, create, and toggle capabilities.
+
+  locked_project_id (set when the Project Setup home includes this panel as
+  its Basics section): no list, no create; the edit form opens for that one
+  project and a save reloads the Setup home.
 #}
-<div id="panel-projects">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-projects" data-locked-project="{{ locked_project_id }}">
 
   {# Header #}
-  <div class="d-flex justify-content-between align-items-center mb-3" id="project-list-header">
+  <div class="d-flex justify-content-between align-items-center mb-3{{ ' d-none' if locked_project_id }}" id="project-list-header">
     <h5 class="mb-0">
       <i class="fa-solid fa-folder me-2 text-secondary"></i>Projects
     </h5>
@@ -22,7 +27,7 @@
 
   {# Create / edit view: replaces the list while open #}
   <div id="project-form-container" class="d-none">
-    <button type="button" class="btn btn-sm btn-link px-0 mb-2" id="project-back-btn">
+    <button type="button" class="btn btn-sm btn-link px-0 mb-2{{ ' d-none' if locked_project_id }}" id="project-back-btn">
       <i class="fa-solid fa-arrow-left me-1"></i>Back to projects
     </button>
     <div class="card mb-4">
@@ -199,7 +204,7 @@
 
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
-          <button class="btn btn-sm btn-outline-secondary" id="project-cancel-btn">Cancel</button>
+          <button class="btn btn-sm btn-outline-secondary{{ ' d-none' if locked_project_id }}" id="project-cancel-btn">Cancel</button>
           <button class="btn btn-sm btn-success" id="project-submit-btn">
             <i class="fa-solid fa-check me-1"></i>Save
           </button>
@@ -237,6 +242,9 @@
   'use strict';
 
   function csrf() { return window._adminCsrf || ''; }
+
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED = document.getElementById('panel-projects').getAttribute('data-locked-project') || null;
 
   function apiJson(url, method, body) {
     var m = method || 'GET';
@@ -288,6 +296,11 @@
         return;
       }
       _projects = res.data.projects || [];
+      if (LOCKED) {
+        if (_projects.some(function (p) { return p.project_id === LOCKED; })) openEditForm(LOCKED);
+        else wrap.innerHTML = '<div class="alert alert-danger small py-2">Project not found.</div>';
+        return;
+      }
       renderTable(showInactive);
       restoreFormFromUrl();
     }).catch(function () {
@@ -351,6 +364,9 @@
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary project-edit-btn" '
         + ' data-id="' + esc(p.project_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
+      var setupBtn = '<button class="btn btn-sm py-0 px-2 btn-primary project-setup-btn" '
+        + ' data-id="' + esc(p.project_id) + '" title="Open the project\'s Setup home">'
+        + '<i class="fa-solid fa-sliders me-1"></i>Setup</button>';
 
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(p.project_id) + '</span></td>'
@@ -375,7 +391,7 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + nqaBtn + ' ' + remoteAttBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end text-nowrap">' + setupBtn + ' ' + nqaBtn + ' ' + remoteAttBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -402,6 +418,21 @@
       });
     }
     
+    // Setup opens the project's Setup home in place of this panel; ?panel=
+    // carries it across a reload (admin_index.html restores it).
+    var setupBtns = wrap.querySelectorAll('.project-setup-btn');
+    for (var s = 0; s < setupBtns.length; s++) {
+      setupBtns[s].addEventListener('click', function () {
+        var url = '/admin/panels/project-setup/' + encodeURIComponent(this.getAttribute('data-id'));
+        if (window.setUrlParam) {
+          window.setUrlParam('project', null);
+          window.setUrlParam('section', null);
+          window.setUrlParam('panel', url);
+        }
+        htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
+      });
+    }
+
     // Bind toggle buttons
     var toggleBtns = wrap.querySelectorAll('.project-toggle-btn');
     for (var j = 0; j < toggleBtns.length; j++) {
@@ -967,7 +998,7 @@
     formContainer.classList.toggle('d-none', !on);
     document.getElementById('project-list-header').classList.toggle('d-none', on);
     document.getElementById('project-table-wrap').classList.toggle('d-none', on);
-    if (window.setUrlParam) window.setUrlParam('project', on ? key : null);
+    if (window.setUrlParam && !LOCKED) window.setUrlParam('project', on ? key : null);
     if (on) window.scrollTo(0, 0);
   }
 
@@ -1092,6 +1123,12 @@
     apiJson(url, method, data).then(function (res) {
       btn.disabled = false;
       if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
+      if (LOCKED) {
+        // Re-render the Setup home so its header and Overview show the save.
+        htmx.ajax('GET', '/admin/panels/project-setup/' + encodeURIComponent(LOCKED) + '?saved=1',
+          { target: '#admin-panel', swap: 'innerHTML' });
+        return;
+      }
       showFormView(false);
       loadProjects();
     }).catch(function () { 

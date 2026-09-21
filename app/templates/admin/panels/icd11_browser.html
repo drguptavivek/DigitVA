@@ -101,7 +101,7 @@
     <div class="col-xl-9">
       <div class="card h-100">
         <div class="card-header">
-          <div class="fw-semibold mb-1">Hierarchy</div>
+          <div class="fw-semibold small mb-1">Hierarchy</div>
           <nav aria-label="ICD-11 path">
             <ol class="breadcrumb small mb-0" id="icd11-browser-path"></ol>
           </nav>
@@ -192,6 +192,11 @@
 </div>
 
 <style>
+  /* Compact breadcrumb: the card header's font is larger than body text. */
+  #panel-icd11-browser #icd11-browser-path { font-size: 0.8rem; font-weight: 400; row-gap: 2px; }
+  #panel-icd11-browser #icd11-browser-path a { text-decoration: none; }
+  #panel-icd11-browser #icd11-browser-path a:hover { text-decoration: underline; }
+  #panel-icd11-browser #icd11-browser-path .breadcrumb-item { max-width: 22rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Miller columns: panes scroll horizontally, about four fit at desktop width. */
   #panel-icd11-browser .icd11-browser-columns {
     display: flex;

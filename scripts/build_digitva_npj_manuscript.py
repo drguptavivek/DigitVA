@@ -16,29 +16,35 @@ ZOTERO_USER_ID = "337745"
 
 
 def add_complex_field(paragraph, instruction, visible_text):
-    run = paragraph.add_run()
+    begin_run = paragraph.add_run()
     begin = OxmlElement("w:fldChar")
     begin.set(qn("w:fldCharType"), "begin")
+    begin_run._r.append(begin)
+
+    instruction_run = paragraph.add_run()
     instr = OxmlElement("w:instrText")
     instr.set(qn("xml:space"), "preserve")
     instr.text = instruction
+    instruction_run._r.append(instr)
+
+    separate_run = paragraph.add_run()
     separate = OxmlElement("w:fldChar")
     separate.set(qn("w:fldCharType"), "separate")
-    result = OxmlElement("w:r")
+    separate_run._r.append(separate)
+
+    result_run = paragraph.add_run()
     for index, line in enumerate(visible_text.split("\n")):
         if index:
-            result.append(OxmlElement("w:br"))
+            result_run._r.append(OxmlElement("w:br"))
         text = OxmlElement("w:t")
         text.set(qn("xml:space"), "preserve")
         text.text = line
-        result.append(text)
+        result_run._r.append(text)
+
+    end_run = paragraph.add_run()
     end = OxmlElement("w:fldChar")
     end.set(qn("w:fldCharType"), "end")
-    run._r.addnext(end)
-    run._r.addnext(result)
-    run._r.addnext(separate)
-    run._r.addnext(instr)
-    run._r.addnext(begin)
+    end_run._r.append(end)
 
 
 def add_zotero_citation(paragraph, item_keys, visible_text):

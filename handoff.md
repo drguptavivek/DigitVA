@@ -23,7 +23,10 @@ ICD-11 go live. Umbrella epic `digitva-dus`.
   final-assessment authors and 11 sites. The DOCX contains five live Zotero
   citation fields and one live bibliography field; Benara et al. remains marked
   for Zotero import/linking. Code availability records the public MIT-licensed
-  upstream at `https://github.com/drguptavivek/DigitVA`.
+  upstream at `https://github.com/drguptavivek/DigitVA`. Word-opening repair
+  (`digitva-9og`, 2026-09-22): Zotero complex-field markers are now correctly
+  wrapped in Word runs; validation, nine-page rendering and an application-level
+  Microsoft Word open-and-close test all pass.
 * **DigitVA manuscript diagrams** (`digitva-7w7`): two-slide editable
   PptxGenJS deck at `docs/manuscript/DigitVA_Architecture_and_Workflow.pptx`
   with a platform architecture/concept diagram and a death-notification-to-

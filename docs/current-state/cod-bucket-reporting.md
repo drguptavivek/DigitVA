@@ -20,11 +20,47 @@ Routes:
 - admin editor:
   - `/admin/panels/cod-buckets`
 
+## ICD-10 and ICD-11 deaths
+
+Every death is bucketed through the rows of its own classification, decided
+by the final COD's code shape (the ICD-10 and ICD-11 shapes do not overlap).
+There is no crosswalk.
+
+- ICD-10 deaths use the scheme's `icd10` rows, with the legacy reporting
+  aliases, as before.
+- ICD-11 deaths use the scheme's `icd11` rows: the exact code, else its
+  nearest ancestor on the `mas_icd11_mms` parent chain that has a row. A
+  post-coordinated value (`1G40&XN...`, `1G40/...`) is bucketed by its first
+  stem. The ancestor is chosen ignoring age scope.
+- `va_submission_cod_detail_mv` carries `final_icd` (ICD-10 code) and, since
+  migration `e7b2c9d4a1f3`, `final_icd11` (ICD-11 stem). At most one is set.
+  The admin unmapped-ICD grid still reads `final_icd` only, so ICD-11 codes
+  never appear there as unmapped ICD-10.
+- An ICD-11 death with no bucket is shown in the "View dropped CoDs" modal
+  under "ICD-11 codes not included in <scheme>", never among the ICD-10
+  sections. In a scheme with no ICD-11 rows (`WHO_2022_VA`, `SRS_INDIA`,
+  `CMEA10`) every ICD-11 death is unmapped, under "ICD-11 codes: <scheme> has
+  no ICD-11 mappings, so every ICD-11 death is unmapped".
+- The report CSV's "Final authoritative COD" is the ICD-10 code or the ICD-11
+  stem.
+
+Since migration `d1a6e3b7c2f4`, `va_submission_cod_snapshot_mv` (and the coded
+COD snapshot export it backs) does the same in `WHO_2022_VA_2026`, and records
+each bucket's provenance (`icd10`, `icd11_native`, `unmapped`). See
+[Submission Analytics](submission-analytics.md#cod-snapshot-mv).
+
+On the dev dataset (7,879 final CODs, all ICD-10), moving the snapshot from
+`WHO_2022_VA` to `WHO_2022_VA_2026` changed 15 authoritative buckets:
+`R10` Other GI to Acute abdomen (4), `R95` Cause of death unknown to Other
+perinatal (6), and `R19`/`R51`/`R55` from no bucket to Cause of death unknown
+(5).
+
 ## Reporting UI
 
 The data-management report page at `/data-management/cod-buckets` now:
 
-- defaults to the `WHO_2022_VA` scheme when available
+- defaults to the `WHO_2022_VA_2026` scheme when available (owner,
+  2026-09-24); the scheme filter still offers `WHO_2022_VA`
 - exposes filters for scheme, project, site, form, submission date, and gender
 - scopes all page bootstrap data and aggregate API results to the caller's
   data-manager project/site grants

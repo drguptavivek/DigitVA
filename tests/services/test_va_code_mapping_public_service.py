@@ -209,6 +209,19 @@ class OriginDerivationTests(BaseTestCase):
                 parsed = [token for token, _, _ in service.parse_icd10_ranges(row["icd10_codes"])]
                 self.assertEqual(tokens, parsed, row["va_code"])
 
+    def test_owner_decisions_of_2026_09_24_derive_as_digitva(self):
+        # Decision 11: WHO's ICD-10 column gives A80 to Unspecified infectious.
+        self.assertIn("vas_01_99", service.icd10_claims("A80", self.annex))
+        self.assertEqual(self.icd10("A80", "vas_01_07"), (service.ORIGIN_DIGITVA, ""))
+        # Decision 12: footnote f does not list boarding/alighting codes as road traffic.
+        self.assertIn("vas_12_02", service.icd10_claims("V10.3", self.annex))
+        self.assertEqual(self.icd10("V10.3", "vas_12_01"), (service.ORIGIN_DIGITVA, ""))
+        # Decision 9: KD3B sits in the perinatal range, not a stillbirth one.
+        self.assertIn("vas_10_99", self.annex["icd11"]["KD3B"])
+        self.assertEqual(self.icd11("KD3B", "vas_11_02", "owner_decision"), (service.ORIGIN_DIGITVA, ""))
+        # Decisions 5a/5b: a code in no annex range.
+        self.assertEqual(self.icd11("5A22", "vas_03_03", "owner_decision"), (service.ORIGIN_DIGITVA, ""))
+
     def test_icd11_row_moved_off_its_annex_cause_is_digitva(self):
         self.assertEqual(self.icd11("1G40", "vas_98"), (service.ORIGIN_DIGITVA, ""))
 

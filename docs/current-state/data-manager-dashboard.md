@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-24
 ---
 
 # Data Manager Dashboard
@@ -50,7 +50,10 @@ This export is one row per submission and is backed by
 
 The coded COD snapshot export currently includes:
 
-- coder, reviewer, authoritative, and SmartVA COD fields
+- coder, reviewer, authoritative, and SmartVA COD fields, each with its
+  `WHO_2022_VA_2026` bucket section, bucket and `*_who_bucket_provenance`
+  (`icd10`, `icd11_native`, `unmapped`); ICD-11-coded deaths are bucketed
+  through the scheme's ICD-11 rows
 - active payload `unique_id` and `survey_block` fields when present
 - individual NQA question columns alongside score/rating
 - Social Autopsy analysis summary fields

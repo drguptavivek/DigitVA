@@ -1,10 +1,13 @@
 """Generate a scheme's native ICD-11 bucket table from the WHO VA cause list.
 
 Policy: docs/policy/icd11-cod-bucket-schemes.md ("Native method", owner
-decisions 2026-09-21). Each cause's ICD-11 ranges are expanded against the
-active catalogue categories of one release; a code claimed by several causes
-goes to the most specific range (the one covering the fewest codes); the two
-ranges the cause list shares between causes are split per code; every result
+decisions 2026-09-21) and docs/policy/icd10-to-icd11-transition.md section 6
+(owner decisions 2026-09-24). Each cause's ICD-11 ranges are expanded against
+the active catalogue categories of one release; a code claimed by several
+causes goes to the most specific range (the one covering the fewest codes);
+the two ranges the cause list shares between causes are split per code. The
+owner's recorded decisions (`DECISIONS_PATH`) then override the annex, and
+every code still without a bucket gets the decision 5b fallback. Every result
 is cross-checked against the owner's curated ICD-10 scheme through WHO's
 11-to-10 crosswalk. Nothing here writes to the database unless `apply` is
 called, and `apply` replaces only the scheme's ICD-11 rows.
@@ -16,6 +19,7 @@ import bisect
 import csv
 import logging
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -44,6 +48,9 @@ CHANGE_LIST_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "icd11-mms-changes-2026-01-vs-2025-01-2026-09-16/changes_MMS_2026-01_2025-01-main.xlsx"
 )
+DECISIONS_PATH = (
+    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv"
+)
 DEFAULT_REPORT_DIR = (
     "docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd11-native-2026-09-21"
 )
@@ -51,7 +58,18 @@ CURATED_ICD10_SCHEME_CODE = SCHEME_CODE_WHO_2022_VA
 
 MATCH_TYPE_RANGE = "range"
 MATCH_TYPE_SPLIT = "split"
+MATCH_TYPE_DECISION = "owner_decision"
+MATCH_TYPE_FALLBACK = "owner_fallback"
 SOURCE_SHEET = Path(CAUSE_LIST_PATH).name
+
+# Owner decision 5b (2026-09-24): a code no annex range or recorded decision
+# buckets takes the crosswalk's single-bucket suggestion, except RA codes
+# (wrongly suggested as COVID-19); everything else is unknown/ill-defined.
+FALLBACK_DECISION = "5b"
+FALLBACK_DECIDED_ON = "2026-09-24"
+FALLBACK_NODE_CODE = "vas_99"
+FALLBACK_NO_SUGGESTION_PREFIX = "RA"
+SPECIFIC_REVIEW_BEAD = "digitva-712.6"
 
 ROAD_TRAFFIC = "VAs-12.01"
 OTHER_TRANSPORT = "VAs-12.02"
@@ -230,6 +248,86 @@ def _pa_split(code: str, title: str) -> tuple[str, bool, str]:
     return OTHER_TRANSPORT, fits, "PA1x-PA5x nontraffic, rail, water, air or other transport"
 
 
+
+def va_code_for_node(node_code: str) -> str:
+    """`vas_01_02` -> `VAs-01.02`; '' for a bucket that is not a VA cause."""
+    if not node_code.startswith("vas_"):
+        return ""
+    return "VAs-" + node_code[4:].replace("_", ".")
+
+
+def _is_residual(node_code: str) -> bool:
+    """A bucket that is not a specific VA cause: not `vas_*`, VAs-98, VAs-99
+    or an `*.99` "other and unspecified" bucket (owner decision 1)."""
+    return not node_code.startswith("vas_") or node_code in ("vas_98", "vas_99") or node_code.endswith("_99")
+
+
+def _crosswalk_review_decision(generated: str, curated_bucket: str, own_bucket: str) -> str:
+    """Decision 1: residual on either side accepts the native bucket; a
+    specific cause on both sides goes back to the owner."""
+    others = {bucket for bucket in (curated_bucket, own_bucket) if bucket and bucket != generated}
+    specific = not _is_residual(generated) and all(
+        not bucket.startswith("multiple:") and not _is_residual(bucket) for bucket in others
+    )
+    if others and specific:
+        return f"owner review ({SPECIFIC_REVIEW_BEAD})"
+    return "accepted: native bucket (owner decision 1)"
+
+
+def load_owner_decisions(
+    path: str | Path,
+    sorted_codes: list[str],
+    catalogue: dict,
+    nodes_by_code: dict[str, list],
+) -> tuple[dict[str, dict], list[dict]]:
+    """The owner's recorded ICD-11 decisions, one per catalogue code.
+
+    `path` is a CSV of `code, node_code, decision, decided_on, note`. A single
+    code covers only itself (so `KD3B` leaves `KD3B.1` alone); `A-B` covers
+    what the same annex range would, descendants included. Where two entries
+    cover a code the narrower wins, as in the annex. Returns
+    `({code: decision}, review_rows)`; an entry with a malformed code, an
+    endpoint missing from the catalogue or an unknown node is reported and
+    skipped. Raises ValueError when two equally narrow entries give one code
+    different buckets, since that file is ours to fix.
+    """
+    decisions: dict[str, dict] = {}
+    issues: list[dict] = []
+    with open(path, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    for row_number, row in enumerate(rows, start=2):
+        token = row["code"].strip().upper()
+        node_code = row["node_code"].strip()
+        label = f"Owner decision {row['decision'].strip()} ({row['decided_on'].strip()})"
+        ranges, bad_tokens = parse_icd11_ranges(token)
+        if bad_tokens or len(ranges) != 1:
+            issues.append({"review_type": "decision_issue", "va_code": node_code, "token": token, "detail": "not a code or a two-ended range; skipped"})
+            continue
+        _, start, end = ranges[0]
+        missing = sorted({code for code in (start, end) if code not in catalogue})
+        if missing:
+            issues.append({"review_type": "decision_issue", "va_code": node_code, "token": token, "detail": f"not in catalogue: {', '.join(missing)}; skipped"})
+            continue
+        if not nodes_by_code.get(node_code):
+            issues.append({"review_type": "decision_issue", "va_code": node_code, "token": token, "detail": f"no node {node_code}; skipped"})
+            continue
+        covered = [start] if start == end else expand_range(start, end, sorted_codes, catalogue)[0]
+        for code in covered:
+            current = decisions.get(code)
+            if current and current["size"] == len(covered) and current["node_code"] != node_code:
+                raise ValueError(f"Owner decisions {current['token']} and {token} both claim {code}.")
+            if current is None or len(covered) < current["size"]:
+                decisions[code] = {
+                    "node_code": node_code,
+                    "token": token,
+                    "size": len(covered),
+                    "decision": row["decision"].strip(),
+                    "row_number": row_number,
+                    "note": f"{label}: {row['note'].strip()}",
+                }
+    return decisions, issues
+
+
 def generate_icd11_buckets(
     *,
     scheme_code: str,
@@ -238,11 +336,14 @@ def generate_icd11_buckets(
     crosswalk_path: str = CROSSWALK_PATH,
     change_list_path: str = CHANGE_LIST_PATH,
     curated_scheme_code: str = CURATED_ICD10_SCHEME_CODE,
+    decisions_path: str = DECISIONS_PATH,
 ) -> Icd11Generation:
     """Decide the scheme's ICD-11 table without writing anything.
 
+    Precedence per code: a recorded owner decision, then the narrowest annex
+    range (shared ranges split per code), then the decision 5b fallback.
     Raises LookupError for an unknown scheme and ValueError when the release
-    has no catalogue rows.
+    has no catalogue rows or the decisions file contradicts itself.
     """
     scheme = db.session.scalar(
         sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == scheme_code)
@@ -263,9 +364,12 @@ def generate_icd11_buckets(
             )
         )
     )
+    nodes_by_code: dict[str, list] = {}
+    for node in field_nodes:
+        nodes_by_code.setdefault(node.node_code, []).append(node)
 
-    def review(review_type: str, **values) -> None:
-        result.review.append({"review_type": review_type, **values})
+    def review(review_type: str, decision: str = "", **values) -> None:
+        result.review.append({"review_type": review_type, "decision": decision, **values})
 
     # 1. Expand every cause's ranges; remember each cause's narrowest cover.
     causes: dict[str, dict] = {}
@@ -273,7 +377,7 @@ def generate_icd11_buckets(
     for row in _load_cause_list(cause_list_path):
         va_code = row["va_code"].strip()
         va_title = row["va_title"].strip()
-        nodes = [node for node in field_nodes if node.node_code == _slugify(va_code, fallback_prefix="")]
+        nodes = nodes_by_code.get(_slugify(va_code, fallback_prefix=""), [])
         if not nodes:
             nodes = [node for node in field_nodes if node.node_label.strip().lower() == va_title.lower()]
             if nodes:
@@ -284,32 +388,53 @@ def generate_icd11_buckets(
         result.cause_counts[va_code] = 0
         result.cause_titles[va_code] = va_title
 
+        # Owner decision 4 (2026-09-24): keep every range as expanded; the
+        # malformed token is corrected in the decisions file.
         ranges, bad_tokens = parse_icd11_ranges(row["icd11_codes"])
         for token in bad_tokens:
-            review("range_issue", va_code=va_code, token=token, detail="not a code or a two-ended range; skipped")
+            review(
+                "range_issue", decision="owner decision 4", va_code=va_code, token=token,
+                detail="not a code or a two-ended range; skipped (corrected range, if any, is in the decisions file)",
+            )
         for token, start, end in ranges:
             missing = [code for code in {start, end} if code not in catalogue]
             covered, past_end = expand_range(start, end, sorted_codes, catalogue)
             if missing:
                 review(
-                    "range_issue", va_code=va_code, token=token,
+                    "range_issue", decision="owner decision 4", va_code=va_code, token=token,
                     detail=f"endpoint not in catalogue: {', '.join(sorted(missing))}; covers {len(covered)} codes lexically",
                 )
             if past_end:
                 review(
-                    "range_past_end", va_code=va_code, token=token,
+                    "range_past_end", decision="owner decision 4", va_code=va_code, token=token,
                     detail=f"covers descendants after its end: {' '.join(past_end)}",
                 )
             for code in covered:
                 current = claims.setdefault(code, {}).get(va_code)
                 if current is None or len(covered) < current[0]:
                     claims[code][va_code] = (len(covered), token)
+    va_by_node = {node.node_code: va for va, cause in causes.items() for node in cause["nodes"]}
+
+    def decide(nodes: list, va_code: str, match_type: str, token: str, size: int,
+               row_number: int, note: str, source_sheet: str = SOURCE_SHEET, decision: str = "") -> dict:
+        return {
+            "nodes": nodes, "va_code": va_code, "match_type": match_type, "token": token,
+            "size": size, "row_number": row_number, "note": note,
+            "source_sheet": source_sheet, "decision": decision,
+        }
 
     # 2. One cause per code: most specific wins; shared ranges split per code.
     crosswalk, moved_from = _load_crosswalk(crosswalk_path, change_list_path)
     curated = _icd10_buckets(curated_scheme_code)
     own_icd10 = _icd10_buckets(scheme_code)
-    decided: dict[str, tuple[str, str, str, int]] = {}
+    decided: dict[str, dict] = {}
+
+    def decide_range(code: str, va_code: str, match_type: str, token: str, size: int) -> None:
+        decided[code] = decide(
+            causes[va_code]["nodes"], va_code, match_type, token, size,
+            causes[va_code]["row_number"], f"ICD-11 {release} range {token}",
+        )
+
     for code in sorted(claims):
         by_cause = claims[code]
         narrowest = min(size for size, _ in by_cause.values())
@@ -317,36 +442,76 @@ def generate_icd11_buckets(
         competing = "; ".join(f"{va} {tok} ({size})" for va, (size, tok) in sorted(by_cause.items()))
         title = catalogue[code]["title"]
         if len(winners) == 1:
-            va_code = winners[0]
-            decided[code] = (va_code, MATCH_TYPE_RANGE, by_cause[va_code][1], narrowest)
+            decide_range(code, winners[0], MATCH_TYPE_RANGE, by_cause[winners[0]][1], narrowest)
             continue
         if set(winners) == {ROAD_TRAFFIC, OTHER_TRANSPORT}:
             va_code, fits, rule = _pa_split(code, title)
-            decided[code] = (va_code, MATCH_TYPE_SPLIT, by_cause[va_code][1], narrowest)
+            decide_range(code, va_code, MATCH_TYPE_SPLIT, by_cause[va_code][1], narrowest)
+            unknown = "unknown whether" in title.lower()
             review(
-                "pa_split", code=code, title=title, va_code=va_code, token=rule,
-                detail="title fits" if fits else "TITLE DOES NOT FIT the traffic/nontraffic rule",
+                "pa_split", decision="owner decision 3" if unknown else "",
+                code=code, title=title, va_code=va_code, token=rule,
+                detail=(
+                    "title fits" if fits
+                    else "unknown whether traffic -> Other transport" if unknown
+                    else "TITLE DOES NOT FIT the traffic/nontraffic rule"
+                ),
             )
             continue
         if set(winners) == {ASSAULT, OTHER_EXTERNAL} and code.startswith("PJ2"):
-            proposal = ASSAULT if "maltreatment" in title.lower() else ""
-            if proposal:
-                decided[code] = (proposal, MATCH_TYPE_SPLIT, by_cause[proposal][1], narrowest)
+            # Owner decision 2 (2026-09-24): maltreatment by others -> Assault.
+            decide_range(code, ASSAULT, MATCH_TYPE_SPLIT, by_cause[ASSAULT][1], narrowest)
             review(
-                "pj2x_owner_decision", code=code, title=title, va_code=proposal,
-                token=competing, detail="proposed: maltreatment by others -> Assault" if proposal else "no proposal",
+                "pj2x_split", decision="owner decision 2", code=code, title=title, va_code=ASSAULT,
+                token=competing, detail="maltreatment by others -> Assault",
             )
             continue
         review("tie", code=code, title=title, va_code="|".join(winners), token=competing, detail="not mapped")
 
+    # 2b. Recorded owner decisions beat the annex.
+    owner_decisions, issues = load_owner_decisions(decisions_path, sorted_codes, catalogue, nodes_by_code)
+    result.review.extend({"decision": "", **issue} for issue in issues)
+    for code, entry in owner_decisions.items():
+        node_code = entry["node_code"]
+        decided[code] = decide(
+            nodes_by_code[node_code], va_by_node.get(node_code) or va_code_for_node(node_code) or node_code, MATCH_TYPE_DECISION,
+            entry["token"], entry["size"], entry["row_number"], entry["note"],
+            source_sheet=Path(decisions_path).name, decision=f"owner decision {entry['decision']}",
+        )
+
+    # 2c. Owner decision 5b: every code still without a cause.
+    for code in sorted_codes:
+        if code in decided:
+            continue
+        icd10 = crosswalk.get(code) or crosswalk.get(moved_from.get(code, ""), "")
+        suggestion = _icd10_bucket_for(icd10, curated)
+        usable = (
+            suggestion and not suggestion.startswith("multiple:")
+            and not code.startswith(FALLBACK_NO_SUGGESTION_PREFIX) and nodes_by_code.get(suggestion)
+        )
+        node_code = suggestion if usable else FALLBACK_NODE_CODE
+        if not nodes_by_code.get(node_code):
+            continue
+        reason = (
+            f"crosswalk {icd10} suggests {suggestion}" if usable
+            else "no annex range and no usable single-bucket crosswalk suggestion"
+        )
+        decided[code] = decide(
+            nodes_by_code[node_code], va_by_node.get(node_code) or va_code_for_node(node_code) or node_code, MATCH_TYPE_FALLBACK,
+            "", 1, None,
+            f"Owner decision {FALLBACK_DECISION} ({FALLBACK_DECIDED_ON}): {reason}",
+            source_sheet=Path(decisions_path).name, decision=f"owner decision {FALLBACK_DECISION}",
+        )
+
     # 3. Rows per resolved node, with the crosswalk cross-check.
-    for code, (va_code, match_type, token, size) in decided.items():
+    for code in sorted(decided):
+        entry = decided[code]
+        va_code = entry["va_code"]
         title = catalogue[code]["title"]
         icd10 = crosswalk.get(code) or crosswalk.get(moved_from.get(code, ""), "")
         curated_bucket = _icd10_bucket_for(icd10, curated)
         own_bucket = _icd10_bucket_for(icd10, own_icd10)
-        nodes = causes[va_code]["nodes"]
-        for node in nodes:
+        for node in entry["nodes"]:
             result.mappings.append(
                 {
                     "code": code,
@@ -354,10 +519,12 @@ def generate_icd11_buckets(
                     "va_code": va_code,
                     "node": node,
                     "node_code": node.node_code,
-                    "match_type": match_type,
-                    "token": token,
-                    "range_size": size,
-                    "row_number": causes[va_code]["row_number"],
+                    "match_type": entry["match_type"],
+                    "token": entry["token"],
+                    "range_size": entry["size"],
+                    "row_number": entry["row_number"],
+                    "source_sheet": entry["source_sheet"],
+                    "mapping_note": entry["note"],
                     "icd10_crosswalk": icd10,
                     "curated_icd10_bucket": curated_bucket,
                     "own_icd10_bucket": own_bucket,
@@ -367,19 +534,21 @@ def generate_icd11_buckets(
                 own_bucket and own_bucket != node.node_code
             ):
                 review(
-                    "crosswalk_disagreement", code=code, title=title, va_code=va_code,
-                    token=icd10,
+                    "crosswalk_disagreement",
+                    decision=entry["decision"] or _crosswalk_review_decision(node.node_code, curated_bucket, own_bucket),
+                    code=code, title=title, va_code=va_code, token=icd10,
                     detail=(
                         f"generated {node.node_code}; {curated_scheme_code} {curated_bucket or '-'}; "
                         f"{scheme_code} ICD-10 {own_bucket or '-'}"
                     ),
                 )
-        if nodes:
+        if entry["nodes"]:
             result.cause_counts[va_code] = result.cause_counts.get(va_code, 0) + 1
+            result.cause_titles.setdefault(va_code, entry["nodes"][0].node_label)
 
     # 4. Every catalogue code without a row, with the crosswalk's suggestion.
     for code in sorted_codes:
-        if code in decided and causes[decided[code][0]]["nodes"]:
+        if code in decided and decided[code]["nodes"]:
             continue
         reason = "no_node" if code in decided else ("tie" if code in claims else "no_range")
         icd10 = crosswalk.get(code) or crosswalk.get(moved_from.get(code, ""), "")
@@ -412,12 +581,12 @@ def write_icd11_generation_report(result: Icd11Generation, report_dir: str | Pat
         write_csv(
             "icd11_generated_mappings.csv",
             ["code", "title", "va_code", "node_code", "match_type", "token", "range_size",
-             "icd10_crosswalk", "curated_icd10_bucket", "own_icd10_bucket"],
+             "mapping_note", "icd10_crosswalk", "curated_icd10_bucket", "own_icd10_bucket"],
             result.mappings,
         ),
         write_csv(
             "icd11_review.csv",
-            ["review_type", "code", "title", "va_code", "token", "detail"],
+            ["review_type", "code", "title", "va_code", "token", "detail", "decision"],
             result.review,
         ),
         write_csv(
@@ -437,7 +606,7 @@ def write_icd11_generation_report(result: Icd11Generation, report_dir: str | Pat
         "doc_type: reference",
         "status: draft",
         "owner: engineering",
-        "last_updated: 2026-09-21",
+        f"last_updated: {date.today().isoformat()}",
         "---",
         "",
         f"# WHO 2022 VA native ICD-11 buckets: generator report ({result.scheme_code})",
@@ -445,16 +614,20 @@ def write_icd11_generation_report(result: Icd11Generation, report_dir: str | Pat
         "Written by `flask cod-buckets generate-icd11`. Policy: "
         "`docs/policy/icd11-cod-bucket-schemes.md`. Source: "
         f"`{CAUSE_LIST_PATH}`, catalogue release `{result.release}`, crosswalk "
-        f"`{CROSSWALK_PATH}` (2025-01, 2026-01 codes translated through the change list).",
+        f"`{CROSSWALK_PATH}` (2025-01, 2026-01 codes translated through the change list). "
+        f"Owner decisions (2026-09-24): `{DECISIONS_PATH}`, then the decision 5b fallback; see "
+        "`docs/policy/icd10-to-icd11-transition.md` section 6.",
         "",
         "## Totals",
         "",
         f"- Catalogue categories (chapter X excluded): {result.catalogue_size}",
         f"- Generated mappings: {len(result.mappings)} "
         f"(range {sum(1 for r in result.mappings if r['match_type'] == MATCH_TYPE_RANGE)}, "
-        f"split {sum(1 for r in result.mappings if r['match_type'] == MATCH_TYPE_SPLIT)})",
-        f"- Unmapped: {len(result.unmapped)} "
-        + ", ".join(f"{reason} {count}" for reason, count in sorted(unmapped_reasons.items())),
+        f"split {sum(1 for r in result.mappings if r['match_type'] == MATCH_TYPE_SPLIT)}, "
+        f"owner decision {sum(1 for r in result.mappings if r['match_type'] == MATCH_TYPE_DECISION)}, "
+        f"decision 5b fallback {sum(1 for r in result.mappings if r['match_type'] == MATCH_TYPE_FALLBACK)})",
+        f"- Unmapped: {len(result.unmapped)}"
+        + "".join(f", {reason} {count}" for reason, count in sorted(unmapped_reasons.items())),
         "",
         "## Review items (`icd11_review.csv`)",
         "",
@@ -481,17 +654,38 @@ def write_icd11_generation_report(result: Icd11Generation, report_dir: str | Pat
         "- `icd11_generated_mappings.csv`: one row per generated mapping, with the "
         "crosswalk ICD-10 target and its bucket in the curated `WHO_2022_VA` scheme and "
         "in this scheme's own ICD-10 rows.",
-        "- `icd11_review.csv`: ties (not mapped), PJ2x owner decisions, PA split "
-        "verification, crosswalk disagreements, range issues and ranges reaching past "
-        "their written end.",
-        "- `icd11_unmapped_with_suggestion.csv`: catalogue codes without a mapping, "
-        "with the crosswalk's suggested bucket (not applied).",
+        "- `icd11_review.csv`: ties, PJ2x and PA splits, crosswalk disagreements, range "
+        "issues, ranges reaching past their written end and decisions-file issues. The "
+        "`decision` column records which owner decision settles each item; crosswalk "
+        f"disagreements with a specific cause on both sides are marked for owner review "
+        f"({SPECIFIC_REVIEW_BEAD}).",
+        "- `icd11_unmapped_with_suggestion.csv`: catalogue codes still without a mapping "
+        "(only when a bucket node is missing), with the crosswalk's suggested bucket.",
         "",
     ]
     readme = report_dir / "README.md"
     readme.write_text("\n".join(lines), encoding="utf-8")
     written.append(readme)
     return written
+
+
+def write_icd11_seed_csv(result: Icd11Generation, path: str | Path) -> Path:
+    """Freeze `result` in the seed format a data migration reads
+    (resource/who_2022_va_2026_icd11_native_mappings.csv)."""
+    path = Path(path)
+    with open(path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(
+            ["scheme_code", "age_scope", "icd_code", "node_code", "match_type",
+             "source_category", "source_row_number", "mapping_note", "source_sheet"]
+        )
+        for row in result.mappings:
+            writer.writerow(
+                [result.scheme_code, row["node"].age_scope or "", row["code"], row["node_code"],
+                 row["match_type"], row["va_code"], row["row_number"] or "", row["mapping_note"],
+                 row["source_sheet"]]
+            )
+    return path
 
 
 def apply_icd11_generation(result: Icd11Generation) -> MasCodBucketScheme:
@@ -519,11 +713,11 @@ def apply_icd11_generation(result: Icd11Generation) -> MasCodBucketScheme:
                 icd_classification=ICD_CLASSIFICATION_ICD11,
                 icd_code=row["code"],
                 node_id=row["node"].node_id,
-                source_sheet=SOURCE_SHEET,
+                source_sheet=row["source_sheet"],
                 source_row_number=row["row_number"],
                 source_category=row["va_code"],
                 match_type=row["match_type"],
-                mapping_note=f"ICD-11 {result.release} range {row['token']}",
+                mapping_note=row["mapping_note"],
                 is_active=True,
             )
             for row in result.mappings

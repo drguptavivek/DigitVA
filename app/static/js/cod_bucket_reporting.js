@@ -627,9 +627,12 @@
     const sections = [
       { key: 'not_included_in_scheme', heading: `ICD codes not included in ${getSelectedSchemeName()}` },
       { key: 'not_eligible_for_coding', heading: 'ICD codes not eligible for coding' },
+      { key: 'icd11_not_included_in_scheme', heading: `ICD-11 codes not included in ${getSelectedSchemeName()}` },
+      { key: 'icd11_scheme_has_no_icd11_rows', heading: `ICD-11 codes: ${getSelectedSchemeName()} has no ICD-11 mappings, so every ICD-11 death is unmapped` },
     ];
     els.droppedModalBody.innerHTML = sections.map(section => {
       const sectionRows = rows.filter(row => row.category === section.key);
+      if (!sectionRows.length && section.key.startsWith('icd11_')) return '';
       if (!sectionRows.length) {
         return `<section class="mb-4"><h6 class="mb-2">${escapeHtml(section.heading)}</h6><div class="text-muted small">None.</div></section>`;
       }

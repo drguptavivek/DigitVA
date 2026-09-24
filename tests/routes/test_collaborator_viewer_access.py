@@ -195,7 +195,7 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX {index_prefix}_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
         )
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX {index_prefix}_detail_va_sid ON {COD_MV_NAME} (va_sid)")
         )

@@ -26,7 +26,12 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd1020192
-from app.services.cod_bucket_icd11_generator import expand_range, load_catalogue, parse_icd11_ranges
+from app.services.cod_bucket_icd11_generator import (
+    expand_range,
+    load_catalogue,
+    parse_icd11_ranges,
+    va_code_for_node,
+)
 from app.services.cod_bucket_mapping_service import (
     ICD_CLASSIFICATION_ICD10,
     ICD_CLASSIFICATION_ICD11,
@@ -84,13 +89,6 @@ def icd10_in_range(code: str, start: str, end: str) -> bool:
     """ICD-10 codes are prefix-ordered: `A40-A41` covers A40, A40.x, A41, A41.x;
     `K70.2` covers only itself and its children."""
     return start <= code <= end or code.startswith(end + ".")
-
-
-def va_code_for_node(node_code: str) -> str:
-    """`vas_01_02` -> `VAs-01.02`; '' for a bucket that is not a VA cause."""
-    if not node_code.startswith("vas_"):
-        return ""
-    return "VAs-" + node_code[4:].replace("_", ".")
 
 
 def _read_csv(path: Path) -> list[dict]:

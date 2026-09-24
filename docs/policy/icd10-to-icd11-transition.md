@@ -26,7 +26,7 @@ As of 2026-09-24:
 | Scheme | ICD-10 rows | ICD-11 rows | ICD-11 method |
 |---|---:|---:|---|
 | `WHO_2022_VA` (original curated) | 2,414 | none | none (ICD-10 only) |
-| `WHO_2022_VA_2026` (2026 annex) | 2,498 | 16,154 | `native` |
+| `WHO_2022_VA_2026` (2026 annex) | 2,498 | 18,505 (every catalogue code outside chapter X) | `native` |
 | `SRS_INDIA`, `CMEA10` | ICD-10 only | none | none |
 
 - **ICD-11 codes are bucketed directly** (native). Each ICD-11 code maps to
@@ -48,8 +48,10 @@ Where the ICD-11 rows are read today:
 - the coding screen shows VA cause definitions for an ICD-11 code;
 - admin can view, edit and export the ICD-11 rows.
 
-COD bucket reports still read ICD-10 rows only, so ICD-11-coded deaths are
-not yet counted in bucket reports.
+ICD-11-coded deaths in bucket reports: Included (digitva-dus.1). The COD
+bucket report page and the coded COD snapshot export bucket each death
+through the rows of its own classification; see
+`docs/current-state/cod-bucket-reporting.md`.
 
 The coded ICD-11 value is always the record of truth. Buckets are derived
 and can be recomputed at any time.
@@ -240,9 +242,17 @@ report, the way the ICD-11 report was produced.
    and seed them with migration `6c11b620f48f`. That migration also sets the
    scheme to `native` and adds the Fresh stillbirth bucket.
 
-Regenerate with `flask cod-buckets generate-icd11`. Never edit the generated
-CSVs by hand: change the source CSV, the generator, or a recorded override
-(section 6), then regenerate and ship a new migration.
+6. Apply the owner's decisions (section 6): the generator reads
+   `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv`
+   after the annex ranges, then maps every code still without a bucket by
+   the decision 5b rule. Migration `dc762caa67dd` brings existing databases
+   to the regenerated table.
+
+Regenerate with `flask cod-buckets generate-icd11 --scheme WHO_2022_VA_2026
+--seed-csv resource/who_2022_va_2026_icd11_native_mappings.csv`. Never edit
+the generated CSVs by hand: change the source CSV, the decisions file or the
+generator, then regenerate, freeze the previous seed CSV, and ship a new
+migration.
 
 ## 3. ICD-10 overrides and decisions (all decided)
 
@@ -258,6 +268,7 @@ for its own earlier manual overrides.
 | 33 earlier manual overrides carried forward | From `WHO_2022_VA` so prior curation is not lost. 7 of them differ from what the annex ranges alone would give: `G46` to Stroke, `G47` to `VAs-99`, `K72`/`K73` to Liver cirrhosis, `K75`/`K76` to Other GI, `R50` to `VAs-01.99` | 2026-09-18 |
 | Bucket-only codes | 9 codes (`I11`, `I46`, `I50`, `K64`, `K70`, `U07`, `Y91`, `UU1`, `UU2`) have bucket rows but are not selectable. Left as they were | 2026-09-18 |
 | Selectability is global | The ICD-10 selectability table has no per-scheme partition, so the annex additions changed what every project can select. The bucket scheme can be reverted; the selectability change cannot | 2026-09-18 |
+| Owner decisions 10, 11, 12 | `I50.0`/`I50.9` to Acute cardiac; `A80`-`A89` to Meningitis/encephalitis; 65 boarding/alighting codes to Road traffic (section 6.1). Applied by migration `fad35e5c4b79`, and by every import or reset of the scheme from `WHO_2022_VA_2026_owner_decisions_overrides.csv` | 2026-09-24 |
 
 ## 4. ICD-11 rules and overrides applied
 
@@ -265,10 +276,10 @@ for its own earlier manual overrides.
 |---|---|---|
 | Native method for the WHO 2026 scheme | `WHO_2022_VA_2026.icd11_method = native` | Decided 2026-09-21 |
 | Narrowest range wins | A specific cause's range beats a residual "other/unspecified" range | Decided 2026-09-21 |
-| Transport split | `PA0x` (traffic events) to `VAs-12.01` Road traffic; `PA1x`-`PA5x` (nontraffic, rail, water, air, other) to `VAs-12.02` Other transport. 71 codes, following the owner's earlier ICD-10 split | Decided 2026-09-21. 18 of the 71 have titles that do not fit the rule and need a look |
+| Transport split | `PA0x` (traffic events) to `VAs-12.01` Road traffic; `PA1x`-`PA5x` (nontraffic, rail, water, air, other) to `VAs-12.02` Other transport. 71 codes, following the owner's earlier ICD-10 split | Decided 2026-09-21. The 18 `PA2x` "unknown whether traffic" codes stay Other transport (decision 3, 2026-09-24) |
 | Fresh vs macerated stillbirth | New bucket `VAs-11.01` Fresh stillbirth. `KD3B.1` (intrapartum) goes to Fresh; `KD3B.0` (antepartum) goes to `VAs-11.02` Macerated. ICD-10 `P95` cannot tell the two apart and stays Macerated, so the two classifications count fresh stillbirths differently | Decided 2026-09-21 |
 | Sepsis | `1G40` and `1G41` go natively to `VAs-01.01`. The crosswalk would have lost them (section 1.1) | Follows from the native method |
-| Maltreatment `PJ20`-`PJ2Z` | Both Assault and Other external claim the same range. Mapped to `VAs-12.09` Assault (maltreatment by others) | Confirmed by owner 2026-09-24 |
+| Maltreatment `PJ20`-`PJ2Z` | Both Assault and Other external claim the same range. Mapped to `VAs-12.09` Assault (maltreatment by others) | Decided 2026-09-24 (decision 2) |
 | "Ruptured uterus" label | The annex prints `VAs-09.0`; matched by label to node `vas_09_08` | Applied; confirm |
 | Selectability is separate | Bucket rows never make an ICD-11 code selectable or unselectable. That is set by the ICD-11 catalogue policy (ICD-11 browser) | Decided 2026-09-21 |
 
@@ -294,10 +305,10 @@ codes, not deaths.
 | Gap | Evidence | Effect |
 |---|---|---|
 | Different release years | Crosswalk and mortality list are 2025-01; catalogue is 2026-01 | 2026-01 codes are translated through WHO's change list before lookup. A code still missing is `unmapped` |
-| Range errors in the annex | 5 malformed or non-existent endpoints (e.g. `5C52.Y-5C52-Z` skipped; `2C20-2C2Z` and `3A00-3A4.Z` end on codes that do not exist) and 3 ranges that reach past their written end | The malformed range was skipped; the missing endpoints were expanded by code order; all 8 are listed for review (section 6) |
+| Range errors in the annex | 5 malformed or non-existent endpoints (e.g. `5C52.Y-5C52-Z` skipped; `2C20-2C2Z` and `3A00-3A4.Z` end on codes that do not exist) and 3 ranges that reach past their written end | The malformed range is skipped by the parser and corrected in the decisions file (decision 4); the missing endpoints were expanded by code order and kept (decision 4) |
 | Label error | The annex prints `VAs-09.0` for Ruptured uterus | Matched by label to `vas_09_08` |
-| Ranges shared by two causes | `PA` codes (road traffic vs other transport) and `PJ2x` (maltreatment: Assault vs Other external) | Split code by code; `PJ2x` awaits the owner |
-| Annex ranges miss clinically relevant codes | 2,351 catalogue codes are in no range (12.7%). Most are expected (2,101 are `S`/`V`/`Q`/`X`). These are not: diabetic acute complications `5A20`-`5A2Y`, including ketoacidosis `5A22` (the Diabetes range is `5A10`-`5A14` only); thalassaemias `3A50` (Severe anaemia ranges skip it); alcoholic liver disease `DB94.0`/`DB94.1` including `DB94.10` "alcoholic hepatitis with cirrhosis" (Liver cirrhosis lists only `DB94.2`/`DB94.3`); tick-borne encephalitis `1C8G`; the parent codes `RA01` (COVID-19) and `3A4Z` | These deaths report as `unmapped` in the native scheme, although the crosswalk suggests a bucket (Diabetes, Severe anaemia, Liver cirrhosis, COVID-19) |
+| Ranges shared by two causes | `PA` codes (road traffic vs other transport) and `PJ2x` (maltreatment: Assault vs Other external) | Split code by code; `PJ2x` to Assault (decision 2) |
+| Annex ranges miss clinically relevant codes | 2,351 catalogue codes are in no range (12.7%). Most are expected (2,101 are `S`/`V`/`Q`/`X`). These are not: diabetic acute complications `5A20`-`5A2Y`, including ketoacidosis `5A22` (the Diabetes range is `5A10`-`5A14` only); thalassaemias `3A50` (Severe anaemia ranges skip it); alcoholic liver disease `DB94.0`/`DB94.1` including `DB94.10` "alcoholic hepatitis with cirrhosis" (Liver cirrhosis lists only `DB94.2`/`DB94.3`); tick-borne encephalitis `1C8G`; the parent codes `RA01` (COVID-19) and `3A4Z` | Resolved 2026-09-24: decision 5a maps these, and decision 5b maps every other code, so no ICD-11 code is unmapped |
 | Broad annex ranges | "Sickle cell with crisis" is `D57` / `3A51` whole, which includes sickle cell trait and haemoglobin C/D/E disease | Applies to both classifications; inherited from WHO |
 
 ### 5.3 Crosswalk quality
@@ -325,7 +336,8 @@ section 1.1.
 | Target is a block spanning several buckets | 337 |
 | No target | 44 |
 
-  The 916 `crosswalk_disagreement` review items are the second and fourth
+  The 916 `crosswalk_disagreement` review items (896 after the 2026-09-24
+  decisions, section 6.1) are the second and fourth
   rows combined, plus codes whose ICD-10 target is bucketed differently in
   the two ICD-10 schemes.
 - **A quarter of the native mappings cannot be cross-checked.** The curated
@@ -337,19 +349,20 @@ section 1.1.
 
 | Gap | Where it stands |
 |---|---|
-| ICD-11 deaths are not in bucket reports | Reports read ICD-10 rows only |
+| ICD-11 deaths in bucket reports | Included (digitva-dus.1): each death is bucketed through the rows of its own classification |
 | No runtime crosswalk | No crosswalk table or lookup; `crosswalk` schemes cannot work yet |
-| Decisions are not machine-readable | `icd11_review.csv` has no decision column, and the generator reads no override file, so regenerating would undo manual decisions |
+| Decisions are machine-readable (resolved 2026-09-24) | The generator reads `who_2022_va_icd11_owner_decisions.csv`, and `icd11_review.csv` has a `decision` column naming the decision that settles each item |
 | Web forms are always ICD-10 | A web-form submission has no ODK mapping row, so its classification resolves to `icd10` |
 | ICD-10 selectability is global | Adopting the annex changed what every project can select. It cannot be scoped per scheme |
 | Test coverage | No automated test covers migration `c5f2a8d1e9b3` or the `import-who-2022-va-2026` and `policy-import` commands |
 
 ## 6. Owner decisions (2026-09-24)
 
-The owner decided all 13 open items on 2026-09-24. They are **decided but
-not yet applied**. Each applied change must be a regenerated artifact plus a
-new data migration, and must be recorded where the generator reads it, so
-that regenerating does not undo it.
+The owner decided all 13 open items on 2026-09-24. Decisions 1-5 and 9-12
+are applied (section 6.1); 6-8 and 13 are tracked separately. Each applied
+change is a regenerated artifact plus a new data migration, recorded where
+the generator or the scheme import reads it, so that regenerating or
+resetting does not undo it.
 
 | # | Item | Decision |
 |---|---|---|
@@ -368,6 +381,36 @@ that regenerating does not undo it.
 | 12 | Boarding/alighting ICD-10 codes | **Road traffic** (`VAs-12.01`): 65 codes such as `V10.3` and `V43.4`, matching WHO's ICD-10 → ICD-11 table. `V82.4` (streetcar) is the exception: it stays Other transport under 13b. The 15 "traffic accident" codes that WHO's table sends to non-traffic ICD-11 codes need no action, because no ICD-10 data is converted |
 | 13a | Footnote f tail `V90`-`V99`, `Y85.9` | **Other transport**. The provisional reading is confirmed |
 | 13b | `V81.2`-`V81.9`, `V82.2`-`V82.8` | **Keep Other transport** (rail and streetcar events are not road traffic). They stay DigitVA decisions |
+| 14 | ICD-10 congenital anomalies `Q00`-`Q99` (added 2026-09-24) | **All ages**, to match ICD-11 chapter 20 in the ICD-11 selectability draft. The 87 selectable Q rows that were neonate-only change from `neonate` to `all`, in migration `a3c9e1f7b2d4`. This is global: it changes what coders can select in every project. Re-importing the released 2026 ICD-10 policy JSON would undo it |
+
+### 6.1 Applied (2026-09-24)
+
+ICD-11 decisions live in
+`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv`
+(one row per code or range: a single code covers only itself, `A-B` covers
+what the same annex range would). Explicit decisions beat annex ranges; among
+decisions the narrower entry wins. Rows carry `match_type` `owner_decision`
+(or `owner_fallback` for 5b) and a note "Owner decision N (2026-09-24): ...".
+Migration `dc762caa67dd` (ICD-11) and `fad35e5c4b79` (ICD-10) apply them to
+existing databases and leave admin-edited rows alone. All of these rows derive
+as "DigitVA decision" on the public page, because the annex does not give the
+code to the row's cause.
+
+| # | Applied | Rows |
+|---|---|---:|
+| 1 | `icd11_review.csv` marks 822 `crosswalk_disagreement` items "accepted: native bucket (owner decision 1)" and the 12 specific-vs-specific items "owner review (digitva-712.6)" (unchanged: 7 transport, `1C8C`, `1D64`, `8B22.40`, `KD3B.1`, `PA92`). The other 62 disagreements are on rows set by decisions 5a, 5b and 10 | 0 changed |
+| 2 | `PJ20`-`PJ2Z` Assault; review type `pj2x_split`, no longer a proposal | 5 (unchanged) |
+| 3 | `PA20`-`PA2Z` Other transport; marked decision 3 in the PA split review | 18 (unchanged) |
+| 4 | `5C52.Y-5C52.Z` to `VAs-98` (`5C52.Y`, `5C52.Z`); the other seven range errors kept as expanded | 2 added |
+| 5a | `5A20`-`5A2Y` (18) to `VAs-03.03`; `3A50` family (14) and `3A4Z` to `VAs-03.01`; `DB94.10` to `VAs-06.02`, the other seven `DB94` codes to `VAs-98`; `1C8G` family (5) and `1C8H` to `VAs-01.07`; `RA01` to `VAs-01.13` | 48 added |
+| 5b | Every other unmapped code: 152 take the crosswalk's single-bucket suggestion (147 `VAs-98`, 3 `VAs-10.06`, 1 `VAs-01.02`, 1 `VAs-09.99`); 2,148 go to `VAs-99` (the 9 `RA` codes, `S`, `V`, `Q` and codes with no or a multi-bucket suggestion). Unmapped ICD-11 codes: 0 | 2,300 added |
+| 9 | `KD3B`, `KD3B.Z` to `VAs-11.02` Macerated stillbirth (`KD3B.1`/`KD3B.0` unchanged) | 2 changed |
+| 10 | `DB99.7`, `DB99.8`, `DB97.2` to Liver cirrhosis (3); `DB60`-`DB6Z` (10), `DB97.Z`, `DB9Z` to Other GI (12); `BA50`-`BA5Z` (15), `BD10`, `BD1Z` to Acute cardiac (17); `7A00`-`7B2Z` to `VAs-99` (79, of which `7A82` was unmapped); `MG26` to `VAs-01.99` (1). `DB91` (acute or subacute hepatic failure, WHO's 10To11 target of `K72.0`) was considered and deliberately left with its native bucket (owner, 2026-09-24). Other 10To11 point-code targets of `K75`/`K76` (for example `DB90.0`, `DB96.0`, `DB98.x`, `DB92.Z`, `DB99.2`) are not in the owner's list and keep their native bucket. ICD-10 side: `I50.0` and `I50.9` move to Acute cardiac, so heart failure is Acute cardiac in both classifications (`I50.1` already was) | 111 changed, 1 added; 2 ICD-10 rows |
+| 11 | ICD-10 `A80`-`A89` (the scheme has only the ten three-character rows) to `VAs-01.07` | 10 ICD-10 rows |
+| 12 | The 65 ICD-10 codes whose title says "boarding or alighting" and whose WHO 10To11 one-category target is a `PA0x` traffic code, to Road traffic. Excluded: `V81.4` (rail) and `V82.4` (streetcar) under 13b, and `V15.3`, `V25.3`, `V97.1`, whose targets are not `PA0x` | 65 ICD-10 rows |
+
+ICD-11 totals after regeneration: 18,505 rows (range 15,965, split 76,
+owner decision 164, decision 5b 2,300).
 
 ## 7. Public mapping page (owner, 2026-09-24)
 

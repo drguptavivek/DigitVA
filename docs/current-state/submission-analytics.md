@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-24
 ---
 
 # Submission Analytics Materialized Views
@@ -207,12 +207,24 @@ state for a submission. It includes:
 - latest active reviewer final COD data
 - authoritative final COD data
 - active SmartVA causes and ICDs
-- WHO 2022 VA bucket mapping for coder, reviewer, authoritative, and SmartVA
-  ICDs
-  - bucket lookup is alias-aware for historical ICDs through
+- `WHO_2022_VA_2026` bucket mapping for coder, reviewer, authoritative, and
+  SmartVA CODs (migration `d1a6e3b7c2f4`; before it, `WHO_2022_VA`, ICD-10
+  only)
+  - each value is bucketed through the rows of its own classification, which
+    its code shape decides: ICD-10 values through the `icd10` rows, ICD-11
+    values through the `icd11` rows (exact code, then the nearest ancestor on
+    the `mas_icd11_mms` parent chain; a post-coordinated value by its first
+    stem). SmartVA ICDs are ICD-10. There is no crosswalk
+  - each bucket has a `*_who_bucket_provenance` column: `icd10`,
+    `icd11_native`, `unmapped` (a value with no bucket), or NULL (no value)
+  - ICD-10 lookup is alias-aware for historical ICDs through
     `map_icd10_legacy_reporting_aliases`
   - the MV keeps the raw ICD fields unchanged and uses the alias only for
-    reporting-bucket assignment
+    reporting-bucket assignment. `*_icd` columns stay ICD-10 only; an ICD-11
+    code is in the `*_cod_text` column
+  - `build_submission_cod_snapshot_mv_sql()` still returns the old SQL by
+    default, for the historical migrations that call it;
+    `icd11_buckets=True` returns the current SQL
 - active NQA projection, including individual NQA question columns
 - active Social Autopsy projection, including analysis summary fields and raw
   active-payload `sa*` questionnaire fields

@@ -3,7 +3,7 @@ title: Data Management COD Snapshot Export
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-09-24
 ---
 
 # Data Management COD Snapshot Export
@@ -42,6 +42,15 @@ The reporting snapshot may include:
 - active coder/reviewer assignment names where available
 
 ## WHO 2022 Bucket Mapping
+
+Buckets come from the `WHO_2022_VA_2026` scheme for every death (owner,
+2026-09-24; `docs/policy/icd10-to-icd11-transition.md` decisions 6 and 7).
+Each value is bucketed through the rows of its own classification, decided
+by its code shape: ICD-10 values through the `icd10` rows, ICD-11 values
+through the `icd11` rows (exact code, then nearest catalogue ancestor; a
+post-coordinated value by its first stem). SmartVA ICDs are ICD-10. No
+crosswalk is used. Each bucket carries a provenance value: `icd10`,
+`icd11_native`, `unmapped` (a value with no bucket), or empty (no value).
 
 WHO 2022 VA COD bucket mapping must be derived independently for:
 

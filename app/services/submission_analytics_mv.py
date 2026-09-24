@@ -19,7 +19,8 @@ SQL. ``include_org_unit`` follows this rule: only migration
 build the MV fresh pass ``include_org_unit=True``; every earlier migration
 keeps calling this function with the default and keeps getting the SQL it
 always got, because ``mas_org_unit`` does not exist yet when those
-migrations run.
+migrations run. ``build_submission_cod_snapshot_mv_sql(icd11_buckets=...)``
+follows the same rule.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 
 from app import db
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
@@ -103,6 +105,14 @@ ODK_SYNC_ALL = "all"
 _DAYS_PER_MONTH = "30.4375"
 _DAYS_PER_YEAR = "365.25"
 _WHO_2022_SCHEME_CODE = "WHO_2022_VA"
+_WHO_2022_2026_SCHEME_CODE = "WHO_2022_VA_2026"
+# Leading code of a stored "<CODE> <title>" COD value, as Postgres regexes.
+# The ICD-10 one is the one the MVs have always used. The two shapes cannot
+# match the same value: ICD-10's second character is a digit, ICD-11's a
+# letter. No trailing boundary: Postgres reads \b as backspace, and the
+# greedy group already stops at the "&" or "/" of a post-coordinated value.
+_ICD10_SQL_RE = "^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)"
+_ICD11_SQL_RE = "^([0-9A-Z][A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]{1,2})?)"
 
 
 # ---------------------------------------------------------------------------
@@ -270,8 +280,25 @@ WITH DATA
 
 def build_submission_cod_detail_mv_sql(
     view_name: str = COD_MV_NAME,
+    *,
+    include_icd11: bool = False,
 ) -> str:
-    """Return the CREATE MATERIALIZED VIEW statement for the COD detail MV."""
+    """Return the CREATE MATERIALIZED VIEW statement for the COD detail MV.
+
+    ``final_icd`` is the ICD-10 code of the final COD. ``include_icd11=True``
+    adds ``final_icd11``, the ICD-11 stem (first stem of a post-coordinated
+    value), which the COD bucket report reads. At most one of the two is set:
+    the code shapes do not overlap. The default False keeps the SQL that
+    migration ``e95dc3d7c4f2`` replays; migration ``e7b2c9d4a1f3`` holds a
+    frozen copy of the True output.
+    """
+    icd11_column = ""
+    if include_icd11:
+        icd11_column = f"""    substring(
+        upper(COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod))
+        from '{_ICD11_SQL_RE}'
+    ) AS final_icd11,
+"""
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
 SELECT
@@ -283,7 +310,7 @@ SELECT
         COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod)
         from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
     ) AS final_icd,
-    smartva.va_smartva_age AS smartva_age,
+{icd11_column}    smartva.va_smartva_age AS smartva_age,
     smartva.va_smartva_gender AS smartva_gender,
     smartva.va_smartva_resultfor AS smartva_result_for,
     smartva.va_smartva_cause1 AS smartva_cause1,
@@ -364,17 +391,275 @@ WITH DATA
 # MV 4: COD snapshot — active export/reporting snapshot
 # ---------------------------------------------------------------------------
 
+def _who_2026_bucket_sql() -> tuple[str, str, str]:
+    """Return (CTEs, SELECT columns, joins) bucketing CODs in WHO_2022_VA_2026.
+
+    Each value is bucketed through the rows of its own classification, which
+    its code shape decides (the ICD-10 and ICD-11 shapes do not overlap):
+    ICD-10 values use the ``icd10`` rows with the legacy reporting aliases, as
+    before; ICD-11 values use the ``icd11`` rows, exact code first, then the
+    nearest ancestor on the catalogue's parent chain. A post-coordinated
+    ICD-11 value (``1G40&XN...``, ``1G40/...``) is bucketed by its first stem.
+    SmartVA ICDs are ICD-10. Every bucket gets a ``*_who_bucket_provenance``
+    column: ``icd10``, ``icd11_native``, ``unmapped``, or NULL when there is
+    no value (docs/policy/icd11-cod-bucket-schemes.md).
+    """
+    auth_cod = """CASE
+            WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
+            WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
+            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
+            WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
+            ELSE NULL
+        END"""
+    ctes = f"""bucket_rows AS (
+    SELECT DISTINCT ON (map.icd_classification, upper(map.icd_code))
+        map.icd_classification,
+        upper(map.icd_code) AS icd_code,
+        parent.node_label AS bucket_section,
+        leaf.node_label AS bucket_label
+    FROM mas_cod_bucket_schemes scheme
+    JOIN map_icd_cod_buckets map
+        ON map.scheme_id = scheme.scheme_id
+       AND map.is_active IS TRUE
+       AND map.age_scope IS NULL
+    JOIN mas_cod_bucket_nodes leaf
+        ON leaf.node_id = map.node_id
+       AND leaf.is_active IS TRUE
+    LEFT JOIN mas_cod_bucket_nodes parent
+        ON parent.node_id = leaf.parent_node_id
+       AND parent.is_active IS TRUE
+    WHERE scheme.scheme_code = '{_WHO_2022_2026_SCHEME_CODE}'
+      AND scheme.is_active IS TRUE
+    ORDER BY
+        map.icd_classification,
+        upper(map.icd_code),
+        COALESCE(parent.sort_order, 0),
+        leaf.sort_order,
+        map.created_at,
+        map.mapping_id
+),
+icd10_buckets AS (
+    SELECT icd_code, bucket_section, bucket_label
+    FROM bucket_rows
+    WHERE icd_classification = 'icd10'
+),
+icd11_mapped AS (
+    SELECT icd_code, bucket_section, bucket_label
+    FROM bucket_rows
+    WHERE icd_classification = 'icd11'
+),
+-- Catalogue codes with no row of their own, walked up the parent chain
+-- (block and chapter nodes have no code) until a mapped ancestor is reached.
+-- The depth cap stops a parent cycle in bad catalogue data; MMS is ~8 deep.
+icd11_ancestors AS (
+    SELECT
+        upper(c.code) AS start_code,
+        upper(c.code) AS code,
+        c.parent_linearization_uri,
+        0 AS depth
+    FROM mas_icd11_mms c
+    WHERE c.release = '{DEFAULT_ICD11_RELEASE}'
+      AND c.code IS NOT NULL
+      AND upper(c.code) NOT IN (SELECT icd_code FROM icd11_mapped)
+    UNION ALL
+    SELECT
+        a.start_code,
+        upper(p.code),
+        p.parent_linearization_uri,
+        a.depth + 1
+    FROM icd11_ancestors a
+    JOIN mas_icd11_mms p
+        ON p.release = '{DEFAULT_ICD11_RELEASE}'
+       AND p.linearization_uri = a.parent_linearization_uri
+    WHERE (a.code IS NULL OR a.code NOT IN (SELECT icd_code FROM icd11_mapped))
+      AND a.depth < 20
+),
+icd11_buckets AS (
+    SELECT icd_code, bucket_section, bucket_label
+    FROM icd11_mapped
+    UNION ALL
+    (
+        SELECT DISTINCT ON (a.start_code)
+            a.start_code AS icd_code,
+            m.bucket_section,
+            m.bucket_label
+        FROM icd11_ancestors a
+        JOIN icd11_mapped m ON m.icd_code = a.code
+        ORDER BY a.start_code, a.depth, m.bucket_label
+    )
+)"""
+
+    def columns(prefix: str, alias: str, value_sql: str, *, icd11: bool) -> str:
+        alias11 = f"{alias}11"
+        section = f"{alias}.bucket_section"
+        label = f"{alias}.bucket_label"
+        icd11_arm = ""
+        if icd11:
+            section = f"COALESCE({section}, {alias11}.bucket_section)"
+            label = f"COALESCE({label}, {alias11}.bucket_label)"
+            icd11_arm = f"\n        WHEN {alias11}.icd_code IS NOT NULL THEN 'icd11_native'"
+        return f"""    {section} AS {prefix}_who_bucket_section,
+    {label} AS {prefix}_who_bucket,
+    CASE
+        WHEN NULLIF(btrim({value_sql}), '') IS NULL THEN NULL
+        WHEN {alias}.icd_code IS NOT NULL THEN 'icd10'{icd11_arm}
+        ELSE 'unmapped'
+    END AS {prefix}_who_bucket_provenance"""
+
+    select_columns = ",\n".join([
+        columns("coder_final", "coder_bucket", "cf.va_conclusive_cod", icd11=True),
+        columns("reviewer_final", "reviewer_bucket", "rf.va_conclusive_cod", icd11=True),
+        columns("authoritative", "auth_bucket", "auth_cod.cod_text", icd11=True),
+        *(
+            columns(f"smartva_cause{n}", f"smartva{n}_bucket", f"ls.va_smartva_cause{n}icd", icd11=False)
+            for n in (1, 2, 3)
+        ),
+    ])
+
+    joins = [
+        f"""CROSS JOIN LATERAL (
+    SELECT {auth_cod} AS cod_text
+) auth_cod"""
+    ]
+    human = (
+        ("coder", "cf.va_conclusive_cod"),
+        ("reviewer", "rf.va_conclusive_cod"),
+        ("auth", "auth_cod.cod_text"),
+    )
+    for name, value_sql in human:
+        icd10 = f"substring({value_sql} from '{_ICD10_SQL_RE}')"
+        icd11 = f"substring(upper({value_sql}) from '{_ICD11_SQL_RE}')"
+        joins.append(f"""LEFT JOIN legacy_reporting_alias {name}_icd_alias
+    ON {name}_icd_alias.legacy_code = {icd10}
+LEFT JOIN icd10_buckets {name}_bucket
+    ON {name}_bucket.icd_code = COALESCE({name}_icd_alias.reporting_code, {icd10})
+LEFT JOIN icd11_buckets {name}_bucket11
+    ON {name}_bucket11.icd_code = {icd11}""")
+    for n in (1, 2, 3):
+        icd = f"upper(ls.va_smartva_cause{n}icd)"
+        joins.append(f"""LEFT JOIN legacy_reporting_alias smartva{n}_icd_alias
+    ON smartva{n}_icd_alias.legacy_code = {icd}
+LEFT JOIN icd10_buckets smartva{n}_bucket
+    ON smartva{n}_bucket.icd_code = COALESCE(smartva{n}_icd_alias.reporting_code, {icd})""")
+    return ctes, select_columns, "\n".join(joins)
+
+
 def build_submission_cod_snapshot_mv_sql(
     view_name: str = COD_SNAPSHOT_MV_NAME,
+    *,
+    icd11_buckets: bool = False,
 ) -> str:
-    """Return the CREATE MATERIALIZED VIEW statement for the COD snapshot MV."""
+    """Return the CREATE MATERIALIZED VIEW statement for the COD snapshot MV.
+
+    ``icd11_buckets=True`` buckets in ``WHO_2022_VA_2026``, ICD-11 values
+    included, and adds the ``*_who_bucket_provenance`` columns (see
+    ``_who_2026_bucket_sql``). The default False returns the frozen
+    ``WHO_2022_VA`` ICD-10-only SQL that the historical snapshot migrations
+    replay; ``mas_icd11_mms`` and ``icd_classification`` do not exist when
+    they run. ``ensure_submission_cod_snapshot_mv`` passes True; migration
+    ``d1a6e3b7c2f4`` holds a frozen copy of the True output.
+    """
     social_autopsy_payload_projection = ",\n".join(
         f"    ap.payload_data ->> '{field_id}' AS {field_id}"
         for field_id in SOCIAL_AUTOPSY_PAYLOAD_FIELDS
     )
+    if icd11_buckets:
+        recursive = " RECURSIVE"
+        bucket_ctes, bucket_columns, bucket_joins = _who_2026_bucket_sql()
+    else:
+        # Frozen pre-ICD-11 SQL: historical migrations replay this exactly.
+        recursive = ""
+        bucket_ctes = f"""who_2022_buckets AS (
+    SELECT DISTINCT ON (upper(map.icd_code))
+        upper(map.icd_code) AS icd_code,
+        parent.node_label AS bucket_section,
+        leaf.node_label AS bucket_label
+    FROM mas_cod_bucket_schemes scheme
+    JOIN map_icd_cod_buckets map
+        ON map.scheme_id = scheme.scheme_id
+       AND map.is_active IS TRUE
+       AND map.age_scope IS NULL
+    JOIN mas_cod_bucket_nodes leaf
+        ON leaf.node_id = map.node_id
+       AND leaf.is_active IS TRUE
+    LEFT JOIN mas_cod_bucket_nodes parent
+        ON parent.node_id = leaf.parent_node_id
+       AND parent.is_active IS TRUE
+    WHERE scheme.scheme_code = '{_WHO_2022_SCHEME_CODE}'
+      AND scheme.is_active IS TRUE
+    ORDER BY
+        upper(map.icd_code),
+        COALESCE(parent.sort_order, 0),
+        leaf.sort_order,
+        map.created_at,
+        map.mapping_id
+)"""
+        bucket_columns = """    coder_bucket.bucket_section AS coder_final_who_bucket_section,
+    coder_bucket.bucket_label AS coder_final_who_bucket,
+    reviewer_bucket.bucket_section AS reviewer_final_who_bucket_section,
+    reviewer_bucket.bucket_label AS reviewer_final_who_bucket,
+    auth_bucket.bucket_section AS authoritative_who_bucket_section,
+    auth_bucket.bucket_label AS authoritative_who_bucket,
+    smartva1_bucket.bucket_section AS smartva_cause1_who_bucket_section,
+    smartva1_bucket.bucket_label AS smartva_cause1_who_bucket,
+    smartva2_bucket.bucket_section AS smartva_cause2_who_bucket_section,
+    smartva2_bucket.bucket_label AS smartva_cause2_who_bucket,
+    smartva3_bucket.bucket_section AS smartva_cause3_who_bucket_section,
+    smartva3_bucket.bucket_label AS smartva_cause3_who_bucket"""
+        bucket_joins = """LEFT JOIN legacy_reporting_alias coder_icd_alias
+    ON coder_icd_alias.legacy_code = substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+LEFT JOIN legacy_reporting_alias reviewer_icd_alias
+    ON reviewer_icd_alias.legacy_code = substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+LEFT JOIN legacy_reporting_alias auth_icd_alias
+    ON auth_icd_alias.legacy_code = substring(
+        CASE
+            WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
+            WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
+            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
+            WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
+            ELSE NULL
+        END
+        from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
+    )
+LEFT JOIN legacy_reporting_alias smartva1_icd_alias
+    ON smartva1_icd_alias.legacy_code = upper(ls.va_smartva_cause1icd)
+LEFT JOIN legacy_reporting_alias smartva2_icd_alias
+    ON smartva2_icd_alias.legacy_code = upper(ls.va_smartva_cause2icd)
+LEFT JOIN legacy_reporting_alias smartva3_icd_alias
+    ON smartva3_icd_alias.legacy_code = upper(ls.va_smartva_cause3icd)
+LEFT JOIN who_2022_buckets coder_bucket
+    ON coder_bucket.icd_code = COALESCE(
+        coder_icd_alias.reporting_code,
+        substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+    )
+LEFT JOIN who_2022_buckets reviewer_bucket
+    ON reviewer_bucket.icd_code = COALESCE(
+        reviewer_icd_alias.reporting_code,
+        substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+    )
+LEFT JOIN who_2022_buckets auth_bucket
+    ON auth_bucket.icd_code = COALESCE(
+        auth_icd_alias.reporting_code,
+        substring(
+            CASE
+                WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
+                WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
+                WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
+                WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
+                ELSE NULL
+            END
+            from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
+        )
+    )
+LEFT JOIN who_2022_buckets smartva1_bucket
+    ON smartva1_bucket.icd_code = COALESCE(smartva1_icd_alias.reporting_code, upper(ls.va_smartva_cause1icd))
+LEFT JOIN who_2022_buckets smartva2_bucket
+    ON smartva2_bucket.icd_code = COALESCE(smartva2_icd_alias.reporting_code, upper(ls.va_smartva_cause2icd))
+LEFT JOIN who_2022_buckets smartva3_bucket
+    ON smartva3_bucket.icd_code = COALESCE(smartva3_icd_alias.reporting_code, upper(ls.va_smartva_cause3icd))"""
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
-WITH active_payload AS (
+WITH{recursive} active_payload AS (
     SELECT
         s.va_sid,
         s.active_payload_version_id,
@@ -558,31 +843,7 @@ legacy_reporting_alias AS (
         upper(reporting_code) AS reporting_code
     FROM map_icd10_legacy_reporting_aliases
 ),
-who_2022_buckets AS (
-    SELECT DISTINCT ON (upper(map.icd_code))
-        upper(map.icd_code) AS icd_code,
-        parent.node_label AS bucket_section,
-        leaf.node_label AS bucket_label
-    FROM mas_cod_bucket_schemes scheme
-    JOIN map_icd_cod_buckets map
-        ON map.scheme_id = scheme.scheme_id
-       AND map.is_active IS TRUE
-       AND map.age_scope IS NULL
-    JOIN mas_cod_bucket_nodes leaf
-        ON leaf.node_id = map.node_id
-       AND leaf.is_active IS TRUE
-    LEFT JOIN mas_cod_bucket_nodes parent
-        ON parent.node_id = leaf.parent_node_id
-       AND parent.is_active IS TRUE
-    WHERE scheme.scheme_code = '{_WHO_2022_SCHEME_CODE}'
-      AND scheme.is_active IS TRUE
-    ORDER BY
-        upper(map.icd_code),
-        COALESCE(parent.sort_order, 0),
-        leaf.sort_order,
-        map.created_at,
-        map.mapping_id
-),
+{bucket_ctes},
 coder_actor AS (
     SELECT
         s.va_sid,
@@ -730,18 +991,7 @@ SELECT
     coding_alloc_user.name AS active_coder_assigned_name,
     reviewing_alloc.va_allocated_to AS active_reviewer_assigned_user_id,
     reviewing_alloc_user.name AS active_reviewer_assigned_name,
-    coder_bucket.bucket_section AS coder_final_who_bucket_section,
-    coder_bucket.bucket_label AS coder_final_who_bucket,
-    reviewer_bucket.bucket_section AS reviewer_final_who_bucket_section,
-    reviewer_bucket.bucket_label AS reviewer_final_who_bucket,
-    auth_bucket.bucket_section AS authoritative_who_bucket_section,
-    auth_bucket.bucket_label AS authoritative_who_bucket,
-    smartva1_bucket.bucket_section AS smartva_cause1_who_bucket_section,
-    smartva1_bucket.bucket_label AS smartva_cause1_who_bucket,
-    smartva2_bucket.bucket_section AS smartva_cause2_who_bucket_section,
-    smartva2_bucket.bucket_label AS smartva_cause2_who_bucket,
-    smartva3_bucket.bucket_section AS smartva_cause3_who_bucket_section,
-    smartva3_bucket.bucket_label AS smartva_cause3_who_bucket
+{bucket_columns}
 FROM va_submissions s
 JOIN va_forms f ON f.form_id = s.va_form_id
 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
@@ -763,57 +1013,7 @@ LEFT JOIN va_users nqa_user ON nqa_user.user_id = nqa.va_nqa_by
 LEFT JOIN va_users saa_user ON saa_user.user_id = saa.va_saa_by
 LEFT JOIN va_users coding_alloc_user ON coding_alloc_user.user_id = coding_alloc.va_allocated_to
 LEFT JOIN va_users reviewing_alloc_user ON reviewing_alloc_user.user_id = reviewing_alloc.va_allocated_to
-LEFT JOIN legacy_reporting_alias coder_icd_alias
-    ON coder_icd_alias.legacy_code = substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-LEFT JOIN legacy_reporting_alias reviewer_icd_alias
-    ON reviewer_icd_alias.legacy_code = substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-LEFT JOIN legacy_reporting_alias auth_icd_alias
-    ON auth_icd_alias.legacy_code = substring(
-        CASE
-            WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
-            WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
-            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
-            WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
-            ELSE NULL
-        END
-        from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
-    )
-LEFT JOIN legacy_reporting_alias smartva1_icd_alias
-    ON smartva1_icd_alias.legacy_code = upper(ls.va_smartva_cause1icd)
-LEFT JOIN legacy_reporting_alias smartva2_icd_alias
-    ON smartva2_icd_alias.legacy_code = upper(ls.va_smartva_cause2icd)
-LEFT JOIN legacy_reporting_alias smartva3_icd_alias
-    ON smartva3_icd_alias.legacy_code = upper(ls.va_smartva_cause3icd)
-LEFT JOIN who_2022_buckets coder_bucket
-    ON coder_bucket.icd_code = COALESCE(
-        coder_icd_alias.reporting_code,
-        substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-    )
-LEFT JOIN who_2022_buckets reviewer_bucket
-    ON reviewer_bucket.icd_code = COALESCE(
-        reviewer_icd_alias.reporting_code,
-        substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-    )
-LEFT JOIN who_2022_buckets auth_bucket
-    ON auth_bucket.icd_code = COALESCE(
-        auth_icd_alias.reporting_code,
-        substring(
-            CASE
-                WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
-                WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
-                WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
-                WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
-                ELSE NULL
-            END
-            from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
-        )
-    )
-LEFT JOIN who_2022_buckets smartva1_bucket
-    ON smartva1_bucket.icd_code = COALESCE(smartva1_icd_alias.reporting_code, upper(ls.va_smartva_cause1icd))
-LEFT JOIN who_2022_buckets smartva2_bucket
-    ON smartva2_bucket.icd_code = COALESCE(smartva2_icd_alias.reporting_code, upper(ls.va_smartva_cause2icd))
-LEFT JOIN who_2022_buckets smartva3_bucket
-    ON smartva3_bucket.icd_code = COALESCE(smartva3_icd_alias.reporting_code, upper(ls.va_smartva_cause3icd))
+{bucket_joins}
 WITH DATA
 """
 
@@ -865,7 +1065,7 @@ def ensure_submission_cod_snapshot_mv() -> None:
     if exists:
         return
 
-    db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql()))
+    db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql(icd11_buckets=True)))
     db.session.execute(
         sa.text(
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_va_submission_cod_snapshot_mv_va_sid "

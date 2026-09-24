@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import functools
+import os
 from io import BytesIO
 from io import StringIO
 import re
@@ -107,11 +109,20 @@ MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH = (
     "who-2022-va-icd-cod-2026-revision/"
     "WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx"
 )
+# Owner decisions 10, 11 and 12 (2026-09-24) on WHO_2022_VA_2026's ICD-10
+# rows. The released 2026 workbook is not edited (see that folder's README),
+# so every import or reset of the scheme layers these on top of it.
+MIGRATION_ARTIFACT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "who-2022-va-icd-cod-2026-revision/"
+    "WHO_2022_VA_2026_owner_decisions_overrides.csv"
+)
 DEFAULT_SRS_WORKBOOK_PATH = MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH
 DEFAULT_CMEA10_WORKBOOK_PATH = MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH
 DEFAULT_WHO_2022_VA_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH
 DEFAULT_WHO_2022_VA_ADMIN_OVERRIDES_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_ADMIN_OVERRIDES_PATH
 DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH
+DEFAULT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_CMEA10,
@@ -594,7 +605,13 @@ def _load_sheet_rows(workbook_path: str | Path, sheet_name: str):
 
 
 def _who_2022_default_mapping_by_code(source_path: str | None = None) -> dict[str, dict]:
+    """Read-only; cached per file and mtime so a bulk admin add reads the workbook once."""
     workbook_path = source_path or DEFAULT_WHO_2022_VA_WORKBOOK_PATH
+    return _who_2022_default_mapping_by_code_cached(str(workbook_path), os.path.getmtime(workbook_path))
+
+
+@functools.lru_cache(maxsize=4)
+def _who_2022_default_mapping_by_code_cached(workbook_path: str, _mtime: float) -> dict[str, dict]:
     defaults: dict[str, dict] = {}
     for row_number, payload in _load_sheet_rows(workbook_path, "ICD_Mapped"):
         icd_code = _normalize_icd_code(payload.get("icd_code"))
@@ -612,6 +629,27 @@ def _who_2022_default_mapping_by_code(source_path: str | None = None) -> dict[st
     return defaults
 
 
+def _who_2022_va_2026_owner_decisions(
+    path: str | Path = DEFAULT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH,
+) -> dict[str, dict]:
+    """`{icd_code: {node_code, match_type, mapping_note}}` of the owner's
+    ICD-10 decisions on WHO_2022_VA_2026. Read-only; cached per file and mtime."""
+    return _who_2022_va_2026_owner_decisions_cached(str(path), os.path.getmtime(path))
+
+
+@functools.lru_cache(maxsize=4)
+def _who_2022_va_2026_owner_decisions_cached(path: str, _mtime: float) -> dict[str, dict]:
+    with open(path, newline="", encoding="utf-8") as handle:
+        return {
+            row["icd_code"].strip().upper(): {
+                "node_code": row["node_code"],
+                "match_type": row["match_type"] or None,
+                "mapping_note": row["mapping_note"] or None,
+            }
+            for row in csv.DictReader(handle)
+        }
+
+
 def apply_admin_cod_bucket_mapping_metadata(
     *,
     scheme: MasCodBucketScheme,
@@ -625,6 +663,15 @@ def apply_admin_cod_bucket_mapping_metadata(
         default_mapping = _who_2022_default_mapping_by_code(
             str(source_path) if source_path else None
         ).get(mapping.icd_code)
+    if (
+        default_mapping
+        and scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
+        and mapping.icd_classification == ICD_CLASSIFICATION_ICD10
+    ):
+        # The owner's decisions are part of this scheme's default.
+        decision = _who_2022_va_2026_owner_decisions().get(mapping.icd_code)
+        if decision:
+            default_mapping = {**default_mapping, **decision}
 
     if default_mapping and target_node.node_code == default_mapping["node_code"]:
         mapping.source_sheet = default_mapping["source_sheet"]
@@ -1288,6 +1335,43 @@ def import_who_2022_va_scheme(
     return scheme
 
 
+def _apply_who_2022_va_2026_owner_decisions(scheme: MasCodBucketScheme) -> None:
+    """Move a freshly populated scheme's ICD-10 rows to the owner's decisions.
+
+    Only the bucket, match type and note change; the workbook provenance
+    stays. A code or node the scheme lacks is skipped (a non-default
+    workbook), never created.
+    """
+    nodes = {
+        node.node_code: node
+        for node in db.session.scalars(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                MasCodBucketNode.age_scope.is_(None),
+            )
+        )
+    }
+    decisions = _who_2022_va_2026_owner_decisions()
+    mappings = db.session.scalars(
+        sa.select(MapIcdCodBucket).where(
+            MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+            MapIcdCodBucket.age_scope.is_(None),
+            sa.func.upper(MapIcdCodBucket.icd_code).in_(list(decisions)),
+        )
+    )
+    for mapping in mappings:
+        decision = decisions[mapping.icd_code.upper()]
+        node = nodes.get(decision["node_code"])
+        if node is None:
+            continue
+        mapping.node_id = node.node_id
+        mapping.match_type = decision["match_type"]
+        mapping.mapping_note = decision["mapping_note"]
+    db.session.flush()
+
+
 def import_who_2022_va_2026_scheme(
     workbook_path: str | Path = DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH,
 ) -> MasCodBucketScheme:
@@ -1297,7 +1381,8 @@ def import_who_2022_va_2026_scheme(
     not a replacement of it. Adopts the WHO 2026 annex ICD-10 ranges: VAs-98
     gains G43-G47 and widens to K70-K93 (minus the VAs-06.02 liver-cirrhosis
     carve-out), VAs-99 expands from R95-R99 to R00-R09; R11-R94; R96-R99, and
-    R95 moves from VAs-99 to VAs-10.99.
+    R95 moves from VAs-99 to VAs-10.99. Then applies the owner's ICD-10
+    decisions of 2026-09-24 (`DEFAULT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH`).
     """
     workbook_path = str(workbook_path)
     scheme = _get_or_create_scheme(
@@ -1325,6 +1410,7 @@ def import_who_2022_va_2026_scheme(
         sort_order=meta["sort_order"],
     )
     _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+    _apply_who_2022_va_2026_owner_decisions(scheme)
 
     db.session.commit()
     return scheme
@@ -1489,6 +1575,7 @@ def reset_cod_bucket_scheme_age_band_to_source(
             sort_order=meta["sort_order"],
         )
         _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+        _apply_who_2022_va_2026_owner_decisions(scheme)
     else:
         raise ValueError("This scheme does not support reset from source.")
 
@@ -3208,7 +3295,7 @@ def aggregate_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3298,7 +3385,7 @@ def aggregate_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
@@ -3376,7 +3463,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3444,7 +3531,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
@@ -3489,6 +3576,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
         base_rows.c.age_scope_label,
         base_rows.c.age_scope_sort_order,
         base_rows.c.final_icd.label("icd_code"),
+        base_rows.c.icd_classification,
         base_rows.c.reporting_icd,
         sa.func.count().label("unmatched_count"),
     ]
@@ -3497,6 +3585,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
         base_rows.c.age_scope_label,
         base_rows.c.age_scope_sort_order,
         base_rows.c.final_icd,
+        base_rows.c.icd_classification,
         base_rows.c.reporting_icd,
     ]
     order_by_columns = [
@@ -3532,7 +3621,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -3563,6 +3652,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             reporting_age_scope_label,
             reporting_age_scope_sort_order,
             base_rows.c.final_icd.label("icd_code"),
+            base_rows.c.icd_classification,
             base_rows.c.reporting_icd,
             sa.func.count().label("unmatched_count"),
         ]
@@ -3571,6 +3661,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             reporting_age_scope_label,
             reporting_age_scope_sort_order,
             base_rows.c.final_icd,
+            base_rows.c.icd_classification,
             base_rows.c.reporting_icd,
         ]
         reporting_order_by_columns = [
@@ -3606,7 +3697,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
                 MapIcdCodBucket,
                 sa.and_(
                     MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                    MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                    MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                     MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                     MapIcdCodBucket.age_scope.is_(None),
                     base_rows.c.age_scope.is_(None),
@@ -3620,7 +3711,19 @@ def list_unmatched_coded_submission_icds_by_bucket(
             dict(row) for row in db.session.execute(reporting_query).mappings().all()
         )
 
-    reporting_icd_codes = [row["reporting_icd"] for row in rows if row["reporting_icd"]]
+    reporting_icd_codes = [
+        row["reporting_icd"]
+        for row in rows
+        if row["reporting_icd"] and row["icd_classification"] == ICD_CLASSIFICATION_ICD10
+    ]
+    scheme_has_icd11_rows = db.session.scalar(
+        sa.select(
+            sa.exists().where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            )
+        )
+    )
     master_rows = {
         row.code: row
         for row in db.session.scalars(
@@ -3631,6 +3734,22 @@ def list_unmatched_coded_submission_icds_by_bucket(
     classified_rows = []
     for row in rows:
         item = dict(row)
+        if item["icd_classification"] == ICD_CLASSIFICATION_ICD11:
+            # ICD-11 deaths are never "unmatched ICD-10": they are unmapped
+            # in this scheme, and a scheme with no ICD-11 rows says so.
+            if scheme_has_icd11_rows:
+                item["category"] = "icd11_not_included_in_scheme"
+                item["category_label"] = "ICD-11 codes not included in CoD Categories"
+            else:
+                item["category"] = "icd11_scheme_has_no_icd11_rows"
+                item["category_label"] = (
+                    "ICD-11 codes: this scheme has no ICD-11 mappings, "
+                    "so every ICD-11 death is unmapped"
+                )
+            item["is_master_coding_eligible"] = False
+            item.pop("reporting_icd", None)
+            classified_rows.append(item)
+            continue
         master_row = master_rows.get(item["reporting_icd"])
         is_master_coding_eligible = bool(
             master_row
@@ -3688,7 +3807,7 @@ def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -4333,7 +4452,7 @@ def export_cod_bucket_reporting_csv(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD10,
+                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
@@ -4425,6 +4544,62 @@ def export_cod_bucket_reporting_csv(
     return handle.getvalue()
 
 
+def _icd11_reporting_code_subquery(scheme, final_icd11_column):
+    """(start_code, reporting_code) for the ICD-11 stems of final CODs.
+
+    ``reporting_code`` is the stem itself or its nearest ancestor on the
+    mas_icd11_mms parent chain (block nodes have no code) that has an icd11
+    row in ``scheme``. Seeded from the distinct stems in use, so it walks a
+    handful of chains, not the catalogue. A stem with no mapped code on its
+    chain, or absent from the catalogue, gets no row.
+    """
+    # ponytail: ignores age scope when choosing the ancestor; the WHO schemes
+    # have no age-scoped rows. Match per age scope if an ICD-11 scheme gets them.
+    mapped_codes = sa.select(MapIcdCodBucket.icd_code).where(
+        MapIcdCodBucket.scheme_id == scheme.scheme_id,
+        MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+    )
+    stems = (
+        sa.select(final_icd11_column.label("stem"))
+        .where(final_icd11_column.is_not(None))
+        .distinct()
+        .subquery("icd11_stems")
+    )
+    chain = (
+        sa.select(
+            stems.c.stem.label("start_code"),
+            MasIcd11Mms.code.label("code"),
+            MasIcd11Mms.parent_linearization_uri.label("parent_uri"),
+            sa.literal(0).label("depth"),
+        )
+        .join(MasIcd11Mms, MasIcd11Mms.code == stems.c.stem)
+        .where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE)
+        .cte("icd11_report_chain", recursive=True)
+    )
+    parent = sa.orm.aliased(MasIcd11Mms)
+    chain = chain.union_all(
+        sa.select(
+            chain.c.start_code,
+            parent.code,
+            parent.parent_linearization_uri,
+            chain.c.depth + 1,
+        ).where(
+            parent.release == DEFAULT_ICD11_RELEASE,
+            parent.linearization_uri == chain.c.parent_uri,
+            sa.or_(chain.c.code.is_(None), chain.c.code.not_in(mapped_codes)),
+            # A parent cycle in bad catalogue data must not hang the report.
+            chain.c.depth < 20,
+        )
+    )
+    return (
+        sa.select(chain.c.start_code, chain.c.code.label("reporting_code"))
+        .where(chain.c.code.in_(mapped_codes))
+        .distinct(chain.c.start_code)
+        .order_by(chain.c.start_code, chain.c.depth)
+        .subquery("icd11_reporting_code")
+    )
+
+
 def _cod_bucket_aggregate_base_subquery(
     *,
     scheme_code: str,
@@ -4440,6 +4615,14 @@ def _cod_bucket_aggregate_base_subquery(
 
     Submissions retired from ODK are never part of the set
     (docs/policy/odk-retired-submissions.md).
+
+    Each death is bucketed through the scheme rows of its own classification
+    (``icd_classification``), decided by the final COD's code shape:
+    ``final_icd`` is the ICD-10 code or the ICD-11 stem. ``reporting_icd`` is
+    the code to join ``map_icd_cod_buckets`` on: for ICD-10 the legacy
+    reporting alias, else the code; for ICD-11 the code itself or, when the
+    scheme has no row for it, its nearest catalogue ancestor that has one. A
+    scheme with no icd11 rows leaves every ICD-11 death unmatched.
     """
     scheme = db.session.scalar(
         sa.select(MasCodBucketScheme).where(
@@ -4469,15 +4652,18 @@ def _cod_bucket_aggregate_base_subquery(
         COD_MV_NAME,
         sa.column("va_sid"),
         sa.column("final_icd"),
+        sa.column("final_icd11"),
     )
     reporting_alias = sa.orm.aliased(MapIcd10LegacyReportingAlias)
+    icd11_resolved = _icd11_reporting_code_subquery(scheme, cod.c.final_icd11)
+    is_icd10 = cod.c.final_icd.is_not(None)
 
     submission_age_days = sa.cast(demo.c.analytics_age_normalized_days, sa.Numeric())
     age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
     gender_filter = _normalize_gender_filter(gender)
 
     conditions = [
-        cod.c.final_icd.is_not(None),
+        sa.or_(is_icd10, cod.c.final_icd11.is_not(None)),
         demo.c.has_human_final_cod.is_(True),
         # Submissions retired from ODK are not reported
         # (docs/policy/odk-retired-submissions.md).
@@ -4513,10 +4699,17 @@ def _cod_bucket_aggregate_base_subquery(
             VaSubmissions.va_deceased_gender.label("gender"),
             VaForms.form_smartvacountry.label("country"),
             sa.extract("year", core.c.submission_date).label("submission_year"),
-            cod.c.final_icd.label("final_icd"),
-            _reporting_icd_sql(
-                cod.c.final_icd,
-                reporting_alias.reporting_code,
+            sa.case(
+                (is_icd10, ICD_CLASSIFICATION_ICD10),
+                else_=ICD_CLASSIFICATION_ICD11,
+            ).label("icd_classification"),
+            sa.func.coalesce(cod.c.final_icd, cod.c.final_icd11).label("final_icd"),
+            sa.case(
+                (
+                    is_icd10,
+                    _reporting_icd_sql(cod.c.final_icd, reporting_alias.reporting_code),
+                ),
+                else_=sa.func.coalesce(icd11_resolved.c.reporting_code, cod.c.final_icd11),
             ).label("reporting_icd"),
         )
         .select_from(core)
@@ -4525,6 +4718,7 @@ def _cod_bucket_aggregate_base_subquery(
         .join(VaSubmissions, VaSubmissions.va_sid == core.c.va_sid)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .outerjoin(reporting_alias, reporting_alias.legacy_code == cod.c.final_icd)
+        .outerjoin(icd11_resolved, icd11_resolved.c.start_code == cod.c.final_icd11)
         .join(
             age_band,
             sa.and_(

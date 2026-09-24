@@ -521,7 +521,7 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX {index_prefix}_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
         )
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX {index_prefix}_detail_va_sid ON {COD_MV_NAME} (va_sid)")
         )
@@ -987,6 +987,7 @@ class DataManagerDashboardTests(BaseTestCase):
                     "age_scope_label": "Adult / Over 5 Years",
                     "age_scope_sort_order": 1,
                     "icd_code": "I22",
+                    "icd_classification": "icd10",
                     "unmatched_count": 1,
                     "category": "not_included_in_scheme",
                     "category_label": "ICD codes not included in CoD Categories",

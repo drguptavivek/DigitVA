@@ -5,6 +5,7 @@ from app.services.cod_bucket_icd11_generator import (
     apply_icd11_generation,
     generate_icd11_buckets,
     write_icd11_generation_report,
+    write_icd11_seed_csv,
 )
 from app.services.cod_bucket_mapping_service import (
     DEFAULT_CMEA10_WORKBOOK_PATH,
@@ -78,8 +79,15 @@ def import_who_2022_va_2026(path):
 @click.option("--release", default=DEFAULT_ICD11_RELEASE, show_default=True)
 @click.option("--apply", "apply_changes", is_flag=True, help="Write the rows (default: dry run).")
 @click.option("--report-dir", default=DEFAULT_REPORT_DIR, show_default=True)
-def generate_icd11(scheme_code, release, apply_changes, report_dir):
-    """Generate the scheme's native ICD-11 buckets from the WHO VA cause list.
+@click.option(
+    "--seed-csv",
+    default=None,
+    help="Also freeze the mappings in a migration seed CSV "
+    "(e.g. resource/who_2022_va_2026_icd11_native_mappings.csv).",
+)
+def generate_icd11(scheme_code, release, apply_changes, report_dir, seed_csv):
+    """Generate the scheme's native ICD-11 buckets from the WHO VA cause list
+    and the owner's recorded decisions.
 
     Dry run by default: decides every code and writes the review report, but
     no database row. --apply replaces only this scheme's ICD-11 rows.
@@ -90,10 +98,12 @@ def generate_icd11(scheme_code, release, apply_changes, report_dir):
         raise click.ClickException(str(exc))
     for path in write_icd11_generation_report(result, report_dir):
         click.echo(f"Wrote {path}")
+    if seed_csv:
+        click.echo(f"Wrote {write_icd11_seed_csv(result, seed_csv)}")
     click.echo(
         f"{scheme_code} ICD-11 {release}: {len(result.mappings)} mappings, "
         f"{len(result.unmapped)} unmapped, {result.review_count('tie')} ties, "
-        f"{result.review_count('pj2x_owner_decision')} PJ2x decisions, "
+        f"{result.review_count('pj2x_split')} PJ2x splits, "
         f"{result.review_count('crosswalk_disagreement')} crosswalk disagreements"
     )
     for va_code, count in result.cause_counts.items():

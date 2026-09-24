@@ -3,7 +3,10 @@
 Policy: docs/policy/icd11-cod-bucket-schemes.md ("Native method"). Runs
 against a small synthetic catalogue release and cause list so each rule --
 range expansion, more specific wins, ties, the PA and PJ2x splits, the
-crosswalk cross-check -- is pinned by a code whose answer is known.
+crosswalk cross-check -- is pinned by a code whose answer is known. The owner
+decisions of 2026-09-24 (docs/policy/icd10-to-icd11-transition.md section 6)
+are pinned the same way: the decisions file beats the annex, a single code
+covers only itself, and every other code gets the decision 5b fallback.
 """
 
 import csv
@@ -16,11 +19,13 @@ from openpyxl import Workbook
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd11Mms
 from app.services.cod_bucket_icd11_generator import (
+    _crosswalk_review_decision,
     apply_icd11_generation,
     expand_range,
     generate_icd11_buckets,
     parse_icd11_ranges,
     write_icd11_generation_report,
+    write_icd11_seed_csv,
 )
 from tests.base import BaseTestCase
 
@@ -38,6 +43,9 @@ CATALOGUE = (
     ("1D40", "Yellow fever", None, "01"),
     ("1D4Z", "Haemorrhagic fever, unspecified", None, "01"),
     ("1D90", "Viral infection of unspecified site", None, "01"),
+    ("5A20", "Diabetic hyperosmolar hyperglycaemic state", None, "05"),
+    ("5A20.0", "Hyperosmolar hyperglycaemic state without coma", "5A20", "05"),
+    ("5A2Y", "Other specified acute complications of diabetes mellitus", None, "05"),
     ("8A00", "Parkinsonism", None, "08"),
     ("JB0A", "Rupture of uterus", None, "18"),
     ("JB0A.0", "Rupture of uterus before onset of labour", "JB0A", "18"),
@@ -51,6 +59,8 @@ CATALOGUE = (
     ("PJ20", "Physical maltreatment", None, "23"),
     ("PJ2Z", "Maltreatment, unspecified", None, "23"),
     ("QA00", "Health examination", None, "24"),
+    ("QA01", "General examination", None, "24"),
+    ("RA00", "Conditions of uncertain aetiology and emergency use", None, "25"),
     ("XA0001", "An extension code", None, "X"),
 )
 
@@ -79,6 +89,19 @@ NODE_CODES = (
     ("vas_98", "Other and unspecified non-communicable disease"),
     ("vas_99", "Cause of death unknown"),
     ("vas_09_08", "Ruptured uterus"),
+    ("vas_03_03", "Diabetes mellitus"),
+    ("vas_11_02", "Macerated stillbirth"),
+)
+
+# code, node_code, decision, decided_on, note
+DECISION_ROWS = (
+    ("5A20-5A2Y", "vas_03_03", "5a", "2026-09-24", "Diabetic acute complications"),
+    ("5A20.0", "vas_98", "5a", "2026-09-24", "Narrower entry beats the range"),
+    ("KD3B", "vas_11_02", "9", "2026-09-24", "Unknown timing"),
+    ("1D90", "vas_99", "10", "2026-09-24", "Decision beats the annex"),
+    ("NOPE1", "vas_98", "5a", "2026-09-24", "Not a catalogue code"),
+    ("1D20", "no_such_node", "5a", "2026-09-24", "Unknown node"),
+    ("5C52.Y-5C52-Z", "vas_98", "4", "2026-09-24", "Malformed"),
 )
 
 
@@ -201,9 +224,13 @@ class Icd11GeneratorTests(BaseTestCase):
         crosswalk.write_text(
             "Linearization (release) URI\ticd11Code\ticd11Chapter\ticd11Title\ticd10Code\ticd10Chapter\ticd10Title\n"
             "u\t1D20\t01\tDengue\tA97.0\tI\tDengue\n"
-            "u\tOLD1\t01\tDengue with warning signs\tA97.1\tI\tDengue\n",
+            "u\tOLD1\t01\tDengue with warning signs\tA97.1\tI\tDengue\n"
+            "u\tQA00\t24\tHealth examination\tA97.2\tI\tDengue\n"
+            "u\tRA00\t25\tUncertain aetiology\tA97.3\tI\tDengue\n",
             encoding="utf-8",
         )
+        decisions = self.tmp / "decisions.csv"
+        self._write_decisions(decisions, DECISION_ROWS)
         changes = self.tmp / "changes.xlsx"
         workbook = Workbook()
         workbook.active.append(["Chapter", "Foundation", "2025", "2026", "Code", "Title", "Status"])
@@ -214,7 +241,14 @@ class Icd11GeneratorTests(BaseTestCase):
             "crosswalk_path": str(crosswalk),
             "change_list_path": str(changes),
             "curated_scheme_code": CURATED_CODE,
+            "decisions_path": str(decisions),
         }
+
+    def _write_decisions(self, path, rows):
+        with open(path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["code", "node_code", "decision", "decided_on", "note"])
+            writer.writerows(rows)
 
     def _generate(self):
         return generate_icd11_buckets(scheme_code=SCHEME_CODE, release=RELEASE, **self.paths)
@@ -244,17 +278,17 @@ class Icd11GeneratorTests(BaseTestCase):
         # 1D40 is in both the haemorrhagic fever and the residual range; the
         # narrower haemorrhagic fever range wins.
         self.assertEqual(decided["1D40"], ("vas_01_11", "range"))
-        self.assertEqual(decided["1D90"], ("vas_01_99", "range"))
         # A descendant is covered with its parent.
         self.assertEqual(decided["1D00.0"], ("vas_01_11", "range"))
 
-    def test_exact_tie_is_not_mapped_and_listed_for_review(self):
+    def test_exact_tie_is_listed_for_review_and_falls_back_to_unknown(self):
         result = self._generate()
 
-        self.assertNotIn("8A00", self._decided(result))
+        # Owner decision 5b: a tie is never guessed between the two causes;
+        # with no crosswalk suggestion it goes to VAs-99.
+        self.assertEqual(self._decided(result)["8A00"], ("vas_99", "owner_fallback"))
         ties = [row for row in result.review if row["review_type"] == "tie"]
         self.assertEqual([row["code"] for row in ties], ["8A00"])
-        self.assertIn("8A00", {row["code"] for row in result.unmapped if row["reason"] == "tie"})
 
     def test_pa_range_splits_per_code_and_flags_titles_that_do_not_fit(self):
         result = self._generate()
@@ -265,16 +299,28 @@ class Icd11GeneratorTests(BaseTestCase):
             self.assertEqual(decided[code], ("vas_12_02", "split"))
         verification = {row["code"]: row["detail"] for row in result.review if row["review_type"] == "pa_split"}
         self.assertEqual(verification["PA00"], "title fits")
-        self.assertIn("DOES NOT FIT", verification["PA20"])
+        self.assertEqual(verification["PA20"], "unknown whether traffic -> Other transport")
 
-    def test_pj2x_is_proposed_as_assault_and_every_code_listed_for_the_owner(self):
+    def test_pj2x_goes_to_assault_by_owner_decision_2(self):
         result = self._generate()
         decided = self._decided(result)
 
         self.assertEqual(decided["PJ20"], ("vas_12_09", "split"))
         self.assertEqual(decided["PJ2Z"], ("vas_12_09", "split"))
-        listed = {row["code"] for row in result.review if row["review_type"] == "pj2x_owner_decision"}
-        self.assertEqual(listed, {"PJ20", "PJ2Z"})
+        listed = {
+            row["code"]: (row["decision"], row["detail"])
+            for row in result.review if row["review_type"] == "pj2x_split"
+        }
+        self.assertEqual(set(listed), {"PJ20", "PJ2Z"})
+        self.assertEqual(listed["PJ20"], ("owner decision 2", "maltreatment by others -> Assault"))
+        self.assertFalse(any("propos" in row.get("detail", "") for row in result.review))
+
+    def test_pa2x_unknown_whether_traffic_is_settled_by_owner_decision_3(self):
+        result = self._generate()
+
+        pa20 = next(row for row in result.review if row["review_type"] == "pa_split" and row["code"] == "PA20")
+        self.assertEqual(pa20["decision"], "owner decision 3")
+        self.assertEqual(pa20["va_code"], "VAs-12.02")
 
     def test_nodes_resolve_by_code_then_label_and_causes_without_a_node_are_reported(self):
         result = self._generate()
@@ -287,6 +333,8 @@ class Icd11GeneratorTests(BaseTestCase):
         self.assertIn(("node_matched_by_label", "VAs-09.0"), review_types)
         self.assertIn(("cause_without_node", "VAs-11.01"), review_types)
         self.assertIn(("range_issue", "VAs-98"), review_types)
+        range_issue = next(row for row in result.review if row["review_type"] == "range_issue")
+        self.assertEqual(range_issue["decision"], "owner decision 4")
 
     def test_crosswalk_disagreement_and_unmapped_suggestions(self):
         result = self._generate()
@@ -296,12 +344,69 @@ class Icd11GeneratorTests(BaseTestCase):
         # 1D21 is absent from the 2025-01 crosswalk; the change list maps it back.
         self.assertEqual(by_code["1D21"]["icd10_crosswalk"], "A97.1")
         self.assertEqual(by_code["1D21"]["curated_icd10_bucket"], "vas_01_11")
-        disagreements = {row["code"] for row in result.review if row["review_type"] == "crosswalk_disagreement"}
-        self.assertEqual(disagreements, {"1D20", "1D21"})
+        disagreements = {
+            row["code"]: row["decision"]
+            for row in result.review if row["review_type"] == "crosswalk_disagreement"
+        }
+        # Dengue vs haemorrhagic fever: a specific cause on both sides goes
+        # back to the owner (decision 1).
+        self.assertEqual(disagreements["1D20"], "owner review (digitva-712.6)")
+        self.assertEqual(disagreements["1D21"], "owner review (digitva-712.6)")
 
-        unmapped = {row["code"]: row["reason"] for row in result.unmapped}
-        self.assertEqual(unmapped["QA00"], "no_range")
-        self.assertNotIn("XA0001", unmapped, "chapter X extension codes are not stems")
+    def test_crosswalk_review_decision_accepts_native_bucket_when_either_side_is_residual(self):
+        accepted = "accepted: native bucket (owner decision 1)"
+        self.assertEqual(_crosswalk_review_decision("vas_98", "vas_01_02", ""), accepted)
+        self.assertEqual(_crosswalk_review_decision("vas_01_02", "vas_04_99", "vas_04_99"), accepted)
+        self.assertEqual(_crosswalk_review_decision("vas_01_02", "other_gastrointestinal_diseases", ""), accepted)
+        self.assertEqual(_crosswalk_review_decision("vas_01_02", "multiple:vas_01_02|vas_01_09", ""), accepted)
+        self.assertEqual(
+            _crosswalk_review_decision("vas_01_07", "vas_01_11", "vas_01_11"), "owner review (digitva-712.6)"
+        )
+
+    def test_owner_decisions_beat_the_annex_and_a_single_code_covers_only_itself(self):
+        result = self._generate()
+        decided = self._decided(result)
+
+        self.assertEqual(decided["1D90"], ("vas_99", "owner_decision"))
+        # A range decision covers descendants; a narrower entry beats it.
+        self.assertEqual(decided["5A20"], ("vas_03_03", "owner_decision"))
+        self.assertEqual(decided["5A2Y"], ("vas_03_03", "owner_decision"))
+        self.assertEqual(decided["5A20.0"], ("vas_98", "owner_decision"))
+        # KD3B alone is decided; its child KD3B.1 keeps the annex cause.
+        self.assertEqual(decided["KD3B"], ("vas_11_02", "owner_decision"))
+        self.assertNotIn("KD3B.1", decided)
+        by_code = {row["code"]: row for row in result.mappings}
+        self.assertEqual(by_code["KD3B"]["mapping_note"], "Owner decision 9 (2026-09-24): Unknown timing")
+        self.assertEqual(by_code["KD3B"]["source_sheet"], "decisions.csv")
+        self.assertEqual(by_code["1D20"]["mapping_note"], "ICD-11 TEST-712 range 1D20-1D2Z")
+
+        issues = sorted(row["token"] for row in result.review if row["review_type"] == "decision_issue")
+        self.assertEqual(issues, ["1D20", "5C52.Y-5C52-Z", "NOPE1"])
+        self.assertEqual(decided["1D20"], ("vas_01_12", "range"), "an entry with an unknown node is skipped")
+
+    def test_two_equally_narrow_decisions_for_one_code_fail_loudly(self):
+        self._write_decisions(
+            Path(self.paths["decisions_path"]),
+            (("1D90", "vas_99", "10", "2026-09-24", "a"), ("1D90", "vas_98", "10", "2026-09-24", "b")),
+        )
+        with self.assertRaisesRegex(ValueError, "1D90"):
+            self._generate()
+
+    def test_decision_5b_fallback_leaves_only_codes_without_a_node_unmapped(self):
+        result = self._generate()
+        decided = self._decided(result)
+        by_code = {row["code"]: row for row in result.mappings}
+
+        # A single-bucket crosswalk suggestion is taken ...
+        self.assertEqual(decided["QA00"], ("vas_01_11", "owner_fallback"))
+        self.assertIn("crosswalk A97.2 suggests vas_01_11", by_code["QA00"]["mapping_note"])
+        # ... except for RA codes; no suggestion at all means VAs-99.
+        self.assertEqual(decided["RA00"], ("vas_99", "owner_fallback"))
+        self.assertEqual(decided["QA01"], ("vas_99", "owner_fallback"))
+        self.assertTrue(by_code["QA01"]["mapping_note"].startswith("Owner decision 5b (2026-09-24): "))
+        self.assertNotIn("XA0001", decided, "chapter X extension codes are not stems")
+        # KD3B.1's cause has no node in this scheme: reported, never hidden in VAs-99.
+        self.assertEqual({(row["code"], row["reason"]) for row in result.unmapped}, {("KD3B.1", "no_node")})
 
     def test_dry_run_writes_the_report_but_no_rows(self):
         result = self._generate()
@@ -315,12 +420,36 @@ class Icd11GeneratorTests(BaseTestCase):
              "icd11_unmapped_with_suggestion.csv"],
         )
         self.assertIn("VAs-01.12 | Dengue fever | 3", (self.tmp / "report" / "README.md").read_text())
+        with open(self.tmp / "report" / "icd11_review.csv", newline="", encoding="utf-8") as handle:
+            self.assertIn("decision", next(csv.reader(handle)))
+
+    def test_seed_csv_freezes_every_mapping_with_its_note_and_source(self):
+        result = self._generate()
+        path = write_icd11_seed_csv(result, self.tmp / "seed.csv")
+
+        with open(path, newline="", encoding="utf-8") as handle:
+            rows = {row["icd_code"]: row for row in csv.DictReader(handle)}
+        self.assertEqual(len(rows), len(result.mappings))
+        self.assertEqual(
+            (rows["KD3B"]["node_code"], rows["KD3B"]["match_type"], rows["KD3B"]["source_sheet"]),
+            ("vas_11_02", "owner_decision", "decisions.csv"),
+        )
+        self.assertEqual(rows["1D20"]["source_sheet"], "who_2022_va_cause_list_icd10_icd11.csv")
 
     def test_apply_is_idempotent_and_leaves_icd10_rows_alone(self):
         apply_icd11_generation(self._generate())
         first = self._icd11_rows()
         self.assertIn(("1D20", "vas_01_12", "range", "VAs-01.12"), first)
         self.assertIn(("PA00", "vas_12_01", "split", "VAs-12.01"), first)
+        self.assertIn(("KD3B", "vas_11_02", "owner_decision", "VAs-11.02"), first)
+        kd3b = db.session.scalar(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == self.scheme.scheme_id,
+                MapIcdCodBucket.icd_code == "KD3B",
+            )
+        )
+        self.assertEqual(kd3b.mapping_note, "Owner decision 9 (2026-09-24): Unknown timing")
+        self.assertEqual(kd3b.source_sheet, "decisions.csv")
         scheme = db.session.get(MasCodBucketScheme, self.scheme.scheme_id)
         self.assertEqual(scheme.icd11_method, "native")
         self.assertEqual(scheme.mapping_version, 2)

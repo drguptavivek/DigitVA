@@ -7,6 +7,7 @@ from app import db
 from app.models import (
     MapIcd10LegacyReportingAlias,
     MasIcd1020192,
+    MasIcd11Mms,
     MapIcdCodBucket,
     MasCodBucketNode,
     MasCodBucketScheme,
@@ -33,6 +34,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.submission_analytics_mv import (
     build_dm_mv_filter_conditions,
@@ -152,12 +154,12 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             f"CREATE UNIQUE INDEX ix_test_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)"
         ))
 
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
         db.session.execute(sa.text(
             f"CREATE UNIQUE INDEX ix_test_cod_va_sid ON {COD_MV_NAME} (va_sid)"
         ))
 
-        db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql(icd11_buckets=True)))
         db.session.execute(
             sa.text(
                 f"CREATE UNIQUE INDEX ix_test_cod_snapshot_va_sid ON {COD_SNAPSHOT_MV_NAME} (va_sid)"
@@ -863,13 +865,13 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         scheme = db.session.scalar(
             sa.select(MasCodBucketScheme).where(
-                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"
             )
         )
         if scheme is None:
             scheme = MasCodBucketScheme(
-                scheme_code="WHO_2022_VA",
-                scheme_name="WHO 2022 VA",
+                scheme_code="WHO_2022_VA_2026",
+                scheme_name="WHO 2022 VA 2026",
                 is_active=True,
             )
             db.session.add(scheme)
@@ -1126,13 +1128,13 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         db.session.flush()
         scheme = db.session.scalar(
             sa.select(MasCodBucketScheme).where(
-                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"
             )
         )
         if scheme is None:
             scheme = MasCodBucketScheme(
-                scheme_code="WHO_2022_VA",
-                scheme_name="WHO 2022 VA",
+                scheme_code="WHO_2022_VA_2026",
+                scheme_name="WHO 2022 VA 2026",
                 is_active=True,
             )
             db.session.add(scheme)
@@ -1227,13 +1229,13 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         scheme = db.session.scalar(
             sa.select(MasCodBucketScheme).where(
-                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"
             )
         )
         if scheme is None:
             scheme = MasCodBucketScheme(
-                scheme_code="WHO_2022_VA",
-                scheme_name="WHO 2022 VA",
+                scheme_code="WHO_2022_VA_2026",
+                scheme_name="WHO 2022 VA 2026",
                 is_active=True,
             )
             db.session.add(scheme)
@@ -1323,6 +1325,168 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row["authoritative_icd"], "A90")
         self.assertEqual(row["authoritative_who_bucket_section"], "Vector-borne infections")
         self.assertEqual(row["authoritative_who_bucket"], "Dengue")
+
+    def test_cod_snapshot_mv_buckets_each_cod_through_its_own_classification(self):
+        """ICD-10 values use icd10 rows only; ICD-11 values use icd11 rows,
+        exact code then nearest catalogue ancestor, first stem of a
+        post-coordinated value. Each bucket records its provenance."""
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"
+            )
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA_2026",
+                scheme_name="WHO 2022 VA 2026",
+                is_active=True,
+            )
+            db.session.add(scheme)
+            db.session.flush()
+        section = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            node_type="category",
+            node_code="SEC_CLS",
+            node_label="Classification section",
+            sort_order=1,
+            is_active=True,
+        )
+        leaves = {
+            code: MasCodBucketNode(
+                scheme_id=scheme.scheme_id,
+                node_type="field",
+                parent=section,
+                node_code=f"BUCKET_CLS_{code}",
+                node_label=label,
+                sort_order=i,
+                is_active=True,
+            )
+            for i, (code, label) in enumerate(
+                (
+                    ("MENINGO", "Meningococcal via ICD-10"),
+                    ("WRONG", "ICD-11 row with an ICD-10 code"),
+                    ("SEPSIS", "Sepsis via ICD-11"),
+                    ("FAR", "Far ancestor via ICD-11"),
+                )
+            )
+        }
+        db.session.add_all([section, *leaves.values()])
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, icd_code="A39.2", icd_classification="icd10", node_id=leaves["MENINGO"].node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, icd_code="A39.2", icd_classification="icd11", node_id=leaves["WRONG"].node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, icd_code="1G40", icd_classification="icd11", node_id=leaves["SEPSIS"].node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, icd_code="1G00", icd_classification="icd11", node_id=leaves["FAR"].node_id, is_active=True),
+                # An ICD-10-shaped code that only an icd11 row carries.
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, icd_code="A39.3", icd_classification="icd11", node_id=leaves["WRONG"].node_id, is_active=True),
+            ]
+        )
+        # Catalogue: 1G00 (mapped, FAR) -> block (no code) -> 1G40 (mapped,
+        # SEPSIS) -> 1G40.0 -> 1G40.00, and block -> 1G41 -> 1G41.0.
+        base = "http://id.who.int/icd/release/11/mms/test-dus1"
+        for code, uri, parent_uri, kind in (
+            ("1G00", f"{base}/1g00", None, "category"),
+            (None, f"{base}/block", f"{base}/1g00", "block"),
+            ("1G40", f"{base}/1g40", f"{base}/block", "category"),
+            ("1G40.0", f"{base}/1g40-0", f"{base}/1g40", "category"),
+            ("1G40.00", f"{base}/1g40-00", f"{base}/1g40-0", "category"),
+            ("1G41", f"{base}/1g41", f"{base}/block", "category"),
+            ("1G41.0", f"{base}/1g41-0", f"{base}/1g41", "category"),
+        ):
+            db.session.add(
+                MasIcd11Mms(
+                    release=DEFAULT_ICD11_RELEASE,
+                    linearization_uri=uri,
+                    parent_linearization_uri=parent_uri,
+                    code=code,
+                    title=code or "Test block",
+                    class_kind=kind,
+                    source_version="test",
+                )
+            )
+
+        cases = {
+            "uuid:mv-cls-icd10": "A39.2-Meningococcaemia",
+            "uuid:mv-cls-icd11-exact": "1G40 Sepsis without septic shock",
+            "uuid:mv-cls-icd11-child": "1G40.0 Test child of sepsis",
+            "uuid:mv-cls-icd11-postcoord": "1G40.0&XN8Q/1G41 Post-coordinated sepsis",
+            # Two levels below 1G40, which is nearer than the also-mapped 1G00.
+            "uuid:mv-cls-icd11-grandchild": "1G40.00 Test grandchild of sepsis",
+            # Three levels below 1G00, through the code-less block.
+            "uuid:mv-cls-icd11-through-block": "1G41.0 Test code under the block",
+            "uuid:mv-cls-icd11-unmapped": "2Z99 Not in any row",
+            "uuid:mv-cls-icd10-only-icd11-row": "A39.3-Chronic meningococcaemia",
+        }
+        for sid, cod in cases.items():
+            self._add_submission(sid, {"Id10476": "classification test"}, workflow_state="coder_finalized")
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=self.base_coder_user.user_id,
+                    va_conclusive_cod=cod,
+                    va_finassess_status=VaStatuses.active,
+                )
+            )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = {
+            row["va_sid"]: row
+            for row in db.session.execute(
+                sa.text(
+                    f"""
+                    SELECT
+                        va_sid,
+                        coder_final_who_bucket_section,
+                        coder_final_who_bucket,
+                        coder_final_who_bucket_provenance,
+                        reviewer_final_who_bucket_provenance,
+                        authoritative_who_bucket,
+                        authoritative_who_bucket_provenance,
+                        smartva_cause1_who_bucket_provenance
+                    FROM {COD_SNAPSHOT_MV_NAME}
+                    WHERE va_sid = ANY(:sids)
+                    """
+                ),
+                {"sids": list(cases)},
+            ).mappings()
+        }
+        self.assertEqual(set(rows), set(cases))
+
+        icd10 = rows["uuid:mv-cls-icd10"]
+        self.assertEqual(icd10["coder_final_who_bucket_section"], "Classification section")
+        self.assertEqual(icd10["coder_final_who_bucket"], "Meningococcal via ICD-10")
+        self.assertEqual(icd10["coder_final_who_bucket_provenance"], "icd10")
+        self.assertEqual(icd10["authoritative_who_bucket"], "Meningococcal via ICD-10")
+        self.assertEqual(icd10["authoritative_who_bucket_provenance"], "icd10")
+        # No reviewer final and no SmartVA result: no provenance.
+        self.assertIsNone(icd10["reviewer_final_who_bucket_provenance"])
+        self.assertIsNone(icd10["smartva_cause1_who_bucket_provenance"])
+
+        for sid in (
+            "uuid:mv-cls-icd11-exact",
+            "uuid:mv-cls-icd11-child",
+            "uuid:mv-cls-icd11-postcoord",
+            "uuid:mv-cls-icd11-grandchild",
+        ):
+            with self.subTest(sid=sid):
+                self.assertEqual(rows[sid]["coder_final_who_bucket_section"], "Classification section")
+                self.assertEqual(rows[sid]["coder_final_who_bucket"], "Sepsis via ICD-11")
+                self.assertEqual(rows[sid]["coder_final_who_bucket_provenance"], "icd11_native")
+                self.assertEqual(rows[sid]["authoritative_who_bucket"], "Sepsis via ICD-11")
+                self.assertEqual(rows[sid]["authoritative_who_bucket_provenance"], "icd11_native")
+
+        through_block = rows["uuid:mv-cls-icd11-through-block"]
+        self.assertEqual(through_block["coder_final_who_bucket"], "Far ancestor via ICD-11")
+        self.assertEqual(through_block["coder_final_who_bucket_provenance"], "icd11_native")
+
+        for sid in ("uuid:mv-cls-icd11-unmapped", "uuid:mv-cls-icd10-only-icd11-row"):
+            with self.subTest(sid=sid):
+                self.assertIsNone(rows[sid]["coder_final_who_bucket"])
+                self.assertEqual(rows[sid]["coder_final_who_bucket_provenance"], "unmapped")
+                self.assertEqual(rows[sid]["authoritative_who_bucket_provenance"], "unmapped")
 
     def test_pending_coding_kpi_excludes_pre_coding_pipeline_states(self):
         # Use a separate project to avoid data leakage from prior tests

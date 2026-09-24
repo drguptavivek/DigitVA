@@ -18,6 +18,7 @@ from app.models import (
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
+    MasIcd11Mms,
     VaFinalAssessments,
     VaForms,
     VaResearchProjects,
@@ -62,6 +63,7 @@ from app.services.cod_bucket_mapping_service import (
     summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import refresh_submission_analytics_mv
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -140,7 +142,7 @@ class CodBucketMappingServiceTests(BaseTestCase):
             sa.text(f"CREATE UNIQUE INDEX ix_test_cod_bucket_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
         )
 
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX ix_test_cod_bucket_detail_va_sid ON {COD_MV_NAME} (va_sid)")
         )
@@ -491,6 +493,80 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(bucket_of("K72"), "Liver cirrhosis")
         self.assertEqual(bucket_of("K75"), "Other Gastrointestinal Diseases")
         self.assertEqual(bucket_of("R50"), "Unspecified infectious disease")
+        # Owner decisions 10, 11 and 12 (2026-09-24) are layered on the workbook
+        self._assert_owner_icd10_decisions(scheme)
+
+    def _assert_owner_icd10_decisions(self, scheme):
+        rows = {
+            row.icd_code: row
+            for row in db.session.execute(
+                sa.select(
+                    MapIcdCodBucket.icd_code,
+                    MapIcdCodBucket.match_type,
+                    MapIcdCodBucket.mapping_note,
+                    MapIcdCodBucket.source_sheet,
+                    MasCodBucketNode.node_code,
+                )
+                .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
+                .where(
+                    MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                    MapIcdCodBucket.icd_code.in_(
+                        ["A80", "A89", "V10.3", "V86.4", "V82.4", "V81.4", "V15.3", "I50.0", "I50.9", "I50.1"]
+                    ),
+                )
+            )
+        }
+        for code, node, decision in (
+            ("A80", "vas_01_07", "11"), ("A89", "vas_01_07", "11"),
+            ("V10.3", "vas_12_01", "12"), ("V86.4", "vas_12_01", "12"),
+            ("I50.0", "vas_04_01", "10"), ("I50.9", "vas_04_01", "10"),
+        ):
+            self.assertEqual(rows[code].node_code, node, code)
+            self.assertEqual(rows[code].match_type, "owner_decision")
+            self.assertTrue(rows[code].mapping_note.startswith(f"Owner decision {decision} (2026-09-24): "))
+            self.assertEqual(rows[code].source_sheet, "ICD_Mapped", "workbook provenance is kept")
+        # Rail and streetcar (13b) and non-PA0x targets stay Other transport.
+        for code in ("V82.4", "V81.4", "V15.3"):
+            self.assertEqual(rows[code].node_code, "vas_12_02", code)
+        self.assertEqual(rows["I50.1"].node_code, "vas_04_01")
+
+    def test_reset_who_2022_va_2026_to_default_keeps_owner_icd10_decisions(self):
+        import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
+
+        for reset_entire_scheme in (False, True):
+            scheme = reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=SCHEME_CODE_WHO_2022_VA_2026,
+                age_scope=None,
+                reset_entire_scheme=reset_entire_scheme,
+            )
+            self._assert_owner_icd10_decisions(scheme)
+
+    def test_admin_mapping_metadata_treats_owner_decision_as_the_2026_default(self):
+        scheme = import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
+
+        def node(node_code):
+            return db.session.scalar(
+                sa.select(MasCodBucketNode).where(
+                    MasCodBucketNode.scheme_id == scheme.scheme_id,
+                    MasCodBucketNode.node_code == node_code,
+                )
+            )
+
+        mapping = db.session.scalar(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == "A80",
+            )
+        )
+        mapping.node_id = node("vas_01_99").node_id
+        apply_admin_cod_bucket_mapping_metadata(scheme=scheme, mapping=mapping, target_node=node("vas_01_99"))
+        self.assertEqual(mapping.match_type, "manual_override")
+
+        mapping.node_id = node("vas_01_07").node_id
+        apply_admin_cod_bucket_mapping_metadata(scheme=scheme, mapping=mapping, target_node=node("vas_01_07"))
+        self.assertEqual(mapping.match_type, "owner_decision")
+        self.assertEqual(mapping.source_sheet, "ICD_Mapped")
+        self.assertTrue(mapping.mapping_note.startswith("Owner decision 11 (2026-09-24): "))
 
     def test_admin_mapping_metadata_clears_override_when_who_mapping_returns_to_xlsx_default(self):
         workbook_path = self._make_who_2022_va_workbook()
@@ -2821,6 +2897,160 @@ class CodBucketMappingServiceTests(BaseTestCase):
         }
         self.assertIn("I22", unmapped_codes)
         self.assertNotIn("I21", unmapped_codes)
+
+    def test_report_buckets_icd11_deaths_through_icd11_rows(self):
+        """Each death goes through the rows of its own classification: ICD-11
+        exact code or nearest catalogue ancestor, first stem of a
+        post-coordinated value. An ICD-11 death never shows as unmatched
+        ICD-10, and a scheme with no ICD-11 rows says every one is unmapped."""
+        for model in (VaFinalAssessments, VaSubmissionWorkflow):
+            db.session.execute(
+                sa.delete(model).where(
+                    model.va_sid.in_(
+                        sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                    )
+                )
+            )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        now = datetime.now(timezone.utc)
+        scheme = self._seed_icd11_collision_scheme("TEST_ICD11_NATIVE")
+        icd11_node_id = db.session.scalar(
+            sa.select(MasCodBucketNode.node_id).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_code == "icd11_field",
+            )
+        )
+        category_id = db.session.scalar(
+            sa.select(MasCodBucketNode.node_id).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_code == "all_causes",
+            )
+        )
+        far_node = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent_node_id=category_id,
+            node_code="far_field",
+            node_label="Far Ancestor Disease",
+            sort_order=3,
+        )
+        db.session.add(far_node)
+        db.session.flush()
+        for code, node_id in (("1G40", icd11_node_id), ("1G00", far_node.node_id)):
+            db.session.add(
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                    icd_classification="icd11",
+                    icd_code=code,
+                    node_id=node_id,
+                    is_active=True,
+                )
+            )
+        # ICD-10-only scheme: I21 is its one row.
+        self._seed_icd11_collision_scheme("TEST_ICD10_ONLY")
+        db.session.execute(
+            sa.delete(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id.in_(
+                    sa.select(MasCodBucketScheme.scheme_id).where(
+                        MasCodBucketScheme.scheme_code == "TEST_ICD10_ONLY"
+                    )
+                ),
+                MapIcdCodBucket.icd_classification == "icd11",
+            )
+        )
+        # Catalogue: 1G00 (mapped, far) -> block (no code) -> 1G40 (mapped)
+        # -> 1G40.0 -> 1G40.00, and block -> 1G41 -> 1G41.0.
+        base = "http://id.who.int/icd/release/11/mms/test-cbm"
+        for code, uri, parent_uri in (
+            ("1G00", f"{base}/1g00", None),
+            (None, f"{base}/block", f"{base}/1g00"),
+            ("1G40", f"{base}/1g40", f"{base}/block"),
+            ("1G40.0", f"{base}/1g40-0", f"{base}/1g40"),
+            ("1G40.00", f"{base}/1g40-00", f"{base}/1g40-0"),
+            ("1G41", f"{base}/1g41", f"{base}/block"),
+            ("1G41.0", f"{base}/1g41-0", f"{base}/1g41"),
+        ):
+            db.session.add(
+                MasIcd11Mms(
+                    release=DEFAULT_ICD11_RELEASE,
+                    linearization_uri=uri,
+                    parent_linearization_uri=parent_uri,
+                    code=code,
+                    title=code or "Test block",
+                    class_kind="category" if code else "block",
+                    source_version="test",
+                )
+            )
+        for sid, cod in (
+            ("uuid:rpt-icd10", "I21 Acute myocardial infarction"),
+            ("uuid:rpt-icd10-vs-icd11-row", "I22 Subsequent myocardial infarction"),
+            ("uuid:rpt-icd11-child", "1G40.0 Test child of sepsis"),
+            ("uuid:rpt-icd11-postcoord", "1G40.0&XN8Q/1G41 Post-coordinated"),
+            # Nearer mapped ancestor 1G40 beats 1G00.
+            ("uuid:rpt-icd11-grandchild", "1G40.00 Test grandchild"),
+            # Three levels below 1G00, through the code-less block.
+            ("uuid:rpt-icd11-through-block", "1G41.0 Test code under the block"),
+            ("uuid:rpt-icd11-unmapped", "2Z99 Not in any row"),
+        ):
+            self._add_coded_submission(sid=sid, icd=cod, submitted_at=now, normalized_years=Decimal("52"))
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_ICD11_NATIVE", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual(
+            sorted((row["bucket_field"], row["coded_count"]) for row in rows),
+            [("Far Ancestor Disease", 1), ("ICD-11 Only Disease", 3), ("Matched Disease", 1)],
+        )
+        unmatched = summarize_unmatched_coded_submissions_by_bucket(
+            scheme_code="TEST_ICD11_NATIVE", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual(unmatched[0]["unmatched_count"], 2)
+        unmatched_icds = {
+            row["icd_code"]: row
+            for row in list_unmatched_coded_submission_icds_by_bucket(
+                scheme_code="TEST_ICD11_NATIVE", form_id=self.FORM_ID, collapse_scope=True
+            )
+        }
+        self.assertEqual(set(unmatched_icds), {"I22", "2Z99"})
+        self.assertEqual(unmatched_icds["I22"]["icd_classification"], "icd10")
+        self.assertFalse(unmatched_icds["I22"]["category"].startswith("icd11_"))
+        self.assertEqual(unmatched_icds["2Z99"]["icd_classification"], "icd11")
+        self.assertEqual(unmatched_icds["2Z99"]["category"], "icd11_not_included_in_scheme")
+        breakdowns = summarize_cod_bucket_reporting_breakdowns(
+            scheme_code="TEST_ICD11_NATIVE", form_id=self.FORM_ID
+        )
+        self.assertEqual(breakdowns["matched_total"], 5)
+        csv_rows = list(csv.DictReader(io.StringIO(
+            export_cod_bucket_reporting_csv(scheme_code="TEST_ICD11_NATIVE", form_id=self.FORM_ID)
+        )))
+        by_sid = {row["SID"]: row for row in csv_rows}
+        self.assertEqual(by_sid["uuid:rpt-icd11-postcoord"]["Final authoritative COD"], "1G40.0")
+        self.assertIn("ICD-11 Only Disease", by_sid["uuid:rpt-icd11-postcoord"].values())
+
+        # A scheme with no ICD-11 rows: every ICD-11 death is unmapped, and says so.
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_ICD10_ONLY", form_id=self.FORM_ID, collapse_scope=True
+        )
+        self.assertEqual([(row["bucket_field"], row["coded_count"]) for row in rows], [("Matched Disease", 1)])
+        categories = {
+            row["icd_code"]: row["category"]
+            for row in list_unmatched_coded_submission_icds_by_bucket(
+                scheme_code="TEST_ICD10_ONLY", form_id=self.FORM_ID, collapse_scope=True
+            )
+        }
+        self.assertEqual(
+            {code: category for code, category in categories.items() if code != "I22"},
+            {
+                "1G40.0": "icd11_scheme_has_no_icd11_rows",
+                "1G40.00": "icd11_scheme_has_no_icd11_rows",
+                "1G41.0": "icd11_scheme_has_no_icd11_rows",
+                "2Z99": "icd11_scheme_has_no_icd11_rows",
+            },
+        )
 
     def test_scheme_json_round_trips_icd11_rows_and_old_files_import_as_icd10(self):
         source = self._seed_icd11_collision_scheme("TEST_ICD11_EXPORT")

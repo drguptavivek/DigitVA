@@ -19,7 +19,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
-from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
+from app.services.icd_coding_value import validate_coding_value_for_submission
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
 from app.services.reviewer_final_assessment_service import (
     create_reviewer_initial_assessment,
@@ -181,7 +181,7 @@ def submit_reviewer_final_cod(
             "Reviewer final COD can only be submitted from reviewer_coding_in_progress."
         )
     try:
-        validate_icd10_2019_2_coding_value_for_submission(va_sid, conclusive_cod)
+        validate_coding_value_for_submission(va_sid, conclusive_cod)
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400) from exc
 
@@ -325,11 +325,20 @@ def submit_reviewer_initial_cod(
             "An active reviewer allocation is required to submit reviewer initial COD."
         )
 
+    classifications = set()
     for coding_value in (immediate_cod, antecedent_cod):
         try:
-            validate_icd10_2019_2_coding_value_for_submission(va_sid, coding_value)
+            classifications.add(
+                validate_coding_value_for_submission(va_sid, coding_value)
+            )
         except (LookupError, ValueError) as exc:
             raise ReviewerCodingError(str(exc), 400) from exc
+    # One classification per save, even in a selectable project.
+    if len(classifications) > 1:
+        raise ReviewerCodingError(
+            "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
+            400,
+        )
 
     reviewer_initial = create_reviewer_initial_assessment(
         va_sid=va_sid,

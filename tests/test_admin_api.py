@@ -940,65 +940,15 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(del_resp.status_code, 200)
 
-    def test_odk_site_mapping_icd_classification(self):
+    def test_odk_site_mapping_ignores_retired_icd_classification(self):
+        """The per-form ICD classification is retired: the mapping API neither
+        reads, writes nor returns it (the project setting replaced it)."""
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
-        # Defaults to icd10 when omitted.
+        # An older client still sending the key -- even an invalid value -- is
+        # not refused, and the stored per-form column keeps its default.
         save_resp = self.client.post(
-            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
-            json={
-                "site_id": self.site_a,
-                "odk_project_id": 11,
-                "odk_form_id": "icd_test_form",
-            },
-            headers=headers,
-        )
-        # A form not yet mapped to this project-site is a new mapping.
-        self.assertEqual(save_resp.status_code, 201)
-        self.assertEqual(save_resp.get_json()["mapping"]["icd_classification"], "icd10")
-
-        # Accepts icd11. Re-saving the same ODK form on the same project-site is
-        # the idempotent path, so this updates that mapping rather than adding one.
-        save_resp = self.client.post(
-            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
-            json={
-                "site_id": self.site_a,
-                "odk_project_id": 11,
-                "odk_form_id": "icd_test_form",
-                "icd_classification": "icd11",
-            },
-            headers=headers,
-        )
-        self.assertEqual(save_resp.status_code, 200)
-        self.assertEqual(save_resp.get_json()["mapping"]["icd_classification"], "icd11")
-
-        mapping = db.session.scalar(
-            sa.select(MapProjectSiteOdk).where(
-                MapProjectSiteOdk.project_id == self.project_id,
-                MapProjectSiteOdk.site_id == self.site_a,
-                MapProjectSiteOdk.odk_form_id == "icd_test_form",
-            )
-        )
-        self.assertEqual(mapping.icd_classification, "icd11")
-
-        list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
-        saved = next(
-            m for m in list_resp.get_json()["mappings"]
-            if m["site_id"] == self.site_a and m["odk_form_id"] == "icd_test_form"
-        )
-        self.assertEqual(saved["icd_classification"], "icd11")
-
-        # The classification is per form: the fixture's own mapping on the same
-        # project-site keeps its default.
-        other = next(
-            m for m in list_resp.get_json()["mappings"]
-            if m["site_id"] == self.site_a and m["odk_form_id"] == "ADMIN_API_FORM_A"
-        )
-        self.assertEqual(other["icd_classification"], "icd10")
-
-        # Rejects an invalid value.
-        reject_resp = self.client.post(
             f"/admin/api/projects/{self.project_id}/odk-site-mappings",
             json={
                 "site_id": self.site_a,
@@ -1008,7 +958,111 @@ class AdminApiTests(BaseTestCase):
             },
             headers=headers,
         )
-        self.assertEqual(reject_resp.status_code, 400)
+        self.assertEqual(save_resp.status_code, 201)
+        mapping_json = save_resp.get_json()["mapping"]
+        self.assertEqual(mapping_json["odk_form_id"], "icd_test_form")
+        self.assertNotIn("icd_classification", mapping_json)
+
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_a,
+                MapProjectSiteOdk.odk_form_id == "icd_test_form",
+            )
+        )
+        self.assertIsNotNone(mapping)
+        self.assertEqual(mapping.icd_classification, "icd10")
+
+        list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
+        saved = next(
+            m for m in list_resp.get_json()["mappings"]
+            if m["site_id"] == self.site_a and m["odk_form_id"] == "icd_test_form"
+        )
+        self.assertNotIn("icd_classification", saved)
+
+    def test_project_icd_classification_set_and_validated(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "ICDP01", "project_name": "ICD", "project_nickname": "ICD"},
+            headers=headers,
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        self.assertEqual(create_resp.get_json()["project"]["icd_classification"], "icd10")
+
+        for value in ("selectable", "icd11", "icd10"):
+            resp = self.client.put(
+                "/admin/api/projects/ICDP01",
+                json={"icd_classification": value},
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.get_json()["project"]["icd_classification"], value)
+            self.assertEqual(
+                db.session.get(VaProjectMaster, "ICDP01").icd_classification, value
+            )
+
+        for bad in ("icd9", "", None, ["icd10"], 11):
+            resp = self.client.put(
+                "/admin/api/projects/ICDP01",
+                json={"icd_classification": bad, "project_name": "Must not stick"},
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+        project = db.session.get(VaProjectMaster, "ICDP01")
+        db.session.refresh(project)
+        self.assertEqual(project.icd_classification, "icd10")
+        self.assertEqual(project.project_name, "ICD")
+
+        create_bad = self.client.post(
+            "/admin/api/projects",
+            json={
+                "project_id": "ICDP02",
+                "project_name": "ICD",
+                "project_nickname": "ICD",
+                "icd_classification": "both",
+            },
+            headers=headers,
+        )
+        self.assertEqual(create_bad.status_code, 400)
+        self.assertIsNone(db.session.get(VaProjectMaster, "ICDP02"))
+
+        create_selectable = self.client.post(
+            "/admin/api/projects",
+            json={
+                "project_id": "ICDP03",
+                "project_name": "ICD",
+                "project_nickname": "ICD",
+                "icd_classification": "selectable",
+            },
+            headers=headers,
+        )
+        self.assertEqual(create_selectable.status_code, 201)
+        self.assertEqual(
+            create_selectable.get_json()["project"]["icd_classification"], "selectable"
+        )
+
+    def test_project_icd_classification_requires_csrf_and_admin(self):
+        self._login(self.admin_user_id)
+        no_csrf = self.client.put(
+            f"/admin/api/projects/{self.project_id}",
+            json={"icd_classification": "icd11"},
+        )
+        self.assertEqual(no_csrf.status_code, 400)
+        self.assertIn("CSRF", no_csrf.get_json()["error"])
+
+        self._login(self.manager_id)
+        denied = self.client.put(
+            f"/admin/api/projects/{self.project_id}",
+            json={"icd_classification": "icd11"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(denied.status_code, 403)
+        project = db.session.get(VaProjectMaster, self.project_id)
+        db.session.refresh(project)
+        self.assertEqual(project.icd_classification, "icd10")
 
 
     # ── ODK form uniqueness (one ODK form → one project-site per connection) ──

@@ -41,14 +41,14 @@ A project declares how its deaths are coded: `icd10`, `icd11`, or
 `selectable` (the coder chooses ICD-10 or ICD-11 for each death). This is not
 a bucket-scheme link; schemes stay a per-report choice.
 
-- Today the classification is per ODK form mapping
-  (`map_project_site_odk.icd_classification`), and a web-form submission has
-  no such row, so it always resolves to `icd10`. The project setting closes
-  that gap.
+- Implemented as `va_project_master.icd_classification`; it covers ODK and
+  web-form submissions alike. The per-form ODK setting
+  (`map_project_site_odk.icd_classification`) is retired in favour of it
+  (owner, 2026-09-24): deprecated, no longer read. Rules and the migration of
+  per-form values: [VA Form Project Configuration](va-form-project-configuration.md),
+  "5. ICD classification".
 - With `selectable`, the coded value carries its classification, so a
-  project's data may be mixed; that is the case the crosswalk method serves.
-- Open: whether the per-form ODK setting stays as an override of the project
-  setting, or is retired in favour of it.
+  project's data may be mixed.
 
 ## Crosswalk method
 

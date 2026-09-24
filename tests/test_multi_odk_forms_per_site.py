@@ -243,34 +243,6 @@ class MultipleOdkFormsPerProjectSiteTests(BaseTestCase):
         ).all()
         self.assertEqual({f.odk_project_id for f in forms}, {"42", "43"})
 
-    def test_icd_classification_is_resolved_per_form(self):
-        from app.services.icd_coding_value import DEFAULT_ICD_CLASSIFICATION
-
-        alpha = self._map("FORM_ALPHA")
-        beta = self._map("FORM_BETA")
-        alpha.icd_classification = "icd11"
-        db.session.commit()
-        sync_runtime_forms_from_site_mappings()
-        db.session.commit()
-
-        forms = {
-            f.odk_form_id: f
-            for f in db.session.scalars(
-                sa.select(VaForms).where(VaForms.project_id == self.PROJECT)
-            ).all()
-        }
-        self.assertEqual(
-            get_active_mapping_for_form(forms["FORM_ALPHA"]).icd_classification, "icd11"
-        )
-        self.assertEqual(
-            get_active_mapping_for_form(forms["FORM_BETA"]).icd_classification,
-            DEFAULT_ICD_CLASSIFICATION,
-        )
-
-
-class ProjectFormsPanelMultiMappingTests(BaseTestCase):
-    """The panel edits one named mapping and can add or remove others."""
-
     def test_panel_carries_the_mapping_picker_and_hidden_mapping_id(self):
         self._login(str(self.base_admin_id))
         response = self.client.get("/admin/panels/project-forms")

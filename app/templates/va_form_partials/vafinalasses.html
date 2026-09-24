@@ -234,6 +234,7 @@
       </div>
       {% endif %}
   
+      {% with icd_root_id="select2-root", icd_preset=pre_conclusive_cod or va_immediate_cod %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
       <!-- Final COD Selection -->  
       <div class="row mb-4">  
         <div class="col-12">  
@@ -241,9 +242,9 @@
             <div class="card-body p-3">  
               <label for="conclusive-cod-select" class="form-label fw-bold">
                 Final Underlying / Antecedent Cause of Death <span style="color: red">*</span>
-                <a href="https://icd.who.int/browse10/2019/en" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary ms-2" title="Open ICD-10 Browser"><i class="fas fa-book-medical me-1"></i>ICD-10 Browser</a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#icdCodesModal" title="Selected ICD-10 and ICD-11 Codes"><i class="fas fa-file-pdf me-1"></i>Selected ICD Codes</button> <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="ms-1" title="Open in new tab" style="font-size:0.75rem;color:#6c757d;"><i class="fas fa-external-link-alt"></i></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#vaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
+                <a href="https://icd.who.int/browse10/2019/en" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary ms-2 js-icd-browser" title="Open ICD-10 Browser"><i class="fas fa-book-medical me-1"></i><span class="js-icd-browser-label">ICD-10 Browser</span></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#icdCodesModal" title="Selected ICD-10 and ICD-11 Codes"><i class="fas fa-file-pdf me-1"></i>Selected ICD Codes</button> <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="ms-1" title="Open in new tab" style="font-size:0.75rem;color:#6c757d;"><i class="fas fa-external-link-alt"></i></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#vaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
               </label>  
-              <select id="conclusive-cod-select" class="form-select form-select-lg mb-2"></select>  
+              <select id="conclusive-cod-select" class="form-select form-select-lg mb-2" data-icd-hidden="va_conclusive_cod"></select>  
               {{ form.va_conclusive_cod }}  
               {% if form.va_conclusive_cod.errors %}  
                 <div class="text-danger small mt-1">  
@@ -290,7 +291,6 @@
   }
 </script>
 {% endif %}
-<div id="select2-root" data-icd-url="{{ url_for('api_v1.icd10_api.icd10_2019_2_coding_search', va_sid=va_sid) }}"></div>
 <script>
 document.body.addEventListener("htmx:afterSwap", function(event) {
   const icdUrl = document.getElementById("select2-root")?.dataset.icdUrl;
@@ -305,7 +305,7 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
 
       $select.select2({
         ajax: {
-          url: icdUrl,
+          url: () => document.getElementById("select2-root").dataset.icdUrl,
           dataType: 'json',
           delay: 250,
           data: params => ({ q: params.term }),

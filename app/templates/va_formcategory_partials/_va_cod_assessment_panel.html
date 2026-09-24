@@ -61,6 +61,7 @@
     </div>
   {% endif %}
 
+  {% with icd_root_id="reviewer-select2-root", icd_preset=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) or (va_reviewer_initial_assess.va_immediate_cod if va_reviewer_initial_assess else none) %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
   <form id="reviewerInitialCodForm"
         data-initial-url="{{ url_for('api_v1.reviewing_api.initial', va_sid=va_sid) }}"
         data-csrf="{{ csrf_token() }}"
@@ -77,7 +78,7 @@
             <label for="reviewer-immediate-cod-select" class="form-label fw-bold">
               Immediate Cause of Death <span style="color: red">*</span>
             </label>
-            <select id="reviewer-immediate-cod-select" class="form-select"></select>
+            <select id="reviewer-immediate-cod-select" class="form-select" data-icd-hidden="reviewer-immediate-cod"></select>
             <input type="hidden" id="reviewer-immediate-cod" name="immediate_cod">
           </div>
         </div>
@@ -88,7 +89,7 @@
             <label for="reviewer-antecedent-cod-select" class="form-label fw-bold">
               Antecedent Cause of Death <span style="color: red">*</span>
             </label>
-            <select id="reviewer-antecedent-cod-select" class="form-select"></select>
+            <select id="reviewer-antecedent-cod-select" class="form-select" data-icd-hidden="reviewer-antecedent-cod"></select>
             <input type="hidden" id="reviewer-antecedent-cod" name="antecedent_cod">
           </div>
         </div>
@@ -158,9 +159,9 @@
               <a href="https://icd.who.int/browse10/2019/en"
                  target="_blank"
                  rel="noopener noreferrer"
-                 class="btn btn-sm btn-outline-secondary ms-2"
+                 class="btn btn-sm btn-outline-secondary ms-2 js-icd-browser"
                  title="Open ICD-10 Browser">
-                <i class="fas fa-book-medical me-1"></i>ICD-10 Browser
+                <i class="fas fa-book-medical me-1"></i><span class="js-icd-browser-label">ICD-10 Browser</span>
               </a>
               <button type="button"
                       class="btn btn-sm btn-outline-secondary ms-2"
@@ -171,7 +172,7 @@
               </button>
               <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#reviewerVaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
             </label>
-            <select id="reviewer-conclusive-cod-select" class="form-select form-select-lg mb-2"></select>
+            <select id="reviewer-conclusive-cod-select" class="form-select form-select-lg mb-2" data-icd-hidden="reviewer-conclusive-cod"></select>
             <input type="hidden" id="reviewer-conclusive-cod" name="conclusive_cod">
             <div class="text-danger small mt-1 d-none" id="reviewer-final-cod-error"></div>
           </div>
@@ -203,8 +204,6 @@
     </div>
   {% endif %}
 
-  <div id="reviewer-select2-root"
-       data-icd-url="{{ url_for('api_v1.icd10_api.icd10_2019_2_coding_search', va_sid=va_sid) }}"></div>
   <script>
     (function () {
       var initialForm = document.getElementById('reviewerInitialCodForm');
@@ -227,7 +226,7 @@
         }
         $select.select2({
           ajax: {
-            url: root.dataset.icdUrl,
+            url: function () { return root.dataset.icdUrl; },
             dataType: 'json',
             delay: 250,
             data: function (params) { return { q: params.term }; },

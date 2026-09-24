@@ -252,6 +252,16 @@ def create_app(config_class=None):
     from app.commands.schema_drift import init_app as init_schema_drift_commands
     init_schema_drift_commands(app)
 
+    # The coding screens' ICD classification switch
+    # (va_form_partials/_icd_classification_switch.html).
+    from app.services.icd_coding_value import (
+        classification_of_value,
+        get_icd_classification_for_submission,
+    )
+
+    app.add_template_global(get_icd_classification_for_submission, "icd_classification_for")
+    app.add_template_global(classification_of_value, "icd_classification_of")
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

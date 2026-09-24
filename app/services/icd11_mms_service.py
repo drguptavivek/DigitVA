@@ -24,6 +24,7 @@ from openpyxl.styles import Font, PatternFill
 from app import db
 from app.models import MasIcd11Mms
 from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
+from app.services.icd_coding_value import extract_icd_code
 
 DEFAULT_ICD11_RELEASE = "2026-01"
 DEFAULT_ICD11_MMS_EXPORT_PATH = Path(
@@ -997,6 +998,41 @@ def _coding_policy_clause(*, age_group: str | None, sex: str | None):
     return clause
 
 
+def validate_icd11_mms_coding_value_for_submission(
+    va_sid: str,
+    value: str | None,
+    release: str = DEFAULT_ICD11_RELEASE,
+) -> None:
+    """Reject a COD value that is not a selectable ICD-11 code for this death.
+
+    Mirrors ``validate_icd10_2019_2_coding_value_for_submission``: the code
+    must be an active category of ``release`` that the coding policy allows
+    for the submission's age and sex. Raises ``ValueError`` when it is not,
+    ``LookupError`` when the submission does not exist.
+    """
+    code = extract_icd_code(value, "icd11")
+    if code is None:
+        raise ValueError("Select a valid ICD-11 code.")
+
+    context = get_icd10_2019_2_coding_context(va_sid)
+    if context is None:
+        raise LookupError(f"Submission not found: {va_sid}")
+
+    is_allowed = db.session.scalar(
+        sa.select(
+            sa.exists().where(
+                MasIcd11Mms.release == release,
+                MasIcd11Mms.code == code,
+                MasIcd11Mms.is_active.is_(True),
+                MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+                _coding_policy_clause(age_group=context["age_group"], sex=context["sex"]),
+            )
+        )
+    )
+    if not is_allowed:
+        raise ValueError(f"{code} is not selectable for this submission.")
+
+
 def search_icd11_mms(
     query: str,
     va_sid: str | None = None,
@@ -1021,16 +1057,18 @@ def search_icd11_mms(
         age_group = context["age_group"]
         sex = context["sex"]
 
-    like_query = f"%{normalized_query}%"
-    code_prefix = f"{normalized_query}%"
+    # Escape LIKE wildcards so '%' and '_' in a query match literally.
+    escaped = normalized_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    like_query = f"%{escaped}%"
+    code_prefix = f"{escaped}%"
     lower_code = sa.func.lower(sa.func.coalesce(MasIcd11Mms.code, ""))
     lower_title = sa.func.lower(MasIcd11Mms.title)
 
     rank_expr = sa.case(
         (lower_code == normalized_query, 0),
-        (lower_code.like(code_prefix), 1),
-        (lower_title.like(code_prefix), 2),
-        (lower_title.like(like_query), 3),
+        (lower_code.like(code_prefix, escape="\\"), 1),
+        (lower_title.like(code_prefix, escape="\\"), 2),
+        (lower_title.like(like_query, escape="\\"), 3),
         else_=4,
     )
 
@@ -1038,7 +1076,7 @@ def search_icd11_mms(
         MasIcd11Mms.release == release,
         MasIcd11Mms.is_active.is_(True),
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
-        sa.or_(lower_code.like(like_query), lower_title.like(like_query)),
+        sa.or_(lower_code.like(like_query, escape="\\"), lower_title.like(like_query, escape="\\")),
     ]
     if va_sid is not None:
         filters.append(_coding_policy_clause(age_group=age_group, sex=sex))

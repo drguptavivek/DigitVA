@@ -57,8 +57,10 @@ class MapProjectSiteOdk(db.Model):
         nullable=True,
         index=True,
     )
-    # Form-level ICD classification ('icd10' | 'icd11'); coders see the
-    # matching code search in the coding screens for this project-site's form.
+    # DEPRECATED (2026-09-24): the ICD classification is a project setting,
+    # va_project_master.icd_classification. This column is kept only so the
+    # move can be rolled back; nothing reads, writes or shows it. Policy:
+    # docs/policy/va-form-project-configuration.md ("5. ICD classification").
     icd_classification: so.Mapped[str] = so.mapped_column(
         sa.String(8), nullable=False, server_default="icd10"
     )

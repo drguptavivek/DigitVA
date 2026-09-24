@@ -1,0 +1,76 @@
+{#-
+  ICD classification for one death's coding screen.
+  Policy: docs/policy/va-form-project-configuration.md ("5. ICD classification").
+
+  Renders the Select2 root the COD fields read their search URL from
+  (data-icd-url, read on every search), and for a 'selectable' project a
+  switch between ICD-10 and ICD-11. The switch clears every
+  select[data-icd-hidden] and its hidden input, since a value from the other
+  catalogue would be rejected on save. a.js-icd-browser links follow the
+  classification.
+
+  Expects: va_sid; icd_root_id (the root's element id); icd_preset (an already
+  stored value on this screen, or none: in a selectable project the switch
+  starts on that value's classification, else ICD-10).
+-#}
+{%- set icd_setting = icd_classification_for(va_sid) -%}
+{%- if icd_setting == 'selectable' -%}
+  {%- set icd_current = icd_classification_of(icd_preset) or 'icd10' -%}
+{%- else -%}
+  {%- set icd_current = icd_setting -%}
+{%- endif -%}
+{%- set icd10_url = url_for('api_v1.icd10_api.icd10_2019_2_coding_search', va_sid=va_sid) -%}
+{%- set icd11_url = url_for('api_v1.icd11_api.icd11_coding_search', va_sid=va_sid) -%}
+<div id="{{ icd_root_id }}"
+     data-icd-url="{{ icd11_url if icd_current == 'icd11' else icd10_url }}"
+     data-icd10-url="{{ icd10_url }}"
+     data-icd11-url="{{ icd11_url }}"
+     data-icd-classification="{{ icd_current }}"></div>
+{% if icd_setting == 'selectable' %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <span class="small fw-bold">Code this death in</span>
+  <div class="btn-group btn-group-sm" role="group" aria-label="ICD classification for this death">
+    {% for value, label in (('icd10', 'ICD-10'), ('icd11', 'ICD-11')) %}
+    <input type="radio" class="btn-check" name="{{ icd_root_id }}-classification"
+           id="{{ icd_root_id }}-{{ value }}" value="{{ value }}" autocomplete="off"
+           {{ 'checked' if value == icd_current }}>
+    <label class="btn btn-outline-primary" for="{{ icd_root_id }}-{{ value }}">{{ label }}</label>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<script>
+(function () {
+  var root = document.getElementById({{ icd_root_id | tojson }});
+  if (!root) return;
+  var BROWSERS = {
+    icd10: { href: 'https://icd.who.int/browse10/2019/en', label: 'ICD-10 Browser' },
+    icd11: { href: 'https://icd.who.int/browse/2026-01/mms/en', label: 'ICD-11 Browser' }
+  };
+
+  function apply(classification, clearValues) {
+    var browser = BROWSERS[classification];
+    root.dataset.icdClassification = classification;
+    root.dataset.icdUrl = classification === 'icd11' ? root.dataset.icd11Url : root.dataset.icd10Url;
+    document.querySelectorAll('a.js-icd-browser').forEach(function (link) {
+      link.href = browser.href;
+      link.title = 'Open ' + browser.label;
+      var text = link.querySelector('.js-icd-browser-label');
+      if (text) text.textContent = browser.label;
+    });
+    if (!clearValues) return;
+    document.querySelectorAll('select[data-icd-hidden]').forEach(function (select) {
+      if (window.jQuery) window.jQuery(select).val(null).empty().trigger('change');
+      var hidden = document.getElementById(select.dataset.icdHidden);
+      if (hidden) hidden.value = '';
+    });
+  }
+
+  apply(root.dataset.icdClassification, false);
+  document.querySelectorAll('input[name="' + root.id + '-classification"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      if (radio.checked) apply(radio.value, true);
+    });
+  });
+})();
+</script>

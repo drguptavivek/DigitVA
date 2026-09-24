@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-24
 ---
 
 # Current Data Model
@@ -526,11 +526,24 @@ docs/planning/icd11-coding-screen-integration-plan.md):
 - admin browser and policy editor at `/admin/panels/icd11-browser`
   (`app/routes/admin_icd11.py`); policy is curated there or through
   `flask icd11 policy-export`/`policy-import`, which share one JSON format
-- `map_project_site_odk.icd_classification` (`icd10` | `icd11`, default
-  `icd10`) selects which catalog a project-site's form uses; resolved for a
-  submission by `app/services/icd_coding_value.py::get_icd_classification_for_submission`
-- ICD-11 coding-screen search, validation, and per-code allowability policy
-  (phase 5 of the plan) are not implemented yet
+- `va_project_master.icd_classification` (`icd10` | `icd11` | `selectable`,
+  default `icd10`, CHECK `ck_va_project_master_icd_classification`; migration
+  `33dea3ea3303`) is the only source of a death's coding classification, for
+  ODK and web-form submissions alike; resolved by
+  `app/services/icd_coding_value.py::get_icd_classification_for_submission`
+  (submission -> `va_forms.project_id` -> project). `selectable` lets the
+  coder pick ICD-10 or ICD-11 per death with a switch on the coding screen
+  (`va_form_partials/_icd_classification_switch.html`). Saves go through
+  `validate_coding_value_for_submission`, which checks a fixed project's one
+  catalogue, or in a `selectable` project the catalogue the value's code shape
+  names. ICD-11 coding search: `GET /api/v1/icd11/coding-search/<va_sid>`.
+  Policy: docs/policy/va-form-project-configuration.md ("5. ICD classification")
+- `map_project_site_odk.icd_classification` is deprecated (kept for rollback;
+  not read, written or shown). Migration `33dea3ea3303` moved its values up to
+  the project: one value -> that value, both values -> `selectable`
+- the ICD-11 per-code allowability policy (phase 5 of the plan) is not
+  curated yet: every seeded `mas_icd11_mms` row is unselectable, so ICD-11
+  coding search returns nothing until it is
 
 ### `mas_va_cause_definitions`
 

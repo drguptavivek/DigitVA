@@ -28,7 +28,7 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
 from app.services.field_mapping_service import get_mapping_service
-from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
+from app.services.icd_coding_value import validate_coding_value_for_submission
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services import attachment_service
 from app.services.payload_bound_coding_artifact_service import (
@@ -877,14 +877,22 @@ def renderpartial(va_sid, va_partial):
             form.va_other_conditions.choices = adult
         if save_clicked and form.validate_on_submit():
             coding_errors: list[tuple[object, str]] = []
+            classifications = set()
             for field in (form.va_immediate_cod, form.va_antecedent_cod):
                 try:
-                    validate_icd10_2019_2_coding_value_for_submission(
-                        va_sid,
-                        field.data,
+                    classifications.add(
+                        validate_coding_value_for_submission(va_sid, field.data)
                     )
                 except (LookupError, ValueError) as exc:
                     coding_errors.append((field, str(exc)))
+            # One classification per save, even in a selectable project.
+            if not coding_errors and len(classifications) > 1:
+                coding_errors.append(
+                    (
+                        form.va_antecedent_cod,
+                        "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
+                    )
+                )
             if coding_errors:
                 for field, message in coding_errors:
                     field.errors.append(message)
@@ -1070,7 +1078,7 @@ def renderpartial(va_sid, va_partial):
         if form1.validate_on_submit():
             blocking_messages: list[str] = []
             try:
-                validate_icd10_2019_2_coding_value_for_submission(
+                validate_coding_value_for_submission(
                     va_sid,
                     form1.va_conclusive_cod.data,
                 )

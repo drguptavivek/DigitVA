@@ -265,6 +265,10 @@ class Icd11MmsServiceTestCase(BaseTestCase):
         self.assertIn("1A00", codes)
         self.assertIn("1A0Z", codes)
 
+        # '%' and '_' match literally, not as LIKE wildcards.
+        self.assertEqual(search_icd11_mms("1_00", release="2026-01"), [])
+        self.assertEqual(search_icd11_mms("%%%", release="2026-01"), [])
+
     def test_policy_export_and_import_round_trip(self):
         path = _write_export(_BASE_ROWS)
         try:

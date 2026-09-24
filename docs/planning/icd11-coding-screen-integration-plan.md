@@ -3,7 +3,7 @@ title: ICD-11 in the Coding Screen — Form-Level Classification and Optional St
 doc_type: planning
 status: in-progress
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-24
 ---
 
 # ICD-11 in the Coding Screen — Form-Level Classification and Optional Step 1
@@ -64,6 +64,11 @@ runtime WHO dependency. The container/ECT remain a later, optional upgrade.
   `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv`.
 
 ## Decisions to confirm before implementation
+
+> **D1 superseded (owner, 2026-09-24).** The classification is a project
+> setting, `va_project_master.icd_classification` (`icd10` | `icd11` |
+> `selectable`); the per-form column is deprecated. See
+> docs/policy/va-form-project-configuration.md ("5. ICD classification").
 
 | # | Question | Recommendation |
 |---|---|---|

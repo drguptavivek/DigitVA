@@ -53,6 +53,8 @@
               <dd class="col-sm-8">{{ 'Organization (unit tree)' if is_org else 'Sites (Project > Site > Form)' }}</dd>
               <dt class="col-sm-4">Coding intake</dt>
               <dd class="col-sm-8">{{ 'Pick and choose' if project.coding_intake_mode == 'pick_and_choose' else 'Random form allocation' }}</dd>
+              <dt class="col-sm-4">ICD classification</dt>
+              <dd class="col-sm-8">{{ {'icd10': 'ICD-10', 'icd11': 'ICD-11', 'selectable': 'Selectable (coder picks per death)'}.get(project.icd_classification, project.icd_classification) }}</dd>
               <dt class="col-sm-4">Web intake</dt>
               <dd class="col-sm-8">{{ project.web_intake_mode or 'off' }}</dd>
               {% if is_org %}

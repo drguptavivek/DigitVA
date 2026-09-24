@@ -22,6 +22,7 @@ from app.services.icd10_2019_2_service import (
     list_icd10_2019_2_children,
     update_icd10_2019_2_policy,
 )
+from app.services.icd_coding_value import get_icd_classification_for_submission
 from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("icd10_api", __name__)
@@ -153,6 +154,8 @@ def icd10_2019_2_coding_search(va_sid: str):
     err = _require_coding_or_reviewing_access(va_sid)
     if err:
         return err
+    if get_icd_classification_for_submission(va_sid) == "icd11":
+        return _error("This project codes in ICD-11.", 400)
 
     try:
         payload = search_icd10_2019_2_coding_choices(

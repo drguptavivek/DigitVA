@@ -2,8 +2,11 @@
 
 COD values are stored as free text ``"<CODE> <title>"`` in the assessment
 tables. ICD-10 and ICD-11 codes have different shapes, so extracting the
-code and deciding which catalog a form uses must be classification-aware.
-See docs/planning/icd11-coding-screen-integration-plan.md.
+code and deciding which catalog a death is coded in must be
+classification-aware. The project decides which catalogues its coders may use
+(``va_project_master.icd_classification``); a stored value records its own
+classification through its code shape. Policy:
+docs/policy/va-form-project-configuration.md ("5. ICD classification").
 """
 
 from __future__ import annotations
@@ -14,8 +17,14 @@ import sqlalchemy as sa
 
 from app import db
 
+# The catalogues a code can come from.
 ICD_CLASSIFICATIONS = ("icd10", "icd11")
 DEFAULT_ICD_CLASSIFICATION = "icd10"
+# A project setting, not a catalogue: the coder picks ICD-10 or ICD-11 per death.
+ICD_CLASSIFICATION_SELECTABLE = "selectable"
+# Valid values of va_project_master.icd_classification. A tuple, so an
+# unhashable JSON value fails membership instead of raising TypeError.
+PROJECT_ICD_CLASSIFICATIONS = ICD_CLASSIFICATIONS + (ICD_CLASSIFICATION_SELECTABLE,)
 
 # ICD-10: one letter, two digits, optional dotted decimal (e.g. A00, A00.1).
 ICD10_CODE_RE = re.compile(r"^\s*([A-Z]\d{2}(?:\.\d+)?)\b", re.IGNORECASE)
@@ -48,36 +57,64 @@ def extract_icd_code(value: str | None, classification: str) -> str | None:
     return match.group(1).upper()
 
 
-def get_icd_classification_for_submission(va_sid: str) -> str:
-    """Resolve the ICD classification a submission's form is configured for.
+def classification_of_value(value: str | None) -> str | None:
+    """The classification a stored coding value's code shape names, or None.
 
-    Path: submission -> va_forms.form_id -> project/site ->
-    map_project_site_odk.icd_classification. Defaults to ``icd10`` when the
-    submission, its form, or the project-site ODK mapping cannot be found.
+    ICD-10 (``A00.1``) and ICD-11 (``1A00``, ``BA00.1``) shapes do not
+    overlap, so an already-coded value never needs the project setting.
     """
-    from app.models import MapProjectSiteOdk, VaForms, VaSubmissions
+    for classification in ICD_CLASSIFICATIONS:
+        if extract_icd_code(value, classification):
+            return classification
+    return None
 
-    submission = db.session.get(VaSubmissions, va_sid)
-    if submission is None:
-        return DEFAULT_ICD_CLASSIFICATION
 
-    form = db.session.get(VaForms, submission.va_form_id)
-    if form is None:
-        return DEFAULT_ICD_CLASSIFICATION
+def get_icd_classification_for_submission(va_sid: str) -> str:
+    """The ICD classification setting of a submission's project.
 
-    # Keyed on the ODK project and form as well as the project-site: a
-    # project-site may map several Central forms, and the classification is a
-    # per-form setting.
-    mapping = db.session.scalar(
-        sa.select(MapProjectSiteOdk).where(
-            MapProjectSiteOdk.project_id == form.project_id,
-            MapProjectSiteOdk.site_id == form.site_id,
-            MapProjectSiteOdk.odk_form_id == form.odk_form_id,
-            sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text)
-            == str(form.odk_project_id),
-        )
+    Path: submission -> va_forms.project_id -> va_project_master. Returns one
+    of ``PROJECT_ICD_CLASSIFICATIONS`` (``selectable`` included), so ODK and
+    web-form submissions resolve alike. Defaults to ``icd10`` when the
+    submission, its form or its project cannot be found. The per-form
+    ``map_project_site_odk.icd_classification`` is deprecated and not read.
+    """
+    from app.models import VaForms, VaProjectMaster, VaSubmissions
+
+    setting = db.session.scalar(
+        sa.select(VaProjectMaster.icd_classification)
+        .join(VaForms, VaForms.project_id == VaProjectMaster.project_id)
+        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
+        .where(VaSubmissions.va_sid == va_sid)
     )
-    if mapping is None:
-        return DEFAULT_ICD_CLASSIFICATION
+    return setting or DEFAULT_ICD_CLASSIFICATION
 
-    return mapping.icd_classification or DEFAULT_ICD_CLASSIFICATION
+
+def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
+    """Check a COD value against the catalogue its project allows.
+
+    A project set to ``icd10`` or ``icd11`` checks against that catalogue; a
+    ``selectable`` project checks against the catalogue the value's code
+    shape names. Returns the value's classification. Raises ``ValueError``
+    when the value is not a selectable code for this submission and
+    ``LookupError`` when the submission does not exist.
+    """
+    from app.services.icd10_2019_2_service import (
+        validate_icd10_2019_2_coding_value_for_submission,
+    )
+    from app.services.icd11_mms_service import (
+        validate_icd11_mms_coding_value_for_submission,
+    )
+
+    setting = get_icd_classification_for_submission(va_sid)
+    classification = (
+        classification_of_value(value)
+        if setting == ICD_CLASSIFICATION_SELECTABLE
+        else setting
+    )
+    if classification == "icd10":
+        validate_icd10_2019_2_coding_value_for_submission(va_sid, value)
+    elif classification == "icd11":
+        validate_icd11_mms_coding_value_for_submission(va_sid, value)
+    else:
+        raise ValueError("Select a valid ICD-10 or ICD-11 code.")
+    return classification

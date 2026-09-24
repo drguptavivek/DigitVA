@@ -62,6 +62,7 @@ from app.services.cod_bucket_mapping_service import (
     search_cod_bucket_icd_candidates,
     update_cod_bucket_scheme,
 )
+from app.services.icd_coding_value import PROJECT_ICD_CLASSIFICATIONS
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
     export_icd10_2019_2_policy_xlsx,
@@ -393,6 +394,7 @@ def _serialize_project(project, form_type_codes=None):
         "social_autopsy_enabled": project.social_autopsy_enabled,
         "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,
+        "icd_classification": project.icd_classification,
         "project_structure_mode": project.project_structure_mode,
         "coding_scope_level_id": str(project.coding_scope_level_id)
         if project.coding_scope_level_id
@@ -1296,6 +1298,10 @@ def admin_create_project():
     if project_structure_mode not in PROJECT_STRUCTURE_MODES:
         return _json_error("Invalid project_structure_mode.", 400)
 
+    icd_classification = payload.get("icd_classification") or "icd10"
+    if icd_classification not in PROJECT_ICD_CLASSIFICATIONS:
+        return _json_error("Invalid icd_classification.", 400)
+
     # Validated before the row is built so a rejected payload adds nothing.
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
@@ -1315,6 +1321,7 @@ def admin_create_project():
             )
         ),
         coding_intake_mode=coding_intake_mode,
+        icd_classification=icd_classification,
         project_structure_mode=project_structure_mode,
         web_intake_mode=web_intake_mode,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
@@ -1396,6 +1403,11 @@ def admin_update_project(project_id):
         if coding_intake_mode not in CODING_INTAKE_MODES:
             return _json_error("Invalid coding_intake_mode.", 400)
         updates["coding_intake_mode"] = coding_intake_mode
+
+    if "icd_classification" in payload:
+        if payload["icd_classification"] not in PROJECT_ICD_CLASSIFICATIONS:
+            return _json_error("Invalid icd_classification.", 400)
+        updates["icd_classification"] = payload["icd_classification"]
 
     if "project_structure_mode" in payload:
         project_structure_mode = payload["project_structure_mode"]
@@ -4580,7 +4592,6 @@ def admin_odk_site_mappings_list(project_id):
                 "odk_form_id": r.odk_form_id,
                 "form_type_id": str(r.form_type_id) if r.form_type_id else None,
                 "form_type_code": r.form_type.form_type_code if r.form_type else None,
-                "icd_classification": r.icd_classification,
                 "org_unit_id": str(r.org_unit_id) if r.org_unit_id else None,
                 "form_id": forms_by_site.get(r.site_id).form_id if forms_by_site.get(r.site_id) else None,
                 "form_smartvahiv": (
@@ -4679,7 +4690,6 @@ def admin_odk_site_mappings_save(project_id):
     form_smartvahce = (data.get("form_smartvahce") or "True").strip()
     form_smartvafreetext = (data.get("form_smartvafreetext") or "True").strip()
     form_smartvacountry = (data.get("form_smartvacountry") or "IND").strip().upper()
-    icd_classification = (data.get("icd_classification") or "icd10").strip().lower()
     org_unit_id_raw = (data.get("org_unit_id") or "").strip()
 
     if not site_id or odk_project_id is None or not odk_form_id:
@@ -4698,13 +4708,6 @@ def admin_odk_site_mappings_save(project_id):
             return _json_error("Organization unit not found in this project.", 404)
         if not fallback_unit.is_active:
             return _json_error("Organization unit is inactive.", 400)
-
-    from app.services.icd_coding_value import ICD_CLASSIFICATIONS
-
-    if icd_classification not in ICD_CLASSIFICATIONS:
-        return _json_error(
-            f"icd_classification must be one of {', '.join(ICD_CLASSIFICATIONS)}.", 400
-        )
 
     try:
         odk_project_id = int(odk_project_id)
@@ -4798,7 +4801,6 @@ def admin_odk_site_mappings_save(project_id):
         existing.odk_project_id = odk_project_id
         existing.odk_form_id = odk_form_id
         existing.form_type_id = form_type_id
-        existing.icd_classification = icd_classification
         existing.org_unit_id = org_unit_id
         status_code = 200
     else:
@@ -4808,7 +4810,6 @@ def admin_odk_site_mappings_save(project_id):
             odk_project_id=odk_project_id,
             odk_form_id=odk_form_id,
             form_type_id=form_type_id,
-            icd_classification=icd_classification,
             org_unit_id=org_unit_id,
         )
         db.session.add(existing)
@@ -4833,7 +4834,6 @@ def admin_odk_site_mappings_save(project_id):
             "odk_form_id": existing.odk_form_id,
             "form_type_id": str(existing.form_type_id) if existing.form_type_id else None,
             "form_type_code": existing.form_type.form_type_code if existing.form_type else None,
-            "icd_classification": existing.icd_classification,
             "org_unit_id": str(existing.org_unit_id) if existing.org_unit_id else None,
             "form_id": runtime_form.form_id,
             "form_smartvahiv": runtime_form.form_smartvahiv,

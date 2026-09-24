@@ -26,6 +26,10 @@ class VaProjectMaster(db.Model):
             "project_structure_mode IN ('sites', 'organization')",
             name="project_structure_mode",
         ),
+        sa.CheckConstraint(
+            "icd_classification IN ('icd10', 'icd11', 'selectable')",
+            name="icd_classification",
+        ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
         sa.String(6), primary_key=True, index=True
@@ -92,6 +96,13 @@ class VaProjectMaster(db.Model):
     # and uncoded work but code nothing.
     above_scope_coding_mode: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="view_only", server_default="view_only"
+    )
+    # How this project's deaths are coded: 'icd10', 'icd11', or 'selectable'
+    # (the coder picks ICD-10 or ICD-11 per death). The only source of the
+    # coding classification, for ODK and web-form submissions alike.
+    # Policy: docs/policy/va-form-project-configuration.md ("5. ICD classification").
+    icd_classification: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="icd10", server_default="icd10"
     )
     demo_training_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"

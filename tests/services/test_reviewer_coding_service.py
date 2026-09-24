@@ -303,7 +303,7 @@ class TestReviewerCodingService(BaseTestCase):
         start_reviewer_coding(self.base_reviewer_user, sid)
 
         with patch(
-            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+            "app.services.reviewer_coding_service.validate_coding_value_for_submission"
         ):
             reviewer_initial = submit_reviewer_initial_cod(
                 self.base_reviewer_user,
@@ -388,7 +388,7 @@ class TestReviewerCodingService(BaseTestCase):
         start_reviewer_coding(self.base_reviewer_user, sid)
 
         with patch(
-            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+            "app.services.reviewer_coding_service.validate_coding_value_for_submission"
         ), patch(
             "app.services.reviewer_coding_service._reviewer_social_autopsy_required",
             return_value=True,
@@ -441,7 +441,7 @@ class TestReviewerCodingService(BaseTestCase):
         start_reviewer_coding(self.base_reviewer_user, sid)
 
         with patch(
-            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+            "app.services.reviewer_coding_service.validate_coding_value_for_submission"
         ), patch(
             "app.services.reviewer_coding_service._reviewer_social_autopsy_required",
             return_value=True,

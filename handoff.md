@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-09-24 (seventh pass: ICD transition record + public mapping page). Migration head **`fba41e2f1f9d`** (dev is
+Updated 2026-09-25 (eighth pass: owner ICD decisions applied, ICD-11 in reports, project ICD classification). Migration head **`fba41e2f1f9d`** (dev is
 there). Chain this pass: `a4c7e2f9b1d6` structure mode → `62a637f5c38a` ICD-11
 bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
 `fba41e2f1f9d` VA cause definitions. New dependency `nh3` (images rebuilt).
@@ -10,6 +10,41 @@ bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
 Owner naming (2026-09-22): **V1** = initial work before Feb 2026, **V2** =
 Mar-Sep 2026, **V3** = Oct 2026 onwards, when organizations, web forms and
 ICD-11 go live. Umbrella epic `digitva-dus`.
+
+## Landed 2026-09-25
+
+Commits `9232e76`..HEAD. Migration head **`a3c9e1f7b2d4`**; dev is there.
+Chain: `fba41e2f1f9d → dc762caa67dd → fad35e5c4b79 → d1a6e3b7c2f4 →
+e7b2c9d4a1f3 → 33dea3ea3303 → a3c9e1f7b2d4`. Full suite: 1928 passed, 176
+subtests, 0 failed.
+
+* **Owner ICD decisions applied** (`digitva-712.4`, `712.5`):
+  - WHO_2022_VA_2026 has 18,505 ICD-11 rows and 0 unmapped.
+  - ICD-10 decisions 10/11/12 are in.
+  - The decisions live in
+    `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv`
+    (read by the generator) and in
+    `.../who-2022-va-icd-cod-2026-revision/WHO_2022_VA_2026_owner_decisions_overrides.csv`
+    (read by import and admin reset).
+* **ICD-11 deaths in reports** (`digitva-dus.1`): the snapshot MV, the export
+  and the COD bucket report page bucket each death by its own
+  classification, with provenance, and default to WHO_2022_VA_2026.
+* **Project ICD classification** (`digitva-dus.2`):
+  - icd10 / icd11 / selectable on `va_project_master`; the per-form column
+    is deprecated and unread.
+  - ICD-11 coding search.
+  - A per-death switch on the coding screens, enforced server-side.
+* **ICD-10 Q00-Q99 all ages** (owner decision 14; this is global).
+* **ICD-11 selectable draft** (`digitva-dus.3`, still open): 16,204 of
+  35,664 categories selectable. **Imported into dev only**, all
+  `unreviewed`. Next: the owner reviews it in `/admin/panels/icd11-browser`,
+  then a data migration ships it. Rollback steps are in
+  `docs/policy/who-2022-icd11-coding-allowability.md`.
+
+Open: `digitva-712.6` (12 specific-vs-specific disagreements for the owner
+to review). `app/routes/api/cod_buckets.py` still falls back to WHO_2022_VA
+when a request omits `scheme_code`. Test DBs `minerva_test_dus1/2/3` were
+created for this work and can be dropped.
 
 ## Landed 2026-09-24
 

@@ -12,6 +12,11 @@ from app.services.icd11_mms_service import (
     import_icd11_mms_from_export,
     import_icd11_mms_policy_json,
 )
+from app.services.icd11_policy_draft_service import (
+    DEFAULT_POLICY_DRAFT_DIR,
+    build_icd11_policy_draft,
+    write_icd11_policy_draft,
+)
 
 
 @click.group("icd11")
@@ -93,6 +98,24 @@ def policy_import(input_path: str, release: str) -> None:
         "Policy import completed "
         f"total_items={result.total_items} updated_items={result.updated_items} "
         f"reset_items={result.reset_items} skipped_items={len(result.skipped_items)}"
+    )
+
+
+@icd11_group.command("policy-draft")
+@click.option("--release", default=DEFAULT_ICD11_RELEASE, show_default=True)
+@click.option("--output-dir", default=DEFAULT_POLICY_DRAFT_DIR, show_default=True)
+def policy_draft(release: str, output_dir: str) -> None:
+    """Draft the coding-selectability policy from WHO's VA annex.
+
+    Reads the catalogue only; writes the policy JSON, review CSV and README
+    to --output-dir for owner review. Import it with policy-import.
+    """
+    draft = build_icd11_policy_draft(release)
+    for path in write_icd11_policy_draft(draft, output_dir):
+        click.echo(f"Wrote {path}")
+    click.echo(
+        f"ICD-11 {release}: {len(draft.selectable)} of {len(draft.decisions)} categories "
+        f"selectable, {len(draft.range_issues)} range issues"
     )
 
 

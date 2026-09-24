@@ -3,7 +3,7 @@ title: ICD-11 Reference Catalog Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-24
 ---
 
 # ICD-11 Reference Catalog Policy
@@ -78,7 +78,12 @@ import — every category starts `is_coding_selectable = NULL`
 (`policy_status = "unreviewed"`) until curated. The ICD-11 selectable set and
 its age/sex exceptions are a pending clinical decision (D3 in
 `docs/planning/icd11-coding-screen-integration-plan.md`), tracked as
-`docs/policy/who-2022-icd11-coding-allowability.md` (not yet written).
+`docs/policy/who-2022-icd11-coding-allowability.md`. A draft policy
+generated from WHO's annex (`flask icd11 policy-draft`) is frozen in
+`docs/icd-causegrp-mappings/migration-artifacts/who-2022-icd11-policy-draft-2026-09-24/`
+for owner review; as of 2026-09-24 it is imported into the dev database only
+(owner-approved, for review in the admin ICD-11 browser), and no migration
+reads it.
 
 Policy fields are editable only on `class_kind = "category"` rows; chapters
 and blocks are structural hierarchy rows with no coding policy.

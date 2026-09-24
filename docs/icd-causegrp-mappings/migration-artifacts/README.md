@@ -3,7 +3,7 @@ title: Migration Artifacts Index
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-24
 ---
 
 # Migration Artifacts Index
@@ -131,9 +131,20 @@ them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
 - `icd11_generated_mappings.csv`, `icd11_review.csv`,
   `icd11_unmapped_with_suggestion.csv`
   - role: generator report for the native ICD-11 table of `WHO_2022_VA_2026`
-    (owner decisions 2026-09-21): what was mapped, what needs the owner's
-    review, and what stays unmapped with the crosswalk's suggestion
+    (owner decisions 2026-09-21, and 2026-09-24 from
+    `ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv`): what was
+    mapped, which owner decision settles each review item, and what stays
+    unmapped (nothing, since decision 5b)
   - called from: written by `app/services/cod_bucket_icd11_generator.py` (`flask cod-buckets generate-icd11`); read by nothing
+  - details: folder `README.md`
+
+### `who-2022-icd11-policy-draft-2026-09-24/`
+
+- `who_2022_icd11_mms_2026_01_policy_draft.json`, `icd11_policy_review.csv`
+  - role: draft ICD-11 2026-01 coding-selectability policy from WHO's annex
+    (`docs/policy/who-2022-icd11-coding-allowability.md`, owner review
+    pending), in the `flask icd11 policy-import` format
+  - called from: written by `app/services/icd11_policy_draft_service.py` (`flask icd11 policy-draft`); read by nothing yet
   - details: folder `README.md`
 
 ### `icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`

@@ -1,11 +1,24 @@
 """Help blueprint – user-facing documentation grounded in policy."""
 
+import csv
+import io
 import os
 import re
 
 import markdown2
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, Response, render_template, abort, request
 from flask_login import current_user
+
+from app import limiter
+from app.services.va_code_mapping_public_service import (
+    ANNEX_FILE_NAME,
+    CLASSIFICATION_LABELS,
+    CSV_HEADERS,
+    ORIGIN_LABELS,
+    csv_cell,
+    filter_mappings,
+    get_public_mappings,
+)
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
 
@@ -35,6 +48,7 @@ HELP_PAGES = [
     ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("icd-codes",             "ICD-10 Codes & WHO Browser",   "fa-book-medical",         "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     # ── Data Manager ─────────────────────────────────────────────────
@@ -307,4 +321,83 @@ def doc_page(slug):
         page_category="Engineering Docs",
         doc_html=html_content,
         **_base_ctx(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public ICD-to-VA-cause mapping list (docs/policy/icd10-to-icd11-transition.md s7)
+# ---------------------------------------------------------------------------
+
+MAPPINGS_PER_PAGE = 100
+_MAX_QUERY_LEN = 100
+
+
+def _mapping_filters(va_causes):
+    """Validated filters from the query string; anything unknown is ignored."""
+    classification = request.args.get("classification", "").strip()
+    origin = request.args.get("origin", "").strip()
+    va_code = request.args.get("va_code", "").strip()
+    return {
+        "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
+        "classification": classification if classification in CLASSIFICATION_LABELS else "",
+        "origin": origin if origin in ORIGIN_LABELS else "",
+        "va_code": va_code if va_code in {code for code, _ in va_causes} else "",
+    }
+
+
+@help_bp.route("/help/va-code-mappings")
+@limiter.limit("60 per minute")
+def va_code_mappings():
+    """Public, paged list of WHO_2022_VA_2026 ICD-to-VA-cause mappings."""
+    rows, va_causes = get_public_mappings()
+    filters = _mapping_filters(va_causes)
+    matches = filter_mappings(rows, **filters)
+    page_count = max(1, -(-len(matches) // MAPPINGS_PER_PAGE))
+    page_no = min(max(request.args.get("page", 1, type=int) or 1, 1), page_count)
+    start = (page_no - 1) * MAPPINGS_PER_PAGE
+    page_info = _PAGES_BY_SLUG["va-code-mappings"]
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/va-code-mappings.html",
+        mapping_rows=matches[start:start + MAPPINGS_PER_PAGE],
+        mapping_total=len(matches),
+        mapping_all_total=len(rows),
+        mapping_page=page_no,
+        mapping_page_count=page_count,
+        mapping_filters=filters,
+        mapping_link_args={key: value for key, value in filters.items() if value},
+        mapping_va_causes=va_causes,
+        origin_labels=ORIGIN_LABELS,
+        classification_labels=CLASSIFICATION_LABELS,
+        annex_file_name=ANNEX_FILE_NAME,
+        **_base_ctx(),
+    )
+
+
+@help_bp.route("/help/va-code-mappings.csv")
+@limiter.limit("60 per minute")
+def va_code_mappings_csv():
+    """The same list as CSV, all rows matching the filters, streamed."""
+    rows, va_causes = get_public_mappings()
+    matches = filter_mappings(rows, **_mapping_filters(va_causes))
+
+    def generate():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(CSV_HEADERS)
+        for row in matches:
+            writer.writerow(csv_cell(row[column]) for column in CSV_HEADERS)
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+        yield buffer.getvalue()
+
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=who_2022_va_2026_icd_mappings.csv"},
     )

@@ -1,0 +1,115 @@
+{# Rendered by help.va_code_mappings (not help.page): rows and origins come
+   from app/services/va_code_mapping_public_service.py. Policy:
+   docs/policy/icd10-to-icd11-transition.md section 7. #}
+<h2>ICD to VA Cause Mappings</h2>
+
+<p>
+  How DigitVA sends each ICD-10 and ICD-11 code to a WHO 2022 verbal autopsy
+  cause in the <code>WHO_2022_VA_2026</code> reporting scheme. Each row is
+  compared with WHO's 2026 cause list (<code>{{ annex_file_name }}</code> and its
+  footnotes) every time the list changes, so the origin always matches the data.
+</p>
+
+<dl class="row small mb-3">
+  <dt class="col-sm-3"><span class="badge text-bg-success">{{ origin_labels['who'] }}</span></dt>
+  <dd class="col-sm-9">WHO's list gives the code to this cause and to no other.</dd>
+  <dt class="col-sm-3"><span class="badge text-bg-info">{{ origin_labels['who_resolved'] }}</span></dt>
+  <dd class="col-sm-9">WHO's list gives the code to more than one cause; DigitVA picked this one
+    by a rule (narrowest range wins, specific code beats range, the transport split, or the
+    provisional maltreatment decision).</dd>
+  <dt class="col-sm-3"><span class="badge text-bg-warning">{{ origin_labels['digitva'] }}</span></dt>
+  <dd class="col-sm-9">WHO's list does not give the code to this cause: the code is outside
+    every WHO range, the bucket is not a WHO VA cause, or DigitVA overrode WHO.</dd>
+</dl>
+
+<form method="get" action="{{ url_for('help.va_code_mappings') }}" class="row g-2 align-items-end mb-3" role="search">
+  <div class="col-md-4">
+    <label class="form-label small mb-1" for="map-q">Search</label>
+    <input type="search" class="form-control form-control-sm" id="map-q" name="q" maxlength="100"
+           value="{{ mapping_filters.q }}" placeholder="Code, title or VA cause">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small mb-1" for="map-classification">Classification</label>
+    <select class="form-select form-select-sm" id="map-classification" name="classification">
+      <option value="">All</option>
+      {% for value, label in classification_labels.items() %}
+        <option value="{{ value }}" {% if mapping_filters.classification == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small mb-1" for="map-origin">Origin</label>
+    <select class="form-select form-select-sm" id="map-origin" name="origin">
+      <option value="">All</option>
+      {% for value, label in origin_labels.items() %}
+        <option value="{{ value }}" {% if mapping_filters.origin == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small mb-1" for="map-va">VA cause</label>
+    <select class="form-select form-select-sm" id="map-va" name="va_code">
+      <option value="">All</option>
+      {% for code, title in mapping_va_causes %}
+        <option value="{{ code }}" {% if mapping_filters.va_code == code %}selected{% endif %}>{{ code }} {{ title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-1">
+    <button type="submit" class="btn btn-sm btn-primary w-100">Filter</button>
+  </div>
+</form>
+
+<div class="d-flex justify-content-between align-items-center mb-2 small">
+  <span class="text-muted" aria-live="polite">{{ mapping_total }} of {{ mapping_all_total }} mappings</span>
+  <a href="{{ url_for('help.va_code_mappings_csv', **mapping_link_args) }}" class="btn btn-sm btn-outline-secondary">
+    <i class="fa-solid fa-download me-1"></i>Download CSV
+  </a>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped align-middle small">
+    <thead>
+      <tr>
+        <th scope="col">Classification</th>
+        <th scope="col">Code</th>
+        <th scope="col">Code title</th>
+        <th scope="col">VA cause</th>
+        <th scope="col">Origin</th>
+        <th scope="col">Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in mapping_rows %}
+        <tr>
+          <td>{{ classification_labels[row.classification] }}</td>
+          <td><code>{{ row.code }}</code></td>
+          <td>{{ row.code_title }}</td>
+          <td>{% if row.va_code %}<code>{{ row.va_code }}</code> {% endif %}{{ row.va_title }}</td>
+          <td>
+            <span class="badge {% if row.origin == 'who' %}text-bg-success{% elif row.origin == 'who_resolved' %}text-bg-info{% else %}text-bg-warning{% endif %}">{{ origin_labels[row.origin] }}</span>
+            {% if row.rule %}<div class="text-muted">{{ row.rule }}</div>{% endif %}
+            {% if row.also_claimed_by %}<div class="text-muted">WHO also lists: {{ row.also_claimed_by }}</div>{% endif %}
+          </td>
+          <td>{{ row.note }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-muted">No mappings match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if mapping_page_count > 1 %}
+<nav aria-label="Mapping pages">
+  <ul class="pagination pagination-sm">
+    <li class="page-item {% if mapping_page <= 1 %}disabled{% endif %}">
+      <a class="page-link" href="{{ url_for('help.va_code_mappings', page=mapping_page - 1, **mapping_link_args) }}">Previous</a>
+    </li>
+    <li class="page-item disabled"><span class="page-link">Page {{ mapping_page }} of {{ mapping_page_count }}</span></li>
+    <li class="page-item {% if mapping_page >= mapping_page_count %}disabled{% endif %}">
+      <a class="page-link" href="{{ url_for('help.va_code_mappings', page=mapping_page + 1, **mapping_link_args) }}">Next</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}

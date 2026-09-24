@@ -96,6 +96,11 @@ PUBLIC_BY_DESIGN = frozenset({
     # must be a registry key and `_render_md` blocks traversal, so the exposure
     # is exactly that curated list, which is published by design.
     "help.doc_page",
+    # WHO_2022_VA_2026 ICD-to-VA-cause mapping list and its CSV. Reference data
+    # only (codes, titles, VA causes, row notes), GET only and rate-limited;
+    # published by design (docs/policy/icd10-to-icd11-transition.md section 7).
+    "help.va_code_mappings",
+    "help.va_code_mappings_csv",
 })
 
 _ALLOWED = PUBLIC_BY_DESIGN

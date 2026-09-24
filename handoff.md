@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-09-22 (sixth pass). Migration head **`fba41e2f1f9d`** (dev is
+Updated 2026-09-24 (seventh pass: ICD transition record + public mapping page). Migration head **`fba41e2f1f9d`** (dev is
 there). Chain this pass: `a4c7e2f9b1d6` structure mode → `62a637f5c38a` ICD-11
 bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
 `fba41e2f1f9d` VA cause definitions. New dependency `nh3` (images rebuilt).
@@ -10,6 +10,22 @@ bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
 Owner naming (2026-09-22): **V1** = initial work before Feb 2026, **V2** =
 Mar-Sep 2026, **V3** = Oct 2026 onwards, when organizations, web forms and
 ICD-11 go live. Umbrella epic `digitva-dus`.
+
+## Landed 2026-09-24
+
+* **ICD-10 to ICD-11 transition record** (`digitva-712.2`):
+  `docs/policy/icd10-to-icd11-transition.md`. It covers the method (native
+  ICD-11 buckets; the crosswalk is only a cross-check), why the crosswalk was
+  rejected (it loses sepsis, road traffic and fresh stillbirth), a
+  measurement of the ICD-10 to ICD-11 direction, every ICD-10 and ICD-11
+  override, the gaps found, and **13 open owner decisions** (section 6).
+* **Public mapping page** (`digitva-712.3`): `/help/va-code-mappings` and a
+  `.csv` download. Anonymous, GET only, 60 requests/min. Each
+  WHO_2022_VA_2026 row gets an origin, derived at read time against the
+  annex: WHO / WHO resolved by DigitVA rule / DigitVA decision. Service:
+  `app/services/va_code_mapping_public_service.py`; annex copies in
+  `resource/`, kept in step by a test. The footnote f reading is provisional
+  (open decision 13).
 
 ## Landed this pass (2026-09-21/22)
 

@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-24
 ---
 
 # COD Bucket Reporting
@@ -58,6 +58,27 @@ The data-management report page at `/data-management/cod-buckets` now:
 - keeps the detailed age-scope tables and dropped-COD drilldown modal below the
   chart
 - is styled for printing without internal table/card scroll regions
+
+## Public mapping list
+
+`/help/va-code-mappings` (and `/help/va-code-mappings.csv`) publishes, without
+login, every active ICD-10 and ICD-11 row of `WHO_2022_VA_2026`: code, code
+title, VA cause, the row's note, and an origin (`who`, `who_resolved`,
+`digitva`) derived at read time against WHO's 2026 annex. Policy:
+`docs/policy/icd10-to-icd11-transition.md` section 7.
+
+- Service: `app/services/va_code_mapping_public_service.py`; routes in
+  `app/routes/help.py` (GET only, 60 per minute, 100 rows per page, search and
+  filters validated against fixed sets).
+- The annex and footnotes are read from `resource/` copies, because `docs/`
+  is not in the image; a test keeps them equal to the `docs/` copies.
+- The derived table is cached per process and rebuilt when the scheme's
+  version, row count, latest row or node edit, or an annex file changes. ICD-11
+  ranges are expanded with the native generator's functions against the
+  `2026-01` catalogue.
+- Footnote f: land transport codes it lists (V01-V89) and `Y85.0` are road
+  traffic (`VAs-12.01`); its tail `V90-V99; Y85.9` and every unlisted V/Y85
+  code are other transport (`VAs-12.02`).
 
 ## Storage model
 

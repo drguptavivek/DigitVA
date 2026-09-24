@@ -24,8 +24,21 @@ ICD-11 go live. Umbrella epic `digitva-dus`.
   WHO_2022_VA_2026 row gets an origin, derived at read time against the
   annex: WHO / WHO resolved by DigitVA rule / DigitVA decision. Service:
   `app/services/va_code_mapping_public_service.py`; annex copies in
-  `resource/`, kept in step by a test. The footnote f reading is provisional
-  (open decision 13).
+  `resource/`, kept in step by a test. The footnote f reading was confirmed by
+  the owner (decision 13a).
+* **All 13 transition decisions made by the owner** (2026-09-24), recorded
+  in section 6 of the transition record. They are **decided, not yet
+  applied**. Next work, in order:
+  - `digitva-712.4` (P1): ICD-11 decisions, via a decision file the
+    generator reads, then regenerate and ship a migration.
+  - `digitva-712.5` (P1): ICD-10 changes. `A80`-`A89` → Meningitis/
+    encephalitis; 65 boarding codes → Road traffic.
+  - `digitva-dus.1` (P1): ICD-11 deaths in bucket reports.
+  - `digitva-dus.2` (P2): project-level ICD classification.
+  - `digitva-712.6` (P2): 12 specific-vs-specific disagreements for the
+    owner to review.
+
+  The crosswalk method is withdrawn and will not be built.
 
 ## Landed this pass (2026-09-21/22)
 

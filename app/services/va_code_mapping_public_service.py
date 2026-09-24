@@ -177,7 +177,7 @@ def _resolution_rule(code: str, node: str, claims: dict, match_type: str | None)
     if match_type == "split" and code.startswith("PA"):
         return "Transport split: PA0x traffic events to road traffic, PA1x-PA5x to other transport"
     if code.startswith("PJ2"):
-        return "Provisional: maltreatment by others to Assault (owner to confirm)"
+        return "Owner decision: maltreatment by others to Assault"
     size, token = claims[node]
     others = [claim for other, claim in claims.items() if other != node]
     if all(other_token == token for _, other_token in others):

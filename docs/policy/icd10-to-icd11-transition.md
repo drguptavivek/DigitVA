@@ -39,9 +39,9 @@ As of 2026-09-24:
   and the app has no runtime crosswalk table or lookup yet.
 - **Why native:** the crosswalk loses whole causes. Examples are in
   section 1.1.
-- **The crosswalk method stays in the policy** for projects that mix ICD-10
-  and ICD-11 data. It needs a crosswalk table and an override list first
-  (see section 6).
+- **The crosswalk method will not be built** (owner, 2026-09-24, decision 6).
+  Projects that mix ICD-10 and ICD-11 bucket each death through the rows of
+  its own classification in the native scheme.
 
 Where the ICD-11 rows are read today:
 
@@ -268,7 +268,7 @@ for its own earlier manual overrides.
 | Transport split | `PA0x` (traffic events) to `VAs-12.01` Road traffic; `PA1x`-`PA5x` (nontraffic, rail, water, air, other) to `VAs-12.02` Other transport. 71 codes, following the owner's earlier ICD-10 split | Decided 2026-09-21. 18 of the 71 have titles that do not fit the rule and need a look |
 | Fresh vs macerated stillbirth | New bucket `VAs-11.01` Fresh stillbirth. `KD3B.1` (intrapartum) goes to Fresh; `KD3B.0` (antepartum) goes to `VAs-11.02` Macerated. ICD-10 `P95` cannot tell the two apart and stays Macerated, so the two classifications count fresh stillbirths differently | Decided 2026-09-21 |
 | Sepsis | `1G40` and `1G41` go natively to `VAs-01.01`. The crosswalk would have lost them (section 1.1) | Follows from the native method |
-| Maltreatment `PJ20`-`PJ2Z` | Both Assault and Other external claim the same range. Mapped **provisionally** to `VAs-12.09` Assault (maltreatment by others) | **Owner to confirm** |
+| Maltreatment `PJ20`-`PJ2Z` | Both Assault and Other external claim the same range. Mapped to `VAs-12.09` Assault (maltreatment by others) | Confirmed by owner 2026-09-24 |
 | "Ruptured uterus" label | The annex prints `VAs-09.0`; matched by label to node `vas_09_08` | Applied; confirm |
 | Selectability is separate | Bucket rows never make an ICD-11 code selectable or unselectable. That is set by the ICD-11 catalogue policy (ICD-11 browser) | Decided 2026-09-21 |
 
@@ -344,30 +344,30 @@ section 1.1.
 | ICD-10 selectability is global | Adopting the annex changed what every project can select. It cannot be scoped per scheme |
 | Test coverage | No automated test covers migration `c5f2a8d1e9b3` or the `import-who-2022-va-2026` and `policy-import` commands |
 
-## 6. Open decisions
+## 6. Owner decisions (2026-09-24)
 
-The item counts come from `icd11_review.csv` and the unmapped-codes list.
-That file has no column for recording a decision yet.
+The owner decided all 13 open items on 2026-09-24. They are **decided but
+not yet applied**. Each applied change must be a regenerated artifact plus a
+new data migration, and must be recorded where the generator reads it, so
+that regenerating does not undo it.
 
-| # | Item | Count | What is needed |
-|---|---|---:|---|
-| 1 | `crosswalk_disagreement`: the native bucket differs from the ICD-10 crosswalk bucket | 916 | Review by cause, largest groups first: `VAs-98` 242, `VAs-99` 161, `VAs-01.99` 154, `VAs-10.99` 58, `VAs-04.99` 57, `VAs-10.06` 38, `VAs-12.02` 35. Many are expected (the ICD-10 target is broader or residual). Record which are accepted and which get an override |
-| 2 | `pj2x_owner_decision` | 5 | Confirm Assault (section 4) or choose Other external |
-| 3 | `pa_split` titles that do not fit the rule | 18 of 71 | Confirm or move each one |
-| 4 | WHO range errors (`range_issue` 5, `range_past_end` 3) | 8 | For example `5C52.Y-5C52-Z` was skipped as malformed; `2C20-2C2Z` and `3A00-3A4.Z` have endpoints that do not exist. Decide the intended range for each |
-| 5 | Codes in no annex range | 2,351 | Currently unmapped, and they report as `unmapped`. Each has a crosswalk suggestion that was not applied. Decide these first: diabetic acute complications `5A20`-`5A2Y` (to Diabetes?), thalassaemias `3A50` (to Severe anaemia?), alcoholic liver disease `DB94.0`/`DB94.1x` (to Liver cirrhosis or `VAs-98`?), `1C8G`, and the parent codes `RA01` and `3A4Z` (section 5.2). The rest (mostly `S`/`V`/`Q`) can stay unmapped |
-| 6 | Crosswalk override list | n/a | Needed before any scheme uses `crosswalk`. Start with sepsis, road traffic and stillbirth (section 1.1) |
-| 7 | ICD-11 in bucket reports | n/a | Reports read ICD-10 rows only today |
-| 8 | Project ICD classification | n/a | `icd10` / `icd11` / `selectable` per project. Web forms default to `icd10`. Decide whether the per-form ODK setting overrides the project setting or is retired |
-| 9 | Unknown-timing fetal death `KD3B` / `KD3B.Z` | 2 | Currently `VAs-10.99` (other perinatal). Move to a stillbirth bucket (Macerated, matching ICD-10 `P95`)? (section 1.2) |
-| 10 | ICD-10 manual overrides with no ICD-11 counterpart | 9 | Mirror `K72`/`K73`, `K64`/`K75`/`K76`, `I25`/`I50`, `G47` (`VAs-99` in ICD-10 vs `VAs-98` in ICD-11), `R50` (`VAs-01.99` vs `VAs-99`) in the ICD-11 rows, or accept that the two classifications differ (section 1.2) |
-| 11 | WHO ICD-10 vs ICD-11 disagreement for viral CNS infections | `A80`-`A89` vs `1C80`-`1C8F` | Keep WHO as printed, or align one side (section 1.2) |
-| 12 | Transport codes between ICD-10 and ICD-11 | 66 + 15 | Boarding/alighting: keep Other transport (our ICD-10 resolution) or follow WHO's traffic mapping? The 15 "traffic accident" codes that WHO's table sends to non-traffic ICD-11 codes need a correction if ICD-10 data is ever converted (section 1.2) |
-| 13 | Footnote f reading for the public page | 2 questions | (a) Confirm `V90`-`V99` and `Y85.9` are Other transport even though footnote f's road-traffic list ends with them (the provisional reading). (b) `V81.2`-`V81.9` and `V82.2`-`V82.8` (railway and streetcar occupants) are on footnote f's road-traffic list but are bucketed Other transport, so the page shows them as DigitVA decisions. Keep them there, or move them to Road traffic |
-
-When an item is decided, add a row to section 3 or 4 with the date, and
-record the decision where the generator will read it, so that regenerating
-does not undo it.
+| # | Item | Decision |
+|---|---|---|
+| 1 | 916 `crosswalk_disagreement` items | Accept WHO's native ICD-11 bucket wherever either side is a residual bucket (`VAs-98`, `VAs-99`, `*.99`, or a bucket that is not a VA cause). The **12** items with a specific cause on both sides come back to the owner: 7 transport, plus `vas_01_07`/`vas_01_11`, `vas_01_11`/`vas_01_02`, `vas_04_02`/`vas_10_06`, `vas_11_01`/`vas_11_02`, `vas_12_04`/`vas_12_03` |
+| 2 | Maltreatment `PJ20`-`PJ2Z` | **Assault** (`VAs-12.09`). The provisional mapping is confirmed |
+| 3 | 18 flagged `PA20`-`PA2Z` (unknown whether traffic) | **Other transport** (`VAs-12.02`), consistent with ICD-10 "unspecified whether traffic" point codes |
+| 4 | Annex range errors | Read `5C52.Y-5C52-Z` as `5C52.Y-5C52.Z` and map to `VAs-98`. Keep the other seven as currently expanded, including the descendants past the written end |
+| 5a | Clinically relevant codes in no annex range | `5A20`-`5A2Y` diabetic acute complications → `VAs-03.03`. `3A50.x` thalassaemias and `3A4Z` → `VAs-03.01`. `DB94.10` alcoholic hepatitis with cirrhosis → `VAs-06.02`, and the other `DB94.0`/`DB94.1x`/`DB94.Y`/`DB94.Z` → `VAs-98`, as for ICD-10 `K70.0`/`K70.1`. `1C8G`, `1C8H` → `VAs-01.07`. `RA01` → `VAs-01.13` |
+| 5b | Remaining 2,301 unmapped codes | Accept the 152 single-bucket crosswalk suggestions (not the 8 `RA` codes, which were wrongly suggested as COVID-19). Map **everything else** (the `RA` codes, traditional medicine `S`, functioning `V`, factors `Q`, and the rest) to **`VAs-99`**, so no ICD-11 death reports as `unmapped` |
+| 6 | Crosswalk method | **Not built.** Projects that mix ICD-10 and ICD-11 use the native scheme: each death is bucketed through the rows of its own classification. Remove the `crosswalk` method from [ICD-11 COD Bucket Schemes](icd11-cod-bucket-schemes.md). The crosswalk stays as an offline cross-check only |
+| 7 | ICD-11 in bucket reports | **Build now**, V3 scope: bucket each death through the rows of its own classification, and record provenance |
+| 8 | Project ICD classification | **Project setting only.** Move each project's current per-form ODK value up to the project (flag projects whose forms disagree), then stop reading `map_project_site_odk.icd_classification`. Web forms follow the project setting |
+| 9 | `KD3B` / `KD3B.Z` unknown-timing fetal death | **Macerated stillbirth** (`VAs-11.02`), the same as ICD-10 `P95` |
+| 10 | ICD-10 overrides with no ICD-11 counterpart | **Copy all nine** to their ICD-11 equivalents, but only where each is still relevant in the ICD-11 scheme; check each code when applying. `K72`/`K73` → Liver cirrhosis (`DB99.x` hepatic failure, `DB97.2`). `K64`/`K75`/`K76` → Other GI (`DB60`-`DB6Z`, `DB97.Z`, `DB9Z`). `I25`/`I50` → Acute cardiac (`BA5x`, `BD10`/`BD1Z`; `BD11` is already there). `G47` → `VAs-99` (`7A`-`7B`). `R50` → `VAs-01.99` (`MG26`). All nine still differ as of 2026-09-24 |
+| 11 | Viral CNS infections | **Both to Meningitis/encephalitis** (`VAs-01.07`): move ICD-10 `A80`-`A89` there, matching ICD-11 `1C80`-`1C8F`. This is a DigitVA decision against WHO's ICD-10 column |
+| 12 | Boarding/alighting ICD-10 codes | **Road traffic** (`VAs-12.01`): 65 codes such as `V10.3` and `V43.4`, matching WHO's ICD-10 → ICD-11 table. `V82.4` (streetcar) is the exception: it stays Other transport under 13b. The 15 "traffic accident" codes that WHO's table sends to non-traffic ICD-11 codes need no action, because no ICD-10 data is converted |
+| 13a | Footnote f tail `V90`-`V99`, `Y85.9` | **Other transport**. The provisional reading is confirmed |
+| 13b | `V81.2`-`V81.9`, `V82.2`-`V82.8` | **Keep Other transport** (rail and streetcar events are not road traffic). They stay DigitVA decisions |
 
 ## 7. Public mapping page (owner, 2026-09-24)
 
@@ -387,12 +387,12 @@ cause, and whether that follows WHO or is a DigitVA decision.
     and bucketed as Other transport (`VAs-12.02`). Footnote f's list ends
     `...Y85.0; V90-V99; Y85.9`. The page reads only the codes before `V90`,
     plus `Y85.0`, as road traffic, and treats `V90`-`V99` (water, air, other)
-    and `Y85.9` as Other transport. This reading is provisional (open
-    decision 13).
+    and `Y85.9` as Other transport. The owner confirmed this reading on 2026-09-24
+    (decision 13a).
   - **WHO, resolved by DigitVA rule**: two or more causes' annex ranges claim
     the code, and DigitVA picked the one the row shows by a stated rule. The
     rules are: narrowest range wins; specific code beats range; the transport
-    split; the provisional `PJ2x` decision.
+    split; the `PJ2x` decision.
   - **DigitVA decision**: the row's cause is not one the annex gives the code.
     This includes codes outside every annex range and buckets that are not
     WHO VA causes (e.g. "Other Gastrointestinal Diseases").

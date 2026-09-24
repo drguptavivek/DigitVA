@@ -52,6 +52,13 @@ a bucket-scheme link; schemes stay a per-report choice.
 
 ## Crosswalk method
 
+> **Withdrawn (owner, 2026-09-24).** The crosswalk method will not be built.
+> Projects that mix ICD-10 and ICD-11 bucket each death through the rows of
+> its own classification in the native scheme. WHO's 11-to-10 table stays
+> as an offline cross-check. The text below is kept as the record of what
+> was considered. See [ICD-10 to ICD-11 Transition](icd10-to-icd11-transition.md),
+> decision 6.
+
 - Source: WHO `11To10MapToOneCategory` (one ICD-10 target per ICD-11 code),
   loaded into its own table with the WHO release it came from. The
   multiple-category table is not used.

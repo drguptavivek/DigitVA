@@ -177,10 +177,10 @@ class OriginDerivationTests(BaseTestCase):
         self.assertEqual(origin, service.ORIGIN_WHO_RESOLVED)
         self.assertIn("Transport split", rule)
 
-    def test_icd11_pj2x_is_flagged_provisional(self):
+    def test_icd11_pj2x_names_the_owner_decision(self):
         origin, rule = self.icd11("PJ20", "vas_12_09", match_type="split")
         self.assertEqual(origin, service.ORIGIN_WHO_RESOLVED)
-        self.assertIn("Provisional", rule)
+        self.assertIn("maltreatment by others to Assault", rule)
 
     def test_fresh_stillbirth_wins_over_the_perinatal_range(self):
         # KD3B.1 is also inside VAs-10.99's KD30.2-KD5Z, so it is resolved, not plain WHO.

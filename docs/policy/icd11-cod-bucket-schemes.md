@@ -3,14 +3,15 @@ title: ICD-11 COD Bucket Schemes
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-24
 ---
 
 # ICD-11 COD Bucket Schemes
 
 Baseline for placing ICD-11-coded deaths into cause-of-death buckets. Extends
 [COD Bucket Reporting](cod-bucket-reporting.md); the ICD-11 catalogue is
-[ICD-11 Reference Catalog](icd11-reference-catalog.md).
+[ICD-11 Reference Catalog](icd11-reference-catalog.md). Decisions and open items:
+[ICD-10 to ICD-11 Transition](icd10-to-icd11-transition.md).
 
 ## Decision (owner, 2026-09-21)
 

@@ -1,5 +1,5 @@
 {#
-  ICD-11 MMS browser and policy editor panel — admin-only.
+  Shared ICD-11 MMS pane browser; policy editor controls are admin-only.
   Mirrors the ICD-10 2019 browser (icd10_browser.html): filters, status dots,
   child counters, node details with an editable policy form, and policy
   JSON import (previewed, then applied) / JSON and XLSX export. The JSON
@@ -14,9 +14,13 @@
       <i class="fa-solid fa-book-medical me-2 text-secondary"></i>ICD-11 MMS Browser
     </h5>
     <div class="small text-muted">
+      {% if icd11_browser_read_only %}
+      Browse the public ICD-11 MMS {{ release }} catalogue. Coding selectability, sex, age group, policy review, and VA mapping details are read-only.
+      {% else %}
       Browse the WHO ICD-11 MMS {{ release }} linearization ({{ stats.total_rows }} rows,
       {{ stats.active_rows }} active, {{ stats.categories }} categories) and curate local
       coding policy fields without changing source structure.
+      {% endif %}
     </div>
   </div>
   <hr class="my-2">
@@ -27,8 +31,13 @@
         <div class="small text-muted mb-1">Coding</div>
         <select class="form-select form-select-sm" id="icd11-browser-filter-active">
           <option value="any">All</option>
+          {% if icd11_browser_read_only %}
+          <option value="active">Selectable</option>
+          <option value="disabled">Not selectable</option>
+          {% else %}
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>
+          {% endif %}
         </select>
       </div>
       <div>
@@ -51,6 +60,25 @@
           <option value="neonate">Neonate</option>
         </select>
       </div>
+      {% if icd11_browser_read_only %}
+      <div>
+        <div class="small text-muted mb-1">Policy review</div>
+        <select class="form-select form-select-sm" id="icd11-browser-filter-policy">
+          <option value="any">All</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="unreviewed">Unreviewed</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">VA mapping origin</div>
+        <select class="form-select form-select-sm" id="icd11-browser-filter-origin">
+          <option value="any">All</option>
+          {% for value, label in origin_filter_labels.items() %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
       <div>
         <div class="small text-muted mb-1">Search</div>
         <input
@@ -65,6 +93,7 @@
       </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
+      {% if not icd11_browser_read_only %}
       <input
         type="file"
         id="icd11-policy-import-file"
@@ -86,6 +115,12 @@
       >
         <i class="fa-solid fa-file-excel me-1"></i>Export XLSX
       </a>
+      {% else %}
+      <a class="btn btn-sm btn-outline-secondary" id="icd11-browser-download-csv"
+         href="{{ url_for('help.icd11_codes_browser_csv', **state_link_args) }}">
+        <i class="fa-solid fa-download me-1"></i>Download CSV
+      </a>
+      {% endif %}
       <button type="button" class="btn btn-sm btn-outline-secondary" id="icd11-browser-clear-filters-btn">
         Clear Filters
       </button>
@@ -135,6 +170,21 @@
             </dl>
             <div class="small text-muted mb-3" id="icd11-browser-node-coding-note"></div>
 
+            {% if icd11_browser_read_only %}
+            <dl id="icd11-browser-public-details" class="row small mb-0">
+              <dt class="col-5">Coding</dt><dd class="col-7" id="icd11-public-selectable"></dd>
+              <dt class="col-5">Sex</dt><dd class="col-7" id="icd11-public-sex"></dd>
+              <dt class="col-5">Age group</dt><dd class="col-7" id="icd11-public-age"></dd>
+              <dt class="col-5">Policy review</dt><dd class="col-7" id="icd11-public-policy"></dd>
+              <dt class="col-5">Restriction</dt><dd class="col-7" id="icd11-public-restriction"></dd>
+              <dt class="col-5">VA cause</dt><dd class="col-7" id="icd11-public-va-cause"></dd>
+              <dt class="col-5">Origin</dt>
+              <dd class="col-7">
+                <span id="icd11-public-origin-badge" class="badge"></span>
+                <div id="icd11-public-origin-reason" class="text-muted mt-1"></div>
+              </dd>
+            </dl>
+            {% else %}
             <div id="icd11-browser-policy-readonly" class="alert alert-light border d-none small mb-0">
               Chapters and blocks are structural hierarchy rows. Local coding policy fields are only available on ICD-11 categories.
             </div>
@@ -184,6 +234,7 @@
                 </button>
               </div>
             </form>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -294,7 +345,8 @@
   var panel = document.getElementById('panel-icd11-browser');
   if (!panel) return;
 
-  var apiBase = '/admin/api/icd11/mms';
+  var readOnly = {{ icd11_browser_read_only|default(false)|tojson }};
+  var apiBase = {{ icd11_browser_api_base|default('/admin/api/icd11/mms')|tojson }};
   var release = {{ release|tojson }};
   var state = {
     options: null,
@@ -306,11 +358,15 @@
       active: 'any',
       sex: 'any',
       age: 'any',
+      policy: 'any',
+      origin: 'any',
     },
   };
+  {% if not icd11_browser_read_only %}
   function csrf() {
     return window._adminCsrf || '';
   }
+  {% endif %}
 
   function statusEl() {
     return panel.querySelector('#icd11-browser-status');
@@ -346,11 +402,22 @@
   }
 
   function syncFiltersToUrl() {
-    setUrlParams({
+    var updates = {
       coding_filter: state.filters.active !== 'any' ? state.filters.active : null,
       sex_filter: state.filters.sex !== 'any' ? state.filters.sex : null,
       age_filter: state.filters.age !== 'any' ? state.filters.age : null,
-    });
+    };
+    if (readOnly) {
+      updates.policy_status = state.filters.policy !== 'any' ? state.filters.policy : null;
+      updates.origin = state.filters.origin !== 'any' ? state.filters.origin : null;
+      updates.selectable = null;
+      updates.page = null;
+    }
+    setUrlParams(updates);
+    if (readOnly) {
+      var download = panel.querySelector('#icd11-browser-download-csv');
+      if (download) download.href = apiBase + '.csv' + window.location.search;
+    }
   }
 
   function allowedValue(selectEl, value) {
@@ -364,11 +431,23 @@
     var activeEl = panel.querySelector('#icd11-browser-filter-active');
     var sexEl = panel.querySelector('#icd11-browser-filter-sex');
     var ageEl = panel.querySelector('#icd11-browser-filter-age');
-    state.filters.active = activeEl.value = allowedValue(activeEl, params.get('coding_filter') || 'any');
+    var active = params.get('coding_filter') || 'any';
+    if (active === 'any' && params.get('selectable') === 'yes') active = 'active';
+    if (active === 'any' && params.get('selectable') === 'no') active = 'disabled';
+    state.filters.active = activeEl.value = allowedValue(activeEl, active);
     state.filters.sex = sexEl.value = allowedValue(sexEl, params.get('sex_filter') || 'any');
     state.filters.age = ageEl.value = allowedValue(ageEl, params.get('age_filter') || 'any');
+    if (readOnly) {
+      var policyEl = panel.querySelector('#icd11-browser-filter-policy');
+      var originEl = panel.querySelector('#icd11-browser-filter-origin');
+      state.filters.policy = policyEl.value = allowedValue(policyEl, params.get('policy_status') || 'any');
+      var origin = params.get('origin') || 'any';
+      state.filters.origin = origin === 'digitva' ? origin : allowedValue(originEl, origin);
+      originEl.value = state.filters.origin === 'digitva' ? 'any' : state.filters.origin;
+    }
   }
 
+  {% if not icd11_browser_read_only %}
   function codingSelectableInput() {
     return panel.querySelector('#icd11-policy-is-coding-selectable');
   }
@@ -394,14 +473,23 @@
   }
 
   function withRelease(url) {
+    if (readOnly) return url;
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'release=' + encodeURIComponent(release);
   }
+  {% else %}
+  function withRelease(url) {
+    return url;
+  }
+  {% endif %}
 
   async function requestJson(url, options) {
     var response = await fetch(withRelease(url), options || {});
-    var payload = await response.json().catch(function () { return {}; });
+    var payload = await response.json().catch(function () { return null; });
     if (!response.ok) {
-      throw new Error(payload.error || 'Request failed.');
+      throw new Error((payload && payload.error) || 'Request failed.');
+    }
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('The server returned an invalid response.');
     }
     return payload;
   }
@@ -425,6 +513,16 @@
       return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
     }).join('');
     selectEl.innerHTML = html;
+  }
+
+  function updateFilterSummary(payload) {
+    if (!readOnly || !payload || payload.matching_code_count === undefined) return;
+    var summary = panel.querySelector('#icd11-browser-filter-summary');
+    if (summary) {
+      summary.textContent = Number(payload.matching_code_count).toLocaleString() + ' of ' +
+        Number(payload.all_code_count).toLocaleString() + ' ICD-11 codes match these filters; ' +
+        Number(payload.unmapped_code_count).toLocaleString() + ' are unmapped.';
+    }
   }
 
   function statusDotHtml(row) {
@@ -468,6 +566,27 @@
     panel.querySelector('#icd11-browser-node-coding-note').textContent = node.coding_note
       ? 'WHO coding note: ' + node.coding_note : '';
 
+    if (readOnly) {
+      var isCategory = node.class_kind === 'category';
+      panel.querySelector('#icd11-public-selectable').textContent = isCategory
+        ? (node.is_coding_selectable ? 'Selectable' : 'Not selectable') : 'Structural node';
+      panel.querySelector('#icd11-public-sex').textContent = node.sex_selectable || '—';
+      panel.querySelector('#icd11-public-age').textContent = node.age_group_selectable || '—';
+      panel.querySelector('#icd11-public-policy').textContent = isCategory
+        ? (node.policy_status || 'unreviewed') : '—';
+      panel.querySelector('#icd11-public-restriction').textContent = node.restriction_note || '—';
+      panel.querySelector('#icd11-public-va-cause').textContent = node.va_code
+        ? node.va_code + (node.va_title ? ' ' + node.va_title : '') : 'Unmapped';
+      var originBadge = panel.querySelector('#icd11-public-origin-badge');
+      originBadge.textContent = node.origin_badge || '';
+      originBadge.title = node.origin_tooltip || '';
+      originBadge.className = 'badge' + (node.origin_badge
+        ? ' text-bg-' + escapeHtml(node.origin_tone || 'secondary') : ' d-none');
+      panel.querySelector('#icd11-public-origin-reason').textContent = node.origin_reason || '';
+      renderBreadcrumb(node);
+      return;
+    }
+
     codingSelectableInput().checked = !!node.is_coding_selectable;
     sexSelectableInput().value = node.sex_selectable || '';
     ageGroupSelectableInput().value = node.age_group_selectable || '';
@@ -509,9 +628,12 @@
     if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
     if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
     if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
+    if (readOnly && state.filters.policy !== 'any') params.set('policy_status', state.filters.policy);
+    if (readOnly && state.filters.origin !== 'any') params.set('origin', state.filters.origin);
     var url = apiBase + '/children' + (params.toString() ? '?' + params.toString() : '');
     var payload = await requestJson(url);
     state.childrenByParent[parentUri || 'root'] = payload.children || [];
+    updateFilterSummary(payload);
     return payload.children || [];
   }
 
@@ -634,6 +756,7 @@
     await openPath(state.path);
   }
 
+  {% if not icd11_browser_read_only %}
   async function savePolicy(event) {
     event.preventDefault();
     if (!state.currentNode) return;
@@ -725,6 +848,7 @@
     showStatus('Imported. ' + importSummary(applied), 'success');
     await refreshPanes();
   }
+  {% endif %}
 
   function resetBrowser() {
     clearStatus();
@@ -734,10 +858,18 @@
     renderPanes();
   }
 
-  async function updateFiltersFromInputs() {
+  async function updateFiltersFromInputs(event) {
     state.filters.active = panel.querySelector('#icd11-browser-filter-active').value;
     state.filters.sex = panel.querySelector('#icd11-browser-filter-sex').value;
     state.filters.age = panel.querySelector('#icd11-browser-filter-age').value;
+    if (readOnly) {
+      state.filters.policy = panel.querySelector('#icd11-browser-filter-policy').value;
+      if (event && event.target.id === 'icd11-browser-filter-origin') {
+        state.filters.origin = event.target.value;
+      } else if (state.filters.origin !== 'digitva') {
+        state.filters.origin = panel.querySelector('#icd11-browser-filter-origin').value;
+      }
+    }
     syncFiltersToUrl();
     try {
       await refreshPanes();
@@ -750,6 +882,11 @@
     panel.querySelector('#icd11-browser-filter-active').value = 'any';
     panel.querySelector('#icd11-browser-filter-sex').value = 'any';
     panel.querySelector('#icd11-browser-filter-age').value = 'any';
+    if (readOnly) {
+      panel.querySelector('#icd11-browser-filter-policy').value = 'any';
+      panel.querySelector('#icd11-browser-filter-origin').value = 'any';
+      state.filters.origin = 'any';
+    }
     await updateFiltersFromInputs();
   }
 
@@ -775,11 +912,21 @@
     if (query.trim().length < 2) {
       state.searchResults = [];
       renderSearchResults();
+      clearStatus();
       return;
     }
-    var payload = await requestJson(apiBase + '/search?q=' + encodeURIComponent(query));
+    var params = new URLSearchParams({ q: query });
+    if (readOnly) {
+      if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
+      if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
+      if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
+      if (state.filters.policy !== 'any') params.set('policy_status', state.filters.policy);
+      if (state.filters.origin !== 'any') params.set('origin', state.filters.origin);
+    }
+    var payload = await requestJson(apiBase + '/search?' + params.toString());
     state.searchResults = payload.results || [];
     renderSearchResults();
+    clearStatus();
   }
 
   panel.addEventListener('click', function (event) {
@@ -812,9 +959,10 @@
   panel.querySelector('#icd11-browser-search').addEventListener('input', function () {
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(function () {
-      runSearch().catch(function () {
+      runSearch().catch(function (error) {
         state.searchResults = [];
         renderSearchResults();
+        showStatus(error.message || 'Search failed. Please try again.', 'danger');
       });
     }, 200);
   });
@@ -825,6 +973,7 @@
     }, 150);
   });
 
+  {% if not icd11_browser_read_only %}
   panel.querySelector('#icd11-policy-import-btn').addEventListener('click', function () {
     panel.querySelector('#icd11-policy-import-file').click();
   });
@@ -847,28 +996,46 @@
     sexSelectableInput().value = 'both';
     ageGroupSelectableInput().value = 'all';
   });
+  panel.querySelector('#icd11-policy-reset-btn').addEventListener('click', resetPolicyForm);
+  {% endif %}
   panel.querySelector('#icd11-browser-filter-active').addEventListener('change', updateFiltersFromInputs);
   panel.querySelector('#icd11-browser-filter-sex').addEventListener('change', updateFiltersFromInputs);
   panel.querySelector('#icd11-browser-filter-age').addEventListener('change', updateFiltersFromInputs);
   panel.querySelector('#icd11-browser-clear-filters-btn').addEventListener('click', clearFilters);
-  panel.querySelector('#icd11-policy-reset-btn').addEventListener('click', resetPolicyForm);
+  {% if icd11_browser_read_only %}
+  panel.querySelector('#icd11-browser-filter-policy').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd11-browser-filter-origin').addEventListener('change', function (event) {
+    updateFiltersFromInputs(event);
+  });
+  {% endif %}
   panel.querySelector('#icd11-browser-reset-btn').addEventListener('click', resetBrowser);
 
   applyFiltersFromUrl();
-  Promise.all([
-    requestJson(apiBase + '/policy-options'),
-    loadChildren(null),
-  ]).then(function (results) {
-    state.options = results[0];
-    setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
-    setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
-    setSelectOptions(policyStatusInput(), state.options.policy_status || [], false);
-    renderPanes();
-    renderBreadcrumb(null);
-    var nodeUri = new URLSearchParams(window.location.search).get('node');
-    return nodeUri ? revealNode(nodeUri) : null;
-  }).catch(function (error) {
-    showStatus(error.message, 'danger');
-  });
+  if (readOnly) {
+    loadChildren(null).then(function () {
+      renderPanes();
+      renderBreadcrumb(null);
+      var nodeUri = new URLSearchParams(window.location.search).get('node');
+      return nodeUri ? revealNode(nodeUri) : null;
+    }).catch(function (error) {
+      showStatus(error.message, 'danger');
+    });
+  } else {
+    Promise.all([
+      requestJson(apiBase + '/policy-options'),
+      loadChildren(null),
+    ]).then(function (results) {
+      state.options = results[0];
+      setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
+      setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
+      setSelectOptions(policyStatusInput(), state.options.policy_status || [], false);
+      renderPanes();
+      renderBreadcrumb(null);
+      var nodeUri = new URLSearchParams(window.location.search).get('node');
+      return nodeUri ? revealNode(nodeUri) : null;
+    }).catch(function (error) {
+      showStatus(error.message, 'danger');
+    });
+  }
 })();
 </script>

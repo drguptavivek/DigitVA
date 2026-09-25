@@ -6,32 +6,60 @@ import os
 import re
 
 import markdown2
-from flask import Blueprint, Response, abort, current_app, render_template, request, send_file
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+)
 from flask_login import current_user
 
-from app import limiter
+from app import limiter, talisman
+from app.services.icd10_2019_2_service import (
+    AGE_GROUP_SELECTABLE_OPTIONS,
+    SEX_SELECTABLE_OPTIONS,
+    get_icd10_2019_2_node_details,
+    list_icd10_2019_2_children,
+)
+from app.services.icd11_mms_service import (
+    get_icd11_mms_node_details,
+    list_icd11_mms_children,
+)
 from app.services.va_code_mapping_public_service import (
     ANNEX_FILE_NAME,
     CLASSIFICATION_LABELS,
     CSV_HEADERS,
+    ICD10_CSV_HEADERS,
     ICD11_CSV_HEADERS,
     ICD11_ORIGIN_FILTER_LABELS,
     ICD11_ORIGIN_FILTERS,
+    ICD11_RELEASE,
+    ORIGIN_DIGITVA,
     ORIGIN_LABELS,
+    ORIGIN_TONES,
     POLICY_REVIEW_FILTERS,
     SELECTABLE_FILTERS,
     cached_icd11_state_csv,
     compare_trees,
+    count_unmapped_icd10,
     count_unmapped_icd11,
     csv_cell,
+    filter_icd10_catalogue,
     filter_icd11_catalogue,
     filter_mappings,
+    get_icd10_catalogue,
+    get_icd11_browser_hierarchy,
     get_icd11_catalogue,
     get_public_mappings,
-    icd11_block_pages,
+    icd10_code_states,
+    icd10_state_csv_row,
     icd11_code_states,
     icd11_state_csv_row,
-    icd11_state_nodes,
+    public_origin_display,
 )
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
@@ -61,6 +89,8 @@ HELP_PAGES = [
     ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  ["coding_tester", "admin"]),
     ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("icd-codes",             "ICD Codes, VA Causes & Search", "fa-book-medical",        "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("icd10-codes",           "ICD-10 Code Browser",           "fa-book-medical",        "Coding Workflow",  None),
+    ("icd11-codes",           "ICD-11 Code Browser",           "fa-book-medical",        "Coding Workflow",  None),
     ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
@@ -238,7 +268,7 @@ def _render_md(rel_path):
     if not real.startswith(os.path.realpath(_PROJECT_ROOT)):
         abort(403)
 
-    with open(abs_path, "r", encoding="utf-8") as f:
+    with open(abs_path, encoding="utf-8") as f:
         raw = f.read()
 
     md_text = _strip_yaml_front_matter(raw)
@@ -307,6 +337,15 @@ def page(slug):
 
 
 @help_bp.route("/help/icd-codes/search-demo")
+@talisman(content_security_policy={
+    "default-src": "'self'",
+    "script-src": "'self' 'unsafe-inline'",
+    "style-src": "'self' 'unsafe-inline'",
+    "img-src": "'self' data:",
+    "media-src": "'self'",
+    "font-src": "'self' data:",
+    "connect-src": "'self' http://127.0.0.1:8382",
+})
 def icd_codes_search_demo():
     """Live coding-search demo: try the real search without opening a death."""
     page_info = _PAGES_BY_SLUG["icd-codes"]
@@ -371,7 +410,7 @@ def _mapping_filters(va_causes):
     return {
         "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
         "classification": classification if classification in CLASSIFICATION_LABELS else "",
-        "origin": origin if origin in ORIGIN_LABELS else "",
+        "origin": origin if origin in ORIGIN_LABELS or origin == ORIGIN_DIGITVA else "",
         "va_code": va_code if va_code in {code for code, _ in va_causes} else "",
     }
 
@@ -435,6 +474,7 @@ def va_code_mappings():
         mapping_link_args={key: value for key, value in filters.items() if value},
         mapping_va_causes=va_causes,
         origin_labels=ORIGIN_LABELS,
+        origin_tones=ORIGIN_TONES,
         classification_labels=CLASSIFICATION_LABELS,
         annex_file_name=ANNEX_FILE_NAME,
         **_mapping_page_ctx("help/pages/va-code-mappings.html"),
@@ -458,15 +498,6 @@ _COMPARE_COLUMNS = [
     {"id": "code", "title": "Chapter / block / code"},
     {"id": "origin", "title": "Origin", "width": "260px"},
 ]
-_STATE_COLUMNS = [
-    {"id": "code", "title": "Chapter / block / code"},
-    {"id": "va_cause", "title": "VA cause", "width": "220px"},
-    {"id": "origin", "title": "Origin", "width": "220px"},
-    {"id": "selectable", "title": "Coding", "width": "120px"},
-    {"id": "policy_status", "title": "Policy review", "width": "120px"},
-]
-
-
 @help_bp.route("/help/va-code-mappings/compare")
 @limiter.limit("60 per minute")
 def va_code_mappings_compare():
@@ -489,65 +520,462 @@ def va_code_mappings_compare():
 
 
 def _icd11_state_filters():
-    """Validated filters of the ICD-11 state view; anything unknown is ignored."""
+    """Validated filters of the public ICD-11 browser; unknowns are ignored."""
     selectable = request.args.get("selectable", "").strip()
+    if not selectable:
+        selectable = {"active": "yes", "disabled": "no"}.get(
+            request.args.get("coding_filter", "").strip(), ""
+        )
     origin = request.args.get("origin", "").strip()
     policy_status = request.args.get("policy_status", "").strip()
+    sex = request.args.get("sex_filter", request.args.get("sex", "")).strip()
+    age = request.args.get("age_filter", request.args.get("age", "")).strip()
     return {
         "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
         "selectable": selectable if selectable in SELECTABLE_FILTERS else "",
         "origin": origin if origin in ICD11_ORIGIN_FILTERS else "",
         "policy_status": policy_status if policy_status in POLICY_REVIEW_FILTERS else "",
+        "sex_filter": sex if sex in SEX_SELECTABLE_OPTIONS else "",
+        "age_filter": age if age in AGE_GROUP_SELECTABLE_OPTIONS else "",
     }
 
 
-def _block_page_bounds(pages):
-    """`(page_no, page_count)` for the `page` argument, clamped to the pages that exist."""
-    page_count = max(1, len(pages))
-    page_no = min(max(request.args.get("page", 1, type=int) or 1, 1), page_count)
-    return page_no, page_count
+def _icd10_state_filters():
+    """Validated filters for the public ICD-10 catalogue."""
+    selectable = request.args.get("selectable", "").strip()
+    if not selectable:
+        selectable = {"active": "yes", "disabled": "no"}.get(
+            request.args.get("coding_filter", "").strip(), ""
+        )
+    origin = request.args.get("origin", "").strip()
+    policy_status = request.args.get("policy_status", "").strip()
+    sex = request.args.get("sex", request.args.get("sex_filter", "")).strip()
+    age = request.args.get("age", request.args.get("age_filter", "")).strip()
+    return {
+        "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
+        "selectable": selectable if selectable in SELECTABLE_FILTERS else "",
+        "origin": origin if origin in ICD11_ORIGIN_FILTERS else "",
+        "policy_status": policy_status if policy_status in POLICY_REVIEW_FILTERS else "",
+        "sex_filter": sex if sex in SEX_SELECTABLE_OPTIONS else "",
+        "age_filter": age if age in AGE_GROUP_SELECTABLE_OPTIONS else "",
+    }
+
+
+@help_bp.route("/help/icd10-codes")
+@limiter.limit("60 per minute")
+def icd10_codes_browser():
+    """Public read-only ICD-10 browser using the admin hierarchy panes."""
+    rows, va_causes = get_public_mappings()
+    catalogue = get_icd10_catalogue()
+    filters = _icd10_state_filters()
+    codes = _filtered_icd10_browser_codes(catalogue, rows, filters)
+    page_info = _PAGES_BY_SLUG["icd10-codes"]
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/icd10-codes.html",
+        state_total=len(codes),
+        state_all_total=len(catalogue),
+        state_unmapped_total=count_unmapped_icd10(catalogue, rows),
+        state_filters=filters,
+        state_link_args={key: value for key, value in filters.items() if value},
+        origin_filter_labels=ICD11_ORIGIN_FILTER_LABELS,
+        icd10_browser_read_only=True,
+        icd10_browser_api_base="/help/icd10-codes",
+        mapping_va_causes=va_causes,
+        **_base_ctx(),
+    )
+
+
+@help_bp.route("/help/icd10-codes.csv")
+@limiter.limit("60 per minute")
+def icd10_codes_browser_csv():
+    """Stream the public ICD-10 browser rows matching its current filters."""
+    rows, _ = get_public_mappings()
+    catalogue = get_icd10_catalogue()
+    filters = _icd10_state_filters()
+    codes = filter_icd10_catalogue(catalogue, rows, **filters)
+    states = icd10_code_states(codes, catalogue, rows)
+    return _csv_response(
+        ICD10_CSV_HEADERS,
+        (icd10_state_csv_row(state) for state in states),
+        "who_2022_va_2026_icd10_code_states.csv",
+    )
+
+
+def _filtered_icd10_browser_codes(catalogue, rows, filters):
+    return filter_icd10_catalogue(catalogue, rows, **filters)
+
+
+def _icd10_browser_public_row(row, *, child_count=None):
+    """Whitelist the safe fields needed by the shared read-only pane UI."""
+    public = {
+        key: row.get(key)
+        for key in (
+            "code",
+            "title",
+            "semantic_level",
+            "child_count",
+            "is_coding_selectable",
+            "sex_selectable",
+            "age_group_selectable",
+            "restriction_note",
+            "status_indicator",
+            "ancestors",
+        )
+        if key in row
+    }
+    if child_count is not None:
+        public["child_count"] = child_count
+    return public
+
+
+def _icd10_visible_child_counts(catalogue, visible):
+    """Count only children that remain visible under all public filters."""
+    children_by_parent = {}
+
+    def add(parent, child):
+        if parent and child:
+            children_by_parent.setdefault(parent, set()).add(child)
+
+    for code in visible:
+        entry = catalogue.get(code)
+        if entry is None:
+            continue
+        chapter_code = entry["chapter"][0]
+        block_code = entry["block"][0]
+        if entry["semantic_level"] in {"three_character", "detailed_code"}:
+            add(chapter_code, block_code)
+        if entry["semantic_level"] == "three_character":
+            add(block_code, code)
+        elif entry["semantic_level"] == "detailed_code":
+            add(entry["parent_code"], code)
+
+    return {parent: len(children) for parent, children in children_by_parent.items()}
+
+
+def _icd10_context_codes(codes, catalogue):
+    """Keep matching codes and their hierarchy ancestors visible in the panes."""
+    visible = set()
+    for code in codes:
+        current = code
+        while current and current not in visible:
+            visible.add(current)
+            entry = catalogue.get(current)
+            if entry is None:
+                break
+            current = entry.get("parent_code")
+        entry = catalogue.get(code, {})
+        visible.update(
+            value[0]
+            for value in (entry.get("chapter", ("", "")), entry.get("block", ("", "")))
+            if value[0]
+        )
+    return visible
+
+
+def _icd10_browser_matching_state():
+    rows, _ = get_public_mappings()
+    catalogue = get_icd10_catalogue()
+    filters = _icd10_state_filters()
+    codes = _filtered_icd10_browser_codes(catalogue, rows, filters)
+    return rows, catalogue, filters, codes, _icd10_context_codes(codes, catalogue)
+
+
+@help_bp.get("/help/icd10-codes/children")
+@limiter.limit("60 per minute")
+def icd10_codes_browser_children():
+    """Publicly expose one filtered hierarchy level with curated row fields."""
+    parent_code = (request.args.get("parent_code") or "").strip().upper() or None
+    if parent_code and len(parent_code) > 16:
+        return jsonify({"error": "Invalid parent_code."}), 400
+    rows, catalogue, filters, codes, visible = _icd10_browser_matching_state()
+    coding_filter = {"yes": "active", "no": "disabled"}.get(filters["selectable"], "any")
+    children = list_icd10_2019_2_children(
+        parent_code,
+        coding_filter=coding_filter,
+        sex_filter=filters["sex_filter"] or "any",
+        age_filter=filters["age_filter"] or "any",
+    )
+    visible_child_counts = _icd10_visible_child_counts(catalogue, visible)
+    safe_children = [
+        _icd10_browser_public_row(
+            child,
+            child_count=visible_child_counts.get(child["code"], 0),
+        )
+        for child in children
+        if child["code"] in visible
+    ]
+    return jsonify({
+        "parent_code": parent_code,
+        "children": safe_children,
+        "matching_code_count": len(codes),
+        "all_code_count": len(catalogue),
+        "unmapped_code_count": count_unmapped_icd10(catalogue, rows),
+    })
+
+
+@help_bp.get("/help/icd10-codes/node/<code>")
+@limiter.limit("60 per minute")
+def icd10_codes_browser_node(code):
+    """Return safe details for one selected code, with its public VA mapping."""
+    payload = get_icd10_2019_2_node_details(code.strip().upper())
+    if payload is None:
+        return jsonify({"error": "ICD-10 code not found."}), 404
+    public = _icd10_browser_public_row(payload)
+    public["ancestors"] = [
+        {key: ancestor.get(key) for key in ("code", "title", "semantic_level")}
+        for ancestor in payload.get("ancestors", [])
+    ]
+    catalogue = get_icd10_catalogue()
+    if payload["code"] in catalogue:
+        rows, _ = get_public_mappings()
+        state = icd10_code_states([payload["code"]], catalogue, rows)[0]
+        origin = public_origin_display(state)
+        public.update({
+            "policy_status": state["policy_status"],
+            "va_code": state["va_code"],
+            "va_title": state["va_title"],
+            "origin": state["origin"] or "unmapped",
+            "origin_badge": origin["badge"],
+            "origin_tone": origin["tone"],
+            "origin_reason": origin["note"],
+            "origin_tooltip": origin["title"],
+            "also_claimed_by": state["also_claimed_by"],
+        })
+    else:
+        public.update({
+            "policy_status": "",
+            "va_code": "",
+            "va_title": "",
+            "origin": "",
+            "origin_badge": "",
+            "origin_tone": "secondary",
+            "origin_reason": "",
+            "origin_tooltip": "",
+            "also_claimed_by": "",
+        })
+    return jsonify(public)
+
+
+@help_bp.get("/help/icd10-codes/search")
+@limiter.limit("60 per minute")
+def icd10_codes_browser_search():
+    """Search public ICD-10 codes and return bounded pane-navigation targets."""
+    query = (request.args.get("q") or "").strip()[:_MAX_QUERY_LEN]
+    if len(query) < 2:
+        return jsonify({"results": []})
+    rows, catalogue, _filters, codes, _visible = _icd10_browser_matching_state()
+    matching = [code for code in codes if query.lower() in catalogue[code]["_search"]]
+    results = [
+        {"code": code, "title": catalogue[code]["title"], "semantic_level": catalogue[code]["semantic_level"]}
+        for code in matching[:30]
+    ]
+    return jsonify({"results": results, "total": len(matching)})
 
 
 @help_bp.route("/help/va-code-mappings/unmapped")
 @limiter.limit("60 per minute")
 def va_code_mappings_unmapped():
-    """Paged ICD-11 catalogue with each code's current mapping and coding state.
+    """Compatibility alias for the read-only ICD-11 pane browser."""
+    return _render_icd11_codes_browser()
 
-    Pages are block-aligned (icd11_block_pages): a block is never split across
-    two pages, so page sizes vary around MAPPINGS_PER_PAGE.
-    """
+
+@help_bp.route("/help/icd11-codes")
+@limiter.limit("60 per minute")
+def icd11_codes_browser():
+    """Canonical public ICD-11 browser using admin panes in read-only mode."""
+    return _render_icd11_codes_browser()
+
+
+def _render_icd11_codes_browser():
     rows, _ = get_public_mappings()
     catalogue = get_icd11_catalogue()
     filters = _icd11_state_filters()
     codes = filter_icd11_catalogue(catalogue, rows, **filters)
-    pages = icd11_block_pages(codes, catalogue, MAPPINGS_PER_PAGE)
-    page_no, page_count = _block_page_bounds(pages)
-    states = icd11_code_states(pages[page_no - 1] if pages else [], catalogue, rows)
+    page_info = _PAGES_BY_SLUG["icd11-codes"]
     return render_template(
         "help/help_base.html",
-        state_nodes=icd11_state_nodes(states),
-        state_columns=_STATE_COLUMNS,
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/icd11-codes.html",
         state_total=len(codes),
         state_all_total=len(catalogue),
         state_unmapped_total=count_unmapped_icd11(catalogue, rows),
-        state_page=page_no,
-        state_page_count=page_count,
         state_filters=filters,
         state_link_args={key: value for key, value in filters.items() if value},
         origin_filter_labels=ICD11_ORIGIN_FILTER_LABELS,
-        **_mapping_page_ctx("help/pages/va-code-mappings-unmapped.html"),
+        icd11_browser_read_only=True,
+        icd11_browser_api_base="/help/icd11-codes",
+        release=ICD11_RELEASE,
+        **_base_ctx(),
     )
+
+
+def _icd11_browser_state(hierarchy=None):
+    rows, _ = get_public_mappings()
+    catalogue = get_icd11_catalogue()
+    if hierarchy is None:
+        hierarchy = get_icd11_browser_hierarchy()
+    filters = _icd11_state_filters()
+    codes = filter_icd11_catalogue(catalogue, rows, **filters)
+    visible = set()
+    for code in codes:
+        uri = hierarchy["uri_by_code"].get(code)
+        while uri and uri in hierarchy["nodes"] and uri not in visible:
+            visible.add(uri)
+            uri = hierarchy["nodes"][uri]["parent_linearization_uri"]
+    visible_child_counts = {}
+    for uri in visible:
+        parent_uri = hierarchy["nodes"][uri]["parent_linearization_uri"]
+        if parent_uri:
+            visible_child_counts[parent_uri] = visible_child_counts.get(parent_uri, 0) + 1
+    return rows, catalogue, hierarchy, filters, codes, visible, visible_child_counts
+
+
+def _icd11_browser_public_row(row, *, child_count=None):
+    """Whitelist the fields needed to navigate and display a public node."""
+    fields = (
+        "linearization_uri", "parent_linearization_uri", "code", "title",
+        "class_kind", "depth_in_kind", "chapter_no", "is_residual", "is_leaf",
+        "is_coding_selectable", "sex_selectable", "age_group_selectable",
+        "policy_status", "restriction_note", "coding_note", "status_indicator",
+    )
+    public = {key: row.get(key) for key in fields if key in row}
+    if child_count is not None:
+        public["child_count"] = child_count
+    return public
+
+
+@help_bp.get("/help/icd11-codes/children")
+@limiter.limit("60 per minute")
+def icd11_codes_browser_children():
+    """Return one safely projected public hierarchy pane."""
+    parent_uri = (request.args.get("parent_linearization_uri") or "").strip() or None
+    if parent_uri and len(parent_uri) > 512:
+        return jsonify({"error": "ICD-11 node not found."}), 404
+    hierarchy = get_icd11_browser_hierarchy() if parent_uri else None
+    if parent_uri and parent_uri not in hierarchy["nodes"]:
+        return jsonify({"error": "ICD-11 node not found."}), 404
+    rows, catalogue, hierarchy, filters, codes, visible, visible_child_counts = (
+        _icd11_browser_state(hierarchy)
+    )
+    coding_filter = {"yes": "active", "no": "disabled"}.get(filters["selectable"], "any")
+    children = list_icd11_mms_children(
+        parent_uri,
+        release=ICD11_RELEASE,
+        coding_filter=coding_filter,
+        sex_filter=filters["sex_filter"] or "any",
+        age_filter=filters["age_filter"] or "any",
+    )
+    safe_children = [
+        _icd11_browser_public_row(
+            child,
+            child_count=visible_child_counts.get(child["linearization_uri"], 0),
+        )
+        for child in children
+        if child["linearization_uri"] in visible
+    ]
+    return jsonify({
+        "parent_linearization_uri": parent_uri,
+        "children": safe_children,
+        "matching_code_count": len(codes),
+        "all_code_count": len(catalogue),
+        "unmapped_code_count": count_unmapped_icd11(catalogue, rows),
+    })
+
+
+@help_bp.get("/help/icd11-codes/node")
+@limiter.limit("60 per minute")
+def icd11_codes_browser_node():
+    """Return a safe public node and its hierarchy path plus mapping state."""
+    uri = (request.args.get("linearization_uri") or "").strip()
+    if not uri or len(uri) > 512:
+        return jsonify({"error": "ICD-11 node not found."}), 404
+    rows, catalogue, hierarchy, _filters, _codes, _visible, visible_child_counts = (
+        _icd11_browser_state()
+    )
+    if uri not in hierarchy["nodes"]:
+        return jsonify({"error": "ICD-11 node not found."}), 404
+    details = get_icd11_mms_node_details(uri, release=ICD11_RELEASE)
+    if details is None:
+        return jsonify({"error": "ICD-11 node not found."}), 404
+    ancestor_uris = []
+    parent_uri = hierarchy["nodes"][uri]["parent_linearization_uri"]
+    while parent_uri and parent_uri in hierarchy["nodes"]:
+        ancestor_uris.append(parent_uri)
+        parent_uri = hierarchy["nodes"][parent_uri]["parent_linearization_uri"]
+    details["ancestors"] = [hierarchy["nodes"][ancestor] for ancestor in reversed(ancestor_uris)]
+    public = _icd11_browser_public_row(details)
+    public["ancestors"] = [
+        _icd11_browser_public_row(ancestor)
+        for ancestor in details["ancestors"]
+    ]
+    public["child_count"] = visible_child_counts.get(uri, 0)
+    if public["class_kind"] == "category" and public.get("code") in catalogue:
+        state = icd11_code_states([public["code"]], catalogue, rows)[0]
+        origin = public_origin_display(state)
+        public.update({
+            "va_code": state["va_code"],
+            "va_title": state["va_title"],
+            "origin": state["origin"] or "unmapped",
+            "origin_badge": origin["badge"],
+            "origin_tone": origin["tone"],
+            "origin_reason": origin["note"],
+            "origin_tooltip": origin["title"],
+        })
+    else:
+        public.update({
+            "va_code": "", "va_title": "", "origin": "",
+            "origin_badge": "", "origin_tone": "secondary",
+            "origin_reason": "", "origin_tooltip": "",
+        })
+    return jsonify(public)
+
+
+@help_bp.get("/help/icd11-codes/search")
+@limiter.limit("60 per minute")
+def icd11_codes_browser_search():
+    """Bounded search for public ICD-11 categories and pane reveal targets."""
+    query = (request.args.get("q") or "").strip()[:_MAX_QUERY_LEN]
+    if len(query) < 2:
+        return jsonify({"results": []})
+    _rows, catalogue, hierarchy, _filters, codes, _visible, _counts = _icd11_browser_state()
+    matching = [code for code in codes if query.lower() in catalogue[code]["_search"]]
+    return jsonify({
+        "results": [
+            {
+                "linearization_uri": hierarchy["uri_by_code"].get(code, ""),
+                "icd_code": code,
+                "title": catalogue[code]["title"],
+            }
+            for code in matching[:30]
+            if hierarchy["uri_by_code"].get(code)
+        ],
+        "total": len(matching),
+    })
 
 
 @help_bp.route("/help/va-code-mappings/unmapped.csv")
 @limiter.limit("60 per minute")
 def va_code_mappings_unmapped_csv():
-    """The ICD-11 state view as CSV, all codes matching the filters.
+    """Compatibility alias for the public ICD-11 browser CSV."""
+    return _icd11_codes_browser_csv_response()
 
-    Without a search, origin filter or policy-review filter, each selectable
-    variant is served from a file cache (see cached_icd11_state_csv); any other
-    combination always streams live, so arbitrary query args never create files.
-    """
+
+@help_bp.route("/help/icd11-codes.csv")
+@limiter.limit("60 per minute")
+def icd11_codes_browser_csv():
+    """Download every ICD-11 category matching the browser filters."""
+    return _icd11_codes_browser_csv_response()
+
+
+def _icd11_codes_browser_csv_response():
     rows, _ = get_public_mappings()
     catalogue = get_icd11_catalogue()
     filters = _icd11_state_filters()
@@ -556,7 +984,7 @@ def va_code_mappings_unmapped_csv():
         return icd11_code_states(filter_icd11_catalogue(catalogue, rows, **filters), catalogue, rows)
 
     filename = "who_2022_va_2026_icd11_code_states.csv"
-    if not filters["q"] and not filters["origin"] and not filters["policy_status"]:
+    if not any(filters[key] for key in ("q", "origin", "policy_status", "sex_filter", "age_filter")):
         path = cached_icd11_state_csv(_public_csv_dir(), filters["selectable"], states)
         try:
             handle = open(path, "rb") if path else None

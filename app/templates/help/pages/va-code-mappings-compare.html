@@ -11,6 +11,8 @@
   badge is the row's origin, as on the <a href="{{ url_for('help.va_code_mappings') }}">mapping list</a>.
 </p>
 
+{% include "help/pages/_origin_legend.html" %}
+
 <form method="get" action="{{ url_for('help.va_code_mappings_compare') }}" class="row g-2 align-items-end mb-3">
   <div class="col-md-8">
     <label class="form-label small mb-1" for="compare-va">VA cause</label>

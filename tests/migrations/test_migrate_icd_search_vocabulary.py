@@ -8,6 +8,7 @@ import csv
 import importlib.util
 import unittest
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -382,6 +383,159 @@ class SortOrderReconcileMigrationTest(unittest.TestCase):
         alembic_upgrade(revision=self.REVISION_UNDER_TEST)
 
         self.assertEqual(self._scalar(f"SELECT count(*) FROM {TABLE}"), before)
+
+
+class TuberculosisVocabularyReconcileMigrationTest(unittest.TestCase):
+    MIGRATION_DB_NAME = "minerva_test_migration_b7e2a9c4d6f1"
+    PARENT_REVISION = "a5f7c3d92b18"
+    REVISION_UNDER_TEST = "b7e2a9c4d6f1"
+    MIGRATION_FILE = f"{REVISION_UNDER_TEST}_reconcile_tuberculosis_vocabulary.py"
+    CAPTURE_TABLE = "_mig_b7e2a9c4d6f1_inserted"
+
+    def setUp(self):
+        _admin_execute(f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"')
+        _admin_execute(f'CREATE DATABASE "{self.MIGRATION_DB_NAME}"')
+        self.addCleanup(
+            lambda: _admin_execute(
+                f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"'
+            )
+        )
+
+        db_name = self.MIGRATION_DB_NAME
+
+        class _Config(TestConfig):
+            SQLALCHEMY_DATABASE_URI = _server_url(db_name).render_as_string(hide_password=False)
+
+        from tests.base import create_app_without_celery_takeover
+
+        self.app = create_app_without_celery_takeover(_Config)
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        self.addCleanup(self.ctx.pop)
+        alembic_upgrade(revision=self.PARENT_REVISION)
+
+        from app import db
+
+        self.db = db
+        self.addCleanup(db.engine.dispose)
+
+    def _scalar(self, sql, params=None):
+        with self.db.engine.connect() as conn:
+            return conn.execute(sa.text(sql), params or {}).scalar()
+
+    def _execute(self, sql, params=None):
+        with self.db.engine.begin() as conn:
+            conn.execute(sa.text(sql), params or {})
+
+    def _load_migration(self):
+        path = _repo_root() / "migrations" / "versions" / self.MIGRATION_FILE
+        spec = importlib.util.spec_from_file_location("_under_test_tuberculosis_migration", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_fresh_chain_and_reconcile_upgrade_have_exact_downgrades(self):
+        migration = self._load_migration()
+        with (_repo_root() / "resource" / "icd_search_vocabulary_seed.csv").open(
+            newline="", encoding="utf-8"
+        ) as handle:
+            seed_rows = [
+                (
+                    row["term"].strip(),
+                    row["term_normalized"].strip(),
+                    row["icd_classification"].strip(),
+                    row["icd_code"].strip(),
+                    row["source"].strip(),
+                    row["note"].strip(),
+                    int((row.get("sort_order") or "").strip() or 100),
+                )
+                for row in csv.DictReader(handle)
+                if row["term_normalized"].strip() == "tuberculosis"
+            ]
+        self.assertEqual(set(migration.TUBERCULOSIS_ROWS), set(seed_rows))
+
+        # Earlier migrations consume the current CSV on a fresh chain, so
+        # this revision must not claim rows written by those older revisions.
+        for classification, code in (("icd10", "A16"), ("icd11", "1B10.Z")):
+            self.assertEqual(
+                self._scalar(
+                    f"SELECT count(*) FROM {TABLE} WHERE term_normalized = :term "
+                    "AND icd_classification = :classification AND icd_code = :code",
+                    {"term": "tuberculosis", "classification": classification, "code": code},
+                ),
+                1,
+            )
+        alembic_upgrade(revision=self.REVISION_UNDER_TEST)
+        self.assertEqual(self._scalar(f"SELECT count(*) FROM {self.CAPTURE_TABLE}"), 0)
+        alembic_downgrade(revision=self.PARENT_REVISION)
+        self.assertEqual(
+            self._scalar(f"SELECT count(*) FROM {TABLE} WHERE term_normalized = 'tuberculosis'"), 2
+        )
+        self.assertIsNone(self._scalar(f"SELECT to_regclass('{self.CAPTURE_TABLE}')"))
+
+        # Simulate a deployed database that predates this seed addition. Keep
+        # an administrator-owned exact key to prove reconciliation respects it.
+        self._execute(
+            f"DELETE FROM {TABLE} WHERE "
+            "(term_normalized = 'tuberculosis' AND icd_classification = 'icd10' "
+            "AND icd_code = 'A16') OR "
+            "(term_normalized = 'tuberculosis' AND icd_classification = 'icd11' "
+            "AND icd_code = '1B10.Z')"
+        )
+        admin_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
+        self._execute(
+            f"INSERT INTO {TABLE} (term_id, term, term_normalized, icd_classification, "
+            "icd_code, source, note, sort_order, is_active, created_at, updated_at) "
+            "VALUES (:term_id, 'tuberculosis', 'tuberculosis', 'icd10', 'A16', "
+            "'admin', 'keep this edit', 7, false, :now, :now)",
+            {"term_id": admin_id, "now": now},
+        )
+
+        alembic_upgrade(revision=self.REVISION_UNDER_TEST)
+
+        self.assertEqual(self._scalar(f"SELECT count(*) FROM {self.CAPTURE_TABLE}"), 1)
+        inserted_id = self._scalar(f"SELECT term_id FROM {self.CAPTURE_TABLE}")
+        self.assertEqual(
+            self._scalar(
+                f"SELECT icd_code FROM {TABLE} WHERE term_id = :term_id",
+                {"term_id": inserted_id},
+            ),
+            "1B10.Z",
+        )
+        admin_row = self._scalar(
+            f"SELECT note || '|' || source || '|' || is_active::text || '|' || sort_order "
+            f"FROM {TABLE} WHERE term_id = :term_id",
+            {"term_id": admin_id},
+        )
+        self.assertEqual(admin_row, "keep this edit|admin|false|7")
+
+        alembic_downgrade(revision=self.PARENT_REVISION)
+
+        self.assertEqual(
+            self._scalar(
+                f"SELECT count(*) FROM {TABLE} WHERE term_normalized = 'tuberculosis' "
+                "AND icd_classification = 'icd10' AND icd_code = 'A16'"
+            ),
+            1,
+        )
+        self.assertEqual(
+            self._scalar(
+                f"SELECT count(*) FROM {TABLE} WHERE term_normalized = 'tuberculosis' "
+                "AND icd_classification = 'icd11' AND icd_code = '1B10.Z'"
+            ),
+            0,
+        )
+        self.assertEqual(
+            str(
+                self._scalar(
+                    f"SELECT term_id FROM {TABLE} WHERE term_normalized = 'tuberculosis' "
+                    "AND icd_classification = 'icd10' AND icd_code = 'A16'"
+                )
+            ),
+            admin_id,
+        )
+        self.assertIsNone(self._scalar(f"SELECT to_regclass('{self.CAPTURE_TABLE}')"))
 
 
 if __name__ == "__main__":

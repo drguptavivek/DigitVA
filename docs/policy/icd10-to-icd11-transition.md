@@ -387,6 +387,7 @@ resetting does not undo it.
 | 16 | Bucket of saved three-character `V10`-`V82` and `V87` (added 2026-09-25) | **Road traffic** (`VAs-12.01`) in `WHO_2022_VA_2026`, by WHO's own ICD-10 rule (V01-V99 chapter note): where it is not specified whether a vehicle accident is traffic or nontraffic, it is assumed to be traffic for `V10`-`V82` and `V87`, nontraffic for `V83`-`V86`. `V01`-`V09`, `V83`-`V86`, `V88`, `V89` stay Other transport. Re-buckets historical records only; nobody is re-coded |
 | 17 | ICD-11 `PA20`-`PA2Z` "unknown whether traffic or nontraffic" (added 2026-09-25) | The same WHO assumption applied by analogy: `PA22`-`PA29`, `PA2E`, `PA2F`, `PA2Y`, `PA2Z` → **Road traffic** (`VAs-12.01`); `PA2A`-`PA2D` (off-road/special vehicles, the ICD-10 `V83`-`V86` counterparts) and `PA20`, `PA21` (pedestrians; WHO counts only `V0x.1` as road traffic) → Other transport (`VAs-12.02`). **Supersedes decision 3** for the ten codes it moves |
 | 18 | Stillbirth (added 2026-09-25) | ICD-11: `KD3B` and `KD3B.Z` (time of fetal death not specified) are **not selectable**, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum); vocabulary "stillbirth" offers `KD3B.1` first. ICD-10: WHO gives `P95` for both Fresh and Macerated and fresh versus macerated is **not differentiable** in ICD-10; DigitVA does not invent codes, so `P95` stays one code in one bucket |
+| 19 | Public mapping origins and explanations (added 2026-09-25, `digitva-oeu`) | Distinguish WHO, WHO overlap resolved, not in WHO's list, differs from WHO, not a cause of death, and unmapped. The 2,148 ICD-11 decision-5b rows with no usable single-bucket crosswalk suggestion are never selectable and use **Not a cause of death**. Other uncovered selectable placements use **Not in WHO's list**; a row mapped to a cause WHO assigns elsewhere uses **Differs from WHO**. Public pages show plain-language reasons and say **expert review**; decision number and date appear only in the CSV audit note and an **Expert review decision N (date)** tooltip. The legacy `?origin=digitva` filter remains an alias for the three DigitVA-origin groups |
 
 ### 6.1 Applied (2026-09-24)
 
@@ -397,9 +398,10 @@ what the same annex range would). Explicit decisions beat annex ranges; among
 decisions the narrower entry wins. Rows carry `match_type` `owner_decision`
 (or `owner_fallback` for 5b) and a note "Owner decision N (2026-09-24): ...".
 Migration `dc762caa67dd` (ICD-11) and `fad35e5c4b79` (ICD-10) apply them to
-existing databases and leave admin-edited rows alone. All of these rows derive
-as "DigitVA decision" on the public page, because the annex does not give the
-code to the row's cause.
+existing databases and leave admin-edited rows alone. On the public page, a
+row claimed by WHO for another cause is **Differs from WHO**; a selectable
+uncovered placement is **Not in WHO's list**; the 2,148 decision-5b rows with
+no usable single-bucket crosswalk suggestion are **Not a cause of death**.
 
 | # | Applied | Rows |
 |---|---|---:|
@@ -437,15 +439,29 @@ cause, and whether that follows WHO or is a DigitVA decision.
     plus `Y85.0`, as road traffic, and treats `V90`-`V99` (water, air, other)
     and `Y85.9` as Other transport. The owner confirmed this reading on 2026-09-24
     (decision 13a).
-  - **WHO, resolved by DigitVA rule**: two or more causes' annex ranges claim
-    the code, and DigitVA picked the one the row shows by a stated rule. The
-    rules are: narrowest range wins; specific code beats range; the transport
-    split; the `PJ2x` decision.
-  - **DigitVA decision**: the row's cause is not one the annex gives the code.
-    This includes codes outside every annex range and buckets that are not
-    WHO VA causes (e.g. "Other Gastrointestinal Diseases").
+  - **WHO (overlap resolved)**: two or more causes' annex ranges claim the
+    code, and DigitVA picked the row's cause by a stated rule.
+  - **Not in WHO's list**: a selectable code is not claimed for this cause;
+    the row's reason says whether it follows its ICD-10 equivalent or was
+    placed by clinical review.
+  - **Differs from WHO**: WHO claims the code for another cause, and expert
+    review deliberately chose otherwise.
+  - **Not a cause of death**: the 2,148 ICD-11 decision-5b codes with no
+    usable single-bucket crosswalk suggestion. They are never selectable and
+    are mapped to Unknown only so that no record can go unreported.
+  - **Unmapped**: no active mapping row assigns the code to a VA cause.
+- **Public reasons:** each non-WHO badge has a plain-language reason beneath
+  it. WHO overlap rules read: `WHO's more specific range`; `WHO names this
+  code directly for this cause`; `WHO lists it for two causes and the code
+  cannot tell them apart`; `Traffic events count as road traffic, others as
+  other transport`; `Maltreatment by others counts as Assault`; and `Reported
+  the same way as its ICD-10 equivalent I25` for BA5x. Other review reasons
+  describe the relevant ICD-10 equivalent or clinical rationale in plain
+  language. User-facing pages say **expert review** and do not show the
+  internal decision number or date. A tooltip may say `Expert review decision
+  N (date)`; the CSV keeps the complete audit note.
 - **Each row shows:** classification, code, code title, VA code and title,
-  origin, and the row's note.
+  origin, and its plain-language reason. The CSV also retains the audit note.
 - **Use:** server-side search (code, title, VA cause), filters
   (classification, origin, VA cause), paged results, and a download of the
   full list as CSV.
@@ -467,13 +483,13 @@ cause, and whether that follows WHO or is a DigitVA decision.
   when no active row maps it. It also shows whether coders may select it and
   the policy review status (`reviewed` / `unreviewed`).
   - The page shows the selectable list as it stands. It does not wait for
-    the owner's sign-off (`digitva-dus.3`): unreviewed codes are labelled
-    as such.
+    expert review (`digitva-dus.3`): unreviewed codes are labelled as such.
   - Filters: selectable / not selectable / all, a text search, **origin**
-    (WHO / WHO, resolved by DigitVA rule / DigitVA decision / Unmapped) and
-    **policy review** (reviewed / unreviewed). Unknown query values are
-    ignored; every filter is kept in the paging links and the CSV link, and
-    the CSV honours them too.
+    (WHO / WHO (overlap resolved) / Not in WHO's list / Differs from WHO /
+    Not a cause of death / Unmapped) and **policy review** (reviewed /
+    unreviewed). The legacy `?origin=digitva` alias selects the three
+    DigitVA-origin groups. Unknown query values are ignored; every filter is
+    kept in the paging links and the CSV link, and the CSV honours them too.
   - Paging is block-aligned (`icd11_block_pages`): a page accumulates whole
     catalogue blocks until it reaches 100 codes, so a block is never split
     across two pages; a block bigger than 100 gets a page to itself.

@@ -148,6 +148,18 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
         self.assertFalse(self.decisions["1H00"]["selectable"])
         self.assertEqual(self.decisions["1H00"]["rule"], "not_in_annex")
 
+    def test_uncovered_code_without_crosswalk_suggestion_stays_unselectable(self):
+        code = "1H00"
+        crosswalk_targets = {
+            target
+            for value in ICD10_TO_ICD11.values()
+            for alternative in value.split("/")
+            for target in alternative.split("&")
+        }
+        self.assertNotIn(code, crosswalk_targets)
+        self.assertFalse(self.decisions[code]["selectable"])
+        self.assertEqual(self.decisions[code]["rule"], "not_in_annex")
+
     def test_malformed_5c52_range_is_read_as_owner_corrected(self):
         self.assertTrue(self.decisions["5C52.Y"]["selectable"])
         self.assertTrue(self.decisions["5C52.Z"]["selectable"])

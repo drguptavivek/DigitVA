@@ -2645,6 +2645,8 @@ def admin_panel_icd10_browser():
     return render_template(
         "admin/panels/icd10_browser.html",
         reporting_icd_alias_rows=get_reporting_icd_alias_rows(),
+        icd10_browser_read_only=False,
+        icd10_browser_api_base="/admin/api/icd10/2019-2",
     )
 
 

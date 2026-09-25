@@ -10,8 +10,8 @@
  * nodes: a flat list [{id, parent_id, title, expanded?, cells?: {colId: cell}}],
  * parents listed before their children. A node whose parent_id is unknown is
  * shown at the top level rather than dropped. A cell is a string, or
- * {badge, tone, note} with tone one of TONES. Every value is set as text, so
- * the data is never parsed as HTML.
+ * {badge, tone, note, title} with tone one of TONES. Values are set as text or
+ * attributes, so the data is never parsed as HTML.
  *
  * Expand/collapse all: any element with data-tree-action="expand" or
  * "collapse" and data-tree-target="<tree element id>" (one delegated listener).
@@ -77,11 +77,12 @@
       var badge = document.createElement('span');
       badge.className = 'badge text-bg-' + (TONES[cell.tone] ? cell.tone : 'secondary');
       badge.textContent = String(cell.badge);
+      if (cell.title) badge.title = String(cell.title);
       elem.appendChild(badge);
     }
     if (cell.note) {
-      var note = document.createElement('span');
-      note.className = 'text-muted ms-1';
+      var note = document.createElement('div');
+      note.className = 'd-block text-muted small';
       note.textContent = String(cell.note);
       elem.appendChild(note);
     }

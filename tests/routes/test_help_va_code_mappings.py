@@ -1,5 +1,5 @@
-"""Public /help/va-code-mappings page and CSV (digitva-712.3), and its compare
-and ICD-11 state sub-pages (digitva-xud).
+"""Public /help/va-code-mappings page and CSV (digitva-712.3), its compare
+page, and the read-only ICD-11 browser.
 
 Anonymous, GET only, validated and clamped query parameters.
 """
@@ -14,12 +14,13 @@ from unittest import mock
 
 from app import db
 from app.models import MasIcd11Mms
+from app.routes import help as help_routes
 from app.services import va_code_mapping_public_service as service
 from tests.base import BaseTestCase
 from tests.services.test_va_code_mapping_public_service import (
     CATALOGUE,
+    INNER_BLOCK_URI,
     RELEASE,
-    SELECTABLE,
     seed_public_mapping_fixture,
 )
 
@@ -55,17 +56,24 @@ class HelpVaCodeMappingsRouteTests(BaseTestCase):
         self.assertIn("ICD to VA Cause Mappings", body)
         self.assertIn("153 of 153 mappings", body)
         self.assertIn("Page 1 of 2", body)
+        self.assertIn('id="origin-legend"', body)
+        self.assertNotIn('<th scope="col">Note</th>', body)
 
     def test_search_and_filters(self):
         body = self.client.get("/help/va-code-mappings?q=k70.2").get_data(as_text=True)
         self.assertIn("1 of 153 mappings", body)
         self.assertIn("K70.2", body)
-        self.assertIn("Specific code beats range", body)
+        self.assertIn("WHO names this code directly for this cause", body)
+
+        who_body = self.client.get("/help/va-code-mappings?q=1G40").get_data(as_text=True)
+        self.assertIn("WHO lists this code for this cause.", who_body)
 
         body = self.client.get("/help/va-code-mappings?origin=digitva&classification=icd10").get_data(as_text=True)
         self.assertIn("1 of 153 mappings", body)
         self.assertIn("<code>K72</code>", body)
         self.assertNotIn("<code>K70.2</code>", body)
+        self.assertNotIn('<option value="digitva"', body)
+        self.assertIn("Differs from WHO", body)
 
         body = self.client.get("/help/va-code-mappings?classification=icd11").get_data(as_text=True)
         self.assertIn("<code>1G40</code>", body)
@@ -73,6 +81,21 @@ class HelpVaCodeMappingsRouteTests(BaseTestCase):
 
         body = self.client.get("/help/va-code-mappings?va_code=VAs-06.02").get_data(as_text=True)
         self.assertIn("2 of 153 mappings", body)
+
+    def test_review_decision_metadata_is_only_in_a_plain_tooltip(self):
+        rows, va_causes = service.get_public_mappings(scheme_code=self.scheme_code, release=RELEASE)
+        rows = [dict(row) for row in rows]
+        row = next(item for item in rows if item["code"] == "K72")
+        row["note"] = "Owner decision 11 (2026-09-24): crosswalk vas_01_07 10To11 override"
+        row["origin_tooltip"] = service._review_tooltip(row["note"])
+        with mock.patch.object(help_routes, "get_public_mappings", return_value=(rows, va_causes)):
+            body = self.client.get("/help/va-code-mappings?q=K72").get_data(as_text=True)
+        self.assertIn('title="Expert review decision 11 (2026-09-24)"', body)
+        self.assertNotIn("Owner decision 11", body)
+        self.assertNotIn("crosswalk", body)
+        self.assertNotIn("vas_01_07", body)
+        self.assertNotIn("10To11", body)
+        self.assertNotIn("override", body)
 
     def test_second_page(self):
         first = self.client.get("/help/va-code-mappings").get_data(as_text=True)
@@ -105,7 +128,8 @@ class HelpVaCodeMappingsRouteTests(BaseTestCase):
         self.assertEqual(response.mimetype, "text/csv")
         self.assertIn("attachment", response.headers["Content-Disposition"])
         rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
-        self.assertEqual([(r["code"], r["va_code"], r["origin"]) for r in rows], [("K72", "VAs-06.02", "digitva")])
+        self.assertEqual([(r["code"], r["va_code"], r["origin"]) for r in rows], [("K72", "VAs-06.02", "differs")])
+        self.assertEqual(rows[0]["note"], "note for K72")
 
         full = list(csv.reader(io.StringIO(self.client.get("/help/va-code-mappings.csv").get_data(as_text=True))))
         self.assertEqual(tuple(full[0]), service.CSV_HEADERS)
@@ -148,6 +172,9 @@ class PublicMappingRouteTests(BaseTestCase):
         patcher = mock.patch.multiple(service, SCHEME_CODE=self.scheme.scheme_code, ICD11_RELEASE=RELEASE)
         patcher.start()
         self.addCleanup(patcher.stop)
+        release_patcher = mock.patch.object(help_routes, "ICD11_RELEASE", RELEASE)
+        release_patcher.start()
+        self.addCleanup(release_patcher.stop)
         # CSV file cache in a directory of this test's own.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -170,6 +197,7 @@ class PublicMappingRouteTests(BaseTestCase):
     def test_compare_renders_both_sides(self):
         response = self.client.get("/help/va-code-mappings/compare?va_code=VAs-01.01")
         self.assertEqual(response.status_code, 200)
+        self.assertIn('id="origin-legend"', response.get_data(as_text=True))
         icd10 = self.page_json(response, "compare-icd10")
         icd11 = self.page_json(response, "compare-icd11")
         self.assertIn("K70.2", {node["id"] for node in icd10["nodes"]})
@@ -185,75 +213,128 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertIn("Choose a VA cause", html)
         self.assertNotIn("compare-icd10-data", html)
 
-    def test_state_view_lists_unmapped_code_and_splits_by_selectable(self):
-        codes = lambda response: {  # noqa: E731
-            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
-        }
-        everything = codes(self.client.get("/help/va-code-mappings/unmapped"))
-        self.assertIn("KD3B.0", everything)
-        self.assertIn("1G40", everything)
-        response = self.client.get("/help/va-code-mappings/unmapped?selectable=yes")
-        self.assertEqual(codes(response), SELECTABLE)
-        self.assertNotIn("KD3B.0", codes(response))
-        not_selectable = codes(self.client.get("/help/va-code-mappings/unmapped?selectable=no"))
-        self.assertIn("KD3B.0", not_selectable)
-        self.assertNotIn("1G40", not_selectable)
-        # An unknown filter value is ignored, not an error.
-        self.assertEqual(codes(self.client.get("/help/va-code-mappings/unmapped?selectable=maybe")), everything)
+    def test_icd11_browser_uses_shared_panes_and_legacy_url_still_works(self):
+        canonical = self.client.get("/help/icd11-codes?origin=who")
+        legacy = self.client.get("/help/va-code-mappings/unmapped?origin=who")
+        self.assertEqual(canonical.status_code, 200)
+        self.assertEqual(legacy.status_code, 200)
+        body = canonical.get_data(as_text=True)
+        self.assertIn('id="panel-icd11-browser"', body)
+        self.assertIn('id="icd11-browser-columns"', body)
+        self.assertIn('id="icd11-browser-path"', body)
+        self.assertIn('id="icd11-browser-details"', body)
+        self.assertIn('id="origin-legend"', body)
+        self.assertIn("WHO (overlap resolved)", body)
+        for label in ("Not in WHO's list", "Differs from WHO", "Not a cause of death", "Unmapped"):
+            self.assertIn(label, body)
+        self.assertNotIn("/admin/api/icd11/mms", body)
+        for admin_control in ("Import JSON", "Export JSON", "Save Policy", "policy-import"):
+            self.assertNotIn(admin_control, body)
+        self.assertIn("icd11-codes.csv?origin=who", body)
+        self.assertIn('id="icd11-browser-columns"', legacy.get_data(as_text=True))
 
-    def test_state_view_shows_unmapped_badge_and_counts(self):
-        response = self.client.get("/help/va-code-mappings/unmapped?q=KD3B.0")
-        nodes = self.page_json(response, "icd11-states")["nodes"]
-        leaf = next(node for node in nodes if node["id"] == "KD3B.0")
-        self.assertEqual(leaf["cells"]["origin"], {"badge": "Unmapped", "tone": "secondary"})
-        self.assertEqual(leaf["cells"]["selectable"], "Not selectable")
-        self.assertIn(f"{len(CATALOGUE) - 2} unmapped", response.get_data(as_text=True))
+        alias = self.client.get("/help/icd11-codes?origin=digitva").get_data(as_text=True)
+        self.assertIn("state.filters.origin = origin === 'digitva' ? origin", alias)
+        self.assertIn("originEl.value = state.filters.origin === 'digitva' ? 'any'", alias)
+        self.assertIn("params.set('origin', state.filters.origin)", alias)
+        self.assertIn("async function updateFiltersFromInputs(event)", alias)
 
-    def test_state_view_renders_origin_and_policy_controls(self):
-        body = self.client.get("/help/va-code-mappings/unmapped").get_data(as_text=True)
-        self.assertIn('name="origin"', body)
-        self.assertIn('name="policy_status"', body)
-        self.assertIn("WHO, resolved by DigitVA rule", body)
-        self.assertIn(">Unmapped<", body)
-        self.assertIn(">Reviewed<", body)
-        self.assertIn(">Unreviewed<", body)
+    def test_icd11_browser_children_are_filtered_and_include_policy_fields(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KD3B.0")
+        )
+        row.sex_selectable = "female"
+        row.age_group_selectable = "neonate"
+        row.policy_status = "reviewed"
+        row.restriction_note = "Neonate only"
+        db.session.commit()
 
-    def test_state_view_origin_filter(self):
-        codes = lambda response: {  # noqa: E731
-            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
-        }
-        who = codes(self.client.get("/help/va-code-mappings/unmapped?origin=who"))
-        self.assertEqual(who, {"1G40"})
-        resolved = codes(self.client.get("/help/va-code-mappings/unmapped?origin=who_resolved"))
-        self.assertEqual(resolved, {"KD3B.1"})
-        unmapped = codes(self.client.get("/help/va-code-mappings/unmapped?origin=unmapped"))
-        self.assertIn("KD3B.0", unmapped)
-        self.assertNotIn("1G40", unmapped)
-        self.assertNotIn("KD3B.1", unmapped)
-        # An unknown value is ignored, not an error.
-        everything = codes(self.client.get("/help/va-code-mappings/unmapped"))
-        self.assertEqual(codes(self.client.get("/help/va-code-mappings/unmapped?origin=bogus")), everything)
+        response = self.client.get(
+            f"/help/icd11-codes/children?parent_linearization_uri={INNER_BLOCK_URI}"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        codes = {item["code"] for item in payload["children"]}
+        self.assertIn("1G40", codes)
+        self.assertIn("KD3B", codes)
+        self.assertEqual(payload["matching_code_count"], len(CATALOGUE))
 
-    def test_state_view_policy_status_filter(self):
+        active = self.client.get(
+            f"/help/icd11-codes/children?parent_linearization_uri={INNER_BLOCK_URI}&coding_filter=active"
+        ).get_json()
+        self.assertEqual({item["code"] for item in active["children"]}, {"1G40", "KD3B"})
+        restricted = self.client.get(
+            "/help/icd11-codes/children?parent_linearization_uri=test712://KD3B"
+            "&sex_filter=female&age_filter=neonate"
+        ).get_json()
+        self.assertEqual([item["code"] for item in restricted["children"]], ["KD3B.0"])
+        self.assertIn("sex_selectable", restricted["children"][0])
+        self.assertIn("age_group_selectable", restricted["children"][0])
+
+    def test_icd11_node_detail_exposes_mapping_and_policy_but_not_internal_fields(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(
+                MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KD3B.1"
+            )
+        )
+        row.sex_selectable = "female"
+        row.age_group_selectable = "neonate"
+        row.policy_status = "reviewed"
+        row.restriction_note = "Neonate only"
+        db.session.commit()
+
+        response = self.client.get(
+            "/help/icd11-codes/node?linearization_uri=test712://KD3B.1"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["sex_selectable"], "female")
+        self.assertEqual(payload["age_group_selectable"], "neonate")
+        self.assertEqual(payload["policy_status"], "reviewed")
+        self.assertEqual(payload["restriction_note"], "Neonate only")
+        self.assertTrue(payload["va_code"])
+        self.assertTrue(payload["origin_badge"])
+        for field in ("id", "source_version", "foundation_uri", "policy_editable"):
+            self.assertNotIn(field, payload)
+
+    def test_icd11_direct_who_mapping_has_a_plain_reason(self):
+        response = self.client.get(
+            "/help/icd11-codes/node?linearization_uri=test712://1G40"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["origin_reason"], "WHO lists this code for this cause.")
+
+    def test_icd11_origin_and_policy_filters_cover_canonical_and_legacy_urls(self):
         row = db.session.scalar(
             db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "1G40")
         )
         row.policy_status = "reviewed"
         db.session.commit()
-        codes = lambda response: {  # noqa: E731
-            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
-        }
-        reviewed = codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=reviewed"))
-        self.assertEqual(reviewed, {"1G40"})
-        self.assertNotIn("1G40", codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=unreviewed")))
-        everything = codes(self.client.get("/help/va-code-mappings/unmapped"))
-        self.assertEqual(codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=bogus")), everything)
+        who = self.client.get("/help/icd11-codes/children?origin=who").get_json()
+        self.assertEqual(who["matching_code_count"], 1)
+        legacy_origin = self.client.get("/help/icd11-codes/children?origin=digitva").get_json()
+        self.assertEqual(legacy_origin["matching_code_count"], 0)
+        alias_search = self.client.get("/help/icd11-codes/search?q=sepsis&origin=digitva").get_json()
+        self.assertEqual(alias_search["results"], [])
+        reviewed = self.client.get("/help/icd11-codes/children?policy_status=reviewed")
+        self.assertEqual(reviewed.get_json()["matching_code_count"], 1)
+        reviewed = self.client.get("/help/va-code-mappings/unmapped?policy_status=reviewed")
+        self.assertEqual(reviewed.status_code, 200)
+        self.assertIn("icd11-codes", reviewed.get_data(as_text=True))
+        self.assertIn("/help/icd11-codes", reviewed.get_data(as_text=True))
+        self.assertNotIn('<option value="digitva"', reviewed.get_data(as_text=True))
 
-    def test_state_view_keeps_origin_and_policy_filters_in_links(self):
-        body = self.client.get(
-            "/help/va-code-mappings/unmapped?origin=who&policy_status=unreviewed"
-        ).get_data(as_text=True)
-        self.assertIn("unmapped.csv?origin=who&amp;policy_status=unreviewed", body)
+    def test_legacy_page_and_csv_are_get_only(self):
+        routes = {
+            rule.rule: rule for rule in self.app.url_map.iter_rules()
+        }
+        for path in (
+            "/help/icd11-codes", "/help/icd11-codes/children", "/help/icd11-codes/node",
+            "/help/icd11-codes/search", "/help/icd11-codes.csv",
+            "/help/va-code-mappings/unmapped", "/help/va-code-mappings/unmapped.csv",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(routes[path].methods, {"GET", "HEAD", "OPTIONS"})
 
     def test_csv_honours_origin_filter_and_streams_live(self):
         response = self.client.get("/help/va-code-mappings/unmapped.csv?origin=who")
@@ -278,10 +359,29 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertEqual(response.mimetype, "text/csv")
         lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
         self.assertEqual(tuple(lines[0]), service.ICD11_CSV_HEADERS)
+        self.assertEqual(lines[0][-2:], ["sex", "age_group"])
         by_code = {line[0]: line for line in lines[1:]}
         self.assertIn("KD3B.0", by_code)
         self.assertEqual(by_code["KD3B.0"][4], "no")
         self.assertNotIn("1G40", by_code)
+
+    def test_csv_filters_on_sex_and_age_and_keeps_legacy_alias(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(
+                MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KD3B.0"
+            )
+        )
+        row.sex_selectable = "female"
+        row.age_group_selectable = "neonate"
+        db.session.commit()
+        query = "?sex_filter=female&age_filter=neonate"
+        canonical = self.client.get("/help/icd11-codes.csv" + query)
+        legacy = self.client.get("/help/va-code-mappings/unmapped.csv" + query)
+        self.assertEqual(canonical.data, legacy.data)
+        lines = list(csv.reader(io.StringIO(canonical.get_data(as_text=True))))
+        by_code = {line[0]: line for line in lines[1:]}
+        self.assertEqual(set(by_code), {"KD3B.0"})
+        self.assertEqual(by_code["KD3B.0"][-2:], ["female", "neonate"])
 
     def test_cached_csv_is_byte_identical_to_live(self):
         cached = self.client.get("/help/va-code-mappings/unmapped.csv?selectable=no")
@@ -329,35 +429,6 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"KD3B.0", response.data)
 
-    def test_state_view_keeps_a_block_whole_even_at_a_tiny_page_size(self):
-        # The synthetic catalogue's codes all sit in one outermost block, so
-        # block-aligned paging keeps them on a single page however small
-        # MAPPINGS_PER_PAGE is -- a block is never split across pages.
-        codes = lambda response: {  # noqa: E731
-            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
-        }
-        not_selectable = len(CATALOGUE) - len(SELECTABLE)
-        with mock.patch("app.routes.help.MAPPINGS_PER_PAGE", 2):
-            response = self.client.get("/help/va-code-mappings/unmapped?selectable=no")
-            body = response.get_data(as_text=True)
-            self.assertEqual(len(codes(response)), not_selectable)
-            self.assertNotIn("pagination", body)  # one page: no nav rendered
-            # An out-of-range page clamps to the only page that exists.
-            clamped = self.client.get("/help/va-code-mappings/unmapped?selectable=no&page=999")
-            self.assertEqual(clamped.status_code, 200)
-            self.assertEqual(codes(clamped), codes(response))
-
-    def test_icd11_block_pages_keeps_a_straddling_block_whole(self):
-        # Route-level check that the page wires filtered codes and the
-        # catalogue through icd11_block_pages unchanged: unit coverage of the
-        # function itself (straddling/oversized blocks, totals) lives in
-        # tests/services/test_va_code_mapping_public_service.py.
-        catalogue = service.get_icd11_catalogue(RELEASE)
-        codes = service.filter_icd11_catalogue(catalogue, selectable="no")
-        pages = service.icd11_block_pages(codes, catalogue, 2)
-        self.assertEqual(pages, [codes])  # one shared block, never split
-        self.assertEqual(sum(len(p) for p in pages), len(codes))
-
     def test_compare_keeps_icd11_code_missing_from_catalogue(self):
         response = self.client.get("/help/va-code-mappings/compare?va_code=VAs-01.01")
         nodes = self.page_json(response, "compare-icd11")["nodes"]
@@ -371,4 +442,4 @@ class PublicMappingRouteTests(BaseTestCase):
     def test_mapping_list_links_to_both_pages(self):
         html = self.client.get("/help/va-code-mappings").get_data(as_text=True)
         self.assertIn('href="/help/va-code-mappings/compare"', html)
-        self.assertIn('href="/help/va-code-mappings/unmapped"', html)
+        self.assertIn('href="/help/icd11-codes"', html)

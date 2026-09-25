@@ -44,20 +44,20 @@
 
   <p class="fw-semibold mb-1">The rules, with examples</p>
   <dl class="row mb-2">
-    <dt class="col-sm-4">Narrowest range wins</dt>
+    <dt class="col-sm-4">WHO's more specific range</dt>
     <dd class="col-sm-8">The code falls inside two WHO ranges; the range covering fewer codes is
       the more specific statement, so it wins. <em>Example:</em> <code>1B40</code> Acute
       rheumatic fever is inside the cardiac range <code>1B40-1B42</code>
       (<code>VAs-04.99</code> Other and unspecified cardiac disease) and inside a much broader
       infectious-disease range (<code>VAs-01.99</code>); it reports as cardiac.</dd>
 
-    <dt class="col-sm-4">Specific code beats range</dt>
+    <dt class="col-sm-4">WHO names this code directly for this cause</dt>
     <dd class="col-sm-8">WHO names the code on its own for one cause and only inside a range for
       another; the named code wins. <em>Example:</em> <code>A33</code> Tetanus neonatorum is named
       for <code>VAs-10.05</code> Neonatal tetanus and also sits inside the general tetanus range
       (<code>VAs-01.08</code>); it reports as neonatal tetanus.</dd>
 
-    <dt class="col-sm-4">WHO lists the same code for more than one cause</dt>
+    <dt class="col-sm-4">WHO lists it for two causes and the code cannot tell them apart</dt>
     <dd class="col-sm-8">WHO gives exactly the same code to two causes and the code itself cannot
       tell them apart. <em>Example:</em> ICD-10 <code>P95</code> Fetal death of unspecified cause
       is listed for both Fresh (<code>VAs-11.01</code>) and Macerated (<code>VAs-11.02</code>)
@@ -65,7 +65,7 @@
       <code>P95</code> reports as Macerated. ICD-11 separates them (<code>KD3B.1</code>
       intrapartum, <code>KD3B.0</code> antepartum).</dd>
 
-    <dt class="col-sm-4">Transport split</dt>
+    <dt class="col-sm-4">Traffic events count as road traffic, others as other transport</dt>
     <dd class="col-sm-8">WHO prints one ICD-11 range, <code>PA00-PA5Z</code>, for both Road traffic
       (<code>VAs-12.01</code>) and Other transport (<code>VAs-12.02</code>) and says the split is
       whether the death was a road traffic accident. The ICD-11 code says so: traffic events
@@ -74,12 +74,18 @@
       ICD-10 rule &mdash; assume traffic for vehicle occupants and cyclists, not for pedestrians
       or off-road vehicles.</dd>
 
-    <dt class="col-sm-4">Expert review decision</dt>
-    <dd class="col-sm-8">A choice between WHO's overlapping causes made by expert review and
-      recorded with its reason. <em>Examples:</em> maltreatment by others
-      (<code>PJ20-PJ2Z</code>) reports as Assault; chronic ischaemic heart disease
-      (<code>BA5x</code>) reports as Acute cardiac disease, matching how ICD-10 <code>I25</code>
-      is reported.</dd>
+    <dt class="col-sm-4">Maltreatment by others counts as Assault</dt>
+    <dd class="col-sm-8">Expert review places maltreatment by others
+      (<code>PJ20-PJ2Z</code>) under Assault.</dd>
+
+    <dt class="col-sm-4">Reported the same way as its ICD-10 equivalent I25</dt>
+    <dd class="col-sm-8">Chronic ischaemic heart disease (<code>BA5x</code>) is reported as
+      Acute cardiac disease, matching ICD-10 <code>I25</code>.</dd>
+
+    <dt class="col-sm-4">Other expert-review reasons</dt>
+    <dd class="col-sm-8">These explain clinical placements, ICD-10 equivalents, corrected
+      WHO ranges, stillbirth timing, and transport assumptions in plain language. A badge
+      tooltip gives the review decision number and date; the CSV keeps the full audit note.</dd>
   </dl>
 
   <p class="fw-semibold mb-1">Other columns</p>

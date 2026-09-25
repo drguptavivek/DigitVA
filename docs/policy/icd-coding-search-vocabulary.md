@@ -31,9 +31,10 @@ second surface and stays out of scope here.
   targets: `head injury` fans out to five external-cause codes, `sepsis`-
   family terms link to both catalogues. `sort_order` breaks ties among a
   term's several targets so the reviewed order lists first regardless of
-  code string order (`digitva-3t2` — TB's own target was narrowed to a
-  single code, A16, since a verbal autopsy cannot know bacteriological
-  confirmation and A15/A16/1B10.x share one VA bucket; `head injury`
+  code string order (`digitva-3t2` — TB's target was narrowed to ICD-10
+  A16 and ICD-11 1B10.Z, since a verbal autopsy cannot know bacteriological
+  confirmation and A15/A16/1B10.x share one VA bucket; the bare
+  `tuberculosis` term now promotes that pair; `head injury`
   remains the multi-target example: V89.2, W19, Y09, W20, X59 in that
   order).
 - The seed (`resource/icd_search_vocabulary_seed.csv`, one row per link) is

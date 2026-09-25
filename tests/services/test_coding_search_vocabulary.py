@@ -178,6 +178,29 @@ class Icd10CodingChoicesVocabularyTest(CodingSearchVocabularyTestCase):
 
         self.assertEqual(_vocabulary_flags_only(results), ["A16", "A15"])
 
+    def test_tuberculosis_promotes_a16_with_vocabulary_flag(self):
+        db.session.add_all(
+            [
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+                _icd10_row("A16", "Respiratory tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        create_term(
+            term="tuberculosis",
+            icd_classification="icd10",
+            icd_code="A16",
+        )
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "tuberculosis")
+        codes = [row["icd_code"] for row in results]
+
+        self.assertIn("A15", codes)
+        self.assertEqual(codes[0], "A16")
+        self.assertIs(results[0]["vocabulary"], True)
+        self.assertEqual(results[0]["tier"], "focused")
+        self.assertEqual(codes.count("A16"), 1)
+
     def test_mi_returns_i21_first_with_vocabulary_flag(self):
         results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "MI")
 
@@ -404,6 +427,24 @@ class Icd11SearchVocabularyTest(CodingSearchVocabularyTestCase):
             _vocabulary_flags_only(search_icd11_mms("pulm TB")),
             ["1B10.1", "1B10.0"],
         )
+
+    def test_tuberculosis_promotes_1b10_z_with_vocabulary_flag(self):
+        db.session.add(_icd11_row("1B10.Z", "Pulmonary tuberculosis, unspecified"))
+        db.session.flush()
+        create_term(
+            term="tuberculosis",
+            icd_classification="icd11",
+            icd_code="1B10.Z",
+        )
+
+        results = search_icd11_mms("tuberculosis")
+        codes = [row["icd_code"] for row in results]
+
+        self.assertIn("1B10", codes)
+        self.assertEqual(codes[0], "1B10.Z")
+        self.assertIs(results[0]["vocabulary"], True)
+        self.assertEqual(results[0]["tier"], "focused")
+        self.assertEqual(codes.count("1B10.Z"), 1)
 
 
 class Icd10FuzzyFallbackTest(CodingSearchVocabularyTestCase):

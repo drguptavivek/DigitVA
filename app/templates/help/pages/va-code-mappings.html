@@ -13,20 +13,10 @@
 <p class="small">
   <a href="{{ url_for('help.va_code_mappings_compare') }}"><i class="fa-solid fa-code-compare me-1"></i>Compare ICD-10 and ICD-11 by VA cause</a>
   <span class="text-muted mx-2">|</span>
-  <a href="{{ url_for('help.va_code_mappings_unmapped') }}"><i class="fa-solid fa-sitemap me-1"></i>ICD-11 codes and their mapping state</a>
+  <a href="{{ url_for('help.icd11_codes_browser') }}"><i class="fa-solid fa-sitemap me-1"></i>Browse ICD-11 codes</a>
 </p>
 
-<dl class="row small mb-3">
-  <dt class="col-sm-3"><span class="badge text-bg-success">{{ origin_labels['who'] }}</span></dt>
-  <dd class="col-sm-9">WHO's list gives the code to this cause and to no other.</dd>
-  <dt class="col-sm-3"><span class="badge text-bg-info">{{ origin_labels['who_resolved'] }}</span></dt>
-  <dd class="col-sm-9">WHO's list gives the code to more than one cause; DigitVA picked this one
-    by a rule (narrowest range wins, specific code beats range, the transport split, or the
-    provisional maltreatment decision).</dd>
-  <dt class="col-sm-3"><span class="badge text-bg-warning">{{ origin_labels['digitva'] }}</span></dt>
-  <dd class="col-sm-9">WHO's list does not give the code to this cause: the code is outside
-    every WHO range, the bucket is not a WHO VA cause, or DigitVA overrode WHO.</dd>
-</dl>
+{% include "help/pages/_origin_legend.html" %}
 
 <form method="get" action="{{ url_for('help.va_code_mappings') }}" class="row g-2 align-items-end mb-3" role="search">
   <div class="col-md-4">
@@ -82,7 +72,6 @@
         <th scope="col">Code title</th>
         <th scope="col">VA cause</th>
         <th scope="col">Origin</th>
-        <th scope="col">Note</th>
       </tr>
     </thead>
     <tbody>
@@ -93,14 +82,13 @@
           <td>{{ row.code_title }}</td>
           <td>{% if row.va_code %}<code>{{ row.va_code }}</code> {% endif %}{{ row.va_title }}</td>
           <td>
-            <span class="badge {% if row.origin == 'who' %}text-bg-success{% elif row.origin == 'who_resolved' %}text-bg-info{% else %}text-bg-warning{% endif %}">{{ origin_labels[row.origin] }}</span>
+            <span class="badge text-bg-{{ origin_tones[row.origin] }}" {% if row.origin_tooltip %}title="{{ row.origin_tooltip }}"{% endif %}>{{ origin_labels[row.origin] }}</span>
             {% if row.rule %}<div class="text-muted">{{ row.rule }}</div>{% endif %}
             {% if row.also_claimed_by %}<div class="text-muted">WHO also lists: {{ row.also_claimed_by }}</div>{% endif %}
           </td>
-          <td>{{ row.note }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="text-muted">No mappings match these filters.</td></tr>
+        <tr><td colspan="5" class="text-muted">No mappings match these filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

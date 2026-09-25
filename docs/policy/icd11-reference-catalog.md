@@ -3,7 +3,7 @@ title: ICD-11 Reference Catalog Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-26
 ---
 
 # ICD-11 Reference Catalog Policy
@@ -121,6 +121,34 @@ are admin-only, under `/admin/api/icd11/mms/` with an optional
 
 Policy writes and applied imports are logged with the acting user id and
 the new values (not the restriction note text).
+
+## Public Read-Only Help Browser
+
+The canonical anonymous ICD-11 browser is `/help/icd11-codes`. It reuses the
+admin browser's variable-depth Miller-column hierarchy, breadcrumb, search,
+status indicators, and node detail layout in read-only mode. The browser uses
+the configured current release and keeps the existing public catalogue scope
+(chapter X remains excluded).
+
+Public users may filter by coding selectability, sex, age group, policy review,
+and mapping origin; search by code or title; and follow a node's full hierarchy
+path. A node detail may show coding selectability, sex, age group, policy
+status, restriction note, VA cause, and the shared plain-language origin badge
+and reason. Structural ancestors remain visible when filters match a category,
+and child counts reflect the visible filtered hierarchy. Public responses use a
+whitelist of display and navigation fields; they must not expose database IDs,
+source paths, foundation URIs, raw mapping notes, or policy-edit metadata.
+
+The existing `/help/va-code-mappings/unmapped` and its CSV URL remain working
+aliases for compatibility. The CSV retains its current public columns and
+appends sex and age group. Filtered exports must use the same filters as the
+browser and exclude internal mapping notes.
+
+Every public browser and data endpoint is GET-only and rate-limited to 60
+requests per minute. Public HTML and JavaScript must not render policy import,
+export, or edit controls, include admin API URLs, or call mutation endpoints.
+The `origin=digitva` query remains a hidden compatibility alias for its
+existing origin group, not a visible filter choice.
 
 Policy JSON format rules:
 

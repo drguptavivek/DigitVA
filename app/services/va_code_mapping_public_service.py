@@ -7,8 +7,10 @@ cause list and its footnote f) at read time; the origin is never stored:
 - ``who``: the annex gives the code to the row's VA cause and to no other.
 - ``who_resolved``: the annex gives the code to two or more causes, the row's
   among them; DigitVA picked one by a rule (see ``_resolution_rule``).
-- ``digitva``: the annex does not give the code to the row's cause (a code in
-  no annex range, a bucket that is not a ``vas_*`` VA cause, or an override).
+- ``not_in_who``: a selectable code is not listed for this cause.
+- ``differs``: WHO lists the code for a different cause.
+- ``not_cod``: an ICD-11 decision-5b fallback that is never selectable.
+  ``digitva`` remains an inbound filter alias for these three origins.
 
 docs/ is not shipped in the image, so the annex files are read from copies in
 resource/ (kept equal to the docs copies by a test). The derived table is
@@ -62,12 +64,24 @@ FOOTNOTES_PATH = _REPO_ROOT / "resource" / "who_2022_va_cause_list_footnotes.csv
 ORIGIN_WHO = "who"
 ORIGIN_WHO_RESOLVED = "who_resolved"
 ORIGIN_DIGITVA = "digitva"
+ORIGIN_NOT_IN_WHO = "not_in_who"
+ORIGIN_DIFFERS = "differs"
+ORIGIN_NOT_COD = "not_cod"
+ORIGIN_DIGITVA_GROUP = frozenset((ORIGIN_NOT_IN_WHO, ORIGIN_DIFFERS, ORIGIN_NOT_COD))
 ORIGIN_LABELS = {
     ORIGIN_WHO: "WHO",
-    ORIGIN_WHO_RESOLVED: "WHO, resolved by DigitVA rule",
-    ORIGIN_DIGITVA: "DigitVA decision",
+    ORIGIN_WHO_RESOLVED: "WHO (overlap resolved)",
+    ORIGIN_NOT_IN_WHO: "Not in WHO's list",
+    ORIGIN_DIFFERS: "Differs from WHO",
+    ORIGIN_NOT_COD: "Not a cause of death",
 }
-ORIGIN_TONES = {ORIGIN_WHO: "success", ORIGIN_WHO_RESOLVED: "info", ORIGIN_DIGITVA: "warning"}
+ORIGIN_TONES = {
+    ORIGIN_WHO: "success",
+    ORIGIN_WHO_RESOLVED: "info",
+    ORIGIN_NOT_IN_WHO: "warning",
+    ORIGIN_DIFFERS: "danger",
+    ORIGIN_NOT_COD: "secondary",
+}
 CLASSIFICATION_LABELS = {ICD_CLASSIFICATION_ICD10: "ICD-10", ICD_CLASSIFICATION_ICD11: "ICD-11"}
 CSV_HEADERS = (
     "classification", "code", "code_title", "va_code", "va_title",
@@ -82,21 +96,38 @@ _ICD10_TOKEN_RE = re.compile(r"^[A-Z]\d{2}(\.\d)?(-[A-Z]\d{2}(\.\d)?)?$")
 # server builds it once per worker. Move to the shared cache if that hurts.
 _cache: dict = {"key": None, "rows": [], "va_causes": []}
 _icd11_cache: dict = {"key": None, "codes": {}}
+_icd11_browser_cache: dict = {
+    "key": None,
+    "nodes": {},
+    "children": {},
+    "uri_by_code": {},
+}
+_icd10_cache: dict = {"key": None, "codes": {}}
 
 SELECTABLE_FILTERS = {"yes": True, "no": False}
 # Origin filter values for the ICD-11 state view; "unmapped" has no row (empty origin).
 ICD11_ORIGIN_FILTERS = {
-    ORIGIN_WHO: ORIGIN_WHO, ORIGIN_WHO_RESOLVED: ORIGIN_WHO_RESOLVED,
-    ORIGIN_DIGITVA: ORIGIN_DIGITVA, "unmapped": "",
+    ORIGIN_WHO: ORIGIN_WHO,
+    ORIGIN_WHO_RESOLVED: ORIGIN_WHO_RESOLVED,
+    ORIGIN_NOT_IN_WHO: ORIGIN_NOT_IN_WHO,
+    ORIGIN_DIFFERS: ORIGIN_DIFFERS,
+    ORIGIN_NOT_COD: ORIGIN_NOT_COD,
+    ORIGIN_DIGITVA: ORIGIN_DIGITVA,
+    "unmapped": "",
 }
 ICD11_ORIGIN_FILTER_LABELS = {
-    ORIGIN_WHO: ORIGIN_LABELS[ORIGIN_WHO], ORIGIN_WHO_RESOLVED: ORIGIN_LABELS[ORIGIN_WHO_RESOLVED],
-    ORIGIN_DIGITVA: ORIGIN_LABELS[ORIGIN_DIGITVA], "unmapped": "Unmapped",
+    **ORIGIN_LABELS,
+    "unmapped": "Unmapped",
 }
 POLICY_REVIEW_FILTERS = set(POLICY_STATUS_OPTIONS)
 ICD11_CSV_HEADERS = (
     "code", "code_title", "chapter", "block", "selectable", "policy_status",
-    "va_code", "va_title", "origin",
+    "va_code", "va_title", "origin", "sex", "age_group",
+)
+ICD10_CSV_HEADERS = (
+    "classification", "code", "title", "semantic_level", "chapter", "block",
+    "selectable", "sex", "age_group", "policy_status", "restriction_note",
+    "va_code", "va_title", "origin", "rule",
 )
 
 
@@ -199,19 +230,106 @@ def icd10_claims(code: str, annex: dict) -> dict[str, tuple[int | None, str]]:
     return claims
 
 
-def _resolution_rule(code: str, node: str, claims: dict, match_type: str | None) -> str:
-    """The DigitVA rule that picked `node` among several annex claims, or ''."""
+def _review_reason(mapping_note: str) -> str:
+    """Plain-language explanation for known reviewed mapping decisions."""
+    note = mapping_note or ""
+    lower = note.lower()
+    decision = re.search(r"owner decision ([^ ]+) \(\d{4}-\d{2}-\d{2}\):", note, re.IGNORECASE)
+    number = decision.group(1).lower() if decision else ""
+
+    if number == "5b":
+        if "no usable single-bucket crosswalk suggestion" in lower:
+            return (
+                "Never selectable — WHO's cause list does not include it. "
+                "Mapped to Unknown only so no record can go unreported."
+            )
+        equivalent = re.search(r"crosswalk\s+(.+?)\s+suggests\b", note, re.IGNORECASE)
+        if equivalent:
+            return f"Not in WHO's list; follows its ICD-10 equivalent {equivalent.group(1).strip()}"
+    elif number == "5a":
+        topic = note.split(":", 1)[1].strip() if ":" in note else ""
+        topic = re.sub(r",\s*in no annex range\s*$", "", topic, flags=re.IGNORECASE)
+        if topic:
+            return f"Not in WHO's list; placed by clinical review ({topic})"
+    elif number == "4":
+        return "WHO's range has a typo here; read as intended"
+    elif number == "9":
+        return "Time of fetal death unknown; counted as Macerated stillbirth, like ICD-10 P95"
+    elif number == "10":
+        if "heart failure" in lower:
+            return "Heart failure counts as Acute cardiac disease in ICD-10 and ICD-11"
+        equivalent = re.search(r"mirrors ICD-10 ([A-Z]\d{2}(?:\.\d+)?) override", note, re.IGNORECASE)
+        if equivalent:
+            return f"Reported the same way as its ICD-10 equivalent {equivalent.group(1).upper()}"
+    elif number == "11":
+        return (
+            "Viral infections of the brain and spinal cord count as "
+            "Meningitis/encephalitis, as in ICD-11"
+        )
+    elif number == "12":
+        return (
+            "Injured boarding or alighting a vehicle counts as Road traffic, "
+            "as in WHO's ICD-10 to ICD-11 table"
+        )
+    elif number in {"16", "17"}:
+        return "Traffic not stated; counted as road traffic, following WHO's ICD-10 rule"
+
+    if "carried forward" in lower and "icd-10" in lower:
+        return "Kept from DigitVA's earlier ICD-10 mapping for older records"
+    return ""
+
+
+def _review_tooltip(mapping_note: str) -> str:
+    """Expose only the decision number and date, never the internal audit note."""
+    match = re.search(
+        r"owner decision ([^ ]+) \((\d{4}-\d{2}-\d{2})\)",
+        mapping_note or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        return ""
+    return f"Expert review decision {match.group(1)} ({match.group(2)})"
+
+
+def _mapping_reason(origin: str, mapping_note: str) -> str:
+    reason = _review_reason(mapping_note)
+    if reason:
+        return reason
+    if origin == ORIGIN_DIFFERS:
+        return "WHO lists this code for another cause; expert review chose this cause."
+    if origin == ORIGIN_NOT_IN_WHO:
+        return "Not in WHO's list; placed after expert review."
+    if origin == ORIGIN_NOT_COD:
+        return (
+            "Never selectable — WHO's cause list does not include it. "
+            "Mapped to Unknown only so no record can go unreported."
+        )
+    return ""
+
+
+def _resolution_rule(
+    code: str,
+    node: str,
+    claims: dict,
+    match_type: str | None,
+    mapping_note: str = "",
+) -> str:
+    """Plain-language explanation for a code claimed by multiple WHO causes."""
     code = code.upper()
+    if match_type in {"owner_decision", "owner_fallback"}:
+        reviewed_reason = _review_reason(mapping_note)
+        if reviewed_reason:
+            return reviewed_reason
     if match_type == "split" and code.startswith("PA"):
-        return "Transport split: PA0x traffic events to road traffic, PA1x-PA5x to other transport"
+        return "Traffic events count as road traffic, others as other transport"
     if code.startswith("PJ2"):
-        return "Owner decision: maltreatment by others to Assault"
+        return "Maltreatment by others counts as Assault"
     size, token = claims[node]
     others = [claim for other, claim in claims.items() if other != node]
     if all(other_token == token for _, other_token in others):
-        return "WHO lists the same code for more than one cause; DigitVA chose this one"
+        return "WHO lists it for two causes and the code cannot tell them apart"
     if "-" not in token and all("-" in other_token for _, other_token in others):
-        return "Specific code beats range"
+        return "WHO names this code directly for this cause"
     if size is None:
         # ICD-10 claims carry no code count: narrower means inside every other range.
         start, _, end = token.partition("-")
@@ -225,16 +343,33 @@ def _resolution_rule(code: str, node: str, claims: dict, match_type: str | None)
         narrowest = all(inside(other_token) for _, other_token in others)
     else:
         narrowest = all(other_size is not None and size < other_size for other_size, _ in others)
-    return "Narrowest range wins" if narrowest else ""
+    if narrowest:
+        return "WHO's more specific range"
+    return "WHO lists this code for overlapping causes; this cause was selected after expert review."
 
 
-def derive_origin(code: str, node: str, claims: dict, match_type: str | None = None) -> tuple[str, str]:
-    """`(origin, rule)` of one row, given the annex claims on its code."""
-    if node not in claims:
-        return ORIGIN_DIGITVA, ""
-    if len(claims) == 1:
-        return ORIGIN_WHO, ""
-    return ORIGIN_WHO_RESOLVED, _resolution_rule(code, node, claims, match_type)
+def derive_origin(
+    code: str,
+    node: str,
+    claims: dict,
+    match_type: str | None = None,
+    mapping_note: str = "",
+) -> tuple[str, str]:
+    """`(origin, public reason)` of one row, given the annex claims on its code."""
+    if node in claims:
+        if len(claims) == 1:
+            return ORIGIN_WHO, "WHO lists this code for this cause."
+        return ORIGIN_WHO_RESOLVED, _resolution_rule(code, node, claims, match_type, mapping_note)
+
+    reviewed_reason = _review_reason(mapping_note)
+    if (
+        match_type == "owner_fallback"
+        and "owner decision 5b" in (mapping_note or "").lower()
+        and "no usable single-bucket crosswalk suggestion" in (mapping_note or "").lower()
+    ):
+        return ORIGIN_NOT_COD, reviewed_reason or _mapping_reason(ORIGIN_NOT_COD, mapping_note)
+    origin = ORIGIN_DIFFERS if claims else ORIGIN_NOT_IN_WHO
+    return origin, _mapping_reason(origin, mapping_note)
 
 
 def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release: str):
@@ -333,7 +468,7 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
         else:
             claims = annex["icd11"].get(code, {})
             title = (catalogue.get(code) or {}).get("title", "")
-        origin, rule = derive_origin(code, m.node_code, claims, m.match_type)
+        origin, rule = derive_origin(code, m.node_code, claims, m.match_type, m.mapping_note or "")
         va_code = va_code_for_node(m.node_code)
         row = {
             "classification": m.icd_classification,
@@ -347,6 +482,7 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
                 sorted(va_code_for_node(node) for node in claims if node != m.node_code)
             ),
             "note": m.mapping_note or "",
+            "origin_tooltip": _review_tooltip(m.mapping_note or ""),
         }
         row["_search"] = " ".join((m.icd_code, title, va_code, m.node_label)).lower()
         if m.icd_classification == ICD_CLASSIFICATION_ICD10:
@@ -394,7 +530,10 @@ def filter_mappings(
     return [
         row for row in rows
         if (not classification or row["classification"] == classification)
-        and (not origin or row["origin"] == origin)
+        and (
+            not origin
+            or (row["origin"] in ORIGIN_DIGITVA_GROUP if origin == ORIGIN_DIGITVA else row["origin"] == origin)
+        )
         and (not va_code or row["va_code"] == va_code)
         and (not q or q in row["_search"])
     ]
@@ -438,6 +577,9 @@ def _build_icd11_catalogue(release: str) -> dict[str, dict]:
             MasIcd11Mms.code,
             MasIcd11Mms.title,
             MasIcd11Mms.is_coding_selectable,
+            MasIcd11Mms.sex_selectable,
+            MasIcd11Mms.age_group_selectable,
+            MasIcd11Mms.restriction_note,
             MasIcd11Mms.policy_status,
         )
         .where(MasIcd11Mms.release == release, MasIcd11Mms.is_active.is_(True))
@@ -473,10 +615,119 @@ def _build_icd11_catalogue(release: str) -> dict[str, dict]:
             "chapter": chapter,
             "block": block,
             "selectable": bool(row.is_coding_selectable),
+            "sex_selectable": row.sex_selectable or "",
+            "age_group_selectable": row.age_group_selectable or "",
+            "restriction_note": row.restriction_note or "",
             "policy_status": row.policy_status,
             "_search": " ".join((row.code, row.title, chapter[1], block[1])).lower(),
         }
     return catalogue
+
+
+def get_icd11_browser_hierarchy(release: str | None = None) -> dict:
+    """Active public hierarchy nodes and URI relationships outside chapter X."""
+    release = release or ICD11_RELEASE
+    key = (release, *db.session.execute(
+        sa.select(sa.func.count(MasIcd11Mms.id), sa.func.max(MasIcd11Mms.updated_at))
+        .where(MasIcd11Mms.release == release)
+    ).one())
+    if _icd11_browser_cache["key"] != key:
+        rows = db.session.execute(
+            sa.select(
+                MasIcd11Mms.linearization_uri,
+                MasIcd11Mms.parent_linearization_uri,
+                MasIcd11Mms.class_kind,
+                MasIcd11Mms.code,
+                MasIcd11Mms.title,
+                MasIcd11Mms.chapter_no,
+                MasIcd11Mms.block_id,
+                MasIcd11Mms.is_residual,
+                MasIcd11Mms.is_leaf,
+                MasIcd11Mms.coding_note,
+                MasIcd11Mms.is_coding_selectable,
+                MasIcd11Mms.sex_selectable,
+                MasIcd11Mms.age_group_selectable,
+                MasIcd11Mms.policy_status,
+                MasIcd11Mms.restriction_note,
+                MasIcd11Mms.sort_order,
+            )
+            .where(
+                MasIcd11Mms.release == release,
+                MasIcd11Mms.is_active.is_(True),
+                sa.or_(MasIcd11Mms.chapter_no.is_(None), MasIcd11Mms.chapter_no != "X"),
+            )
+            .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
+        ).mappings().all()
+        nodes = {
+            row["linearization_uri"]: {
+                "linearization_uri": row["linearization_uri"],
+                "parent_linearization_uri": row["parent_linearization_uri"],
+                "class_kind": row["class_kind"],
+                "code": row["code"],
+                "title": row["title"],
+                "chapter_no": row["chapter_no"],
+                "block_id": row["block_id"],
+                "is_residual": bool(row["is_residual"]),
+                "is_leaf": bool(row["is_leaf"]),
+                "coding_note": row["coding_note"] or "",
+                "is_coding_selectable": bool(row["is_coding_selectable"]),
+                "sex_selectable": row["sex_selectable"] or "",
+                "age_group_selectable": row["age_group_selectable"] or "",
+                "policy_status": row["policy_status"] or "unreviewed",
+                "restriction_note": row["restriction_note"] or "",
+            }
+            for row in rows
+        }
+        children = {}
+        uri_by_code = {}
+        for uri, node in nodes.items():
+            children.setdefault(node["parent_linearization_uri"], []).append(uri)
+            if node["class_kind"] == "category" and node["code"]:
+                uri_by_code[node["code"]] = uri
+        _icd11_browser_cache.update(
+            key=key, nodes=nodes, children=children, uri_by_code=uri_by_code
+        )
+    return _icd11_browser_cache
+
+
+def get_icd10_catalogue() -> dict[str, dict]:
+    """Active ICD-10 coding rows with hierarchy and public policy fields."""
+    semantic_levels = ("three_character", "detailed_code")
+    key = tuple(db.session.execute(
+        sa.select(sa.func.count(MasIcd1020192.code), sa.func.max(MasIcd1020192.updated_at))
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(semantic_levels),
+        )
+    ).one())
+    if _icd10_cache["key"] != key:
+        rows = db.session.scalars(
+            sa.select(MasIcd1020192)
+            .where(
+                MasIcd1020192.is_active.is_(True),
+                MasIcd1020192.semantic_level.in_(semantic_levels),
+            )
+            .order_by(MasIcd1020192.sort_order, MasIcd1020192.code)
+        ).all()
+        codes = {}
+        for row in rows:
+            chapter = (row.chapter_code or "", row.chapter_title or "")
+            block = (row.block_code or "", row.block_title or "")
+            codes[row.code] = {
+                "title": row.title,
+                "semantic_level": row.semantic_level,
+                "parent_code": row.parent_code,
+                "chapter": chapter,
+                "block": block,
+                "selectable": bool(row.is_coding_selectable),
+                "sex_selectable": row.sex_selectable or "",
+                "age_group_selectable": row.age_group_selectable or "",
+                "policy_status": row.policy_status or "unreviewed",
+                "restriction_note": row.restriction_note or "",
+                "_search": " ".join((row.code, row.title, chapter[1], block[1])).lower(),
+            }
+        _icd10_cache.update(key=key, codes=codes)
+    return _icd10_cache["codes"]
 
 
 def filter_icd11_catalogue(
@@ -487,6 +738,8 @@ def filter_icd11_catalogue(
     selectable: str = "",
     origin: str = "",
     policy_status: str = "",
+    sex_filter: str = "",
+    age_filter: str = "",
 ) -> list[str]:
     """Codes matching every given filter, in WHO order. `q` is a case-insensitive
     substring of code, title, chapter or block title; `selectable` is a key of
@@ -498,16 +751,58 @@ def filter_icd11_catalogue(
     wanted_selectable = SELECTABLE_FILTERS.get(selectable)
     wanted_origin = ICD11_ORIGIN_FILTERS.get(origin)
     mapped = _mapped_icd11(rows) if origin else {}
+    def origin_matches(code: str) -> bool:
+        actual = mapped.get(code.upper(), {}).get("origin", "")
+        if origin == ORIGIN_DIGITVA:
+            return actual in ORIGIN_DIGITVA_GROUP
+        return actual == wanted_origin
+
     return [
         code for code, entry in catalogue.items()
         if (wanted_selectable is None or entry["selectable"] is wanted_selectable)
         and (not q or q in entry["_search"])
         and (not policy_status or entry["policy_status"] == policy_status)
-        and (not origin or mapped.get(code.upper(), {}).get("origin", "") == wanted_origin)
+        and (not sex_filter or entry["sex_selectable"] == sex_filter)
+        and (not age_filter or entry["age_group_selectable"] == age_filter)
+        and (not origin or origin_matches(code))
     ]
 
 
-def icd11_block_pages(codes: list[str], catalogue: dict[str, dict], per_page: int) -> list[list[str]]:
+def filter_icd10_catalogue(
+    catalogue: dict[str, dict],
+    rows: list[dict] = (),
+    *,
+    q: str = "",
+    selectable: str = "",
+    origin: str = "",
+    policy_status: str = "",
+    sex_filter: str = "",
+    age_filter: str = "",
+) -> list[str]:
+    """ICD-10 catalogue codes matching search, coding, policy and origin filters."""
+    q = q.lower()
+    wanted_selectable = SELECTABLE_FILTERS.get(selectable)
+    wanted_origin = "" if origin == "unmapped" else origin
+    mapped = _mapped_icd10(rows) if origin else {}
+
+    def origin_matches(code: str) -> bool:
+        actual = mapped.get(code.upper(), {}).get("origin", "")
+        if origin == ORIGIN_DIGITVA:
+            return actual in ORIGIN_DIGITVA_GROUP
+        return actual == wanted_origin
+
+    return [
+        code for code, entry in catalogue.items()
+        if (wanted_selectable is None or entry["selectable"] is wanted_selectable)
+        and (not q or q in entry["_search"])
+        and (not policy_status or entry["policy_status"] == policy_status)
+        and (not sex_filter or entry["sex_selectable"] == sex_filter)
+        and (not age_filter or entry["age_group_selectable"] == age_filter)
+        and (not origin or origin_matches(code))
+    ]
+
+
+def block_aligned_pages(codes: list[str], catalogue: dict[str, dict], per_page: int) -> list[list[str]]:
     """Split `codes` (in catalogue/WHO order) into pages, filling each with
     whole blocks up to `per_page` before starting the next page. A block
     larger than `per_page` still gets a page of its own rather than being
@@ -529,13 +824,28 @@ def icd11_block_pages(codes: list[str], catalogue: dict[str, dict], per_page: in
     return pages
 
 
+def icd11_block_pages(codes: list[str], catalogue: dict[str, dict], per_page: int) -> list[list[str]]:
+    """Backward-compatible name for the ICD-11 block paging helper."""
+    return block_aligned_pages(codes, catalogue, per_page)
+
+
 def _mapped_icd11(rows: list[dict]) -> dict[str, dict]:
     return {row["code"].upper(): row for row in rows if row["classification"] == ICD_CLASSIFICATION_ICD11}
+
+
+def _mapped_icd10(rows: list[dict]) -> dict[str, dict]:
+    return {row["code"].upper(): row for row in rows if row["classification"] == ICD_CLASSIFICATION_ICD10}
 
 
 def count_unmapped_icd11(catalogue: dict[str, dict], rows: list[dict]) -> int:
     """Catalogue codes that no active row maps."""
     mapped = _mapped_icd11(rows)
+    return sum(1 for code in catalogue if code.upper() not in mapped)
+
+
+def count_unmapped_icd10(catalogue: dict[str, dict], rows: list[dict]) -> int:
+    """ICD-10 catalogue codes that have no active row in the selected scheme."""
+    mapped = _mapped_icd10(rows)
     return sum(1 for code in catalogue if code.upper() not in mapped)
 
 
@@ -553,11 +863,34 @@ def icd11_code_states(codes: list[str], catalogue: dict[str, dict], rows: list[d
             "chapter": entry["chapter"],
             "block": entry["block"],
             "selectable": entry["selectable"],
+            "sex": entry["sex_selectable"],
+            "age_group": entry["age_group_selectable"],
             "policy_status": entry["policy_status"],
             "va_code": row.get("va_code", ""),
             "va_title": row.get("va_title", ""),
             "origin": row.get("origin", ""),
             "rule": row.get("rule", ""),
+            "note": row.get("note", ""),
+        })
+    return states
+
+
+def icd10_code_states(codes: list[str], catalogue: dict[str, dict], rows: list[dict]) -> list[dict]:
+    """Current coding and VA-mapping state for each ICD-10 catalogue code."""
+    mapped = _mapped_icd10(rows)
+    states = []
+    for code in codes:
+        entry = catalogue[code]
+        mapping = mapped.get(code.upper(), {})
+        states.append({
+            **entry,
+            "code": code,
+            "va_code": mapping.get("va_code", ""),
+            "va_title": mapping.get("va_title", ""),
+            "origin": mapping.get("origin", ""),
+            "rule": mapping.get("rule", ""),
+            "note": mapping.get("note", ""),
+            "also_claimed_by": mapping.get("also_claimed_by", ""),
         })
     return states
 
@@ -573,11 +906,28 @@ def icd11_state_csv_row(state: dict) -> list[str]:
     return [csv_cell(values[column] or "") for column in ICD11_CSV_HEADERS]
 
 
+def icd10_state_csv_row(state: dict) -> list[str]:
+    """Public ICD-10 CSV row; internal mapping notes are deliberately omitted."""
+    values = {
+        "classification": CLASSIFICATION_LABELS[ICD_CLASSIFICATION_ICD10],
+        **state,
+        "chapter": " ".join(part for part in state["chapter"] if part),
+        "block": " ".join(part for part in state["block"] if part),
+        "selectable": "yes" if state["selectable"] else "no",
+        "origin": state.get("origin", "") or "unmapped",
+        "sex": state.get("sex", ""),
+        "age_group": state.get("age_group", ""),
+    }
+    return [csv_cell(str(values.get(column, "") or "")) for column in ICD10_CSV_HEADERS]
+
+
 def public_data_version() -> str:
     """A short digest of the mapping and ICD-11 cache keys, current after
     get_public_mappings() and get_icd11_catalogue() have run in this request.
     Changes whenever either cache would rebuild."""
-    return hashlib.sha256(repr((_cache["key"], _icd11_cache["key"])).encode()).hexdigest()[:16]
+    return hashlib.sha256(
+        repr((_cache["key"], _icd11_cache["key"], ICD11_CSV_HEADERS)).encode()
+    ).hexdigest()[:16]
 
 
 def cached_icd11_state_csv(root: str, selectable: str, make_states) -> str | None:
@@ -625,11 +975,30 @@ def _remove_quietly(path: str) -> None:
 
 def _origin_cell(row: dict) -> dict | str:
     if not row.get("origin"):
-        return {"badge": "Unmapped", "tone": "secondary"}
-    note = row["rule"]
+        return {"badge": "Unmapped", "tone": "secondary", "note": "No VA cause is assigned yet.", "title": ""}
+    note = row.get("rule") or ""
+    if not note and row["origin"] == ORIGIN_WHO:
+        note = "WHO lists this code for this cause."
+    elif not note and row["origin"] == ORIGIN_WHO_RESOLVED:
+        note = "WHO lists this code for overlapping causes; this cause was selected after expert review."
+    elif not note and row["origin"] in ORIGIN_DIGITVA_GROUP:
+        note = _mapping_reason(row["origin"], row.get("note", ""))
     if row.get("also_claimed_by"):
         note = "; ".join(filter(None, (note, "WHO also lists: " + row["also_claimed_by"])))
-    return {"badge": ORIGIN_LABELS[row["origin"]], "tone": ORIGIN_TONES[row["origin"]], "note": note}
+    return {
+        "badge": ORIGIN_LABELS[row["origin"]],
+        "tone": ORIGIN_TONES[row["origin"]],
+        "note": note,
+        "title": _review_tooltip(row.get("note", "")),
+    }
+
+
+def public_origin_display(row: dict) -> dict:
+    """Safe badge and explanation fields for a public code-detail view."""
+    value = _origin_cell(row)
+    if isinstance(value, str):
+        return {"badge": value, "tone": "secondary", "note": "", "title": ""}
+    return value
 
 
 def tree_nodes(leaves: list[tuple[tuple[str, str], tuple[str, str], str, str, dict]]) -> list[dict]:
@@ -711,3 +1080,59 @@ def icd11_state_nodes(states: list[dict]) -> list[dict]:
         )
         for state in states
     ])
+
+
+def icd10_state_nodes(
+    states: list[dict], catalogue: dict[str, dict], rows: list[dict]
+) -> list[dict]:
+    """Tree-table leaves plus any code ancestors needed for their paths."""
+    state_by_code = {state["code"]: state for state in states}
+    included = set(state_by_code)
+    for code in tuple(included):
+        current = catalogue.get(code, {}).get("parent_code")
+        while current and current not in included:
+            included.add(current)
+            current = catalogue.get(current, {}).get("parent_code")
+    ordered_codes = [code for code in catalogue if code in included]
+    complete_states = [
+        state_by_code.get(code) or icd10_code_states([code], catalogue, rows)[0]
+        for code in ordered_codes
+    ]
+    nodes = []
+    seen = set()
+    for state in complete_states:
+        chapter = _chapter(*state["chapter"])
+        chapter_id = "c:" + chapter[0]
+        if chapter_id not in seen:
+            seen.add(chapter_id)
+            nodes.append({
+                "id": chapter_id,
+                "parent_id": None,
+                "expanded": True,
+                "title": chapter[1] or "Not in the catalogue",
+            })
+        parent_id = chapter_id
+        block = state["block"]
+        if block[1]:
+            parent_id = "b:" + chapter[0] + ":" + (block[0] or block[1])
+            if parent_id not in seen:
+                seen.add(parent_id)
+                nodes.append({"id": parent_id, "parent_id": chapter_id, "expanded": True, "title": block[1]})
+        if state["semantic_level"] == "detailed_code" and state.get("parent_code"):
+            parent_id = state["parent_code"]
+        cells = {
+            "coding": "Selectable" if state["selectable"] else "Not selectable",
+            "sex": (state["sex_selectable"] or "—").replace("_", " ").title(),
+            "age_group": (state["age_group_selectable"] or "—").replace("_", " ").title(),
+            "policy_status": state["policy_status"].capitalize(),
+            "restriction_note": state["restriction_note"],
+            "va_cause": " ".join(part for part in (state["va_code"], state["va_title"]) if part),
+            "origin": _origin_cell(state),
+        }
+        nodes.append({
+            "id": state["code"],
+            "parent_id": parent_id,
+            "title": f"{state['code']} {state['title']}".strip(),
+            "cells": cells,
+        })
+    return nodes

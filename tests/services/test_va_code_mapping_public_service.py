@@ -24,6 +24,7 @@ from app.services.cod_bucket_mapping_service import _slugify
 from tests.base import BaseTestCase
 
 RELEASE = "TEST-712.3"
+WHO_REASON = "WHO lists this code for this cause."
 
 # (code, title, parent) -- enough to exercise the annex ranges that share codes.
 CATALOGUE = (
@@ -135,17 +136,17 @@ class OriginDerivationTests(BaseTestCase):
             catalogue,
         )
 
-    def icd10(self, code, node):
-        return service.derive_origin(code, node, service.icd10_claims(code, self.annex))
+    def icd10(self, code, node, match_type=None, mapping_note=""):
+        return service.derive_origin(code, node, service.icd10_claims(code, self.annex), match_type, mapping_note)
 
-    def icd11(self, code, node, match_type="range"):
-        return service.derive_origin(code, node, self.annex["icd11"].get(code, {}), match_type)
+    def icd11(self, code, node, match_type="range", mapping_note=""):
+        return service.derive_origin(code, node, self.annex["icd11"].get(code, {}), match_type, mapping_note)
 
     def test_annex_cell_with_missing_separator_gives_both_ranges(self):
         ranges = service.parse_icd10_ranges("K40-K69; K70-K93 L00-L99; M00-M99")
         self.assertIn(("K70-K93", "K70", "K93"), ranges)
         self.assertIn(("L00-L99", "L00", "L99"), ranges)
-        self.assertEqual(self.icd10("L05", "vas_98"), (service.ORIGIN_WHO, ""))
+        self.assertEqual(self.icd10("L05", "vas_98"), (service.ORIGIN_WHO, WHO_REASON))
 
     def test_icd10_range_is_prefix_ordered(self):
         self.assertTrue(service.icd10_in_range("A41.9", "A40", "A41"))
@@ -156,56 +157,68 @@ class OriginDerivationTests(BaseTestCase):
         self.assertFalse(service.icd10_in_range("I46.1", "I27", "I46.0"))
 
     def test_code_in_one_annex_range_is_who(self):
-        self.assertEqual(self.icd10("A41.9", "vas_01_01"), (service.ORIGIN_WHO, ""))
+        self.assertEqual(self.icd10("A41.9", "vas_01_01"), (service.ORIGIN_WHO, WHO_REASON))
 
     def test_specific_code_beating_a_range_is_who_resolved(self):
         self.assertEqual(
             self.icd10("K70.2", "vas_06_02"),
-            (service.ORIGIN_WHO_RESOLVED, "Specific code beats range"),
+            (service.ORIGIN_WHO_RESOLVED, "WHO names this code directly for this cause"),
         )
 
     def test_narrower_icd10_range_is_who_resolved(self):
         # X10-X19 is printed for VAs-12.99 and inside VAs-12.05's X00-X19.
         self.assertEqual(
             self.icd10("X15", "vas_12_99"),
-            (service.ORIGIN_WHO_RESOLVED, "Narrowest range wins"),
+            (service.ORIGIN_WHO_RESOLVED, "WHO's more specific range"),
         )
 
-    def test_carried_override_is_digitva(self):
+    def test_code_claimed_by_who_for_another_cause_differs(self):
         self.assertIn("vas_98", service.icd10_claims("K72", self.annex))
-        self.assertEqual(self.icd10("K72", "vas_06_02"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd10("K72", "vas_06_02"),
+            (service.ORIGIN_DIFFERS, "WHO lists this code for another cause; expert review chose this cause."),
+        )
 
-    def test_bucket_that_is_not_a_va_cause_is_digitva(self):
-        self.assertEqual(self.icd10("K75", "other_gastrointestinal_diseases"), (service.ORIGIN_DIGITVA, ""))
+    def test_bucket_that_is_not_a_va_cause_differs_if_who_lists_another_cause(self):
+        self.assertEqual(
+            self.icd10("K75", "other_gastrointestinal_diseases"),
+            (service.ORIGIN_DIFFERS, "WHO lists this code for another cause; expert review chose this cause."),
+        )
 
-    def test_code_outside_every_annex_range_is_digitva(self):
+    def test_code_outside_every_annex_range_is_not_in_who(self):
         self.assertEqual(service.icd10_claims("I11", self.annex), {})
-        self.assertEqual(self.icd10("I11", "vas_04_01"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd10("I11", "vas_04_01"),
+            (service.ORIGIN_NOT_IN_WHO, "Not in WHO's list; placed after expert review."),
+        )
 
     def test_transport_follows_footnote_f(self):
-        self.assertEqual(self.icd10("V01.1", "vas_12_01"), (service.ORIGIN_WHO, ""))
-        self.assertEqual(self.icd10("V01.0", "vas_12_02"), (service.ORIGIN_WHO, ""))
-        self.assertEqual(self.icd10("Y85.0", "vas_12_01"), (service.ORIGIN_WHO, ""))
+        self.assertEqual(self.icd10("V01.1", "vas_12_01"), (service.ORIGIN_WHO, WHO_REASON))
+        self.assertEqual(self.icd10("V01.0", "vas_12_02"), (service.ORIGIN_WHO, WHO_REASON))
+        self.assertEqual(self.icd10("Y85.0", "vas_12_01"), (service.ORIGIN_WHO, WHO_REASON))
         # Footnote f's tail (water/air/other transport, Y85.9) is not road traffic.
-        self.assertEqual(self.icd10("V90.1", "vas_12_02"), (service.ORIGIN_WHO, ""))
-        self.assertEqual(self.icd10("Y85.9", "vas_12_02"), (service.ORIGIN_WHO, ""))
-        self.assertEqual(self.icd10("V01.1", "vas_12_02"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(self.icd10("V90.1", "vas_12_02"), (service.ORIGIN_WHO, WHO_REASON))
+        self.assertEqual(self.icd10("Y85.9", "vas_12_02"), (service.ORIGIN_WHO, WHO_REASON))
+        self.assertEqual(
+            self.icd10("V01.1", "vas_12_02"),
+            (service.ORIGIN_DIFFERS, "WHO lists this code for another cause; expert review chose this cause."),
+        )
 
     def test_ruptured_uterus_matched_by_label(self):
-        self.assertEqual(self.icd10("O71.0", "vas_09_08"), (service.ORIGIN_WHO, ""))
+        self.assertEqual(self.icd10("O71.0", "vas_09_08"), (service.ORIGIN_WHO, WHO_REASON))
 
     def test_icd11_single_claim_is_who(self):
-        self.assertEqual(self.icd11("1G40", "vas_01_01"), (service.ORIGIN_WHO, ""))
+        self.assertEqual(self.icd11("1G40", "vas_01_01"), (service.ORIGIN_WHO, WHO_REASON))
 
     def test_icd11_pa_split_is_who_resolved(self):
         origin, rule = self.icd11("PA00", "vas_12_01", match_type="split")
         self.assertEqual(origin, service.ORIGIN_WHO_RESOLVED)
-        self.assertIn("Transport split", rule)
+        self.assertEqual(rule, "Traffic events count as road traffic, others as other transport")
 
     def test_icd11_pj2x_names_the_owner_decision(self):
         origin, rule = self.icd11("PJ20", "vas_12_09", match_type="split")
         self.assertEqual(origin, service.ORIGIN_WHO_RESOLVED)
-        self.assertIn("maltreatment by others to Assault", rule)
+        self.assertEqual(rule, "Maltreatment by others counts as Assault")
 
     def test_fresh_stillbirth_wins_over_the_perinatal_range(self):
         # KD3B.1 is also inside VAs-10.99's KD30.2-KD5Z, so it is resolved, not plain WHO.
@@ -214,7 +227,7 @@ class OriginDerivationTests(BaseTestCase):
         )
         self.assertEqual(
             self.icd11("KD3B.1", "vas_11_01"),
-            (service.ORIGIN_WHO_RESOLVED, "Specific code beats range"),
+            (service.ORIGIN_WHO_RESOLVED, "WHO names this code directly for this cause"),
         )
 
     def test_code_who_lists_for_two_causes_names_the_choice(self):
@@ -222,7 +235,7 @@ class OriginDerivationTests(BaseTestCase):
         self.assertEqual(set(service.icd10_claims("P95", self.annex)), {"vas_11_01", "vas_11_02"})
         origin, rule = self.icd10("P95", "vas_11_02")
         self.assertEqual(origin, service.ORIGIN_WHO_RESOLVED)
-        self.assertIn("same code for more than one cause", rule)
+        self.assertEqual(rule, "WHO lists it for two causes and the code cannot tell them apart")
 
     def test_every_icd10_annex_token_is_parsed(self):
         # A malformed token would silently drop that cause's range.
@@ -234,21 +247,113 @@ class OriginDerivationTests(BaseTestCase):
                 parsed = [token for token, _, _ in service.parse_icd10_ranges(row["icd10_codes"])]
                 self.assertEqual(tokens, parsed, row["va_code"])
 
-    def test_owner_decisions_of_2026_09_24_derive_as_digitva(self):
+    def test_reviewed_changes_derive_plain_reasons(self):
         # Decision 11: WHO's ICD-10 column gives A80 to Unspecified infectious.
         self.assertIn("vas_01_99", service.icd10_claims("A80", self.annex))
-        self.assertEqual(self.icd10("A80", "vas_01_07"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd10(
+                "A80", "vas_01_07", "owner_decision",
+                "Owner decision 11 (2026-09-24): viral infections of the central nervous system go to Meningitis/encephalitis",
+            ),
+            (
+                service.ORIGIN_DIFFERS,
+                "Viral infections of the brain and spinal cord count as Meningitis/encephalitis, as in ICD-11",
+            ),
+        )
         # Decision 12: footnote f does not list boarding/alighting codes as road traffic.
         self.assertIn("vas_12_02", service.icd10_claims("V10.3", self.annex))
-        self.assertEqual(self.icd10("V10.3", "vas_12_01"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd10(
+                "V10.3", "vas_12_01", "owner_decision",
+                "Owner decision 12 (2026-09-24): person injured while boarding or alighting goes to Road traffic",
+            ),
+            (
+                service.ORIGIN_DIFFERS,
+                "Injured boarding or alighting a vehicle counts as Road traffic, as in WHO's ICD-10 to ICD-11 table",
+            ),
+        )
         # Decision 9: KD3B sits in the perinatal range, not a stillbirth one.
         self.assertIn("vas_10_99", self.annex["icd11"]["KD3B"])
-        self.assertEqual(self.icd11("KD3B", "vas_11_02", "owner_decision"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd11(
+                "KD3B", "vas_11_02", "owner_decision",
+                "Owner decision 9 (2026-09-24): Fetal death with unknown timing -> Macerated stillbirth, as ICD-10 P95",
+            ),
+            (
+                service.ORIGIN_DIFFERS,
+                "Time of fetal death unknown; counted as Macerated stillbirth, like ICD-10 P95",
+            ),
+        )
         # Decisions 5a/5b: a code in no annex range.
-        self.assertEqual(self.icd11("5A22", "vas_03_03", "owner_decision"), (service.ORIGIN_DIGITVA, ""))
+        self.assertEqual(
+            self.icd11(
+                "5A22", "vas_03_03", "owner_decision",
+                "Owner decision 5a (2026-09-24): Diabetic acute complications, in no annex range",
+            ),
+            (service.ORIGIN_NOT_IN_WHO, "Not in WHO's list; placed by clinical review (Diabetic acute complications)"),
+        )
 
-    def test_icd11_row_moved_off_its_annex_cause_is_digitva(self):
-        self.assertEqual(self.icd11("1G40", "vas_98"), (service.ORIGIN_DIGITVA, ""))
+    def test_icd11_row_moved_off_its_annex_cause_differs(self):
+        self.assertEqual(
+            self.icd11("1G40", "vas_98"),
+            (service.ORIGIN_DIFFERS, "WHO lists this code for another cause; expert review chose this cause."),
+        )
+
+    def test_fallback_decision_without_crosswalk_is_not_cod(self):
+        note = "Owner decision 5b (2026-09-24): no annex range and no usable single-bucket crosswalk suggestion"
+        self.assertEqual(
+            self.icd11("1H00", "vas_99", "owner_fallback", note),
+            (
+                service.ORIGIN_NOT_COD,
+                "Never selectable — WHO's cause list does not include it. Mapped to Unknown only so no record can go unreported.",
+            ),
+        )
+
+    def test_fallback_decision_with_crosswalk_is_not_in_who(self):
+        note = "Owner decision 5b (2026-09-24): crosswalk E75 suggests vas_98"
+        self.assertEqual(
+            self.icd11("1H00", "vas_98", "owner_fallback", note),
+            (service.ORIGIN_NOT_IN_WHO, "Not in WHO's list; follows its ICD-10 equivalent E75"),
+        )
+
+    def test_ba5x_overlap_uses_its_icd10_equivalent_reason(self):
+        claims = {"vas_04_01": (4, "BA50-BA5Z"), "vas_04_02": (10, "BA50-BA5Z")}
+        note = "Owner decision 10 (2026-09-24): Mirrors ICD-10 I25 override (I25.x -> BA5x in WHO 10To11)"
+        self.assertEqual(
+            service.derive_origin("BA50", "vas_04_01", claims, "owner_decision", note),
+            (service.ORIGIN_WHO_RESOLVED, "Reported the same way as its ICD-10 equivalent I25"),
+        )
+
+    def test_decision_tooltip_shows_only_expert_review_number_and_date(self):
+        note = "Owner decision 12 (2026-09-24): internal text with vas_12_01 and override"
+        self.assertEqual(service._review_tooltip(note), "Expert review decision 12 (2026-09-24)")
+
+    def test_remaining_review_reasons_are_plain_language(self):
+        cases = (
+            (
+                "Owner decision 4 (2026-09-24): Annex token 5C52.Y-5C52-Z read as 5C52.Y-5C52.Z",
+                "WHO's range has a typo here; read as intended",
+            ),
+            (
+                "Owner decision 10 (2026-09-24): heart failure is Acute cardiac in both classifications",
+                "Heart failure counts as Acute cardiac disease in ICD-10 and ICD-11",
+            ),
+            (
+                "Owner decision 16 (2026-09-25): WHO assumes traffic for unspecified vehicle accidents",
+                "Traffic not stated; counted as road traffic, following WHO's ICD-10 rule",
+            ),
+            (
+                "Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption applied by analogy",
+                "Traffic not stated; counted as road traffic, following WHO's ICD-10 rule",
+            ),
+            (
+                "Carried forward from an existing manual override to match ICD-10 historical records",
+                "Kept from DigitVA's earlier ICD-10 mapping for older records",
+            ),
+        )
+        for note, expected in cases:
+            with self.subTest(note=note):
+                self.assertEqual(service._review_reason(note), expected)
 
     def test_csv_cell_neutralises_formulas(self):
         self.assertEqual(service.csv_cell("=HYPERLINK(1)"), "'=HYPERLINK(1)")
@@ -286,7 +391,7 @@ class PublicMappingBuildTests(BaseTestCase):
         self.assertEqual(by_code["K70.2"]["code_title"], "Alcoholic fibrosis and sclerosis of liver")
         self.assertEqual(by_code["K70.2"]["origin"], service.ORIGIN_WHO_RESOLVED)
         self.assertEqual(by_code["K70.2"]["also_claimed_by"], "VAs-98")
-        self.assertEqual(by_code["K72"]["origin"], service.ORIGIN_DIGITVA)
+        self.assertEqual(by_code["K72"]["origin"], service.ORIGIN_DIFFERS)
         self.assertEqual(by_code["K75"]["va_code"], "")
         self.assertEqual(by_code["K75"]["va_title"], "Other Gastrointestinal Diseases")
         self.assertEqual(by_code["1G40"]["code_title"], "Sepsis without septic shock")
@@ -344,6 +449,19 @@ class PublicMappingBuildTests(BaseTestCase):
         codes = lambda found: {row["code"] for row in found}  # noqa: E731
         self.assertEqual(codes(service.filter_mappings(rows, classification="icd11")), {"PA00", "1G40"})
         self.assertEqual(codes(service.filter_mappings(rows, origin="digitva")), {"K72", "K75"})
+        self.assertEqual(codes(service.filter_mappings(rows, origin=service.ORIGIN_DIFFERS)), {"K72", "K75"})
+        alias_rows = rows + [
+            {**rows[0], "code": "TEST-NOT-IN-WHO", "origin": service.ORIGIN_NOT_IN_WHO},
+            {**rows[0], "code": "TEST-NOT-COD", "origin": service.ORIGIN_NOT_COD},
+        ]
+        self.assertEqual(
+            codes(service.filter_mappings(alias_rows, origin=service.ORIGIN_NOT_IN_WHO)),
+            {"TEST-NOT-IN-WHO"},
+        )
+        self.assertEqual(
+            codes(service.filter_mappings(alias_rows, origin=service.ORIGIN_DIGITVA)),
+            {"K72", "K75", "TEST-NOT-IN-WHO", "TEST-NOT-COD"},
+        )
         self.assertEqual(codes(service.filter_mappings(rows, va_code="VAs-06.02")), {"K70.2", "K72"})
         self.assertEqual(codes(service.filter_mappings(rows, q="sepsis")), {"1G40"})
         self.assertEqual(codes(service.filter_mappings(rows, q="LIVER CIRRHOSIS")), {"K70.2", "K72"})
@@ -390,6 +508,10 @@ class Icd11CatalogueAndCompareTests(BaseTestCase):
             for state in service.icd11_code_states(list(self.catalogue), self.catalogue, self.rows)
         }
         self.assertEqual((states["1G40"]["va_code"], states["1G40"]["origin"]), ("VAs-01.01", service.ORIGIN_WHO))
+        self.assertEqual(
+            service.public_origin_display(states["1G40"])["note"],
+            "WHO lists this code for this cause.",
+        )
         self.assertIn("KD3B.0", states)
         self.assertEqual((states["KD3B.0"]["va_code"], states["KD3B.0"]["origin"]), ("", ""))
         self.assertEqual(service.count_unmapped_icd11(self.catalogue, self.rows), len(CATALOGUE) - 2)
@@ -411,6 +533,16 @@ class Icd11CatalogueAndCompareTests(BaseTestCase):
         )
         unmapped = service.filter_icd11_catalogue(self.catalogue, self.rows, origin="unmapped")
         self.assertEqual(set(unmapped), set(self.catalogue) - {"1G40", "KD3B.1"})
+        legacy_rows = self.rows + [
+            {"classification": "icd11", "code": "PA00", "origin": service.ORIGIN_NOT_IN_WHO},
+            {"classification": "icd11", "code": "PJ20", "origin": service.ORIGIN_DIFFERS},
+            {"classification": "icd11", "code": "KD3B.0", "origin": service.ORIGIN_NOT_COD},
+        ]
+        self.assertEqual(
+            set(service.filter_icd11_catalogue(self.catalogue, legacy_rows, origin=service.ORIGIN_DIGITVA)),
+            {"PA00", "PJ20", "KD3B.0"},
+        )
+        self.assertNotIn(service.ORIGIN_DIGITVA, service.ICD11_ORIGIN_FILTER_LABELS)
         # No origin filter: rows is not consulted, matches every code.
         self.assertEqual(
             sorted(service.filter_icd11_catalogue(self.catalogue)), sorted(self.catalogue),
@@ -445,12 +577,29 @@ class Icd11CatalogueAndCompareTests(BaseTestCase):
         self.assertEqual(by_id["b:XI:K70-K77"]["parent_id"], "c:XI")
         self.assertEqual(by_id["c:XI"]["title"], "Chapter XI: Diseases of the digestive system")
         self.assertEqual(by_id["K70.2"]["cells"]["origin"]["badge"], service.ORIGIN_LABELS[service.ORIGIN_WHO_RESOLVED])
+        self.assertIn("WHO names this code directly for this cause", by_id["K70.2"]["cells"]["origin"]["note"])
+        self.assertEqual(by_id["K70.2"]["cells"]["origin"]["title"], "")
         self.assertEqual(trees["icd11"], [])
 
         trees = service.compare_trees(self.rows, "VAs-01.01", self.catalogue)
         ids = [node["id"] for node in trees["icd11"]]
         self.assertEqual(ids, ["c:01", "b:01:BlockL1-TST", "1G40"])  # parents before children
         self.assertEqual(trees["icd11"][2]["title"], "1G40 Sepsis without septic shock")
+
+    def test_compare_tree_keeps_public_reason_and_sanitized_tooltip(self):
+        rows = [dict(row) for row in self.rows]
+        row = next(item for item in rows if item["code"] == "K70.2")
+        row["rule"] = "Injured boarding or alighting a vehicle counts as Road traffic"
+        row["note"] = "Owner decision 12 (2026-09-24): crosswalk vas_12_01 10To11 override"
+        cell = next(
+            node["cells"]["origin"]
+            for node in service.compare_trees(rows, "VAs-06.02", self.catalogue)["icd10"]
+            if node.get("id") == "K70.2"
+        )
+        self.assertIn("Injured boarding or alighting a vehicle", cell["note"])
+        self.assertEqual(cell["title"], "Expert review decision 12 (2026-09-24)")
+        self.assertNotIn("Owner decision", repr(cell))
+        self.assertNotIn("crosswalk", repr(cell))
 
     def test_icd10_catalogue_edit_reaches_the_compare_view(self):
         k70_2 = db.session.get(MasIcd1020192, "K70.2")

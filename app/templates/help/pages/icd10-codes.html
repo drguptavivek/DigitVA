@@ -1,0 +1,24 @@
+<p>
+  Browse the active ICD-10 catalogue using the same chapter, block, and code
+  panes as the administration browser. Selection rules and VA mappings are
+  shown for reference; this page is read-only.
+</p>
+
+{% include "help/pages/_origin_legend.html" %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 small">
+  <span class="text-muted" aria-live="polite" id="icd10-browser-filter-summary"
+        data-matching="{{ state_total }}" data-all="{{ state_all_total }}" data-unmapped="{{ state_unmapped_total }}">
+    {{ state_total }} of {{ state_all_total }} ICD-10 codes match these filters;
+    {{ state_unmapped_total }} are unmapped.
+  </span>
+  <a id="icd10-browser-download-csv"
+     href="{{ url_for('help.icd10_codes_browser_csv', **state_link_args) }}"
+     class="btn btn-sm btn-outline-secondary">
+    <i class="fa-solid fa-download me-1"></i>Download CSV
+  </a>
+</div>
+
+{% set icd10_browser_read_only = true %}
+{% set icd10_browser_api_base = "/help/icd10-codes" %}
+{% include "admin/panels/icd10_browser.html" %}

@@ -368,6 +368,8 @@ antepartum stillbirth,antepartum stillbirth,icd10,P95,seed_used_cod,ICD-10 canno
 antepartum stillbirth,antepartum stillbirth,icd11,KD3B.0,seed_used_cod,antepartum fetal death,
 TB,tb,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
 TB,tb,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+tuberculosis,tuberculosis,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+tuberculosis,tuberculosis,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
 Kochs,kochs,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
 Kochs,kochs,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
 pulmonary TB,pulmonary tb,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,

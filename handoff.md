@@ -75,6 +75,18 @@ preterm codes; rabies still ranks ~52 and needs a look.
 4. Optional quality levers if the prototype falls short: fine-tune the
    small encoder on (phrase → cause) pairs built from the definitions,
    or cross-encoder re-rank of the top-5 causes.
+5. Layman synonyms (owner's motivating case) — confirmed working top-1
+   with no changes: "heart attack" → Acute cardiac disease [I20-I26],
+   "brain attack" / "brain stroke" / "paralysis" (incl. "paralysis
+   attack", one-sided weakness) → Stroke, "kidney failure" → Renal
+   failure, "sugar disease"/"high sugar" → Diabetes, "TB of the lungs"
+   → Pulmonary TB. True idioms still miss: "fits" (fixed by a synonym
+   entry), "falling sickness", "dog bite madness", "water in the lungs".
+   The agreed mechanism is a **bounded synonym vocabulary** — one
+   curated, reviewable list of local idioms per cause (mini-documents, a
+   few entries each), maintained like master data in the VA-definitions
+   admin panel. Telemetry names the real idioms; the dictionary then
+   becomes a targeted data task instead of guesswork.
 
 Older eighth-pass header (was stale, kept as history): migration head
 `fba41e2f1f9d`; chain: `a4c7e2f9b1d6` structure mode → `62a637f5c38a`

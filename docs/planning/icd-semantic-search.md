@@ -89,6 +89,20 @@ Corpus-wide embedding takes ~30 s on a desktop CPU for either model, so
 server-side batch embedding is cheap if ever wanted; per-query quality is
 the bottleneck, not compute.
 
+- **Layman synonyms work; local idioms do not (ad-hoc check, same
+  harness)**: "heart attack" → Acute cardiac disease (I20-I26), "brain
+  attack" / "brain stroke" / "paralysis" (incl. "paralysis attack",
+  one-sided weakness) → Stroke, "a stroke" → Stroke, "kidney failure" →
+  Renal failure, "sugar disease"/"high sugar" → Diabetes mellitus, "TB of
+  the lungs" → Pulmonary tuberculosis — all top-1. But idioms miss: "fits",
+  "falling sickness", "dog bite madness", "water in the lungs" scored
+  nothing sensible. Appending a synonym parenthetical to the cause text
+  fixed "fits"→Epilepsy and "water in the lungs"→pneumonia but not the
+  archaic two; the robust pattern is one mini-document per synonym phrase
+  (max-score against the cause), or a plain synonym table. Phase-0
+  telemetry is what names the idioms that actually occur, so the
+  dictionary is targeted rather than guessed.
+
 ### Footprint (arithmetic on the measured corpora, 31k titles × 384 dims)
 
 - Quantized model file: 23.0 MB (MiniLM-L6) / 34.0 MB (bge-small).
@@ -166,3 +180,7 @@ serve:
 - The 63-cause dictionary as a *lexical* synonym layer: match query words
    against the cause definitions' terms, then offer the cause's codes. The
   definitions are already the measured difference between 0.46 and 0.59.
+- A layman-synonym layer ("heart attack" = myocardial infarction):
+  measured working top-1 for textbook synonyms; needs per-idiom entries
+  (as mini-documents or a table) for colloquial terms — see the finding
+  above.

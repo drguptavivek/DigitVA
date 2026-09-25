@@ -35,6 +35,12 @@ CATALOGUE = (
     ("PA10", "Unintentional land transport nontraffic event injuring a pedestrian", None),
     ("PJ20", "Physical maltreatment", None),
 )
+# Codes the fixture marks selectable; the rest are not (digitva-xud).
+SELECTABLE = {"1G40", "KD3B", "KD3B.1"}
+# Hierarchy for the compare and ICD-11 state views: top-level catalogue codes
+# sit in an inner block inside an outer block inside chapter 01, and one
+# chapter X extension code is out of scope.
+CHAPTER_URI, OUTER_BLOCK_URI, INNER_BLOCK_URI = "test712://ch01", "test712://blk1", "test712://blk2"
 
 
 def annex_nodes() -> dict[str, str]:
@@ -75,12 +81,28 @@ def seed_public_mapping_fixture(rows):
     if not db.session.scalar(
         db.select(MasIcd11Mms.id).where(MasIcd11Mms.release == RELEASE).limit(1)
     ):
+        hierarchy = (
+            (CHAPTER_URI, None, "chapter", None, "Certain infectious or parasitic diseases", None),
+            (OUTER_BLOCK_URI, CHAPTER_URI, "block", "BlockL1-TST", "Outer test block", None),
+            (INNER_BLOCK_URI, OUTER_BLOCK_URI, "block", "BlockL2-TST", "Inner test block", None),
+            ("test712://XA00", None, "category", None, "Extension code", "XA00"),
+        )
+        for index, (uri, parent_uri, kind, block_id, title, code) in enumerate(hierarchy, start=-10):
+            db.session.add(
+                MasIcd11Mms(
+                    release=RELEASE, linearization_uri=uri, parent_linearization_uri=parent_uri,
+                    code=code, block_id=block_id, title=title, class_kind=kind,
+                    chapter_no="X" if code == "XA00" else "01",
+                    sort_order=index, source_version="test", is_active=True,
+                )
+            )
         for index, (code, title, parent) in enumerate(CATALOGUE):
             db.session.add(
                 MasIcd11Mms(
                     release=RELEASE, linearization_uri=f"test712://{code}",
-                    parent_linearization_uri=f"test712://{parent}" if parent else None,
+                    parent_linearization_uri=f"test712://{parent}" if parent else INNER_BLOCK_URI,
                     code=code, title=title, class_kind="category", chapter_no="01",
+                    is_coding_selectable=code in SELECTABLE,
                     sort_order=index, source_version="test", is_active=True,
                 )
             )
@@ -89,6 +111,8 @@ def seed_public_mapping_fixture(rows):
             MasIcd1020192(
                 code="K70.2", title="Alcoholic fibrosis and sclerosis of liver",
                 node_type="category", semantic_level="four_character", sort_order=1,
+                chapter_code="XI", chapter_title="Diseases of the digestive system",
+                block_code="K70-K77", block_title="Diseases of liver",
                 source_version="test", is_active=True,
             )
         )
@@ -307,3 +331,93 @@ class PublicMappingBuildTests(BaseTestCase):
         self.assertEqual(codes(service.filter_mappings(rows, q="LIVER CIRRHOSIS")), {"K70.2", "K72"})
         self.assertEqual(service.filter_mappings(rows, q="nothing matches this"), [])
         self.assertEqual(len(service.filter_mappings(rows)), 5)
+
+
+class Icd11CatalogueAndCompareTests(BaseTestCase):
+    """Hierarchy, the ICD-11 state view and the compare trees (digitva-xud)."""
+
+    def setUp(self):
+        super().setUp()
+        self.scheme = seed_public_mapping_fixture([
+            ("icd10", "K70.2", "vas_06_02", "exact"),
+            ("icd10", "K72", "vas_06_02", "range"),
+            ("icd11", "1G40", "vas_01_01", "range"),
+            ("icd11", "KD3B.1", "vas_11_01", "range"),
+        ])
+        self.rows, _ = service.get_public_mappings(scheme_code=self.scheme.scheme_code, release=RELEASE)
+        self.catalogue = service.get_icd11_catalogue(RELEASE)
+
+    def test_catalogue_is_the_generator_scope_with_outermost_block(self):
+        self.assertIn("KD3B.0", self.catalogue)
+        self.assertNotIn("XA00", self.catalogue)  # chapter X is out of scope
+        entry = self.catalogue["KD3B.0"]  # category under a category under two blocks
+        self.assertEqual(entry["chapter"], ("01", "Certain infectious or parasitic diseases"))
+        self.assertEqual(entry["block"], ("BlockL1-TST", "Outer test block"))
+        self.assertEqual(list(self.catalogue)[0], "1G40")  # WHO order
+
+    def test_selectable_filter_splits_the_catalogue(self):
+        everything = service.filter_icd11_catalogue(self.catalogue)
+        yes = service.filter_icd11_catalogue(self.catalogue, selectable="yes")
+        no = service.filter_icd11_catalogue(self.catalogue, selectable="no")
+        self.assertEqual(set(yes), SELECTABLE)
+        self.assertIn("KD3B.0", no)
+        self.assertNotIn("KD3B.0", yes)
+        self.assertEqual(sorted(yes + no), sorted(everything))
+        self.assertEqual(service.filter_icd11_catalogue(self.catalogue, q="fetal", selectable="no"), ["KD3B.0"])
+        self.assertEqual(len(service.filter_icd11_catalogue(self.catalogue, q="outer test block")), len(CATALOGUE))
+
+    def test_states_show_mapping_or_unmapped(self):
+        states = {
+            state["code"]: state
+            for state in service.icd11_code_states(list(self.catalogue), self.catalogue, self.rows)
+        }
+        self.assertEqual((states["1G40"]["va_code"], states["1G40"]["origin"]), ("VAs-01.01", service.ORIGIN_WHO))
+        self.assertIn("KD3B.0", states)
+        self.assertEqual((states["KD3B.0"]["va_code"], states["KD3B.0"]["origin"]), ("", ""))
+        self.assertEqual(service.count_unmapped_icd11(self.catalogue, self.rows), len(CATALOGUE) - 2)
+        csv_row = service.icd11_state_csv_row(states["KD3B.0"])
+        self.assertEqual(csv_row[:6], [
+            "KD3B.0", "Antepartum fetal death", "01 Certain infectious or parasitic diseases",
+            "Outer test block", "no", "unreviewed",
+        ])
+
+    def test_catalogue_edit_is_seen_on_next_load(self):
+        self.assertFalse(self.catalogue["KD3B.0"]["selectable"])
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KD3B.0")
+        )
+        row.is_coding_selectable = True
+        db.session.commit()
+        self.assertTrue(service.get_icd11_catalogue(RELEASE)["KD3B.0"]["selectable"])
+
+    def test_compare_trees_group_both_classifications(self):
+        trees = service.compare_trees(self.rows, "VAs-06.02", self.catalogue)
+        by_id = {node["id"]: node for node in trees["icd10"]}
+        self.assertEqual(by_id["K70.2"]["parent_id"], "b:XI:K70-K77")
+        self.assertEqual(by_id["b:XI:K70-K77"]["parent_id"], "c:XI")
+        self.assertEqual(by_id["c:XI"]["title"], "Chapter XI: Diseases of the digestive system")
+        self.assertEqual(by_id["K70.2"]["cells"]["origin"]["badge"], service.ORIGIN_LABELS[service.ORIGIN_WHO_RESOLVED])
+        self.assertEqual(trees["icd11"], [])
+
+        trees = service.compare_trees(self.rows, "VAs-01.01", self.catalogue)
+        ids = [node["id"] for node in trees["icd11"]]
+        self.assertEqual(ids, ["c:01", "b:01:BlockL1-TST", "1G40"])  # parents before children
+        self.assertEqual(trees["icd11"][2]["title"], "1G40 Sepsis without septic shock")
+
+    def test_icd10_catalogue_edit_reaches_the_compare_view(self):
+        k70_2 = db.session.get(MasIcd1020192, "K70.2")
+        self.assertIsNotNone(k70_2)
+        k70_2.block_title = "Renamed liver block"
+        db.session.commit()
+        rows, _ = service.get_public_mappings(scheme_code=self.scheme.scheme_code, release=RELEASE)
+        titles = {node["title"] for node in service.compare_trees(rows, "VAs-06.02", self.catalogue)["icd10"]}
+        self.assertIn("K70-K77 Renamed liver block", titles)
+
+    def test_tree_nodes_keep_leaves_without_hierarchy(self):
+        nodes = service.tree_nodes([
+            (("", ""), ("", ""), "Z99", "<b>not a tag</b>", {}),
+        ])
+        self.assertEqual(nodes[0], {"id": "c:", "parent_id": None, "expanded": True, "title": "Not in the catalogue"})
+        self.assertEqual(nodes[1]["parent_id"], "c:")
+        self.assertEqual(nodes[1]["title"], "Z99 <b>not a tag</b>")  # escaped by |tojson and textContent
+

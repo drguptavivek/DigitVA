@@ -1,0 +1,27 @@
+/* Wunderbaum ships its own palette; map it onto Bootstrap's tokens.
+   Used with static/js/tree_table.js (same values as the admin Units tree). */
+.tree-table.wunderbaum {
+  --wb-font-stack: var(--bs-body-font-family);
+  --wb-node-text-color: var(--bs-body-color);
+  --wb-border-color: var(--bs-border-color);
+  --wb-focus-border-color: var(--bs-primary);
+  --wb-background-color: var(--bs-body-bg);
+  --wb-header-color: var(--bs-tertiary-bg);
+  --wb-alternate-row-color: var(--bs-tertiary-bg);
+  --wb-alternate-row-color-hover: var(--bs-secondary-bg);
+  --wb-hover-color: var(--bs-secondary-bg);
+  --wb-hover-border-color: var(--bs-secondary-bg);
+  --wb-active-color: var(--bs-primary-bg-subtle);
+  --wb-active-hover-color: var(--bs-primary-bg-subtle);
+  --wb-active-border-color: var(--bs-primary-border-subtle);
+  --wb-active-hover-border-color: var(--bs-primary-border-subtle);
+  --wb-active-column-color: transparent;
+  --wb-grid-color: var(--bs-border-color-translucent);
+  --wb-row-outer-height: 32px;
+  --wb-row-inner-height: 30px;
+  --wb-header-height: 32px;
+  font-size: .875rem;
+  border-width: 1px;
+  border-radius: var(--bs-border-radius);
+}
+.tree-table.wunderbaum div.wb-header span.wb-col { font-weight: 600; }

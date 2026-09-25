@@ -6,7 +6,7 @@ import os
 import re
 
 import markdown2
-from flask import Blueprint, Response, render_template, abort, request
+from flask import Blueprint, Response, abort, current_app, render_template, request, send_file
 from flask_login import current_user
 
 from app import limiter
@@ -14,10 +14,20 @@ from app.services.va_code_mapping_public_service import (
     ANNEX_FILE_NAME,
     CLASSIFICATION_LABELS,
     CSV_HEADERS,
+    ICD11_CSV_HEADERS,
     ORIGIN_LABELS,
+    SELECTABLE_FILTERS,
+    cached_icd11_state_csv,
+    compare_trees,
+    count_unmapped_icd11,
     csv_cell,
+    filter_icd11_catalogue,
     filter_mappings,
+    get_icd11_catalogue,
     get_public_mappings,
+    icd11_code_states,
+    icd11_state_csv_row,
+    icd11_state_nodes,
 )
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
@@ -345,6 +355,46 @@ def _mapping_filters(va_causes):
     }
 
 
+def _page_bounds(total):
+    """`(page_no, page_count, start)` for the `page` argument, clamped to the pages that exist."""
+    page_count = max(1, -(-total // MAPPINGS_PER_PAGE))
+    page_no = min(max(request.args.get("page", 1, type=int) or 1, 1), page_count)
+    return page_no, page_count, (page_no - 1) * MAPPINGS_PER_PAGE
+
+
+def _mapping_page_ctx(template):
+    """Sidebar and heading of the mapping list, for its sub-pages."""
+    page_info = _PAGES_BY_SLUG["va-code-mappings"]
+    return dict(
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template=template,
+        **_base_ctx(),
+    )
+
+
+def _csv_response(header, rows, filename):
+    """Stream `rows` (lists of cells) as a CSV attachment."""
+    def generate():
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(header)
+        for row in rows:
+            writer.writerow(row)
+            yield buffer.getvalue()
+            buffer.seek(0)
+            buffer.truncate(0)
+        yield buffer.getvalue()
+
+    return Response(
+        generate(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @help_bp.route("/help/va-code-mappings")
 @limiter.limit("60 per minute")
 def va_code_mappings():
@@ -352,17 +402,9 @@ def va_code_mappings():
     rows, va_causes = get_public_mappings()
     filters = _mapping_filters(va_causes)
     matches = filter_mappings(rows, **filters)
-    page_count = max(1, -(-len(matches) // MAPPINGS_PER_PAGE))
-    page_no = min(max(request.args.get("page", 1, type=int) or 1, 1), page_count)
-    start = (page_no - 1) * MAPPINGS_PER_PAGE
-    page_info = _PAGES_BY_SLUG["va-code-mappings"]
+    page_no, page_count, start = _page_bounds(len(matches))
     return render_template(
         "help/help_base.html",
-        page_slug=page_info[0],
-        page_title=page_info[1],
-        page_icon=page_info[2],
-        page_category=page_info[3],
-        page_template="help/pages/va-code-mappings.html",
         mapping_rows=matches[start:start + MAPPINGS_PER_PAGE],
         mapping_total=len(matches),
         mapping_all_total=len(rows),
@@ -374,7 +416,7 @@ def va_code_mappings():
         origin_labels=ORIGIN_LABELS,
         classification_labels=CLASSIFICATION_LABELS,
         annex_file_name=ANNEX_FILE_NAME,
-        **_base_ctx(),
+        **_mapping_page_ctx("help/pages/va-code-mappings.html"),
     )
 
 
@@ -384,20 +426,110 @@ def va_code_mappings_csv():
     """The same list as CSV, all rows matching the filters, streamed."""
     rows, va_causes = get_public_mappings()
     matches = filter_mappings(rows, **_mapping_filters(va_causes))
-
-    def generate():
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
-        writer.writerow(CSV_HEADERS)
-        for row in matches:
-            writer.writerow(csv_cell(row[column]) for column in CSV_HEADERS)
-            yield buffer.getvalue()
-            buffer.seek(0)
-            buffer.truncate(0)
-        yield buffer.getvalue()
-
-    return Response(
-        generate(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=who_2022_va_2026_icd_mappings.csv"},
+    return _csv_response(
+        CSV_HEADERS,
+        ([csv_cell(row[column]) for column in CSV_HEADERS] for row in matches),
+        "who_2022_va_2026_icd_mappings.csv",
     )
+
+
+_COMPARE_COLUMNS = [
+    {"id": "code", "title": "Chapter / block / code"},
+    {"id": "origin", "title": "Origin", "width": "260px"},
+]
+_STATE_COLUMNS = [
+    {"id": "code", "title": "Chapter / block / code"},
+    {"id": "va_cause", "title": "VA cause", "width": "220px"},
+    {"id": "origin", "title": "Origin", "width": "220px"},
+    {"id": "selectable", "title": "Coding", "width": "120px"},
+    {"id": "policy_status", "title": "Policy review", "width": "120px"},
+]
+
+
+@help_bp.route("/help/va-code-mappings/compare")
+@limiter.limit("60 per minute")
+def va_code_mappings_compare():
+    """ICD-10 and ICD-11 codes mapped to one VA cause, side by side as trees."""
+    rows, va_causes = get_public_mappings()
+    va_code = request.args.get("va_code", "").strip()
+    if va_code not in {code for code, _ in va_causes}:
+        va_code = ""
+    trees = compare_trees(rows, va_code, get_icd11_catalogue()) if va_code else {"icd10": [], "icd11": []}
+    counts = {key: sum(1 for node in nodes if "cells" in node) for key, nodes in trees.items()}
+    return render_template(
+        "help/help_base.html",
+        compare_va_code=va_code,
+        compare_trees=trees,
+        compare_counts=counts,
+        compare_columns=_COMPARE_COLUMNS,
+        mapping_va_causes=va_causes,
+        **_mapping_page_ctx("help/pages/va-code-mappings-compare.html"),
+    )
+
+
+def _icd11_state_filters():
+    """Validated filters of the ICD-11 state view; anything unknown is ignored."""
+    selectable = request.args.get("selectable", "").strip()
+    return {
+        "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
+        "selectable": selectable if selectable in SELECTABLE_FILTERS else "",
+    }
+
+
+@help_bp.route("/help/va-code-mappings/unmapped")
+@limiter.limit("60 per minute")
+def va_code_mappings_unmapped():
+    """Paged ICD-11 catalogue with each code's current mapping and coding state."""
+    rows, _ = get_public_mappings()
+    catalogue = get_icd11_catalogue()
+    filters = _icd11_state_filters()
+    codes = filter_icd11_catalogue(catalogue, **filters)
+    page_no, page_count, start = _page_bounds(len(codes))
+    states = icd11_code_states(codes[start:start + MAPPINGS_PER_PAGE], catalogue, rows)
+    return render_template(
+        "help/help_base.html",
+        state_nodes=icd11_state_nodes(states),
+        state_columns=_STATE_COLUMNS,
+        state_total=len(codes),
+        state_all_total=len(catalogue),
+        state_unmapped_total=count_unmapped_icd11(catalogue, rows),
+        state_page=page_no,
+        state_page_count=page_count,
+        state_filters=filters,
+        state_link_args={key: value for key, value in filters.items() if value},
+        **_mapping_page_ctx("help/pages/va-code-mappings-unmapped.html"),
+    )
+
+
+@help_bp.route("/help/va-code-mappings/unmapped.csv")
+@limiter.limit("60 per minute")
+def va_code_mappings_unmapped_csv():
+    """The ICD-11 state view as CSV, all codes matching the filters.
+
+    Without a search, each selectable variant is served from a file cache
+    (see cached_icd11_state_csv); a search always streams live, so arbitrary
+    `q` values never create files.
+    """
+    rows, _ = get_public_mappings()
+    catalogue = get_icd11_catalogue()
+    filters = _icd11_state_filters()
+
+    def states():
+        return icd11_code_states(filter_icd11_catalogue(catalogue, **filters), catalogue, rows)
+
+    filename = "who_2022_va_2026_icd11_code_states.csv"
+    if not filters["q"]:
+        path = cached_icd11_state_csv(_public_csv_dir(), filters["selectable"], states)
+        try:
+            handle = open(path, "rb") if path else None
+        except OSError:  # replaced by a newer version between check and open
+            handle = None
+        if handle is not None:
+            return send_file(handle, mimetype="text/csv", as_attachment=True, download_name=filename)
+    return _csv_response(ICD11_CSV_HEADERS, (icd11_state_csv_row(state) for state in states()), filename)
+
+
+def _public_csv_dir():
+    """File cache for public CSVs: APP_DATA/public_csv (instance/data if unset)."""
+    app_data = current_app.config.get("APP_DATA") or os.path.join(current_app.instance_path, "data")
+    return os.path.join(app_data, "public_csv")

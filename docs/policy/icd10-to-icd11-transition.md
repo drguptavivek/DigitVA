@@ -3,7 +3,7 @@ title: ICD-10 to ICD-11 Transition for VA Cause Buckets
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # ICD-10 to ICD-11 Transition for VA Cause Buckets
@@ -448,3 +448,28 @@ cause, and whether that follows WHO or is a DigitVA decision.
   history are not shown.
 - If an admin edits a row, the page reflects the edit on the next load, and
   the origin is re-derived.
+- **Compare view** (`/help/va-code-mappings/compare?va_code=...`, added
+  2026-09-25, `digitva-xud`): pick a VA cause; the ICD-10 codes mapped to it
+  are shown on the left and the ICD-11 codes on the right. Both are trees
+  grouped by chapter and block, and each code carries its origin badge. The
+  hierarchy comes from the catalogue tables the admin browsers read
+  (`mas_icd10_2019_2`, `mas_icd11_mms`). For ICD-11, the block shown is the
+  outermost block, which is the level an ICD-10 block sits at.
+- **ICD-11 state view** (`/help/va-code-mappings/unmapped`, and `.csv`):
+  lists every ICD-11 category in the generator's scope with its current
+  state. The scope is release `2026-01`, active, coded, outside chapter X:
+  18,505 codes. Each code shows its VA cause and origin, or **Unmapped**
+  when no active row maps it. It also shows whether coders may select it and
+  the policy review status (`reviewed` / `unreviewed`).
+  - The page shows the selectable list as it stands. It does not wait for
+    the owner's sign-off (`digitva-dus.3`): unreviewed codes are labelled
+    as such.
+  - Filters: selectable / not selectable / all, and a text search. Results
+    are paged and grouped by chapter and block.
+  - The CSV without a search is cached on disk, one file per selectable
+    variant. A mapping or catalogue edit replaces the file. Its bytes equal
+    the live download. A search always streams live.
+  - Every in-scope code is mapped today (decision 5b), so the view reports
+    "0 unmapped". The route name stays `unmapped` as requested.
+  - Chapter X's 17,159 extension codes are left out. They are never bucketed,
+    and none of them is selectable.

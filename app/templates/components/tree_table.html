@@ -1,0 +1,26 @@
+{# Read-only Wunderbaum tree-table: markup and data for static/js/tree_table.js.
+   `columns` is [{id, title, width?}] (the first is the tree column); `nodes` is
+   the flat [{id, parent_id, title, expanded?, cells?}] list the JS documents.
+   The data goes out as JSON through |tojson, which escapes <, > and &, and the
+   JS sets every value as text. Call tree_table_assets() once per page. #}
+
+{% macro tree_table_assets() %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tree_table.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}">
+<script src="{{ url_for('static', filename='js/tree_table.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+{% endmacro %}
+
+{% macro tree_table(id, columns, nodes, label, height='60vh') %}
+<div class="d-flex gap-2 mb-2">
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-tree-action="expand" data-tree-target="{{ id }}">
+    <i class="fa-solid fa-angles-down me-1"></i>Expand all
+  </button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-tree-action="collapse" data-tree-target="{{ id }}">
+    <i class="fa-solid fa-angles-up me-1"></i>Collapse all
+  </button>
+</div>
+<div id="{{ id }}" class="tree-table" aria-label="{{ label }}" data-tree-table data-tree-data="{{ id }}-data"
+     data-wb-js="{{ url_for('static', filename='vendor/wunderbaum/wunderbaum.umd.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"
+     data-wb-css="{{ url_for('static', filename='vendor/wunderbaum/wunderbaum.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"
+     style="height: {{ height }}; min-height: 240px;"></div>
+<script type="application/json" id="{{ id }}-data">{{ {"columns": columns, "nodes": nodes}|tojson }}</script>
+{% endmacro %}

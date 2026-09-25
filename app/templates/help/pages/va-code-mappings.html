@@ -10,6 +10,12 @@
   footnotes) every time the list changes, so the origin always matches the data.
 </p>
 
+<p class="small">
+  <a href="{{ url_for('help.va_code_mappings_compare') }}"><i class="fa-solid fa-code-compare me-1"></i>Compare ICD-10 and ICD-11 by VA cause</a>
+  <span class="text-muted mx-2">|</span>
+  <a href="{{ url_for('help.va_code_mappings_unmapped') }}"><i class="fa-solid fa-sitemap me-1"></i>ICD-11 codes and their mapping state</a>
+</p>
+
 <dl class="row small mb-3">
   <dt class="col-sm-3"><span class="badge text-bg-success">{{ origin_labels['who'] }}</span></dt>
   <dd class="col-sm-9">WHO's list gives the code to this cause and to no other.</dd>

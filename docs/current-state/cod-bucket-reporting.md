@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # COD Bucket Reporting
@@ -115,6 +115,33 @@ title, VA cause, the row's note, and an origin (`who`, `who_resolved`,
 - Footnote f: land transport codes it lists (V01-V89) and `Y85.0` are road
   traffic (`VAs-12.01`); its tail `V90-V99; Y85.9` and every unlisted V/Y85
   code are other transport (`VAs-12.02`).
+- Sub-pages (`digitva-xud`):
+  - `/help/va-code-mappings/compare?va_code=` shows the ICD-10 and ICD-11
+    codes of one VA cause side by side, as chapter/block trees.
+  - `/help/va-code-mappings/unmapped` (and `.csv`) lists every in-scope
+    ICD-11 category with its VA cause or "Unmapped", selectability and policy
+    review status. It is filtered by selectable and search, and paged.
+  - The ICD-11 hierarchy and policy come from `get_icd11_catalogue()`. It
+    makes one pass over `mas_icd11_mms` for the release and is cached per
+    process. The cache key is the release's row count and latest
+    `updated_at`, so an admin policy edit shows on the next load. ICD-10
+    chapter and block come from `mas_icd10_2019_2`, joined in the same query
+    that builds the mapping rows.
+  - The `/unmapped.csv` download without a search is served from a file
+    cache under `APP_DATA/public_csv/`, one file per selectable variant
+    (all / yes / no). The file name carries a digest of the mapping and
+    ICD-11 cache keys, so an edit writes a new file and removes the old one.
+    Files are written to a temp file and moved into place with `os.replace`,
+    so every gunicorn worker sees a whole file. Only public data is written.
+    A search always streams live and never creates a file. If the directory
+    cannot be written, the download streams live.
+  - The mapping cache key also covers the ICD-10 catalogue (row count and
+    latest `updated_at`), so chapter and block title edits reach the compare
+    view.
+  - Both pages render with the shared Wunderbaum tree-table:
+    `app/templates/components/tree_table.html`, `app/static/js/tree_table.js`
+    and `app/static/css/tree_table.css`. It takes a flat node list and sets
+    every value as text.
 
 ## Storage model
 

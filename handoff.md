@@ -41,10 +41,37 @@ subtests, 0 failed.
   then a data migration ships it. Rollback steps are in
   `docs/policy/who-2022-icd11-coding-allowability.md`.
 
+* **Public ICD compare and unmapped views** (`digitva-xud`, closed), no
+  migration:
+  - `/help/va-code-mappings/compare?va_code=`: ICD-10 hierarchy left, ICD-11
+    right, for one VA cause.
+  - `/help/va-code-mappings/unmapped` (+ `.csv`): all 18,505 in-scope ICD-11
+    codes with current state, filter all / selectable / non-selectable,
+    search. It lists 0 unmapped today; the 17,159 codes with no VA cause are
+    chapter X extension codes, left out by the generator on purpose.
+  - Built on vendored Wunderbaum through `components/tree_table.html`,
+    `static/js/tree_table.js` and `static/css/tree_table.css`. The Units
+    panel can adopt the wrapper later; it would need action buttons, the
+    name filter and expansion persistence added (no drag-and-drop needed).
+  - The unfiltered CSV variants are cached on disk in `APP_DATA/public_csv/`
+    (atomic write, name keyed on the data version, live streaming when
+    searching or when the folder is unwritable).
+  - Full suite: 1947 passed, 179 subtests, 0 failed.
+  - Known gap: an ICD-11 title change in `mas_icd11_mms` alone does not
+    refresh the mapping-row cache (existing behaviour); add the ICD-11 key to
+    `_cache_key` to fix.
+
+Next stage (not started): `digitva-zpe`, local semantic search over ICD-10
+and ICD-11 titles. Owner constraints: English only, runs in the user's
+browser (4GB VM, so no model or heavy service on the server), vectors built
+offline and served as a static file, CSP needs `'wasm-unsafe-eval'`. WHO's
+ICD API/ECT plan is complementary and its memory use is unmeasured. Needs a
+design and a quality check on 20-30 clinical phrases first.
+
 Open: `digitva-712.6` (12 specific-vs-specific disagreements for the owner
 to review). `app/routes/api/cod_buckets.py` still falls back to WHO_2022_VA
-when a request omits `scheme_code`. Test DBs `minerva_test_dus1/2/3` were
-created for this work and can be dropped.
+when a request omits `scheme_code`. The test DBs created for this work were
+dropped 2026-09-25.
 
 ## Landed 2026-09-24
 

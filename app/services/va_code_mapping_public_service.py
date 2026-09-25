@@ -13,19 +13,29 @@ cause list and its footnote f) at read time; the origin is never stored:
 docs/ is not shipped in the image, so the annex files are read from copies in
 resource/ (kept equal to the docs copies by a test). The derived table is
 built once per process and rebuilt when the scheme's rows, nodes or version
-change, or when an annex file changes.
+change, when an ICD-10 catalogue row changes, or when an annex file changes.
 """
 
 from __future__ import annotations
 
 import csv
+import hashlib
+import logging
+import os
 import re
+import tempfile
 from pathlib import Path
 
 import sqlalchemy as sa
 
 from app import db
-from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd1020192
+from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    MasIcd11Mms,
+    MasIcd1020192,
+)
 from app.services.cod_bucket_icd11_generator import (
     expand_range,
     load_catalogue,
@@ -39,6 +49,8 @@ from app.services.cod_bucket_mapping_service import (
     _slugify,
 )
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
+
+log = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEME_CODE = "WHO_2022_VA_2026"
@@ -55,6 +67,7 @@ ORIGIN_LABELS = {
     ORIGIN_WHO_RESOLVED: "WHO, resolved by DigitVA rule",
     ORIGIN_DIGITVA: "DigitVA decision",
 }
+ORIGIN_TONES = {ORIGIN_WHO: "success", ORIGIN_WHO_RESOLVED: "info", ORIGIN_DIGITVA: "warning"}
 CLASSIFICATION_LABELS = {ICD_CLASSIFICATION_ICD10: "ICD-10", ICD_CLASSIFICATION_ICD11: "ICD-11"}
 CSV_HEADERS = (
     "classification", "code", "code_title", "va_code", "va_title",
@@ -68,6 +81,13 @@ _ICD10_TOKEN_RE = re.compile(r"^[A-Z]\d{2}(\.\d)?(-[A-Z]\d{2}(\.\d)?)?$")
 # ponytail: one table per process, rebuilt on a key change; a multi-worker
 # server builds it once per worker. Move to the shared cache if that hurts.
 _cache: dict = {"key": None, "rows": [], "va_causes": []}
+_icd11_cache: dict = {"key": None, "codes": {}}
+
+SELECTABLE_FILTERS = {"yes": True, "no": False}
+ICD11_CSV_HEADERS = (
+    "code", "code_title", "chapter", "block", "selectable", "policy_status",
+    "va_code", "va_title", "origin",
+)
 
 
 def parse_icd10_ranges(text: str | None) -> list[tuple[str, str, str]]:
@@ -209,12 +229,15 @@ def derive_origin(code: str, node: str, claims: dict, match_type: str | None = N
 
 def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release: str):
     """Changes whenever a row or node is added, removed or edited, the scheme
-    version moves, or an annex file changes. One aggregate query."""
+    version moves, an ICD-10 catalogue row (title, chapter or block) is added
+    or edited, or an annex file changes. One aggregate query."""
     node_updated = (
         sa.select(sa.func.max(MasCodBucketNode.updated_at))
         .where(MasCodBucketNode.scheme_id == MasCodBucketScheme.scheme_id)
         .scalar_subquery()
     )
+    icd10_count = sa.select(sa.func.count()).select_from(MasIcd1020192).scalar_subquery()
+    icd10_updated = sa.select(sa.func.max(MasIcd1020192.updated_at)).scalar_subquery()
     row = db.session.execute(
         sa.select(
             MasCodBucketScheme.scheme_id,
@@ -222,6 +245,8 @@ def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release
             sa.func.count(MapIcdCodBucket.mapping_id),
             sa.func.max(MapIcdCodBucket.updated_at),
             node_updated,
+            icd10_count,
+            icd10_updated,
         )
         .outerjoin(MapIcdCodBucket, MapIcdCodBucket.scheme_id == MasCodBucketScheme.scheme_id)
         .where(MasCodBucketScheme.scheme_code == scheme_code)
@@ -257,6 +282,10 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
             MasCodBucketNode.node_code,
             MasCodBucketNode.node_label,
             MasIcd1020192.title.label("icd10_title"),
+            MasIcd1020192.chapter_code,
+            MasIcd1020192.chapter_title,
+            MasIcd1020192.block_code,
+            MasIcd1020192.block_title,
         )
         .join(MasCodBucketScheme, MasCodBucketScheme.scheme_id == MapIcdCodBucket.scheme_id)
         .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
@@ -296,6 +325,11 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
             "note": m.mapping_note or "",
         }
         row["_search"] = " ".join((m.icd_code, title, va_code, m.node_label)).lower()
+        if m.icd_classification == ICD_CLASSIFICATION_ICD10:
+            # Hierarchy for the compare view; ICD-11 rows get theirs from
+            # get_icd11_catalogue(). Underscored keys never reach the CSV.
+            row["_chapter"] = (m.chapter_code or "", m.chapter_title or "")
+            row["_block"] = (m.block_code or "", m.block_title or "")
         rows.append(row)
     return rows
 
@@ -346,3 +380,273 @@ def csv_cell(value: str) -> str:
     """Neutralise spreadsheet formulas in a CSV cell (notes are admin-written)."""
     return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
 
+
+
+def get_icd11_catalogue(release: str | None = None) -> dict[str, dict]:
+    """ICD-11 categories in the generator's scope, with hierarchy and coding policy.
+
+    Scope is `load_catalogue`'s: active, coded, outside chapter X. Chapter X's
+    extension codes are never bucketed and none is selectable. Returns
+    `{code: {"title", "chapter": (no, title), "block": (block_id, title),
+    "selectable", "policy_status", "_search"}}` in WHO order. The block is the
+    outermost block (depth 1), the level an ICD-10 block sits at. Built from
+    the table the admin ICD-11 browser reads, cached per process, and rebuilt
+    when any row of the release is added or edited (one aggregate query per call).
+    """
+    release = release or ICD11_RELEASE
+    key = (release, *db.session.execute(
+        sa.select(sa.func.count(MasIcd11Mms.id), sa.func.max(MasIcd11Mms.updated_at))
+        .where(MasIcd11Mms.release == release)
+    ).one())
+    if _icd11_cache["key"] != key:
+        _icd11_cache.update(key=key, codes=_build_icd11_catalogue(release))
+    return _icd11_cache["codes"]
+
+
+def _build_icd11_catalogue(release: str) -> dict[str, dict]:
+    rows = db.session.execute(
+        sa.select(
+            MasIcd11Mms.linearization_uri,
+            MasIcd11Mms.parent_linearization_uri,
+            MasIcd11Mms.class_kind,
+            MasIcd11Mms.chapter_no,
+            MasIcd11Mms.block_id,
+            MasIcd11Mms.code,
+            MasIcd11Mms.title,
+            MasIcd11Mms.is_coding_selectable,
+            MasIcd11Mms.policy_status,
+        )
+        .where(MasIcd11Mms.release == release, MasIcd11Mms.is_active.is_(True))
+        .order_by(MasIcd11Mms.sort_order)
+    ).all()
+    by_uri = {row.linearization_uri: row for row in rows}
+    chapter_titles = {row.chapter_no: row.title for row in rows if row.class_kind == "chapter"}
+    outer_block: dict[str, tuple[str, str]] = {}
+
+    def block_of(uri: str) -> tuple[str, str]:
+        # Walk up to a known ancestor, then back down: the first block met
+        # from the top is the outermost one. Memoised, so each row is walked once.
+        chain = []
+        while uri in by_uri and uri not in outer_block:
+            chain.append(uri)
+            uri = by_uri[uri].parent_linearization_uri
+        found = outer_block.get(uri, ("", ""))
+        for step in reversed(chain):
+            row = by_uri[step]
+            if not found[1] and row.class_kind == "block":
+                found = (row.block_id or "", row.title)
+            outer_block[step] = found
+        return found
+
+    catalogue = {}
+    for row in rows:
+        if row.class_kind != "category" or not row.code or row.chapter_no == "X":
+            continue
+        chapter = (row.chapter_no or "", chapter_titles.get(row.chapter_no, ""))
+        block = block_of(row.linearization_uri)
+        catalogue[row.code] = {
+            "title": row.title,
+            "chapter": chapter,
+            "block": block,
+            "selectable": bool(row.is_coding_selectable),
+            "policy_status": row.policy_status,
+            "_search": " ".join((row.code, row.title, chapter[1], block[1])).lower(),
+        }
+    return catalogue
+
+
+def filter_icd11_catalogue(catalogue: dict[str, dict], *, q: str = "", selectable: str = "") -> list[str]:
+    """Codes matching both filters, in WHO order. `q` is a case-insensitive
+    substring of code, title, chapter or block title; `selectable` is a key of
+    SELECTABLE_FILTERS or '' (all)."""
+    q = q.lower()
+    wanted = SELECTABLE_FILTERS.get(selectable)
+    return [
+        code for code, entry in catalogue.items()
+        if (wanted is None or entry["selectable"] is wanted)
+        and (not q or q in entry["_search"])
+    ]
+
+
+def _mapped_icd11(rows: list[dict]) -> dict[str, dict]:
+    return {row["code"].upper(): row for row in rows if row["classification"] == ICD_CLASSIFICATION_ICD11}
+
+
+def count_unmapped_icd11(catalogue: dict[str, dict], rows: list[dict]) -> int:
+    """Catalogue codes that no active row maps."""
+    mapped = _mapped_icd11(rows)
+    return sum(1 for code in catalogue if code.upper() not in mapped)
+
+
+def icd11_code_states(codes: list[str], catalogue: dict[str, dict], rows: list[dict]) -> list[dict]:
+    """The current state of each code: its coding policy and, when an active
+    row maps it, the VA cause and origin; unmapped codes get empty ones."""
+    mapped = _mapped_icd11(rows)
+    states = []
+    for code in codes:
+        entry = catalogue[code]
+        row = mapped.get(code.upper(), {})
+        states.append({
+            "code": code,
+            "code_title": entry["title"],
+            "chapter": entry["chapter"],
+            "block": entry["block"],
+            "selectable": entry["selectable"],
+            "policy_status": entry["policy_status"],
+            "va_code": row.get("va_code", ""),
+            "va_title": row.get("va_title", ""),
+            "origin": row.get("origin", ""),
+            "rule": row.get("rule", ""),
+        })
+    return states
+
+
+def icd11_state_csv_row(state: dict) -> list[str]:
+    """One ICD11_CSV_HEADERS row; hierarchy flattened to titles."""
+    values = {
+        **state,
+        "chapter": " ".join(part for part in state["chapter"] if part),
+        "block": state["block"][1],
+        "selectable": "yes" if state["selectable"] else "no",
+    }
+    return [csv_cell(values[column] or "") for column in ICD11_CSV_HEADERS]
+
+
+def public_data_version() -> str:
+    """A short digest of the mapping and ICD-11 cache keys, current after
+    get_public_mappings() and get_icd11_catalogue() have run in this request.
+    Changes whenever either cache would rebuild."""
+    return hashlib.sha256(repr((_cache["key"], _icd11_cache["key"])).encode()).hexdigest()[:16]
+
+
+def cached_icd11_state_csv(root: str, selectable: str, make_states) -> str | None:
+    """Path of the ICD-11 state CSV for one `selectable` variant (no search),
+    written to `root` on first use from `make_states()` (called only then).
+
+    The file name carries public_data_version(), so a mapping or catalogue edit
+    gives a new file; older files of the variant are removed when it is written.
+    Written to a temp file in `root` and moved into place with os.replace, so
+    concurrent workers never read a partial file. The bytes equal the live CSV
+    (same csv.writer dialect, UTF-8). Returns None when `root` is not
+    writable, and the caller streams live instead. Only public data is written.
+    """
+    prefix = f"icd11_states_{selectable or 'all'}_"
+    path = os.path.join(root, f"{prefix}{public_data_version()}.csv")
+    if os.path.exists(path):
+        return path
+    try:
+        os.makedirs(root, exist_ok=True)
+        handle, tmp_path = tempfile.mkstemp(dir=root, prefix=".tmp_", suffix=".csv")
+        try:
+            with os.fdopen(handle, "w", newline="", encoding="utf-8") as out:
+                writer = csv.writer(out)
+                writer.writerow(ICD11_CSV_HEADERS)
+                writer.writerows(icd11_state_csv_row(state) for state in make_states())
+            os.replace(tmp_path, path)
+        except BaseException:
+            _remove_quietly(tmp_path)
+            raise
+    except OSError:
+        log.warning("ICD-11 state CSV cache not writable at %s; streaming live", root, exc_info=True)
+        return None
+    for name in os.listdir(root):
+        if name.startswith(prefix) and name.endswith(".csv") and os.path.join(root, name) != path:
+            _remove_quietly(os.path.join(root, name))
+    return path
+
+
+def _remove_quietly(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _origin_cell(row: dict) -> dict | str:
+    if not row.get("origin"):
+        return {"badge": "Unmapped", "tone": "secondary"}
+    note = row["rule"]
+    if row.get("also_claimed_by"):
+        note = "; ".join(filter(None, (note, "WHO also lists: " + row["also_claimed_by"])))
+    return {"badge": ORIGIN_LABELS[row["origin"]], "tone": ORIGIN_TONES[row["origin"]], "note": note}
+
+
+def tree_nodes(leaves: list[tuple[tuple[str, str], tuple[str, str], str, str, dict]]) -> list[dict]:
+    """Flat tree-table nodes (static/js/tree_table.js) grouping leaves by chapter, then block.
+
+    Each leaf is `(chapter, block, code, title, cells)`, chapter and block
+    being `(key, label)`; a leaf with no block sits directly under its
+    chapter. Group nodes are emitted on first sight, so leaf order is kept.
+    """
+    nodes, seen = [], set()
+    for chapter, block, code, title, cells in leaves:
+        chapter_id = "c:" + chapter[0]
+        if chapter_id not in seen:
+            seen.add(chapter_id)
+            nodes.append({
+                "id": chapter_id, "parent_id": None, "expanded": True,
+                "title": chapter[1] or "Not in the catalogue",
+            })
+        parent_id = chapter_id
+        if block[1]:
+            parent_id = "b:" + chapter[0] + ":" + (block[0] or block[1])
+            if parent_id not in seen:
+                seen.add(parent_id)
+                nodes.append({
+                    "id": parent_id, "parent_id": chapter_id, "expanded": True,
+                    "title": block[1],
+                })
+        nodes.append({"id": code, "parent_id": parent_id, "title": f"{code} {title}".strip(), "cells": cells})
+    return nodes
+
+
+def _chapter(key: str, title: str) -> tuple[str, str]:
+    return (key, f"Chapter {key}: {title}") if key else ("", "")
+
+
+def compare_trees(rows: list[dict], va_code: str, catalogue: dict[str, dict]) -> dict[str, list[dict]]:
+    """ICD-10 and ICD-11 tree nodes for the codes mapped to one VA cause.
+
+    ICD-10 rows keep their code order (chapters follow it); ICD-11 rows follow
+    WHO's catalogue order. A code missing from its catalogue is grouped under
+    "Not in the catalogue" rather than dropped.
+    """
+    icd10 = [
+        (
+            _chapter(*row["_chapter"]),
+            (row["_block"][0], " ".join(part for part in row["_block"] if part)),
+            row["code"], row["code_title"], {"origin": _origin_cell(row)},
+        )
+        for row in rows
+        if row["va_code"] == va_code and row["classification"] == ICD_CLASSIFICATION_ICD10
+    ]
+    order = {code: index for index, code in enumerate(catalogue)}
+    icd11_rows = sorted(
+        (row for row in rows if row["va_code"] == va_code and row["classification"] == ICD_CLASSIFICATION_ICD11),
+        key=lambda row: order.get(row["code"], len(order)),
+    )
+    no_entry = {"chapter": ("", ""), "block": ("", "")}
+    icd11 = []
+    for row in icd11_rows:
+        entry = catalogue.get(row["code"], no_entry)
+        icd11.append((
+            _chapter(*entry["chapter"]), entry["block"],
+            row["code"], row["code_title"], {"origin": _origin_cell(row)},
+        ))
+    return {"icd10": tree_nodes(icd10), "icd11": tree_nodes(icd11)}
+
+
+def icd11_state_nodes(states: list[dict]) -> list[dict]:
+    """Tree nodes for the ICD-11 state view: one leaf per state, grouped by chapter and block."""
+    return tree_nodes([
+        (
+            _chapter(*state["chapter"]), state["block"], state["code"], state["code_title"],
+            {
+                "va_cause": " ".join(part for part in (state["va_code"], state["va_title"]) if part),
+                "origin": _origin_cell(state),
+                "selectable": "Selectable" if state["selectable"] else "Not selectable",
+                "policy_status": state["policy_status"].capitalize(),
+            },
+        )
+        for state in states
+    ])

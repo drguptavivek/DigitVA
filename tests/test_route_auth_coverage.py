@@ -101,6 +101,13 @@ PUBLIC_BY_DESIGN = frozenset({
     # published by design (docs/policy/icd10-to-icd11-transition.md section 7).
     "help.va_code_mappings",
     "help.va_code_mappings_csv",
+    # Its sub-pages (digitva-xud): the ICD-10 vs ICD-11 compare view and the
+    # ICD-11 catalogue with each code's mapping and coding state, and its CSV.
+    # The same reference data plus the WHO ICD-11 hierarchy and the coding
+    # policy flags; GET only, rate-limited, published by the same section 7.
+    "help.va_code_mappings_compare",
+    "help.va_code_mappings_unmapped",
+    "help.va_code_mappings_unmapped_csv",
 })
 
 _ALLOWED = PUBLIC_BY_DESIGN

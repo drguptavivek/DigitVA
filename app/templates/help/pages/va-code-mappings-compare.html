@@ -1,0 +1,42 @@
+{# Rendered by help.va_code_mappings_compare: trees from
+   app/services/va_code_mapping_public_service.py compare_trees().
+   Policy: docs/policy/icd10-to-icd11-transition.md section 7. #}
+{% from "components/tree_table.html" import tree_table, tree_table_assets %}
+{{ tree_table_assets() }}
+<h2>Compare ICD-10 and ICD-11 by VA cause</h2>
+
+<p>
+  Pick a VA cause to see every ICD-10 code (left) and ICD-11 code (right) that
+  <code>WHO_2022_VA_2026</code> sends to it, grouped by chapter and block. The
+  badge is the row's origin, as on the <a href="{{ url_for('help.va_code_mappings') }}">mapping list</a>.
+</p>
+
+<form method="get" action="{{ url_for('help.va_code_mappings_compare') }}" class="row g-2 align-items-end mb-3">
+  <div class="col-md-8">
+    <label class="form-label small mb-1" for="compare-va">VA cause</label>
+    <select class="form-select form-select-sm" id="compare-va" name="va_code">
+      <option value="">Choose a VA cause</option>
+      {% for code, title in mapping_va_causes %}
+        <option value="{{ code }}" {% if compare_va_code == code %}selected{% endif %}>{{ code }} {{ title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-sm btn-primary w-100">Compare</button>
+  </div>
+</form>
+
+{% if compare_va_code %}
+<div class="row g-3">
+  {% for key, label in (('icd10', 'ICD-10'), ('icd11', 'ICD-11')) %}
+  <div class="col-lg-6">
+    <h3 class="h6">{{ label }} <span class="text-muted small">({{ compare_counts[key] }} codes)</span></h3>
+    {% if compare_trees[key] %}
+      {{ tree_table('compare-' ~ key, compare_columns, compare_trees[key], label ~ ' codes for ' ~ compare_va_code) }}
+    {% else %}
+      <p class="text-muted small">No {{ label }} code is mapped to this cause.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

@@ -36,6 +36,15 @@
           </div>
         </div>
 
+        {# Below lg the topic list folds behind a toggle so the page content
+           is not pushed ~2,600px down; at lg and up it is always shown. #}
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100 d-lg-none"
+                data-bs-toggle="collapse" data-bs-target="#help-nav-collapse"
+                aria-expanded="false" aria-controls="help-nav-collapse">
+          <i class="fa-solid fa-list me-1"></i>Topics
+        </button>
+        <div class="collapse d-lg-block mt-2 mt-lg-0" id="help-nav-collapse">
+
         {# Help topic nav groups #}
         <nav id="help-nav">
           {% for cat in categories %}
@@ -101,6 +110,7 @@
         {# No results message (hidden by default) #}
         <div id="help-no-results" class="text-muted small text-center py-3" style="display:none;">
           No matching topics found.
+        </div>
         </div>
       </div>
     </div>
@@ -348,6 +358,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   searchInput.addEventListener('input', function() {
     const q = this.value.trim().toLowerCase();
+
+    // Typing on a narrow screen must reveal the (folded) topic list.
+    const navCollapse = document.getElementById('help-nav-collapse');
+    if (q && navCollapse && window.matchMedia('(max-width: 991.98px)').matches) {
+      bootstrap.Collapse.getOrCreateInstance(navCollapse, { toggle: false }).show();
+    }
 
     // Filter sidebar nav links
     navGroups.forEach(group => {

@@ -83,15 +83,24 @@
      results' codes-with-rank are remembered for it, and the conclusive COD
      field forwards the id + chosen code + rank on save so the server can
      attach the pick to the search that produced it. No PII leaves the page.
-  2. Two-stage rendering (docs/policy/icd-coding-search-vocabulary.md) —
-     results are grouped by the API's `tier` field: "Focused matches" first,
-     the "Expanded matches" group collapsed behind a "Show more results"
-     entry. Unknown or missing tier degrades into the expanded group, so an
-     old cached page renders the familiar flat list.
+  2. Two-column rendering (docs/policy/icd-coding-search-vocabulary.md) —
+     results are grouped by the API's `tier` field: "Focused matches" in the
+     left column, "Term matches" in the right. Unknown or missing tier lands
+     in the term group, so an old cached page renders the familiar flat list.
 #}
 (function () {
   if (window.IcdCodingSearch) return;
-  var SHOW_MORE_ID = '__digitva_show_expanded__';
+  // Side-by-side groups; auto-fit drops to one column on a narrow dropdown.
+  // Scoped with :has() to Select2 lists that actually carry groups.
+  if (!document.getElementById('icd-coding-search-styles')) {
+    var style = document.createElement('style');
+    style.id = 'icd-coding-search-styles';
+    style.textContent =
+      '.select2-results > .select2-results__options:has(> .select2-results__option--group) {' +
+      ' display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));' +
+      ' column-gap: 0.75rem; align-items: start; }';
+    document.head.appendChild(style);
+  }
 
   function uuid() {
     // crypto.randomUUID needs a secure context; intranet http deployments
@@ -110,18 +119,12 @@
   }
 
   window.IcdCodingSearch = {
-    SHOW_MORE_ID: SHOW_MORE_ID,
-
     newState: function () {
-      return { term: '', expanded: false, searchId: null, choices: {} };
+      return { searchId: null, choices: {} };
     },
 
     // ajax.data: stamp each request with this search's id.
     requestParams: function (params, state) {
-      var term = params.term || '';
-      // A fresh term starts collapsed again; only the toggled term stays wide.
-      if (term !== state.term) state.expanded = false;
-      state.term = term;
       state.searchId = uuid();
       return { q: params.term, search_id: state.searchId };
     },
@@ -139,33 +142,8 @@
       });
       var groups = [];
       if (focused.length) groups.push({ text: 'Focused matches', children: focused });
-      if (expanded.length) {
-        if (state.expanded) {
-          groups.push({ text: 'Expanded matches', children: expanded });
-        } else {
-          var toggle = { id: SHOW_MORE_ID, text: 'Show more results (' + expanded.length + ')' };
-          if (groups.length) groups[0].children.push(toggle);
-          else groups.push({ text: 'Expanded matches', children: [toggle] });
-        }
-      }
+      if (expanded.length) groups.push({ text: 'Term matches', children: expanded });
       return { results: groups };
-    },
-
-    // The toggle entry re-runs the same term with the expanded group shown.
-    bindShowMore: function ($select, state) {
-      $select.on('select2:selecting', function (event) {
-        if (!event.params.data || event.params.data.id !== SHOW_MORE_ID) return;
-        event.preventDefault();
-        state.expanded = true;
-        var select2 = $select.data('select2');
-        var field = select2 && select2.$dropdown && select2.$dropdown.find('.select2-search__field');
-        if (field && field.length) {
-          field.val(state.term).trigger('input');
-        } else {
-          $select.select2('close');
-          $select.select2('open');
-        }
-      });
     },
 
     resolveChoice: function (state, displayText) {

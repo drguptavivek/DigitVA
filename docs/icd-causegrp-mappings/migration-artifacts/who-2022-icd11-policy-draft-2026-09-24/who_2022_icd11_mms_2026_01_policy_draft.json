@@ -3,7 +3,7 @@
   "source_version": "WHO_2022_ICD11_MMS_2026_01_DRAFT",
   "status": "draft",
   "policy": "docs/policy/who-2022-icd11-coding-allowability.md",
-  "row_count": 16204,
+  "row_count": 16202,
   "items": [
     {
       "linearization_uri": "http://id.who.int/icd/release/11/mms/257068234",
@@ -118102,17 +118102,6 @@
       "restriction_note": "Draft: chapter 19 (KA-KD), as ICD-10 P00-P96"
     },
     {
-      "linearization_uri": "http://id.who.int/icd/release/11/mms/505744734",
-      "code": "KD3B",
-      "title": "Fetal death, cause not specified",
-      "class_kind": "category",
-      "chapter_no": "19",
-      "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "neonate",
-      "restriction_note": "Draft: chapter 19 (KA-KD), as ICD-10 P00-P96"
-    },
-    {
       "linearization_uri": "http://id.who.int/icd/release/11/mms/1947342847",
       "code": "KD3B.0",
       "title": "Antepartum fetal death",
@@ -118127,17 +118116,6 @@
       "linearization_uri": "http://id.who.int/icd/release/11/mms/2034327580",
       "code": "KD3B.1",
       "title": "Intrapartum fetal death",
-      "class_kind": "category",
-      "chapter_no": "19",
-      "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "neonate",
-      "restriction_note": "Draft: chapter 19 (KA-KD), as ICD-10 P00-P96"
-    },
-    {
-      "linearization_uri": "http://id.who.int/icd/release/11/mms/505744734/unspecified",
-      "code": "KD3B.Z",
-      "title": "Unspecified time of fetal death, cause not specified",
       "class_kind": "category",
       "chapter_no": "19",
       "is_coding_selectable": true,

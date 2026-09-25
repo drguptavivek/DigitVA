@@ -117,11 +117,40 @@ class TestAdminIcdSearchVocabulary(BaseTestCase):
         payload = response.get_json()
         self.assertEqual(payload["term"]["term_normalized"], "koch s disease")
         self.assertEqual(payload["term"]["icd_code"], "A15")
+        self.assertEqual(payload["term"]["sort_order"], 100)
         self.assertIsNone(payload["code_warning"])
         persisted = db.session.scalar(
             sa.select(MasIcdSearchTerms).where(MasIcdSearchTerms.term == "Koch's disease")
         )
         self.assertIsNotNone(persisted)
+
+    def test_create_accepts_and_validates_sort_order(self):
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.post(
+            _LIST_URL,
+            json={
+                "term": "ranked term",
+                "icd_classification": "icd10",
+                "icd_code": "A15",
+                "sort_order": 3,
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["term"]["sort_order"], 3)
+
+        invalid = self.client.post(
+            _LIST_URL,
+            json={
+                "term": "bad sort",
+                "icd_classification": "icd10",
+                "icd_code": "A15",
+                "sort_order": 0,
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(invalid.status_code, 400)
 
     def test_create_warns_softly_when_the_code_is_absent(self):
         self._login(str(self.base_admin_user.user_id))
@@ -195,6 +224,35 @@ class TestAdminIcdSearchVocabulary(BaseTestCase):
         refreshed = db.session.get(MasIcdSearchTerms, self.cva.term_id)
         self.assertEqual(refreshed.term_normalized, "brain attack")
 
+    def test_update_changes_sort_order(self):
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.patch(
+            f"{_TERM_URL}/{self.cva.term_id}",
+            json={
+                "term": "CVA",
+                "icd_classification": "icd10",
+                "icd_code": "I64",
+                "sort_order": 7,
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["term"]["sort_order"], 7)
+
+        invalid = self.client.patch(
+            f"{_TERM_URL}/{self.cva.term_id}",
+            json={
+                "term": "CVA",
+                "icd_classification": "icd10",
+                "icd_code": "I64",
+                "sort_order": "not-a-number",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(invalid.status_code, 400)
+
     def test_update_unknown_term_returns_404(self):
         self._login(str(self.base_admin_user.user_id))
 
@@ -263,8 +321,8 @@ class TestAdminIcdSearchVocabulary(BaseTestCase):
         lines = response.get_data(as_text=True).strip().splitlines()
         self.assertEqual(
             lines[0],
-            "term,term_normalized,icd_classification,icd_code,source,note,is_active,created_at,updated_at",
+            "term,term_normalized,icd_classification,icd_code,source,note,sort_order,is_active,created_at,updated_at",
         )
         self.assertEqual(len(lines), 3)  # header + 2 seeded links
         self.assertIn("CVA,cva,icd10,I64", lines[1])
-        self.assertIn("old term,old term,icd11,AA00,admin,,false", lines[2])
+        self.assertIn("old term,old term,icd11,AA00,admin,,100,false", lines[2])

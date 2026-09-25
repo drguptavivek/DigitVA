@@ -3,7 +3,7 @@
 digitva-zpe.3. Mechanism (docs/policy/icd-coding-search-vocabulary.md):
 localspelling (MIT) word map plus a 22-entry medical supplement, applied as
 spelling variants x hyphen forms to the lexical endpoints, the vocabulary
-lookup, ``_result_tier`` and the admin panel search — one helper everywhere
+lookup, ``result_tier`` and the admin panel search — one helper everywhere
 (``icd_search_vocabulary_service.spelling_variants``).
 
 Run (inside Docker)::

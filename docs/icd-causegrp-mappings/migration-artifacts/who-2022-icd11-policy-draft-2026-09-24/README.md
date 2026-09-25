@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 coding-selectability policy draft (2026-01)
 doc_type: migration-artifact
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # WHO 2022 ICD-11 coding-selectability policy draft (2026-01)
@@ -14,6 +14,8 @@ Sources: annex ICD-11 ranges `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2
 
 Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonate chapter rule), and ICD-10 O/P/Q restrictions (blanket chapter rules) are never carried to any ICD-11 code; chapters 18 and 19 take their chapter rules instead.
 
+Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time of fetal death not specified) are not selectable, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum). This is dev-only: applying it to a database is a separate `flask icd11 policy-import` step, not a migration.
+
 ## Files
 
 - `who_2022_icd11_mms_2026_01_policy_draft.json`: the selectable categories in the format `flask icd11 policy-import` and the admin ICD-11 browser import read. It is a full replacement: every active category it does not list (chapter X included) is reset to not selectable with no sex/age/note. Items carry no `policy_status`, so an import leaves each row's status as it is.
@@ -22,13 +24,14 @@ Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonat
 ## Totals
 
 - Active categories: 35664
-- Selectable: 16204 (residual 4802, with children 2350)
+- Selectable: 16202 (residual 4801, with children 2349)
 
 ## Categories per rule
 
 | Rule | Categories |
 |---|---:|
-| `annex` | 16156 |
+| `annex` | 16154 |
+| `decision_18_not_selectable` | 2 |
 | `decision_5a` | 48 |
 | `excluded_chapter` | 19260 |
 | `excluded_emergency` | 17 |
@@ -56,7 +59,7 @@ Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonat
 | 16 | 545 | 544 |
 | 17 | 68 | 68 |
 | 18 | 522 | 520 |
-| 19 | 625 | 624 |
+| 19 | 625 | 622 |
 | 20 | 1323 | 1323 |
 | 21 | 1241 | 1241 |
 | 22 | 1982 | 1982 |
@@ -72,7 +75,7 @@ Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonat
 | Sex | Age | Categories |
 |---|---|---:|
 | both | infant | 4 |
-| both | neonate | 625 |
+| both | neonate | 623 |
 | female | adult | 520 |
 | female | all | 80 |
 | male | all | 20 |
@@ -81,7 +84,7 @@ Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonat
 |---|---:|
 | block | 99 |
 | chapter 18 | 520 |
-| chapter 19 | 624 |
+| chapter 19 | 622 |
 | children | 1 |
 | icd10 | 5 |
 

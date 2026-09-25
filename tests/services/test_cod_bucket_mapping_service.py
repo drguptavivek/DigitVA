@@ -19,6 +19,7 @@ from app.models import (
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
     MasIcd11Mms,
+    VaCodBucketSchemeSnapshot,
     VaFinalAssessments,
     VaForms,
     VaResearchProjects,
@@ -61,8 +62,10 @@ from app.services.cod_bucket_mapping_service import (
     list_cod_bucket_unmapped_icd_rows,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
+    snapshot_cod_bucket_scheme,
     summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
+    ICD_CLASSIFICATION_ICD11,
 )
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import refresh_submission_analytics_mv
@@ -535,7 +538,7 @@ class CodBucketMappingServiceTests(BaseTestCase):
         import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
 
         for reset_entire_scheme in (False, True):
-            scheme = reset_cod_bucket_scheme_age_band_to_source(
+            scheme, _snapshot_id = reset_cod_bucket_scheme_age_band_to_source(
                 scheme_code=SCHEME_CODE_WHO_2022_VA_2026,
                 age_scope=None,
                 reset_entire_scheme=reset_entire_scheme,
@@ -988,6 +991,166 @@ class CodBucketMappingServiceTests(BaseTestCase):
         refreshed_scheme = db.session.get(MasCodBucketScheme, scheme.scheme_id)
         self.assertEqual(restored_adult.node_label, "Artifact Adult Disease")
         self.assertEqual(refreshed_scheme.source_path, artifact_path)
+
+    def test_reset_snapshots_the_whole_scheme_matching_export(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+
+        expected_payload = export_cod_bucket_scheme_json(scheme_code=scheme.scheme_code)
+
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            )
+
+        snapshot = db.session.scalar(
+            sa.select(VaCodBucketSchemeSnapshot)
+            .where(VaCodBucketSchemeSnapshot.scheme_code == scheme.scheme_code)
+            .order_by(VaCodBucketSchemeSnapshot.created_at.desc())
+        )
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.reason, VaCodBucketSchemeSnapshot.REASON_RESET_AGE_BAND)
+
+        actual_payload = dict(snapshot.payload)
+        actual_payload["scheme"] = dict(actual_payload["scheme"])
+        actual_payload.pop("exported_at", None)
+        expected_payload = dict(expected_payload)
+        expected_payload.pop("exported_at", None)
+        self.assertEqual(actual_payload, expected_payload)
+
+    def test_age_band_reset_still_snapshots_the_whole_scheme(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            )
+
+        snapshot = db.session.scalar(
+            sa.select(VaCodBucketSchemeSnapshot)
+            .where(VaCodBucketSchemeSnapshot.scheme_code == scheme.scheme_code)
+            .order_by(VaCodBucketSchemeSnapshot.created_at.desc())
+        )
+        snapshotted_scopes = {
+            age_band["value"] for age_band in snapshot.payload["age_bands"]
+        }
+        self.assertEqual(
+            snapshotted_scopes,
+            {AGE_SCOPE_ADULT_OVER5Y, AGE_SCOPE_CHILD_1_59M, "neonate"},
+        )
+
+    def test_reset_refused_and_scheme_unchanged_when_snapshot_fails(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+
+        adult_field = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            )
+        )
+        self.assertEqual(adult_field.node_label, "Adult Disease")
+
+        with patch(
+            "app.services.cod_bucket_mapping_service.export_cod_bucket_scheme_json",
+            side_effect=RuntimeError("boom"),
+        ), patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            with self.assertRaises(ValueError):
+                reset_cod_bucket_scheme_age_band_to_source(
+                    scheme_code=scheme.scheme_code,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                )
+
+        db.session.rollback()
+        unchanged_field = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            )
+        )
+        self.assertEqual(unchanged_field.node_label, "Adult Disease")
+
+    def test_snapshot_restores_icd11_mapping_a_reset_would_drop(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+
+        category = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                MasCodBucketNode.node_type == NODE_TYPE_CATEGORY,
+            )
+        )
+        icd11_field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="icd11_only_field",
+            node_label="ICD-11 Only Disease",
+            sort_order=99,
+        )
+        db.session.add(icd11_field)
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                icd_classification=ICD_CLASSIFICATION_ICD11,
+                icd_code="1A00",
+                node_id=icd11_field.node_id,
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        snapshot = snapshot_cod_bucket_scheme(
+            scheme=scheme,
+            reason=VaCodBucketSchemeSnapshot.REASON_RESET_SCHEME,
+        )
+        db.session.commit()
+
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=None,
+                reset_entire_scheme=True,
+            )
+
+        dropped_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            )
+        )
+        self.assertEqual(dropped_count, 0, "the reset should have dropped the ICD-11 mapping")
+
+        import_cod_bucket_scheme_json(scheme_code=scheme.scheme_code, payload=snapshot.payload)
+
+        restored_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            )
+        )
+        self.assertEqual(restored_count, 1)
 
     def test_create_cod_bucket_scheme_returns_non_blocking_gap_feedback(self):
         scheme, warnings = create_cod_bucket_scheme(

@@ -15,7 +15,10 @@ from app.services.va_code_mapping_public_service import (
     CLASSIFICATION_LABELS,
     CSV_HEADERS,
     ICD11_CSV_HEADERS,
+    ICD11_ORIGIN_FILTER_LABELS,
+    ICD11_ORIGIN_FILTERS,
     ORIGIN_LABELS,
+    POLICY_REVIEW_FILTERS,
     SELECTABLE_FILTERS,
     cached_icd11_state_csv,
     compare_trees,
@@ -25,6 +28,7 @@ from app.services.va_code_mapping_public_service import (
     filter_mappings,
     get_icd11_catalogue,
     get_public_mappings,
+    icd11_block_pages,
     icd11_code_states,
     icd11_state_csv_row,
     icd11_state_nodes,
@@ -56,7 +60,7 @@ HELP_PAGES = [
     ("demo-coding",           "Demo / Training Coding",       "fa-graduation-cap",       "Coding Workflow",  ["coder", "coding_tester", "admin"]),
     ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  ["coding_tester", "admin"]),
     ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
-    ("icd-codes",             "ICD-10 Codes & WHO Browser",   "fa-book-medical",         "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("icd-codes",             "ICD Codes, VA Causes & Search", "fa-book-medical",        "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
@@ -302,6 +306,23 @@ def page(slug):
     )
 
 
+@help_bp.route("/help/icd-codes/search-demo")
+def icd_codes_search_demo():
+    """Live coding-search demo: try the real search without opening a death."""
+    page_info = _PAGES_BY_SLUG["icd-codes"]
+    if not _user_has_role(current_user, page_info[4]):
+        abort(403)
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title="Try the Coding Search",
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/icd-codes-search-demo.html",
+        **_base_ctx(),
+    )
+
+
 @help_bp.route("/help/docs")
 def docs_index():
     """Engineering docs index."""
@@ -470,22 +491,38 @@ def va_code_mappings_compare():
 def _icd11_state_filters():
     """Validated filters of the ICD-11 state view; anything unknown is ignored."""
     selectable = request.args.get("selectable", "").strip()
+    origin = request.args.get("origin", "").strip()
+    policy_status = request.args.get("policy_status", "").strip()
     return {
         "q": request.args.get("q", "").strip()[:_MAX_QUERY_LEN],
         "selectable": selectable if selectable in SELECTABLE_FILTERS else "",
+        "origin": origin if origin in ICD11_ORIGIN_FILTERS else "",
+        "policy_status": policy_status if policy_status in POLICY_REVIEW_FILTERS else "",
     }
+
+
+def _block_page_bounds(pages):
+    """`(page_no, page_count)` for the `page` argument, clamped to the pages that exist."""
+    page_count = max(1, len(pages))
+    page_no = min(max(request.args.get("page", 1, type=int) or 1, 1), page_count)
+    return page_no, page_count
 
 
 @help_bp.route("/help/va-code-mappings/unmapped")
 @limiter.limit("60 per minute")
 def va_code_mappings_unmapped():
-    """Paged ICD-11 catalogue with each code's current mapping and coding state."""
+    """Paged ICD-11 catalogue with each code's current mapping and coding state.
+
+    Pages are block-aligned (icd11_block_pages): a block is never split across
+    two pages, so page sizes vary around MAPPINGS_PER_PAGE.
+    """
     rows, _ = get_public_mappings()
     catalogue = get_icd11_catalogue()
     filters = _icd11_state_filters()
-    codes = filter_icd11_catalogue(catalogue, **filters)
-    page_no, page_count, start = _page_bounds(len(codes))
-    states = icd11_code_states(codes[start:start + MAPPINGS_PER_PAGE], catalogue, rows)
+    codes = filter_icd11_catalogue(catalogue, rows, **filters)
+    pages = icd11_block_pages(codes, catalogue, MAPPINGS_PER_PAGE)
+    page_no, page_count = _block_page_bounds(pages)
+    states = icd11_code_states(pages[page_no - 1] if pages else [], catalogue, rows)
     return render_template(
         "help/help_base.html",
         state_nodes=icd11_state_nodes(states),
@@ -497,6 +534,7 @@ def va_code_mappings_unmapped():
         state_page_count=page_count,
         state_filters=filters,
         state_link_args={key: value for key, value in filters.items() if value},
+        origin_filter_labels=ICD11_ORIGIN_FILTER_LABELS,
         **_mapping_page_ctx("help/pages/va-code-mappings-unmapped.html"),
     )
 
@@ -506,19 +544,19 @@ def va_code_mappings_unmapped():
 def va_code_mappings_unmapped_csv():
     """The ICD-11 state view as CSV, all codes matching the filters.
 
-    Without a search, each selectable variant is served from a file cache
-    (see cached_icd11_state_csv); a search always streams live, so arbitrary
-    `q` values never create files.
+    Without a search, origin filter or policy-review filter, each selectable
+    variant is served from a file cache (see cached_icd11_state_csv); any other
+    combination always streams live, so arbitrary query args never create files.
     """
     rows, _ = get_public_mappings()
     catalogue = get_icd11_catalogue()
     filters = _icd11_state_filters()
 
     def states():
-        return icd11_code_states(filter_icd11_catalogue(catalogue, **filters), catalogue, rows)
+        return icd11_code_states(filter_icd11_catalogue(catalogue, rows, **filters), catalogue, rows)
 
     filename = "who_2022_va_2026_icd11_code_states.csv"
-    if not filters["q"]:
+    if not filters["q"] and not filters["origin"] and not filters["policy_status"]:
         path = cached_icd11_state_csv(_public_csv_dir(), filters["selectable"], states)
         try:
             handle = open(path, "rb") if path else None

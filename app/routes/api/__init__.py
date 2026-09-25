@@ -4,17 +4,33 @@ from flask import Blueprint
 
 api_v1 = Blueprint("api_v1", __name__)
 
-from app.routes.api import analytics, cod_buckets, coding, data_management, icd10, icd11, instruments, nqa, organization, profile, reviewing, so, va_definitions, workflow  # noqa: E402, F401
+from app.routes.api import (  # noqa: E402, F401
+    analytics,
+    cod_buckets,
+    coding,
+    coding_search_demo,
+    data_management,
+    icd10,
+    icd11,
+    instruments,
+    nqa,
+    organization,
+    profile,
+    reviewing,
+    so,
+    va_definitions,
+    workflow,
+)
 
 # DM KPI analytics sub-blueprints
 from app.routes.api.dm_kpi import (  # noqa: E402, F401
-    dm_kpi_grid,
-    dm_kpi_sync,
-    dm_kpi_language,
-    dm_kpi_exclusions,
-    dm_kpi_coders,
-    dm_kpi_pipeline,
     dm_kpi_burndown,
+    dm_kpi_coders,
+    dm_kpi_exclusions,
+    dm_kpi_grid,
+    dm_kpi_language,
+    dm_kpi_pipeline,
+    dm_kpi_sync,
     dm_kpi_workflow,
 )
 from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E402, F401
@@ -22,6 +38,7 @@ from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E4
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(cod_buckets.bp, url_prefix="/cod-buckets")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
+api_v1.register_blueprint(coding_search_demo.bp, url_prefix="/coding-search-demo")
 api_v1.register_blueprint(data_management.bp, url_prefix="/data-management")
 api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(icd11.bp, url_prefix="/icd11")

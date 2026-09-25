@@ -368,7 +368,7 @@ resetting does not undo it.
 |---|---|---|
 | 1 | 916 `crosswalk_disagreement` items | Accept WHO's native ICD-11 bucket wherever either side is a residual bucket (`VAs-98`, `VAs-99`, `*.99`, or a bucket that is not a VA cause). The **12** items with a specific cause on both sides come back to the owner: 7 transport, plus `vas_01_07`/`vas_01_11`, `vas_01_11`/`vas_01_02`, `vas_04_02`/`vas_10_06`, `vas_11_01`/`vas_11_02`, `vas_12_04`/`vas_12_03` |
 | 2 | Maltreatment `PJ20`-`PJ2Z` | **Assault** (`VAs-12.09`). The provisional mapping is confirmed |
-| 3 | 18 flagged `PA20`-`PA2Z` (unknown whether traffic) | **Other transport** (`VAs-12.02`), consistent with ICD-10 "unspecified whether traffic" point codes |
+| 3 | 18 flagged `PA20`-`PA2Z` (unknown whether traffic) | **Other transport** (`VAs-12.02`), consistent with ICD-10 "unspecified whether traffic" point codes. *Superseded 2026-09-25 by decision 17 for `PA22`-`PA29`, `PA2E`, `PA2F`, `PA2Y`, `PA2Z`* |
 | 4 | Annex range errors | Read `5C52.Y-5C52-Z` as `5C52.Y-5C52.Z` and map to `VAs-98`. Keep the other seven as currently expanded, including the descendants past the written end |
 | 5a | Clinically relevant codes in no annex range | `5A20`-`5A2Y` diabetic acute complications → `VAs-03.03`. `3A50.x` thalassaemias and `3A4Z` → `VAs-03.01`. `DB94.10` alcoholic hepatitis with cirrhosis → `VAs-06.02`, and the other `DB94.0`/`DB94.1x`/`DB94.Y`/`DB94.Z` → `VAs-98`, as for ICD-10 `K70.0`/`K70.1`. `1C8G`, `1C8H` → `VAs-01.07`. `RA01` → `VAs-01.13` |
 | 5b | Remaining 2,301 unmapped codes | Accept the 152 single-bucket crosswalk suggestions (not the 8 `RA` codes, which were wrongly suggested as COVID-19). Map **everything else** (the `RA` codes, traditional medicine `S`, functioning `V`, factors `Q`, and the rest) to **`VAs-99`**, so no ICD-11 death reports as `unmapped` |
@@ -382,6 +382,11 @@ resetting does not undo it.
 | 13a | Footnote f tail `V90`-`V99`, `Y85.9` | **Other transport**. The provisional reading is confirmed |
 | 13b | `V81.2`-`V81.9`, `V82.2`-`V82.8` | **Keep Other transport** (rail and streetcar events are not road traffic). They stay DigitVA decisions |
 | 14 | ICD-10 congenital anomalies `Q00`-`Q99` (added 2026-09-24) | **All ages**, to match ICD-11 chapter 20 in the ICD-11 selectability draft. The 87 selectable Q rows that were neonate-only change from `neonate` to `all`, in migration `a3c9e1f7b2d4`. This is global: it changes what coders can select in every project. Re-importing the released 2026 ICD-10 policy JSON would undo it |
+
+| 15 | ICD-10 three-character `V01`-`V89` and `Y85` (added 2026-09-25, `digitva-g2n`) | **Not selectable.** WHO footnote f splits Road traffic from Other transport only at the fourth character; every one of the 88 codes has selectable subcodes. `V90`-`V99` stay selectable. Saved final assessments keep their code. Recorded in `docs/policy/who-2022-icd10-coding-allowability.md` |
+| 16 | Bucket of saved three-character `V10`-`V82` and `V87` (added 2026-09-25) | **Road traffic** (`VAs-12.01`) in `WHO_2022_VA_2026`, by WHO's own ICD-10 rule (V01-V99 chapter note): where it is not specified whether a vehicle accident is traffic or nontraffic, it is assumed to be traffic for `V10`-`V82` and `V87`, nontraffic for `V83`-`V86`. `V01`-`V09`, `V83`-`V86`, `V88`, `V89` stay Other transport. Re-buckets historical records only; nobody is re-coded |
+| 17 | ICD-11 `PA20`-`PA2Z` "unknown whether traffic or nontraffic" (added 2026-09-25) | The same WHO assumption applied by analogy: `PA22`-`PA29`, `PA2E`, `PA2F`, `PA2Y`, `PA2Z` → **Road traffic** (`VAs-12.01`); `PA2A`-`PA2D` (off-road/special vehicles, the ICD-10 `V83`-`V86` counterparts) and `PA20`, `PA21` (pedestrians; WHO counts only `V0x.1` as road traffic) → Other transport (`VAs-12.02`). **Supersedes decision 3** for the ten codes it moves |
+| 18 | Stillbirth (added 2026-09-25) | ICD-11: `KD3B` and `KD3B.Z` (time of fetal death not specified) are **not selectable**, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum); vocabulary "stillbirth" offers `KD3B.1` first. ICD-10: WHO gives `P95` for both Fresh and Macerated and fresh versus macerated is **not differentiable** in ICD-10; DigitVA does not invent codes, so `P95` stays one code in one bucket |
 
 ### 6.1 Applied (2026-09-24)
 
@@ -464,11 +469,22 @@ cause, and whether that follows WHO or is a DigitVA decision.
   - The page shows the selectable list as it stands. It does not wait for
     the owner's sign-off (`digitva-dus.3`): unreviewed codes are labelled
     as such.
-  - Filters: selectable / not selectable / all, and a text search. Results
-    are paged and grouped by chapter and block.
-  - The CSV without a search is cached on disk, one file per selectable
-    variant. A mapping or catalogue edit replaces the file. Its bytes equal
-    the live download. A search always streams live.
+  - Filters: selectable / not selectable / all, a text search, **origin**
+    (WHO / WHO, resolved by DigitVA rule / DigitVA decision / Unmapped) and
+    **policy review** (reviewed / unreviewed). Unknown query values are
+    ignored; every filter is kept in the paging links and the CSV link, and
+    the CSV honours them too.
+  - Paging is block-aligned (`icd11_block_pages`): a page accumulates whole
+    catalogue blocks until it reaches 100 codes, so a block is never split
+    across two pages; a block bigger than 100 gets a page to itself.
+  - Expanding a block (or chapter) node in the tree expands its whole
+    subtree in one click; collapsing collapses it (`tree_table`'s
+    `expand_subtree` option, opt-in per table).
+  - The CSV without a search, origin filter or policy-review filter is
+    cached on disk, one file per selectable variant. A mapping or catalogue
+    edit replaces the file. Its bytes equal the live download. Any other
+    filter combination always streams live, so arbitrary query args never
+    create files.
   - Every in-scope code is mapped today (decision 5b), so the view reports
     "0 unmapped". The route name stays `unmapped` as requested.
   - Chapter X's 17,159 extension codes are left out. They are never bucketed,

@@ -27,3 +27,6 @@ BD10,vas_04_01,10,2026-09-24,"Heart failure is Acute cardiac in both classificat
 BD1Z,vas_04_01,10,2026-09-24,"Heart failure is Acute cardiac in both classifications (I50, I50.9 -> BD1Z in WHO 10To11)"
 7A00-7B2Z,vas_99,10,2026-09-24,"Mirrors ICD-10 G47 override (sleep-wake disorders)"
 MG26,vas_01_99,10,2026-09-24,"Mirrors ICD-10 R50 override (R50 -> MG26 in WHO 10To11)"
+PA22-PA29,vas_12_01,17,2026-09-25,"WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes."
+PA2E-PA2F,vas_12_01,17,2026-09-25,"WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes."
+PA2Y-PA2Z,vas_12_01,17,2026-09-25,"WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes."

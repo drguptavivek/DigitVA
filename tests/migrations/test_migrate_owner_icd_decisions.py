@@ -219,10 +219,14 @@ class OverridesMatchMigrationTest(unittest.TestCase):
             for codes, _old, (new_node, note) in module.DECISIONS
             for code in codes
         }
+        # Decision 16 (digitva-g2n, 2026-09-25) shares this CSV but belongs to
+        # a later migration (a5f7c3d92b18); exclude its rows here and check
+        # them in test_migrate_owner_decisions_15_16_17.py instead.
         with OVERRIDES_CSV.open(newline="", encoding="utf-8") as handle:
             from_csv = {
                 row["icd_code"]: (row["node_code"], row["match_type"], row["mapping_note"])
                 for row in csv.DictReader(handle)
+                if not row["mapping_note"].startswith("Owner decision 16")
             }
         self.assertEqual(len(from_csv), 77)
         self.assertEqual(from_csv, from_migration)

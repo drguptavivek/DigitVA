@@ -1,6 +1,8 @@
 {# Read-only Wunderbaum tree-table: markup and data for static/js/tree_table.js.
    `columns` is [{id, title, width?}] (the first is the tree column); `nodes` is
    the flat [{id, parent_id, title, expanded?, cells?}] list the JS documents.
+   `expand_subtree`, when true, makes clicking any node's expander toggle its
+   whole subtree at once instead of one level (opt-in per table).
    The data goes out as JSON through |tojson, which escapes <, > and &, and the
    JS sets every value as text. Call tree_table_assets() once per page. #}
 
@@ -9,7 +11,7 @@
 <script src="{{ url_for('static', filename='js/tree_table.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 {% endmacro %}
 
-{% macro tree_table(id, columns, nodes, label, height='60vh') %}
+{% macro tree_table(id, columns, nodes, label, height='60vh', expand_subtree=False) %}
 <div class="d-flex gap-2 mb-2">
   <button type="button" class="btn btn-sm btn-outline-secondary" data-tree-action="expand" data-tree-target="{{ id }}">
     <i class="fa-solid fa-angles-down me-1"></i>Expand all
@@ -22,5 +24,5 @@
      data-wb-js="{{ url_for('static', filename='vendor/wunderbaum/wunderbaum.umd.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"
      data-wb-css="{{ url_for('static', filename='vendor/wunderbaum/wunderbaum.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"
      style="height: {{ height }}; min-height: 240px;"></div>
-<script type="application/json" id="{{ id }}-data">{{ {"columns": columns, "nodes": nodes}|tojson }}</script>
+<script type="application/json" id="{{ id }}-data">{{ {"columns": columns, "nodes": nodes, "expand_subtree": expand_subtree}|tojson }}</script>
 {% endmacro %}

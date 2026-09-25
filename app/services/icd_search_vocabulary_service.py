@@ -4,14 +4,18 @@ Central, admin-managed table of clinician shorthand and diagnosis synonyms
 (`MI`, `CVA`, `CCF`, `Kochs`) wired into the coding-search endpoints.
 Policy: docs/policy/icd-coding-search-vocabulary.md.
 
-Matching is exact on ``term_normalized`` only — no prefix or fuzzy matching,
-so `MI` cannot hijack `miliary`. A vocabulary hit never bypasses coding
-policy: the search endpoints resolve targets through the same filters they
-already apply, and a filtered-out target contributes nothing.
+Matching is exact on ``term_normalized`` first, then — for a query of
+:data:`PREFIX_MIN_QUERY_LEN` characters or more — by prefix against a longer
+stored key (``dysen`` -> ``dysentery``); a short query like `MI` never
+prefix-matches and cannot become a prefix hit of its own, so it cannot
+hijack `miliary`. A vocabulary hit never bypasses coding policy: the search
+endpoints resolve targets through the same filters they already apply, and a
+filtered-out target contributes nothing.
 """
 
 from __future__ import annotations
 
+import difflib
 import logging
 import re
 import uuid
@@ -34,6 +38,54 @@ DEFAULT_PAGE_SIZE = 25
 MAX_PAGE_SIZE = 100
 MAX_TERM_LENGTH = 500
 MAX_NOTE_LENGTH = 2000
+DEFAULT_SORT_ORDER = 100
+MAX_SORT_ORDER = 32767
+
+# digitva-wqc: shared two-stage-picker tier labels. Used to be duplicated
+# in icd10_2019_2_service.py and icd11_mms_service.py.
+RESULT_TIER_FOCUSED = "focused"
+RESULT_TIER_EXPANDED = "expanded"
+
+# digitva-wqc: normalized query >= this many characters also matches a
+# vocabulary key by PREFIX ("dysen" -> "dysentery"), on top of the
+# existing exact match. Shorter queries stay exact-only ("MI" must not
+# prefix-match into unrelated longer keys).
+PREFIX_MIN_QUERY_LEN = 3
+_PREFIX_VOCAB_MAX_CODES = 10
+
+# digitva-1ht: typo-tolerant fallback, run only when the normal lexical +
+# vocabulary search for a query returns nothing.
+FUZZY_MIN_QUERY_LEN = 4
+_FUZZY_VOCAB_CUTOFF = 0.8
+_FUZZY_VOCAB_MAX_CODES = 10
+
+# digitva-wqc: WHO qualifier boilerplate stripped from a title (and query)
+# before tier classification, ranking and fuzzy comparison — "unspecified"
+# and friends carry no search signal and only push the actual diagnosis
+# word away from the title's start. Longest phrase first so "other and
+# unspecified" is removed as one unit rather than leaving a stray "and".
+_QUALIFIER_PHRASES = tuple(
+    sorted(
+        {
+            "other and unspecified",
+            "other",
+            "not otherwise specified",
+            "nos",
+            "not elsewhere classified",
+            "nec",
+            "of unspecified origin",
+            "unspecified origin",
+            "unspecified",
+            "not confirmed bacteriologically or histologically",
+            "not confirmed",
+            "without mention of bacteriological or histological confirmation",
+            "in diseases classified elsewhere",
+            "classified elsewhere",
+        },
+        key=len,
+        reverse=True,
+    )
+)
 
 # Everything that is not a lowercase alphanumeric or a hyphen is a word
 # boundary; hyphens survive wherever they sit ("adult-onset", "I50.-" ->
@@ -128,7 +180,7 @@ def spelling_variants(text: str) -> list[str]:
     normalized text, so case shape is not preserved). The original always
     comes first and is never removed, so a conversion can only ADD matches,
     never take the original's away. One helper for the whole fold feature:
-    coding-search queries, ``normalize_term``, ``_result_tier`` and the admin
+    coding-search queries, ``normalize_term``, ``result_tier`` and the admin
     panel search all go through this.
     """
     normalized = " ".join((text or "").lower().split())
@@ -247,6 +299,7 @@ def _load_links() -> tuple[dict, ...]:
         .order_by(
             MasIcdSearchTerms.term_normalized,
             MasIcdSearchTerms.icd_classification,
+            MasIcdSearchTerms.sort_order,
             MasIcdSearchTerms.icd_code,
         )
     ).all()
@@ -267,9 +320,93 @@ def _load_links() -> tuple[dict, ...]:
             "icd_code": row.icd_code,
             "source": row.source,
             "note": row.note,
+            "sort_order": row.sort_order,
         }
         for row in rows
     )
+
+
+def _cached_links() -> tuple[dict, ...]:
+    """The active-link cache, rebuilt when a row was added, removed or
+    edited since the last read (see :func:`_cache_key`)."""
+    key = _cache_key()
+    if _cache["key"] != key:
+        _cache["key"] = key
+        _cache["links"] = _load_links()
+    return _cache["links"]
+
+
+def _tidy_title(text: str) -> str:
+    """Collapse whitespace and repeated commas left behind by qualifier
+    removal, then trim stray leading/trailing commas and spaces."""
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"(\s*,\s*)+", ", ", text)
+    return text.strip(" ,")
+
+
+def core_title(text: str) -> str:
+    """``text`` with WHO qualifier boilerplate removed (case-insensitive,
+    whole word/phrase, longest phrase first), then tidied.
+
+    Falls back to the tidied original when stripping empties it out — a
+    query or title that IS "other" must still be searchable as "other".
+    Used for tier classification, the Python re-rank of already-fetched
+    rows and fuzzy comparison; never to change which rows SQL fetches.
+    """
+    stripped = text or ""
+    for phrase in _QUALIFIER_PHRASES:
+        stripped = re.sub(
+            rf"\b{re.escape(phrase)}\b", "", stripped, flags=re.IGNORECASE
+        )
+    tidied = _tidy_title(stripped)
+    return tidied or _tidy_title(text or "")
+
+
+def _title_word_starts_with(lowered_text: str, variant: str) -> bool:
+    """Whether ``variant`` matches the start of ``lowered_text`` or of any
+    word inside it — a word boundary is the start of the string or the
+    position right after a non-alphanumeric character. Mid-word ("art" in
+    "heart") never matches."""
+    if not variant:
+        return False
+    return re.search(r"(?<![a-z0-9])" + re.escape(variant), lowered_text) is not None
+
+
+def result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
+    """``focused`` for an exact-code match or a query that starts the title
+    (or any word inside it), ``expanded`` otherwise — compared over the
+    query's spelling/hyphen variants AND its qualifier-stripped
+    (:func:`core_title`) form against both the raw and qualifier-stripped
+    title, so "gastroenteritis" reaches "Other gastroenteritis and
+    colitis..." and "respiratory tuberculosis" still reaches both A15 and
+    A16. Vocabulary hits are always focused (assigned at their result
+    dicts). The picker's two-stage grouping reads this field. Shared by
+    both catalogue search services (used to be duplicated per-service)."""
+    query_variants = spelling_variants(normalized_query)
+    core_query = core_title(normalized_query)
+    if core_query != normalized_query:
+        query_variants = list(query_variants) + [
+            v for v in spelling_variants(core_query) if v not in query_variants
+        ]
+
+    stripped_code = _compact_key(code.lower()) if code is not None else None
+    lowered_title = title.lower()
+    stripped_title = _compact_key(lowered_title)
+    core_lowered_title = core_title(title).lower()
+
+    for variant in query_variants:
+        stripped_variant = _compact_key(variant)
+        if code is not None and (
+            code.lower() == variant or stripped_code == stripped_variant
+        ):
+            return RESULT_TIER_FOCUSED
+        if stripped_title.startswith(stripped_variant):
+            return RESULT_TIER_FOCUSED
+        if _title_word_starts_with(lowered_title, variant):
+            return RESULT_TIER_FOCUSED
+        if _title_word_starts_with(core_lowered_title, variant):
+            return RESULT_TIER_FOCUSED
+    return RESULT_TIER_EXPANDED
 
 
 def _compact_key(value: str) -> str:
@@ -290,30 +427,110 @@ def _query_lookup_keys(query: str) -> set[str]:
     return keys
 
 
+def _is_exact_link(link: dict, lookup_keys: set[str]) -> bool:
+    return (
+        link["term_normalized"] in lookup_keys
+        or link["term_normalized_compact"] in lookup_keys
+    )
+
+
 def vocabulary_matches(query: str, classification: str | None = None) -> list[dict]:
     """Active links whose normalized key equals any spelling/hyphen variant
-    of the ``query``.
+    of the ``query`` (exact), plus — for a query of
+    :data:`PREFIX_MIN_QUERY_LEN` characters or more — links whose key
+    STARTS WITH a variant ("dysen" -> "dysentery") that the exact pass
+    did not already return.
 
-    ``classification`` optionally narrows to one catalogue. Returns links in
-    table order; several rows per term is the mechanism for multi-code
-    targets (`TB` -> A15 and A16).
+    ``classification`` optionally narrows to one catalogue. Exact matches
+    come first, in table order (several rows per term is the mechanism for
+    multi-code targets like "head injury"); prefix matches follow, ranked
+    by ``sort_order`` then ``icd_code`` and capped at
+    :data:`_PREFIX_VOCAB_MAX_CODES` distinct codes so one short prefix
+    cannot flood the picker.
     """
     lookup_keys = _query_lookup_keys(query)
     if not any(key for key in lookup_keys):
         return []
-    key = _cache_key()
-    if _cache["key"] != key:
-        _cache["key"] = key
-        _cache["links"] = _load_links()
-    return [
+    links = tuple(
         link
-        for link in _cache["links"]
-        if (
-            link["term_normalized"] in lookup_keys
-            or link["term_normalized_compact"] in lookup_keys
+        for link in _cached_links()
+        if classification is None or link["icd_classification"] == classification
+    )
+    exact = [link for link in links if _is_exact_link(link, lookup_keys)]
+
+    normalized_query = " ".join((query or "").lower().split())
+    if len(normalized_query) < PREFIX_MIN_QUERY_LEN:
+        return exact
+
+    exact_codes = {link["icd_code"] for link in exact}
+    prefix_candidates: list[dict] = []
+    seen_codes: set[str] = set(exact_codes)
+    for link in links:
+        code = link["icd_code"]
+        if code in seen_codes or _is_exact_link(link, lookup_keys):
+            continue
+        if any(
+            link["term_normalized"].startswith(key)
+            or link["term_normalized_compact"].startswith(_compact_key(key))
+            for key in lookup_keys
+            if key
+        ):
+            prefix_candidates.append(link)
+            seen_codes.add(code)
+    prefix_candidates.sort(key=lambda link: (link["sort_order"], link["icd_code"]))
+    return exact + prefix_candidates[:_PREFIX_VOCAB_MAX_CODES]
+
+
+def fuzzy_vocabulary_matches(query: str, classification: str | None = None) -> list[dict]:
+    """Typo-tolerant vocabulary fallback (digitva-1ht): active links whose
+    normalized key is a close match (``difflib`` ratio) of ``query``.
+
+    Runs only when the caller's normal lexical + vocabulary search for this
+    query is empty — never as part of ordinary matching, so it cannot hijack
+    an exact-match query the way prefix matching would. No DB round trip:
+    candidates come from the same in-memory cache ``vocabulary_matches``
+    uses. Queries under :data:`FUZZY_MIN_QUERY_LEN` characters never match
+    (a 2-3 character typo is not distinguishable from a different word).
+    Capped at :data:`_FUZZY_VOCAB_MAX_CODES` distinct codes so one loose
+    typo cannot flood the picker; ties broken by ratio then key so the
+    result is deterministic.
+    """
+    normalized_query = " ".join((query or "").lower().split())
+    if len(normalized_query) < FUZZY_MIN_QUERY_LEN:
+        return []
+    core_query = core_title(normalized_query)
+    links = _cached_links()
+    if classification is not None:
+        links = tuple(link for link in links if link["icd_classification"] == classification)
+    candidate_keys = {link["term_normalized"] for link in links}
+
+    def ratio(key: str) -> float:
+        # digitva-wqc: also compare the qualifier-stripped forms, so a
+        # typo against a vocabulary term carrying WHO boilerplate is not
+        # penalised for boilerplate the query never typed.
+        return max(
+            difflib.SequenceMatcher(None, normalized_query, key).ratio(),
+            difflib.SequenceMatcher(None, core_query, core_title(key)).ratio(),
         )
-        and (classification is None or link["icd_classification"] == classification)
-    ]
+
+    ranked_keys = sorted(
+        ((ratio(key), key) for key in candidate_keys),
+        key=lambda pair: (-pair[0], pair[1]),
+    )
+    matched_keys = [key for ratio, key in ranked_keys if ratio >= _FUZZY_VOCAB_CUTOFF]
+    if not matched_keys:
+        return []
+    selected: list[dict] = []
+    seen_codes: set[str] = set()
+    for matched_key in matched_keys:
+        for link in links:
+            if link["term_normalized"] != matched_key or link["icd_code"] in seen_codes:
+                continue
+            seen_codes.add(link["icd_code"])
+            selected.append(link)
+            if len(seen_codes) >= _FUZZY_VOCAB_MAX_CODES:
+                return selected
+    return selected
 
 
 def merge_vocabulary_results(
@@ -387,6 +604,19 @@ def _validated_code(value) -> str:
     return code
 
 
+def _validated_sort_order(value) -> int:
+    """Positive int, optional (``None``/blank falls back to the default)."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_SORT_ORDER
+    try:
+        sort_order = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("sort_order must be an integer.") from exc
+    if not (1 <= sort_order <= MAX_SORT_ORDER):
+        raise ValueError(f"sort_order must be between 1 and {MAX_SORT_ORDER}.")
+    return sort_order
+
+
 def _validated_note(value) -> str | None:
     note = (value or "").strip() or None
     if note is not None and len(note) > MAX_NOTE_LENGTH:
@@ -402,6 +632,7 @@ def serialize_term(row: MasIcdSearchTerms) -> dict:
         "icd_classification": row.icd_classification,
         "icd_code": row.icd_code,
         "source": row.source,
+        "sort_order": row.sort_order,
         "note": row.note,
         "is_active": row.is_active,
         "created_at": row.created_at.isoformat(),
@@ -485,6 +716,7 @@ def list_terms(
         query.order_by(
             MasIcdSearchTerms.term_normalized,
             MasIcdSearchTerms.icd_classification,
+            MasIcdSearchTerms.sort_order,
             MasIcdSearchTerms.icd_code,
         )
         .offset((page - 1) * per_page)
@@ -506,9 +738,11 @@ def create_term(
     icd_code: str,
     note: str | None = None,
     source: str = DEFAULT_SOURCE,
+    sort_order: int | None = None,
 ) -> MasIcdSearchTerms:
     """Insert one term-code link. The normalized lookup key is derived from
-    ``term``, never taken from input."""
+    ``term``, never taken from input. ``sort_order`` defaults to
+    :data:`DEFAULT_SORT_ORDER` when omitted or blank."""
     classification = _validated_classification(icd_classification)
     validated_term = _validated_term(term)
     validated_code = _validated_code(icd_code)
@@ -518,6 +752,7 @@ def create_term(
         icd_classification=classification,
         icd_code=validated_code,
         source=_validated_source(source),
+        sort_order=_validated_sort_order(sort_order),
         note=_validated_note(note),
         is_active=True,
     )
@@ -540,9 +775,12 @@ def update_term(
     icd_classification: str,
     icd_code: str,
     note: str | None = None,
+    sort_order: int | None = None,
 ) -> MasIcdSearchTerms:
-    """Edit one link's display term, target or note. Deactivation state is
-    owned by :func:`set_active` and left untouched here."""
+    """Edit one link's display term, target, sort order or note.
+    ``sort_order`` defaults to :data:`DEFAULT_SORT_ORDER` when omitted or
+    blank, same as :func:`create_term`. Deactivation state is owned by
+    :func:`set_active` and left untouched here."""
     row = get_term(term_id)
     classification = _validated_classification(icd_classification)
     validated_term = _validated_term(term)
@@ -550,6 +788,7 @@ def update_term(
     row.term_normalized = normalize_term(validated_term)
     row.icd_classification = classification
     row.icd_code = _validated_code(icd_code)
+    row.sort_order = _validated_sort_order(sort_order)
     row.note = _validated_note(note)
     db.session.commit()
     clear_cache()

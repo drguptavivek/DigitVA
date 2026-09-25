@@ -27,6 +27,7 @@ from app.models.mas_organization import (
 )
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.models.va_allocations import VaAllocations
+from app.models.va_cod_bucket_scheme_snapshots import VaCodBucketSchemeSnapshot
 from app.models.va_coder_review import VaCoderReview
 from app.models.va_coding_episodes import VaCodingEpisode
 from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
@@ -108,6 +109,7 @@ __all__ = [
     "VaInitialAssessments",
     "VaAllocation",
     "VaAllocations",
+    "VaCodBucketSchemeSnapshot",
     "VaCoderReview",
     "VaDataManagerReview",
     "VaSmartvaFormRun",

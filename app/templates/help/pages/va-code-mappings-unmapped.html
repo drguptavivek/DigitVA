@@ -10,21 +10,39 @@
   chapter X extension codes excluded), with its current state: the VA cause and origin
   when a code is mapped, <span class="badge text-bg-secondary">Unmapped</span> when it
   is not, and whether coders may select it. The selectable list is shown as it stands
-  today; codes marked <em>Unreviewed</em> are awaiting the owner's review.
+  today; codes marked <em>Unreviewed</em> are awaiting expert review. Blocks
+  (and chapters) expand or collapse as a whole when you click their arrow.
 </p>
 
 <form method="get" action="{{ url_for('help.va_code_mappings_unmapped') }}" class="row g-2 align-items-end mb-3" role="search">
-  <div class="col-md-6">
+  <div class="col-md-4">
     <label class="form-label small mb-1" for="icd11-q">Search</label>
     <input type="search" class="form-control form-control-sm" id="icd11-q" name="q" maxlength="100"
            value="{{ state_filters.q }}" placeholder="Code, title, chapter or block">
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <label class="form-label small mb-1" for="icd11-selectable">Coding</label>
     <select class="form-select form-select-sm" id="icd11-selectable" name="selectable">
       <option value="">All</option>
       <option value="yes" {% if state_filters.selectable == 'yes' %}selected{% endif %}>Selectable</option>
       <option value="no" {% if state_filters.selectable == 'no' %}selected{% endif %}>Not selectable</option>
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small mb-1" for="icd11-origin">Origin</label>
+    <select class="form-select form-select-sm" id="icd11-origin" name="origin">
+      <option value="">All</option>
+      {% for value, label in origin_filter_labels.items() %}
+        <option value="{{ value }}" {% if state_filters.origin == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small mb-1" for="icd11-policy">Policy review</label>
+    <select class="form-select form-select-sm" id="icd11-policy" name="policy_status">
+      <option value="">All</option>
+      <option value="reviewed" {% if state_filters.policy_status == 'reviewed' %}selected{% endif %}>Reviewed</option>
+      <option value="unreviewed" {% if state_filters.policy_status == 'unreviewed' %}selected{% endif %}>Unreviewed</option>
     </select>
   </div>
   <div class="col-md-2">
@@ -40,7 +58,7 @@
 </div>
 
 {% if state_nodes %}
-  {{ tree_table('icd11-states', state_columns, state_nodes, 'ICD-11 codes, page ' ~ state_page) }}
+  {{ tree_table('icd11-states', state_columns, state_nodes, 'ICD-11 codes, page ' ~ state_page, expand_subtree=True) }}
 {% else %}
   <p class="text-muted small">No ICD-11 codes match these filters.</p>
 {% endif %}

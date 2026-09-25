@@ -37,6 +37,7 @@ CSV_HEADERS = (
     "icd_code",
     "source",
     "note",
+    "sort_order",
     "is_active",
     "created_at",
     "updated_at",
@@ -130,6 +131,7 @@ def admin_icd_search_vocabulary_create():
             icd_classification=body.get("icd_classification"),
             icd_code=body.get("icd_code"),
             note=body.get("note"),
+            sort_order=body.get("sort_order"),
         )
     except ValueError as exc:
         return _json_error(str(exc), 400)
@@ -167,6 +169,7 @@ def admin_icd_search_vocabulary_update(term_id: str):
             icd_classification=body.get("icd_classification"),
             icd_code=body.get("icd_code"),
             note=body.get("note"),
+            sort_order=body.get("sort_order"),
         )
     except LookupError:
         return _json_error("Vocabulary term not found.", 404)
@@ -234,6 +237,7 @@ def admin_icd_search_vocabulary_export_csv():
                 csv_cell(row["icd_code"]),
                 csv_cell(row["source"]),
                 csv_cell(row["note"] or ""),
+                row["sort_order"],
                 "true" if row["is_active"] else "false",
                 csv_cell(row["created_at"]),
                 csv_cell(row["updated_at"]),

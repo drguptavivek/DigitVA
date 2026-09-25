@@ -15512,22 +15512,22 @@ WHO_2022_VA_2026,,PA1Y,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA
 WHO_2022_VA_2026,,PA1Z,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA20,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA21,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA22,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA23,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA24,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA25,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA26,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA27,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA28,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA29,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA22,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA23,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA24,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA25,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA26,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA27,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA28,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA29,vas_12_01,owner_decision,VAs-12.01,30,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA2A,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA2B,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA2C,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA2D,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA2E,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA2F,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA2Y,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA2Z,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA2E,vas_12_01,owner_decision,VAs-12.01,31,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA2F,vas_12_01,owner_decision,VAs-12.01,31,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA2Y,vas_12_01,owner_decision,VAs-12.01,32,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA2Z,vas_12_01,owner_decision,VAs-12.01,32,Owner decision 17 (2026-09-25): WHO's ICD-10 traffic assumption for unspecified V10-V82/V87 applied by analogy to ICD-11 unknown-whether-traffic codes -> Road traffic. Supersedes decision 3 for these codes.,who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA30,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA31,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA3Z,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv

@@ -7,6 +7,7 @@ at test time (the CSV grows with the vocabulary), never hard-coded.
 import csv
 import importlib.util
 import unittest
+import uuid
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -196,6 +197,192 @@ class IcdSearchVocabularyMigrationTest(unittest.TestCase):
             survivors,
         )
         self.assertIsNone(self._scalar(f"SELECT to_regclass('{CAPTURE_TABLE}')"))
+
+
+class SortOrderReconcileMigrationTest(unittest.TestCase):
+    """Migration fdb562cccac4: add sort_order and reconcile the seed
+    (digitva-3t2). Same throwaway-database pattern as the class above, one
+    revision later, seeded up to its parent so the column and reconcile
+    logic run against a realistic pre-existing table.
+    """
+
+    MIGRATION_DB_NAME = "minerva_test_migration_fdb562cccac4"
+    PARENT_REVISION = "f2b7c9e4a1d8"
+    REVISION_UNDER_TEST = "fdb562cccac4"
+    INSERTED_TABLE = "_mig_fdb562cccac4_inserted"
+    SORT_ORDER_TABLE = "_mig_fdb562cccac4_sort_order"
+    DEACTIVATED_TABLE = "_mig_fdb562cccac4_deactivated"
+
+    def setUp(self):
+        _admin_execute(f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"')
+        _admin_execute(f'CREATE DATABASE "{self.MIGRATION_DB_NAME}"')
+        self.addCleanup(
+            lambda: _admin_execute(f'DROP DATABASE IF EXISTS "{self.MIGRATION_DB_NAME}"')
+        )
+
+        db_name = self.MIGRATION_DB_NAME
+
+        class _Config(TestConfig):
+            SQLALCHEMY_DATABASE_URI = _server_url(db_name).render_as_string(
+                hide_password=False
+            )
+
+        from tests.base import create_app_without_celery_takeover
+
+        self.app = create_app_without_celery_takeover(_Config)
+        self.ctx = self.app.app_context()
+        self.ctx.push()
+        self.addCleanup(self.ctx.pop)
+        # The parent chain seeds from the CURRENT (live) CSV -- already the
+        # full reconciled set this pass ships, so it already excludes the
+        # 43 policy-dead keys and already contains the 120 new links.
+        alembic_upgrade(revision=self.PARENT_REVISION)
+
+        from app import db
+
+        self.db = db
+        self.addCleanup(db.engine.dispose)
+
+    def _scalar(self, sql, params=None):
+        with self.db.engine.connect() as conn:
+            return conn.execute(sa.text(sql), params or {}).scalar()
+
+    def _execute(self, sql, params=None):
+        with self.db.engine.begin() as conn:
+            conn.execute(sa.text(sql), params or {})
+
+    def test_reconcile_readds_missing_links_sets_sort_order_and_deactivates_dead_keys(self):
+        # Simulate a database seeded before this pass: delete one of the
+        # newly-added links, and hand-insert two dead-key rows the way an
+        # older install would still carry them (this pass's seed never
+        # inserts them, since the live CSV it reads no longer has them).
+        self._execute(
+            f"DELETE FROM {TABLE} WHERE term_normalized = 'blood cancer' "
+            "AND icd_classification = 'icd10'"
+        )
+        seed_sourced_dead_key_id = str(uuid.uuid4())
+        admin_sourced_dead_key_id = str(uuid.uuid4())
+        now_sql = "now()"
+        self._execute(
+            f"INSERT INTO {TABLE} (term_id, term, term_normalized, icd_classification, "
+            f"icd_code, source, is_active, created_at, updated_at) VALUES "
+            f"(:id, 'CCF', 'ccf', 'icd10', 'I50', 'seed_used_cod', true, {now_sql}, {now_sql})",
+            {"id": seed_sourced_dead_key_id},
+        )
+        self._execute(
+            f"INSERT INTO {TABLE} (term_id, term, term_normalized, icd_classification, "
+            f"icd_code, source, is_active, created_at, updated_at) VALUES "
+            f"(:id, 'HHD', 'hhd', 'icd10', 'I11', 'admin', true, {now_sql}, {now_sql})",
+            {"id": admin_sourced_dead_key_id},
+        )
+        # An admin-edited row this pass's reconcile must leave alone.
+        self._execute(
+            "UPDATE mas_icd_search_terms SET note = 'admin note' "
+            "WHERE term_normalized = 'cva' AND icd_classification = 'icd10'"
+        )
+
+        alembic_upgrade(revision=self.REVISION_UNDER_TEST)
+
+        # (b) the deleted new link is restored.
+        self.assertEqual(
+            self._scalar(
+                f"SELECT count(*) FROM {TABLE} WHERE term_normalized = 'blood cancer' "
+                "AND icd_classification = 'icd10'"
+            ),
+            1,
+        )
+        # (c) "head injury" (icd10) gets its reviewed sort_order: the
+        # traffic bucket (V89.2) lists before the fall bucket (W19). TB no
+        # longer works as this example -- this pass narrows it to a single
+        # target (A16), so there is nothing left to order among.
+        self.assertEqual(
+            self._scalar(
+                f"SELECT sort_order FROM {TABLE} WHERE term_normalized = 'head injury' "
+                "AND icd_classification = 'icd10' AND icd_code = 'V89.2'"
+            ),
+            1,
+        )
+        self.assertEqual(
+            self._scalar(
+                f"SELECT sort_order FROM {TABLE} WHERE term_normalized = 'head injury' "
+                "AND icd_classification = 'icd10' AND icd_code = 'W19'"
+            ),
+            2,
+        )
+        # every other row keeps the column default.
+        self.assertEqual(
+            self._scalar(
+                f"SELECT sort_order FROM {TABLE} WHERE term_normalized = 'cva' "
+                "AND icd_classification = 'icd10'"
+            ),
+            100,
+        )
+        # the admin edit survives.
+        self.assertEqual(
+            self._scalar(
+                f"SELECT note FROM {TABLE} WHERE term_normalized = 'cva' "
+                "AND icd_classification = 'icd10'"
+            ),
+            "admin note",
+        )
+        # (d) the seed-sourced dead key is deactivated, the admin-sourced
+        # one at the same key is left alone.
+        self.assertFalse(
+            self._scalar(
+                f"SELECT is_active FROM {TABLE} WHERE term_id = :id",
+                {"id": seed_sourced_dead_key_id},
+            )
+        )
+        self.assertTrue(
+            self._scalar(
+                f"SELECT is_active FROM {TABLE} WHERE term_id = :id",
+                {"id": admin_sourced_dead_key_id},
+            )
+        )
+
+        alembic_downgrade(revision=self.PARENT_REVISION)
+
+        # downgrade reverses exactly what this migration did.
+        self.assertTrue(
+            self._scalar(
+                f"SELECT is_active FROM {TABLE} WHERE term_id = :id",
+                {"id": seed_sourced_dead_key_id},
+            )
+        )
+        self.assertTrue(
+            self._scalar(
+                f"SELECT is_active FROM {TABLE} WHERE term_id = :id",
+                {"id": admin_sourced_dead_key_id},
+            )
+        )
+        self.assertEqual(
+            self._scalar(
+                f"SELECT count(*) FROM {TABLE} WHERE term_normalized = 'blood cancer' "
+                "AND icd_classification = 'icd10'"
+            ),
+            0,
+        )
+        self.assertIsNone(
+            self._scalar(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'mas_icd_search_terms' AND column_name = 'sort_order'"
+            )
+        )
+        for capture_table in (
+            self.INSERTED_TABLE,
+            self.SORT_ORDER_TABLE,
+            self.DEACTIVATED_TABLE,
+        ):
+            self.assertIsNone(self._scalar(f"SELECT to_regclass('{capture_table}')"))
+
+    def test_second_upgrade_is_idempotent(self):
+        alembic_upgrade(revision=self.REVISION_UNDER_TEST)
+        before = self._scalar(f"SELECT count(*) FROM {TABLE}")
+
+        alembic_upgrade(revision=self.REVISION_UNDER_TEST)
+
+        self.assertEqual(self._scalar(f"SELECT count(*) FROM {TABLE}"), before)
+
 
 if __name__ == "__main__":
     unittest.main()

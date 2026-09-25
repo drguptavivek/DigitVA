@@ -1586,12 +1586,19 @@
     state.pendingResetAgeScope = ageScope || '';
     state.pendingResetAgeLabel = ageLabel || '';
     state.pendingResetScopeMode = resetScope || 'age_band';
+    const snapshotNotice = `
+      <div class="mt-2 text-muted">
+        A JSON snapshot of the whole scheme is saved first and downloaded; restore it with Import JSON.
+      </div>
+      <div class="mt-2" id="cb-reset-snapshot-history">Loading recent snapshots...</div>
+    `;
     if (state.pendingResetScopeMode === 'scheme') {
       els.resetDefaultModalBody.innerHTML = `
         Reset <strong>${esc(schemeName || schemeCode)}</strong> from its source workbook?
         <div class="mt-2 text-muted">
           This will replace the age bands, headings, and ICD-10 mappings for the entire built-in scheme across all age groups.
         </div>
+        ${snapshotNotice}
       `;
     } else {
       els.resetDefaultModalBody.innerHTML = `
@@ -1600,9 +1607,42 @@
         <div class="mt-2 text-muted">
           This will replace the current headings and ICD-10 mappings for this built-in age band slice.
         </div>
+        ${snapshotNotice}
       `;
     }
     getResetDefaultModal().show();
+    loadResetSnapshotHistory(schemeCode);
+  }
+
+  async function loadResetSnapshotHistory(schemeCode) {
+    const container = document.getElementById('cb-reset-snapshot-history');
+    try {
+      const payload = await fetch(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/snapshots`,
+        { headers: { 'Accept': 'application/json' } }
+      ).then(response => response.json());
+      if (!container) return;
+      const snapshots = payload.snapshots || [];
+      if (!snapshots.length) {
+        container.textContent = 'No prior snapshots for this scheme.';
+        return;
+      }
+      container.innerHTML = `
+        <div class="text-muted">Recent snapshots:</div>
+        <ul class="mb-0 ps-3">
+          ${snapshots.map(snapshot => `
+            <li>
+              ${esc(snapshot.reason)}${snapshot.age_scope ? ' / ' + esc(snapshot.age_scope) : ''}
+              -- ${esc(snapshot.created_at)}
+              <a href="/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/snapshots/${encodeURIComponent(snapshot.snapshot_id)}/download">download</a>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+    } catch (error) {
+      console.error('Failed to load snapshot history', error);
+      if (container) container.textContent = '';
+    }
   }
 
   function openNodeEditModal(nodeId) {
@@ -1642,8 +1682,9 @@
   async function resetSelectedAgeBandToDefault() {
     if (!state.pendingResetSchemeCode) return;
     const resetScopeMode = state.pendingResetScopeMode || 'age_band';
-    await apiJson(
-      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.pendingResetSchemeCode)}/reset-default`,
+    const schemeCode = state.pendingResetSchemeCode;
+    const result = await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/reset-default`,
       'POST',
       {
         age_scope: resetScopeMode === 'scheme'
@@ -1666,6 +1707,14 @@
         : 'Built-in scheme age band reset from source.',
       false
     );
+    if (result.snapshot_id) {
+      const link = document.createElement('a');
+      link.href = `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/snapshots/${encodeURIComponent(result.snapshot_id)}/download`;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
     if (state.schemeCode) {
       await loadScheme();
     }

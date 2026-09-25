@@ -23,6 +23,7 @@ from app.models import (
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
     MasIcd11Mms,
+    VaCodBucketSchemeSnapshot,
     VaSmartvaResults,
     VaForms,
     VaSubmissions,
@@ -1495,12 +1496,46 @@ def list_cod_bucket_scheme_cards() -> list[dict]:
     ]
 
 
+def snapshot_cod_bucket_scheme(
+    *,
+    scheme: MasCodBucketScheme,
+    reason: str,
+    age_scope: str | None = None,
+    created_by_user_id: uuid.UUID | None = None,
+) -> VaCodBucketSchemeSnapshot:
+    """Snapshot the WHOLE scheme as JSON before a destructive change.
+
+    Always exports the entire scheme regardless of ``reason``/``age_scope``:
+    restore is whole-scheme via `import_cod_bucket_scheme_json`, so a partial
+    snapshot would be useless. Flushes (does not commit) so the row lands in
+    the same transaction as whatever destructive change follows it.
+    """
+    payload = export_cod_bucket_scheme_json(scheme_code=scheme.scheme_code)
+    row = VaCodBucketSchemeSnapshot(
+        scheme_id=scheme.scheme_id,
+        scheme_code=scheme.scheme_code,
+        reason=reason,
+        age_scope=age_scope,
+        payload=payload,
+        created_by_user_id=created_by_user_id,
+    )
+    db.session.add(row)
+    db.session.flush()
+    return row
+
+
 def reset_cod_bucket_scheme_age_band_to_source(
     *,
     scheme_code: str,
     age_scope: str | None,
     reset_entire_scheme: bool = False,
-) -> MasCodBucketScheme:
+    created_by_user_id: uuid.UUID | None = None,
+) -> tuple[MasCodBucketScheme, uuid.UUID]:
+    """Rebuild a scheme (or one age band) from its workbook.
+
+    Returns ``(scheme, snapshot_id)``: the whole-scheme JSON snapshot taken
+    before anything was replaced (digitva-tet).
+    """
     scheme = get_cod_bucket_scheme(scheme_code)
     if scheme is None:
         raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
@@ -1511,15 +1546,30 @@ def reset_cod_bucket_scheme_age_band_to_source(
     if workbook_path is None:
         raise ValueError("No source workbook is configured for this scheme.")
 
+    try:
+        snapshot = snapshot_cod_bucket_scheme(
+            scheme=scheme,
+            reason=(
+                VaCodBucketSchemeSnapshot.REASON_RESET_SCHEME
+                if reset_entire_scheme
+                else VaCodBucketSchemeSnapshot.REASON_RESET_AGE_BAND
+            ),
+            age_scope=None if reset_entire_scheme else age_scope,
+            created_by_user_id=created_by_user_id,
+        )
+    except Exception as exc:
+        raise ValueError("Snapshot failed; reset refused.") from exc
+    snapshot_id = snapshot.snapshot_id
+
     if reset_entire_scheme:
         if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
-            return import_srs_india_scheme(workbook_path)
+            return import_srs_india_scheme(workbook_path), snapshot_id
         if scheme.scheme_code == SCHEME_CODE_CMEA10:
-            return import_cmea10_scheme(workbook_path)
+            return import_cmea10_scheme(workbook_path), snapshot_id
         if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
-            return import_who_2022_va_scheme(workbook_path)
+            return import_who_2022_va_scheme(workbook_path), snapshot_id
         if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
-            return import_who_2022_va_2026_scheme(workbook_path)
+            return import_who_2022_va_2026_scheme(workbook_path), snapshot_id
         raise ValueError("This scheme does not support reset from source.")
 
     if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
@@ -1601,7 +1651,7 @@ def reset_cod_bucket_scheme_age_band_to_source(
     scheme.source_path = str(workbook_path)
     scheme.is_active = True
     db.session.commit()
-    return scheme
+    return scheme, snapshot_id
 
 
 def age_scope_label(age_scope: str | None) -> str:

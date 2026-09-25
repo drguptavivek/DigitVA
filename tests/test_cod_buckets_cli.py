@@ -4,7 +4,12 @@ import sqlalchemy as sa
 from openpyxl import Workbook
 
 from app import db
-from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme
+from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    VaCodBucketSchemeSnapshot,
+)
 from app.services.cod_bucket_mapping_service import SCHEME_CODE_WHO_2022_VA_2026
 from tests.base import BaseTestCase
 
@@ -110,3 +115,40 @@ class CodBucketsCliTestCase(BaseTestCase):
             )
         )
         self.assertEqual(first_scheme_id, second_scheme_id)
+
+    def test_import_over_existing_scheme_creates_one_cli_import_snapshot(self):
+        workbook_path = self._make_who_2022_va_2026_workbook()
+        self.runner.invoke(
+            args=["cod-buckets", "import-who-2022-va-2026", "--path", workbook_path]
+        )
+
+        result = self.runner.invoke(
+            args=["cod-buckets", "import-who-2022-va-2026", "--path", workbook_path]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Snapshot", result.output)
+        self.assertIn("saved before re-import.", result.output)
+        snapshot_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaCodBucketSchemeSnapshot).where(
+                VaCodBucketSchemeSnapshot.scheme_code == SCHEME_CODE_WHO_2022_VA_2026,
+                VaCodBucketSchemeSnapshot.reason == VaCodBucketSchemeSnapshot.REASON_CLI_IMPORT,
+            )
+        )
+        self.assertEqual(snapshot_count, 1)
+
+    def test_import_into_absent_scheme_creates_no_snapshot(self):
+        workbook_path = self._make_who_2022_va_2026_workbook()
+
+        result = self.runner.invoke(
+            args=["cod-buckets", "import-who-2022-va-2026", "--path", workbook_path]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn("Snapshot", result.output)
+        snapshot_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaCodBucketSchemeSnapshot).where(
+                VaCodBucketSchemeSnapshot.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
+            )
+        )
+        self.assertEqual(snapshot_count, 0)

@@ -16,6 +16,10 @@
  * Expand/collapse all: any element with data-tree-action="expand" or
  * "collapse" and data-tree-target="<tree element id>" (one delegated listener).
  *
+ * config.expand_subtree (opt-in, per table): when true, clicking a node's own
+ * expander toggles its whole subtree in one action instead of one level.
+ * Other tables keep Wunderbaum's default one-level toggle.
+ *
  * Tables mount on page load and after an htmx swap, so the same markup works
  * in an admin panel injected after load. Wunderbaum is loaded from data-wb-js
  * / data-wb-css when it is not already on window.
@@ -117,7 +121,21 @@
         iconMap: 'fontawesome6',
         icon: false,
         navigationModeOption: 'row',
-        render: render
+        render: render,
+        // Opt-in (config.expand_subtree): clicking a node's expander toggles
+        // its whole subtree at once. Returning nothing (not `false`) for any
+        // other click leaves Wunderbaum's own one-level toggle in place.
+        click: function (e) {
+          if (!config.expand_subtree || e.info.region !== 'expander') return undefined;
+          var flag = !e.node.isExpanded();
+          // visit() takes an options object, not includeSelf: toggle the
+          // clicked node explicitly, then every descendant that has children.
+          e.node.setExpanded(flag, { noAnimation: true });
+          e.node.visit(function (n) {
+            if (n.children && n.children.length) n.setExpanded(flag, { noAnimation: true });
+          });
+          return false;
+        }
       });
     }).catch(function () {
       el.textContent = 'The table did not load. Reload the page.';

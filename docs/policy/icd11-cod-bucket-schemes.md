@@ -3,7 +3,7 @@ title: ICD-11 COD Bucket Schemes
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # ICD-11 COD Bucket Schemes
@@ -110,7 +110,13 @@ a bucket-scheme link; schemes stay a per-report choice.
   - Ranges the cause list shares between causes are split **per code**, as
     the owner already did for ICD-10: `PA0x` (traffic events) → road traffic
     accident, `PA1x`-`PA5x` (nontraffic, water, air, other) → other transport
-    accident; `PJ2x` (maltreatment) listed for owner review.
+    accident; `PJ2x` (maltreatment) → Assault (owner decision 2).
+    Within `PA1x`-`PA5x`, the "unknown whether traffic" codes `PA22`-`PA29`,
+    `PA2E`, `PA2F`, `PA2Y` and `PA2Z` go to Road traffic instead (owner
+    decision 17, 2026-09-25, `docs/policy/icd10-to-icd11-transition.md`
+    section 6), by the same WHO chapter-note assumption applied to ICD-10
+    `V10`-`V82`/`V87` (decision 16). `PA20`, `PA21` and `PA2A`-`PA2D` stay
+    Other transport.
   - Every generated code is cross-checked against the owner's curated ICD-10
     scheme through WHO's 11-to-10 crosswalk; disagreements are listed for
     review, never silently resolved.
@@ -129,3 +135,19 @@ a bucket-scheme link; schemes stay a per-report choice.
 
 - Override list for the crosswalk's known misses (sepsis first): owner review.
 - Circumstance-split causes in the native WHO scheme.
+
+## Reset safety net (owner, 2026-09-25, digitva-tet)
+
+"Reset from source" rebuilds a scheme's nodes and mappings from its workbook,
+which destroys anything the workbook does not know about: admin edits,
+ICD-11 rows, manual overrides. Every reset -- age-band or whole-scheme, from
+the admin panel or via `flask cod-buckets import-*` over an existing scheme
+-- now snapshots the whole scheme as JSON into `va_cod_bucket_scheme_snapshots`
+first, in the same transaction as the reset. If the snapshot fails, the reset
+is refused; nothing is lost or half-applied. Restore is the existing JSON
+import (`import_cod_bucket_scheme_json` / Import JSON in the admin panel) --
+there is no dedicated restore endpoint. The admin panel lists an age band or
+scheme's 10 most recent snapshots and downloads any of them; the browser also
+auto-downloads the snapshot the moment a reset completes. No retention/prune
+job exists yet for this table -- add one once it grows large enough to
+matter.

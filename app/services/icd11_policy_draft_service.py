@@ -95,6 +95,13 @@ RULE_DECISION_5A = "decision_5a"
 RULE_EXCLUDED_CHAPTER = "excluded_chapter"
 RULE_EXCLUDED_EMERGENCY = "excluded_emergency"
 RULE_NOT_IN_ANNEX = "not_in_annex"
+RULE_DECISION_18 = "decision_18_not_selectable"
+
+# Owner decision 18 (2026-09-25, digitva-g2n): unknown-timing fetal death is
+# not selectable, so every ICD-11 stillbirth lands in Fresh (KD3B.1) or
+# Macerated (KD3B.0). Wins over the annex/decision-5a range that would
+# otherwise select these two codes.
+DECISION_18_NOT_SELECTABLE = ("KD3B", "KD3B.Z")
 
 FLAG_PAST_END = "past_written_end"
 FLAG_CONFLICT = "icd10_conflict"
@@ -292,7 +299,9 @@ def draft_icd11_policy(
         code = row["code"]
         chapter = row["chapter_no"]
         rule = selectable_rules.get(code, RULE_NOT_IN_ANNEX)
-        if chapter in EXCLUDED_CHAPTERS:
+        if code in DECISION_18_NOT_SELECTABLE:
+            rule = RULE_DECISION_18
+        elif chapter in EXCLUDED_CHAPTERS:
             rule = RULE_EXCLUDED_CHAPTER
         elif chapter == EMERGENCY_CHAPTER and code.split(".")[0] != EMERGENCY_ALLOWED_STEM:
             rule = RULE_EXCLUDED_EMERGENCY
@@ -489,6 +498,12 @@ def _readme(draft: Icd11PolicyDraft) -> str:
         "neonate chapter rule), and ICD-10 O/P/Q restrictions (blanket chapter rules) are "
         "never carried to any ICD-11 code; chapters 18 and 19 take their chapter rules "
         "instead.",
+        "",
+        "Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` "
+        "(time of fetal death not specified) are not selectable, so every ICD-11 "
+        "stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` "
+        "antepartum). This is dev-only: applying it to a database is a separate "
+        "`flask icd11 policy-import` step, not a migration.",
         "",
         "## Files",
         "",

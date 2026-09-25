@@ -386,12 +386,15 @@ class TestCodingSearchTelemetry(BaseTestCase):
                 body = self.client.get(f"/vaform/{self.sid}/{partial}{ACTION}").data
                 self.assertIn(b"IcdCodingSearch", body)
                 self.assertIn(b"Focused matches", body)
-                self.assertIn(b"Expanded matches", body)
-                self.assertIn(b"Show more results", body)
+                self.assertIn(b"Term matches", body)
+                self.assertIn(b"grid-template-columns", body)
                 self.assertIn(b"search_id", body)
-                # Degradation: unknown/missing tier lands in the expanded
+                # Degradation: unknown/missing tier lands in the term
                 # group, so a stale cached page still renders the flat list.
                 self.assertIn(b"else expanded.push(option)", body)
+                # No hidden tail: the old "Show more" toggle was selectable
+                # as the COD value (Select2 4.1 params.args; fixed 2026-09-25).
+                self.assertNotIn(b"Show more results", body)
 
     def test_final_screen_carries_the_choice_forwarding_inputs(self):
         body = self.client.get(f"/vaform/{self.sid}/vafinalasses{ACTION}").data

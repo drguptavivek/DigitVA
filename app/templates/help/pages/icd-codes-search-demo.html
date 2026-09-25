@@ -1,0 +1,191 @@
+{#-
+  Live "try the coding search" demo (digitva-zm1). Calls the same search
+  functions the real coding screen uses (app/routes/api/coding_search_demo.py),
+  filtered by an explicit age group and sex instead of a death's own record.
+  Nothing here is recorded in cod_search_telemetry.
+-#}
+<p>
+  This runs the real coding search &mdash; the same results a coder would see
+  on the coding screen &mdash; without opening a death. Pick a classification,
+  age group and sex, then start typing.
+</p>
+
+<div class="row g-2 align-items-end mb-3" id="coding-demo-controls">
+  <div class="col-auto">
+    <label class="form-label small mb-1 d-block">Classification</label>
+    <div class="btn-group btn-group-sm" role="group" aria-label="ICD classification">
+      <input type="radio" class="btn-check" name="coding-demo-classification" id="coding-demo-icd10" value="icd10" autocomplete="off" checked>
+      <label class="btn btn-outline-primary" for="coding-demo-icd10">ICD-10</label>
+      <input type="radio" class="btn-check" name="coding-demo-classification" id="coding-demo-icd11" value="icd11" autocomplete="off">
+      <label class="btn btn-outline-primary" for="coding-demo-icd11">ICD-11</label>
+    </div>
+  </div>
+  <div class="col-auto">
+    <label for="coding-demo-age-group" class="form-label small mb-1">Age group</label>
+    <select id="coding-demo-age-group" class="form-select form-select-sm">
+      <option value="neonate">Neonate</option>
+      <option value="infant">Infant</option>
+      <option value="child">Child</option>
+      <option value="adult" selected>Adult</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label for="coding-demo-sex" class="form-label small mb-1">Sex</label>
+    <select id="coding-demo-sex" class="form-select form-select-sm">
+      <option value="female" selected>Female</option>
+      <option value="male">Male</option>
+    </select>
+  </div>
+</div>
+
+<div class="mb-2">
+  <input type="text" id="coding-demo-query" class="form-control" placeholder="Type at least 2 characters (e.g. MI, gastroen, A00)..." autocomplete="off">
+</div>
+<p class="text-muted small" id="coding-demo-context-line">Showing codes selectable for an adult female.</p>
+<p class="text-muted small" id="coding-demo-status"></p>
+
+<div id="coding-demo-results" class="row g-3">
+  <div class="col-12 col-sm-6">
+    <h3 class="h6">Focused matches</h3>
+    <ul class="list-unstyled mb-0" id="coding-demo-focused"></ul>
+  </div>
+  <div class="col-12 col-sm-6">
+    <h3 class="h6">Term matches</h3>
+    <ul class="list-unstyled mb-0" id="coding-demo-expanded"></ul>
+  </div>
+</div>
+
+<style>
+  #coding-demo-results .coding-demo-item {
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f1f3f5;
+  }
+  #coding-demo-results .coding-demo-fuzzy-marker {
+    color: #b45309;
+    font-size: 0.8em;
+    margin-left: 0.35rem;
+  }
+</style>
+
+<script>
+(function () {
+  var MIN_QUERY_LEN = 2;
+  var DEBOUNCE_MS = 250;
+  var SEARCH_URL = {{ url_for('api_v1.coding_search_demo_api.coding_search_demo') | tojson }};
+
+  var queryInput = document.getElementById('coding-demo-query');
+  var ageGroupSelect = document.getElementById('coding-demo-age-group');
+  var sexSelect = document.getElementById('coding-demo-sex');
+  var statusEl = document.getElementById('coding-demo-status');
+  var contextLine = document.getElementById('coding-demo-context-line');
+  var focusedList = document.getElementById('coding-demo-focused');
+  var expandedList = document.getElementById('coding-demo-expanded');
+
+  var debounceHandle = null;
+  var requestSeq = 0;
+
+  function classification() {
+    var checked = document.querySelector('input[name="coding-demo-classification"]:checked');
+    return checked ? checked.value : 'icd10';
+  }
+
+  function updateContextLine() {
+    var age = ageGroupSelect.value;
+    contextLine.textContent = 'Showing codes selectable for ' +
+      (/^[aeiou]/.test(age) ? 'an ' : 'a ') + age + ' ' + sexSelect.value + '.';
+  }
+
+  function renderItem(item) {
+    var li = document.createElement('li');
+    li.className = 'coding-demo-item';
+    var text = document.createTextNode(item.icd_to_display || '');
+    li.appendChild(text);
+    if (item.fuzzy) {
+      var marker = document.createElement('span');
+      marker.className = 'coding-demo-fuzzy-marker';
+      marker.textContent = '(typo suggestion)';
+      li.appendChild(marker);
+    }
+    return li;
+  }
+
+  function clearList(list) {
+    while (list.firstChild) list.removeChild(list.firstChild);
+  }
+
+  function render(results) {
+    clearList(focusedList);
+    clearList(expandedList);
+    var focusedCount = 0;
+    var expandedCount = 0;
+    (results || []).forEach(function (item) {
+      if (item.tier === 'focused') {
+        focusedList.appendChild(renderItem(item));
+        focusedCount++;
+      } else {
+        expandedList.appendChild(renderItem(item));
+        expandedCount++;
+      }
+    });
+    if (focusedCount === 0) {
+      var none = document.createElement('li');
+      none.className = 'text-muted small';
+      none.textContent = 'No focused matches.';
+      focusedList.appendChild(none);
+    }
+    if (expandedCount === 0) {
+      var noneExp = document.createElement('li');
+      noneExp.className = 'text-muted small';
+      noneExp.textContent = 'No term matches.';
+      expandedList.appendChild(noneExp);
+    }
+  }
+
+  function runSearch() {
+    var query = queryInput.value.trim();
+    updateContextLine();
+    if (query.length < MIN_QUERY_LEN) {
+      clearList(focusedList);
+      clearList(expandedList);
+      statusEl.textContent = '';
+      return;
+    }
+    var seq = ++requestSeq;
+    statusEl.textContent = 'Searching...';
+    var params = new URLSearchParams({
+      classification: classification(),
+      q: query,
+      age_group: ageGroupSelect.value,
+      sex: sexSelect.value
+    });
+    fetch(SEARCH_URL + '?' + params.toString(), { credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Search failed (' + response.status + ')');
+        return response.json();
+      })
+      .then(function (data) {
+        if (seq !== requestSeq) return; // a later keystroke already superseded this
+        render(data);
+        statusEl.textContent = '';
+      })
+      .catch(function () {
+        if (seq !== requestSeq) return;
+        statusEl.textContent = 'Search failed. Try again.';
+      });
+  }
+
+  function scheduleSearch() {
+    if (debounceHandle) clearTimeout(debounceHandle);
+    debounceHandle = setTimeout(runSearch, DEBOUNCE_MS);
+  }
+
+  queryInput.addEventListener('input', scheduleSearch);
+  ageGroupSelect.addEventListener('change', scheduleSearch);
+  sexSelect.addEventListener('change', scheduleSearch);
+  document.querySelectorAll('input[name="coding-demo-classification"]').forEach(function (radio) {
+    radio.addEventListener('change', scheduleSearch);
+  });
+
+  updateContextLine();
+})();
+</script>

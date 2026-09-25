@@ -15,7 +15,9 @@ class MasIcdSearchTerms(db.Model):
     endpoints. Flattened on purpose (docs/policy/icd-coding-search-vocabulary.md):
     a term that targets several codes is several rows, and `term_normalized`
     is the exact-match lookup key — indexed, deliberately NOT unique.
-    Admin-managed; deactivation keeps audit history (no delete).
+    `sort_order` breaks ties among a multi-code term's rows (lower first,
+    default 100) so the more common target (e.g. TB -> A16, not A15) lists
+    first. Admin-managed; deactivation keeps audit history (no delete).
     """
 
     __tablename__ = "mas_icd_search_terms"
@@ -49,6 +51,9 @@ class MasIcdSearchTerms(db.Model):
     icd_classification: so.Mapped[str] = so.mapped_column(sa.String(6), nullable=False)
     icd_code: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
     source: so.Mapped[str] = so.mapped_column(sa.String(24), nullable=False, default="admin")
+    sort_order: so.Mapped[int] = so.mapped_column(
+        sa.SmallInteger, nullable=False, default=100, server_default=sa.text("100")
+    )
     note: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(

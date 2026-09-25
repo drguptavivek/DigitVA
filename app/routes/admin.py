@@ -93,6 +93,7 @@ from app.models import (
     VaStatuses,
     VaUserAccessGrants,
     VaUsers,
+    VaCodBucketSchemeSnapshot,
 )
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
@@ -5024,10 +5025,11 @@ def admin_cod_bucket_scheme_reset_default(scheme_code):
     raw_age_scope = (data.get("age_scope") or "").strip()
     reset_scope = (data.get("reset_scope") or "").strip().lower() or "age_band"
     try:
-        scheme = reset_cod_bucket_scheme_age_band_to_source(
+        scheme, snapshot_id = reset_cod_bucket_scheme_age_band_to_source(
             scheme_code=scheme_code,
             age_scope=raw_age_scope or None,
             reset_entire_scheme=reset_scope == "scheme",
+            created_by_user_id=current_user.user_id,
         )
     except LookupError:
         return _json_error("COD bucket scheme not found.", 404)
@@ -5044,7 +5046,72 @@ def admin_cod_bucket_scheme_reset_default(scheme_code):
             "scheme_code": scheme.scheme_code,
             "age_scope": None if reset_scope == "scheme" else (raw_age_scope or None),
             "reset_scope": reset_scope,
+            "snapshot_id": str(snapshot_id),
         }
+    )
+
+
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/snapshots")
+@role_required("admin")
+def admin_cod_bucket_scheme_snapshots(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    rows = db.session.execute(
+        sa.select(
+            VaCodBucketSchemeSnapshot.snapshot_id,
+            VaCodBucketSchemeSnapshot.reason,
+            VaCodBucketSchemeSnapshot.age_scope,
+            VaCodBucketSchemeSnapshot.created_at,
+            VaUsers.name.label("created_by_name"),
+            VaUsers.email.label("created_by_email"),
+        )
+        .select_from(VaCodBucketSchemeSnapshot)
+        .outerjoin(VaUsers, VaUsers.user_id == VaCodBucketSchemeSnapshot.created_by_user_id)
+        .where(VaCodBucketSchemeSnapshot.scheme_code == scheme_code)
+        .order_by(VaCodBucketSchemeSnapshot.created_at.desc())
+        .limit(10)
+    ).mappings().all()
+
+    return jsonify(
+        {
+            "snapshots": [
+                {
+                    "snapshot_id": str(row["snapshot_id"]),
+                    "reason": row["reason"],
+                    "age_scope": row["age_scope"],
+                    "created_at": row["created_at"].isoformat(),
+                    "created_by": row["created_by_name"] or row["created_by_email"],
+                }
+                for row in rows
+            ]
+        }
+    )
+
+
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/snapshots/<uuid:snapshot_id>/download")
+@role_required("admin")
+def admin_cod_bucket_scheme_snapshot_download(scheme_code, snapshot_id):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    row = db.session.scalar(
+        sa.select(VaCodBucketSchemeSnapshot).where(
+            VaCodBucketSchemeSnapshot.snapshot_id == snapshot_id,
+            VaCodBucketSchemeSnapshot.scheme_code == scheme_code,
+        )
+    )
+    if row is None:
+        return _json_error("Snapshot not found.", 404)
+
+    filename = (
+        f"cod_bucket_scheme_{scheme_code.lower()}_snapshot_"
+        f"{row.created_at.strftime('%Y%m%dT%H%M%S')}.json"
+    )
+    return current_app.response_class(
+        json.dumps(row.payload, indent=2, ensure_ascii=False),
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

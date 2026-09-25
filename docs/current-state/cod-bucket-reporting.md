@@ -126,21 +126,26 @@ title, VA cause, the row's note, and an origin (`who`, `who_resolved`,
     codes of one VA cause side by side, as chapter/block trees.
   - `/help/va-code-mappings/unmapped` (and `.csv`) lists every in-scope
     ICD-11 category with its VA cause or "Unmapped", selectability and policy
-    review status. It is filtered by selectable and search, and paged.
+    review status. It is filtered by selectable, origin, policy review and
+    search, and paged block-aligned (`icd11_block_pages`): a page fills to
+    100 codes with whole catalogue blocks, so a block is never split across
+    two pages. Expanding a block or chapter node expands its whole subtree
+    in one click (`tree_table`'s opt-in `expand_subtree`).
   - The ICD-11 hierarchy and policy come from `get_icd11_catalogue()`. It
     makes one pass over `mas_icd11_mms` for the release and is cached per
     process. The cache key is the release's row count and latest
     `updated_at`, so an admin policy edit shows on the next load. ICD-10
     chapter and block come from `mas_icd10_2019_2`, joined in the same query
     that builds the mapping rows.
-  - The `/unmapped.csv` download without a search is served from a file
-    cache under `APP_DATA/public_csv/`, one file per selectable variant
-    (all / yes / no). The file name carries a digest of the mapping and
-    ICD-11 cache keys, so an edit writes a new file and removes the old one.
-    Files are written to a temp file and moved into place with `os.replace`,
-    so every gunicorn worker sees a whole file. Only public data is written.
-    A search always streams live and never creates a file. If the directory
-    cannot be written, the download streams live.
+  - The `/unmapped.csv` download without a search, origin or policy-review
+    filter is served from a file cache under `APP_DATA/public_csv/`, one
+    file per selectable variant (all / yes / no). The file name carries a
+    digest of the mapping and ICD-11 cache keys, so an edit writes a new
+    file and removes the old one. Files are written to a temp file and moved
+    into place with `os.replace`, so every gunicorn worker sees a whole
+    file. Only public data is written. Any other filter combination always
+    streams live and never creates a file. If the directory cannot be
+    written, the download streams live.
   - The mapping cache key also covers the ICD-10 catalogue (row count and
     latest `updated_at`), so chapter and block title edits reach the compare
     view, and the ICD-11 catalogue of the release (row count and latest

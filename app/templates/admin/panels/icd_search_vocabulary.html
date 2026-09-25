@@ -57,6 +57,7 @@
           <th>Normalized</th>
           <th>Class</th>
           <th>Code</th>
+          <th>Sort</th>
           <th>Source</th>
           <th>Note</th>
           <th>Status</th>
@@ -64,7 +65,7 @@
         </tr>
       </thead>
       <tbody id="icd-vocab-rows">
-        <tr><td colspan="8" class="text-muted small p-3">Loading…</td></tr>
+        <tr><td colspan="9" class="text-muted small p-3">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -103,6 +104,12 @@
                 <label class="form-label small mb-1" for="icd-vocab-code">ICD code</label>
                 <input type="text" class="form-control form-control-sm" id="icd-vocab-code" required>
               </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1" for="icd-vocab-sort-order">Sort order</label>
+              <input type="number" class="form-control form-control-sm" id="icd-vocab-sort-order"
+                min="1" max="32767" placeholder="100">
+              <div class="form-text small">Lower lists first among this term's targets. Blank = 100.</div>
             </div>
             <div class="mb-2">
               <label class="form-label small mb-1" for="icd-vocab-note">Note</label>
@@ -171,6 +178,7 @@
       '<td class="font-monospace small">' + escapeHtml(row.term_normalized) + '</td>' +
       '<td>' + classificationLabel(row.icd_classification) + '</td>' +
       '<td class="font-monospace">' + escapeHtml(row.icd_code) + '</td>' +
+      '<td class="font-monospace small">' + escapeHtml(row.sort_order) + '</td>' +
       '<td class="small text-muted">' + escapeHtml(row.source) + '</td>' +
       '<td class="small text-muted">' + escapeHtml(row.note || '') + '</td>' +
       '<td>' + (row.is_active
@@ -186,7 +194,7 @@
   function renderPage(payload) {
     var body = panel.querySelector('#icd-vocab-rows');
     if (!payload.rows.length) {
-      body.innerHTML = '<tr><td colspan="8" class="text-muted small p-3">' +
+      body.innerHTML = '<tr><td colspan="9" class="text-muted small p-3">' +
         (state.q ? 'No vocabulary terms match the search.' : 'The vocabulary is empty.') +
         '</td></tr>';
     } else {
@@ -227,6 +235,7 @@
     panel.querySelector('#icd-vocab-term').value = row ? row.term : '';
     panel.querySelector('#icd-vocab-classification').value = row ? row.icd_classification : 'icd10';
     panel.querySelector('#icd-vocab-code').value = row ? row.icd_code : '';
+    panel.querySelector('#icd-vocab-sort-order').value = row ? row.sort_order : '';
     panel.querySelector('#icd-vocab-note').value = row ? (row.note || '') : '';
     modalWarning(null);
     bootstrap.Modal.getOrCreateInstance(panel.querySelector('#icd-vocab-modal')).show();
@@ -234,10 +243,12 @@
 
   async function saveModal(event) {
     event.preventDefault();
+    var sortOrderRaw = panel.querySelector('#icd-vocab-sort-order').value.trim();
     var payload = {
       term: panel.querySelector('#icd-vocab-term').value.trim(),
       icd_classification: panel.querySelector('#icd-vocab-classification').value,
       icd_code: panel.querySelector('#icd-vocab-code').value.trim(),
+      sort_order: sortOrderRaw ? Number(sortOrderRaw) : null,
       note: panel.querySelector('#icd-vocab-note').value.trim(),
     };
     var url = state.editingId ? apiBase + '/term/' + state.editingId : apiBase;

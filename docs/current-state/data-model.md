@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # Current Data Model
@@ -1630,6 +1630,43 @@ Current behavior:
 - `DB_BACKUP_KEEP_DAILY` retention flips a `"success"` row to `"pruned"` when its
   object is deleted; the row is kept as history
 - this table is the only dump history on the VM — see [backup.md](backup.md)
+
+### `va_cod_bucket_scheme_snapshots`
+
+Purpose:
+
+- a whole-scheme JSON snapshot taken automatically before every COD bucket
+  scheme "reset from source", so admin edits, ICD-11 rows and manual
+  overrides survive a rebuild that would otherwise silently drop them
+  (policy: `docs/policy/icd11-cod-bucket-schemes.md`)
+
+Key fields:
+
+- `snapshot_id` — UUID primary key
+- `scheme_id` — nullable FK to `mas_cod_bucket_schemes.scheme_id`,
+  `ondelete="SET NULL"` (a deleted scheme's snapshots stay findable)
+- `scheme_code` — duplicates the FK target's code so a snapshot survives
+  scheme deletion; this is what routes filter and index by
+- `reason` — `"reset_scheme"` / `"reset_age_band"` / `"cli_import"`,
+  CHECK-constrained
+- `age_scope` — nullable; what triggered the snapshot, not what it covers
+  (the payload is always the whole scheme, since restore is whole-scheme)
+- `payload` — JSONB, the `export_cod_bucket_scheme_json()` output
+- `created_by_user_id` — nullable FK to `va_users.user_id`
+- `created_at` — timestamptz; indexed with `scheme_code`,
+  `created_at DESC` (`ix_va_cod_bucket_scheme_snapshots_scheme_code_created_at`)
+
+Current behavior:
+
+- written inside the same transaction as the reset it precedes
+  (`snapshot_cod_bucket_scheme()` flushes, does not commit); if the snapshot
+  fails, the reset is refused
+- `flask cod-buckets import-*` also snapshots (reason `cli_import`) before
+  replacing an already-existing scheme; a fresh install skips it
+- restore is the existing JSON import (`import_cod_bucket_scheme_json`); there
+  is no dedicated restore endpoint, only list and download
+- no retention/prune job yet — add one if this table grows large enough to
+  matter
 
 ## Schema Drift Guard
 

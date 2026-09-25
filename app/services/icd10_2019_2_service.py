@@ -23,8 +23,12 @@ from app.models import (
 from app.services.icd_coding_value import extract_icd_code
 from app.services.icd_search_vocabulary_service import (
     CLASSIFICATION_ICD10,
-    _compact_key,
+    FUZZY_MIN_QUERY_LEN,
+    RESULT_TIER_EXPANDED,
+    RESULT_TIER_FOCUSED,
+    fuzzy_vocabulary_matches,
     merge_vocabulary_results,
+    result_tier,
     spelling_like_clauses,
     spelling_variants,
     vocabulary_matches,
@@ -38,10 +42,6 @@ SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 
-# Inert result grouping for the upcoming two-stage picker (focused on top,
-# expanded behind "show more"); the current Select2 wiring ignores the key.
-_RESULT_TIER_FOCUSED = "focused"
-_RESULT_TIER_EXPANDED = "expanded"
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
@@ -121,30 +121,6 @@ def _serialize_row(row: MasIcd1020192, *, child_count: int | None = None) -> dic
         "is_policy_editable": row.semantic_level in POLICY_EDITABLE_LEVELS,
         "is_active": row.is_active,
     }
-
-
-def _result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
-    """``focused`` for exact-code and title-prefix matches, ``expanded``
-    otherwise, compared over the query's spelling and hyphen variants — a
-    UK-spelled query against a US-spelled title, or "cat scratch" against
-    "Cat-scratch", still classifies as focused. Vocabulary hits are always
-    focused (assigned at their result dicts). The picker's two-stage
-    grouping reads this field."""
-    variants = spelling_variants(normalized_query)
-    stripped_code = _compact_key(code.lower()) if code is not None else None
-    lowered_title = title.lower()
-    stripped_title = _compact_key(lowered_title)
-    for variant in variants:
-        stripped_variant = _compact_key(variant)
-        if code is not None and (
-            code.lower() == variant or stripped_code == stripped_variant
-        ):
-            return _RESULT_TIER_FOCUSED
-        if lowered_title.startswith(variant) or stripped_title.startswith(
-            stripped_variant
-        ):
-            return _RESULT_TIER_FOCUSED
-    return _RESULT_TIER_EXPANDED
 
 
 def _normalize_query(raw_query: str) -> str:
@@ -1068,19 +1044,35 @@ def get_icd10_2019_2_coding_context(va_sid: str) -> dict | None:
 
 
 def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str, str | bool | None]]:
-    """Search selectable ICD-10 codes for the COD box.
+    """Search selectable ICD-10 codes for one death's COD box.
+
+    Resolves the submission's age/sex policy, then delegates to
+    ``search_icd10_2019_2_coding_choices_for_policy``.
+    """
+    context = get_icd10_2019_2_coding_context(va_sid)
+    if context is None:
+        raise LookupError(f"Submission not found: {va_sid}")
+    return search_icd10_2019_2_coding_choices_for_policy(
+        query, age_group=context["age_group"], sex=context["sex"]
+    )
+
+
+def search_icd10_2019_2_coding_choices_for_policy(
+    query: str, *, age_group: str | None, sex: str | None
+) -> list[dict[str, str | bool | None]]:
+    """Search selectable ICD-10 codes against an explicit age/sex policy.
 
     Lexical results are authoritative; matches from the admin-managed search
     vocabulary (``mas_icd_search_terms``) are prepended and flagged, resolved
     through the same policy filters (docs/policy/icd-coding-search-vocabulary.md).
+    Shared by the coding screen (``search_icd10_2019_2_coding_choices``, keyed
+    off a submission) and the help-page search demo, which has no va_sid.
     """
     normalized_query = _normalize_query(query)
     if len(normalized_query) < _CODING_ICD_MIN_QUERY_LEN:
         return []
 
-    context = get_icd10_2019_2_coding_context(va_sid)
-    if context is None:
-        raise LookupError(f"Submission not found: {va_sid}")
+    context = {"age_group": age_group, "sex": sex}
 
     lower_code = sa.func.lower(MasIcd1020192.code)
     lower_title = sa.func.lower(MasIcd1020192.title)
@@ -1117,26 +1109,49 @@ def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str
             "semantic_level": row.semantic_level,
             "is_detailed_code": row.is_detailed_code,
             "three_character_code": row.three_character_code,
-            "tier": _result_tier(
+            "tier": result_tier(
                 code=row.code, title=row.title, normalized_query=normalized_query
             ),
         }
         for row in rows
     ]
+    # digitva-wqc: re-rank the already-fetched rows so a focused tier
+    # (word-boundary/qualifier-stripped match, computed above) lists
+    # before an expanded one; a stable sort keeps SQL's own ordering
+    # within each tier. This never changes WHICH rows SQL fetched.
+    lexical_results.sort(key=lambda result: result["tier"] != RESULT_TIER_FOCUSED)
     # Clinician shorthand (MI, CVA, Kochs) shares no substring with any ICD
     # title, so the lexical pass alone never reaches it. Vocabulary matches
-    # rank first; the cap stays authoritative.
+    # rank first, on top of the capped lexical list: a vocabulary hit never
+    # pushes a title match out (vocabulary links per term are a handful).
+    merged = merge_vocabulary_results(
+        lexical_results,
+        _resolve_vocabulary_links_icd10(
+            vocabulary_matches(query, classification=CLASSIFICATION_ICD10), context
+        ),
+    )
+    if merged or len(normalized_query) < FUZZY_MIN_QUERY_LEN:
+        return merged
+    # digitva-1ht: typo-tolerant fallback, only when the normal search for
+    # this query found nothing at all.
     return merge_vocabulary_results(
-        lexical_results, _vocabulary_icd10_hits(query, context)
-    )[:_CODING_ICD_MAX_RESULTS]
+        _fuzzy_title_icd10_hits(normalized_query, context),
+        _resolve_vocabulary_links_icd10(
+            fuzzy_vocabulary_matches(query, classification=CLASSIFICATION_ICD10),
+            context,
+            fuzzy=True,
+        ),
+    )
 
 
-def _vocabulary_icd10_hits(query: str, context: dict) -> list[dict]:
-    """Vocabulary links for ``query``, resolved through the same catalogue
-    filters the lexical search applies (active, policy-editable level, age
-    and sex policy). A target the policy filters out for this death
-    contributes nothing — the vocabulary never bypasses coding policy."""
-    links = vocabulary_matches(query, classification=CLASSIFICATION_ICD10)
+def _resolve_vocabulary_links_icd10(
+    links: list[dict], context: dict, *, fuzzy: bool = False
+) -> list[dict]:
+    """Vocabulary links resolved through the same catalogue filters the
+    lexical search applies (active, policy-editable level, age and sex
+    policy). A target the policy filters out for this death contributes
+    nothing — the vocabulary never bypasses coding policy. Shared by the
+    exact vocabulary lookup and the fuzzy fallback (digitva-1ht)."""
     if not links:
         return []
     rows_by_code = {
@@ -1154,8 +1169,12 @@ def _vocabulary_icd10_hits(query: str, context: dict) -> list[dict]:
             )
         )
     }
-    return [
-        {
+    results = []
+    for link in links:
+        row = rows_by_code.get(link["icd_code"])
+        if row is None:
+            continue
+        result = {
             "icd_code": row.code,
             "icd_to_display": f"{link['term']} — {row.code} {row.title}",
             "title": row.title,
@@ -1163,10 +1182,49 @@ def _vocabulary_icd10_hits(query: str, context: dict) -> list[dict]:
             "is_detailed_code": row.is_detailed_code,
             "three_character_code": row.three_character_code,
             "vocabulary": True,
-            "tier": _RESULT_TIER_FOCUSED,
+            "tier": RESULT_TIER_FOCUSED,
         }
-        for link in links
-        if (row := rows_by_code.get(link["icd_code"])) is not None
+        if fuzzy:
+            result["fuzzy"] = True
+        results.append(result)
+    return results
+
+
+def _fuzzy_title_icd10_hits(normalized_query: str, context: dict) -> list[dict]:
+    """pg_trgm word-similarity fallback over titles (digitva-1ht): runs only
+    when the normal lexical + vocabulary search for this query is empty.
+    Uses the ``<%`` word-similarity operator (indexable on the title side,
+    ``ix_mas_icd10_2019_2_title_trgm``) so a catalogue-wide scan stays cheap;
+    the default ``pg_trgm.word_similarity_threshold`` (0.6) is the cut."""
+    lower_title = sa.func.lower(MasIcd1020192.title)
+    similarity = sa.func.word_similarity(normalized_query, lower_title)
+    rows = db.session.scalars(
+        sa.select(MasIcd1020192)
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
+            _coding_policy_clause(
+                MasIcd1020192,
+                age_group=context["age_group"],
+                sex=context["sex"],
+            ),
+            sa.literal(normalized_query).op("<%")(lower_title),
+        )
+        .order_by(similarity.desc())
+        .limit(_CODING_ICD_MAX_RESULTS)
+    ).all()
+    return [
+        {
+            "icd_code": row.code,
+            "icd_to_display": f"{row.code} {row.title}",
+            "title": row.title,
+            "semantic_level": row.semantic_level,
+            "is_detailed_code": row.is_detailed_code,
+            "three_character_code": row.three_character_code,
+            "tier": RESULT_TIER_EXPANDED,
+            "fuzzy": True,
+        }
+        for row in rows
     ]
 
 

@@ -48,7 +48,7 @@ from app.services.cod_bucket_mapping_service import (
     NODE_TYPE_FIELD,
     _slugify,
 )
-from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, POLICY_STATUS_OPTIONS
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +84,16 @@ _cache: dict = {"key": None, "rows": [], "va_causes": []}
 _icd11_cache: dict = {"key": None, "codes": {}}
 
 SELECTABLE_FILTERS = {"yes": True, "no": False}
+# Origin filter values for the ICD-11 state view; "unmapped" has no row (empty origin).
+ICD11_ORIGIN_FILTERS = {
+    ORIGIN_WHO: ORIGIN_WHO, ORIGIN_WHO_RESOLVED: ORIGIN_WHO_RESOLVED,
+    ORIGIN_DIGITVA: ORIGIN_DIGITVA, "unmapped": "",
+}
+ICD11_ORIGIN_FILTER_LABELS = {
+    ORIGIN_WHO: ORIGIN_LABELS[ORIGIN_WHO], ORIGIN_WHO_RESOLVED: ORIGIN_LABELS[ORIGIN_WHO_RESOLVED],
+    ORIGIN_DIGITVA: ORIGIN_LABELS[ORIGIN_DIGITVA], "unmapped": "Unmapped",
+}
+POLICY_REVIEW_FILTERS = set(POLICY_STATUS_OPTIONS)
 ICD11_CSV_HEADERS = (
     "code", "code_title", "chapter", "block", "selectable", "policy_status",
     "va_code", "va_title", "origin",
@@ -469,17 +479,54 @@ def _build_icd11_catalogue(release: str) -> dict[str, dict]:
     return catalogue
 
 
-def filter_icd11_catalogue(catalogue: dict[str, dict], *, q: str = "", selectable: str = "") -> list[str]:
-    """Codes matching both filters, in WHO order. `q` is a case-insensitive
+def filter_icd11_catalogue(
+    catalogue: dict[str, dict],
+    rows: list[dict] = (),
+    *,
+    q: str = "",
+    selectable: str = "",
+    origin: str = "",
+    policy_status: str = "",
+) -> list[str]:
+    """Codes matching every given filter, in WHO order. `q` is a case-insensitive
     substring of code, title, chapter or block title; `selectable` is a key of
-    SELECTABLE_FILTERS or '' (all)."""
+    SELECTABLE_FILTERS, `origin` a key of ICD11_ORIGIN_FILTERS and
+    `policy_status` a value in POLICY_REVIEW_FILTERS; each empty string means
+    'all'. `origin` needs `rows` (the mapping rows) to know each code's mapped
+    origin; omit it when not filtering by origin."""
     q = q.lower()
-    wanted = SELECTABLE_FILTERS.get(selectable)
+    wanted_selectable = SELECTABLE_FILTERS.get(selectable)
+    wanted_origin = ICD11_ORIGIN_FILTERS.get(origin)
+    mapped = _mapped_icd11(rows) if origin else {}
     return [
         code for code, entry in catalogue.items()
-        if (wanted is None or entry["selectable"] is wanted)
+        if (wanted_selectable is None or entry["selectable"] is wanted_selectable)
         and (not q or q in entry["_search"])
+        and (not policy_status or entry["policy_status"] == policy_status)
+        and (not origin or mapped.get(code.upper(), {}).get("origin", "") == wanted_origin)
     ]
+
+
+def icd11_block_pages(codes: list[str], catalogue: dict[str, dict], per_page: int) -> list[list[str]]:
+    """Split `codes` (in catalogue/WHO order) into pages, filling each with
+    whole blocks up to `per_page` before starting the next page. A block
+    larger than `per_page` still gets a page of its own rather than being
+    split, so a block never straddles two pages. Codes with no block are
+    grouped by chapter instead. Returns `[]` for an empty `codes`."""
+    pages: list[list[str]] = []
+    current: list[str] = []
+    current_group = None
+    for code in codes:
+        entry = catalogue[code]
+        group = (entry["chapter"][0], entry["block"][0])
+        if group != current_group and len(current) >= per_page:
+            pages.append(current)
+            current = []
+        current_group = group
+        current.append(code)
+    if current:
+        pages.append(current)
+    return pages
 
 
 def _mapped_icd11(rows: list[dict]) -> dict[str, dict]:

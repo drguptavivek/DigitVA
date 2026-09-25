@@ -338,7 +338,6 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
         width: '100%' // Add this to ensure proper width
       });
 
-      if (searchState) window.IcdCodingSearch.bindShowMore($select, searchState);
 
       if (presetValue) {
         const option = new Option(presetValue, presetValue, true, true);

@@ -3,7 +3,7 @@ title: WHO 2022 ICD-10 Coding Allowability Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-25
 ---
 
 # WHO 2022 ICD-10 Coding Allowability Policy
@@ -75,6 +75,24 @@ Never selectable:
 Road-traffic footnote codes are selectable for both sexes and all ages. This
 only affects ICD coding allowability; road-traffic versus other-transport COD
 bucket mapping is deferred.
+
+Transport codes are selectable only at the level where WHO decides the bucket
+(owner decision, 2026-09-25, `digitva-g2n`):
+
+- The three-character codes `V01`-`V89` and `Y85` are **not selectable**.
+  WHO 2022 VA footnote f separates Road traffic accident (`VAs-12.01`) from
+  Other transport accident (`VAs-12.02`) only by the fourth character
+  (`V01.1` ... `V87.0-V87.9`, `V89.2-V89.3`, `Y85.0` are road traffic). A
+  three-character pick cannot be placed by that rule and fell to Other
+  transport, under-counting road deaths. Every one of these codes has
+  selectable fourth-character subcodes, so a coder always has a target.
+- `V90`-`V99` stay selectable at three characters: footnote f lists them
+  whole, as Other transport.
+- Final assessments already saved with a three-character code keep it; the
+  change governs new selections only. Re-coding them is a separate decision.
+- Applied by data migration (prior values captured, downgrade restores them).
+  Re-importing the released 2026 ICD-10 policy JSON would undo it, as with
+  the `Q00`-`Q99` decision.
 
 Neonate-only, both sexes:
 

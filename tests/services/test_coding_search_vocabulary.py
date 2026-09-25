@@ -161,6 +161,23 @@ class Icd10CodingChoicesVocabularyTest(CodingSearchVocabularyTestCase):
         create_term(term="RTA", icd_classification="icd10", icd_code="V89")
         create_term(term="cardiac arrest", icd_classification="icd10", icd_code="I46")
 
+    def test_multi_code_term_lists_lower_sort_order_first(self):
+        # digitva-3t2: TB -> A16 (not bacteriologically confirmed, the
+        # common VA case) must list before A15.
+        db.session.add_all(
+            [
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+                _icd10_row("A16", "Respiratory tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        create_term(term="TB", icd_classification="icd10", icd_code="A15", sort_order=2)
+        create_term(term="TB", icd_classification="icd10", icd_code="A16", sort_order=1)
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "TB")
+
+        self.assertEqual(_vocabulary_flags_only(results), ["A16", "A15"])
+
     def test_mi_returns_i21_first_with_vocabulary_flag(self):
         results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "MI")
 
@@ -183,6 +200,22 @@ class Icd10CodingChoicesVocabularyTest(CodingSearchVocabularyTestCase):
             results[0]["icd_to_display"].startswith("RTA — V89 ")
         )
 
+    def test_vocabulary_hit_never_pushes_a_title_match_out(self):
+        # A full lexical page (the 30 cap) plus a vocabulary-only target:
+        # every title match survives, the vocabulary hit rides on top.
+        db.session.add_all(
+            [_icd10_row(f"K{n:02d}", f"Diarrhoea variant {n}") for n in range(30)]
+        )
+        db.session.add(_icd10_row("A09", "Other gastroenteritis and colitis"))
+        db.session.flush()
+        create_term(term="diarrhoea", icd_classification="icd10", icd_code="A09")
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "diarrhoea")
+        codes = [row["icd_code"] for row in results]
+
+        self.assertEqual(codes[0], "A09")
+        self.assertEqual(len([code for code in codes if code.startswith("K")]), 30)
+
     def test_lexical_only_results_carry_no_vocabulary_flag(self):
         results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "malaria")
 
@@ -202,8 +235,11 @@ class Icd10CodingChoicesVocabularyTest(CodingSearchVocabularyTestCase):
         prefix = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "plasmodium")
         self.assertEqual([row["tier"] for row in prefix], ["focused"])
 
-        # Title contains but does not start with the query: expanded.
-        contains = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "malaria")
+        # Mid-word match (no word boundary before it): expanded. "malaria"
+        # itself sits at a word boundary (a space precedes it) and would
+        # now classify as focused (digitva-wqc word-boundary matching), so
+        # this uses a genuinely mid-word slice of "falciparum" instead.
+        contains = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "ciparum")
         self.assertEqual([row["tier"] for row in contains], ["expanded"])
 
         # Code prefix without an exact code match: expanded.
@@ -274,6 +310,10 @@ class Icd11SearchVocabularyTest(CodingSearchVocabularyTestCase):
         self.assertTrue(results[0]["icd_to_display"].startswith("MI — BA41 "))
         self.assertEqual(results[0]["tier"], "focused")
         self.assertEqual([row["icd_code"] for row in results].count("BA41"), 1)
+
+    def test_explicit_limit_bounds_vocabulary_hits_too(self):
+        self.assertTrue(search_icd11_mms("MI"))
+        self.assertEqual(len(search_icd11_mms("MI", limit=1)), 1)
 
     def test_lexical_search_unchanged(self):
         results = search_icd11_mms("tuberculosis")
@@ -346,3 +386,120 @@ class Icd11SearchVocabularyTest(CodingSearchVocabularyTestCase):
 
         # ...and without a submission in play the target is injected.
         self.assertEqual(_vocabulary_flags_only(search_icd11_mms("MI")), ["BA41"])
+
+    def test_multi_code_term_lists_lower_sort_order_first(self):
+        # digitva-3t2: TB -> 1B10.1 (not bacteriologically confirmed) before
+        # 1B10.0.
+        db.session.add_all(
+            [
+                _icd11_row("1B10.0", "Tuberculosis, bacteriologically confirmed"),
+                _icd11_row("1B10.1", "Tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        create_term(term="pulm TB", icd_classification="icd11", icd_code="1B10.0", sort_order=2)
+        create_term(term="pulm TB", icd_classification="icd11", icd_code="1B10.1", sort_order=1)
+
+        self.assertEqual(
+            _vocabulary_flags_only(search_icd11_mms("pulm TB")),
+            ["1B10.1", "1B10.0"],
+        )
+
+
+class Icd10FuzzyFallbackTest(CodingSearchVocabularyTestCase):
+    """digitva-1ht: typo-tolerant fallback, only when the normal search for
+    a query returns nothing at all."""
+
+    def setUp(self):
+        super().setUp()
+        db.session.execute(sa.delete(MasIcd1020192))
+        db.session.add_all(
+            [
+                _icd10_row("A09", "Other gastroenteritis and colitis"),
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+            ]
+        )
+        db.session.flush()
+        create_term(term="dysentery", icd_classification="icd10", icd_code="A09")
+
+    def test_typo_reaches_vocabulary_target(self):
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "dysentry")
+
+        self.assertEqual(results[0]["icd_code"], "A09")
+        self.assertIs(results[0]["vocabulary"], True)
+        self.assertIs(results[0]["fuzzy"], True)
+        self.assertEqual(results[0]["tier"], "focused")
+
+    def test_title_typo_reaches_a_title_fuzzy_match(self):
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "tuberculsis")
+
+        self.assertIn("A15", [row["icd_code"] for row in results])
+        hit = next(row for row in results if row["icd_code"] == "A15")
+        self.assertIs(hit["fuzzy"], True)
+        self.assertEqual(hit["tier"], "expanded")
+        self.assertNotIn("vocabulary", hit)
+
+    def test_policy_disabled_code_never_appears_via_fuzzy(self):
+        db.session.execute(
+            sa.update(MasIcd1020192)
+            .where(MasIcd1020192.code == "A09")
+            .values(is_coding_selectable=False)
+        )
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "dysentry")
+
+        self.assertNotIn("A09", [row["icd_code"] for row in results])
+
+    def test_query_with_normal_results_never_falls_back(self):
+        # "dysentery" itself matches exactly (vocabulary) -- no fuzzy flag.
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "dysentery")
+
+        self.assertEqual(results[0]["icd_code"], "A09")
+        self.assertNotIn("fuzzy", results[0])
+
+    def test_short_query_never_falls_back(self):
+        # "dy" is 2 chars: below both the vocabulary-prefix floor (3,
+        # digitva-wqc) and the fuzzy floor (4), so a typo this short
+        # returns nothing rather than guessing.
+        self.assertEqual(search_icd10_2019_2_coding_choices(self.SID_FEMALE, "dy"), [])
+
+    def test_prefix_length_query_reaches_vocabulary_without_the_fuzzy_flag(self):
+        # digitva-wqc: "dys" is 3 chars -- long enough for a vocabulary
+        # PREFIX match against "dysentery" -- so this is resolved before
+        # the fuzzy fallback ever runs.
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "dys")
+
+        self.assertEqual(results[0]["icd_code"], "A09")
+        self.assertIs(results[0]["vocabulary"], True)
+        self.assertNotIn("fuzzy", results[0])
+
+
+class Icd11FuzzyFallbackTest(CodingSearchVocabularyTestCase):
+    def setUp(self):
+        super().setUp()
+        db.session.execute(sa.delete(MasIcd11Mms))
+        db.session.add(_icd11_row("1A40.Z", "Diarrhoea"))
+        db.session.flush()
+        create_term(term="dysentery", icd_classification="icd11", icd_code="1A40.Z")
+
+    def test_typo_reaches_vocabulary_target(self):
+        results = search_icd11_mms("dysentry")
+
+        self.assertEqual(results[0]["icd_code"], "1A40.Z")
+        self.assertIs(results[0]["vocabulary"], True)
+        self.assertIs(results[0]["fuzzy"], True)
+        self.assertEqual(results[0]["tier"], "focused")
+
+    def test_policy_disabled_code_never_appears_via_fuzzy(self):
+        # Coding policy (is_coding_selectable) is only enforced when a
+        # submission is in play (same distinction as the base lexical
+        # search — an admin browse call with no va_sid intentionally sees
+        # every code), so this exercises the coding-picker call shape.
+        db.session.execute(
+            sa.update(MasIcd11Mms)
+            .where(MasIcd11Mms.code == "1A40.Z")
+            .values(is_coding_selectable=False)
+        )
+        self.assertEqual(
+            [row["icd_code"] for row in search_icd11_mms("dysentry", va_sid=self.SID_FEMALE)],
+            [],
+        )

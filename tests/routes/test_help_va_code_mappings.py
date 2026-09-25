@@ -209,6 +209,69 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertEqual(leaf["cells"]["selectable"], "Not selectable")
         self.assertIn(f"{len(CATALOGUE) - 2} unmapped", response.get_data(as_text=True))
 
+    def test_state_view_renders_origin_and_policy_controls(self):
+        body = self.client.get("/help/va-code-mappings/unmapped").get_data(as_text=True)
+        self.assertIn('name="origin"', body)
+        self.assertIn('name="policy_status"', body)
+        self.assertIn("WHO, resolved by DigitVA rule", body)
+        self.assertIn(">Unmapped<", body)
+        self.assertIn(">Reviewed<", body)
+        self.assertIn(">Unreviewed<", body)
+
+    def test_state_view_origin_filter(self):
+        codes = lambda response: {  # noqa: E731
+            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
+        }
+        who = codes(self.client.get("/help/va-code-mappings/unmapped?origin=who"))
+        self.assertEqual(who, {"1G40"})
+        resolved = codes(self.client.get("/help/va-code-mappings/unmapped?origin=who_resolved"))
+        self.assertEqual(resolved, {"KD3B.1"})
+        unmapped = codes(self.client.get("/help/va-code-mappings/unmapped?origin=unmapped"))
+        self.assertIn("KD3B.0", unmapped)
+        self.assertNotIn("1G40", unmapped)
+        self.assertNotIn("KD3B.1", unmapped)
+        # An unknown value is ignored, not an error.
+        everything = codes(self.client.get("/help/va-code-mappings/unmapped"))
+        self.assertEqual(codes(self.client.get("/help/va-code-mappings/unmapped?origin=bogus")), everything)
+
+    def test_state_view_policy_status_filter(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "1G40")
+        )
+        row.policy_status = "reviewed"
+        db.session.commit()
+        codes = lambda response: {  # noqa: E731
+            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
+        }
+        reviewed = codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=reviewed"))
+        self.assertEqual(reviewed, {"1G40"})
+        self.assertNotIn("1G40", codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=unreviewed")))
+        everything = codes(self.client.get("/help/va-code-mappings/unmapped"))
+        self.assertEqual(codes(self.client.get("/help/va-code-mappings/unmapped?policy_status=bogus")), everything)
+
+    def test_state_view_keeps_origin_and_policy_filters_in_links(self):
+        body = self.client.get(
+            "/help/va-code-mappings/unmapped?origin=who&policy_status=unreviewed"
+        ).get_data(as_text=True)
+        self.assertIn("unmapped.csv?origin=who&amp;policy_status=unreviewed", body)
+
+    def test_csv_honours_origin_filter_and_streams_live(self):
+        response = self.client.get("/help/va-code-mappings/unmapped.csv?origin=who")
+        lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual({line[0] for line in lines[1:]}, {"1G40"})
+        self.assertEqual(self.cache_files(), [])  # filtered: no cache file written
+
+    def test_csv_honours_policy_status_filter_and_streams_live(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "1G40")
+        )
+        row.policy_status = "reviewed"
+        db.session.commit()
+        response = self.client.get("/help/va-code-mappings/unmapped.csv?policy_status=reviewed")
+        lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
+        self.assertEqual({line[0] for line in lines[1:]}, {"1G40"})
+        self.assertEqual(self.cache_files(), [])
+
     def test_state_csv(self):
         response = self.client.get("/help/va-code-mappings/unmapped.csv?selectable=no")
         self.assertEqual(response.status_code, 200)
@@ -266,21 +329,34 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"KD3B.0", response.data)
 
-    def test_state_view_pages_keep_filters(self):
+    def test_state_view_keeps_a_block_whole_even_at_a_tiny_page_size(self):
+        # The synthetic catalogue's codes all sit in one outermost block, so
+        # block-aligned paging keeps them on a single page however small
+        # MAPPINGS_PER_PAGE is -- a block is never split across pages.
+        codes = lambda response: {  # noqa: E731
+            node["id"] for node in self.page_json(response, "icd11-states")["nodes"] if "cells" in node
+        }
+        not_selectable = len(CATALOGUE) - len(SELECTABLE)
         with mock.patch("app.routes.help.MAPPINGS_PER_PAGE", 2):
-            first = self.client.get("/help/va-code-mappings/unmapped?selectable=no").get_data(as_text=True)
-            not_selectable = len(CATALOGUE) - len(SELECTABLE)
-            pages = -(-not_selectable // 2)
-            self.assertGreater(pages, 1)
-            self.assertIn(f"Page 1 of {pages}", first)
-            self.assertIn('href="/help/va-code-mappings/unmapped?page=2&amp;selectable=no"', first)
-            last = self.client.get("/help/va-code-mappings/unmapped?selectable=no&page=999")
-            self.assertEqual(last.status_code, 200)
-            body = last.get_data(as_text=True)
-            self.assertIn(f"Page {pages} of {pages}", body)
-            self.assertIn(f'href="/help/va-code-mappings/unmapped?page={pages - 1}&amp;selectable=no"', body)
-            low = self.client.get("/help/va-code-mappings/unmapped?selectable=no&page=-3").get_data(as_text=True)
-            self.assertIn(f"Page 1 of {pages}", low)
+            response = self.client.get("/help/va-code-mappings/unmapped?selectable=no")
+            body = response.get_data(as_text=True)
+            self.assertEqual(len(codes(response)), not_selectable)
+            self.assertNotIn("pagination", body)  # one page: no nav rendered
+            # An out-of-range page clamps to the only page that exists.
+            clamped = self.client.get("/help/va-code-mappings/unmapped?selectable=no&page=999")
+            self.assertEqual(clamped.status_code, 200)
+            self.assertEqual(codes(clamped), codes(response))
+
+    def test_icd11_block_pages_keeps_a_straddling_block_whole(self):
+        # Route-level check that the page wires filtered codes and the
+        # catalogue through icd11_block_pages unchanged: unit coverage of the
+        # function itself (straddling/oversized blocks, totals) lives in
+        # tests/services/test_va_code_mapping_public_service.py.
+        catalogue = service.get_icd11_catalogue(RELEASE)
+        codes = service.filter_icd11_catalogue(catalogue, selectable="no")
+        pages = service.icd11_block_pages(codes, catalogue, 2)
+        self.assertEqual(pages, [codes])  # one shared block, never split
+        self.assertEqual(sum(len(p) for p in pages), len(codes))
 
     def test_compare_keeps_icd11_code_missing_from_catalogue(self):
         response = self.client.get("/help/va-code-mappings/compare?va_code=VAs-01.01")

@@ -108,6 +108,10 @@ PUBLIC_BY_DESIGN = frozenset({
     "help.va_code_mappings_compare",
     "help.va_code_mappings_unmapped",
     "help.va_code_mappings_unmapped_csv",
+    # Live coding-search demo sub-page of icd-codes (digitva-zm1): same
+    # in-body `_user_has_role` + abort(403) guard as `help.page`, checked
+    # against the icd-codes registry entry's roles.
+    "help.icd_codes_search_demo",
 })
 
 _ALLOWED = PUBLIC_BY_DESIGN

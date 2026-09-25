@@ -7,6 +7,7 @@ scheme and check one build, the cache and the filters.
 """
 
 import filecmp
+import unittest
 import uuid
 from pathlib import Path
 
@@ -398,6 +399,36 @@ class Icd11CatalogueAndCompareTests(BaseTestCase):
             "Outer test block", "no", "unreviewed",
         ])
 
+    def test_origin_filter_needs_rows(self):
+        # 1G40 is WHO (single icd11 claim); KD3B.1 is who_resolved (specific
+        # code beats the perinatal range); everything else is unmapped.
+        self.assertEqual(
+            service.filter_icd11_catalogue(self.catalogue, self.rows, origin=service.ORIGIN_WHO), ["1G40"],
+        )
+        self.assertEqual(
+            service.filter_icd11_catalogue(self.catalogue, self.rows, origin=service.ORIGIN_WHO_RESOLVED),
+            ["KD3B.1"],
+        )
+        unmapped = service.filter_icd11_catalogue(self.catalogue, self.rows, origin="unmapped")
+        self.assertEqual(set(unmapped), set(self.catalogue) - {"1G40", "KD3B.1"})
+        # No origin filter: rows is not consulted, matches every code.
+        self.assertEqual(
+            sorted(service.filter_icd11_catalogue(self.catalogue)), sorted(self.catalogue),
+        )
+
+    def test_policy_status_filter(self):
+        row = db.session.scalar(
+            db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "1G40")
+        )
+        row.policy_status = "reviewed"
+        db.session.commit()
+        catalogue = service.get_icd11_catalogue(RELEASE)
+        reviewed = service.filter_icd11_catalogue(catalogue, policy_status="reviewed")
+        unreviewed = service.filter_icd11_catalogue(catalogue, policy_status="unreviewed")
+        self.assertEqual(reviewed, ["1G40"])
+        self.assertNotIn("1G40", unreviewed)
+        self.assertEqual(len(reviewed) + len(unreviewed), len(catalogue))
+
     def test_catalogue_edit_is_seen_on_next_load(self):
         self.assertFalse(self.catalogue["KD3B.0"]["selectable"])
         row = db.session.scalar(
@@ -438,3 +469,52 @@ class Icd11CatalogueAndCompareTests(BaseTestCase):
         self.assertEqual(nodes[1]["parent_id"], "c:")
         self.assertEqual(nodes[1]["title"], "Z99 <b>not a tag</b>")  # escaped by |tojson and textContent
 
+
+
+class Icd11BlockPagesTests(unittest.TestCase):
+    """icd11_block_pages: no DB, a block never straddles two pages (digitva-x67)."""
+
+    @staticmethod
+    def _catalogue(block_sizes):
+        """`{code: entry}` for `[(block_id, count), ...]`, one chapter, WHO order."""
+        catalogue = {}
+        for block_id, count in block_sizes:
+            for i in range(count):
+                catalogue[f"{block_id}-{i:03d}"] = {"chapter": ("01", "Chapter"), "block": (block_id, block_id)}
+        return catalogue
+
+    def test_a_block_straddling_the_old_page_boundary_lands_whole_on_one_page(self):
+        # 90 + 30 would split at a naive fixed-size-100 boundary; block-aligned
+        # paging keeps the second block whole even though the page then holds 120.
+        catalogue = self._catalogue([("A", 90), ("B", 30)])
+        pages = service.icd11_block_pages(list(catalogue), catalogue, 100)
+        self.assertEqual([len(p) for p in pages], [120])
+        self.assertTrue(all(code.startswith("B") for code in pages[0][90:]))
+
+    def test_a_block_bigger_than_the_target_gets_its_own_page(self):
+        catalogue = self._catalogue([("A", 150), ("B", 10)])
+        pages = service.icd11_block_pages(list(catalogue), catalogue, 100)
+        self.assertEqual([len(p) for p in pages], [150, 10])
+        self.assertTrue(all(code.startswith("A") for code in pages[0]))
+        self.assertTrue(all(code.startswith("B") for code in pages[1]))
+
+    def test_page_count_and_totals_stay_truthful(self):
+        catalogue = self._catalogue([("A", 60), ("B", 60), ("C", 60)])
+        codes = list(catalogue)
+        pages = service.icd11_block_pages(codes, catalogue, 100)
+        self.assertEqual(sum(len(p) for p in pages), len(codes))
+        self.assertEqual(sorted(code for page in pages for code in page), sorted(codes))
+        # A+B=120 already >= 100, so C starts its own page.
+        self.assertEqual([len(p) for p in pages], [120, 60])
+
+    def test_codes_with_no_block_group_by_chapter(self):
+        catalogue = {
+            "X1": {"chapter": ("09", "Chapter 9"), "block": ("", "")},
+            "X2": {"chapter": ("09", "Chapter 9"), "block": ("", "")},
+            "Y1": {"chapter": ("10", "Chapter 10"), "block": ("", "")},
+        }
+        pages = service.icd11_block_pages(list(catalogue), catalogue, 100)
+        self.assertEqual(pages, [["X1", "X2", "Y1"]])  # all fit on one page
+
+    def test_empty_codes_gives_no_pages(self):
+        self.assertEqual(service.icd11_block_pages([], {}, 100), [])

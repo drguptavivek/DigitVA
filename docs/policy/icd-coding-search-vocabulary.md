@@ -26,9 +26,16 @@ second surface and stays out of scope here.
   key: lowercased, punctuation stripped, whitespace collapsed — indexed,
   NOT unique), `icd_classification` (`icd10` | `icd11`), `icd_code`,
   `source` (`seed_used_cod` | `who_inclusion` | `admin`, later `telemetry`),
-  `note`, `is_active`, timestamps. Multiple rows per term are the mechanism
-  for multi-code targets: `TB` links to `A15` and `A16`, `sepsis`-family
-  terms link to both catalogues.
+  `note`, `sort_order` (smallint, default 100, lower first), `is_active`,
+  timestamps. Multiple rows per term are the mechanism for multi-code
+  targets: `head injury` fans out to five external-cause codes, `sepsis`-
+  family terms link to both catalogues. `sort_order` breaks ties among a
+  term's several targets so the reviewed order lists first regardless of
+  code string order (`digitva-3t2` — TB's own target was narrowed to a
+  single code, A16, since a verbal autopsy cannot know bacteriological
+  confirmation and A15/A16/1B10.x share one VA bucket; `head injury`
+  remains the multi-target example: V89.2, W19, Y09, W20, X59 in that
+  order).
 - The seed (`resource/icd_search_vocabulary_seed.csv`, one row per link) is
   authored from the ICD-10 codes actually used as final CODs in this system
   (dev: 7,879 final CODs; ~50 codes cover 73%) plus WHO's own ICD-10
@@ -59,11 +66,44 @@ second surface and stays out of scope here.
 ## Matching semantics
 
 - Results carry a `"tier"` field: `"focused"` (vocabulary hits, exact-code
-  matches, title-prefix matches) and `"expanded"` (title substrings, token
-  matches; later semantic cause suggestions). The picker renders the
-  two-stage UI from it — focused group first, expanded behind a "show
-  more" control — but every path still terminates at an ICD code
-  selection.
+  matches, and any query that starts the title or the start of ANY word
+  inside it — a word boundary is the string's start or the position right
+  after a non-alphanumeric character, so "myoc" reaches "Acute
+  **myoc**ardial infarction" but "art" inside "he**art**" stays mid-word)
+  and `"expanded"` (title substrings that are not a word start; later
+  semantic cause suggestions). The picker renders two columns from it —
+  "Focused matches" left, "Term matches" right (one column on a narrow
+  dropdown); nothing is hidden behind a toggle — and every path still
+  terminates at an ICD code selection. `result_tier` and `core_title` (see
+  below) are shared helpers in `icd_search_vocabulary_service.py`, used by
+  both `icd10_2019_2_service.py` and `icd11_mms_service.py` — no longer
+  duplicated per catalogue. After SQL fetches and ranks the capped result
+  list, the service does one further Python pass — a stable sort moving
+  focused-tier rows ahead of expanded ones — so the tier computed with
+  word-boundary and qualifier-stripped matching also governs display
+  order; this never changes WHICH rows SQL fetched or the catalogue's own
+  policy filters.
+- **Qualifier stripping (`core_title`, `digitva-wqc`)**: WHO titles carry
+  boilerplate that pushes the actual diagnosis word away from the title's
+  start — "other and unspecified", "other", "not otherwise specified",
+  "nos", "not elsewhere classified", "nec", "of unspecified origin",
+  "unspecified origin", "unspecified", "not confirmed bacteriologically or
+  histologically", "not confirmed", "without mention of bacteriological or
+  histological confirmation", "in diseases classified elsewhere",
+  "classified elsewhere". `core_title` removes these case-insensitively as
+  whole words/phrases (longest phrase first, so "other and unspecified"
+  goes as one unit rather than leaving a stray "and"), then tidies
+  whitespace and comma debris; it falls back to the tidied original when
+  stripping empties the text (a query or title that IS "other" stays
+  searchable). Used for tier classification (title and query, alongside
+  the raw forms), the in-Python re-rank above, and fuzzy similarity
+  (`fuzzy_vocabulary_matches`) — never to change which rows the SQL WHERE
+  fetches. Example: "respiratory tuberculosis" reaches both A15
+  ("Respiratory tuberculosis, bacteriologically and histologically
+  confirmed") and A16 ("...not confirmed bacteriologically or
+  histologically") as focused, and "gastroenteritis" reaches A09 ("Other
+  gastroenteritis and colitis of infectious and unspecified origin") as
+  focused even though the qualifier words sit ahead of it.
 - Spelling and hyphenation fold (digitva-zpe.3): a query matches across
   UK/US spellings and hyphen placement. Mechanism: the `localspelling`
   package (MIT, Fast Data Science) word map plus a 22-entry medical
@@ -77,9 +117,20 @@ second surface and stays out of scope here.
   the US spelling as the one lookup key; stored keys are never rewritten
   by a migration. The fold adds no synonyms of its own — the vocabulary
   stays the only curated term list.
-- Exact match on `term_normalized` only — no prefix or fuzzy matching
-  (`MI` must not hijack `miliary`). Multi-code families stay reachable the
-  way they are today (`tuberculosis` finds the A15/A16 family lexically).
+- Exact match on `term_normalized` first (any spelling/hyphen variant).
+  For a normalized query of 3+ characters (`PREFIX_MIN_QUERY_LEN`,
+  `digitva-wqc`), vocabulary lookup ALSO matches keys the query is a
+  PREFIX of — "dysen" reaches the stored key "dysentery" — so a partially
+  typed clinician term still surfaces its target before the coder finishes
+  typing. A query under 3 characters stays exact-only (`MI` must not
+  prefix-match into an unrelated longer key, and cannot become a prefix
+  hit of its own). Exact matches always rank before prefix matches;
+  within each group, a multi-code term orders by `sort_order` then
+  `icd_code`. Prefix hits are capped at 10 distinct codes so one short
+  prefix cannot flood the picker. This is vocabulary-only — the lexical
+  catalogue search is unaffected and multi-code families it already finds
+  stay reachable the same way (`tuberculosis` finds the A15/A16 family
+  lexically).
 - A vocabulary hit expands to its target code through the **same filters the
   endpoint already applies** (active/selectable policy, age and sex when a
   `va_sid` is in play). A shorthand whose target is filtered out for that
@@ -128,3 +179,13 @@ second surface and stays out of scope here.
 - Terms are clinical shorthand, not patient data. No PII is stored in the
   table; admin notes are reviewed text. Phase-0 telemetry (separate work)
   will propose new terms from real queries with the same no-PII discipline.
+
+## Help-page search demo (`digitva-zm1`)
+
+`/help/icd-codes/search-demo` and `GET /api/v1/coding-search-demo/search`
+(`classification`, `q`, `age_group`, `sex`) let a coder try this search
+outside a real death: the endpoint calls the same search functions the coding
+screen uses (`search_icd10_2019_2_coding_choices_for_policy`,
+`search_icd11_mms`), filtered by an explicit age group and sex instead of a
+submission's own. Demo searches are never written to `cod_search_telemetry`
+and never receive an `X-Search-Id`.

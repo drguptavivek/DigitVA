@@ -17,9 +17,11 @@ from app import db
 from app.models import MasIcd11Mms, MasIcd1020192, MasIcdSearchTerms
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.icd_search_vocabulary_service import (
+    DEFAULT_SORT_ORDER,
     clear_cache,
     code_in_catalogue,
     create_term,
+    fuzzy_vocabulary_matches,
     list_terms,
     merge_vocabulary_results,
     normalize_term,
@@ -81,9 +83,7 @@ class VocabularyServiceTestCase(BaseTestCase):
         clear_cache()
         super().tearDown()
 
-
-class VocabularyMatchesTest(VocabularyServiceTestCase):
-    def _add(self, term, classification, code, is_active=True):
+    def _add(self, term, classification, code, is_active=True, sort_order=DEFAULT_SORT_ORDER):
         row = MasIcdSearchTerms(
             term=term,
             term_normalized=normalize_term(term),
@@ -91,10 +91,14 @@ class VocabularyMatchesTest(VocabularyServiceTestCase):
             icd_code=code,
             source="admin",
             is_active=is_active,
+            sort_order=sort_order,
         )
         db.session.add(row)
         db.session.flush()
         return row
+
+
+class VocabularyMatchesTest(VocabularyServiceTestCase):
 
     def test_exact_match_returns_active_links_only(self):
         icd10 = self._add("MI", "icd10", "I21")
@@ -128,14 +132,98 @@ class VocabularyMatchesTest(VocabularyServiceTestCase):
             ["I64"],
         )
 
-    def test_no_prefix_or_fuzzy_matching(self):
+    def test_short_query_never_prefix_matches(self):
         # Positive control first: the machinery finds MI at all.
         self._add("MI", "icd10", "I21")
         self.assertEqual(len(vocabulary_matches("MI")), 1)
 
+        # "Miliary"/"MIA" are longer than the stored key "mi" -- a query is
+        # never a SUFFIX match against a shorter key, so these stay empty
+        # regardless of the prefix feature (digitva-wqc). "MI" itself is
+        # only 2 characters, below PREFIX_MIN_QUERY_LEN, so it never grows
+        # prefix hits of its own either.
         self.assertEqual(vocabulary_matches("Miliary"), [])
         self.assertEqual(vocabulary_matches("MIA"), [])
         self.assertEqual(vocabulary_matches(""), [])
+
+    def test_prefix_matches_a_longer_vocabulary_key(self):
+        # digitva-wqc: a query of 3+ chars also matches a vocabulary key
+        # that STARTS WITH it.
+        self._add("dysentery", "icd10", "A09")
+
+        self.assertEqual([row["icd_code"] for row in vocabulary_matches("dysen")], ["A09"])
+
+    def test_exact_match_ranks_before_prefix_match(self):
+        self._add("dysentery", "icd10", "A09")
+        self._add("dys", "icd10", "A99")
+
+        results = vocabulary_matches("dys")
+
+        self.assertEqual([row["icd_code"] for row in results], ["A99", "A09"])
+
+    def test_prefix_matches_are_capped_at_ten_distinct_codes(self):
+        for index in range(15):
+            self._add(f"dysenteric condition {index}", "icd10", f"A{10 + index}")
+
+        results = vocabulary_matches("dysenteric")
+
+        self.assertLessEqual(len({row["icd_code"] for row in results}), 10)
+
+    def test_multi_code_term_orders_by_sort_order_then_code(self):
+        # digitva-3t2: lower sort_order lists first among a term's several
+        # targets; ties fall back to icd_code. "head injury" fans out to
+        # five external-cause codes ranked 1-5 in the reviewed seed.
+        self._add("head injury", "icd10", "Y09", sort_order=3)
+        self._add("head injury", "icd10", "V89", sort_order=1)
+        self._add("head injury", "icd10", "X59", sort_order=5)
+        self._add("head injury", "icd10", "W20", sort_order=4)
+        self._add("head injury", "icd10", "W19", sort_order=2)
+
+        self.assertEqual(
+            [row["icd_code"] for row in vocabulary_matches("head injury")],
+            ["V89", "W19", "Y09", "W20", "X59"],
+        )
+
+
+class FuzzyVocabularyMatchesTest(VocabularyServiceTestCase):
+    def test_short_query_never_fuzzy_matches(self):
+        self._add("MI", "icd10", "I21")
+
+        # "MI" itself is 2 chars: below the fuzzy floor, whether or not it
+        # is also an exact key.
+        self.assertEqual(fuzzy_vocabulary_matches("MI"), [])
+        self.assertEqual(fuzzy_vocabulary_matches("TB"), [])
+
+    def test_close_typo_resolves_to_the_target(self):
+        self._add("dysentery", "icd10", "A09")
+
+        self.assertEqual(
+            [row["icd_code"] for row in fuzzy_vocabulary_matches("dysentry")],
+            ["A09"],
+        )
+
+    def test_unrelated_query_matches_nothing(self):
+        self._add("dysentery", "icd10", "A09")
+
+        self.assertEqual(fuzzy_vocabulary_matches("cardiology"), [])
+
+    def test_classification_filter_applies(self):
+        self._add("dysentery", "icd10", "A09")
+
+        self.assertEqual(fuzzy_vocabulary_matches("dysentry", classification="icd11"), [])
+
+    def test_inactive_links_are_never_fuzzy_candidates(self):
+        self._add("dysentery", "icd10", "A09", is_active=False)
+
+        self.assertEqual(fuzzy_vocabulary_matches("dysentry"), [])
+
+    def test_cap_limits_distinct_codes(self):
+        for index in range(15):
+            self._add(f"dysentry{index}", "icd10", f"A{10 + index}")
+
+        matches = fuzzy_vocabulary_matches("dysentry")
+
+        self.assertLessEqual(len({row["icd_code"] for row in matches}), 10)
 
 
 class CacheInvalidationTest(VocabularyServiceTestCase):
@@ -180,6 +268,45 @@ class AdminCrudTest(VocabularyServiceTestCase):
         self.assertEqual(row.icd_code, "CA40")
         self.assertEqual(row.source, "admin")
         self.assertTrue(row.is_active)
+        # sort_order defaults when omitted.
+        self.assertEqual(row.sort_order, DEFAULT_SORT_ORDER)
+
+    def test_create_accepts_an_explicit_sort_order(self):
+        row = create_term(
+            term="X", icd_classification="icd10", icd_code="X00", sort_order=1
+        )
+        self.assertEqual(row.sort_order, 1)
+
+    def test_create_rejects_invalid_sort_order(self):
+        with self.assertRaises(ValueError):
+            create_term(term="X", icd_classification="icd10", icd_code="X00", sort_order=0)
+        with self.assertRaises(ValueError):
+            create_term(term="X", icd_classification="icd10", icd_code="X00", sort_order=-5)
+        with self.assertRaises(ValueError):
+            create_term(term="X", icd_classification="icd10", icd_code="X00", sort_order="abc")
+
+    def test_update_changes_sort_order_and_blank_resets_to_default(self):
+        row = create_term(
+            term="X", icd_classification="icd10", icd_code="X00", sort_order=5
+        )
+
+        updated = update_term(
+            str(row.term_id),
+            term="X",
+            icd_classification="icd10",
+            icd_code="X00",
+            sort_order=1,
+        )
+        self.assertEqual(updated.sort_order, 1)
+
+        reset = update_term(
+            str(row.term_id),
+            term="X",
+            icd_classification="icd10",
+            icd_code="X00",
+            sort_order=None,
+        )
+        self.assertEqual(reset.sort_order, DEFAULT_SORT_ORDER)
 
     def test_create_rejects_invalid_input(self):
         with self.assertRaises(ValueError):

@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -66,8 +66,14 @@ from (`Draft: ...`).
    `RA01`, each with its descendants.
 3. **Never selectable**, whatever rules 1-2 say: chapter 24 (Q, factors
    influencing health status), chapter 26 (S, traditional medicine), chapter
-   V (functioning) and chapter X (extension codes); and every chapter 25 (RA)
-   emergency code outside the `RA01` family.
+   V (functioning) and chapter X (extension codes); every chapter 25 (RA)
+   emergency code outside the `RA01` family; and, since owner decision 18
+   (2026-09-25, `digitva-g2n`, `docs/policy/icd10-to-icd11-transition.md`
+   section 6), `KD3B` and `KD3B.Z` (time of fetal death not specified). Every
+   ICD-11 stillbirth must land in Fresh (`KD3B.1` intrapartum) or Macerated
+   (`KD3B.0` antepartum); the vocabulary term "stillbirth" offers `KD3B.1`
+   first. ICD-10 `P95` is unaffected: WHO gives one code for both timings and
+   ICD-10 cannot distinguish them, so DigitVA does not invent a split there.
 4. Everything else is not selectable.
 
 **Parents and residuals.** A parent category and its residual

@@ -1,10 +1,11 @@
 import json
-from datetime import datetime, timezone
-from io import BytesIO
 import uuid
+from io import BytesIO
+from tempfile import NamedTemporaryFile
+from unittest.mock import patch
 
 import sqlalchemy as sa
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from app import db
 from app.models import (
@@ -13,8 +14,13 @@ from app.models import (
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
+    VaCodBucketSchemeSnapshot,
     # Deprecated as of 2026-04-20: retained here only for legacy fixture coverage.
     VaIcdCodes,
+)
+from app.services.cod_bucket_mapping_service import (
+    SCHEME_CODE_SRS_INDIA,
+    import_srs_india_scheme,
 )
 from tests.base import BaseTestCase
 
@@ -572,6 +578,194 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         payload = response.get_json()
         self.assertIn("cannot be reset from source", payload["error"].lower())
+
+    def _make_srs_workbook(self) -> str:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "ICD_Mapped"
+        sheet.append(
+            [
+                "disease_id",
+                "icd_code",
+                "icd_to_display",
+                "category",
+                "SRS_India_over5y_main_group",
+                "SRS_India_over5y_sub_group",
+                "SRS_India_over5y_disease",
+                "SRS_India_over5y_match_type",
+                "SRS_India_over5y_note",
+                "SRS_India_neonate_main_group",
+                "SRS_India_neonate_sub_group",
+                "SRS_India_neonate_disease",
+                "SRS_India_neonate_match_type",
+                "SRS_India_neonate_note",
+                "SRS_India_1_59mth_main_group",
+                "SRS_India_1_59mth_sub_group",
+                "SRS_India_1_59mth_disease",
+                "SRS_India_1_59mth_type",
+                "SRS_India_1_59mth_note",
+            ]
+        )
+        sheet.append(
+            [
+                "1",
+                "A00",
+                "A00-Cholera",
+                "Intestinal infectious diseases",
+                "Adult Main",
+                "Adult Sub",
+                "Adult Disease",
+                "range",
+                "adult note",
+                "Neonate Main",
+                "Neonate Sub",
+                "Neonate Disease",
+                "range",
+                "neonate note",
+                "Child Main",
+                "Child Sub",
+                "Child Disease",
+                "range",
+                "child note",
+            ]
+        )
+        with NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            workbook.save(tmp.name)
+            return tmp.name
+
+    def test_cod_bucket_scheme_reset_default_response_includes_snapshot_id(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            response = self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            )
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        payload = response.get_json()
+        self.assertIn("snapshot_id", payload)
+        snapshot = db.session.get(VaCodBucketSchemeSnapshot, uuid.UUID(payload["snapshot_id"]))
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.scheme_code, SCHEME_CODE_SRS_INDIA)
+
+    def test_cod_bucket_scheme_snapshots_endpoint_returns_recent_rows(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_response = self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            )
+        snapshot_id = reset_response.get_json()["snapshot_id"]
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/snapshots"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(any(row["snapshot_id"] == snapshot_id for row in payload["snapshots"]))
+        self.assertNotIn("payload", payload["snapshots"][0])
+
+    def test_cod_bucket_scheme_snapshot_download_returns_attachment(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_response = self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            )
+        snapshot_id = reset_response.get_json()["snapshot_id"]
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/snapshots/{snapshot_id}/download"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response.headers.get("Content-Disposition", ""))
+        downloaded = json.loads(response.get_data(as_text=True))
+        self.assertEqual(downloaded["scheme"]["scheme_code"], scheme.scheme_code)
+
+    def test_cod_bucket_scheme_snapshot_download_404s_under_wrong_scheme_code(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_response = self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            )
+        snapshot_id = reset_response.get_json()["snapshot_id"]
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/snapshots/{snapshot_id}/download"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_cod_bucket_scheme_snapshot_endpoints_denied_for_coder(self):
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        db.session.commit()
+        snapshot = VaCodBucketSchemeSnapshot(
+            scheme_id=scheme.scheme_id,
+            scheme_code=scheme.scheme_code,
+            reason=VaCodBucketSchemeSnapshot.REASON_CLI_IMPORT,
+            payload={"scheme": {"scheme_code": scheme.scheme_code}},
+        )
+        db.session.add(snapshot)
+        db.session.commit()
+
+        self._login(self.base_coder_id)
+        self.assertEqual(
+            self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/snapshots"
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.get(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}"
+                f"/snapshots/{snapshot.snapshot_id}/download"
+            ).status_code,
+            403,
+        )
 
     def test_cod_bucket_node_mappings_returns_selected_leaf_only(self):
         self._login(self.base_admin_id)

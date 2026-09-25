@@ -1,10 +1,168 @@
 # Handoff
 
-Updated 2026-09-25 (ninth pass, fourth landing: telemetry + picker +
-dual-spelling fold). Migration head **`c4e7b1d8f2a9`** (chain
-`e9d4b6f8a3c2 → b8f2d6a9c4e1 telemetry → c4e7b1d8f2a9 trgm`). Full suite:
-**2048 passed, 283 subtests, 0 failed**. New dependency
-**`localspelling==0.94`** (images rebuilt).
+Updated 2026-09-25 (ninth pass, sixth landing: search overhaul, transport
+and stillbirth decisions, help pages). Migration head **`a5f7c3d92b18`**
+(chain `c4e7b1d8f2a9 → d8a1f4c7b2e6 snapshots → f2b7c9e4a1d8 diarrhoea →
+fdb562cccac4 vocabulary sort_order + seed repair → a5f7c3d92b18 decisions
+15-17 + stillbirth vocabulary`); dev is there (and its snapshot MV was
+refreshed). Full suite: **2128 passed, 283 subtests, 0 failed**. Parts 5-6
+committed and pushed together.
+
+## Landed 2026-09-25 (ninth pass, part 6)
+
+* **Coding search overhaul** (`digitva-3t2`, `digitva-wqc`, `digitva-1ht`,
+  closed). Migration `fdb562cccac4`: `mas_icd_search_terms.sort_order`
+  (lower first, admin-editable, in the CSV export); seed rewritten to 380
+  links, **every target coding-selectable** (verified against dev); +104
+  inserted, **43 retired keys deactivated** (never deleted; exact
+  downgrade). Behaviour:
+  - vocabulary matches while typing (prefix, >= 3 chars, 10-code cap;
+    "MI"/"TB" stay exact);
+  - "focused" = query starts ANY title word (`gastroen` → A09,
+    `myoc` → I21), not only the title start;
+  - ICD boilerplate ignored for matching/ranking only (`core_title`:
+    Other, unspecified, NOS, NEC, not confirmed, …); display unchanged;
+  - typo fallback only when a search finds nothing (`dysentry` → A09,
+    pg_trgm `<%` on the existing GIN indexes, same policy filters);
+  - `_result_tier` de-duplicated into one shared helper.
+  Owner vocabulary decisions: S/T injuries are never selectable, so
+  injury/allergy terms fan out to external causes in `sort_order`
+  (head injury → V89.2, W19, Y09, W20, X59; anaphylaxis → Y57, Y59, X23,
+  X29, X59); **TB/Kochs/pulmonary TB/consumption → A16 / 1B10.Z only**
+  (VA cannot know bacteriological confirmation; A15/A16/1B10.x share the
+  Pulmonary tuberculosis bucket); **RTA-type terms → V89.2** (V89 buckets as
+  Other transport); CCF → I50.0, heart failure → I50.9, HHD → I11.9,
+  ALD → K70.9. Review findings fixed (ICD-11 `limit` contract, CSV export
+  missing sort_order, docstring).
+* **Help**: `/help/icd-codes` rewritten as "ICD Codes, VA Causes & Search"
+  (ICD-10 + ICD-11, VA causes, how the search works, selectability).
+  Help sidebar no longer pushes content ~2,600 px down below 992 px — it
+  folds behind a Topics toggle (`digitva-gdc`, closed; verified 375 / 768 /
+  1280 px).
+* **Owner decisions 15-18** recorded in
+  `docs/policy/icd10-to-icd11-transition.md` section 6 (policy first):
+  15 three-character `V01`-`V89` + `Y85` not selectable (WHO footnote f
+  splits road traffic only at the 4th character); 16 saved `V10`-`V82` and
+  `V87` re-bucket to Road traffic (WHO's ICD-10 "assume traffic" rule;
+  nobody re-coded); 17 ICD-11 `PA22`-`PA29`, `PA2E`, `PA2F`, `PA2Y`, `PA2Z` →
+  Road traffic (supersedes decision 3 for those); 18 ICD-11 `KD3B`/`KD3B.Z`
+  not selectable, "stillbirth" → `KD3B.1` fresh first; ICD-10 `P95` stays
+  one code (not differentiable; no invented codes). Also recorded in
+  `docs/policy/who-2022-icd10-coding-allowability.md`.
+
+### Landed later in part 6 (uncommitted, verified on dev)
+
+* **ICD-11 mapping-state page** (`digitva-x67`, closed):
+  `/help/va-code-mappings/unmapped` gained Origin and Policy-review filters
+  (CSV too; filtered CSV streams, file cache only for unfiltered);
+  **block-aligned paging** — a block is never split across pages (checked:
+  18,505 codes → 98 pages, 0 split blocks; an 860-code block gets its own
+  page); one click on a chapter/block expander opens or closes its whole
+  subtree (opt-in `expand_subtree` in `tree_table.js`; main session fixed
+  a Wunderbaum `visit()` misuse that left the clicked chapter collapsed).
+  The flat mapping list keeps plain paging (not in chapter/block order).
+* **Coding-search demo** (`digitva-zm1`, closed):
+  `/help/icd-codes/search-demo`, linked from `/help/icd-codes` — ICD-10 /
+  ICD-11, age group, sex, same two columns, real search services (ICD-10
+  refactored to `search_icd10_2019_2_coding_choices_for_policy`; ICD-11
+  takes explicit `age_group`/`sex`), never recorded in telemetry.
+  Browser-verified (head injury, dysentry, eclampsia by sex, preterm by
+  age, ICD-11 TB).
+* **"Owner" → "expert review"** in user-facing text (owner decision
+  2026-09-25): legend, `/help/icd-codes`, mapping-state page. Stored notes,
+  CSVs and policy docs keep "Owner decision N" as the audit trail.
+* **Origin legend** written (`app/templates/help/pages/_origin_legend.html`,
+  not yet included on the pages — part of `digitva-oeu`).
+
+* **Decisions 15-18 implemented** (`digitva-g2n`, closed): migration
+  `a5f7c3d92b18` — 88 three-character `V01`-`V89`/`Y85` unselectable
+  (saving `V89` is refused, `V89.2` accepted); 74 ICD-10 `V10`-`V82`/`V87`
+  and 12 ICD-11 `PA2x` rows → Road traffic in `WHO_2022_VA_2026` (only
+  where still at the workbook value); stillbirth vocabulary (fresh
+  `KD3B.1` first) and the bare `KD3B` link retired; exact downgrade.
+  Source files carry the decisions (ICD-10 overrides CSV, ICD-11 owner
+  decisions CSV, regenerated native mappings, ICD-11 policy draft rule
+  `decision_18_not_selectable`). `KD3B`/`KD3B.Z` unselectable on the
+  **dev** ICD-11 draft only (via `flask icd11 policy-import`; ships when
+  the owner approves the draft, `digitva-dus.3`). The snapshot MV joins
+  mappings live — run `flask analytics refresh-submission-mv` after
+  upgrading. **Dev: Road traffic final CODs 15 → 127, Other transport
+  259 → 147.**
+
+### Next (in order)
+
+1. **`digitva-1u5`** (P1): vocabulary "tuberculosis" → A16 / 1B10.Z
+   (today it lists A17, A18, A15 before A16). Reconcile migration on
+   `a5f7c3d92b18`; verify in `/help/icd-codes/search-demo`.
+2. **`digitva-oeu`**: plain-language origins on the mapping pages — "WHO" /
+   "WHO (overlap resolved)" / "Not in WHO's list" (~250 selectable
+   uncovered) / "Differs from WHO" (~150) / **"Not a cause of death"** (the
+   2,148 decision-5b codes, all never selectable) / "Unmapped"; a plain
+   reason under every badge, never "Owner decision N" (number in CSV +
+   tooltip only; user-facing text says "expert review"); include the
+   written legend `_origin_legend.html` on all three mapping pages; fix the
+   15 BA5x rows with an empty rule; guard test that uncovered
+   no-crosswalk ICD-11 codes stay unselectable. Full wording in bead notes.
+3. **`digitva-yds`** epic (public, no login, rate-limited): `.1` ICD-10
+   read-only browser, `.2` ICD-11 read-only browser (promote the
+   mapping-state page, add sex/age), `.3` COD bucket schemes read-only.
+   After oeu, one writer (same files).
+4. **`digitva-e5j`**: explain empty search results caused by age/sex
+   policy ("1 code matches but is not selectable for an infant female:
+   P95 (neonate only)") in the demo and the coding picker.
+5. Telemetry review; candidate: rank focused matches by final-COD
+   frequency ("myoc" lists I41 above I21).
+6. Everything under "Approved, not started" below.
+
+Lessons from part 6: dev serves the working tree, so a writer's model
+change breaks dev pages until its migration runs (the vocabulary panel
+500'd for ~30 min) — prefer writers finishing with the dev upgrade, or an
+isolated worktree. Code-writers refuse scope relayed mid-task (they treat
+orchestrator messages as possible injection); put the complete scope in
+the initial prompt and restart a fresh writer rather than relaying.
+Give parallel writers separate test databases (`minerva_test_help`,
+`minerva_test_demo`, `minerva_test_main` now exist). Browser checks: the
+pane's screenshot frame is not the page's coordinate frame, so drive
+Wunderbaum by dispatching events on elements, not by pixel clicks.
+
+## Landed 2026-09-25 (ninth pass, part 5)
+
+* **Reset-safety snapshot** (`digitva-tet`, closed). New table
+  `va_cod_bucket_scheme_snapshots` (whole-scheme JSON payload, reason
+  `reset_scheme | reset_age_band | cli_import`, created_by). The reset
+  route (both scopes) snapshots before anything is replaced, same
+  transaction; a failed snapshot refuses the reset (400, nothing
+  destroyed). `flask cod-buckets import-*` snapshots an existing scheme
+  first (committed on its own). Reset modal lists the last 10 and
+  auto-downloads the new one; restore = existing Import JSON. No prune yet.
+  `reset_cod_bucket_scheme_age_band_to_source` now returns
+  `(scheme, snapshot_id)`. The three label renames were cancelled.
+* **Coding picker: two columns** (`digitva-blu`, closed). "Focused
+  matches" left, "Term matches" right (CSS grid, one column when narrow);
+  the "Show more" toggle is gone. It had a real bug: Select2 4.1 puts
+  `select2:selecting` data under `params.args`, so the toggle was saved as
+  the COD value and the expanded tail (e.g. I21 for "myoc") was
+  unreachable. Live-verified on a dev coder session — this closes the
+  picker visual-check gap from part 4.
+* **Vocabulary hits no longer push title matches out**: the 30 cap applies
+  to the lexical list only; vocabulary hits ride on top (both ICD-10 and
+  ICD-11 coding search).
+* **Diarrhoea vocabulary** (found through telemetry: every "diarrhoea"
+  query returned 0, yet A09 is 141 of 8,547 dev final CODs — its title
+  says "gastroenteritis"). Reconcile migration `f2b7c9e4a1d8`: diarrhoea,
+  acute diarrhoea, (acute) diarrhoeal disease, acute gastroenteritis,
+  loose motions, dysentery → A09 / 1A40.Z; bacillary dysentery → A03 /
+  1A02. ME05.1 (symptom, maps to "unknown") deliberately not used; "AGE"
+  left out (its key "age" would hijack plain "age" queries). Seed: 319
+  links.
+
+### Next (after part 5)
+
+1. Let telemetry accumulate, then review the export (unchanged). Early
+   signal from dev: bare "cancer" returns 0 — candidate vocabulary row.
+2. Rank "focused" by how often a code is a final COD (e.g. "myoc" puts
+   I41 Myocarditis above I21 AMI) — not filed; ask the owner.
+3. Everything under "Approved, not started" below, minus item 1 (done).
 
 ## Landed 2026-09-25 (ninth pass, part 4)
 
@@ -397,7 +555,7 @@ Open: `digitva-712.6` (12 specific-vs-specific disagreements for the owner
 ## Waiting on the owner
 
 1. ICD-11 buckets review (`icd11_review.csv`): confirm PJ20-PJ2Z → Assault;
-   PA20-PA2Z (traffic unknown) → Other transport; review 916 crosswalk
+   (PA20-PA2Z decided 2026-09-25, decision 17); review 916 crosswalk
    disagreements; decide the WHO range errors (`5C52.Y-5C52-Z`,
    `3A00-3A4.Z`, three stale endpoints); whether any of the 2,351 uncovered
    codes need buckets.

@@ -265,3 +265,82 @@ class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission
     def test_unknown_submission_raises_lookup_error(self):
         with self.assertRaises(LookupError):
             validate_coding_value_for_submission("uuid:does-not-exist", self.ICD10)
+
+
+class TestValidateCodingValueThreeCharacterTransport(TestGetIcdClassificationForSubmission):
+    """Owner decision 15 (digitva-g2n): three-character V01-V89/Y85 are not
+    selectable, but their detailed subcodes are. The submission here is an
+    adult, so age/sex policy never masks the check."""
+
+    def setUp(self):
+        super().setUp()
+        now = datetime.now(UTC)
+        db.session.merge(
+            MasIcd1020192(
+                code="V89",
+                title="Other and unspecified transport accidents",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                chapter_code="XX",
+                chapter_title="External causes of morbidity and mortality",
+                block_code="V01-X59",
+                block_title="Accidents",
+                three_character_code="V89",
+                three_character_title="Other and unspecified transport accidents",
+                has_children=True,
+                is_leaf=False,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=False,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="unreviewed",
+                source_version="ICD-10-2019",
+                source_path="test",
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.session.merge(
+            MasIcd1020192(
+                code="V89.2",
+                title="Person injured in unspecified traffic accident",
+                node_type="detail",
+                semantic_level="detailed_code",
+                sort_order=1,
+                chapter_code="XX",
+                chapter_title="External causes of morbidity and mortality",
+                block_code="V01-X59",
+                block_title="Accidents",
+                three_character_code="V89",
+                three_character_title="Other and unspecified transport accidents",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=False,
+                is_detailed_code=True,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="unreviewed",
+                source_version="ICD-10-2019",
+                source_path="test",
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.session.flush()
+
+    def test_three_character_code_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "not selectable"):
+            validate_coding_value_for_submission(self.SID, "V89 Other and unspecified transport accidents")
+
+    def test_detailed_subcode_is_accepted(self):
+        self.assertEqual(
+            validate_coding_value_for_submission(
+                self.SID, "V89.2 Person injured in unspecified traffic accident"
+            ),
+            "icd10",
+        )

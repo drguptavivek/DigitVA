@@ -1,304 +1,390 @@
-term,term_normalized,icd_classification,icd_code,source,note
-CVA,cva,icd10,I64,seed_used_cod,clinician shorthand for I64
-CVA,cva,icd11,8B20,seed_used_cod,clinician shorthand for 8B20
-cerebrovascular accident,cerebrovascular accident,icd10,I64,seed_used_cod,clinician shorthand for I64
-cerebrovascular accident,cerebrovascular accident,icd11,8B20,seed_used_cod,clinician shorthand for 8B20
-brain attack,brain attack,icd10,I64,seed_used_cod,clinician shorthand for I64
-brain attack,brain attack,icd11,8B20,seed_used_cod,clinician shorthand for 8B20
-paralysis,paralysis,icd10,I64,seed_used_cod,clinician shorthand for I64
-paralysis,paralysis,icd11,8B20,seed_used_cod,clinician shorthand for 8B20
-MI,mi,icd10,I21,seed_used_cod,clinician shorthand for I21
-MI,mi,icd11,BA41,seed_used_cod,clinician shorthand for BA41
-AMI,ami,icd10,I21,seed_used_cod,clinician shorthand for I21
-AMI,ami,icd11,BA41,seed_used_cod,clinician shorthand for BA41
-acute MI,acute mi,icd10,I21,seed_used_cod,clinician shorthand for I21
-acute MI,acute mi,icd11,BA41,seed_used_cod,clinician shorthand for BA41
-heart attack,heart attack,icd10,I21,seed_used_cod,clinician shorthand for I21
-heart attack,heart attack,icd11,BA41,seed_used_cod,clinician shorthand for BA41
-ACS,acs,icd10,I24,seed_used_cod,clinician shorthand for I24
-ACS,acs,icd11,BA4Z,seed_used_cod,clinician shorthand for BA4Z
-acute coronary syndrome,acute coronary syndrome,icd10,I24,seed_used_cod,clinician shorthand for I24
-acute coronary syndrome,acute coronary syndrome,icd11,BA4Z,seed_used_cod,clinician shorthand for BA4Z
-IHD,ihd,icd10,I25,seed_used_cod,clinician shorthand for I25
-IHD,ihd,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z
-CAD,cad,icd10,I25,seed_used_cod,clinician shorthand for I25
-CAD,cad,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z
-coronary artery disease,coronary artery disease,icd10,I25,seed_used_cod,clinician shorthand for I25
-coronary artery disease,coronary artery disease,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z
-coronary heart disease,coronary heart disease,icd10,I25,seed_used_cod,clinician shorthand for I25
-coronary heart disease,coronary heart disease,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z
-CCF,ccf,icd10,I50,seed_used_cod,clinician shorthand for I50
-CCF,ccf,icd11,BD10,seed_used_cod,clinician shorthand for BD10
-CHF,chf,icd10,I50,seed_used_cod,clinician shorthand for I50
-CHF,chf,icd11,BD10,seed_used_cod,clinician shorthand for BD10
-congestive cardiac failure,congestive cardiac failure,icd10,I50,seed_used_cod,clinician shorthand for I50
-congestive cardiac failure,congestive cardiac failure,icd11,BD10,seed_used_cod,clinician shorthand for BD10
-congestive heart failure,congestive heart failure,icd10,I50,seed_used_cod,clinician shorthand for I50
-congestive heart failure,congestive heart failure,icd11,BD10,seed_used_cod,clinician shorthand for BD10
-heart failure,heart failure,icd10,I50,seed_used_cod,clinician shorthand for I50
-heart failure,heart failure,icd11,BD1Z,seed_used_cod,clinician shorthand for BD1Z
-cardiac failure,cardiac failure,icd10,I50,seed_used_cod,clinician shorthand for I50
-cardiac failure,cardiac failure,icd11,BD1Z,seed_used_cod,clinician shorthand for BD1Z
-HHD,hhd,icd10,I11,seed_used_cod,clinician shorthand for I11
-HHD,hhd,icd11,BA01,seed_used_cod,clinician shorthand for BA01
-CKD,ckd,icd10,N18,seed_used_cod,clinician shorthand for N18
-CKD,ckd,icd11,GB61,seed_used_cod,clinician shorthand for GB61
-CRF,crf,icd10,N18,seed_used_cod,clinician shorthand for N18
-CRF,crf,icd11,GB61,seed_used_cod,clinician shorthand for GB61
-chronic renal failure,chronic renal failure,icd10,N18,seed_used_cod,clinician shorthand for N18
-chronic renal failure,chronic renal failure,icd11,GB61,seed_used_cod,clinician shorthand for GB61
-ESRD,esrd,icd10,N18,seed_used_cod,clinician shorthand for N18
-ESRD,esrd,icd11,GB61,seed_used_cod,clinician shorthand for GB61
-end stage renal disease,end stage renal disease,icd10,N18,seed_used_cod,clinician shorthand for N18
-end stage renal disease,end stage renal disease,icd11,GB61,seed_used_cod,clinician shorthand for GB61
-AKI,aki,icd10,N17,seed_used_cod,clinician shorthand for N17
-AKI,aki,icd11,GB60,seed_used_cod,clinician shorthand for GB60
-ARF,arf,icd10,N17,seed_used_cod,clinician shorthand for N17
-ARF,arf,icd11,GB60,seed_used_cod,clinician shorthand for GB60
-renal failure,renal failure,icd10,N19,seed_used_cod,clinician shorthand for N19
-renal failure,renal failure,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z
-DM,dm,icd10,E14,seed_used_cod,clinician shorthand for E14
-DM,dm,icd11,5A14,seed_used_cod,clinician shorthand for 5A14
-diabetes,diabetes,icd10,E14,seed_used_cod,clinician shorthand for E14
-diabetes,diabetes,icd11,5A14,seed_used_cod,clinician shorthand for 5A14
-sugar disease,sugar disease,icd10,E14,seed_used_cod,clinician shorthand for E14
-sugar disease,sugar disease,icd11,5A14,seed_used_cod,clinician shorthand for 5A14
-high sugar,high sugar,icd10,E14,seed_used_cod,clinician shorthand for E14
-high sugar,high sugar,icd11,5A14,seed_used_cod,clinician shorthand for 5A14
-madhumeh,madhumeh,icd10,E14,seed_used_cod,clinician shorthand for E14
-madhumeh,madhumeh,icd11,5A14,seed_used_cod,clinician shorthand for 5A14
-T2DM,t2dm,icd10,E11,seed_used_cod,clinician shorthand for E11
-T2DM,t2dm,icd11,5A11,seed_used_cod,clinician shorthand for 5A11
-NIDDM,niddm,icd10,E11,seed_used_cod,clinician shorthand for E11
-NIDDM,niddm,icd11,5A11,seed_used_cod,clinician shorthand for 5A11
-COAD,coad,icd10,J44,seed_used_cod,clinician shorthand for J44
-COAD,coad,icd11,CA22,seed_used_cod,clinician shorthand for CA22
-chronic obstructive airway disease,chronic obstructive airway disease,icd10,J44,seed_used_cod,clinician shorthand for J44
-chronic obstructive airway disease,chronic obstructive airway disease,icd11,CA22,seed_used_cod,clinician shorthand for CA22
-chronic airway obstruction,chronic airway obstruction,icd10,J44,seed_used_cod,clinician shorthand for J44
-chronic airway obstruction,chronic airway obstruction,icd11,CA22,seed_used_cod,clinician shorthand for CA22
-bronchial asthma,bronchial asthma,icd10,J45,seed_used_cod,clinician shorthand for J45
-bronchial asthma,bronchial asthma,icd11,CA23,seed_used_cod,clinician shorthand for CA23
-chest infection,chest infection,icd10,J18,seed_used_cod,clinician shorthand for J18
-chest infection,chest infection,icd11,CA40,seed_used_cod,clinician shorthand for CA40
-LRTI,lrti,icd10,J22,seed_used_cod,clinician shorthand for J22
-lower respiratory tract infection,lower respiratory tract infection,icd10,J22,seed_used_cod,clinician shorthand for J22
-lung failure,lung failure,icd10,J96,seed_used_cod,clinician shorthand for J96
-lung failure,lung failure,icd11,CB41,seed_used_cod,clinician shorthand for CB41
-TB,tb,icd10,A15,seed_used_cod,clinician shorthand for A15
-TB,tb,icd10,A16,seed_used_cod,clinician shorthand for A16
-TB,tb,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-TB,tb,icd11,1B10.1,seed_used_cod,clinician shorthand for 1B10.1
-Kochs,kochs,icd10,A15,seed_used_cod,clinician shorthand for A15
-Kochs,kochs,icd10,A16,seed_used_cod,clinician shorthand for A16
-Kochs,kochs,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-Kochs,kochs,icd11,1B10.1,seed_used_cod,clinician shorthand for 1B10.1
-Koch's disease,koch s disease,icd10,A15,seed_used_cod,clinician shorthand for A15
-Koch's disease,koch s disease,icd10,A16,seed_used_cod,clinician shorthand for A16
-Koch's disease,koch s disease,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-Koch's disease,koch s disease,icd11,1B10.1,seed_used_cod,clinician shorthand for 1B10.1
-koch disease,koch disease,icd10,A15,seed_used_cod,clinician shorthand for A15
-koch disease,koch disease,icd10,A16,seed_used_cod,clinician shorthand for A16
-koch disease,koch disease,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-koch disease,koch disease,icd11,1B10.1,seed_used_cod,clinician shorthand for 1B10.1
-pulmonary TB,pulmonary tb,icd10,A15,seed_used_cod,clinician shorthand for A15
-pulmonary TB,pulmonary tb,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-pulmonary tuberculosis,pulmonary tuberculosis,icd10,A15,seed_used_cod,clinician shorthand for A15
-pulmonary tuberculosis,pulmonary tuberculosis,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-consumption,consumption,icd10,A15,seed_used_cod,clinician shorthand for A15
-consumption,consumption,icd11,1B10.0,seed_used_cod,clinician shorthand for 1B10.0
-ALD,ald,icd10,K70,seed_used_cod,clinician shorthand for K70
-ALD,ald,icd11,DB94,seed_used_cod,clinician shorthand for DB94
-CLD,cld,icd10,K74,seed_used_cod,clinician shorthand for K74
-CLD,cld,icd11,DB93,seed_used_cod,clinician shorthand for DB93
-chronic liver disease,chronic liver disease,icd10,K74,seed_used_cod,clinician shorthand for K74
-chronic liver disease,chronic liver disease,icd11,DB93,seed_used_cod,clinician shorthand for DB93
-liver failure,liver failure,icd10,K72,seed_used_cod,clinician shorthand for K72
-liver failure,liver failure,icd11,DB99.7,seed_used_cod,clinician shorthand for DB99.7
-hepatic encephalopathy,hepatic encephalopathy,icd10,K72,seed_used_cod,clinician shorthand for K72
-hepatic encephalopathy,hepatic encephalopathy,icd11,DB99.7,seed_used_cod,clinician shorthand for DB99.7
-CA stomach,ca stomach,icd10,C16,seed_used_cod,clinician shorthand for C16
-CA stomach,ca stomach,icd11,2B72,seed_used_cod,clinician shorthand for 2B72
-stomach cancer,stomach cancer,icd10,C16,seed_used_cod,clinician shorthand for C16
-stomach cancer,stomach cancer,icd11,2B72,seed_used_cod,clinician shorthand for 2B72
-gastric cancer,gastric cancer,icd10,C16,seed_used_cod,clinician shorthand for C16
-gastric cancer,gastric cancer,icd11,2B72,seed_used_cod,clinician shorthand for 2B72
-gastric carcinoma,gastric carcinoma,icd10,C16,seed_used_cod,clinician shorthand for C16
-gastric carcinoma,gastric carcinoma,icd11,2B72,seed_used_cod,clinician shorthand for 2B72
-cancer stomach,cancer stomach,icd10,C16,seed_used_cod,clinician shorthand for C16
-cancer stomach,cancer stomach,icd11,2B72,seed_used_cod,clinician shorthand for 2B72
-CA lung,ca lung,icd10,C34,seed_used_cod,clinician shorthand for C34
-CA lung,ca lung,icd11,2C25,seed_used_cod,clinician shorthand for 2C25
-lung cancer,lung cancer,icd10,C34,seed_used_cod,clinician shorthand for C34
-lung cancer,lung cancer,icd11,2C25,seed_used_cod,clinician shorthand for 2C25
-lung CA,lung ca,icd10,C34,seed_used_cod,clinician shorthand for C34
-lung CA,lung ca,icd11,2C25,seed_used_cod,clinician shorthand for 2C25
-lung malignancy,lung malignancy,icd10,C34,seed_used_cod,clinician shorthand for C34
-lung malignancy,lung malignancy,icd11,2C25,seed_used_cod,clinician shorthand for 2C25
-CA breast,ca breast,icd10,C50,seed_used_cod,clinician shorthand for C50
-CA breast,ca breast,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z
-breast cancer,breast cancer,icd10,C50,seed_used_cod,clinician shorthand for C50
-breast cancer,breast cancer,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z
-breast CA,breast ca,icd10,C50,seed_used_cod,clinician shorthand for C50
-breast CA,breast ca,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z
-CA oesophagus,ca oesophagus,icd10,C15,seed_used_cod,clinician shorthand for C15
-CA oesophagus,ca oesophagus,icd11,2B70,seed_used_cod,clinician shorthand for 2B70
-esophageal cancer,esophageal cancer,icd10,C15,seed_used_cod,clinician shorthand for C15
-esophageal cancer,esophageal cancer,icd11,2B70,seed_used_cod,clinician shorthand for 2B70
-cancer oesophagus,cancer oesophagus,icd10,C15,seed_used_cod,clinician shorthand for C15
-cancer oesophagus,cancer oesophagus,icd11,2B70,seed_used_cod,clinician shorthand for 2B70
-food pipe cancer,food pipe cancer,icd10,C15,seed_used_cod,clinician shorthand for C15
-food pipe cancer,food pipe cancer,icd11,2B70,seed_used_cod,clinician shorthand for 2B70
-oral cancer,oral cancer,icd10,C06,seed_used_cod,clinician shorthand for C06
-oral cancer,oral cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66
-mouth cancer,mouth cancer,icd10,C06,seed_used_cod,clinician shorthand for C06
-mouth cancer,mouth cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66
-oral cavity cancer,oral cavity cancer,icd10,C06,seed_used_cod,clinician shorthand for C06
-oral cavity cancer,oral cavity cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66
-HCC,hcc,icd10,C22,seed_used_cod,clinician shorthand for C22
-HCC,hcc,icd11,2C12,seed_used_cod,clinician shorthand for 2C12
-hepatocellular carcinoma,hepatocellular carcinoma,icd10,C22,seed_used_cod,clinician shorthand for C22
-hepatocellular carcinoma,hepatocellular carcinoma,icd11,2C12,seed_used_cod,clinician shorthand for 2C12
-liver cancer,liver cancer,icd10,C22,seed_used_cod,clinician shorthand for C22
-liver cancer,liver cancer,icd11,2C12,seed_used_cod,clinician shorthand for 2C12
-CA liver,ca liver,icd10,C22,seed_used_cod,clinician shorthand for C22
-CA liver,ca liver,icd11,2C12,seed_used_cod,clinician shorthand for 2C12
-hepatoma,hepatoma,icd10,C22,seed_used_cod,clinician shorthand for C22
-hepatoma,hepatoma,icd11,2C12,seed_used_cod,clinician shorthand for 2C12
-fits,fits,icd10,G40,seed_used_cod,clinician shorthand for G40
-fits,fits,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z
-falling sickness,falling sickness,icd10,G40,seed_used_cod,clinician shorthand for G40
-falling sickness,falling sickness,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z
-seizure disorder,seizure disorder,icd10,G40,seed_used_cod,clinician shorthand for G40
-seizure disorder,seizure disorder,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z
-mirgi,mirgi,icd10,G40,seed_used_cod,clinician shorthand for G40
-mirgi,mirgi,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z
-septicaemia,septicaemia,icd10,A41,seed_used_cod,clinician shorthand for A41
-septicaemia,septicaemia,icd11,1G40,seed_used_cod,clinician shorthand for 1G40
-septicemia,septicemia,icd10,A41,seed_used_cod,clinician shorthand for A41
-septicemia,septicemia,icd11,1G40,seed_used_cod,clinician shorthand for 1G40
-PUO,puo,icd10,R50,seed_used_cod,clinician shorthand for R50
-PUO,puo,icd11,MG26,seed_used_cod,clinician shorthand for MG26
-pyrexia of unknown origin,pyrexia of unknown origin,icd10,R50,seed_used_cod,clinician shorthand for R50
-pyrexia of unknown origin,pyrexia of unknown origin,icd11,MG26,seed_used_cod,clinician shorthand for MG26
-hanging,hanging,icd10,X70,seed_used_cod,clinician shorthand for X70
-hanging,hanging,icd11,PC71,seed_used_cod,clinician shorthand for PC71
-suicide by hanging,suicide by hanging,icd10,X70,seed_used_cod,clinician shorthand for X70
-suicide by hanging,suicide by hanging,icd11,PC71,seed_used_cod,clinician shorthand for PC71
-accidental fall,accidental fall,icd10,W19,seed_used_cod,clinician shorthand for W19
-RTA,rta,icd10,V89,seed_used_cod,clinician shorthand for V89
-road traffic accident,road traffic accident,icd10,V89,seed_used_cod,clinician shorthand for V89
-road accident,road accident,icd10,V89,seed_used_cod,clinician shorthand for V89
-motor vehicle accident,motor vehicle accident,icd10,V89,seed_used_cod,clinician shorthand for V89
-MVA,mva,icd10,V89,seed_used_cod,clinician shorthand for V89
-preterm,preterm,icd10,P07,seed_used_cod,clinician shorthand for P07
-preterm,preterm,icd11,KA21,seed_used_cod,clinician shorthand for KA21
-premature baby,premature baby,icd10,P07,seed_used_cod,clinician shorthand for P07
-premature baby,premature baby,icd11,KA21,seed_used_cod,clinician shorthand for KA21
-LBW,lbw,icd10,P07,seed_used_cod,clinician shorthand for P07
-LBW,lbw,icd11,KA21,seed_used_cod,clinician shorthand for KA21
-old TB,old tb,icd10,B90,seed_used_cod,clinician shorthand for B90
-old TB,old tb,icd11,1G80,seed_used_cod,clinician shorthand for 1G80
-post tuberculosis,post tuberculosis,icd10,B90,seed_used_cod,clinician shorthand for B90
-post tuberculosis,post tuberculosis,icd11,1G80,seed_used_cod,clinician shorthand for 1G80
-ICH,ich,icd10,I61,seed_used_cod,clinician shorthand for I61
-ICH,ich,icd11,8B00,seed_used_cod,clinician shorthand for 8B00
-brain bleed,brain bleed,icd10,I61,seed_used_cod,clinician shorthand for I61
-brain bleed,brain bleed,icd11,8B00,seed_used_cod,clinician shorthand for 8B00
-brain hemorrhage,brain hemorrhage,icd10,I61,seed_used_cod,clinician shorthand for I61
-brain hemorrhage,brain hemorrhage,icd11,8B00,seed_used_cod,clinician shorthand for 8B00
-old stroke,old stroke,icd10,I69,seed_used_cod,clinician shorthand for I69
-old stroke,old stroke,icd11,8B25,seed_used_cod,clinician shorthand for 8B25
-old age,old age,icd10,R54,seed_used_cod,clinician shorthand for R54
-old age,old age,icd11,MG2A,seed_used_cod,clinician shorthand for MG2A
-unknown cause,unknown cause,icd10,R99,seed_used_cod,clinician shorthand for R99
-unknown cause,unknown cause,icd11,MH14,seed_used_cod,clinician shorthand for MH14
-cause unknown,cause unknown,icd10,R99,seed_used_cod,clinician shorthand for R99
-cause unknown,cause unknown,icd11,MH14,seed_used_cod,clinician shorthand for MH14
-connective tissue of breast,connective tissue of breast,icd10,C50,who_inclusion,WHO ICD-10 inclusion term for C50
-diabetes (mellitus)(nonobese)(obese): adult-onset,diabetes mellitus nonobese obese adult-onset,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11
-diabetes (mellitus)(nonobese)(obese): maturity-onset,diabetes mellitus nonobese obese maturity-onset,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11
-diabetes (mellitus)(nonobese)(obese): nonketotic,diabetes mellitus nonobese obese nonketotic,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11
-diabetes (mellitus)(nonobese)(obese): stable,diabetes mellitus nonobese obese stable,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11
-non-insulin-dependent diabetes of the young,non-insulin-dependent diabetes of the young,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11
-diabetes NOS,diabetes nos,icd10,E14,who_inclusion,WHO ICD-10 inclusion term for E14
-"any condition in I50.-, I51.4-I51.9 due to hypertension",any condition in i50 - i51 4-i51 9 due to hypertension,icd10,I11,who_inclusion,WHO ICD-10 inclusion term for I11
-Cerebrovascular accident NOS,cerebrovascular accident nos,icd10,I64,who_inclusion,WHO ICD-10 inclusion term for I64
-Acute (lower) respiratory (tract) infection NOS,acute lower respiratory tract infection nos,icd10,J22,who_inclusion,WHO ICD-10 inclusion term for J22
-chronic: bronchitis: asthmatic (obstructive),chronic bronchitis asthmatic obstructive,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: bronchitis: emphysematous,chronic bronchitis emphysematous,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: bronchitis: with: airways obstruction,chronic bronchitis with airways obstruction,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: bronchitis: with: emphysema,chronic bronchitis with emphysema,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: obstructive: asthma,chronic obstructive asthma,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: obstructive: bronchitis,chronic obstructive bronchitis,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-chronic: obstructive: tracheobronchitis,chronic obstructive tracheobronchitis,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44
-hepatic: coma NOS,hepatic coma nos,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-hepatic: encephalopathy NOS G94.3,hepatic encephalopathy nos g94 3,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-"hepatitis: fulminant NEC, with hepatic failure",hepatitis fulminant nec with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-"hepatitis: malignant NEC, with hepatic failure",hepatitis malignant nec with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-liver (cell) necrosis with hepatic failure,liver cell necrosis with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-yellow liver atrophy or dystrophy,yellow liver atrophy or dystrophy,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72
-acute renal impairment,acute renal impairment,icd10,N17,who_inclusion,WHO ICD-10 inclusion term for N17
-Renal insufficiency NOS,renal insufficiency nos,icd10,N19,who_inclusion,WHO ICD-10 inclusion term for N19
-Uraemia NOS,uraemia nos,icd10,N19,who_inclusion,WHO ICD-10 inclusion term for N19
-Old age without mention of psychosis,old age without mention of psychosis,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54
-Senescence without mention of psychosis,senescence without mention of psychosis,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54
-Senile: asthenia,senile asthenia,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54
-Senile: debility,senile debility,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54
-Death NOS,death nos,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99
-Unknown cause of mortality,unknown cause of mortality,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99
-accidental fall NOS,accidental fall nos,icd10,W19,who_inclusion,WHO ICD-10 inclusion term for W19
-cor pulmonale,cor pulmonale,icd10,I27.9,seed_used_cod,WHO VA cause ranges: external-cause addendum
-cor pulmonale,cor pulmonale,icd11,BB01.5,seed_used_cod,WHO VA cause ranges: external-cause addendum
-uremia,uremia,icd10,N19,seed_used_cod,clinician shorthand for N19
-uremia,uremia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z
-uraemia,uraemia,icd10,N19,seed_used_cod,clinician shorthand for N19
-uraemia,uraemia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z
-head injury,head injury,icd10,S06.9,seed_used_cod,clinician shorthand for S06.9
-head injury,head injury,icd11,NA07,seed_used_cod,clinician shorthand for NA07
-head trauma,head trauma,icd10,S06.9,seed_used_cod,clinician shorthand for S06.9
-head trauma,head trauma,icd11,NA07,seed_used_cod,clinician shorthand for NA07
-road traffic injury,road traffic injury,icd10,V89,seed_used_cod,ICD-11 counterpart pending (VAs-12.01 footnote f)
-suicide,suicide,icd10,X70,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code"
-suicide,suicide,icd11,PC71,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code"
-self-harm,self-harm,icd10,X70,seed_used_cod,clinician shorthand for X70
-self-harm,self-harm,icd11,PC71,seed_used_cod,clinician shorthand for PC71
-assault,assault,icd10,Y09,seed_used_cod,ICD-11 counterpart needs a decision (PD50-PF2Z block)
-drowning,drowning,icd10,W74,seed_used_cod,clinician shorthand for W74
-drowning,drowning,icd11,PA9Z,seed_used_cod,clinician shorthand for PA9Z
-accident,accident,icd10,V89,seed_used_cod,clinician shorthand for V89
-kidney cancer,kidney cancer,icd10,C64,seed_used_cod,clinician shorthand for C64
-kidney cancer,kidney cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90
-renal cancer,renal cancer,icd10,C64,seed_used_cod,clinician shorthand for C64
-renal cancer,renal cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90
-bladder cancer,bladder cancer,icd10,C67,seed_used_cod,clinician shorthand for C67
-bladder cancer,bladder cancer,icd11,2C94,seed_used_cod,clinician shorthand for 2C94
-cervical cancer,cervical cancer,icd10,C53,seed_used_cod,clinician shorthand for C53
-cervical cancer,cervical cancer,icd11,2C77,seed_used_cod,clinician shorthand for 2C77
-cancer cervix,cancer cervix,icd10,C53,seed_used_cod,clinician shorthand for C53
-cancer cervix,cancer cervix,icd11,2C77,seed_used_cod,clinician shorthand for 2C77
-gall bladder cancer,gall bladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23
-gall bladder cancer,gall bladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13
-gallbladder cancer,gallbladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23
-gallbladder cancer,gallbladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13
-blood cancer,blood cancer,icd10,C95,seed_used_cod,clinician shorthand for C95
-blood cancer,blood cancer,icd11,2B33.4,seed_used_cod,clinician shorthand for 2B33.4
-uterine cancer,uterine cancer,icd10,C55,seed_used_cod,clinician shorthand for C55
-uterine cancer,uterine cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78
-womb cancer,womb cancer,icd10,C55,seed_used_cod,clinician shorthand for C55
-womb cancer,womb cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78
-prostate cancer,prostate cancer,icd10,C61,seed_used_cod,clinician shorthand for C61
-prostate cancer,prostate cancer,icd11,2C82,seed_used_cod,clinician shorthand for 2C82
-assault,assault,icd11,PF2Z,seed_used_cod,clinician shorthand for PF2Z
-drug reaction,drug reaction,icd10,T88.7,seed_used_cod,adverse effect of drug or medicament
-drug reaction,drug reaction,icd11,NF09,seed_used_cod,adverse effect of drug or medicament
-allergic reaction,allergic reaction,icd10,T78.4,seed_used_cod,"allergy, unspecified"
-allergic reaction,allergic reaction,icd11,4A8Z,seed_used_cod,"allergy, unspecified"
-anaphylaxis,anaphylaxis,icd10,T78.2,seed_used_cod,clinician shorthand for T78.2
-anaphylaxis,anaphylaxis,icd11,4A84,seed_used_cod,clinician shorthand for 4A84
-disseminated tuberculosis,disseminated tuberculosis,icd10,A19,seed_used_cod,miliary/disseminated TB
-disseminated tuberculosis,disseminated tuberculosis,icd11,1B13,seed_used_cod,miliary/disseminated TB
-disseminated TB,disseminated tb,icd10,A19,seed_used_cod,clinician shorthand for A19
-disseminated TB,disseminated tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13
-miliary TB,miliary tb,icd10,A19,seed_used_cod,clinician shorthand for A19
-miliary TB,miliary tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13
+term,term_normalized,icd_classification,icd_code,source,note,sort_order
+CVA,cva,icd10,I64,seed_used_cod,clinician shorthand for I64,
+CVA,cva,icd11,8B20,seed_used_cod,clinician shorthand for 8B20,
+cerebrovascular accident,cerebrovascular accident,icd10,I64,seed_used_cod,clinician shorthand for I64,
+cerebrovascular accident,cerebrovascular accident,icd11,8B20,seed_used_cod,clinician shorthand for 8B20,
+brain attack,brain attack,icd10,I64,seed_used_cod,clinician shorthand for I64,
+brain attack,brain attack,icd11,8B20,seed_used_cod,clinician shorthand for 8B20,
+paralysis,paralysis,icd10,I64,seed_used_cod,clinician shorthand for I64,
+paralysis,paralysis,icd11,8B20,seed_used_cod,clinician shorthand for 8B20,
+MI,mi,icd10,I21,seed_used_cod,clinician shorthand for I21,
+MI,mi,icd11,BA41,seed_used_cod,clinician shorthand for BA41,
+AMI,ami,icd10,I21,seed_used_cod,clinician shorthand for I21,
+AMI,ami,icd11,BA41,seed_used_cod,clinician shorthand for BA41,
+acute MI,acute mi,icd10,I21,seed_used_cod,clinician shorthand for I21,
+acute MI,acute mi,icd11,BA41,seed_used_cod,clinician shorthand for BA41,
+heart attack,heart attack,icd10,I21,seed_used_cod,clinician shorthand for I21,
+heart attack,heart attack,icd11,BA41,seed_used_cod,clinician shorthand for BA41,
+ACS,acs,icd10,I24,seed_used_cod,clinician shorthand for I24,
+ACS,acs,icd11,BA4Z,seed_used_cod,clinician shorthand for BA4Z,
+acute coronary syndrome,acute coronary syndrome,icd10,I24,seed_used_cod,clinician shorthand for I24,
+acute coronary syndrome,acute coronary syndrome,icd11,BA4Z,seed_used_cod,clinician shorthand for BA4Z,
+IHD,ihd,icd10,I25,seed_used_cod,clinician shorthand for I25,
+IHD,ihd,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z,
+CAD,cad,icd10,I25,seed_used_cod,clinician shorthand for I25,
+CAD,cad,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z,
+coronary artery disease,coronary artery disease,icd10,I25,seed_used_cod,clinician shorthand for I25,
+coronary artery disease,coronary artery disease,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z,
+coronary heart disease,coronary heart disease,icd10,I25,seed_used_cod,clinician shorthand for I25,
+coronary heart disease,coronary heart disease,icd11,BA5Z,seed_used_cod,clinician shorthand for BA5Z,
+CCF,ccf,icd11,BD10,seed_used_cod,clinician shorthand for BD10,
+CHF,chf,icd11,BD10,seed_used_cod,clinician shorthand for BD10,
+congestive cardiac failure,congestive cardiac failure,icd11,BD10,seed_used_cod,clinician shorthand for BD10,
+congestive heart failure,congestive heart failure,icd11,BD10,seed_used_cod,clinician shorthand for BD10,
+heart failure,heart failure,icd11,BD1Z,seed_used_cod,clinician shorthand for BD1Z,
+cardiac failure,cardiac failure,icd11,BD1Z,seed_used_cod,clinician shorthand for BD1Z,
+HHD,hhd,icd11,BA01,seed_used_cod,clinician shorthand for BA01,
+CKD,ckd,icd10,N18,seed_used_cod,clinician shorthand for N18,
+CKD,ckd,icd11,GB61,seed_used_cod,clinician shorthand for GB61,
+CRF,crf,icd10,N18,seed_used_cod,clinician shorthand for N18,
+CRF,crf,icd11,GB61,seed_used_cod,clinician shorthand for GB61,
+chronic renal failure,chronic renal failure,icd10,N18,seed_used_cod,clinician shorthand for N18,
+chronic renal failure,chronic renal failure,icd11,GB61,seed_used_cod,clinician shorthand for GB61,
+ESRD,esrd,icd10,N18,seed_used_cod,clinician shorthand for N18,
+ESRD,esrd,icd11,GB61,seed_used_cod,clinician shorthand for GB61,
+end stage renal disease,end stage renal disease,icd10,N18,seed_used_cod,clinician shorthand for N18,
+end stage renal disease,end stage renal disease,icd11,GB61,seed_used_cod,clinician shorthand for GB61,
+AKI,aki,icd10,N17,seed_used_cod,clinician shorthand for N17,
+AKI,aki,icd11,GB60,seed_used_cod,clinician shorthand for GB60,
+ARF,arf,icd10,N17,seed_used_cod,clinician shorthand for N17,
+ARF,arf,icd11,GB60,seed_used_cod,clinician shorthand for GB60,
+renal failure,renal failure,icd10,N19,seed_used_cod,clinician shorthand for N19,
+renal failure,renal failure,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z,
+DM,dm,icd10,E14,seed_used_cod,clinician shorthand for E14,
+DM,dm,icd11,5A14,seed_used_cod,clinician shorthand for 5A14,
+diabetes,diabetes,icd10,E14,seed_used_cod,clinician shorthand for E14,
+diabetes,diabetes,icd11,5A14,seed_used_cod,clinician shorthand for 5A14,
+sugar disease,sugar disease,icd10,E14,seed_used_cod,clinician shorthand for E14,
+sugar disease,sugar disease,icd11,5A14,seed_used_cod,clinician shorthand for 5A14,
+high sugar,high sugar,icd10,E14,seed_used_cod,clinician shorthand for E14,
+high sugar,high sugar,icd11,5A14,seed_used_cod,clinician shorthand for 5A14,
+madhumeh,madhumeh,icd10,E14,seed_used_cod,clinician shorthand for E14,
+madhumeh,madhumeh,icd11,5A14,seed_used_cod,clinician shorthand for 5A14,
+T2DM,t2dm,icd10,E11,seed_used_cod,clinician shorthand for E11,
+T2DM,t2dm,icd11,5A11,seed_used_cod,clinician shorthand for 5A11,
+NIDDM,niddm,icd10,E11,seed_used_cod,clinician shorthand for E11,
+NIDDM,niddm,icd11,5A11,seed_used_cod,clinician shorthand for 5A11,
+COAD,coad,icd10,J44,seed_used_cod,clinician shorthand for J44,
+COAD,coad,icd11,CA22,seed_used_cod,clinician shorthand for CA22,
+chronic obstructive airway disease,chronic obstructive airway disease,icd10,J44,seed_used_cod,clinician shorthand for J44,
+chronic obstructive airway disease,chronic obstructive airway disease,icd11,CA22,seed_used_cod,clinician shorthand for CA22,
+chronic airway obstruction,chronic airway obstruction,icd10,J44,seed_used_cod,clinician shorthand for J44,
+chronic airway obstruction,chronic airway obstruction,icd11,CA22,seed_used_cod,clinician shorthand for CA22,
+bronchial asthma,bronchial asthma,icd10,J45,seed_used_cod,clinician shorthand for J45,
+bronchial asthma,bronchial asthma,icd11,CA23,seed_used_cod,clinician shorthand for CA23,
+chest infection,chest infection,icd10,J18,seed_used_cod,clinician shorthand for J18,
+chest infection,chest infection,icd11,CA40,seed_used_cod,clinician shorthand for CA40,
+LRTI,lrti,icd10,J22,seed_used_cod,clinician shorthand for J22,
+lower respiratory tract infection,lower respiratory tract infection,icd10,J22,seed_used_cod,clinician shorthand for J22,
+lung failure,lung failure,icd10,J96,seed_used_cod,clinician shorthand for J96,
+lung failure,lung failure,icd11,CB41,seed_used_cod,clinician shorthand for CB41,
+pulmonary tuberculosis,pulmonary tuberculosis,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+pulmonary tuberculosis,pulmonary tuberculosis,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+consumption,consumption,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+consumption,consumption,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+ALD,ald,icd11,DB94,seed_used_cod,clinician shorthand for DB94,
+CLD,cld,icd10,K74,seed_used_cod,clinician shorthand for K74,
+CLD,cld,icd11,DB93,seed_used_cod,clinician shorthand for DB93,
+chronic liver disease,chronic liver disease,icd10,K74,seed_used_cod,clinician shorthand for K74,
+chronic liver disease,chronic liver disease,icd11,DB93,seed_used_cod,clinician shorthand for DB93,
+liver failure,liver failure,icd10,K72,seed_used_cod,clinician shorthand for K72,
+liver failure,liver failure,icd11,DB99.7,seed_used_cod,clinician shorthand for DB99.7,
+hepatic encephalopathy,hepatic encephalopathy,icd10,K72,seed_used_cod,clinician shorthand for K72,
+hepatic encephalopathy,hepatic encephalopathy,icd11,DB99.7,seed_used_cod,clinician shorthand for DB99.7,
+CA stomach,ca stomach,icd10,C16,seed_used_cod,clinician shorthand for C16,
+CA stomach,ca stomach,icd11,2B72,seed_used_cod,clinician shorthand for 2B72,
+stomach cancer,stomach cancer,icd10,C16,seed_used_cod,clinician shorthand for C16,
+stomach cancer,stomach cancer,icd11,2B72,seed_used_cod,clinician shorthand for 2B72,
+gastric cancer,gastric cancer,icd10,C16,seed_used_cod,clinician shorthand for C16,
+gastric cancer,gastric cancer,icd11,2B72,seed_used_cod,clinician shorthand for 2B72,
+gastric carcinoma,gastric carcinoma,icd10,C16,seed_used_cod,clinician shorthand for C16,
+gastric carcinoma,gastric carcinoma,icd11,2B72,seed_used_cod,clinician shorthand for 2B72,
+cancer stomach,cancer stomach,icd10,C16,seed_used_cod,clinician shorthand for C16,
+cancer stomach,cancer stomach,icd11,2B72,seed_used_cod,clinician shorthand for 2B72,
+CA lung,ca lung,icd10,C34,seed_used_cod,clinician shorthand for C34,
+CA lung,ca lung,icd11,2C25,seed_used_cod,clinician shorthand for 2C25,
+lung cancer,lung cancer,icd10,C34,seed_used_cod,clinician shorthand for C34,
+lung cancer,lung cancer,icd11,2C25,seed_used_cod,clinician shorthand for 2C25,
+lung CA,lung ca,icd10,C34,seed_used_cod,clinician shorthand for C34,
+lung CA,lung ca,icd11,2C25,seed_used_cod,clinician shorthand for 2C25,
+lung malignancy,lung malignancy,icd10,C34,seed_used_cod,clinician shorthand for C34,
+lung malignancy,lung malignancy,icd11,2C25,seed_used_cod,clinician shorthand for 2C25,
+CA breast,ca breast,icd10,C50,seed_used_cod,clinician shorthand for C50,
+CA breast,ca breast,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z,
+breast cancer,breast cancer,icd10,C50,seed_used_cod,clinician shorthand for C50,
+breast cancer,breast cancer,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z,
+breast CA,breast ca,icd10,C50,seed_used_cod,clinician shorthand for C50,
+breast CA,breast ca,icd11,2C6Z,seed_used_cod,clinician shorthand for 2C6Z,
+CA oesophagus,ca oesophagus,icd10,C15,seed_used_cod,clinician shorthand for C15,
+CA oesophagus,ca oesophagus,icd11,2B70,seed_used_cod,clinician shorthand for 2B70,
+esophageal cancer,esophageal cancer,icd10,C15,seed_used_cod,clinician shorthand for C15,
+esophageal cancer,esophageal cancer,icd11,2B70,seed_used_cod,clinician shorthand for 2B70,
+cancer oesophagus,cancer oesophagus,icd10,C15,seed_used_cod,clinician shorthand for C15,
+cancer oesophagus,cancer oesophagus,icd11,2B70,seed_used_cod,clinician shorthand for 2B70,
+food pipe cancer,food pipe cancer,icd10,C15,seed_used_cod,clinician shorthand for C15,
+food pipe cancer,food pipe cancer,icd11,2B70,seed_used_cod,clinician shorthand for 2B70,
+oral cancer,oral cancer,icd10,C06,seed_used_cod,clinician shorthand for C06,
+oral cancer,oral cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66,
+mouth cancer,mouth cancer,icd10,C06,seed_used_cod,clinician shorthand for C06,
+mouth cancer,mouth cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66,
+oral cavity cancer,oral cavity cancer,icd10,C06,seed_used_cod,clinician shorthand for C06,
+oral cavity cancer,oral cavity cancer,icd11,2B66,seed_used_cod,clinician shorthand for 2B66,
+HCC,hcc,icd10,C22,seed_used_cod,clinician shorthand for C22,
+HCC,hcc,icd11,2C12,seed_used_cod,clinician shorthand for 2C12,
+hepatocellular carcinoma,hepatocellular carcinoma,icd10,C22,seed_used_cod,clinician shorthand for C22,
+hepatocellular carcinoma,hepatocellular carcinoma,icd11,2C12,seed_used_cod,clinician shorthand for 2C12,
+liver cancer,liver cancer,icd10,C22,seed_used_cod,clinician shorthand for C22,
+liver cancer,liver cancer,icd11,2C12,seed_used_cod,clinician shorthand for 2C12,
+CA liver,ca liver,icd10,C22,seed_used_cod,clinician shorthand for C22,
+CA liver,ca liver,icd11,2C12,seed_used_cod,clinician shorthand for 2C12,
+hepatoma,hepatoma,icd10,C22,seed_used_cod,clinician shorthand for C22,
+hepatoma,hepatoma,icd11,2C12,seed_used_cod,clinician shorthand for 2C12,
+fits,fits,icd10,G40,seed_used_cod,clinician shorthand for G40,
+fits,fits,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z,
+falling sickness,falling sickness,icd10,G40,seed_used_cod,clinician shorthand for G40,
+falling sickness,falling sickness,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z,
+seizure disorder,seizure disorder,icd10,G40,seed_used_cod,clinician shorthand for G40,
+seizure disorder,seizure disorder,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z,
+mirgi,mirgi,icd10,G40,seed_used_cod,clinician shorthand for G40,
+mirgi,mirgi,icd11,8A6Z,seed_used_cod,clinician shorthand for 8A6Z,
+septicaemia,septicaemia,icd10,A41,seed_used_cod,clinician shorthand for A41,
+septicaemia,septicaemia,icd11,1G40,seed_used_cod,clinician shorthand for 1G40,
+septicemia,septicemia,icd10,A41,seed_used_cod,clinician shorthand for A41,
+septicemia,septicemia,icd11,1G40,seed_used_cod,clinician shorthand for 1G40,
+PUO,puo,icd10,R50,seed_used_cod,clinician shorthand for R50,
+PUO,puo,icd11,MG26,seed_used_cod,clinician shorthand for MG26,
+pyrexia of unknown origin,pyrexia of unknown origin,icd10,R50,seed_used_cod,clinician shorthand for R50,
+pyrexia of unknown origin,pyrexia of unknown origin,icd11,MG26,seed_used_cod,clinician shorthand for MG26,
+hanging,hanging,icd10,X70,seed_used_cod,clinician shorthand for X70,
+hanging,hanging,icd11,PC71,seed_used_cod,clinician shorthand for PC71,
+suicide by hanging,suicide by hanging,icd10,X70,seed_used_cod,clinician shorthand for X70,
+suicide by hanging,suicide by hanging,icd11,PC71,seed_used_cod,clinician shorthand for PC71,
+accidental fall,accidental fall,icd10,W19,seed_used_cod,clinician shorthand for W19,
+RTA,rta,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+road traffic accident,road traffic accident,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+road accident,road accident,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+motor vehicle accident,motor vehicle accident,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+MVA,mva,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+preterm,preterm,icd10,P07,seed_used_cod,clinician shorthand for P07,
+preterm,preterm,icd11,KA21,seed_used_cod,clinician shorthand for KA21,
+premature baby,premature baby,icd10,P07,seed_used_cod,clinician shorthand for P07,
+premature baby,premature baby,icd11,KA21,seed_used_cod,clinician shorthand for KA21,
+LBW,lbw,icd10,P07,seed_used_cod,clinician shorthand for P07,
+LBW,lbw,icd11,KA21,seed_used_cod,clinician shorthand for KA21,
+old TB,old tb,icd10,B90,seed_used_cod,clinician shorthand for B90,
+old TB,old tb,icd11,1G80,seed_used_cod,clinician shorthand for 1G80,
+post tuberculosis,post tuberculosis,icd10,B90,seed_used_cod,clinician shorthand for B90,
+post tuberculosis,post tuberculosis,icd11,1G80,seed_used_cod,clinician shorthand for 1G80,
+ICH,ich,icd10,I61,seed_used_cod,clinician shorthand for I61,
+ICH,ich,icd11,8B00,seed_used_cod,clinician shorthand for 8B00,
+brain bleed,brain bleed,icd10,I61,seed_used_cod,clinician shorthand for I61,
+brain bleed,brain bleed,icd11,8B00,seed_used_cod,clinician shorthand for 8B00,
+brain hemorrhage,brain hemorrhage,icd10,I61,seed_used_cod,clinician shorthand for I61,
+brain hemorrhage,brain hemorrhage,icd11,8B00,seed_used_cod,clinician shorthand for 8B00,
+old stroke,old stroke,icd10,I69,seed_used_cod,clinician shorthand for I69,
+old stroke,old stroke,icd11,8B25,seed_used_cod,clinician shorthand for 8B25,
+old age,old age,icd10,R54,seed_used_cod,clinician shorthand for R54,
+old age,old age,icd11,MG2A,seed_used_cod,clinician shorthand for MG2A,
+unknown cause,unknown cause,icd10,R99,seed_used_cod,clinician shorthand for R99,
+unknown cause,unknown cause,icd11,MH14,seed_used_cod,clinician shorthand for MH14,
+cause unknown,cause unknown,icd10,R99,seed_used_cod,clinician shorthand for R99,
+cause unknown,cause unknown,icd11,MH14,seed_used_cod,clinician shorthand for MH14,
+connective tissue of breast,connective tissue of breast,icd10,C50,who_inclusion,WHO ICD-10 inclusion term for C50,
+diabetes (mellitus)(nonobese)(obese): adult-onset,diabetes mellitus nonobese obese adult-onset,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11,
+diabetes (mellitus)(nonobese)(obese): maturity-onset,diabetes mellitus nonobese obese maturity-onset,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11,
+diabetes (mellitus)(nonobese)(obese): nonketotic,diabetes mellitus nonobese obese nonketotic,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11,
+diabetes (mellitus)(nonobese)(obese): stable,diabetes mellitus nonobese obese stable,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11,
+non-insulin-dependent diabetes of the young,non-insulin-dependent diabetes of the young,icd10,E11,who_inclusion,WHO ICD-10 inclusion term for E11,
+diabetes NOS,diabetes nos,icd10,E14,who_inclusion,WHO ICD-10 inclusion term for E14,
+Cerebrovascular accident NOS,cerebrovascular accident nos,icd10,I64,who_inclusion,WHO ICD-10 inclusion term for I64,
+Acute (lower) respiratory (tract) infection NOS,acute lower respiratory tract infection nos,icd10,J22,who_inclusion,WHO ICD-10 inclusion term for J22,
+chronic: bronchitis: asthmatic (obstructive),chronic bronchitis asthmatic obstructive,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: bronchitis: emphysematous,chronic bronchitis emphysematous,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: bronchitis: with: airways obstruction,chronic bronchitis with airways obstruction,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: bronchitis: with: emphysema,chronic bronchitis with emphysema,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: obstructive: asthma,chronic obstructive asthma,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: obstructive: bronchitis,chronic obstructive bronchitis,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+chronic: obstructive: tracheobronchitis,chronic obstructive tracheobronchitis,icd10,J44,who_inclusion,WHO ICD-10 inclusion term for J44,
+hepatic: coma NOS,hepatic coma nos,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+hepatic: encephalopathy NOS G94.3,hepatic encephalopathy nos g94 3,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+"hepatitis: fulminant NEC, with hepatic failure",hepatitis fulminant nec with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+"hepatitis: malignant NEC, with hepatic failure",hepatitis malignant nec with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+liver (cell) necrosis with hepatic failure,liver cell necrosis with hepatic failure,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+yellow liver atrophy or dystrophy,yellow liver atrophy or dystrophy,icd10,K72,who_inclusion,WHO ICD-10 inclusion term for K72,
+acute renal impairment,acute renal impairment,icd10,N17,who_inclusion,WHO ICD-10 inclusion term for N17,
+Renal insufficiency NOS,renal insufficiency nos,icd10,N19,who_inclusion,WHO ICD-10 inclusion term for N19,
+Uraemia NOS,uraemia nos,icd10,N19,who_inclusion,WHO ICD-10 inclusion term for N19,
+Old age without mention of psychosis,old age without mention of psychosis,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54,
+Senescence without mention of psychosis,senescence without mention of psychosis,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54,
+Senile: asthenia,senile asthenia,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54,
+Senile: debility,senile debility,icd10,R54,who_inclusion,WHO ICD-10 inclusion term for R54,
+Death NOS,death nos,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99,
+Unknown cause of mortality,unknown cause of mortality,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99,
+accidental fall NOS,accidental fall nos,icd10,W19,who_inclusion,WHO ICD-10 inclusion term for W19,
+cor pulmonale,cor pulmonale,icd11,BB01.5,seed_used_cod,WHO VA cause ranges: external-cause addendum,
+uremia,uremia,icd10,N19,seed_used_cod,clinician shorthand for N19,
+uremia,uremia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z,
+uraemia,uraemia,icd10,N19,seed_used_cod,clinician shorthand for N19,
+uraemia,uraemia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z,
+road traffic injury,road traffic injury,icd10,V89.2,seed_used_cod,traffic (V89.2 -> Road traffic accident bucket); V89 3-char buckets as Other transport accident,
+suicide,suicide,icd10,X70,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code",
+suicide,suicide,icd11,PC71,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code",
+self-harm,self-harm,icd10,X70,seed_used_cod,clinician shorthand for X70,
+self-harm,self-harm,icd11,PC71,seed_used_cod,clinician shorthand for PC71,
+assault,assault,icd10,Y09,seed_used_cod,ICD-11 counterpart needs a decision (PD50-PF2Z block),
+drowning,drowning,icd10,W74,seed_used_cod,clinician shorthand for W74,
+drowning,drowning,icd11,PA9Z,seed_used_cod,clinician shorthand for PA9Z,
+kidney cancer,kidney cancer,icd10,C64,seed_used_cod,clinician shorthand for C64,
+kidney cancer,kidney cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90,
+renal cancer,renal cancer,icd10,C64,seed_used_cod,clinician shorthand for C64,
+renal cancer,renal cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90,
+bladder cancer,bladder cancer,icd10,C67,seed_used_cod,clinician shorthand for C67,
+bladder cancer,bladder cancer,icd11,2C94,seed_used_cod,clinician shorthand for 2C94,
+cervical cancer,cervical cancer,icd10,C53,seed_used_cod,clinician shorthand for C53,
+cervical cancer,cervical cancer,icd11,2C77,seed_used_cod,clinician shorthand for 2C77,
+cancer cervix,cancer cervix,icd10,C53,seed_used_cod,clinician shorthand for C53,
+cancer cervix,cancer cervix,icd11,2C77,seed_used_cod,clinician shorthand for 2C77,
+gall bladder cancer,gall bladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23,
+gall bladder cancer,gall bladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13,
+gallbladder cancer,gallbladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23,
+gallbladder cancer,gallbladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13,
+blood cancer,blood cancer,icd10,C95,seed_used_cod,clinician shorthand for C95,
+blood cancer,blood cancer,icd11,2B33.4,seed_used_cod,clinician shorthand for 2B33.4,
+uterine cancer,uterine cancer,icd10,C55,seed_used_cod,clinician shorthand for C55,
+uterine cancer,uterine cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78,
+womb cancer,womb cancer,icd10,C55,seed_used_cod,clinician shorthand for C55,
+womb cancer,womb cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78,
+prostate cancer,prostate cancer,icd10,C61,seed_used_cod,clinician shorthand for C61,
+prostate cancer,prostate cancer,icd11,2C82,seed_used_cod,clinician shorthand for 2C82,
+assault,assault,icd11,PF2Z,seed_used_cod,clinician shorthand for PF2Z,
+allergic reaction,allergic reaction,icd11,4A8Z,seed_used_cod,"allergy, unspecified",1
+anaphylaxis,anaphylaxis,icd11,4A84,seed_used_cod,clinician shorthand for 4A84,1
+disseminated tuberculosis,disseminated tuberculosis,icd10,A19,seed_used_cod,miliary/disseminated TB,
+disseminated tuberculosis,disseminated tuberculosis,icd11,1B13,seed_used_cod,miliary/disseminated TB,
+disseminated TB,disseminated tb,icd10,A19,seed_used_cod,clinician shorthand for A19,
+disseminated TB,disseminated tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13,
+miliary TB,miliary tb,icd10,A19,seed_used_cod,clinician shorthand for A19,
+miliary TB,miliary tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13,
+diarrhoea,diarrhea,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+diarrhoea,diarrhea,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+acute diarrhoea,acute diarrhea,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+acute diarrhoea,acute diarrhea,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+diarrhoeal disease,diarrheal disease,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+diarrhoeal disease,diarrheal disease,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+acute diarrhoeal disease,acute diarrheal disease,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+acute diarrhoeal disease,acute diarrheal disease,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+acute gastroenteritis,acute gastroenteritis,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+acute gastroenteritis,acute gastroenteritis,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+loose motions,loose motions,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+loose motions,loose motions,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+dysentery,dysentery,icd10,A09,seed_used_cod,"clinician usage for A09 (used final COD); A09 title says gastroenteritis, not diarrhoea",
+dysentery,dysentery,icd11,1A40.Z,seed_used_cod,ICD-11 counterpart of A09; same VA bucket (Diarrheal diseases),
+bacillary dysentery,bacillary dysentery,icd10,A03,seed_used_cod,shigellosis; bacillary dysentery per ICD-10 index,
+bacillary dysentery,bacillary dysentery,icd11,1A02,seed_used_cod,Intestinal infections due to Shigella,
+CCF,ccf,icd10,I50.0,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+CHF,chf,icd10,I50.0,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+congestive cardiac failure,congestive cardiac failure,icd10,I50.0,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+congestive heart failure,congestive heart failure,icd10,I50.0,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+heart failure,heart failure,icd10,I50.9,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+cardiac failure,cardiac failure,icd10,I50.9,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+HHD,hhd,icd10,I11.9,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+"Any condition in I50.-, I51.4-I51.9 due to hypertension",any condition in i50 - i51 4-i51 9 due to hypertension,icd10,I11.0,who_inclusion,policy repair 2026-09-25: previous target not coding-selectable,
+ALD,ald,icd10,K70.9,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+cor pulmonale,cor pulmonale,icd10,I27,seed_used_cod,policy repair 2026-09-25: previous target not coding-selectable,
+head injury,head injury,icd10,V89.2,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",1
+head injury,head injury,icd10,W19,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",2
+head injury,head injury,icd10,Y09,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",3
+head injury,head injury,icd10,W20,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",4
+head injury,head injury,icd10,X59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",5
+head injury,head injury,icd11,PA0Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",1
+head injury,head injury,icd11,PA6Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",2
+head injury,head injury,icd11,PF2Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",3
+head injury,head injury,icd11,PA8Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",4
+head injury,head injury,icd11,PB6Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",5
+head trauma,head trauma,icd10,V89.2,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",1
+head trauma,head trauma,icd10,W19,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",2
+head trauma,head trauma,icd10,Y09,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",3
+head trauma,head trauma,icd10,W20,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",4
+head trauma,head trauma,icd10,X59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",5
+head trauma,head trauma,icd11,PA0Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",1
+head trauma,head trauma,icd11,PA6Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",2
+head trauma,head trauma,icd11,PF2Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",3
+head trauma,head trauma,icd11,PA8Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",4
+head trauma,head trauma,icd11,PB6Z,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): traffic, fall, assault, falling object, unspecified",5
+anaphylaxis,anaphylaxis,icd10,Y57,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",1
+anaphylaxis,anaphylaxis,icd10,Y59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",2
+anaphylaxis,anaphylaxis,icd10,X23,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",3
+anaphylaxis,anaphylaxis,icd10,X29,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",4
+anaphylaxis,anaphylaxis,icd10,X59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",5
+anaphylaxis,anaphylaxis,icd11,PL00,seed_used_cod,external cause (S/T injury codes are not selectable as COD),2
+anaphylaxis,anaphylaxis,icd11,PA78,seed_used_cod,external cause (S/T injury codes are not selectable as COD),3
+anaphylaxis,anaphylaxis,icd11,PB6Z,seed_used_cod,external cause (S/T injury codes are not selectable as COD),4
+allergic reaction,allergic reaction,icd10,Y57,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",1
+allergic reaction,allergic reaction,icd10,Y59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",2
+allergic reaction,allergic reaction,icd10,X23,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",3
+allergic reaction,allergic reaction,icd10,X29,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",4
+allergic reaction,allergic reaction,icd10,X59,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): drug, vaccine, bee/wasp, venomous animal, unspecified",5
+allergic reaction,allergic reaction,icd11,PL00,seed_used_cod,external cause (S/T injury codes are not selectable as COD),2
+allergic reaction,allergic reaction,icd11,PA78,seed_used_cod,external cause (S/T injury codes are not selectable as COD),3
+allergic reaction,allergic reaction,icd11,PB6Z,seed_used_cod,external cause (S/T injury codes are not selectable as COD),4
+drug reaction,drug reaction,icd10,Y57,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+drug reaction,drug reaction,icd11,PL00,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+enteric fever,enteric fever,icd10,A01,seed_used_cod,common term,
+enteric fever,enteric fever,icd11,1A07,seed_used_cod,common term,
+AIDS,aids,icd10,B24,seed_used_cod,common term,
+AIDS,aids,icd11,1C62.Z,seed_used_cod,common term,
+snake bite,snake bite,icd10,X20,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+snake bite,snake bite,icd11,PA78,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+snakebite,snakebite,icd10,X20,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+snakebite,snakebite,icd11,PA78,seed_used_cod,external cause (S/T injury codes are not selectable as COD),
+dog bite,dog bite,icd10,W54,seed_used_cod,external cause (S/T injury codes are not selectable as COD); rabies is A82 / 1C82,
+dog bite,dog bite,icd11,PA75,seed_used_cod,external cause (S/T injury codes are not selectable as COD); rabies is A82 / 1C82,
+burns,burns,icd10,X09,seed_used_cod,external cause (S/T injury codes are not selectable as COD); scalds are X19,
+burns,burns,icd11,PB10,seed_used_cod,external cause (S/T injury codes are not selectable as COD); scalds are X19,
+organophosphate,organophosphate,icd10,X48,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): accidental, intentional",1
+organophosphate,organophosphate,icd10,X68,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): accidental, intentional",2
+organophosphate,organophosphate,icd11,PB33,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): accidental, intentional",1
+organophosphate,organophosphate,icd11,PD03,seed_used_cod,"external cause (S/T injury codes are not selectable as COD): accidental, intentional",2
+COPD,copd,icd10,J44,seed_used_cod,common term,
+COPD,copd,icd11,CA22.Z,seed_used_cod,common term,
+cancer,cancer,icd10,C80,seed_used_cod,site unspecified,
+cancer,cancer,icd11,2D4Z,seed_used_cod,site unspecified,
+PPH,pph,icd10,O72,seed_used_cod,common term,
+PPH,pph,icd11,JA43.Z,seed_used_cod,common term,
+prematurity,prematurity,icd10,P07,seed_used_cod,common term,
+prematurity,prematurity,icd11,KA21,seed_used_cod,common term,
+neonatal sepsis,neonatal sepsis,icd10,P36,seed_used_cod,common term,
+neonatal sepsis,neonatal sepsis,icd11,KA60,seed_used_cod,common term,
+stillbirth,stillbirth,icd10,P95,seed_used_cod,common term,
+stillbirth,stillbirth,icd11,KD3B.1,seed_used_cod,common term; KD3B/KD3B.Z retired 2026-09-25 (decision 18: not selectable),1
+stillbirth,stillbirth,icd11,KD3B.0,seed_used_cod,common term; KD3B/KD3B.Z retired 2026-09-25 (decision 18: not selectable),2
+fresh stillbirth,fresh stillbirth,icd10,P95,seed_used_cod,ICD-10 cannot distinguish fresh from macerated,
+fresh stillbirth,fresh stillbirth,icd11,KD3B.1,seed_used_cod,intrapartum fetal death,
+intrapartum stillbirth,intrapartum stillbirth,icd10,P95,seed_used_cod,ICD-10 cannot distinguish fresh from macerated,
+intrapartum stillbirth,intrapartum stillbirth,icd11,KD3B.1,seed_used_cod,intrapartum fetal death,
+macerated stillbirth,macerated stillbirth,icd10,P95,seed_used_cod,ICD-10 cannot distinguish fresh from macerated,
+macerated stillbirth,macerated stillbirth,icd11,KD3B.0,seed_used_cod,antepartum fetal death,
+antepartum stillbirth,antepartum stillbirth,icd10,P95,seed_used_cod,ICD-10 cannot distinguish fresh from macerated,
+antepartum stillbirth,antepartum stillbirth,icd11,KD3B.0,seed_used_cod,antepartum fetal death,
+TB,tb,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+TB,tb,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+Kochs,kochs,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+Kochs,kochs,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+pulmonary TB,pulmonary tb,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+pulmonary TB,pulmonary tb,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+koch disease,koch disease,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+koch disease,koch disease,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+Koch's disease,koch s disease,icd10,A16,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+Koch's disease,koch s disease,icd11,1B10.Z,seed_used_cod,VA cannot know bacteriological confirmation; A15/A16/1B10.x share the Pulmonary tuberculosis bucket,
+motor vehicle accident,motor vehicle accident,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+MVA,mva,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+road accident,road accident,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+road traffic accident,road traffic accident,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+road traffic injury,road traffic injury,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+RTA,rta,icd11,PA0Z,seed_used_cod,ICD-11 traffic counterpart (Road traffic accident bucket),
+accident,accident,icd10,V89.2,seed_used_cod,"ambiguous: traffic, fall, unspecified",1
+accident,accident,icd11,PA0Z,seed_used_cod,"ambiguous: traffic, fall, unspecified",1
+accident,accident,icd10,W19,seed_used_cod,"ambiguous: traffic, fall, unspecified",2
+accident,accident,icd11,PA6Z,seed_used_cod,"ambiguous: traffic, fall, unspecified",2
+accident,accident,icd10,X59,seed_used_cod,"ambiguous: traffic, fall, unspecified",3
+accident,accident,icd11,PB6Z,seed_used_cod,"ambiguous: traffic, fall, unspecified",3

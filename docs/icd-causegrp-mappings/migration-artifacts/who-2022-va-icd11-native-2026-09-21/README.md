@@ -3,7 +3,7 @@ title: WHO 2022 VA native ICD-11 buckets, generator report (WHO_2022_VA_2026)
 doc_type: reference
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-25
 ---
 
 # WHO 2022 VA native ICD-11 buckets: generator report (WHO_2022_VA_2026)
@@ -13,12 +13,12 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 ## Totals
 
 - Catalogue categories (chapter X excluded): 18505
-- Generated mappings: 18505 (range 15965, split 76, owner decision 164, decision 5b fallback 2300)
+- Generated mappings: 18505 (range 15965, split 64, owner decision 176, decision 5b fallback 2300)
 - Unmapped: 0
 
 ## Review items (`icd11_review.csv`)
 
-- `crosswalk_disagreement`: 896
+- `crosswalk_disagreement`: 897
 - `node_matched_by_label`: 1
 - `pa_split`: 71
 - `pj2x_split`: 5
@@ -82,8 +82,8 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 | VAs-10.99 | Other and unspecified perinatal cause of death | 550 |
 | VAs-11.01 | Fresh stillbirth | 1 |
 | VAs-11.02 | Macerated stillbirth | 3 |
-| VAs-12.01 | Road traffic accident | 18 |
-| VAs-12.02 | Other transport accident | 53 |
+| VAs-12.01 | Road traffic accident | 30 |
+| VAs-12.02 | Other transport accident | 41 |
 | VAs-12.03 | Accidental fall | 3 |
 | VAs-12.04 | Accidental drowning and submersion | 4 |
 | VAs-12.05 | Accidental exposure to smoke, fire and flames | 13 |

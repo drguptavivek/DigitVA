@@ -61,32 +61,41 @@ preterm codes; rabies still ranks ~52 and needs a look.
 
 **Next steps.**
 1. Phase 0 telemetry on the existing coding-search endpoints (unchanged
-   decision): confirm narrative queries exist and collect their wording —
+   decision): confirm what clinicians type and collect their shorthand —
    the phrase corpus must become telemetry-derived before any build.
-2. If telemetry confirms: prototype the **two-stage causes shape**
-   (rank 63 causes client-side with definitions → pick the code within
-   the cause's mapped codes via the existing lexical search). Payload
-   ~23 MB lazy, far under the 2 GB ceiling. Re-open gates are in the
-   design doc (top-3 cause accuracy ≥ 70% on the extended corpus,
-   coverage from annex + footnotes tables, ≤ 100 MB payload, measured
-   browser heap, CSP change as its own commit).
-3. Fix the coverage table regardless (annex + footnote f ranges), since
+2. **Owner reframed the scope (2026-09-25): the search serves clinicians
+   typing diagnoses, not layperson narratives.** Measured on a 33-query
+   doctor-diagnosis batch: full names and synonyms work broadly top-1/2
+   (AMI, heart attack, cardiac arrest, CCF full form, stroke, CKD, renal
+   failure, cirrhosis, HCC, CA stomach, COPD, septicemia, PTB, diabetes,
+   cerebral malaria, dengue, RTA); the only failures are doctor
+   shorthand/eponyms — MI, CVA, CCF, cor pulmonale, Kochs disease,
+   uremia, head injury. **New Phase A candidate: a server-side doctor-
+   shorthand expansion table feeding the existing lexical endpoints**
+   (MI → "myocardial infarction" → ILIKE) — zero client cost, no CSP
+   change, no download; one table row fixes each failure. The browser-ML
+   63-cause mode becomes Phase B for free-form diagnosis prose. Typos
+   survive the semantic path, so fuzzy matching only matters lexically.
+3. If telemetry shows free-form prose beyond the table: prototype the
+   **two-stage causes shape** (rank 63 causes client-side with
+   definitions → pick the code within the cause's mapped codes via the
+   existing lexical search). Payload ~23 MB lazy, far under the 2 GB
+   ceiling. Re-open gates are in the design doc.
+4. Fix the coverage table regardless (annex + footnote f ranges), since
    any cause-based UI needs it.
-4. Optional quality levers if the prototype falls short: fine-tune the
+5. Optional quality levers if the prototype falls short: fine-tune the
    small encoder on (phrase → cause) pairs built from the definitions,
    or cross-encoder re-rank of the top-5 causes.
-5. Layman synonyms (owner's motivating case) — confirmed working top-1
-   with no changes: "heart attack" → Acute cardiac disease [I20-I26],
-   "brain attack" / "brain stroke" / "paralysis" (incl. "paralysis
-   attack", one-sided weakness) → Stroke, "kidney failure" → Renal
-   failure, "sugar disease"/"high sugar" → Diabetes, "TB of the lungs"
-   → Pulmonary TB. True idioms still miss: "fits" (fixed by a synonym
-   entry), "falling sickness", "dog bite madness", "water in the lungs".
-   The agreed mechanism is a **bounded synonym vocabulary** — one
-   curated, reviewable list of local idioms per cause (mini-documents, a
-   few entries each), maintained like master data in the VA-definitions
-   admin panel. Telemetry names the real idioms; the dictionary then
-   becomes a targeted data task instead of guesswork.
+6. Layman synonyms (measured while scope was still layman-facing, same
+   mechanism): "heart attack" → Acute cardiac disease [I20-I26],
+   "brain attack" / "brain stroke" / "paralysis" → Stroke, "kidney
+   failure" → Renal failure, "sugar disease" → Diabetes, "TB of the
+   lungs" → Pulmonary TB — all top-1 natively. True idioms ("fits",
+   "falling sickness", "dog bite madness", "water in the lungs",
+   "yellow eyes and dark urine") miss and are exactly what the bounded
+   synonym/shorthand vocabulary is for — one curated, reviewable list
+   per cause, maintained in the VA-definitions admin panel, populated
+   from telemetry.
 
 Older eighth-pass header (was stale, kept as history): migration head
 `fba41e2f1f9d`; chain: `a4c7e2f9b1d6` structure mode → `62a637f5c38a`

@@ -100,8 +100,36 @@ the bottleneck, not compute.
   fixed "fits"→Epilepsy and "water in the lungs"→pneumonia but not the
   archaic two; the robust pattern is one mini-document per synonym phrase
   (max-score against the cause), or a plain synonym table. Phase-0
-  telemetry is what names the idioms that actually occur, so the
-  dictionary is targeted rather than guessed.
+
+- **Scope reframed by the owner (2026-09-25): the search serves clinicians
+  typing diagnoses, not layperson narratives.** Measured on a 33-query
+  doctor-diagnosis batch (death-certificate style): full diagnosis names
+  and common synonyms work broadly at top-1/2 — acute myocardial
+  infarction, heart attack, cardiac arrest, congestive cardiac failure,
+  stroke, chronic kidney disease / CKD, renal failure, chronic liver
+  disease, cirrhosis, hepatocellular carcinoma, carcinoma of stomach /
+  CA stomach / rectum, COPD, septicemia/sepsis, pulmonary tuberculosis,
+  diabetes and its complications, cerebral malaria, dengue, road traffic
+  accident. The failures are one predictable class — doctor shorthand and
+  eponyms: MI, CVA, CCF, cor pulmonale, Kochs disease, uremia, head
+  injury, cerebrovascular accident. Consequences: (a) the bounded
+  vocabulary is a **doctor-shorthand table**, one row per abbreviation
+  mapping to expanded query terms or a cause; (b) that table can run
+  **server-side against the existing lexical endpoints** (query expansion
+  before ILIKE), which serves the clinician-diagnosis case with zero
+  client cost, no CSP change and no model download — the new Phase A
+  candidate; (c) the browser-ML 63-cause mode becomes Phase B, optional
+  cover for free-form diagnosis prose. Typos survive the semantic path
+  ("stomach cnacer", "lung failue" behaved like their correct forms), so
+  fuzzy matching matters only for the lexical endpoint.
+- **Two search surfaces, two mechanisms (owner, 2026-09-25):** (1) the COD
+  search box serves clinicians typing diagnoses — server-side
+  shorthand/diagnosis expansion table + the existing lexical endpoints, no
+  model; (2) layperson language ("water in the lungs") belongs to the
+  narrative side — the 63-cause semantic ranker over WHO definitions +
+  the bounded idiom vocabulary, whose natural input is the verbal
+  autopsy's open narrative suggesting causes to the reviewer (CCVA-assist
+  direction). Each surface gets its own telemetry.
 
 ### Footprint (arithmetic on the measured corpora, 31k titles × 384 dims)
 

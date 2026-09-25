@@ -21,6 +21,11 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.icd_coding_value import extract_icd_code
+from app.services.icd_search_vocabulary_service import (
+    CLASSIFICATION_ICD10,
+    merge_vocabulary_results,
+    vocabulary_matches,
+)
 
 DEFAULT_ICD10_2019_2_CSV_PATH = Path(
     "docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv"
@@ -29,6 +34,11 @@ SOURCE_VERSION = "ICD-10-2019"
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
+
+# Inert result grouping for the upcoming two-stage picker (focused on top,
+# expanded behind "show more"); the current Select2 wiring ignores the key.
+_RESULT_TIER_FOCUSED = "focused"
+_RESULT_TIER_EXPANDED = "expanded"
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
@@ -108,6 +118,17 @@ def _serialize_row(row: MasIcd1020192, *, child_count: int | None = None) -> dic
         "is_policy_editable": row.semantic_level in POLICY_EDITABLE_LEVELS,
         "is_active": row.is_active,
     }
+
+
+def _result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
+    """``focused`` for exact-code and title-prefix matches, ``expanded``
+    otherwise. Vocabulary hits are always focused (assigned at their result
+    dicts). Inert grouping: nothing consumes it yet."""
+    if (code is not None and code.lower() == normalized_query) or title.lower().startswith(
+        normalized_query
+    ):
+        return _RESULT_TIER_FOCUSED
+    return _RESULT_TIER_EXPANDED
 
 
 def _normalize_query(raw_query: str) -> str:
@@ -1031,6 +1052,12 @@ def get_icd10_2019_2_coding_context(va_sid: str) -> dict | None:
 
 
 def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str, str | bool | None]]:
+    """Search selectable ICD-10 codes for the COD box.
+
+    Lexical results are authoritative; matches from the admin-managed search
+    vocabulary (``mas_icd_search_terms``) are prepended and flagged, resolved
+    through the same policy filters (docs/policy/icd-coding-search-vocabulary.md).
+    """
     normalized_query = _normalize_query(query)
     if len(normalized_query) < _CODING_ICD_MIN_QUERY_LEN:
         return []
@@ -1073,7 +1100,7 @@ def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str
         .limit(_CODING_ICD_MAX_RESULTS)
     ).all()
 
-    return [
+    lexical_results = [
         {
             "icd_code": row.code,
             "icd_to_display": f"{row.code} {row.title}",
@@ -1081,8 +1108,56 @@ def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str
             "semantic_level": row.semantic_level,
             "is_detailed_code": row.is_detailed_code,
             "three_character_code": row.three_character_code,
+            "tier": _result_tier(
+                code=row.code, title=row.title, normalized_query=normalized_query
+            ),
         }
         for row in rows
+    ]
+    # Clinician shorthand (MI, CVA, Kochs) shares no substring with any ICD
+    # title, so the lexical pass alone never reaches it. Vocabulary matches
+    # rank first; the cap stays authoritative.
+    return merge_vocabulary_results(
+        lexical_results, _vocabulary_icd10_hits(query, context)
+    )[:_CODING_ICD_MAX_RESULTS]
+
+
+def _vocabulary_icd10_hits(query: str, context: dict) -> list[dict]:
+    """Vocabulary links for ``query``, resolved through the same catalogue
+    filters the lexical search applies (active, policy-editable level, age
+    and sex policy). A target the policy filters out for this death
+    contributes nothing — the vocabulary never bypasses coding policy."""
+    links = vocabulary_matches(query, classification=CLASSIFICATION_ICD10)
+    if not links:
+        return []
+    rows_by_code = {
+        row.code: row
+        for row in db.session.scalars(
+            sa.select(MasIcd1020192).where(
+                MasIcd1020192.code.in_([link["icd_code"] for link in links]),
+                MasIcd1020192.is_active.is_(True),
+                MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
+                _coding_policy_clause(
+                    MasIcd1020192,
+                    age_group=context["age_group"],
+                    sex=context["sex"],
+                ),
+            )
+        )
+    }
+    return [
+        {
+            "icd_code": row.code,
+            "icd_to_display": f"{link['term']} — {row.code} {row.title}",
+            "title": row.title,
+            "semantic_level": row.semantic_level,
+            "is_detailed_code": row.is_detailed_code,
+            "three_character_code": row.three_character_code,
+            "vocabulary": True,
+            "tier": _RESULT_TIER_FOCUSED,
+        }
+        for link in links
+        if (row := rows_by_code.get(link["icd_code"])) is not None
     ]
 
 

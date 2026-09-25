@@ -50,6 +50,7 @@ from app.models.mas_cod_bucket import (
 from app.models.mas_icd10_2019_2 import MasIcd1020192
 from app.models.mas_icd11_mms import MasIcd11Mms
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
+from app.models.mas_icd_search_terms import MasIcdSearchTerms
 from app.models.map_icd10_legacy_reporting_alias import MapIcd10LegacyReportingAlias
 from app.models.mas_languages import MasLanguages, MapLanguageAliases
 from app.models.mas_instrument_locales import (
@@ -136,6 +137,7 @@ __all__ = [
     "MapIcdCodBucket",
     "MasIcd1020192",
     "MasIcd11Mms",
+    "MasIcdSearchTerms",
     "MasVaCauseDefinition",
     "MapIcd10LegacyReportingAlias",
     "MapProjectOdk",

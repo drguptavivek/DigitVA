@@ -7613,3 +7613,5 @@ def admin_languages_delete_alias(language_code, alias):
 from app.routes import admin_organization  # noqa: E402,F401
 # ICD-11 MMS browser routes extend this blueprint (kept in their own module).
 from app.routes import admin_icd11  # noqa: E402,F401
+# ICD search vocabulary panel routes extend this blueprint the same way.
+from app.routes import admin_icd_search_vocabulary  # noqa: E402,F401

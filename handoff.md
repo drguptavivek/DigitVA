@@ -1,9 +1,51 @@
 # Handoff
 
-Updated 2026-09-25 (ninth pass: COD bucket API default resolver, ICD-11
-mapping-cache key, `digitva-zpe` design + quality check). Migration head
-**`a3c9e1f7b2d4`** unchanged (no migration this pass). Full suite: 1950
-passed, 179 subtests, 0 failed.
+Updated 2026-09-25 (ninth pass, second landing: COD search vocabulary
+`digitva-zpe.1`). Migration head **`c5a8d2e7f1b4`** (chains onto
+`a3c9e1f7b2d4`). Full suite: **1993 passed, 179 subtests, 0 failed**.
+
+## Landed 2026-09-25 (ninth pass, part 2)
+
+* **COD search vocabulary** (`digitva-zpe.1`, closed): `mas_icd_search_terms`
+  — one flattened table, one row per term-code link, with a source
+  vocabulary (`seed_used_cod` | `who_inclusion` | `admin`, later
+  `telemetry`). The ICD-10 and ICD-11 coding-search endpoints expand
+  queries through it (exact normalized match; targets resolved through the
+  endpoint's own policy filters, so the vocabulary never bypasses coding
+  policy), prepending hits flagged `vocabulary: true` and display
+  `term — code title`. Results carry an inert `tier` field (`focused` =
+  vocabulary/exact-code/title-prefix; `expanded` = the rest) for the
+  upcoming two-stage picker. Migration `c5a8d2e7f1b4` creates the table and
+  seeds it only when empty from `resource/icd_search_vocabulary_seed.csv`.
+  - Seed: 249 links — 216 clinician shorthand curated from the codes
+    actually used as final CODs (dev: 7,879 final CODs; ~50 codes cover
+    73%; `MI`→I21/BA41, `CVA`→I64/8B20, `CCF`→I50/BD10, `Kochs`→A15+A16,
+    `madhumeh`→E14, `RTA`→V89) plus 33 WHO ICD-10 inclusion terms mined
+    from `icd102019en.xml` (ClaML). ICD-11 counterparts are title-grounded
+    in the frozen 2026-01 MMS export; the WHO 11To10 crosswalk was
+    discarded (it mis-derived 7 of 38, e.g. I50→BD12 "High output
+    syndromes"). V89/W19/J22 ship ICD-10-only.
+  - Admin panel `COD Search Vocabulary` (list/search/paging, add/edit with
+    a soft absent-code warning, deactivate/reactivate, no delete, CSV
+    export; admin-only + CSRF). Policy:
+    `docs/policy/icd-coding-search-vocabulary.md`.
+  - One-time ICD-11 definitions freeze from the local `whoicd/icd-api`
+    image: `resource/icd11_definitions_2026_01.json` (18,505 in-scope codes
+    → 13,131 entities → 6,637 WHO definitions; not imported by the app;
+    superset frozen, subset to be embedded — Phase B decision).
+  - Bucket ladder recorded in `docs/planning/icd-semantic-search.md`:
+    vocabulary table → 63 VA causes → WHO ICD-11 Mortality Tabulation List
+    (158 buckets, `docs/kb/MortalityTabulationList_en/`, frozen copy under
+    migration-artifacts). Owner invariant: **every path terminates at an
+    ICD code; buckets are navigation and post-hoc reporting only.**
+  - Tests: 43 new (service 15, endpoint wiring incl. tier 13, admin routes
+    14, migration 1). Full suite: see below. Verification: builder +
+    main-session review of the wiring (policy clause shared, cap
+    preserved); schema-drift and no-app-imports guard tests pass; ruff
+    clean; single head `c5a8d2e7f1b4`.
+
+Older ninth-pass header: migration head `a3c9e1f7b2d4` (no migration that
+day); full suite then 1950 passed, 179 subtests, 0 failed.
 
 ## Landed 2026-09-25 (ninth pass)
 

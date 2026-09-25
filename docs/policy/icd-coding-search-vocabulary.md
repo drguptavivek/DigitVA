@@ -1,0 +1,90 @@
+---
+title: ICD Coding Search Vocabulary
+doc_type: policy
+status: draft
+owner: engineering
+last_updated: 2026-09-25
+---
+
+# ICD coding search vocabulary (`digitva-zpe.1`)
+
+Baseline for the first search surface of the `digitva-zpe` decision
+(`docs/planning/icd-semantic-search.md`): the COD coding-search endpoints
+must find codes for **clinician shorthand and diagnosis synonyms** — `MI`,
+`CVA`, `CCF`, `Kochs`, `RTA`, `madhumeh` — which today score nothing because
+they share no substring with any ICD title (measured: a 33-query
+death-certificate batch fails only on this class). Layperson narrative is the
+second surface and stays out of scope here.
+
+## Source of truth
+
+- One table, `mas_icd_search_terms`, is the central, updatable vocabulary for
+  every ICD search surface (ICD-10 and ICD-11 coding search now; admin
+  browsers may adopt it later). A row is one **term-code link**, flattened on
+  purpose (owner, 2026-09-25 — one table with a source vocabulary beats a
+  terms master plus mapping): `term` (display), `term_normalized` (lookup
+  key: lowercased, punctuation stripped, whitespace collapsed — indexed,
+  NOT unique), `icd_classification` (`icd10` | `icd11`), `icd_code`,
+  `source` (`seed_used_cod` | `who_inclusion` | `admin`, later `telemetry`),
+  `note`, `is_active`, timestamps. Multiple rows per term are the mechanism
+  for multi-code targets: `TB` links to `A15` and `A16`, `sepsis`-family
+  terms link to both catalogues.
+- The seed (`resource/icd_search_vocabulary_seed.csv`, one row per link) is
+  authored from the ICD-10 codes actually used as final CODs in this system
+  (dev: 7,879 final CODs; ~50 codes cover 73%) plus WHO's own ICD-10
+  inclusion terms mined from `icd102019en.xml` (ClaML). ICD-11 counterparts
+  are picked by grounded title lookup in the frozen 2026-01 MMS export —
+  the WHO 11To10 crosswalk proved unreliable for this (it picked BD12
+  "High output syndromes" for I50) and is not used. Codes with no honest
+  counterpart (V89, W19, J22) ship ICD-10-only. ICD-11 inclusion terms
+  were harvested one-time from the self-hosted `whoicd/icd-api` image
+  (2026-01 release): the entities carry titles and definitions but **no
+  inclusion/synonym arrays**, so the seed gained no ICD-11 rows; the
+  definitions fetched in that pass are frozen in
+  `resource/icd11_definitions_2026_01.json` for the future narrative
+  (semantic) surface — they are not imported by the application. The full
+  in-scope catalogue was harvested (18,505 codes; 13,131 entities —
+  residual `.Z`/`.Y` codes have no entity — and 6,637 with WHO
+  definition text; definitions sit at stem level, so leaves inherit).
+  Decision (owner, 2026-09-25): freeze the superset, embed the subset —
+  any Phase-B semantic build embeds the 63 cause documents plus at most
+  the top few hundred used codes' definitions, never the full corpus
+  (retrieval quality dies in big haystacks; the payload stays small).
+  The seeding migration inserts only when the table is empty, so admin
+  edits are never overwritten by upgrades.
+- Terms that the current lexical search already finds (e.g. `stroke`,
+  `pneumonia`) are deliberately NOT seeded; the vocabulary holds only what
+  lexical matching cannot reach.
+
+## Matching semantics
+
+- Results carry a `"tier"` field: `"focused"` (vocabulary hits, exact-code
+  matches, title-prefix matches) and `"expanded"` (title substrings, token
+  matches; later semantic cause suggestions). The picker renders the
+  two-stage UI from it — focused group first, expanded behind a "show
+  more" control — but every path still terminates at an ICD code
+  selection.
+- Exact match on `term_normalized` only — no prefix or fuzzy matching
+  (`MI` must not hijack `miliary`). Multi-code families stay reachable the
+  way they are today (`tuberculosis` finds the A15/A16 family lexically).
+- A vocabulary hit expands to its target code through the **same filters the
+  endpoint already applies** (active/selectable policy, age and sex when a
+  `va_sid` is in play). A shorthand whose target is filtered out for that
+  death returns nothing extra — the vocabulary never bypasses coding policy.
+- Vocabulary matches rank first in the result list and are marked
+  (`"vocabulary": true`, display `term — target title`) so the coder can see
+  why an unexpected code appeared.
+
+## Administration
+
+- Admin panel (admin role): list with search, create, edit term/targets/
+  note, deactivate, CSV export. No delete — deactivation keeps audit history.
+- Changes take effect on the next search (process-level cache keyed on the
+  table's row count and latest `updated_at`, cleared on write in the writing
+  worker like the other mapping caches).
+
+## Data protection
+
+- Terms are clinical shorthand, not patient data. No PII is stored in the
+  table; admin notes are reviewed text. Phase-0 telemetry (separate work)
+  will propose new terms from real queries with the same no-PII discipline.

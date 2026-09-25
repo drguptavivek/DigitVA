@@ -25,6 +25,11 @@ from app import db
 from app.models import MasIcd11Mms
 from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
 from app.services.icd_coding_value import extract_icd_code
+from app.services.icd_search_vocabulary_service import (
+    CLASSIFICATION_ICD11,
+    merge_vocabulary_results,
+    vocabulary_matches,
+)
 
 DEFAULT_ICD11_RELEASE = "2026-01"
 DEFAULT_ICD11_MMS_EXPORT_PATH = Path(
@@ -41,6 +46,11 @@ AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_STATUS_OPTIONS = ("unreviewed", "reviewed")
 CODING_FILTER_OPTIONS = ("any", "active", "disabled")
 POLICY_EDITABLE_CLASS_KINDS = frozenset({"category"})
+
+# Inert result grouping for the upcoming two-stage picker (focused on top,
+# expanded behind "show more"); the current Select2 wiring ignores the key.
+_RESULT_TIER_FOCUSED = "focused"
+_RESULT_TIER_EXPANDED = "expanded"
 
 _IMPORT_BATCH_SIZE = 1000
 _CODING_MIN_QUERY_LEN = 2
@@ -973,6 +983,17 @@ def import_icd11_mms_policy_json(
     )
 
 
+def _result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
+    """``focused`` for exact-code and title-prefix matches, ``expanded``
+    otherwise. Vocabulary hits are always focused (assigned at their result
+    dicts). Inert grouping: nothing consumes it yet."""
+    if (code is not None and code.lower() == normalized_query) or title.lower().startswith(
+        normalized_query
+    ):
+        return _RESULT_TIER_FOCUSED
+    return _RESULT_TIER_EXPANDED
+
+
 def _normalize_query(raw_query: str) -> str:
     return " ".join((raw_query or "").strip().lower().split())
 
@@ -1043,6 +1064,9 @@ def search_icd11_mms(
 
     When ``va_sid`` is given, results are filtered by that submission's age
     and sex policy, mirroring ``search_icd10_2019_2_coding_choices``.
+    Matches from the admin-managed search vocabulary (``mas_icd_search_terms``)
+    are prepended and flagged; expansion goes through the same filters, so it
+    never bypasses coding policy (docs/policy/icd-coding-search-vocabulary.md).
     """
     normalized_query = _normalize_query(query)
     if len(normalized_query) < _CODING_MIN_QUERY_LEN:
@@ -1088,13 +1112,73 @@ def search_icd11_mms(
         .limit(min(limit, _CODING_MAX_RESULTS))
     ).all()
 
-    return [
+    lexical_results = [
         {
             "icd_code": row.code,
             "icd_to_display": f"{row.code} {row.title}" if row.code else row.title,
             "title": row.title,
             "linearization_uri": row.linearization_uri,
             "class_kind": row.class_kind,
+            "tier": _result_tier(
+                code=row.code, title=row.title, normalized_query=normalized_query
+            ),
         }
         for row in rows
+    ]
+    # Clinician shorthand (MI, CVA, Kochs) shares no substring with any ICD
+    # title, so the lexical pass alone never reaches it. Vocabulary matches
+    # rank first; the cap stays authoritative.
+    return merge_vocabulary_results(
+        lexical_results,
+        _vocabulary_icd11_hits(
+            query,
+            release=release,
+            apply_policy=va_sid is not None,
+            age_group=age_group,
+            sex=sex,
+        ),
+    )[: min(limit, _CODING_MAX_RESULTS)]
+
+
+def _vocabulary_icd11_hits(
+    query: str,
+    *,
+    release: str,
+    apply_policy: bool,
+    age_group: str | None,
+    sex: str | None,
+) -> list[dict]:
+    """Vocabulary links for ``query``, resolved through the same catalogue
+    filters the lexical search applies (release, active, category class kind
+    and, when a submission is in play, its age and sex policy). A target the
+    policy filters out contributes nothing — the vocabulary never bypasses
+    coding policy."""
+    links = vocabulary_matches(query, classification=CLASSIFICATION_ICD11)
+    if not links:
+        return []
+    filters = [
+        MasIcd11Mms.release == release,
+        MasIcd11Mms.code.in_([link["icd_code"] for link in links]),
+        MasIcd11Mms.is_active.is_(True),
+        MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+    ]
+    if apply_policy:
+        filters.append(_coding_policy_clause(age_group=age_group, sex=sex))
+    rows_by_code = {
+        row.code: row for row in db.session.scalars(sa.select(MasIcd11Mms).where(*filters))
+    }
+    return [
+        {
+            "icd_code": row.code,
+            "icd_to_display": (
+                f"{link['term']} — {row.code} {row.title}" if row.code else f"{link['term']} — {row.title}"
+            ),
+            "title": row.title,
+            "linearization_uri": row.linearization_uri,
+            "class_kind": row.class_kind,
+            "vocabulary": True,
+            "tier": _RESULT_TIER_FOCUSED,
+        }
+        for link in links
+        if (row := rows_by_code.get(link["icd_code"])) is not None
     ]

@@ -157,6 +157,25 @@ search can serve within the reduced list. Measured MRR 0.57-0.61 with a
 23 MB lazy-loaded model and a ~0.1 MB vector file. This is the candidate
 to prototype **after** phase-0 telemetry confirms narrative queries exist
 and in what volume; WHO's ICD API/ECT remains complementary.
+  direction). Each surface gets its own telemetry.
+- **The bucket ladder (owner, 2026-09-25):** every rung is a plain-language
+  bucket with a known code list, and all three sources are already in-repo.
+  The ladder is **supporting navigation only — every path terminates at an
+  ICD code, because the coder allocates a COD as an ICD code and nothing
+  else**; buckets are never selection targets in coding (VA causes and
+  tabulation groups map ICD→bucket after the fact, for reports). The
+  rungs:
+  (0) the vocabulary table (`mas_icd_search_terms`, in build — exact term →
+  code); (1) the 63 WHO VA causes with their mapped ICD-10/ICD-11 codes
+  (`resource/who_2022_va_cause_list_icd10_icd11.csv`); (2) the WHO ICD-11
+  Mortality Tabulation List — 158 buckets M1-M158 with included/excluded
+  ranges and pre-expanded codes
+  (`docs/kb/MortalityTabulationList_en/`, frozen copy under
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`;
+  ICD-11 only, no ICD-10 content). Future search suggestions and any
+  semantic document set can resolve through this ladder — term → bucket →
+  codes — and the tabulation list is also a candidate COD bucket scheme
+  for WHO-mortality-statistics reporting parity (separate decision).
 
 ## Phase 0 — telemetry on the existing coding search (next)
 

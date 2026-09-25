@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-25
 ---
 
 # Admin And Setup Model
@@ -46,6 +46,13 @@ The `/admin` interface provides the following management panels:
 - **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, the integrity check, the S3 upload sweep and the manual local quarantine (see below)
 - **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, JSON export of curated code-policy rows, XLSX export of editable ICD rows with coding policy and COD manual override status, and a read-only legacy ICD reporting alias table for historical CoD normalization used by COD bucket reporting.
 - **ICD-11 Browser** — admin browser and policy editor for `mas_icd11_mms` (WHO ICD-11 MMS linearization, 2026-01 release), at parity with the ICD-10 browser: Miller-column panes (one per hierarchy level, scrolling horizontally, with a breadcrumb to jump back to any level and `?node=` deep links that open every pane on the path) showing status dots and child counters, coding/sex/age filters, code/title search, node details with an editable per-category policy form (including `policy_status`), policy JSON import (previewed with a dry run, then applied) and JSON/XLSX export. The JSON format is shared with the `flask icd11 policy-export`/`policy-import` CLI (see docs/policy/icd11-reference-catalog.md).
+- **COD Search Vocabulary** — admin editor for `mas_icd_search_terms`
+  (digitva-zpe.1), the central table of clinician shorthand and synonyms
+  the coding-search endpoints expand through (`MI` → I21, `Kochs` → A15).
+  List with search and paging, add/edit modal with a soft warning when the
+  target code is absent from the catalogue, deactivate/reactivate (no
+  delete), CSV export. Policy:
+  `docs/policy/icd-coding-search-vocabulary.md`.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -81,6 +88,7 @@ The following panels are restricted to application-level admins:
 - COD Buckets
 - ICD-10 Browser
 - ICD-11 Browser
+- COD Search Vocabulary
 
 ### Project-PI-Accessible Panels
 

@@ -1,0 +1,320 @@
+{#
+  ICD search vocabulary panel — admin-only (digitva-zpe.1).
+  Manages the central table of clinician shorthand / synonym -> ICD code
+  links used by the coding-search endpoints
+  (docs/policy/icd-coding-search-vocabulary.md). API first, in the style of
+  the ICD-11 browser panel: this template is a JavaScript client of
+  /admin/api/icd-search-vocabulary. List with search and paging, add/edit
+  modal, deactivate/reactivate (no delete — deactivation keeps audit
+  history), CSV export.
+#}
+<div id="panel-icd-search-vocabulary">
+  <div class="mb-1">
+    <h5 class="mb-1">
+      <i class="fa-solid fa-comments me-2 text-secondary"></i>ICD Search Vocabulary
+    </h5>
+    <div class="small text-muted">
+      Clinician shorthand and diagnosis synonyms (MI, CVA, Kochs, RTA) for the COD
+      search box — {{ stats.total_terms }} term-code links,
+      {{ stats.active_terms }} active. Matching is exact and vocabulary hits go
+      through the same coding-policy filters as lexical results.
+    </div>
+  </div>
+  <hr class="my-2">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <div class="small text-muted mb-1">Search</div>
+      <input
+        type="text"
+        class="form-control form-control-sm"
+        id="icd-vocab-search"
+        placeholder="Term, code or note"
+        autocomplete="off"
+        style="min-width:280px;"
+      >
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a
+        class="btn btn-sm btn-outline-secondary"
+        href="/admin/api/icd-search-vocabulary/export.csv"
+      >
+        <i class="fa-solid fa-file-csv me-1"></i>Export CSV
+      </a>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="icd-vocab-add-btn">
+        <i class="fa-solid fa-plus me-1"></i>Add Term
+      </button>
+    </div>
+  </div>
+
+  <div id="icd-vocab-status" class="alert py-2 px-3 d-none" role="status"></div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-1">
+      <thead>
+        <tr class="small text-muted">
+          <th>Term</th>
+          <th>Normalized</th>
+          <th>Class</th>
+          <th>Code</th>
+          <th>Source</th>
+          <th>Note</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="icd-vocab-rows">
+        <tr><td colspan="8" class="text-muted small p-3">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex justify-content-between align-items-center small text-muted">
+    <span id="icd-vocab-page-info"></span>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-outline-secondary" id="icd-vocab-prev-btn">Previous</button>
+      <button type="button" class="btn btn-outline-secondary" id="icd-vocab-next-btn">Next</button>
+    </div>
+  </div>
+
+  {# Add/edit modal: term, classification, code, note #}
+  <div class="modal fade" id="icd-vocab-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="icd-vocab-form">
+          <div class="modal-header">
+            <h6 class="modal-title" id="icd-vocab-modal-title">Add term</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label small mb-1" for="icd-vocab-term">Term</label>
+              <input type="text" class="form-control form-control-sm" id="icd-vocab-term" required>
+              <div class="form-text small">Displayed to the coder; the lookup key is derived from it.</div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-4">
+                <label class="form-label small mb-1" for="icd-vocab-classification">Classification</label>
+                <select class="form-select form-select-sm" id="icd-vocab-classification">
+                  <option value="icd10">ICD-10</option>
+                  <option value="icd11">ICD-11</option>
+                </select>
+              </div>
+              <div class="col-8">
+                <label class="form-label small mb-1" for="icd-vocab-code">ICD code</label>
+                <input type="text" class="form-control form-control-sm" id="icd-vocab-code" required>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1" for="icd-vocab-note">Note</label>
+              <textarea class="form-control form-control-sm" id="icd-vocab-note" rows="2"
+                placeholder="Why this shorthand maps to this code"></textarea>
+            </div>
+            <div id="icd-vocab-modal-warning" class="alert alert-warning py-2 px-3 small d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-sm btn-primary" id="icd-vocab-save-btn">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var panel = document.getElementById('panel-icd-search-vocabulary');
+  var apiBase = '/admin/api/icd-search-vocabulary';
+  var state = { q: '', page: 1, pages: 1, editingId: null };
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function statusEl() { return panel.querySelector('#icd-vocab-status'); }
+
+  function showStatus(message, tone) {
+    var el = statusEl();
+    el.className = 'alert py-2 px-3';
+    el.classList.add(tone === 'danger' ? 'alert-danger' : tone === 'success' ? 'alert-success' : 'alert-warning');
+    el.textContent = message;
+    el.classList.remove('d-none');
+  }
+
+  function clearStatus() { statusEl().classList.add('d-none'); }
+
+  async function requestJson(url, options) {
+    var response = await fetch(url, options || {});
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || ('Request failed (' + response.status + ').'));
+    }
+    return payload;
+  }
+
+  function classificationLabel(value) {
+    return value === 'icd11' ? 'ICD-11' : 'ICD-10';
+  }
+
+  function rowHtml(row) {
+    var actions = row.is_active
+      ? '<button type="button" class="btn btn-sm btn-outline-secondary icd-vocab-toggle-btn" ' +
+        'data-id="' + row.term_id + '" data-active="false">Deactivate</button>'
+      : '<button type="button" class="btn btn-sm btn-outline-success icd-vocab-toggle-btn" ' +
+        'data-id="' + row.term_id + '" data-active="true">Reactivate</button>';
+    return '<tr class="' + (row.is_active ? '' : 'table-light') + '">' +
+      '<td>' + escapeHtml(row.term) + '</td>' +
+      '<td class="font-monospace small">' + escapeHtml(row.term_normalized) + '</td>' +
+      '<td>' + classificationLabel(row.icd_classification) + '</td>' +
+      '<td class="font-monospace">' + escapeHtml(row.icd_code) + '</td>' +
+      '<td class="small text-muted">' + escapeHtml(row.source) + '</td>' +
+      '<td class="small text-muted">' + escapeHtml(row.note || '') + '</td>' +
+      '<td>' + (row.is_active
+        ? '<span class="badge bg-success-subtle text-success-emphasis">active</span>'
+        : '<span class="badge bg-secondary-subtle text-secondary-emphasis">inactive</span>') + '</td>' +
+      '<td class="text-end text-nowrap">' +
+        '<button type="button" class="btn btn-sm btn-outline-primary icd-vocab-edit-btn me-1" data-id="' + row.term_id + '">Edit</button>' +
+        actions +
+      '</td>' +
+    '</tr>';
+  }
+
+  function renderPage(payload) {
+    var body = panel.querySelector('#icd-vocab-rows');
+    if (!payload.rows.length) {
+      body.innerHTML = '<tr><td colspan="8" class="text-muted small p-3">' +
+        (state.q ? 'No vocabulary terms match the search.' : 'The vocabulary is empty.') +
+        '</td></tr>';
+    } else {
+      body.innerHTML = payload.rows.map(rowHtml).join('');
+    }
+    state.page = payload.page;
+    state.pages = Math.max(payload.pages, 1);
+    panel.querySelector('#icd-vocab-page-info').textContent =
+      'Page ' + payload.page + ' of ' + state.pages + ' — ' + payload.total + ' term-code links';
+  }
+
+  async function load() {
+    var params = new URLSearchParams({ page: String(state.page), per_page: '25' });
+    if (state.q) params.set('q', state.q);
+    renderPage(await requestJson(apiBase + '?' + params.toString()));
+  }
+
+  function rows() { return panel.querySelectorAll('.icd-vocab-edit-btn, .icd-vocab-toggle-btn'); }
+
+  function setBusy(busy) { rows().forEach(function (button) { button.disabled = busy; }); }
+
+  // ----- modal -----
+
+  function modalWarning(message) {
+    var el = panel.querySelector('#icd-vocab-modal-warning');
+    if (!message) {
+      el.classList.add('d-none');
+      el.textContent = '';
+      return;
+    }
+    el.classList.remove('d-none');
+    el.textContent = message;
+  }
+
+  function openModal(row) {
+    state.editingId = row ? row.term_id : null;
+    panel.querySelector('#icd-vocab-modal-title').textContent = row ? 'Edit term' : 'Add term';
+    panel.querySelector('#icd-vocab-term').value = row ? row.term : '';
+    panel.querySelector('#icd-vocab-classification').value = row ? row.icd_classification : 'icd10';
+    panel.querySelector('#icd-vocab-code').value = row ? row.icd_code : '';
+    panel.querySelector('#icd-vocab-note').value = row ? (row.note || '') : '';
+    modalWarning(null);
+    bootstrap.Modal.getOrCreateInstance(panel.querySelector('#icd-vocab-modal')).show();
+  }
+
+  async function saveModal(event) {
+    event.preventDefault();
+    var payload = {
+      term: panel.querySelector('#icd-vocab-term').value.trim(),
+      icd_classification: panel.querySelector('#icd-vocab-classification').value,
+      icd_code: panel.querySelector('#icd-vocab-code').value.trim(),
+      note: panel.querySelector('#icd-vocab-note').value.trim(),
+    };
+    var url = state.editingId ? apiBase + '/term/' + state.editingId : apiBase;
+    try {
+      panel.querySelector('#icd-vocab-save-btn').disabled = true;
+      var result = await requestJson(url, {
+        method: state.editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify(payload),
+      });
+      if (result.code_warning) {
+        modalWarning(result.code_warning);
+      } else {
+        bootstrap.Modal.getOrCreateInstance(panel.querySelector('#icd-vocab-modal')).hide();
+      }
+      showStatus('Saved “' + result.term.term + '” → ' +
+        classificationLabel(result.term.icd_classification) + ' ' + result.term.icd_code + '.', 'success');
+      await load();
+    } catch (error) {
+      modalWarning(error.message);
+    } finally {
+      panel.querySelector('#icd-vocab-save-btn').disabled = false;
+    }
+  }
+
+  // ----- events -----
+
+  panel.addEventListener('click', async function (event) {
+    var editButton = event.target.closest('.icd-vocab-edit-btn');
+    if (editButton) {
+      requestJson(apiBase + '/term/' + editButton.dataset.id)
+        .then(openModal)
+        .catch(function (error) { showStatus(error.message, 'danger'); });
+      return;
+    }
+    var toggleButton = event.target.closest('.icd-vocab-toggle-btn');
+    if (toggleButton) {
+      setBusy(true);
+      try {
+        var result = await requestJson(apiBase + '/term/' + toggleButton.dataset.id + '/set-active', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+          body: JSON.stringify({ is_active: toggleButton.dataset.active === 'true' }),
+        });
+        showStatus(
+          (result.term.is_active ? 'Activated' : 'Deactivated') + ' “' + result.term.term + '”.',
+          'success'
+        );
+        await load();
+      } catch (error) {
+        showStatus(error.message, 'danger');
+      } finally {
+        setBusy(false);
+      }
+    }
+  });
+
+  panel.querySelector('#icd-vocab-add-btn').addEventListener('click', function () { openModal(null); });
+  panel.querySelector('#icd-vocab-form').addEventListener('submit', saveModal);
+
+  panel.querySelector('#icd-vocab-prev-btn').addEventListener('click', function () {
+    if (state.page > 1) { state.page -= 1; load().catch(function (error) { showStatus(error.message, 'danger'); }); }
+  });
+  panel.querySelector('#icd-vocab-next-btn').addEventListener('click', function () {
+    if (state.page < state.pages) { state.page += 1; load().catch(function (error) { showStatus(error.message, 'danger'); }); }
+  });
+
+  var searchTimer = null;
+  panel.querySelector('#icd-vocab-search').addEventListener('input', function (event) {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(function () {
+      state.q = event.target.value.trim();
+      state.page = 1;
+      load().catch(function (error) { showStatus(error.message, 'danger'); });
+    }, 200);
+  });
+
+  load().catch(function (error) { showStatus(error.message, 'danger'); });
+})();
+</script>

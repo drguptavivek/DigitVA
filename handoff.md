@@ -33,6 +33,49 @@ passed, 179 subtests, 0 failed.
   no-selection rates, chosen-code rank); table namespace is an open owner
   question. Re-open gates are in the doc.
 
+### `digitva-zpe` follow-up (same day): how to improve retrieval quality
+
+**Work done.** `quality_check.py` grew into a configuration ladder and
+every rung was measured on the same 30 grounded phrases (details and the
+full table in `docs/planning/icd-semantic-search.md`): lexical baselines
+(whole-phrase substring = today's endpoints; per-token overlap), dense
+search over the 31k titles (MiniLM / bge-small / bge-base, retrieval
+prefix, block-chapter document enrichment), reciprocal-rank fusion, and a
+new **causes mode** that embeds the 63 VA causes
+(`resource/who_2022_va_cause_list_icd10_icd11.csv`) with their WHO
+definitions (`resource/va_cause_definitions_who_2022.json`) and expands a
+chosen cause to its mapped codes.
+
+**Results (top-5/top-10, MRR).** Today's substring search scores **0/30
+and 0/27** on narrative queries — the problem is real. Token overlap
+0-2/27. Dense over titles caps at ~50% hit@10 (bge-small 15/30, 7/27);
+**bigger models do not help** (bge-base 13/30, 7/27), context enrichment
+is a wash, naive RRF fusion actively hurts (5/30). **The 63-cause
+reformation roughly triples quality: top-3 20-21/30 and 18-19/27, top-5
+22/30 and 21/27, MRR 0.57-0.61 — with the smallest model (MiniLM-L6,
+23 MB) and a ~0.1 MB vector file.** The WHO definitions carry most of the
+gain (title-only drops to MRR 0.45-0.46). Two ICD-10 "misses" are
+coverage artifacts, not retrieval: VAs-12.01's ICD-10 cell is empty
+(footnote f holds the ranges) and no cause token list covers the ICD-11
+preterm codes; rabies still ranks ~52 and needs a look.
+
+**Next steps.**
+1. Phase 0 telemetry on the existing coding-search endpoints (unchanged
+   decision): confirm narrative queries exist and collect their wording —
+   the phrase corpus must become telemetry-derived before any build.
+2. If telemetry confirms: prototype the **two-stage causes shape**
+   (rank 63 causes client-side with definitions → pick the code within
+   the cause's mapped codes via the existing lexical search). Payload
+   ~23 MB lazy, far under the 2 GB ceiling. Re-open gates are in the
+   design doc (top-3 cause accuracy ≥ 70% on the extended corpus,
+   coverage from annex + footnotes tables, ≤ 100 MB payload, measured
+   browser heap, CSP change as its own commit).
+3. Fix the coverage table regardless (annex + footnote f ranges), since
+   any cause-based UI needs it.
+4. Optional quality levers if the prototype falls short: fine-tune the
+   small encoder on (phrase → cause) pairs built from the definitions,
+   or cross-encoder re-rank of the top-5 causes.
+
 Older eighth-pass header (was stale, kept as history): migration head
 `fba41e2f1f9d`; chain: `a4c7e2f9b1d6` structure mode → `62a637f5c38a`
 ICD-11 bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh

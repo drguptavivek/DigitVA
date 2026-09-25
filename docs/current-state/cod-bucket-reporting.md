@@ -60,7 +60,13 @@ perinatal (6), and `R19`/`R51`/`R55` from no bucket to Cause of death unknown
 The data-management report page at `/data-management/cod-buckets` now:
 
 - defaults to the `WHO_2022_VA_2026` scheme when available (owner,
-  2026-09-24); the scheme filter still offers `WHO_2022_VA`
+  2026-09-24); the scheme filter still offers `WHO_2022_VA`. The
+  `/aggregates` and `/export.csv` API routes resolve an omitted
+  `scheme_code` through the same one resolver
+  (`default_reporting_scheme_code()`: `WHO_2022_VA_2026` when active, else
+  the first active scheme, else a 400 explaining that no scheme is
+  configured) — they no longer fall back silently to the ICD-10-only
+  `WHO_2022_VA`, which left every ICD-11 death unmatched
 - exposes filters for scheme, project, site, form, submission date, and gender
 - scopes all page bootstrap data and aggregate API results to the caller's
   data-manager project/site grants
@@ -137,7 +143,9 @@ title, VA cause, the row's note, and an origin (`who`, `who_resolved`,
     cannot be written, the download streams live.
   - The mapping cache key also covers the ICD-10 catalogue (row count and
     latest `updated_at`), so chapter and block title edits reach the compare
-    view.
+    view, and the ICD-11 catalogue of the release (row count and latest
+    `updated_at`), so an ICD-11 title edit alone refreshes the mapping rows
+    too.
   - Both pages render with the shared Wunderbaum tree-table:
     `app/templates/components/tree_table.html`, `app/static/js/tree_table.js`
     and `app/static/css/tree_table.css`. It takes a flat node list and sets

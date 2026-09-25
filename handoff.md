@@ -1,9 +1,43 @@
 # Handoff
 
-Updated 2026-09-25 (eighth pass: owner ICD decisions applied, ICD-11 in reports, project ICD classification). Migration head **`fba41e2f1f9d`** (dev is
-there). Chain this pass: `a4c7e2f9b1d6` structure mode → `62a637f5c38a` ICD-11
-bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh stillbirth →
-`fba41e2f1f9d` VA cause definitions. New dependency `nh3` (images rebuilt).
+Updated 2026-09-25 (ninth pass: COD bucket API default resolver, ICD-11
+mapping-cache key, `digitva-zpe` design + quality check). Migration head
+**`a3c9e1f7b2d4`** unchanged (no migration this pass). Full suite: 1950
+passed, 179 subtests, 0 failed.
+
+## Landed 2026-09-25 (ninth pass)
+
+* **COD bucket API scheme default** (`digitva-tcv`, closed): the report page
+  and `/api/v1/cod-buckets/aggregates` + `/export.csv` now share one
+  resolver, `default_reporting_scheme_code()` in
+  `app/services/cod_bucket_mapping_service.py` (WHO_2022_VA_2026 when
+  active, else first active scheme, else a 400 "no active scheme"). The API
+  no longer silently falls back to the ICD-10-only `WHO_2022_VA`, which
+  reported every ICD-11-coded death as unmatched. No migration.
+* **ICD-11 title edits refresh the public mapping cache** (`digitva-yog`,
+  closed): `_cache_key` in `app/services/va_code_mapping_public_service.py`
+  now includes the release's `mas_icd11_mms` row count and latest
+  `updated_at`, mirroring `get_icd11_catalogue`. A title change alone
+  reaches the help page, compare view and unmapped CSVs on the next load.
+* **`digitva-zpe` design + quality check done, browser ML parked** (bead
+  open, phase 0 next): `docs/planning/icd-semantic-search.md` and
+  `tooling/icd-semantic-search/quality_check.py`. Measured on the real
+  catalogues (12,475 ICD-10 + 18,505 ICD-11 titles) with the exact int8
+  ONNX models the browser would run, 30 grounded clinical phrases:
+  MiniLM-L6 hit@10 11/30 (ICD-10) / 4/27 (ICD-11); bge-small + retrieval
+  prefix 15/30 / 7/27. Owner constraints recorded: **browser memory ceiling
+  2 GB, must not burden client machines, measure real use before building.**
+  Footprint arithmetic (~35-60 MB lazy payload) sits far under the ceiling —
+  retrieval quality is what fails, so ML is parked. Next: phase 0 telemetry
+  on the existing coding-search endpoints (query terms, zero-result and
+  no-selection rates, chosen-code rank); table namespace is an open owner
+  question. Re-open gates are in the doc.
+
+Older eighth-pass header (was stale, kept as history): migration head
+`fba41e2f1f9d`; chain: `a4c7e2f9b1d6` structure mode → `62a637f5c38a`
+ICD-11 bucket columns → `6c11b620f48f` ICD-11 bucket seed + Fresh
+stillbirth → `fba41e2f1f9d` VA cause definitions. New dependency `nh3`
+(images rebuilt).
 
 ## DigitVA V3
 
@@ -57,21 +91,18 @@ subtests, 0 failed.
     (atomic write, name keyed on the data version, live streaming when
     searching or when the folder is unwritable).
   - Full suite: 1947 passed, 179 subtests, 0 failed.
-  - Known gap: an ICD-11 title change in `mas_icd11_mms` alone does not
-    refresh the mapping-row cache (existing behaviour); add the ICD-11 key to
-    `_cache_key` to fix.
+  - Fixed 2026-09-25 (`digitva-yog`): an ICD-11 title change alone now
+    refreshes the mapping-row cache (the ICD-11 count and latest
+    `updated_at` are part of `_cache_key`).
 
-Next stage (not started): `digitva-zpe`, local semantic search over ICD-10
-and ICD-11 titles. Owner constraints: English only, runs in the user's
-browser (4GB VM, so no model or heavy service on the server), vectors built
-offline and served as a static file, CSP needs `'wasm-unsafe-eval'`. WHO's
-ICD API/ECT plan is complementary and its memory use is unmeasured. Needs a
-design and a quality check on 20-30 clinical phrases first.
+Next stage for `digitva-zpe` (designed 2026-09-25, browser ML parked — see
+the ninth-pass section): phase 0 telemetry on the existing coding-search
+endpoints, then the re-open gates in
+`docs/planning/icd-semantic-search.md`. WHO's ICD API/ECT plan is
+complementary and its memory use is unmeasured.
 
 Open: `digitva-712.6` (12 specific-vs-specific disagreements for the owner
-to review). `app/routes/api/cod_buckets.py` still falls back to WHO_2022_VA
-when a request omits `scheme_code`. The test DBs created for this work were
-dropped 2026-09-25.
+  to review). The test DBs created for this work were dropped 2026-09-25.
 
 ## Landed 2026-09-24
 

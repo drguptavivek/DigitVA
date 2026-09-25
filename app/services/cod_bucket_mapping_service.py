@@ -1424,6 +1424,24 @@ def list_cod_bucket_schemes() -> list[MasCodBucketScheme]:
     )
 
 
+def default_reporting_scheme_code() -> str | None:
+    """The scheme the report page and the reporting API use when a request
+    names none: `WHO_2022_VA_2026` when it is active (it buckets each death
+    by its own classification), else the first active scheme by code, else
+    None. One resolver so the page and `/api/v1/cod-buckets/` cannot disagree
+    (falling back to the ICD-10-only `WHO_2022_VA` there left every ICD-11
+    death unmatched).
+    """
+    codes = db.session.scalars(
+        sa.select(MasCodBucketScheme.scheme_code)
+        .where(MasCodBucketScheme.is_active.is_(True))
+        .order_by(MasCodBucketScheme.scheme_code.asc())
+    ).all()
+    if SCHEME_CODE_WHO_2022_VA_2026 in codes:
+        return SCHEME_CODE_WHO_2022_VA_2026
+    return codes[0] if codes else None
+
+
 def list_cod_bucket_scheme_cards() -> list[dict]:
     schemes = list_cod_bucket_schemes()
     if not schemes:

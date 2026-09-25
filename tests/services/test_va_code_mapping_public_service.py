@@ -318,6 +318,23 @@ class PublicMappingBuildTests(BaseTestCase):
         self.assertIn("K70.2", {row["code"] for row in rows})
         self.assertNotIn("K72", {row["code"] for row in rows})
 
+    def test_icd11_title_edit_is_seen_on_next_load(self):
+        # digitva-yog: a title change in mas_icd11_mms alone must refresh the
+        # mapping-row cache. PA00's title is asserted nowhere else.
+        rows, _ = self.build()
+        pa00 = next(row for row in rows if row["code"] == "PA00")
+        self.assertTrue(pa00["code_title"].startswith("Unintentional land transport"))
+        catalogue_row = db.session.scalar(
+            db.select(MasIcd11Mms).where(
+                MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "PA00"
+            )
+        )
+        catalogue_row.title = "Unintentional land transport traffic event, retitled"
+        db.session.commit()
+        rows, _ = self.build()
+        pa00 = next(row for row in rows if row["code"] == "PA00")
+        self.assertEqual(pa00["code_title"], "Unintentional land transport traffic event, retitled")
+
     def test_unknown_scheme_gives_no_rows(self):
         self.assertEqual(service.get_public_mappings(scheme_code="NO_SUCH_SCHEME", release=RELEASE), ([], []))
 

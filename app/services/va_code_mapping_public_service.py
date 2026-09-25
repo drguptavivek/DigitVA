@@ -230,7 +230,8 @@ def derive_origin(code: str, node: str, claims: dict, match_type: str | None = N
 def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release: str):
     """Changes whenever a row or node is added, removed or edited, the scheme
     version moves, an ICD-10 catalogue row (title, chapter or block) is added
-    or edited, or an annex file changes. One aggregate query."""
+    or edited, an ICD-11 catalogue row of the release is added or edited, or
+    an annex file changes. One aggregate query."""
     node_updated = (
         sa.select(sa.func.max(MasCodBucketNode.updated_at))
         .where(MasCodBucketNode.scheme_id == MasCodBucketScheme.scheme_id)
@@ -238,6 +239,17 @@ def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release
     )
     icd10_count = sa.select(sa.func.count()).select_from(MasIcd1020192).scalar_subquery()
     icd10_updated = sa.select(sa.func.max(MasIcd1020192.updated_at)).scalar_subquery()
+    icd11_count = (
+        sa.select(sa.func.count())
+        .select_from(MasIcd11Mms)
+        .where(MasIcd11Mms.release == release)
+        .scalar_subquery()
+    )
+    icd11_updated = (
+        sa.select(sa.func.max(MasIcd11Mms.updated_at))
+        .where(MasIcd11Mms.release == release)
+        .scalar_subquery()
+    )
     row = db.session.execute(
         sa.select(
             MasCodBucketScheme.scheme_id,
@@ -247,6 +259,8 @@ def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release
             node_updated,
             icd10_count,
             icd10_updated,
+            icd11_count,
+            icd11_updated,
         )
         .outerjoin(MapIcdCodBucket, MapIcdCodBucket.scheme_id == MasCodBucketScheme.scheme_id)
         .where(MasCodBucketScheme.scheme_code == scheme_code)

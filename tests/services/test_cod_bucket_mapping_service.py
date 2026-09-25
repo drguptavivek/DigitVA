@@ -50,6 +50,7 @@ from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
     apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
+    default_reporting_scheme_code,
     export_cod_bucket_reporting_csv,
     export_cod_bucket_scheme_json,
     import_cmea10_scheme,
@@ -3104,3 +3105,51 @@ class CodBucketMappingServiceTests(BaseTestCase):
         payload["mappings"][0]["icd_classification"] = "icd9"
         with self.assertRaises(ValueError):
             import_cod_bucket_scheme_json(scheme_code="TEST_ICD11_IMPORT", payload=payload)
+
+
+class DefaultReportingSchemeCodeTests(BaseTestCase):
+    """One resolver for the report page and the reporting API (digitva-tcv):
+    WHO_2022_VA_2026 when active, else the first active scheme, else None."""
+
+    def test_prefers_who_2022_va_2026_then_first_active_then_none(self):
+        # Deactivate every scheme inside this transaction (rolled back on
+        # teardown) so schemes committed by other files cannot interfere.
+        db.session.execute(sa.update(MasCodBucketScheme).values(is_active=False))
+        self.assertIsNone(default_reporting_scheme_code())
+
+        suffix = uuid.uuid4().hex[:8].upper()
+        db.session.add_all([
+            MasCodBucketScheme(
+                scheme_code=f"ZZ_DEF_B_{suffix}",
+                scheme_name="Later test scheme",
+                mapping_version=1,
+                is_active=True,
+            ),
+            MasCodBucketScheme(
+                scheme_code=f"ZZ_DEF_A_{suffix}",
+                scheme_name="Earlier test scheme",
+                mapping_version=1,
+                is_active=True,
+            ),
+        ])
+        db.session.flush()
+        self.assertEqual(default_reporting_scheme_code(), f"ZZ_DEF_A_{suffix}")
+
+        existing = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
+            )
+        )
+        if existing is None:
+            db.session.add(
+                MasCodBucketScheme(
+                    scheme_code=SCHEME_CODE_WHO_2022_VA_2026,
+                    scheme_name="WHO 2022 VA (2026 revision)",
+                    mapping_version=1,
+                    is_active=True,
+                )
+            )
+        else:
+            existing.is_active = True
+        db.session.flush()
+        self.assertEqual(default_reporting_scheme_code(), SCHEME_CODE_WHO_2022_VA_2026)

@@ -1022,6 +1022,38 @@ class DataManagerDashboardTests(BaseTestCase):
             ],
         )
 
+    def test_cod_bucket_api_defaults_to_who_2022_va_2026_when_scheme_omitted(self):
+        self._login(self.dm_user_id)
+        self._create_analytics_mvs("ix_test_dm_cod_bucket_default")
+
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"
+            )
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA_2026",
+                scheme_name="WHO 2022 VA (2026 revision)",
+                mapping_version=1,
+                is_active=True,
+            )
+            db.session.add(scheme)
+        else:
+            scheme.is_active = True
+        db.session.commit()
+
+        response = self.client.get("/api/v1/cod-buckets/aggregates")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["filters"]["scheme_code"], "WHO_2022_VA_2026")
+        self.assertEqual(payload["summary"]["scheme_used"], scheme.scheme_name)
+
+        export = self.client.get("/api/v1/cod-buckets/export.csv")
+        self.assertEqual(export.status_code, 200)
+        self.assertEqual(export.mimetype, "text/csv")
+
     def test_cod_bucket_export_csv_respects_dm_scope_and_includes_scheme_levels(self):
         self._login(self.dm_user_id)
         now = datetime.now(timezone.utc)

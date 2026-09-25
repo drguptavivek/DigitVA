@@ -13,10 +13,10 @@ from app.decorators import role_required
 from app.models import VaUsers
 from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
+    default_reporting_scheme_code,
     export_cod_bucket_reporting_csv,
     list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
-    SCHEME_CODE_WHO_2022_VA,
     summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
@@ -88,8 +88,12 @@ def aggregates():
     if form_id and form_id not in form_ids:
         return jsonify({"error": "Form is outside your data-manager scope."}), 403
 
+    scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
+    if not scheme_code:
+        return jsonify({"error": "No active COD bucket scheme is configured."}), 400
+
     rows = aggregate_coded_submissions_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -100,7 +104,7 @@ def aggregates():
         collapse_scope=True,
     )
     unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -111,7 +115,7 @@ def aggregates():
         collapse_scope=True,
     )
     unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -122,7 +126,7 @@ def aggregates():
         collapse_scope=True,
     )
     reporting_breakdowns = summarize_cod_bucket_reporting_breakdowns(
-        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -151,7 +155,7 @@ def aggregates():
                 "matched_total": reporting_breakdowns["matched_total"],
             },
             "filters": {
-                "scheme_code": request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+                "scheme_code": scheme_code,
                 "project_id": project_id,
                 "site_id": site_id,
                 "form_id": form_id,
@@ -177,8 +181,12 @@ def export_csv():
     if form_id and form_id not in form_ids:
         return jsonify({"error": "Form is outside your data-manager scope."}), 403
 
+    scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
+    if not scheme_code:
+        return jsonify({"error": "No active COD bucket scheme is configured."}), 400
+
     csv_text = export_cod_bucket_reporting_csv(
-        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,

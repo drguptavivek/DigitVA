@@ -1,8 +1,12 @@
 # Handoff
 
-Updated 2026-09-25 (ninth pass, third landing: vocabulary addendum).
-Migration head **`e9d4b6f8a3c2`** (chains onto `c5a8d2e7f1b4`). Full suite:
-**1994 passed, 179 subtests, 0 failed**.
+Updated 2026-09-25 (ninth pass, fourth landing: telemetry + picker +
+dual-spelling fold). Migration head **`c4e7b1d8f2a9`** (chain
+`e9d4b6f8a3c2 → b8f2d6a9c4e1 telemetry → c4e7b1d8f2a9 trgm`). Full suite:
+**2048 passed, 283 subtests, 0 failed**. New dependency
+**`localspelling==0.94`** (images rebuilt).
+
+## Landed 2026-09-25 (ninth pass, part 4)
 
 **Dev smoke 2026-09-25 (live app, real death, admin session):** the
 vocabulary is live on dev through the real HTTP path — `MI` → `MI — I21
@@ -10,16 +14,14 @@ Acute myocardial infarction` (30 results), `Kochs` → A15, `assault` →
 Y09, `CVA` → I64, `heart attack` → I21, all rank-1 flagged
 `vocabulary: true` / tier `focused`; the lexical control (`meningitis`)
 unchanged. Admin panel renders 303 links with search/export/add/edit/
-deactivate. Dev upgraded to `e9d4b6f8a3c2`; testadmin's dev password was
+deactivate. Dev upgraded to `c4e7b1d8f2a9`; testadmin's dev password was
 reset to the documented `Admin@123`; a one-allocation smoke grant was
 created and deactivated afterwards. **Owner decisions:** the three WHO
 bucket-label renames in `digitva-tet` are CANCELLED (US/UK spelling
 immaterial, "what matters is code"; dev already matches the manual's
 annex table — the manual's definitions section disagrees with its own
 annex); tet proceeds with the reset-safety snapshot only.
-`digitva-zpe.3` landed below (part 4).
 
-## Landed 2026-09-25 (ninth pass, part 4)
 
 * **Coding-search telemetry + two-stage picker + dual-spelling/hyphen
   fold** (`digitva-zpe.3`, closed): migration head **`c4e7b1d8f2a9`**
@@ -57,6 +59,24 @@ annex); tet proceeds with the reset-safety snapshot only.
     flagged, `self harm` → X70 focused, `1_00` empty, X-Search-Id on
     every request. `cat scratch` on dev returns 0 because A28.1 is
     WHO-policy non-selectable there — correct behavior, not a gap.
+
+### Next (after part 4)
+
+1. **Let telemetry accumulate** — a few weeks of real coder queries in
+   `cod_search_telemetry`, then review the CSV export
+   (`/admin/api/coding-search-telemetry/export.csv`) for: shorthand the
+   vocabulary misses (add via admin panel, `source='telemetry'`),
+   zero-result queries (fold/spelling gaps), and chosen-code ranks
+   (picker quality). This data decides Phase B (the 63-cause semantic
+   mode) per the gates in `docs/planning/icd-semantic-search.md`.
+2. **`digitva-tet` (P1, top of the approved queue)**: reset-safety
+   snapshot only — force `export_cod_bucket_scheme_json()` into a new
+   snapshot table before any reset-from-source, refuse the reset if the
+   snapshot fails, auto-download in the UI, restore via existing JSON
+   import. Renames cancelled (owner, 2026-09-25).
+3. Visual picker check with a real coder session (the one open
+   verification gap; JS is template-tested).
+
 
 ## Landed 2026-09-25 (ninth pass, part 3)
 

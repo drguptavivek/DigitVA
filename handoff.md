@@ -1,8 +1,39 @@
 # Handoff
 
-Updated 2026-09-25 (ninth pass, second landing: COD search vocabulary
-`digitva-zpe.1`). Migration head **`c5a8d2e7f1b4`** (chains onto
-`a3c9e1f7b2d4`). Full suite: **1993 passed, 179 subtests, 0 failed**.
+Updated 2026-09-25 (ninth pass, third landing: vocabulary addendum).
+Migration head **`e9d4b6f8a3c2`** (chains onto `c5a8d2e7f1b4`). Full suite:
+**1994 passed, 179 subtests, 0 failed**.
+
+## Landed 2026-09-25 (ninth pass, part 3)
+
+* **COD search vocabulary addendum** (owner-directed, same day): +54 seed
+  links → **303 total** (`resource/icd_search_vocabulary_seed.csv`). New:
+  cor pulmonale (I27.9 / BB01.5 — ICD-11 has a literal Cor pulmonale code),
+  uremia/uraemia, head injury / head trauma (S06.9 / NA07), road traffic
+  injury, suicide / self-harm (X70 / PC71 — anchored to hanging, the
+  dominant method in the used CODs; ICD-10 has no suicide-NOS code),
+  assault (Y09 / **PF2Z "Assault, unspecified"**, added after the owner
+  flagged the missing counterpart), drowning (W74 / PA9Z), accident,
+  cancer shorthand (kidney C64/2C90, bladder C67/2C94, cervical
+  C53/2C77, gall bladder C23/2C13, blood C95/2B33.4, uterine/womb
+  C55/2C78, prostate C61/2C82), drug reaction (T88.7/NF09), allergic
+  reaction (T78.4/4A8Z), anaphylaxis (T78.2/4A84), disseminated/miliary
+  TB (A19/1B13). "miliary tuberculosis" itself is NOT seeded — A19's own
+  title contains it, so lexical search already finds it (policy: seed
+  only what lexical misses). All anchors title-grounded in both
+  catalogues.
+  - Delivered via **reconcile migration `e9d4b6f8a3c2`**: inserts seed
+    rows whose (term_normalized, classification, icd_code) key is absent,
+    never touches existing rows (admin edits and deactivations survive),
+    captures inserted ids in a `_mig_` table so the downgrade removes
+    exactly the insertions. Migration test covers re-add-after-delete,
+    admin-edit survival, idempotence and the downgrade.
+  - Grounding sources: WHO VA cause list ranges for the external causes
+    (drowning W65-W74, self-harm X60-X84, assault X85-Y09), WHO ICD-11
+    Mortality Tabulation List and catalogue titles for counterparts. The
+    WHO VA definitions themselves surface after selection through the
+    floating VA-definitions panel (all VAs-12.x have definitions).
+
 
 ## Landed 2026-09-25 (ninth pass, part 2)
 

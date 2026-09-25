@@ -19,6 +19,8 @@ MIGRATION_DB_NAME = "minerva_test_migration_c5a8d2e7f1b4"
 PARENT_REVISION = "a3c9e1f7b2d4"
 REVISION_UNDER_TEST = "c5a8d2e7f1b4"
 MIGRATION_FILE = f"{REVISION_UNDER_TEST}_add_mas_icd_search_terms.py"
+RECONCILE_REVISION = "e9d4b6f8a3c2"
+CAPTURE_TABLE = "_mig_e9d4b6f8a3c2_inserted"
 TABLE = "mas_icd_search_terms"
 
 
@@ -144,6 +146,56 @@ class IcdSearchVocabularyMigrationTest(unittest.TestCase):
         alembic_downgrade(revision=PARENT_REVISION)
         self.assertIsNone(self._scalar(f"SELECT to_regclass('{TABLE}')"))
 
+    def test_reconcile_adds_only_missing_links(self):
+        alembic_upgrade(revision=REVISION_UNDER_TEST)
+        full_count = _seed_row_count()
+        # A database seeded before the seed grew: delete the rows the
+        # reconcile migration exists to restore, and hand-edit one survivor
+        # the way an admin would.
+        gone = ("cor pulmonale", "uremia", "assault", "drowning", "blood cancer",
+                "drug reaction", "disseminated tuberculosis")
+        with self.db.engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    f"DELETE FROM {TABLE} WHERE term_normalized IN :gone"
+                ).bindparams(sa.bindparam("gone", expanding=True)),
+                {"gone": gone},
+            )
+            conn.execute(
+                sa.text(
+                    f"UPDATE {TABLE} SET note = 'admin note', source = 'admin' "
+                    "WHERE term_normalized = 'cva' AND icd_classification = 'icd10'"
+                )
+            )
+            survivors = conn.execute(sa.text(f"SELECT count(*) FROM {TABLE}")).scalar()
+
+        alembic_upgrade(revision=RECONCILE_REVISION)
+        self.assertEqual(self._scalar(f"SELECT count(*) FROM {TABLE}"), full_count)
+        # the admin edit survives untouched
+        self.assertEqual(
+            self._scalar(
+                f"SELECT note FROM {TABLE} WHERE term_normalized = 'cva' "
+                "AND icd_classification = 'icd10'"
+            ),
+            "admin note",
+        )
+        # the assault icd11 counterpart (PF2Z) is part of the restore
+        self.assertEqual(
+            self._scalar(
+                f"SELECT icd_code FROM {TABLE} WHERE term_normalized = 'assault' "
+                "AND icd_classification = 'icd11'"
+            ),
+            "PF2Z",
+        )
+
+        alembic_downgrade(revision=REVISION_UNDER_TEST)
+        # exactly the reconcile insertions are removed; the survivors (and
+        # the admin edit) stay
+        self.assertEqual(
+            self._scalar(f"SELECT count(*) FROM {TABLE}"),
+            survivors,
+        )
+        self.assertIsNone(self._scalar(f"SELECT to_regclass('{CAPTURE_TABLE}')"))
 
 if __name__ == "__main__":
     unittest.main()

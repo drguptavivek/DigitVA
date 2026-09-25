@@ -248,3 +248,57 @@ Senile: debility,senile debility,icd10,R54,who_inclusion,WHO ICD-10 inclusion te
 Death NOS,death nos,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99
 Unknown cause of mortality,unknown cause of mortality,icd10,R99,who_inclusion,WHO ICD-10 inclusion term for R99
 accidental fall NOS,accidental fall nos,icd10,W19,who_inclusion,WHO ICD-10 inclusion term for W19
+cor pulmonale,cor pulmonale,icd10,I27.9,seed_used_cod,WHO VA cause ranges: external-cause addendum
+cor pulmonale,cor pulmonale,icd11,BB01.5,seed_used_cod,WHO VA cause ranges: external-cause addendum
+uremia,uremia,icd10,N19,seed_used_cod,clinician shorthand for N19
+uremia,uremia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z
+uraemia,uraemia,icd10,N19,seed_used_cod,clinician shorthand for N19
+uraemia,uraemia,icd11,GB6Z,seed_used_cod,clinician shorthand for GB6Z
+head injury,head injury,icd10,S06.9,seed_used_cod,clinician shorthand for S06.9
+head injury,head injury,icd11,NA07,seed_used_cod,clinician shorthand for NA07
+head trauma,head trauma,icd10,S06.9,seed_used_cod,clinician shorthand for S06.9
+head trauma,head trauma,icd11,NA07,seed_used_cod,clinician shorthand for NA07
+road traffic injury,road traffic injury,icd10,V89,seed_used_cod,ICD-11 counterpart pending (VAs-12.01 footnote f)
+suicide,suicide,icd10,X70,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code"
+suicide,suicide,icd11,PC71,seed_used_cod,"anchored to hanging, the dominant method in used CODs; ICD-10 has no suicide-NOS code"
+self-harm,self-harm,icd10,X70,seed_used_cod,clinician shorthand for X70
+self-harm,self-harm,icd11,PC71,seed_used_cod,clinician shorthand for PC71
+assault,assault,icd10,Y09,seed_used_cod,ICD-11 counterpart needs a decision (PD50-PF2Z block)
+drowning,drowning,icd10,W74,seed_used_cod,clinician shorthand for W74
+drowning,drowning,icd11,PA9Z,seed_used_cod,clinician shorthand for PA9Z
+accident,accident,icd10,V89,seed_used_cod,clinician shorthand for V89
+kidney cancer,kidney cancer,icd10,C64,seed_used_cod,clinician shorthand for C64
+kidney cancer,kidney cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90
+renal cancer,renal cancer,icd10,C64,seed_used_cod,clinician shorthand for C64
+renal cancer,renal cancer,icd11,2C90,seed_used_cod,clinician shorthand for 2C90
+bladder cancer,bladder cancer,icd10,C67,seed_used_cod,clinician shorthand for C67
+bladder cancer,bladder cancer,icd11,2C94,seed_used_cod,clinician shorthand for 2C94
+cervical cancer,cervical cancer,icd10,C53,seed_used_cod,clinician shorthand for C53
+cervical cancer,cervical cancer,icd11,2C77,seed_used_cod,clinician shorthand for 2C77
+cancer cervix,cancer cervix,icd10,C53,seed_used_cod,clinician shorthand for C53
+cancer cervix,cancer cervix,icd11,2C77,seed_used_cod,clinician shorthand for 2C77
+gall bladder cancer,gall bladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23
+gall bladder cancer,gall bladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13
+gallbladder cancer,gallbladder cancer,icd10,C23,seed_used_cod,clinician shorthand for C23
+gallbladder cancer,gallbladder cancer,icd11,2C13,seed_used_cod,clinician shorthand for 2C13
+blood cancer,blood cancer,icd10,C95,seed_used_cod,clinician shorthand for C95
+blood cancer,blood cancer,icd11,2B33.4,seed_used_cod,clinician shorthand for 2B33.4
+uterine cancer,uterine cancer,icd10,C55,seed_used_cod,clinician shorthand for C55
+uterine cancer,uterine cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78
+womb cancer,womb cancer,icd10,C55,seed_used_cod,clinician shorthand for C55
+womb cancer,womb cancer,icd11,2C78,seed_used_cod,clinician shorthand for 2C78
+prostate cancer,prostate cancer,icd10,C61,seed_used_cod,clinician shorthand for C61
+prostate cancer,prostate cancer,icd11,2C82,seed_used_cod,clinician shorthand for 2C82
+assault,assault,icd11,PF2Z,seed_used_cod,clinician shorthand for PF2Z
+drug reaction,drug reaction,icd10,T88.7,seed_used_cod,adverse effect of drug or medicament
+drug reaction,drug reaction,icd11,NF09,seed_used_cod,adverse effect of drug or medicament
+allergic reaction,allergic reaction,icd10,T78.4,seed_used_cod,"allergy, unspecified"
+allergic reaction,allergic reaction,icd11,4A8Z,seed_used_cod,"allergy, unspecified"
+anaphylaxis,anaphylaxis,icd10,T78.2,seed_used_cod,clinician shorthand for T78.2
+anaphylaxis,anaphylaxis,icd11,4A84,seed_used_cod,clinician shorthand for 4A84
+disseminated tuberculosis,disseminated tuberculosis,icd10,A19,seed_used_cod,miliary/disseminated TB
+disseminated tuberculosis,disseminated tuberculosis,icd11,1B13,seed_used_cod,miliary/disseminated TB
+disseminated TB,disseminated tb,icd10,A19,seed_used_cod,clinician shorthand for A19
+disseminated TB,disseminated tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13
+miliary TB,miliary tb,icd10,A19,seed_used_cod,clinician shorthand for A19
+miliary TB,miliary tb,icd11,1B13,seed_used_cod,clinician shorthand for 1B13

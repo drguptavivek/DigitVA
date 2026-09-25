@@ -210,6 +210,10 @@
       var finalForm = document.getElementById('reviewerFinalCodForm');
       var root = document.getElementById('reviewer-select2-root');
       if (!root || !window.jQuery) return;
+      // Search state of the conclusive COD select, filled once the delayed
+      // init runs; the final-submit handler reads it to forward the pick's
+      // search linkage (digitva-zpe.3).
+      var conclusiveTelemetry = null;
 
       function showError(element, message) {
         if (!element) return;
@@ -220,22 +224,30 @@
       function initSelect(selector, hiddenId, presetValue) {
         var $select = window.jQuery(selector);
         var hidden = document.getElementById(hiddenId);
-        if (!$select.length || !hidden) return;
+        if (!$select.length || !hidden) return null;
         if ($select.data('select2')) {
           $select.select2('destroy');
         }
+        var searchState = window.IcdCodingSearch ? window.IcdCodingSearch.newState() : null;
         $select.select2({
           ajax: {
             url: function () { return root.dataset.icdUrl; },
             dataType: 'json',
             delay: 250,
-            data: function (params) { return { q: params.term }; },
+            data: function (params) {
+              return searchState
+                ? window.IcdCodingSearch.requestParams(params, searchState)
+                : { q: params.term };
+            },
             processResults: function (data) {
-              return {
-                results: data.map(function (item) {
-                  return { id: item.icd_to_display, text: item.icd_to_display };
-                })
-              };
+              if (!searchState) {
+                return {
+                  results: data.map(function (item) {
+                    return { id: item.icd_to_display, text: item.icd_to_display };
+                  })
+                };
+              }
+              return window.IcdCodingSearch.processResults(data, searchState);
             },
             cache: true
           },
@@ -243,6 +255,8 @@
           minimumInputLength: 2,
           width: '100%'
         });
+
+        if (searchState) window.IcdCodingSearch.bindShowMore($select, searchState);
 
         if (presetValue) {
           var option = new Option(presetValue, presetValue, true, true);
@@ -253,6 +267,7 @@
         $select.on('select2:select', function (event) {
           hidden.value = event.params.data.id;
         });
+        return searchState;
       }
 
       setTimeout(function () {
@@ -269,7 +284,7 @@
           );
         }
         if (finalForm) {
-          initSelect(
+          conclusiveTelemetry = initSelect(
             '#reviewer-conclusive-cod-select',
             'reviewer-conclusive-cod',
             finalForm.dataset.initialCod || ''
@@ -332,6 +347,18 @@
           showError(error, 'Reviewer final COD is required.');
           return;
         }
+        var body = {
+          conclusive_cod: conclusiveCod,
+          remark: (document.getElementById('reviewer-final-cod-remark').value || '').trim()
+        };
+        if (conclusiveTelemetry && window.IcdCodingSearch) {
+          var choice = window.IcdCodingSearch.resolveChoice(conclusiveTelemetry, conclusiveCod);
+          if (choice) {
+            body.cod_search_id = choice.searchId;
+            body.cod_chosen_code = choice.code || '';
+            body.cod_chosen_rank = choice.rank != null ? choice.rank : '';
+          }
+        }
         submitButton.disabled = true;
         fetch(finalForm.dataset.finalizeUrl, {
           method: 'POST',
@@ -339,10 +366,7 @@
             'Content-Type': 'application/json',
             'X-CSRFToken': finalForm.dataset.csrf
           },
-          body: JSON.stringify({
-            conclusive_cod: conclusiveCod,
-            remark: (document.getElementById('reviewer-final-cod-remark').value || '').trim()
-          })
+          body: JSON.stringify(body)
         })
           .then(function (response) {
             return response.json().then(function (data) {

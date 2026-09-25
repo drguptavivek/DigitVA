@@ -4,22 +4,25 @@ Resources:
   GET search   — search ICD-10 codes by display text
 """
 
-import sqlalchemy as sa
 import json
+import time
+
+import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user, login_required
 
 from app import cache, db, limiter
-from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
 from app.decorators.role_required import role_required
+from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
+from app.services import coding_search_telemetry_service
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
     get_icd10_2019_2_node_details,
     get_icd10_2019_2_policy_options,
-    list_icd10_2019_2_coding_detailed_children,
-    search_icd10_2019_2_coding_choices,
     import_icd10_2019_2_policy_json,
     list_icd10_2019_2_children,
+    list_icd10_2019_2_coding_detailed_children,
+    search_icd10_2019_2_coding_choices,
     update_icd10_2019_2_policy,
 )
 from app.services.icd_coding_value import get_icd_classification_for_submission
@@ -157,14 +160,32 @@ def icd10_2019_2_coding_search(va_sid: str):
     if get_icd_classification_for_submission(va_sid) == "icd11":
         return _error("This project codes in ICD-11.", 400)
 
+    search_id = coding_search_telemetry_service.resolve_search_id(
+        request.args.get("search_id")
+    )
     try:
+        started = time.perf_counter()
         payload = search_icd10_2019_2_coding_choices(
             va_sid=va_sid,
             query=request.args.get("q", ""),
         )
+        latency_ms = round((time.perf_counter() - started) * 1000)
     except LookupError:
         return _error("Submission not found.", 404)
-    return jsonify(payload)
+    # Response payload is built: recording happens now and cannot alter it.
+    coding_search_telemetry_service.record_search_request(
+        search_id=search_id,
+        surface=coding_search_telemetry_service.SURFACE_ICD10,
+        query_text=request.args.get("q", ""),
+        payload=payload,
+        latency_ms=latency_ms,
+        user=current_user,
+    )
+    response = jsonify(payload)
+    # The browser learns the id even when it did not send one, so the COD
+    # save can forward it and the choice lands on the right search row.
+    response.headers["X-Search-Id"] = str(search_id)
+    return response
 
 
 @bp.get("/2019-2/coding-children/<va_sid>")

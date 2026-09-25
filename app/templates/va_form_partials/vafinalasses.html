@@ -246,6 +246,10 @@
               </label>  
               <select id="conclusive-cod-select" class="form-select form-select-lg mb-2" data-icd-hidden="va_conclusive_cod"></select>  
               {{ form.va_conclusive_cod }}  
+              {# Forwarded to the save so the chosen code links back to the coding search that found it (digitva-zpe.3). #}
+              <input type="hidden" name="cod_search_id" id="cod-search-id-input">
+              <input type="hidden" name="cod_chosen_code" id="cod-chosen-code-input">
+              <input type="hidden" name="cod_chosen_rank" id="cod-chosen-rank-input">
               {% if form.va_conclusive_cod.errors %}  
                 <div class="text-danger small mt-1">  
                   <i class="fas fa-exclamation-circle me-1"></i>{{ form.va_conclusive_cod.errors[0] }}  
@@ -298,24 +302,34 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
 
   // Initialize Select2 with a small delay to ensure DOM is ready
   setTimeout(() => {
+    const codChoiceInputs = ['cod-search-id-input', 'cod-chosen-code-input', 'cod-chosen-rank-input']
+      .map(id => document.getElementById(id));
+
     function initSelect2FieldWithPreset(selector, hiddenInputName, presetValue) {
       const $select = $(selector);
       const $hidden = document.querySelector(`input[name="${hiddenInputName}"]`);
       if ($hidden) $hidden.value = "";
+
+      const searchState = window.IcdCodingSearch ? window.IcdCodingSearch.newState() : null;
 
       $select.select2({
         ajax: {
           url: () => document.getElementById("select2-root").dataset.icdUrl,
           dataType: 'json',
           delay: 250,
-          data: params => ({ q: params.term }),
+          data: params => (searchState
+            ? window.IcdCodingSearch.requestParams(params, searchState)
+            : { q: params.term }),
           processResults: data => {
-            return {
-              results: data.map(item => ({
-                id: item.icd_to_display,
-                text: item.icd_to_display
-              }))
-            };
+            if (!searchState) {
+              return {
+                results: data.map(item => ({
+                  id: item.icd_to_display,
+                  text: item.icd_to_display
+                }))
+              };
+            }
+            return window.IcdCodingSearch.processResults(data, searchState);
           },
           cache: true
         },
@@ -323,6 +337,8 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
         minimumInputLength: 2,
         width: '100%' // Add this to ensure proper width
       });
+
+      if (searchState) window.IcdCodingSearch.bindShowMore($select, searchState);
 
       if (presetValue) {
         const option = new Option(presetValue, presetValue, true, true);
@@ -333,6 +349,11 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
       $select.on("select2:select", function (e) {
         const selectedCode = e.params.data.id;
         if ($hidden) $hidden.value = selectedCode;
+        // Link the pick back to the search whose result list it came from;
+        // a preset (previously saved) value stays unlinked.
+        if (searchState) {
+          window.IcdCodingSearch.writeChoiceInputs(searchState, selectedCode, ...codChoiceInputs);
+        }
       });
     }
 

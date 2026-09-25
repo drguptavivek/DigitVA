@@ -87,6 +87,7 @@ celery_app = flask_app.extensions["celery"]
 
 # Register tasks with the worker
 import app.tasks.backup_tasks  # noqa: F401, E402
+import app.tasks.coding_search_telemetry_tasks  # noqa: F401, E402
 import app.tasks.sync_tasks  # noqa: F401, E402
 
 # Seed beat schedule and clean up orphaned run rows on startup
@@ -108,3 +109,9 @@ with flask_app.app_context():
     ensure_submission_analytics_mv_refresh_scheduled()
     ensure_db_backup_scheduled()
     ensure_attachment_s3_upload_scheduled()
+
+    from app.tasks.coding_search_telemetry_tasks import (
+        ensure_coding_search_telemetry_prune_scheduled,
+    )
+
+    ensure_coding_search_telemetry_prune_scheduled()

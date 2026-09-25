@@ -107,25 +107,36 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       const $select = $(selector);
       $select.val(null).trigger('change');
       document.querySelector(`input[name="${hiddenInputName}"]`).value = "";
-      
+
+      const searchState = window.IcdCodingSearch ? window.IcdCodingSearch.newState() : null;
+
       $select.select2({
         ajax: {
           url: () => document.getElementById("select2-root").dataset.icdUrl,
           dataType: 'json',
           delay: 250,
-          data: params => ({ q: params.term }),
-          processResults: data => ({
-            results: data.map(item => ({
-              id: item.icd_to_display,
-              text: item.icd_to_display
-            }))
-          }),
+          data: params => (searchState
+            ? window.IcdCodingSearch.requestParams(params, searchState)
+            : { q: params.term }),
+          processResults: data => {
+            if (!searchState) {
+              return {
+                results: data.map(item => ({
+                  id: item.icd_to_display,
+                  text: item.icd_to_display
+                }))
+              };
+            }
+            return window.IcdCodingSearch.processResults(data, searchState);
+          },
           cache: true
         },
         placeholder: "Search ICD codes...",
         minimumInputLength: 2,
         width: '100%'
       });
+
+      if (searchState) window.IcdCodingSearch.bindShowMore($select, searchState);
 
       $select.on("select2:select", function (e) {
         const selectedCode = e.params.data.id;
@@ -168,24 +179,35 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       const $hidden = document.querySelector(`input[name="${hiddenInputName}"]`);
       if ($hidden) $hidden.value = "";
 
+      const searchState = window.IcdCodingSearch ? window.IcdCodingSearch.newState() : null;
+
       $select.select2({
         ajax: {
           url: () => document.getElementById("select2-root").dataset.icdUrl,
           dataType: 'json',
           delay: 250,
-          data: params => ({ q: params.term }),
-          processResults: data => ({
-            results: data.map(item => ({
-              id: item.icd_to_display,
-              text: item.icd_to_display
-            }))
-          }),
+          data: params => (searchState
+            ? window.IcdCodingSearch.requestParams(params, searchState)
+            : { q: params.term }),
+          processResults: data => {
+            if (!searchState) {
+              return {
+                results: data.map(item => ({
+                  id: item.icd_to_display,
+                  text: item.icd_to_display
+                }))
+              };
+            }
+            return window.IcdCodingSearch.processResults(data, searchState);
+          },
           cache: true
         },
         placeholder: "Search ICD codes...",
         minimumInputLength: 2,
         width: '100%'
       });
+
+      if (searchState) window.IcdCodingSearch.bindShowMore($select, searchState);
 
       if (presetValue) {
         const option = new Option(presetValue, presetValue, true, true);

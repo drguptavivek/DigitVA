@@ -4,6 +4,60 @@ Updated 2026-09-25 (ninth pass, third landing: vocabulary addendum).
 Migration head **`e9d4b6f8a3c2`** (chains onto `c5a8d2e7f1b4`). Full suite:
 **1994 passed, 179 subtests, 0 failed**.
 
+**Dev smoke 2026-09-25 (live app, real death, admin session):** the
+vocabulary is live on dev through the real HTTP path — `MI` → `MI — I21
+Acute myocardial infarction` (30 results), `Kochs` → A15, `assault` →
+Y09, `CVA` → I64, `heart attack` → I21, all rank-1 flagged
+`vocabulary: true` / tier `focused`; the lexical control (`meningitis`)
+unchanged. Admin panel renders 303 links with search/export/add/edit/
+deactivate. Dev upgraded to `e9d4b6f8a3c2`; testadmin's dev password was
+reset to the documented `Admin@123`; a one-allocation smoke grant was
+created and deactivated afterwards. **Owner decisions:** the three WHO
+bucket-label renames in `digitva-tet` are CANCELLED (US/UK spelling
+immaterial, "what matters is code"; dev already matches the manual's
+annex table — the manual's definitions section disagrees with its own
+annex); tet proceeds with the reset-safety snapshot only.
+`digitva-zpe.3` landed below (part 4).
+
+## Landed 2026-09-25 (ninth pass, part 4)
+
+* **Coding-search telemetry + two-stage picker + dual-spelling/hyphen
+  fold** (`digitva-zpe.3`, closed): migration head **`c4e7b1d8f2a9`**
+  (chain `e9d4b6f8a3c2 → b8f2d6a9c4e1 telemetry table → c4e7b1d8f2a9 trgm
+  indexes`). New dependency **`localspelling==0.94`** (images rebuilt).
+  Full suite: **2048 passed, 283 subtests, 0 failed**.
+  - **Telemetry**: `cod_search_telemetry` (surface, query ≤128, count,
+    zero-results, vocabulary-hit, latency, role; no user id/va_sid);
+    every search request echoed `X-Search-Id`; chosen code + rank recorded
+    on the COD save (coder AND reviewer paths); 90-day celery-beat prune;
+    admin CSV export. Telemetry failure can never break or slow a search.
+    Live on dev: 28 rows captured during the smoke.
+  - **Two-stage picker**: Select2 grouping on the `tier` field —
+    "Focused matches" then collapsed "Show more results"; vocabulary hits
+    always focused (including promoted lexical rows); graceful degradation
+    to the flat list. JS covered by template tests; a visual check with a
+    real coder session is the one open verification gap (admin cannot
+    open the coder view).
+  - **Dual-spelling + hyphen fold** (owner-directed): `localspelling`
+    (MIT, 34/54 of the owner's linguistic taxonomy) + a 22-entry medical
+    supplement; query variants OR-ed into ILIKE with a hyphen/space-
+    insensitive `translate` arm on BOTH sides ("cat scratch" reaches
+    "Cat-scratch" and "catscratch" reaches both); vocabulary lookups
+    bridge spellings and hyphens without rewriting stored keys; one
+    helper everywhere (endpoints, tier, vocabulary, admin search).
+    **The database is never modified for search** — invariant in policy.
+    Wildcard escaping fixed so `1_00` no longer matches `1A00` (a real
+    bug the suite caught). Library survey trail (rejected: snowball,
+    pyspellchecker, spylls, eng with its edema→"edoema" corruption,
+    PyMedTermino, UMLS; carded for Phase B: MedSpaCy/scispaCy) is in
+    `docs/policy/icd-coding-search-vocabulary.md` and the design doc.
+  - **trgm GIN indexes** on code+title of both catalogues (pg_trgm was
+    already installed; the translate arm stays unindexed by design).
+  - Dev live-verified: `anaemia`/`anemia` identical results, `MI` top-1
+    flagged, `self harm` → X70 focused, `1_00` empty, X-Search-Id on
+    every request. `cat scratch` on dev returns 0 because A28.1 is
+    WHO-policy non-selectable there — correct behavior, not a gap.
+
 ## Landed 2026-09-25 (ninth pass, part 3)
 
 * **COD search vocabulary addendum** (owner-directed, same day): +54 seed

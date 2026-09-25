@@ -27,7 +27,10 @@ from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
 from app.services.icd_coding_value import extract_icd_code
 from app.services.icd_search_vocabulary_service import (
     CLASSIFICATION_ICD11,
+    _compact_key,
     merge_vocabulary_results,
+    spelling_like_clauses,
+    spelling_variants,
     vocabulary_matches,
 )
 
@@ -985,12 +988,25 @@ def import_icd11_mms_policy_json(
 
 def _result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
     """``focused`` for exact-code and title-prefix matches, ``expanded``
-    otherwise. Vocabulary hits are always focused (assigned at their result
-    dicts). Inert grouping: nothing consumes it yet."""
-    if (code is not None and code.lower() == normalized_query) or title.lower().startswith(
-        normalized_query
-    ):
-        return _RESULT_TIER_FOCUSED
+    otherwise, compared over the query's spelling and hyphen variants — a
+    UK-spelled query against a US-spelled title, or "cat scratch" against
+    "Cat-scratch", still classifies as focused. Vocabulary hits are always
+    focused (assigned at their result dicts). The picker's two-stage
+    grouping reads this field."""
+    variants = spelling_variants(normalized_query)
+    stripped_code = _compact_key(code.lower()) if code is not None else None
+    lowered_title = title.lower()
+    stripped_title = _compact_key(lowered_title)
+    for variant in variants:
+        stripped_variant = _compact_key(variant)
+        if code is not None and (
+            code.lower() == variant or stripped_code == stripped_variant
+        ):
+            return _RESULT_TIER_FOCUSED
+        if lowered_title.startswith(variant) or stripped_title.startswith(
+            stripped_variant
+        ):
+            return _RESULT_TIER_FOCUSED
     return _RESULT_TIER_EXPANDED
 
 
@@ -1082,25 +1098,23 @@ def search_icd11_mms(
         sex = context["sex"]
 
     # Escape LIKE wildcards so '%' and '_' in a query match literally.
-    escaped = normalized_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    like_query = f"%{escaped}%"
-    code_prefix = f"{escaped}%"
     lower_code = sa.func.lower(sa.func.coalesce(MasIcd11Mms.code, ""))
     lower_title = sa.func.lower(MasIcd11Mms.title)
 
-    rank_expr = sa.case(
-        (lower_code == normalized_query, 0),
-        (lower_code.like(code_prefix, escape="\\"), 1),
-        (lower_title.like(code_prefix, escape="\\"), 2),
-        (lower_title.like(like_query, escape="\\"), 3),
-        else_=4,
+    # Spelling fold (UK/US) and hyphen forms OR-ed in; every variant ranks
+    # at the same band as the typed query. The catalogues carry mixed UK/US
+    # spellings, so both directions matter here.
+    match_clause, rank_expr = spelling_like_clauses(
+        (lower_code, lower_title),
+        spelling_variants(normalized_query),
+        escape="\\",
     )
 
     filters = [
         MasIcd11Mms.release == release,
         MasIcd11Mms.is_active.is_(True),
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
-        sa.or_(lower_code.like(like_query, escape="\\"), lower_title.like(like_query, escape="\\")),
+        match_clause,
     ]
     if va_sid is not None:
         filters.append(_coding_policy_clause(age_group=age_group, sex=sex))

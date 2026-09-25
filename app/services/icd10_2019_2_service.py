@@ -23,7 +23,10 @@ from app.models import (
 from app.services.icd_coding_value import extract_icd_code
 from app.services.icd_search_vocabulary_service import (
     CLASSIFICATION_ICD10,
+    _compact_key,
     merge_vocabulary_results,
+    spelling_like_clauses,
+    spelling_variants,
     vocabulary_matches,
 )
 
@@ -122,12 +125,25 @@ def _serialize_row(row: MasIcd1020192, *, child_count: int | None = None) -> dic
 
 def _result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
     """``focused`` for exact-code and title-prefix matches, ``expanded``
-    otherwise. Vocabulary hits are always focused (assigned at their result
-    dicts). Inert grouping: nothing consumes it yet."""
-    if (code is not None and code.lower() == normalized_query) or title.lower().startswith(
-        normalized_query
-    ):
-        return _RESULT_TIER_FOCUSED
+    otherwise, compared over the query's spelling and hyphen variants — a
+    UK-spelled query against a US-spelled title, or "cat scratch" against
+    "Cat-scratch", still classifies as focused. Vocabulary hits are always
+    focused (assigned at their result dicts). The picker's two-stage
+    grouping reads this field."""
+    variants = spelling_variants(normalized_query)
+    stripped_code = _compact_key(code.lower()) if code is not None else None
+    lowered_title = title.lower()
+    stripped_title = _compact_key(lowered_title)
+    for variant in variants:
+        stripped_variant = _compact_key(variant)
+        if code is not None and (
+            code.lower() == variant or stripped_code == stripped_variant
+        ):
+            return _RESULT_TIER_FOCUSED
+        if lowered_title.startswith(variant) or stripped_title.startswith(
+            stripped_variant
+        ):
+            return _RESULT_TIER_FOCUSED
     return _RESULT_TIER_EXPANDED
 
 
@@ -1066,18 +1082,15 @@ def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
 
-    like_query = f"%{normalized_query}%"
-    code_prefix = f"{normalized_query}%"
     lower_code = sa.func.lower(MasIcd1020192.code)
     lower_title = sa.func.lower(MasIcd1020192.title)
     display_expr = sa.func.concat(MasIcd1020192.code, sa.literal(" "), MasIcd1020192.title)
 
-    rank_expr = sa.case(
-        (lower_code == normalized_query, 0),
-        (lower_code.like(code_prefix), 1),
-        (lower_title.like(code_prefix), 2),
-        (lower_title.like(like_query), 3),
-        else_=4,
+    # Spelling fold (UK/US) and hyphen forms OR-ed in; every variant ranks
+    # at the same band as the typed query.
+    match_clause, rank_expr = spelling_like_clauses(
+        (lower_code, lower_title, sa.func.lower(display_expr)),
+        spelling_variants(normalized_query),
     )
 
     rows = db.session.scalars(
@@ -1090,11 +1103,7 @@ def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str
                 age_group=context["age_group"],
                 sex=context["sex"],
             ),
-            sa.or_(
-                lower_code.like(like_query),
-                lower_title.like(like_query),
-                sa.func.lower(display_expr).like(like_query),
-            ),
+            match_clause,
         )
         .order_by(rank_expr, MasIcd1020192.sort_order, MasIcd1020192.code)
         .limit(_CODING_ICD_MAX_RESULTS)

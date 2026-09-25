@@ -14,7 +14,7 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasIcd1020192, MasIcd11Mms, MasIcdSearchTerms
+from app.models import MasIcd11Mms, MasIcd1020192, MasIcdSearchTerms
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.icd_search_vocabulary_service import (
     clear_cache,
@@ -24,6 +24,7 @@ from app.services.icd_search_vocabulary_service import (
     merge_vocabulary_results,
     normalize_term,
     set_active,
+    spelling_variants,
     update_term,
     vocabulary_matches,
 )
@@ -41,13 +42,18 @@ def _seed_csv_rows():
 class NormalizeTermTest(unittest.TestCase):
     """Pure function: no database needed."""
 
-    def test_matches_every_seed_row_term_normalized(self):
-        mismatches = [
+    def test_every_seed_row_resolves_through_stored_key(self):
+        # normalize_term folds to the US canonical spelling while stored
+        # keys keep the row's typed spelling; the lookup variant generator
+        # must bridge the two for every seed row (septicaemia <-
+        # septicemia, self-harm <- "self harm"/selfharm).
+        gaps = [
             row
             for row in _seed_csv_rows()
-            if normalize_term(row["term"]) != row["term_normalized"]
+            if normalize_term(row["term"])
+            not in spelling_variants(row["term_normalized"])
         ]
-        self.assertEqual(mismatches, [])
+        self.assertEqual(gaps, [])
 
     def test_normalization_variants(self):
         cases = {

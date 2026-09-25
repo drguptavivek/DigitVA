@@ -3,34 +3,68 @@ import re
 import uuid
 
 log = logging.getLogger(__name__)
-from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
-from app import db, cache as flask_cache
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
-from app.models.va_submission_attachments import VaSubmissionAttachments
-from app.decorators import va_validate_permissions
-from app.decorators import role_required
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
-from flask import Blueprint, render_template, current_app, send_file, flash, redirect, url_for, jsonify, request, abort, make_response
 from werkzeug.utils import secure_filename
-from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
-from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
+
+from app import cache as flask_cache
+from app import db
+from app.decorators import role_required, va_validate_permissions
+from app.forms import (
+    VaCoderReviewForm,
+    VaDataManagerReviewForm,
+    VaFinalAssessmentForm,
+    VaInitialAssessmentForm,
+    VaReviewerReviewForm,
+    VaUsernoteForm,
+)
+from app.models import (
+    VaAllocation,
+    VaAllocations,
+    VaCoderReview,
+    VaDataManagerReview,
+    VaFinalAssessments,
+    VaInitialAssessments,
+    VaReviewerReview,
+    VaSmartvaResults,
+    VaStatuses,
+    VaSubmissions,
+    VaSubmissionsAuditlog,
+    VaSubmissionWorkflow,
+    VaSubmissionWorkflowEvent,
+    VaUsernotes,
+)
+from app.models.va_submission_attachments import VaSubmissionAttachments
+from app.services import attachment_service, coding_search_telemetry_service
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
+from app.services.coder_dashboard_service import bust_coder_dashboard_cache
+from app.services.coding_service import get_project_for_submission as _get_project_for_submission
+from app.services.demo_project_service import get_demo_expiry_for_submission
+from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
     complete_recode_episode,
     get_active_recode_episode,
-    get_authoritative_final_cod_record,
     get_authoritative_final_assessment,
+    get_authoritative_final_cod_record,
     upsert_final_cod_authority,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
-from app.services.field_mapping_service import get_mapping_service
 from app.services.icd_coding_value import validate_coding_value_for_submission
-from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-from app.services import attachment_service
+from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
@@ -39,19 +73,22 @@ from app.services.payload_bound_coding_artifact_service import (
     get_submission_with_current_payload,
 )
 from app.services.reviewer_final_assessment_service import (
-    get_latest_active_reviewer_initial_assessment,
     get_latest_active_reviewer_final_assessment,
+    get_latest_active_reviewer_initial_assessment,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
-    WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
-    WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SCREENING_PENDING,
+)
+from app.services.workflow.state_store import (
+    get_submission_workflow_state,
+    sync_submission_workflow_from_legacy_records,
 )
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
@@ -63,13 +100,12 @@ from app.services.workflow.transitions import (
     mark_data_manager_not_codeable,
     mark_recode_finalized,
 )
-from app.services.workflow.state_store import get_submission_workflow_state
-from app.services.workflow.state_store import sync_submission_workflow_from_legacy_records
-from app.services.odk_review_service import sync_not_codeable_review_state
-from app.services.coder_dashboard_service import bust_coder_dashboard_cache
-from app.services.demo_project_service import get_demo_expiry_for_submission
-from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
-
+from app.utils import (
+    va_get_form_type_code_for_form,
+    va_permission_abortwithflash,
+    va_render_processcategorydata,
+)
+from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
 
 va_form = Blueprint("va_form", __name__)
 
@@ -1237,6 +1273,15 @@ def renderpartial(va_sid, va_partial):
                 )
             db.session.commit()
             bust_coder_dashboard_cache(current_user.user_id)
+            # The conclusive COD is stored: attach the picked code to the
+            # search the browser says produced it (digitva-zpe.3). Runs after
+            # the save committed; a telemetry failure cannot unsave the COD.
+            coding_search_telemetry_service.record_choice(
+                search_id=request.form.get("cod_search_id"),
+                chosen_code=request.form.get("cod_chosen_code"),
+                chosen_rank=request.form.get("cod_chosen_rank"),
+                role=coding_search_telemetry_service.role_label(current_user),
+            )
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')
@@ -1369,9 +1414,9 @@ def renderpartial(va_sid, va_partial):
                 return response
         return _render_coder_review_form()
     abort(404)
-        
-        
-        
+
+
+
 
 @va_form.route('/attachment/<path:storage_name_raw>')
 @role_required("coder", "reviewer", "data_manager", "site_pi", "project_pi", "admin")
@@ -1516,9 +1561,9 @@ def serve_media(va_form_id, va_filename):
 #     search_term = request.args.get('q', '')
 #     page = int(request.args.get('page', 1))
 #     per_page = 20
-    
+
 #     query = VaIcdCodes.query
-    
+
 #     if search_term:
 #         query = query.filter(
 #             db.or_(
@@ -1527,16 +1572,16 @@ def serve_media(va_form_id, va_filename):
 #                 VaIcdCodes.description.ilike(f'%{search_term}%')
 #             )
 #         )
-    
+
 #     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    
+
 #     results = []
 #     for icd in pagination.items:
 #         results.append({
 #             'id': icd.icd_code,
 #             'text': icd.icd_to_display
 #         })
-    
+
 #     return jsonify({
 #         'results': results,
 #         'pagination': {
@@ -1548,63 +1593,63 @@ def serve_media(va_form_id, va_filename):
 # def save_assessment(sid):
 #     """POST - Save assessment data"""
 #     form = VaFinalAssessmentForm()
-    
+
 #     if form.validate_on_submit():
 #         try:
 #             existing_assessment = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.sid == sid) & (VaFinalAssessments.status == "active")))
-            
+
 #             error_report_value = form.error_report.data.strip() if form.error_report.data else ""
-            
+
 #             print(f"Error report value (cleaned): '{error_report_value}'")
 #             print(f"Error report length: {len(error_report_value)}")
-            
+
 #             if error_report_value:
-                
+
 #                 # Handle error report
 #                 if existing_assessment:
 #                     assessment = existing_assessment
 #                 else:
 #                     assessment = VaFinalAssessments(sid=sid)
 #                     db.session.add(assessment)
-                
+
 #                 assessment.error_reported = True
 #                 assessment.error_report = error_report_value  # ✅ Use cleaned value
 #                 assessment.icd_code_id = None
 #                 assessment.confidence = None
 #                 assessment.comment = None
-                
+
 #                 flash("Error reported successfully. Please continue with another submission.", "success")
-                
-#             else:                
+
+#             else:
 #                 # Handle regular assessment
 #                 if existing_assessment:
 #                     assessment = existing_assessment
 #                 else:
 #                     assessment = VaFinalAssessments(sid=sid)
 #                     db.session.add(assessment)
-                
+
 #                 assessment.error_reported = False
 #                 assessment.error_report = None
 #                 assessment.icd_code_id = form.icd_code_id.data if form.icd_code_id.data else None
 #                 assessment.confidence = form.confidence.data
 #                 assessment.comment = form.comment.data
 #                 flash("Assessment saved successfully. Please continue with another submission.", "success")
-            
+
 #             assessment.status = "active"
-            
+
 #             db.session.commit()
-            
+
 #             saved_assessment = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.sid == sid) & (VaFinalAssessments.status == "active")))
-            
+
 #             # Return to GET route to show updated data
 #             return redirect(url_for('main.vacoding', sid=sid))
-            
+
 #         except Exception as e:
 #             db.session.rollback()
 #             print(f"ERROR during save: {str(e)}")
 #             flash(f'Error saving assessment: {str(e)}', 'danger')
 #             return redirect(url_for('main.vacoding', sid=sid))
-    
+
 #     else:
 #         # Validation failed - show errors
 #         for field, errors in form.errors.items():

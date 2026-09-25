@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -17,6 +17,18 @@ class MasIcd1020192(db.Model):
         sa.Index("ix_mas_icd10_2019_2_three_character_code", "three_character_code"),
         sa.Index("ix_mas_icd10_2019_2_semantic_level", "semantic_level"),
         sa.Index("ix_mas_icd10_2019_2_is_active", "is_active"),
+        # The operator class has to ride along in the expression: postgresql_ops
+        # cannot key off a text() expression (same shape as va_icd_codes).
+        sa.Index(
+            "ix_mas_icd10_2019_2_title_trgm",
+            sa.text("title gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        sa.Index(
+            "ix_mas_icd10_2019_2_code_trgm",
+            sa.text("code gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
     )
 
     code: so.Mapped[str] = so.mapped_column(sa.String(16), primary_key=True)
@@ -54,13 +66,13 @@ class MasIcd1020192(db.Model):
     source_path: so.Mapped[str | None] = so.mapped_column(sa.String(512), nullable=True)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
     updated_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     def __repr__(self) -> str:

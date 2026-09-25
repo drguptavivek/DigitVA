@@ -4,15 +4,15 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app.decorators import role_required
+from app.services import coding_search_telemetry_service
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
     start_reviewer_coding,
-    submit_reviewer_initial_cod,
     submit_reviewer_final_cod,
+    submit_reviewer_initial_cod,
 )
 from app.services.workflow.definition import WORKFLOW_REVIEWER_FINALIZED
-
 
 bp = Blueprint("reviewing_api", __name__)
 
@@ -55,6 +55,14 @@ def finalize(va_sid):
         )
     except ReviewerCodingError as exc:
         return _error(exc.message, exc.status_code)
+    # The reviewer's conclusive COD is stored: attach the picked code to the
+    # search the browser says produced it (digitva-zpe.3). Never fatal.
+    coding_search_telemetry_service.record_choice(
+        search_id=body.get("cod_search_id"),
+        chosen_code=body.get("cod_chosen_code"),
+        chosen_rank=body.get("cod_chosen_rank"),
+        role=coding_search_telemetry_service.role_label(current_user),
+    )
     return jsonify(
         {
             "va_sid": va_sid,

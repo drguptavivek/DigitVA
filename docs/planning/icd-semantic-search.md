@@ -131,6 +131,31 @@ the bottleneck, not compute.
   autopsy's open narrative suggesting causes to the reviewer (CCVA-assist
   direction). Each surface gets its own telemetry.
 
+### Library survey for the narrative surface (owner-directed, 2026-09-25)
+
+Measured/reviewed, none adopted for the search box (none is a search
+ranker; all are text-extraction stacks):
+
+- `snowballstemmer` — stems UK and US forms differently (21/22 medical
+  pairs stay split). Rejected as a fold mechanism.
+- `pyspellchecker` — no en_GB dictionary. Rejected.
+- `spylls` (Hunspell) — bundles en_US only. Rejected.
+- `eng` 0.1.2 — 12/19 medical pairs; UK-direction corruption
+  (edema→"edoema"). Rejected.
+- **`localspelling` 0.94 — ADOPTED for the search fold**: 15/19 pairs,
+  zero corruptions, word-level both directions, MIT, no deps; plus a
+  ~15-entry medical supplement for its gaps (oesophageal, the -aemia
+  compounds).
+- `PyMedTermino` — ships no terminology content (UMLS/SNOMED licensed
+  separately), search is lexical like ours, LGPL, dormant. Rejected.
+  UMLS harvest also ruled out by the owner.
+- `MedSpaCy` / `scispaCy` — clinical NER + context (negation, family
+  history); entity linking is UMLS-locked, models 100-600MB. Not for the
+  search box. **Phase-B candidate** for the narrative surface alongside
+  the 63-cause embedder: scispaCy NER + our own tables as the link
+  target (no UMLS), with MedSpaCy context, versus the measured 0.1MB
+  63-cause ranker — decide with telemetry data, not now.
+
 ### Footprint (arithmetic on the measured corpora, 31k titles × 384 dims)
 
 - Quantized model file: 23.0 MB (MiniLM-L6) / 34.0 MB (bge-small).

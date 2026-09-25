@@ -64,6 +64,19 @@ second surface and stays out of scope here.
   two-stage UI from it — focused group first, expanded behind a "show
   more" control — but every path still terminates at an ICD code
   selection.
+- Spelling and hyphenation fold (digitva-zpe.3): a query matches across
+  UK/US spellings and hyphen placement. Mechanism: the `localspelling`
+  package (MIT, Fast Data Science) word map plus a 22-entry medical
+  supplement (measured: the library alone covers 34/54 of the medical
+  UK/US taxonomy) generate the query's spelling variants — the original
+  always first, never removed — and each variant is also matched with
+  hyphens and spaces translated out on both sides, because ICD titles are
+  officially hyphenated (measured: 1,033/12,475 ICD-10 2019 and
+  2,155/35,664 ICD-11 MMS 2026-01 titles contain a hyphen) while
+  clinicians type unhyphenated or spaced forms. `term_normalized` folds to
+  the US spelling as the one lookup key; stored keys are never rewritten
+  by a migration. The fold adds no synonyms of its own — the vocabulary
+  stays the only curated term list.
 - Exact match on `term_normalized` only — no prefix or fuzzy matching
   (`MI` must not hijack `miliary`). Multi-code families stay reachable the
   way they are today (`tuberculosis` finds the A15/A16 family lexically).
@@ -71,6 +84,33 @@ second surface and stays out of scope here.
   endpoint already applies** (active/selectable policy, age and sex when a
   `va_sid` is in play). A shorthand whose target is filtered out for that
   death returns nothing extra — the vocabulary never bypasses coding policy.
+- **Spelling variants fold (owner, 2026-09-25 — "US/UK matters when it
+  affects search")**: `normalize_term` and the query normalization apply a
+  curated UK↔US fold (diarrhoea/diarrhea, oesophag/esophag, haem/hem,
+  anaemi/anemi, aetio/etio, paedi/pedi, oedem/edem, foet/fet, coeli/celi,
+  anaesth/anesth, orthopaed/orthoped, tumour/tumor — no generic letter
+  rules), and the lexical endpoints OR the query's spelling variants into
+  their title matching. A UK-spelled query therefore finds US-spelled
+  titles and vice versa, and one vocabulary row covers both spellings.
+  Coverage is validated against the full linguistic taxonomy (owner,
+  2026-09-25): `localspelling` covers 34 of 54 reference pairs (ae/e,
+  oe/e, -our/-or, -re/-er, -logue/-log, -lyse/-lyze, misc); the 22-entry
+  supplement carries the rest (derivatives like oesophageal/anaemias,
+  the -aemia compounds, disc/disk, the leuc- family). "Aero-" words and
+  "humoral" are identical in both variants and asserted unchanged in the
+  safety tests.
+- **Hyphenation trap (owner rule, 2026-09-25)**: official titles are
+  hyphenated (measured: 1,033/12,475 ICD-10 and 2,155/35,664 ICD-11
+  titles — Cat-scratch, Rat-bite, Non-ulcerative, Gastro-oesophageal)
+  while clinicians type unhyphenated or spaced forms; matching is
+  hyphen-insensitive on both sides via a query-time
+  `translate(text, '-', '')` comparison arm.
+- **The database is never modified for search.** All normalization —
+  dialect variants, hyphen forms, vocabulary keys — happens on the query
+  side as an OR-ed set matched at query time. Catalogue rows, titles and
+  vocabulary rows stay exactly as WHO and the admins wrote them
+  (owner, 2026-09-25: normalize the search term to both dialects and OR
+  against the records; never rewrite the data).
 - Vocabulary matches rank first in the result list and are marked
   (`"vocabulary": true`, display `term — target title`) so the coder can see
   why an unexpected code appeared.

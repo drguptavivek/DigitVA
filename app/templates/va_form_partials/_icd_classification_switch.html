@@ -74,3 +74,116 @@
   });
 })();
 </script>
+<script>
+{#
+  Shared client for every coding-search Select2 on the page (digitva-zpe.3).
+  Two jobs, both consumed by the templates that init Select2 here:
+
+  1. Telemetry linkage — every search gets a UUID (search_id param); the
+     results' codes-with-rank are remembered for it, and the conclusive COD
+     field forwards the id + chosen code + rank on save so the server can
+     attach the pick to the search that produced it. No PII leaves the page.
+  2. Two-stage rendering (docs/policy/icd-coding-search-vocabulary.md) —
+     results are grouped by the API's `tier` field: "Focused matches" first,
+     the "Expanded matches" group collapsed behind a "Show more results"
+     entry. Unknown or missing tier degrades into the expanded group, so an
+     old cached page renders the familiar flat list.
+#}
+(function () {
+  if (window.IcdCodingSearch) return;
+  var SHOW_MORE_ID = '__digitva_show_expanded__';
+
+  function uuid() {
+    // crypto.randomUUID needs a secure context; intranet http deployments
+    // still get a valid v4 through getRandomValues (available everywhere).
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    var bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    var hex = '';
+    for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) +
+           '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+  }
+
+  window.IcdCodingSearch = {
+    SHOW_MORE_ID: SHOW_MORE_ID,
+
+    newState: function () {
+      return { term: '', expanded: false, searchId: null, choices: {} };
+    },
+
+    // ajax.data: stamp each request with this search's id.
+    requestParams: function (params, state) {
+      var term = params.term || '';
+      // A fresh term starts collapsed again; only the toggled term stays wide.
+      if (term !== state.term) state.expanded = false;
+      state.term = term;
+      state.searchId = uuid();
+      return { q: params.term, search_id: state.searchId };
+    },
+
+    // ajax.processResults: remember code/rank per display value, group by tier.
+    processResults: function (data, state) {
+      var focused = [];
+      var expanded = [];
+      (data || []).forEach(function (item, index) {
+        var display = item && item.icd_to_display;
+        if (!display) return;
+        state.choices[display] = { code: item.icd_code, rank: index };
+        var option = { id: display, text: display };
+        if (item.tier === 'focused') focused.push(option); else expanded.push(option);
+      });
+      var groups = [];
+      if (focused.length) groups.push({ text: 'Focused matches', children: focused });
+      if (expanded.length) {
+        if (state.expanded) {
+          groups.push({ text: 'Expanded matches', children: expanded });
+        } else {
+          var toggle = { id: SHOW_MORE_ID, text: 'Show more results (' + expanded.length + ')' };
+          if (groups.length) groups[0].children.push(toggle);
+          else groups.push({ text: 'Expanded matches', children: [toggle] });
+        }
+      }
+      return { results: groups };
+    },
+
+    // The toggle entry re-runs the same term with the expanded group shown.
+    bindShowMore: function ($select, state) {
+      $select.on('select2:selecting', function (event) {
+        if (!event.params.data || event.params.data.id !== SHOW_MORE_ID) return;
+        event.preventDefault();
+        state.expanded = true;
+        var select2 = $select.data('select2');
+        var field = select2 && select2.$dropdown && select2.$dropdown.find('.select2-search__field');
+        if (field && field.length) {
+          field.val(state.term).trigger('input');
+        } else {
+          $select.select2('close');
+          $select.select2('open');
+        }
+      });
+    },
+
+    resolveChoice: function (state, displayText) {
+      var hit = state.choices[displayText];
+      if (!hit) return null;
+      return { searchId: state.searchId, code: hit.code, rank: hit.rank };
+    },
+
+    // Hidden COD-save inputs: only a pick from the current result set fills
+    // them, which is what makes the forwarded code provably from that search.
+    // A later search never blanks them — a still-selected earlier pick stays
+    // truthfully linked to the search it came from.
+    writeChoiceInputs: function (state, displayText, searchIdInput, codeInput, rankInput) {
+      var choice = window.IcdCodingSearch.resolveChoice(state, displayText);
+      if (searchIdInput) searchIdInput.value = choice ? choice.searchId : '';
+      if (codeInput) codeInput.value = choice && choice.code ? choice.code : '';
+      if (rankInput) rankInput.value = choice && choice.rank != null ? String(choice.rank) : '';
+    }
+  };
+})();
+</script>

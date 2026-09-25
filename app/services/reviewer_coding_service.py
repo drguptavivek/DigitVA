@@ -21,14 +21,14 @@ from app.models import (
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
 from app.services.icd_coding_value import validate_coding_value_for_submission
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
-from app.services.reviewer_final_assessment_service import (
-    create_reviewer_initial_assessment,
-    create_reviewer_final_assessment,
-    get_latest_active_reviewer_initial_assessment,
-    get_latest_active_reviewer_final_assessment,
-)
 from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
+)
+from app.services.reviewer_final_assessment_service import (
+    create_reviewer_final_assessment,
+    create_reviewer_initial_assessment,
+    get_latest_active_reviewer_final_assessment,
+    get_latest_active_reviewer_initial_assessment,
 )
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -249,14 +249,17 @@ def submit_reviewer_final_cod(
         )
         .order_by(VaFinalAssessments.va_finassess_createdat.desc())
     )
-    reviewer_final = create_reviewer_final_assessment(
-        va_sid=va_sid,
-        reviewer_user_id=user.user_id,
-        conclusive_cod=conclusive_cod,
-        remark=remark,
-        supersedes_coder_final_assessment=supersedes_coder_final,
-        source_reviewer_initial_assessment=reviewer_initial,
-    )
+    try:
+        reviewer_final = create_reviewer_final_assessment(
+            va_sid=va_sid,
+            reviewer_user_id=user.user_id,
+            conclusive_cod=conclusive_cod,
+            remark=remark,
+            supersedes_coder_final_assessment=supersedes_coder_final,
+            source_reviewer_initial_assessment=reviewer_initial,
+        )
+    except (LookupError, ValueError) as exc:
+        raise ReviewerCodingError(str(exc), 400) from exc
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
@@ -340,13 +343,16 @@ def submit_reviewer_initial_cod(
             400,
         )
 
-    reviewer_initial = create_reviewer_initial_assessment(
-        va_sid=va_sid,
-        reviewer_user_id=user.user_id,
-        immediate_cod=immediate_cod,
-        antecedent_cod=antecedent_cod,
-        other_conditions=other_conditions,
-    )
+    try:
+        reviewer_initial = create_reviewer_initial_assessment(
+            va_sid=va_sid,
+            reviewer_user_id=user.user_id,
+            immediate_cod=immediate_cod,
+            antecedent_cod=antecedent_cod,
+            other_conditions=other_conditions,
+        )
+    except (LookupError, ValueError) as exc:
+        raise ReviewerCodingError(str(exc), 400) from exc
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,

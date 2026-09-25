@@ -112,6 +112,18 @@ PUBLIC_BY_DESIGN = frozenset({
     # in-body `_user_has_role` + abort(403) guard as `help.page`, checked
     # against the icd-codes registry entry's roles.
     "help.icd_codes_search_demo",
+    # Published ICD reference browsers from the public help pages. These
+    # serve classification and mapping metadata only, never submission data.
+    "help.icd10_codes_browser",
+    "help.icd10_codes_browser_children",
+    "help.icd10_codes_browser_csv",
+    "help.icd10_codes_browser_node",
+    "help.icd10_codes_browser_search",
+    "help.icd11_codes_browser",
+    "help.icd11_codes_browser_children",
+    "help.icd11_codes_browser_csv",
+    "help.icd11_codes_browser_node",
+    "help.icd11_codes_browser_search",
 })
 
 _ALLOWED = PUBLIC_BY_DESIGN

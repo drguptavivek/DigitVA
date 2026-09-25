@@ -1009,8 +1009,10 @@
                       <div class="d-flex align-items-center">
                         <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause1 }}</span>
                         {% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != 'NaN' and smartva.va_smartva_cause1icd is not none %}
-                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause1icd }}</span>
+                          {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause1icd) %}
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>
@@ -1031,8 +1033,10 @@
                       <div class="d-flex align-items-center">
                         <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause2 }}</span>
                         {% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != 'NaN' and smartva.va_smartva_cause2icd is not none %}
-                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause2icd }}</span>
+                          {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause2icd) %}
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>
@@ -1052,9 +1056,11 @@
                     <td class="align-middle">
                       <div class="d-flex align-items-center">
                         <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause3 }}</span>
-                        {% if smartva.va_smartvacause3_icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}
-                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                        {% if smartva.va_smartva_cause3icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}
+                          <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause3icd }}</span>
+                          {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause3icd) %}
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>

@@ -9,6 +9,11 @@ services:
       include: 2026-01_en
     ports:
       - "127.0.0.1:8382:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--header", "API-Version: v2", "--header", "Accept-Language: en", "http://127.0.0.1/icd/release/11/2026-01/mms/search?q=diabetes"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
 
   minerva_app_service:
     build: .
@@ -23,6 +28,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
+      - ICD11_API_BASE_URL=http://icd_api_service
     depends_on:
       - minerva_db_service
       - minerva_redis_service

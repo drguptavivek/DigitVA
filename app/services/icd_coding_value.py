@@ -34,6 +34,21 @@ ICD11_CODE_RE = re.compile(
     r"^\s*([0-9A-Z][A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,2})?)\b", re.IGNORECASE
 )
 
+# A WHO post-coordinated ICD-11 code is a sequence of stem/extension tokens.
+# ``/`` separates alternative expressions and ``&`` joins an extension to a
+# stem.  The local catalogue remains authoritative for the stem; this shape
+# check only prevents a title or arbitrary text from being treated as part of
+# the code before WHO codeinfo verifies the expression.
+_ICD11_STEM_PATTERN = r"[0-9A-Z][A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,2})?"
+_ICD11_EXTENSION_PATTERN = r"[0-9A-Z]+(?:\.[0-9A-Z]+)?"
+ICD11_CODE_EXPRESSION_RE = re.compile(
+    rf"(?P<stem>{_ICD11_STEM_PATTERN})"
+    rf"(?:&{_ICD11_EXTENSION_PATTERN})*"
+    rf"(?:/{_ICD11_STEM_PATTERN}(?:&{_ICD11_EXTENSION_PATTERN})*)*",
+    re.IGNORECASE,
+)
+_ICD11_CODE_EXPRESSION_MAX_LENGTH = 256
+
 _CODE_RE_BY_CLASSIFICATION = {
     "icd10": ICD10_CODE_RE,
     "icd11": ICD11_CODE_RE,
@@ -55,6 +70,42 @@ def extract_icd_code(value: str | None, classification: str) -> str | None:
     if not match:
         return None
     return match.group(1).upper()
+
+
+def extract_icd11_code_expression(value: str | None) -> str | None:
+    """Extract a complete leading ICD-11 code expression from a COD value.
+
+    The stored form is ``"<CODE> <title>"``.  For a plain stem this returns
+    the stem, while a post-coordinated value such as
+    ``"1G40.0&XN8Q/1G41 <title>"`` returns the complete expression.  Only the
+    first whitespace-delimited token is considered, and its bounded grammar
+    deliberately does not decide whether the expression is a real WHO code;
+    that check belongs to ``codeinfo`` validation.
+
+    ``None`` is returned for malformed expressions.  Callers should treat a
+    leading ``&`` or ``/`` as an invalid cluster rather than falling back to
+    the first stem.
+    """
+    if not value:
+        return None
+    match = re.match(r"^\s*(\S+)", value)
+    if not match:
+        return None
+    candidate = match.group(1)
+    if len(candidate) > _ICD11_CODE_EXPRESSION_MAX_LENGTH:
+        return None
+    candidate = candidate.upper()
+    if not ICD11_CODE_EXPRESSION_RE.fullmatch(candidate):
+        return None
+    return candidate
+
+
+def has_icd11_cluster_marker(value: str | None) -> bool:
+    """Whether the leading token attempts ICD-11 post-coordination."""
+    if not value:
+        return False
+    match = re.match(r"^\s*(\S+)", value)
+    return bool(match and ("&" in match.group(1) or "/" in match.group(1)))
 
 
 def classification_of_value(value: str | None) -> str | None:
@@ -118,3 +169,24 @@ def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
     else:
         raise ValueError("Select a valid ICD-10 or ICD-11 code.")
     return classification
+
+
+def build_icd11_provenance_for_values(
+    va_sid: str,
+    values: dict[str, str | None],
+) -> dict[str, dict] | None:
+    """Build server-derived provenance for ICD-11 fields in one assessment.
+
+    ICD-10 values intentionally produce no provenance. The resolver is
+    imported lazily to avoid the existing service import cycle.
+    """
+    from app.services.icd11_mms_service import build_icd11_provenance
+
+    provenance: dict[str, dict] = {}
+    for field, value in values.items():
+        if classification_of_value(value) != "icd11":
+            continue
+        item = build_icd11_provenance(va_sid, value)
+        if item is not None:
+            provenance[field] = item
+    return provenance or None

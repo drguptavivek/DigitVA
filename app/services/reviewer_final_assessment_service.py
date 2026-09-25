@@ -17,6 +17,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
+from app.services.icd_coding_value import build_icd11_provenance_for_values
 
 
 def get_latest_active_reviewer_final_assessment(
@@ -87,6 +88,10 @@ def create_reviewer_initial_assessment(
         va_riniassess_by=reviewer_user_id,
         va_immediate_cod=immediate_cod,
         va_antecedent_cod=antecedent_cod,
+        icd11_provenance=build_icd11_provenance_for_values(
+            va_sid,
+            {"immediate": immediate_cod, "antecedent": antecedent_cod},
+        ),
         va_other_conditions=other_conditions,
     )
     db.session.add(reviewer_initial)
@@ -127,6 +132,9 @@ def create_reviewer_final_assessment(
         payload_version_id=active_payload_version_id,
         va_rfinassess_by=reviewer_user_id,
         va_conclusive_cod=conclusive_cod,
+        icd11_provenance=build_icd11_provenance_for_values(
+            va_sid, {"conclusive": conclusive_cod}
+        ),
         va_rfinassess_remark=remark,
         supersedes_coder_final_assessment_id=(
             supersedes_coder_final_assessment.va_finassess_id

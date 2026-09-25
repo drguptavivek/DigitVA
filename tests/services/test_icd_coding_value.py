@@ -5,6 +5,7 @@ Run (inside Docker):
 """
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import patch
 
 import sqlalchemy as sa
 
@@ -24,9 +25,12 @@ from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.icd_coding_value import (
     ICD_CLASSIFICATIONS,
     PROJECT_ICD_CLASSIFICATIONS,
+    build_icd11_provenance_for_values,
     classification_of_value,
+    extract_icd11_code_expression,
     extract_icd_code,
     get_icd_classification_for_submission,
+    has_icd11_cluster_marker,
     validate_coding_value_for_submission,
 )
 from tests.base import BaseTestCase
@@ -46,6 +50,17 @@ class TestExtractIcdCode(BaseTestCase):
         self.assertEqual(extract_icd_code("2C25.Z Unspecified", "icd11"), "2C25.Z")
         self.assertIsNone(extract_icd_code("A00 Cholera", "icd11"))
         self.assertIsNone(extract_icd_code(None, "icd11"))
+
+    def test_icd11_extracts_complete_code_expression(self):
+        expression = "1G40.0&XN8Q/1G41"
+        self.assertEqual(
+            extract_icd11_code_expression(f"{expression} Post-coordinated sepsis"),
+            expression,
+        )
+        self.assertEqual(extract_icd11_code_expression("1A00 Cholera"), "1A00")
+        self.assertIsNone(extract_icd11_code_expression("1A00&"))
+        self.assertTrue(has_icd11_cluster_marker(f"{expression} title"))
+        self.assertFalse(has_icd11_cluster_marker("1A00 Cholera"))
 
     def test_unknown_classification_raises(self):
         with self.assertRaises(ValueError):
@@ -261,6 +276,156 @@ class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission
         # Well-shaped but not in the catalogue.
         with self.assertRaisesRegex(ValueError, "not selectable"):
             validate_coding_value_for_submission(self.SID, "1A00 Cholera")
+
+    def test_icd11_accepts_a_who_verified_cluster_and_checks_its_stem(self):
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/1G40.0",
+                code="1G40.0",
+                title="Test cluster stem",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        expression = "1G40.0&XN8Q/1G41"
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            return_value={"code": expression, "stemCode": "1G40.0"},
+        ) as codeinfo:
+            self.assertEqual(
+                validate_coding_value_for_submission(
+                    self.SID, f"{expression} Post-coordinated sepsis"
+                ),
+                "icd11",
+            )
+        codeinfo.assert_called_once_with(expression, release=DEFAULT_ICD11_RELEASE)
+
+    def test_icd11_provenance_uses_versioned_who_stem_uri_and_local_title(self):
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/release/11/mms/412389819/unspecified",
+                foundation_uri="http://id.who.int/icd/entity/412389819",
+                code="GB61.Z",
+                title="Chronic kidney disease, stage unspecified",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            return_value={
+                "@id": "http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z",
+                "code": "GB61.Z",
+                "stemId": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+            },
+        ) as codeinfo:
+            provenance = build_icd11_provenance_for_values(
+                self.SID, {"conclusive": "GB61.Z Diabetic nephropathy"}
+            )
+
+        self.assertEqual(provenance["conclusive"]["code"], "GB61.Z")
+        self.assertEqual(
+            provenance["conclusive"]["selected_text"], "Diabetic nephropathy"
+        )
+        self.assertEqual(
+            provenance["conclusive"]["title"],
+            "Chronic kidney disease, stage unspecified",
+        )
+        self.assertEqual(
+            provenance["conclusive"]["linearization_uri"],
+            "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+        )
+        codeinfo.assert_called_once_with("GB61.Z", release=DEFAULT_ICD11_RELEASE)
+
+    def test_icd10_provenance_is_null(self):
+        self.assertIsNone(
+            build_icd11_provenance_for_values(
+                self.SID, {"conclusive": "I21 Acute myocardial infarction"}
+            )
+        )
+
+    def test_icd11_rejects_a_cluster_with_a_noncanonical_suffix(self):
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/1G40.0-invalid",
+                code="1G40.0",
+                title="Test cluster stem",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        expression = "1G40.0&XN8Q&ARBITRARY"
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            return_value={"code": "1G40.0&XN8Q", "stemCode": "1G40.0"},
+        ):
+            with self.assertRaisesRegex(ValueError, "expression is not valid"):
+                validate_coding_value_for_submission(self.SID, f"{expression} title")
+
+    def test_icd11_rejects_a_malformed_cluster_before_local_stem_fallback(self):
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/1G40.0-malformed",
+                code="1G40.0",
+                title="Test cluster stem",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        with patch("app.services.who_icd_api.get_icd11_codeinfo") as codeinfo:
+            with self.assertRaisesRegex(ValueError, "valid ICD-11 code"):
+                validate_coding_value_for_submission(self.SID, "1G40.0& title")
+        codeinfo.assert_not_called()
+
+    def test_icd11_cluster_fails_closed_when_who_api_is_unavailable(self):
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/1G40.0-outage",
+                code="1G40.0",
+                title="Test cluster stem",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        from app.services.who_icd_api import WhoIcdApiUnavailable
+
+        expression = "1G40.0&XN8Q/1G41"
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            side_effect=WhoIcdApiUnavailable("test outage"),
+        ):
+            with self.assertRaisesRegex(ValueError, "service unavailable"):
+                validate_coding_value_for_submission(self.SID, f"{expression} title")
 
     def test_unknown_submission_raises_lookup_error(self):
         with self.assertRaises(LookupError):

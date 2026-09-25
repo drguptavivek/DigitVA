@@ -75,8 +75,10 @@
                 <div class="d-flex align-items-center">
                   <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause1 }}</span>
                   {% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != 'NaN' and smartva.va_smartva_cause1icd is not none %}
-                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                       {{ smartva.va_smartva_cause1icd }}</span>
+                    {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause1icd) %}
+                    <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                   {% endif %}
                 </div>
               </td>
@@ -99,8 +101,10 @@
                 <div class="d-flex align-items-center">
                   <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause2 }}</span>
                   {% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != 'NaN' and smartva.va_smartva_cause2icd is not none %}
-                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                       {{ smartva.va_smartva_cause2icd }}</span>
+                    {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause2icd) %}
+                    <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                   {% endif %}
                 </div>
               </td>
@@ -122,9 +126,11 @@
               <td class="align-middle">
                 <div class="d-flex align-items-center">
                   <span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause3 }}</span>
-                  {% if smartva.va_smartvacause3_icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}
-                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD:
+                  {% if smartva.va_smartva_cause3icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}
+                    <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                       {{ smartva.va_smartva_cause3icd }}</span>
+                    {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause3icd) %}
+                    <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
                   {% endif %}
                 </div>
               </td>
@@ -244,8 +250,7 @@
                 Final Underlying / Antecedent Cause of Death <span style="color: red">*</span>
                 <a href="https://icd.who.int/browse10/2019/en" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary ms-2 js-icd-browser" title="Open ICD-10 Browser"><i class="fas fa-book-medical me-1"></i><span class="js-icd-browser-label">ICD-10 Browser</span></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#icdCodesModal" title="Selected ICD-10 and ICD-11 Codes"><i class="fas fa-file-pdf me-1"></i>Selected ICD Codes</button> <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="ms-1" title="Open in new tab" style="font-size:0.75rem;color:#6c757d;"><i class="fas fa-external-link-alt"></i></a> <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#vaDefinitionsModal" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
               </label>  
-              <select id="conclusive-cod-select" class="form-select form-select-lg mb-2" data-icd-hidden="va_conclusive_cod"></select>  
-              {{ form.va_conclusive_cod }}  
+              <select id="conclusive-cod-select" class="form-select form-select-lg mb-2" data-icd-hidden="va_conclusive_cod" data-icd-ect="true"></select>
               {# Forwarded to the save so the chosen code links back to the coding search that found it (digitva-zpe.3). #}
               <input type="hidden" name="cod_search_id" id="cod-search-id-input">
               <input type="hidden" name="cod_chosen_code" id="cod-chosen-code-input">

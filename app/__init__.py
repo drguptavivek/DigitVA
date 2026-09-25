@@ -261,6 +261,9 @@ def create_app(config_class=None):
 
     app.add_template_global(get_icd_classification_for_submission, "icd_classification_for")
     app.add_template_global(classification_of_value, "icd_classification_of")
+    from app.services.smartva_icd11 import smartva_icd11_mapping
+
+    app.add_template_global(smartva_icd11_mapping, "smartva_icd11_mapping")
 
     @app.context_processor
     def inject_template_globals():

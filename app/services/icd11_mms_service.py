@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -24,7 +26,11 @@ from openpyxl.styles import Font, PatternFill
 from app import db
 from app.models import MasIcd11Mms
 from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
-from app.services.icd_coding_value import extract_icd_code
+from app.services.icd_coding_value import (
+    extract_icd11_code_expression,
+    extract_icd_code,
+    has_icd11_cluster_marker,
+)
 from app.services.icd_search_vocabulary_service import (
     CLASSIFICATION_ICD11,
     FUZZY_MIN_QUERY_LEN,
@@ -1023,8 +1029,34 @@ def validate_icd11_mms_coding_value_for_submission(
     ``LookupError`` when the submission does not exist.
     """
     code = extract_icd_code(value, "icd11")
-    if code is None:
+    expression = extract_icd11_code_expression(value)
+    if code is None or expression is None:
         raise ValueError("Select a valid ICD-11 code.")
+
+    if has_icd11_cluster_marker(value):
+        # A cluster must be checked against WHO's pinned release.  The API
+        # helper returns None for a WHO 404 and raises a distinct exception on
+        # an outage; both cases must block a save.  Import lazily so plain
+        # stem validation retains its existing local-only behavior.
+        from app.services.who_icd_api import (
+            WhoIcdApiUnavailable,
+            get_icd11_codeinfo,
+        )
+
+        try:
+            codeinfo = get_icd11_codeinfo(expression, release=release)
+        except WhoIcdApiUnavailable as exc:
+            raise ValueError("ICD-11 code validation service unavailable.") from exc
+        if not isinstance(codeinfo, dict):
+            raise ValueError("The ICD-11 code expression is not valid.")
+        if codeinfo.get("code") != expression:
+            raise ValueError("The ICD-11 code expression is not valid.")
+        stem_code = codeinfo.get("stemCode")
+        stem_id = codeinfo.get("stemId")
+        if stem_code is not None and stem_code != code:
+            raise ValueError("The ICD-11 code expression is not valid.")
+        if stem_code is None and not isinstance(stem_id, str):
+            raise ValueError("The ICD-11 code expression is not valid.")
 
     context = get_icd10_2019_2_coding_context(va_sid)
     if context is None:
@@ -1043,6 +1075,90 @@ def validate_icd11_mms_coding_value_for_submission(
     )
     if not is_allowed:
         raise ValueError(f"{code} is not selectable for this submission.")
+
+
+def _versioned_icd11_uri(uri: str | None, release: str) -> str | None:
+    """Return a canonical WHO URI with the selected release segment."""
+    if not isinstance(uri, str) or not uri.strip():
+        return None
+    uri = uri.strip()
+    marker = "/icd/release/11/"
+    if marker not in uri:
+        return uri
+    prefix, suffix = uri.split(marker, 1)
+    if suffix.startswith(f"{release}/"):
+        return uri
+    if suffix.startswith("mms/"):
+        return f"{prefix}{marker}{release}/{suffix}"
+    return uri
+
+
+def _icd11_codeinfo_uri(expression: str, release: str) -> str:
+    return (
+        "http://id.who.int/icd/release/11/"
+        f"{release}/mms/codeinfo/{quote(expression, safe='')}"
+    )
+
+
+def build_icd11_provenance(
+    va_sid: str,
+    value: str | None,
+    release: str = DEFAULT_ICD11_RELEASE,
+) -> dict[str, str | None] | None:
+    """Resolve immutable WHO provenance for one saved ICD-11 value.
+
+    The local MMS row supplies the canonical title and foundation URI. WHO
+    ``codeinfo`` supplies the exact expression URI and versioned stem URI;
+    both are checked before returning metadata. The caller's text is retained
+    separately as ``selected_text`` because ECT can return an index-term label
+    such as ``Diabetic nephropathy`` for a row whose canonical title is broader.
+    """
+    code = extract_icd_code(value, "icd11")
+    expression = extract_icd11_code_expression(value)
+    if code is None or expression is None:
+        return None
+
+    row = db.session.scalar(
+        sa.select(MasIcd11Mms).where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.code == code,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+        )
+    )
+    if row is None:
+        raise ValueError(f"{code} is not present in the ICD-11 catalogue.")
+
+    from app.services.who_icd_api import WhoIcdApiUnavailable, get_icd11_codeinfo
+
+    try:
+        codeinfo = get_icd11_codeinfo(expression, release=release)
+    except WhoIcdApiUnavailable as exc:
+        raise ValueError("ICD-11 code validation service unavailable.") from exc
+    if not isinstance(codeinfo, dict) or codeinfo.get("code") != expression:
+        raise ValueError("The ICD-11 code expression is not valid.")
+
+    codeinfo_uri = codeinfo.get("@id")
+    stem_id = codeinfo.get("stemId")
+    if not isinstance(codeinfo_uri, str) or not isinstance(stem_id, str):
+        raise ValueError("The ICD-11 code metadata is incomplete.")
+    if codeinfo_uri != _icd11_codeinfo_uri(expression, release):
+        raise ValueError("The ICD-11 code metadata does not match the expression.")
+    expected_stem_id = _versioned_icd11_uri(row.linearization_uri, release)
+    if _versioned_icd11_uri(stem_id, release) != expected_stem_id:
+        raise ValueError("The ICD-11 code metadata does not match the catalogue.")
+
+    raw_token = re.match(r"^\s*\S+", value or "")
+    selected_text = value[raw_token.end() :].strip() if raw_token else ""
+    return {
+        "code": expression,
+        "title": row.title,
+        "selected_text": selected_text,
+        "release": release,
+        "linearization_uri": expected_stem_id,
+        "foundation_uri": _versioned_icd11_uri(row.foundation_uri, release),
+        "codeinfo_uri": codeinfo_uri,
+    }
 
 
 def search_icd11_mms(

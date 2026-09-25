@@ -87,7 +87,8 @@ Current services:
 Current behavior:
 
 - local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
-- the optional `icd11` profile runs WHO ICD API 2.6.0 with MMS 2026-01 English and DORIS; it is bound only to `127.0.0.1:8382`, with analytics disabled (see [Local WHO ICD-11 API Runtime](../policy/icd11-local-api-runtime.md))
+- the optional `icd11` profile runs WHO ICD API 2.6.0 with MMS 2026-01 English and DORIS; it is bound only to `127.0.0.1:8382`, with analytics disabled and an MMS healthcheck (see [Local WHO ICD-11 API Runtime](../policy/icd11-local-api-runtime.md))
+- the app reaches the WHO API at `ICD11_API_BASE_URL=http://icd_api_service` inside Compose; assessment browsers use the authenticated DigitVA route described in [ICD-11 Embedded Coding Tool in Assessments](../policy/icd11-ect-production.md)
 - the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`

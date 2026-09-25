@@ -4,6 +4,7 @@ from typing import Optional
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app import db
 from app.models.va_selectives import VaStatuses
@@ -35,6 +36,9 @@ class VaReviewerInitialAssessments(db.Model):
     )
     va_immediate_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
     va_antecedent_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
+    icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
     va_other_conditions: so.Mapped[Optional[str]] = so.mapped_column(
         sa.Text, nullable=True
     )

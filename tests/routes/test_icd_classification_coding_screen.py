@@ -12,6 +12,7 @@ Run (inside Docker)::
 """
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 from app import db
 from app.models import (
@@ -45,6 +46,17 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        who_uri = "http://id.who.int/icd/release/11/2026-01/mms/1334938734"
+        who_patch = patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            return_value={
+                "@id": "http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41",
+                "code": "BA41",
+                "stemId": who_uri,
+            },
+        )
+        who_patch.start()
+        cls.addClassCleanup(who_patch.stop)
         cls._ensure_base_research_project_and_site()
         now = datetime.now(UTC)
         form = VaForms(
@@ -116,7 +128,7 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         db.session.merge(
             MasIcd11Mms(
                 release=DEFAULT_ICD11_RELEASE,
-                linearization_uri="http://id.who.int/icd/test/BA41",
+                linearization_uri="http://id.who.int/icd/release/11/mms/1334938734",
                 code="BA41",
                 title="Acute myocardial infarction",
                 class_kind="category",

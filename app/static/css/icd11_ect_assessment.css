@@ -1,0 +1,27 @@
+/* The ECT panel is shared by all ICD-11 COD fields in one assessment. */
+.digitva-ect-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.375rem;
+  background: var(--bs-light, #f8f9fa);
+}
+
+.digitva-ect-panel .ctw-window {
+  min-height: 12rem;
+  margin-top: 0.5rem;
+  background: #fff;
+}
+
+.digitva-ect-status {
+  margin-top: 0.5rem;
+}
+
+.digitva-ect-field-status {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.digitva-ect-field-status:empty {
+  display: none;
+}

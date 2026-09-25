@@ -319,6 +319,12 @@ class Config:
     )
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+    ICD11_API_BASE_URL = os.environ.get(
+        "ICD11_API_BASE_URL", "http://icd_api_service"
+    ).rstrip("/")
+    ICD11_API_TIMEOUT_SECONDS = float(
+        os.environ.get("ICD11_API_TIMEOUT_SECONDS", "5")
+    )
     ICD_SEARCH_CACHE_TIMEOUT = int(
         os.environ.get("ICD_SEARCH_CACHE_TIMEOUT", str(60 * 60 * 24 * 7))
     )

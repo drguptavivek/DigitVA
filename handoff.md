@@ -1,5 +1,31 @@
 # Handoff
 
+## WHO ICD-11 ECT production assessment integration (2026-09-26)
+
+`digitva-0kj`: coder and reviewer ICD-11 COD fields use WHO ECT 1.8 through
+an authenticated same-origin proxy to the local ICD API. The selected complete
+code expression is checked against WHO codeinfo and DigitVA's local coding
+policy. New ICD-11 coder/reviewer initial/final rows store nullable JSONB
+provenance (code, canonical title, selected text, release, WHO URIs) via
+additive migration `d9e0f1a2b3c4`; ICD-10 and historical rows stay NULL.
+The locally vendored WHO ECT assets are unchanged. See
+`docs/policy/icd11-ect-production.md`.
+Focused combined Docker validation: 74 passed; coder/reviewer route subset:
+29 passed. The final full suite on dedicated `minerva_test_ect_full` passed:
+2,173 tests and 295 subtests, with seven schema comparison warnings. An
+earlier run's ODK mapping assertion passed on rerun; the public ICD help route
+auth allowlist was updated.
+
+## SmartVA ICD-11 display (2026-09-26)
+
+`digitva-p11` is implemented and locally verified. The three SmartVA Analysis views label SmartVA's original
+ICD-10 codes and show WHO 10-to-11 crosswalk expressions for primary,
+secondary, and tertiary causes. Missing mappings show `unavailable`; no
+stored result or coding choice changes. The tertiary ICD-10 badge typo is
+fixed. Focused Docker pytest: 1 passed; Ruff on the new service/test passed;
+template compilation and read-only quality audit passed. This change is
+committed with the concurrent ICD-11 ECT work after combined validation.
+
 ## Local WHO ICD-11 API evaluation (2026-09-26)
 
 `digitva-6ix`: optional `icd_api_service` added to `docker-compose.yml` and

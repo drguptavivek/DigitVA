@@ -63,7 +63,10 @@ from app.services.final_cod_authority_service import (
     get_authoritative_final_cod_record,
     upsert_final_cod_authority,
 )
-from app.services.icd_coding_value import validate_coding_value_for_submission
+from app.services.icd_coding_value import (
+    build_icd11_provenance_for_values,
+    validate_coding_value_for_submission,
+)
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
@@ -929,6 +932,18 @@ def renderpartial(va_sid, va_partial):
                         "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
                     )
                 )
+            initial_icd11_provenance = None
+            if not coding_errors:
+                try:
+                    initial_icd11_provenance = build_icd11_provenance_for_values(
+                        va_sid,
+                        {
+                            "immediate": form.va_immediate_cod.data,
+                            "antecedent": form.va_antecedent_cod.data,
+                        },
+                    )
+                except (LookupError, ValueError) as exc:
+                    coding_errors.append((form.va_immediate_cod, str(exc)))
             if coding_errors:
                 for field, message in coding_errors:
                     field.errors.append(message)
@@ -968,6 +983,7 @@ def renderpartial(va_sid, va_partial):
                 va_iniassess_by=current_user.user_id,
                 va_immediate_cod=form.va_immediate_cod.data,
                 va_antecedent_cod=form.va_antecedent_cod.data,
+                icd11_provenance=initial_icd11_provenance,
                 va_other_conditions=" | ".join(form.va_other_conditions.data) if form.va_other_conditions.data else None,
                 # va_rreview=form.va_rreview.data,
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
@@ -1160,6 +1176,15 @@ def renderpartial(va_sid, va_partial):
                     blocking_messages.append(
                         "Social Autopsy Analysis must be completed before submitting the final COD."
                     )
+            final_icd11_provenance = None
+            if not blocking_messages:
+                try:
+                    final_icd11_provenance = build_icd11_provenance_for_values(
+                        va_sid,
+                        {"conclusive": form1.va_conclusive_cod.data},
+                    )
+                except (LookupError, ValueError) as exc:
+                    blocking_messages.append(str(exc))
             if blocking_messages:
                 if request.headers.get("HX-Request"):
                     return _render_final_assessment_form(blocking_messages)
@@ -1190,6 +1215,7 @@ def renderpartial(va_sid, va_partial):
                     va_initial_assess.va_iniassess_id if va_initial_assess else None
                 ),
                 va_conclusive_cod=form1.va_conclusive_cod.data,
+                icd11_provenance=final_icd11_provenance,
                 va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
                 demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
                 # va_rreview=form.va_rreview.data,

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-26
 ---
 
 # Current Data Model
@@ -793,6 +793,7 @@ Key fields:
 - `va_immediate_cod`
 - `va_antecedent_cod`
 - `va_other_conditions`
+- `icd11_provenance` (nullable JSONB)
 - `va_iniassess_status`
 
 ### `va_final_assessments`
@@ -808,6 +809,7 @@ Key fields:
 - `va_finassess_by`
 - `source_initial_assessment_id`
 - `va_conclusive_cod`
+- `icd11_provenance` (nullable JSONB)
 - `va_finassess_remark`
 - `va_finassess_status`
 - `demo_expires_at`
@@ -842,6 +844,7 @@ Key fields:
 - `payload_version_id`
 - `va_rfinassess_by`
 - `va_conclusive_cod`
+- `icd11_provenance` (nullable JSONB)
 - `supersedes_coder_final_assessment_id`
 - `va_rfinassess_status`
 
@@ -852,6 +855,13 @@ Current behavior:
 - reviewer final-COD history is stored separately from coder final-COD history
 - active reviewer final-COD rows may supersede coder final-COD rows in
   authority resolution
+
+All four coder/reviewer initial/final assessment tables have nullable
+`icd11_provenance` JSONB. New ICD-11 selections store the full code expression,
+canonical MMS title, selected display text, pinned release, and server-verified
+WHO linearization and codeinfo URIs; `foundation_uri` is nullable. ICD-10 and
+historical assessment rows remain NULL. The original COD text fields remain
+the display values and are not rewritten by migration `d9e0f1a2b3c4`.
 
 ### `va_smartva_runs`
 

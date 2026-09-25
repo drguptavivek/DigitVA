@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-09-26
 ---
 
 # Category Rendering And Visibility
@@ -20,6 +20,12 @@ UI:
 - which conditions must be met for the category to appear in the left nav
 
 This is a current-state description of the running code, not a target-state design.
+
+SmartVA Analysis displays its original cause and ICD-10 code for each available
+primary, secondary, and tertiary result. The adjacent ICD-11 mapping is read
+from WHO's local 10-to-11 crosswalk and may show alternatives or
+postcoordination. An unmapped ICD-10 code displays "unavailable". This display
+does not change saved SmartVA or assessment values.
 
 ## Shared Render Pipeline
 

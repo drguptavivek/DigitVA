@@ -25,7 +25,10 @@
      data-icd-url="{{ icd11_url if icd_current == 'icd11' else icd10_url }}"
      data-icd10-url="{{ icd10_url }}"
      data-icd11-url="{{ icd11_url }}"
-     data-icd-classification="{{ icd_current }}"></div>
+     data-icd-classification="{{ icd_current }}"
+     data-icd11-who-api-url="{{ '/api/v1/icd11/who-api/' ~ va_sid }}"
+     data-icd11-selection-check-url="{{ '/api/v1/icd11/selection-check/' ~ va_sid }}"
+     data-icd11-csrf="{{ csrf_token() }}"></div>
 {% if icd_setting == 'selectable' %}
 <div class="d-flex align-items-center gap-2 mb-3">
   <span class="small fw-bold">Code this death in</span>
@@ -64,6 +67,9 @@
       var hidden = document.getElementById(select.dataset.icdHidden);
       if (hidden) hidden.value = '';
     });
+    document.body.dispatchEvent(new CustomEvent('digitva:icd-classification-change', {
+      detail: { root: root, classification: classification }
+    }));
   }
 
   apply(root.dataset.icdClassification, false);
@@ -74,6 +80,10 @@
   });
 })();
 </script>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/icd11_ect_assessment.css') }}">
+<script src="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.js') }}"></script>
+<script src="{{ url_for('static', filename='js/icd11_ect_assessment.js') }}"></script>
 <script>
 {#
   Shared client for every coding-search Select2 on the page (digitva-zpe.3).

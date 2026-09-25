@@ -1,6 +1,7 @@
 import uuid
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from sqlalchemy.dialects.postgresql import JSONB
 from app import db
 from typing import Optional
 from datetime import datetime, timezone
@@ -21,6 +22,9 @@ class VaInitialAssessments(db.Model):
     )
     va_immediate_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
     va_antecedent_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
+    icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
     va_other_conditions: so.Mapped[Optional[str]] = so.mapped_column(
         sa.Text, nullable=True
     )

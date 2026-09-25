@@ -1,12 +1,60 @@
 # Handoff
 
-Updated 2026-09-25 (ninth pass, sixth landing: search overhaul, transport
-and stillbirth decisions, help pages). Migration head **`a5f7c3d92b18`**
+## Local WHO ICD-11 API evaluation (2026-09-26)
+
+`digitva-6ix`: optional `icd_api_service` added to `docker-compose.yml` and
+started locally at `127.0.0.1:8382`. WHO image 2.6.0 is digest-pinned;
+MMS 2026-01 English and DORIS are enabled; analytics is off. `/ct`, `/browse`,
+Swagger and the MMS API responded successfully, and Swagger lists the DORIS
+endpoint. Current container memory was about 583 MiB. See
+`docs/policy/icd11-local-api-runtime.md`. The service is not connected to the
+DigitVA picker yet. The container and ECT demo changes are scoped separately
+from the public browser and other shared-tree work; preserve those other edits.
+
+`digitva-cca`: WHO ECT 1.8 assets are vendored under
+`app/static/vendor/icd11ect/1.8/`, and `/help/icd-codes/search-demo` now has a
+read-only WHO Coding Tool comparison with a page-scoped connection to the local
+API. Browser smoke exercised `diabetic nephropathy` term search, entity
+selection with code/URIs/selected text, the local DigitVA policy preview, and
+the existing DigitVA search. The production COD picker and save path are not
+connected to ECT. Focused Docker tests for the demo and its search API passed
+in dedicated `minerva_test_ect` (14 passed); Ruff and `git diff --check` passed.
+
+Updated 2026-09-26 (ninth pass, sixth landing plus public browser work).
+Baseline `main` is **`6611a53`**, pushed to `origin/main`; migration head at
+that checkpoint was **`a5f7c3d92b18`**
 (chain `c4e7b1d8f2a9 → d8a1f4c7b2e6 snapshots → f2b7c9e4a1d8 diarrhoea →
 fdb562cccac4 vocabulary sort_order + seed repair → a5f7c3d92b18 decisions
-15-17 + stillbirth vocabulary`); dev is there (and its snapshot MV was
-refreshed). Full suite: **2128 passed, 283 subtests, 0 failed**. Parts 5-6
-committed and pushed together.
+15-17 + stillbirth vocabulary`). Full suite at that checkpoint:
+**2128 passed, 283 subtests, 0 failed**. Parts 5-6 were committed and pushed
+together. The browser, mapping guidance, and vocabulary work is committed
+locally as `97dabba`; the ECT/API work is in a separate local commit. Neither
+commit has been pushed.
+
+The work includes completed beads `digitva-1u5`, `digitva-oeu`,
+`digitva-yds.1`, and `digitva-yds.2`. It includes migration
+`b7e2a9c4d6f1_reconcile_tuberculosis_vocabulary.py`; dev is at that head. The
+public `/help/icd10-codes` page reuses the admin ICD-10 pane browser in
+read-only mode, with safe filtered data, selectability, sex/age and policy
+details, VA mapping origin/reason, and filtered CSV. Public pane counts reflect
+policy/origin filters; the age filter includes Infant, and failed searches or
+malformed successful JSON responses show an error.
+
+`digitva-yds.2` now reuses the admin ICD-11 variable-depth pane browser in
+read-only mode at `/help/icd11-codes`; the old HTML and CSV URLs remain working
+aliases. It retains public selectability, sex/age and policy details, mapping
+origin/reason, filters, search/deep links, and filtered CSV. The hidden
+`origin=digitva` alias survives pane loads, other filter changes, and search;
+Clear Filters removes it. Direct WHO codes now get a plain reason in the
+mapping list, browser detail, compare view, and CSV. Verification after these
+fixes: focused public/service/admin tests **114 passed, 30 subtests**; Ruff and
+`git diff --check` passed (the latter reports CRLF normalization warnings in
+pre-existing ICD-11 reference text files); anonymous browser smoke covered the
+alias, search, filter clearing, and a direct-WHO detail. The final read-only
+quality audit found no remaining material findings. The full suite has not been
+rerun after these changes. Preserve the pre-existing untracked ZIP/PPTX
+references and the later observed `MorbidityTabulationList_en.zip` plus its
+extracted folder; none are part of these commits.
 
 ## Landed 2026-09-25 (ninth pass, part 6)
 
@@ -68,11 +116,18 @@ committed and pushed together.
   takes explicit `age_group`/`sex`), never recorded in telemetry.
   Browser-verified (head injury, dysentry, eclampsia by sex, preterm by
   age, ICD-11 TB).
-* **"Owner" → "expert review"** in user-facing text (owner decision
-  2026-09-25): legend, `/help/icd-codes`, mapping-state page. Stored notes,
-  CSVs and policy docs keep "Owner decision N" as the audit trail.
-* **Origin legend** written (`app/templates/help/pages/_origin_legend.html`,
-  not yet included on the pages — part of `digitva-oeu`).
+* **Mapping origins** (`digitva-oeu`, closed): canonical WHO / overlap /
+  outside-WHO / differs / not-a-cause / unmapped badges with plain reasons;
+  expert-review tooltips; legacy `?origin=digitva` alias; legend included on
+  all three mapping pages; raw audit note retained only in CSV; BA5x reasons
+  filled; regression test keeps uncovered ICD-11 codes with no crosswalk
+  unselectable. User-facing copy says "expert review"; stored notes, CSVs and
+  policy docs retain "Owner decision N" as the audit trail.
+* **Tuberculosis vocabulary** (`digitva-1u5`, closed): "tuberculosis" now
+  promotes A16 / 1B10.Z, based on VA's inability to know bacteriological
+  confirmation and the shared pulmonary-tuberculosis bucket. Reconcile
+  migration `b7e2a9c4d6f1` chains from `a5f7c3d92b18`, inserts absent exact
+  keys only, captures inserted IDs, and downgrades exactly.
 
 * **Decisions 15-18 implemented** (`digitva-g2n`, closed): migration
   `a5f7c3d92b18` — 88 three-character `V01`-`V89`/`Y85` unselectable
@@ -91,28 +146,14 @@ committed and pushed together.
 
 ### Next (in order)
 
-1. **`digitva-1u5`** (P1): vocabulary "tuberculosis" → A16 / 1B10.Z
-   (today it lists A17, A18, A15 before A16). Reconcile migration on
-   `a5f7c3d92b18`; verify in `/help/icd-codes/search-demo`.
-2. **`digitva-oeu`**: plain-language origins on the mapping pages — "WHO" /
-   "WHO (overlap resolved)" / "Not in WHO's list" (~250 selectable
-   uncovered) / "Differs from WHO" (~150) / **"Not a cause of death"** (the
-   2,148 decision-5b codes, all never selectable) / "Unmapped"; a plain
-   reason under every badge, never "Owner decision N" (number in CSV +
-   tooltip only; user-facing text says "expert review"); include the
-   written legend `_origin_legend.html` on all three mapping pages; fix the
-   15 BA5x rows with an empty rule; guard test that uncovered
-   no-crosswalk ICD-11 codes stay unselectable. Full wording in bead notes.
-3. **`digitva-yds`** epic (public, no login, rate-limited): `.1` ICD-10
-   read-only browser, `.2` ICD-11 read-only browser (promote the
-   mapping-state page, add sex/age), `.3` COD bucket schemes read-only.
-   After oeu, one writer (same files).
-4. **`digitva-e5j`**: explain empty search results caused by age/sex
-   policy ("1 code matches but is not selectable for an infant female:
-   P95 (neonate only)") in the demo and the coding picker.
-5. Telemetry review; candidate: rank focused matches by final-COD
+1. **`digitva-yds.3`**: public read-only COD bucket scheme browsers (one bead at
+   a time; same anonymous/read-only access contract).
+2. **`digitva-e5j`**: explain empty search results caused by age/sex policy
+   ("1 code matches but is not selectable for an infant female: P95 (neonate
+   only)") in the demo and the coding picker.
+3. Telemetry review; candidate: rank focused matches by final-COD
    frequency ("myoc" lists I41 above I21).
-6. Everything under "Approved, not started" below.
+4. Everything under "Approved, not started" below.
 
 Lessons from part 6: dev serves the working tree, so a writer's model
 change breaks dev pages until its migration runs (the vocabulary panel

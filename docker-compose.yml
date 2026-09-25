@@ -1,4 +1,15 @@
 services:
+  icd_api_service:
+    image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
+    profiles: [icd11]
+    environment:
+      acceptLicense: "true"
+      saveAnalytics: "false"
+      enableDoris: "true"
+      include: 2026-01_en
+    ports:
+      - "127.0.0.1:8382:80"
+
   minerva_app_service:
     build: .
     container_name: minerva_app

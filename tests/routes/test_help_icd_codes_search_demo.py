@@ -75,6 +75,12 @@ class HelpIcdCodesSearchDemoRouteTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn("coding-demo-query", body)
+        self.assertIn("vendor/icd11ect/1.8/icd11ect-1.8.js", body)
+        self.assertIn("who-ect-query", body)
+        self.assertIn(
+            "connect-src 'self' http://127.0.0.1:8382",
+            response.headers["Content-Security-Policy"],
+        )
 
     def test_role_without_access_gets_403(self):
         self._login(self.base_project_pi_id)
@@ -90,3 +96,6 @@ class HelpIcdCodesSearchDemoRouteTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(self.URL, response.get_data(as_text=True))
+        self.assertNotIn(
+            "http://127.0.0.1:8382", response.headers["Content-Security-Policy"]
+        )

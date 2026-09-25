@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-26
 ---
 
 # Runtime And Operations
@@ -82,10 +82,12 @@ Current services:
 - `minerva_redis_service`
 - `minerva_celery_worker` (Celery worker)
 - `minerva_celery_beat` (Celery beat)
+- `icd_api_service` (optional WHO ICD-11 API, Coding Tool, Browser, and DORIS)
 
 Current behavior:
 
 - local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
+- the optional `icd11` profile runs WHO ICD API 2.6.0 with MMS 2026-01 English and DORIS; it is bound only to `127.0.0.1:8382`, with analytics disabled (see [Local WHO ICD-11 API Runtime](../policy/icd11-local-api-runtime.md))
 - the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`

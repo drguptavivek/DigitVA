@@ -55,6 +55,28 @@
   </div>
 </div>
 
+<section class="mt-4 border-top pt-3" aria-labelledby="who-ect-heading">
+  <h2 class="h5" id="who-ect-heading">WHO ICD-11 Coding Tool (local evaluation)</h2>
+  <p class="small">Use WHO's full ICD-11 MMS Coding Tool to explore indexed terms, entity details and postcoordination. This demonstration does not save a code or alter a death record. The local WHO API must be running at <code>127.0.0.1:8382</code>.</p>
+  <button class="btn btn-outline-primary btn-sm mb-3" type="button" id="who-ect-start">Open WHO Coding Tool</button>
+  <p class="small" id="who-ect-status" role="status"></p>
+  <div id="who-ect-panel" hidden>
+    <label class="form-label" for="who-ect-query">Search WHO ICD-11</label>
+    <input id="who-ect-query" type="text" class="ctw-input form-control" autocomplete="off" data-ctw-ino="digitva-demo">
+    <div class="ctw-window" data-ctw-ino="digitva-demo"></div>
+    <div id="who-ect-selection" class="card mt-3" hidden>
+      <div class="card-body">
+        <h3 class="h6">WHO selection</h3>
+        <dl class="row mb-0" id="who-ect-fields"></dl>
+        <p class="small mb-0" id="who-ect-local-check"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.css') }}">
+<script src="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.js') }}"></script>
+
 <style>
   #coding-demo-results .coding-demo-item {
     padding: 0.35rem 0;
@@ -187,5 +209,106 @@
   });
 
   updateContextLine();
+})();
+</script>
+<script>
+(function () {
+  var API_URL = 'http://127.0.0.1:8382';
+  var SEARCH_URL = {{ url_for('api_v1.coding_search_demo_api.coding_search_demo') | tojson }};
+  var start = document.getElementById('who-ect-start');
+  var panel = document.getElementById('who-ect-panel');
+  var status = document.getElementById('who-ect-status');
+  var selection = document.getElementById('who-ect-selection');
+  var fields = document.getElementById('who-ect-fields');
+  var check = document.getElementById('who-ect-local-check');
+  var age = document.getElementById('coding-demo-age-group');
+  var sex = document.getElementById('coding-demo-sex');
+  var selectedCode = null;
+  var checkSequence = 0;
+
+  function showFields(entity) {
+    fields.replaceChildren();
+    [
+      ['Code', entity.code], ['Title', entity.title],
+      ['Linearization URI', entity.linearizationUri],
+      ['Foundation URI', entity.foundationUri],
+      ['Selected text', entity.selectedText],
+      ['Search query', entity.searchQuery]
+    ].forEach(function (entry) {
+      var term = document.createElement('dt');
+      var value = document.createElement('dd');
+      term.className = 'col-sm-4';
+      value.className = 'col-sm-8 text-break';
+      term.textContent = entry[0];
+      value.textContent = entry[1] || '—';
+      fields.append(term, value);
+    });
+    selection.hidden = false;
+    selectedCode = entity.code || null;
+    checkLocalCode();
+  }
+
+  function checkLocalCode() {
+    var sequence = ++checkSequence;
+    if (!selectedCode) {
+      check.textContent = 'DigitVA selectability: unknown (WHO returned no single code).';
+      return;
+    }
+    check.textContent = 'Checking DigitVA selectability for ' + age.value + ' ' + sex.value + '...';
+    var params = new URLSearchParams({
+      classification: 'icd11', q: selectedCode,
+      age_group: age.value, sex: sex.value
+    });
+    fetch(SEARCH_URL + '?' + params.toString(), { credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('DigitVA search unavailable');
+        return response.json();
+      })
+      .then(function (results) {
+        if (sequence !== checkSequence) return;
+        if (!Array.isArray(results)) throw new Error('Unexpected DigitVA response');
+        var exact = results.some(function (item) {
+          return item.icd_code === selectedCode;
+        });
+        check.textContent = exact
+          ? 'DigitVA search offers this code for ' + age.value + ' ' + sex.value + '. This is a preview, not a save validation.'
+          : 'DigitVA selectability: unknown. The search did not return an exact code for ' + age.value + ' ' + sex.value + '.';
+      })
+      .catch(function () {
+        if (sequence === checkSequence) check.textContent = 'DigitVA selectability: unknown (local check unavailable).';
+      });
+  }
+
+  age.addEventListener('change', function () { if (selection.hidden === false) checkLocalCode(); });
+  sex.addEventListener('change', function () { if (selection.hidden === false) checkLocalCode(); });
+  start.addEventListener('click', function () {
+    start.disabled = true;
+    status.textContent = 'Checking local WHO ICD API...';
+    fetch(API_URL + '/icd/release/11/2026-01/mms', {
+      headers: { 'API-Version': 'v2', 'Accept-Language': 'en' },
+      signal: AbortSignal.timeout(5000)
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error('WHO API unavailable');
+        if (!window.ECT || !ECT.Handler) throw new Error('WHO Coding Tool assets unavailable');
+        ECT.Handler.configure({
+          apiServerUrl: API_URL,
+          apiSecured: false,
+          source: 'mms',
+          minorVersion: '2026-01',
+          language: 'en',
+          simplifiedMode: false,
+          autoBind: false
+        }, { selectedEntityFunction: showFields });
+        panel.hidden = false;
+        ECT.Handler.bind('digitva-demo');
+        status.textContent = 'WHO ICD-11 MMS 2026-01, English. Choose an entity to preview its details below.';
+        start.hidden = true;
+      })
+      .catch(function () {
+        status.textContent = 'Local WHO API or Coding Tool unavailable. Start the icd_api_service container and reload this page.';
+        start.disabled = false;
+      });
+  });
 })();
 </script>

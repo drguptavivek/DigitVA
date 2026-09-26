@@ -71,7 +71,7 @@
         <div class="input-group"><input id="{{ _doris_id }}-final-search" class="form-control" maxlength="80" autocomplete="off" data-doris-final-search placeholder="Search ICD-11 by term or complete code"><button type="button" class="btn btn-outline-primary" data-doris-final-search-button>Search</button></div>
         <div class="list-group mt-1" data-doris-final-results></div>
         <div class="doris-code-details mt-2" data-doris-details-panel hidden></div>
-        <div data-doris-final-guided-panel></div>
+        <div data-doris-guided-panel></div>
         <p class="small mt-2 mb-0" data-doris-final-choice></p>
       </div>
     </div>
@@ -99,7 +99,4 @@
   <input type="hidden" name="doris_process_token" data-doris-token>
   <input type="hidden" name="doris_result_digest" data-doris-digest>
 </section>
-<script src="{{ url_for('static', filename='js/doris_postcoordination.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3"></script>
-<script src="{{ url_for('static', filename='js/doris_interval.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-2"></script>
-<script src="{{ url_for('static', filename='js/doris_search_modal.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3"></script>
-<script src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-4"></script>

@@ -70,22 +70,29 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("data-postcoordination-url", partial)
         self.assertIn("data-postcoordination-options-url", partial)
         self.assertIn("data-hierarchy-url", partial)
-        self.assertIn("data-doris-final-guided-panel", partial)
-        self.assertIn("doris_postcoordination.js", partial)
+        self.assertIn("data-doris-guided-panel", partial)
         self.assertIn("css/doris_demo.css", partial)
         self.assertIn("X-CSRFToken", self._read("app/static/js/doris_clinical.js"))
         script = self._read("app/static/js/doris_clinical.js")
         self.assertIn("JSON.stringify(doris)", script)
         self.assertIn("JSON.stringify(codedit)", script)
-        picker = self._read("app/static/js/doris_search_modal.js")
-        guided = self._read("app/static/js/doris_postcoordination.js")
+        picker = self._read("app/static/js/digitva_icd11_picker.js")
         self.assertIn("+ Build", picker)
-        self.assertIn("See in hierarchy", guided)
-        self.assertIn("selectionRevision !== state.revision", script)
+        self.assertIn("See in hierarchy", picker)
         self.assertIn("data-doris-interval-value", partial)
         self.assertIn("data-doris-interval-unit", partial)
-        self.assertIn("doris_interval.js", partial)
         self.assertIn("doris-search-result-main", script)
+
+    def test_editor_loads_only_the_clinical_host_as_a_module(self):
+        partial = self._read(
+            "app/templates/va_form_partials/_doris_certificate_editor.html"
+        )
+
+        self.assertIn('<script type="module" src="', partial)
+        self.assertIn("js/doris_clinical.js", partial)
+        self.assertNotIn("doris_search_modal.js", partial)
+        self.assertNotIn("doris_postcoordination.js", partial)
+        self.assertNotIn("doris_interval.js", partial)
 
 
 class DorisClinicalJavascriptContractTests(unittest.TestCase):
@@ -114,7 +121,7 @@ class DorisClinicalJavascriptContractTests(unittest.TestCase):
         self.assertIn("blank lines cannot separate causes", self.script)
 
     def test_interval_changes_validate_and_retain_loaded_raw_values(self):
-        self.assertIn("intervalControl.mount", self.script)
+        self.assertIn("mountInterval(", self.script)
         self.assertIn("intervalError()", self.script)
         interval = (ROOT / "app/static/js/doris_interval.js").read_text(encoding="utf-8")
         self.assertIn("dirty: false", interval)
@@ -128,14 +135,17 @@ class DorisClinicalJavascriptContractTests(unittest.TestCase):
         self.assertIn("delete save.dataset.dorisNeedsConfirmation", self.script)
 
     def test_delayed_final_ucod_selection_cannot_confirm_new_processing_result(self):
-        self.assertIn("var selectionRevision = state.revision", self.script)
-        self.assertIn("var selectionProcessing = state.processing", self.script)
-        self.assertIn("selectionRevision !== state.revision", self.script)
-        self.assertIn("selectionProcessing !== state.processing", self.script)
-        self.assertIn("!state.processing", self.script)
-        stale_guard = self.script.index("selectionProcessing !== state.processing")
-        enable_save = self.script.index("save.disabled = false")
-        self.assertLess(stale_guard, enable_save)
+        # Verification now lives in the shared picker, keyed on a single
+        # opaque `revision()` value. The clinical host must fold its
+        # processing-revision into that value so a final-UCOD selection
+        # started against one processed result cannot confirm after a
+        # reprocess (e.g. a 409 conflict install) replaces it, even when
+        # the certificate edit-revision itself did not change.
+        self.assertIn("state.processingRevision += 1", self.script)
+        self.assertIn("return state.revision + ':' + state.processingRevision", self.script)
+        picker = (ROOT / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+        self.assertIn("var sentRevision = currentRevision()", picker)
+        self.assertIn("if (currentRevision() !== sentRevision || !container.isConnected) return", picker)
 
     def test_unrelated_htmx_swap_does_not_reset_existing_ect_values(self):
         for path in (
@@ -147,9 +157,14 @@ class DorisClinicalJavascriptContractTests(unittest.TestCase):
 
 
 class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
+    def test_clinical_search_counter_starts_defined_and_final_related_terms_research(self):
+        source = (Path(__file__).resolve().parents[2] / "app/static/js/doris_clinical.js").read_text(encoding="utf-8")
+        self.assertIn("searchRequest: 0,", source)
+        self.assertIn("|| finalMode) { input.value = term.code; search(line, finalMode); }", source)
+
     def setUp(self):
         root = Path(__file__).resolve().parents[2]
-        self.script = (root / "app/static/js/doris_postcoordination.js").read_text(
+        self.script = (root / "app/static/js/digitva_icd11_picker.js").read_text(
             encoding="utf-8"
         )
 
@@ -180,8 +195,26 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
         self.assertIn("openHierarchy", self.script)
 
     def test_open_ended_extension_pick_is_verified_against_who_codeinfo(self):
-        self.assertIn("config.checkExpression(state.stem.code + '&' + item.code)", self.script)
+        self.assertIn("transport.post('codeinfo', {schema_version: 1, code: state.stem.code + '&' + item.code})", self.script)
         self.assertIn(
             "'WHO does not accept ' + item.code + ' as an extension of ' + state.stem.code + '.'",
             self.script,
         )
+
+
+class Icd11PickerNoGlobalsContractTests(unittest.TestCase):
+    def test_no_window_digitvadoris_globals_remain(self):
+        picker = (ROOT / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+        clinical = (ROOT / "app/static/js/doris_clinical.js").read_text(encoding="utf-8")
+
+        for script in (picker, clinical):
+            self.assertNotIn("window.DigitvaDoris", script)
+            self.assertNotIn("root.DigitvaDoris", script)
+
+    def test_clinical_host_owns_the_htmx_close_hook(self):
+        clinical = (ROOT / "app/static/js/doris_clinical.js").read_text(encoding="utf-8")
+        picker = (ROOT / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+
+        self.assertIn("htmx:beforeSwap", clinical)
+        self.assertIn("editor._dorisPicker.close()", clinical)
+        self.assertNotIn("htmx:beforeSwap", picker)

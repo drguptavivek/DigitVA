@@ -46,8 +46,18 @@ rows. An interval edit clears the clinical processor results and final UCOD.
 The server validates nonempty interval durations before WHO processing and
 final save; empty and WHO unknown markers remain accepted.
 
-The public Help certificate and the clinical coder/reviewer certificate now
-share a small JavaScript postcoordination picker. Search results with WHO
+The public Help certificate and the clinical coder/reviewer certificate
+share one framework-free ES module, `app/static/js/digitva_icd11_picker.js`
+(`createIcd11Picker({mount, transport, onSelect, onClose, revision})`). The
+host supplies the mount element and a `transport.post(name, body)` that
+maps logical route names (`terms`, `codeinfo`, `selection-check`,
+`postcoordination`, `postcoordination-options`, `hierarchy`, `related`,
+`details`) to its own URLs with CSRF and credentials; the picker reads no
+globals, cookies or dataset values. `doris_demo.js` and `doris_clinical.js`
+are ES module hosts loaded with `type="module"`; the clinical host owns the
+HTMX close hook. `doris_interval.js` is a separate module owned by the
+certificate line. A WebView-based mobile shell can load the same module
+with a transport that adds its own authorization header. Search results with WHO
 postcoordination availability offer a stem builder, while complete expressions
 remain directly selectable. The builder obtains the pinned WHO release's axes
 through DigitVA's CSRF-protected public or clinical POST API, labels required

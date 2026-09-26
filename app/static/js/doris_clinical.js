@@ -1,12 +1,11 @@
+import { createIcd11Picker } from './digitva_icd11_picker.js';
+import { mount as mountInterval } from './doris_interval.js';
+
 (function () {
   'use strict';
-  if (window.DigitvaDorisClinical) { window.DigitvaDorisClinical.boot(); return; }
 
   var MAX_LINES = 5;
   var mounted = new WeakSet();
-  var postcoordination = window.DigitvaDorisPostcoordination;
-  var intervalControl = window.DigitvaDorisInterval;
-  var searchModal = window.DigitvaDorisSearchModal;
   function text(value) { return typeof value === 'string' ? value.trim() : ''; }
   function post(editor, url, body) {
     return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-CSRFToken': editor.dataset.csrf}, body: JSON.stringify(body)})
@@ -17,13 +16,21 @@
   function finalInput(editor) { return document.getElementById(editor.dataset.finalCodInput); }
   function numberOrNull(element) { return element.value === '' ? null : Number(element.value); }
 
+  // Logical picker path -> the editor's own dataset URL attribute.
+  var TRANSPORT_ENDPOINTS = {
+    terms: 'termsUrl', codeinfo: 'codeinfoUrl', 'selection-check': 'selectionUrl',
+    postcoordination: 'postcoordinationUrl', 'postcoordination-options': 'postcoordinationOptionsUrl',
+    hierarchy: 'hierarchyUrl', related: 'relatedUrl', details: 'detailsUrl'
+  };
+
   function mount(editor) {
     if (mounted.has(editor)) return;
     mounted.add(editor);
-    var state = {revision: 0, processing: null, lines: [], part2: null};
-    var searchRequest = 0;
-    var finalPostcoordination = null;
+    var state = {revision: 0, processingRevision: 0, searchRequest: 0, processing: null, lines: [], part2: null};
     editor._dorisState = state;
+    // Referenced by the module-level htmx:beforeSwap handler below, which
+    // is the clinical page's own hook (a mobile WebView host must not
+    // inherit it, so the picker no longer owns it).
     var initial;
     try {
       initial = JSON.parse(query(editor, '[data-doris-initial]').textContent);
@@ -37,13 +44,59 @@
       return;
     }
 
+    var transport = {
+      post: function (path, body) {
+        return post(editor, editor.dataset[TRANSPORT_ENDPOINTS[path]], body).then(function (result) {
+          if (result.ok) return result.data;
+          var error = new Error((result.data.error && result.data.error.message) || 'Request failed (' + result.status + ')');
+          error.response = result.data;
+          throw error;
+        });
+      }
+    };
+    // `line` for a certificate line, or the final-UCOD panel container for
+    // the confirmed-cause search; the picker treats both the same way.
+    var picker = createIcd11Picker({
+      mount: editor,
+      transport: transport,
+      // Combine the edit-revision with the processing-revision: a final
+      // UCOD selection started against one processed result must not
+      // confirm after a reprocess (e.g. a 409 conflict install) replaces
+      // it -- even though the certificate itself did not change.
+      revision: function () { return state.revision + ':' + state.processingRevision; },
+      onSelect: function (choice, container) {
+        if (container === query(editor, '[data-doris-final-panel]')) {
+          selectFinal(choice);
+          return;
+        }
+        var line = state.lines.concat(state.part2 ? [state.part2] : []).find(function (candidate) { return candidate.element === container; });
+        if (line) selectForLine(line, choice);
+      }
+    });
+    editor._dorisPicker = picker;
+
     function status(message) { query(editor, '[data-doris-status]').textContent = message || ''; }
+    function selectFinal(choice) {
+      var target = finalInput(editor); if (target) target.value = choice.code + ' ' + (choice.title || '');
+      query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + choice.code + ' — ' + (choice.title || '');
+      query(editor, '[data-doris-final-results]').replaceChildren();
+      query(editor, '[data-doris-final-search]').focus();
+      var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]');
+      if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
+    }
+    function selectForLine(line, choice) {
+      var condition = {Text: choice.selected_text || choice.matching_text || choice.title, Code: choice.code, LinearizationURI: choice.uri};
+      line.conditions.push(condition); chip(line, condition);
+      var input = line.element.querySelector('[data-doris-search]');
+      input.value = ''; line.element.querySelector('[data-doris-search-results]').replaceChildren(); input.focus();
+      invalidate('Certificate changed. Process it again.');
+    }
     function clearFinal() {
       var input = finalInput(editor); if (input) input.value = '';
       query(editor, '[data-doris-final-choice]').textContent = '';
       query(editor, '[data-doris-final-results]').replaceChildren();
       editor.querySelectorAll('[data-doris-related-window]').forEach(function (windowNode) { windowNode.remove(); });
-      if (finalPostcoordination) finalPostcoordination.close();
+      picker.closePostcoordination(query(editor, '[data-doris-final-panel]'));
     }
     function invalidate(message) {
       state.revision += 1; state.processing = null;
@@ -66,46 +119,14 @@
     function lookup(url, body) {
       return post(editor, url, body).then(function (result) { if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Lookup failed.'); return result.data; });
     }
-    function verifySelection(line, item, finalMode, resultList, message, input, trigger) {
-      var selectionRevision = state.revision;
-      var selectionProcessing = state.processing;
-      if (trigger) trigger.disabled = true;
-      message.textContent = 'Verifying ' + (item.code || 'selection') + '…';
-      lookup(editor.dataset.selectionUrl, {schema_version: 1, code: item.code, uri: item.uri}).then(function (data) {
-        if (selectionRevision !== state.revision || (finalMode && (selectionProcessing !== state.processing || !state.processing || query(editor, '[data-doris-final-panel]').hidden))) return;
-        var verified = data.item || data.selection || data;
-        if (!verified.code || !verified.uri) throw new Error('The server did not return a verified code and URI.');
-        if (finalMode) {
-          var target = finalInput(editor); if (target) target.value = verified.code + ' ' + (verified.title || item.title || '');
-          query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + verified.code + ' — ' + (verified.title || item.title || '');
-          resultList.replaceChildren();
-          input.focus();
-          var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]');
-          if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
-        } else {
-          var condition = {Text: item.selected_text || item.matching_text || verified.title || item.title, Code: verified.code, LinearizationURI: verified.uri};
-          line.conditions.push(condition); chip(line, condition); input.value = ''; resultList.replaceChildren(); input.focus(); invalidate('Certificate changed. Process it again.'); if (searchModal) searchModal.close();
-        }
-      }).catch(function (error) { if (trigger) trigger.disabled = false; message.textContent = error.message || 'Could not verify this code.'; });
-    }
-    function stageSelection(line, item) {
-      var element = line.element;
-      var resultList = element.querySelector('[data-doris-search-results]');
-      var message = element.querySelector('[data-doris-search-status]');
-      var input = element.querySelector('[data-doris-search]');
-      if (!searchModal || !searchModal.stage(element, item, function (button) { verifySelection(line, item, false, resultList, message, input, button); })) {
-        verifySelection(line, item, false, resultList, message, input, null);
-      } else {
-        searchModal.showDetails(element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
-      }
-    }
     function search(line, finalMode) {
       var input = finalMode ? query(editor, '[data-doris-final-search]') : line.element.querySelector('[data-doris-search]');
       var resultList = finalMode ? query(editor, '[data-doris-final-results]') : line.element.querySelector('[data-doris-search-results]');
       var message = finalMode ? query(editor, '[data-doris-final-choice]') : line.element.querySelector('[data-doris-search-status]');
+      var container = finalMode ? query(editor, '[data-doris-final-panel]') : line.element;
       var value = text(input.value); resultList.replaceChildren();
       if (value.length < 2) { message.textContent = 'Type at least 2 characters.'; return; }
-      var currentRequest = ++searchRequest;
+      var currentRequest = ++state.searchRequest;
       var sentRevision = state.revision;
       message.textContent = 'Searching…';
       var looksCode = /\d/.test(value) && !/\s/.test(value);
@@ -113,7 +134,7 @@
         ? lookup(editor.dataset.codeinfoUrl, {schema_version: 1, code: value}).then(function (data) { return data.item ? [data.item] : []; })
         : lookup(editor.dataset.termsUrl, {schema_version: 1, query: value, limit: 20, cursor: null}).then(function (data) { return data.items || []; });
       promise.then(function (items) {
-        if (currentRequest !== searchRequest || sentRevision !== state.revision || value !== text(input.value)) return;
+        if (currentRequest !== state.searchRequest || sentRevision !== state.revision || value !== text(input.value)) return;
         message.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
         var mandatory = [];
         items.forEach(function (item) {
@@ -122,99 +143,75 @@
           var header = document.createElement('div'); header.className = 'doris-search-result-header';
           var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button fw-semibold'; title.textContent = (item.code || '') + ' — ' + (item.title || '');
           title.addEventListener('click', function () {
-            if (item.postcoordination_availability === 2 && !postcoordination.isCompleteExpression(item.code)) {
-              if (!finalMode) searchModal.showDetails(line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
-              var controller = finalMode ? finalPostcoordination : line.postcoord;
-              if (controller) controller.open(item, title);
-            } else if (finalMode) verifySelection(line, item, true, resultList, message, input, title);
-            else stageSelection(line, item);
+            if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
+              if (!finalMode) picker.showDetails(container, item);
+              picker.openPostcoordination(container, item, title);
+            } else picker.stage(container, item, message);
           });
           header.appendChild(title);
           var meta = document.createElement('div'); meta.className = 'doris-search-meta';
           if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; meta.appendChild(match); }
-          var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
-          var buildIcon = searchModal && searchModal.addContextIcons(meta, item, function (chapter, selected) {
-            searchModal.openRelated(finalMode ? editor : line.element, chapter, selected, function () { return lookup(editor.dataset.relatedUrl, {schema_version: 1, code: selected.code, chapter: chapter}); }, function (term) {
+          var complete = picker.isCompleteExpression(item.code);
+          var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
+            picker.openRelated(container, chapter, selected, function (term) {
               if (term.requires_postcoordination || !term.uri || finalMode) { input.value = term.code; search(line, finalMode); }
-              else stageSelection(line, term);
+              else picker.stage(container, term, message);
             });
           }, item.postcoordination && !complete ? function (button) {
-            if (!finalMode) searchModal.showDetails(line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
-            var controller = finalMode ? finalPostcoordination : line.postcoord; if (controller) controller.open(item, button);
-          } : null, function () { searchModal.showDetails(finalMode ? query(editor, '[data-doris-final-panel]') : line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); }); });
+            if (!finalMode) picker.showDetails(container, item);
+            picker.openPostcoordination(container, item, button);
+          } : null, function () { picker.showDetails(container, item); });
           var actions = document.createElement('div'); actions.className = 'doris-search-actions';
           if (complete || item.postcoordination_availability !== 2) {
             var use = document.createElement('button'); use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
             use.title = 'Select this code';
-            use.addEventListener('click', function () { if (finalMode) verifySelection(line, item, true, resultList, message, input, use); else stageSelection(line, item); });
+            use.addEventListener('click', function () { picker.stage(container, item, message); });
             actions.appendChild(use);
           }
           var details = document.createElement('button'); details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
-          details.addEventListener('click', function () {
-            if (searchModal) searchModal.showDetails(finalMode ? query(editor, '[data-doris-final-panel]') : line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
-          });
+          details.addEventListener('click', function () { picker.showDetails(container, item); });
           actions.appendChild(details);
           if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
           var controls = document.createElement('div'); controls.className = 'doris-search-controls'; controls.append(meta, actions);
           header.appendChild(controls); main.appendChild(header); row.appendChild(main); resultList.appendChild(row);
         });
         var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
-        var controller = finalMode ? finalPostcoordination : line.postcoord;
-        if (automatic && controller) {
-          if (!finalMode && searchModal) searchModal.showDetails(line.element, automatic.item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: automatic.item.code}); });
-          controller.open(automatic.item, automatic.trigger, true);
+        if (automatic) {
+          if (!finalMode) picker.showDetails(container, automatic.item);
+          picker.openPostcoordination(container, automatic.item, automatic.trigger, true);
         }
-      }).catch(function (error) { if (currentRequest === searchRequest && sentRevision === state.revision) message.textContent = error.message; });
+      }).catch(function (error) { if (currentRequest === state.searchRequest && sentRevision === state.revision) message.textContent = error.message; });
     }
     function makeLine(source, isPart2) {
       var element = query(editor, '[data-doris-line-template]').content.firstElementChild.cloneNode(true);
       var conditions = source && Array.isArray(source.Conditions) ? source.Conditions.map(function (condition) { return Object.assign({}, condition); }) : [];
       var line = {element: element, conditions: conditions};
-      var guidedHost = element.querySelector('[data-doris-guided-panel]');
-      line.postcoord = postcoordination && guidedHost ? postcoordination.mount({
-        container: guidedHost,
-        endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
-        request: function (url, body) { return lookup(url, body); },
-        revision: function () { return state.revision; },
-        searchTerms: function (query, subtreeUris) {
-          return lookup(editor.dataset.termsUrl, {schema_version: 1, query: query, limit: 20, cursor: null, subtree_uris: subtreeUris});
-        },
-        checkExpression: function (code) {
-          return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) {
-            if (result.ok) return result.data.item || null;
-            if (result.data && result.data.error && result.data.error.code === 'CODE_NOT_FOUND') return null;
-            throw new Error((result.data.error && result.data.error.message) || 'The extension could not be verified.');
-          });
-        },
-        onSelect: function (item) { stageSelection(line, item); }
-      }) : null;
-      line.interval = intervalControl ? intervalControl.mount(element.querySelector('[data-doris-interval-control]'), conditions[0] ? conditions[0].Interval || '' : '') : null;
+      line.interval = mountInterval(element.querySelector('[data-doris-interval-control]'), conditions[0] ? conditions[0].Interval || '' : '');
       conditions.forEach(function (condition) { chip(line, condition); });
-      if (line.interval && line.interval.value) line.interval.value.addEventListener('input', function () { invalidate(); });
-      if (line.interval && line.interval.unit) line.interval.unit.addEventListener('change', function () { invalidate(); });
+      if (line.interval.value) line.interval.value.addEventListener('input', function () { invalidate(); });
+      if (line.interval.unit) line.interval.unit.addEventListener('change', function () { invalidate(); });
       var searchInput = element.querySelector('[data-doris-search]');
       var searchTimer = null;
       function openSearch() {
-        if (searchModal) searchModal.open(element, searchInput, function () {
-          clearTimeout(searchTimer); searchRequest += 1;
+        picker.open(element, searchInput, function () {
+          clearTimeout(searchTimer); state.searchRequest += 1;
           element.querySelector('[data-doris-search-results]').replaceChildren();
-          if (line.postcoord) line.postcoord.close();
         }, function () {
-          clearTimeout(searchTimer); searchRequest += 1;
+          clearTimeout(searchTimer); state.searchRequest += 1;
           element.querySelector('[data-doris-search-results]').replaceChildren();
           element.querySelector('[data-doris-search-status]').textContent = '';
-          if (line.postcoord) line.postcoord.close();
+          picker.closePostcoordination(element);
         });
       }
       element.querySelector('[data-doris-search-button]').addEventListener('click', function () { openSearch(); search(line, false); });
-      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var value = text(searchInput.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); searchInput.value=''; element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); if (searchModal) searchModal.close(); });
-      searchInput.addEventListener('input', function () { openSearch(); if (searchModal) { searchModal.clearSelection(element); searchModal.clearDetails(element); } clearTimeout(searchTimer); if (text(searchInput.value).length >= 2) searchTimer = setTimeout(function () { search(line, false); }, 250); else { searchRequest += 1; element.querySelector('[data-doris-search-results]').replaceChildren(); if (line.postcoord) line.postcoord.close(); } });
+      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var value = text(searchInput.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); searchInput.value=''; element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); picker.close(); });
+      searchInput.addEventListener('input', function () { openSearch(); picker.clearSelection(element); picker.clearDetails(element); clearTimeout(searchTimer); if (text(searchInput.value).length >= 2) searchTimer = setTimeout(function () { search(line, false); }, 250); else { state.searchRequest += 1; element.querySelector('[data-doris-search-results]').replaceChildren(); picker.closePostcoordination(element); } });
       searchInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); openSearch(); search(line, false); } });
       if (isPart2) { element.querySelector('[data-doris-line-title]').textContent = 'Contributing conditions'; element.querySelector('[data-doris-up]').remove(); element.querySelector('[data-doris-down]').remove(); element.querySelector('[data-doris-remove]').remove(); }
       else {
         element.querySelector('[data-doris-up]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index > 0) { state.lines.splice(index, 1); state.lines.splice(index - 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
         element.querySelector('[data-doris-down]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index < state.lines.length - 1) { state.lines.splice(index, 1); state.lines.splice(index + 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
-        element.querySelector('[data-doris-remove]').addEventListener('click', function () { if (state.lines.length === 1) return; if (searchModal) searchModal.close(); state.lines.splice(state.lines.indexOf(line), 1); renderOrder(); invalidate('Line removed. Process again.'); });
+        element.querySelector('[data-doris-remove]').addEventListener('click', function () { if (state.lines.length === 1) return; picker.close(); state.lines.splice(state.lines.indexOf(line), 1); renderOrder(); invalidate('Line removed. Process again.'); });
       }
       return line;
     }
@@ -259,6 +256,7 @@
     }
     function renderProcessing(processing, requireReconfirm) {
       state.processing = processing;
+      state.processingRevision += 1;
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
       query(editor, '[data-doris-engine-status]').textContent = 'Status: ' + (doris.status || 'unavailable');
       query(editor, '[data-codedit-engine-status]').textContent = 'Status: ' + (codedit.status || 'unavailable');
@@ -291,24 +289,6 @@
     var initialPart1 = Array.isArray(initial.Part1) && initial.Part1.length ? initial.Part1 : [{Conditions: []}, {Conditions: []}, {Conditions: []}];
     state.lines = initialPart1.slice(0, MAX_LINES).map(function (line) { return makeLine(line, false); });
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
-    var finalGuidedHost = query(editor, '[data-doris-final-guided-panel]');
-    finalPostcoordination = postcoordination && finalGuidedHost ? postcoordination.mount({
-      container: finalGuidedHost,
-      endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
-      request: function (url, body) { return lookup(url, body); },
-      revision: function () { return state.revision; },
-      searchTerms: function (query, subtreeUris) {
-        return lookup(editor.dataset.termsUrl, {schema_version: 1, query: query, limit: 20, cursor: null, subtree_uris: subtreeUris});
-      },
-      checkExpression: function (code) {
-        return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) {
-          if (result.ok) return result.data.item || null;
-          if (result.data && result.data.error && result.data.error.code === 'CODE_NOT_FOUND') return null;
-          throw new Error((result.data.error && result.data.error.message) || 'The extension could not be verified.');
-        });
-      },
-      onSelect: function (item) { verifySelection(null, item, true, query(editor, '[data-doris-final-results]'), query(editor, '[data-doris-final-choice]'), query(editor, '[data-doris-final-search]'), null); }
-    }) : null;
     var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); query(editor, '[data-doris-age]').value = admin.EstimatedAge || '';
     var fetal=initial.FetalOrInfantDeath||{};query(editor,'[data-doris-life-stage]').value=initial.FetalOrInfantDeath?'fetal-infant':'none';[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
@@ -329,9 +309,16 @@
     var xhr = event.detail && event.detail.xhr; if (!xhr || xhr.status !== 409) return;
     try { var data = JSON.parse(xhr.responseText); if (!data.error || data.error.code !== 'DORIS_CERTIFICATE_CHANGED' || !data.processing) return; var editor = event.target.querySelector && event.target.querySelector('[data-doris-editor]'); if (!editor) editor = document.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) { event.preventDefault(); editor._installFreshDorisResults(data.processing); } } catch (_error) {}
   }
-  window.DigitvaDorisClinical = {boot: boot, version: 1};
   document.addEventListener('DOMContentLoaded', function () { boot(); });
   document.body.addEventListener('htmx:afterSwap', function (event) { boot(event.target); });
   document.body.addEventListener('htmx:responseError', conflict);
+  // The picker no longer owns this hook (a mobile WebView host must not
+  // inherit it); the clinical page is the one HTMX-driven host, so it
+  // closes any open picker modal on every swap.
+  document.body.addEventListener('htmx:beforeSwap', function () {
+    document.querySelectorAll('[data-doris-editor]').forEach(function (editor) {
+      if (editor._dorisPicker) editor._dorisPicker.close();
+    });
+  });
   window.setTimeout(function () { boot(); }, 0);
 }());

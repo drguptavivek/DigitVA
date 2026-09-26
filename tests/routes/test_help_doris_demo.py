@@ -36,11 +36,18 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn("data-postcoordination-options-url", body)
         self.assertIn("data-hierarchy-url", body)
         self.assertIn("data-doris-guided-panel", body)
-        self.assertIn("doris_postcoordination.js", body)
         self.assertIn("data-interval-value", body)
         self.assertIn("data-interval-unit", body)
-        self.assertIn("doris_interval.js", body)
         self.assertIn("WHO Coding Tool", body)
+
+    def test_demo_loads_the_picker_host_as_a_module_and_not_the_retired_files(self):
+        body = (Path(__file__).resolve().parents[2] / "app/templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
+
+        self.assertIn('<script type="module" src="', body)
+        self.assertIn("js/doris_demo.js", body)
+        self.assertNotIn("doris_search_modal.js", body)
+        self.assertNotIn("doris_postcoordination.js", body)
+        self.assertNotIn("doris_interval.js", body)
 
     def test_icd11_help_links_to_demo(self):
         direct = self.client.get("/help/icd11-codes").get_data(as_text=True)
@@ -57,6 +64,11 @@ class DorisDemoStaticContractTests(BaseTestCase):
     def _script():
         root = Path(__file__).resolve().parents[2]
         return (root / "app/static/js/doris_demo.js").read_text(encoding="utf-8")
+
+    @staticmethod
+    def _picker():
+        root = Path(__file__).resolve().parents[2]
+        return (root / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
 
     def test_json_posts_include_csrf_and_same_origin_credentials(self):
         script = self._script()
@@ -87,11 +99,10 @@ class DorisDemoStaticContractTests(BaseTestCase):
 
     def test_search_results_offer_guided_expression_and_hierarchy(self):
         script = self._script()
-        picker = (Path(__file__).resolve().parents[2] / "app/static/js/doris_search_modal.js").read_text(encoding="utf-8")
-        guided = (Path(__file__).resolve().parents[2] / "app/static/js/doris_postcoordination.js").read_text(encoding="utf-8")
+        picker = self._picker()
 
         self.assertIn("+ Build", picker)
-        self.assertIn("See in hierarchy", guided)
+        self.assertIn("See in hierarchy", picker)
         self.assertIn("postcoordinationOptions", script)
         self.assertIn("isCompleteExpression", script)
 
@@ -105,10 +116,44 @@ class DorisDemoStaticContractTests(BaseTestCase):
     def test_interval_controls_are_lossless_and_validate_before_processing(self):
         script = self._script()
 
-        self.assertIn("intervalControl.mount", script)
+        self.assertIn("mountInterval(", script)
         self.assertIn("intervalError()", script)
         self.assertIn("invalidInterval.message", script)
         interval = (Path(__file__).resolve().parents[2] / "app/static/js/doris_interval.js").read_text(encoding="utf-8")
         self.assertIn("representable: false", interval)
         self.assertIn("selected === 'MI' ? 'M'", interval)
         self.assertIn("value === 'P' || value === 'PT'", interval)
+
+    def test_host_never_reads_or_verifies_selections_itself(self):
+        script = self._script()
+
+        # Selection-check is the picker's job now; the host only reacts to
+        # onSelect once the picker has already verified the choice.
+        self.assertNotIn("dataset.selectionUrl", script)
+        self.assertIn("function handleSelect(choice, line)", script)
+
+
+class Icd11PickerModuleContractTests(BaseTestCase):
+    @staticmethod
+    def _picker():
+        root = Path(__file__).resolve().parents[2]
+        return (root / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+
+    def test_picker_is_a_global_free_es_module(self):
+        picker = self._picker()
+
+        self.assertIn("export function createIcd11Picker(options)", picker)
+        self.assertNotIn("window.DigitvaDoris", picker)
+        self.assertNotIn("root.DigitvaDoris", picker)
+
+    def test_picker_owns_selection_verification(self):
+        picker = self._picker()
+
+        self.assertIn("transport.post('selection-check'", picker)
+        self.assertIn("options.onSelect(choice, container)", picker)
+
+    def test_backdrop_mounts_into_the_host_element_not_document_body(self):
+        picker = self._picker()
+
+        self.assertIn("mount.appendChild(backdrop)", picker)
+        self.assertNotIn("document.body.appendChild(backdrop)", picker)

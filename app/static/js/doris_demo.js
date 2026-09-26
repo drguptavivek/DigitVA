@@ -1,3 +1,6 @@
+import { createIcd11Picker } from './digitva_icd11_picker.js';
+import { mount as mountInterval } from './doris_interval.js';
+
 (function () {
   'use strict';
 
@@ -18,9 +21,6 @@
   var results = document.getElementById('doris-results');
   var status = document.getElementById('doris-app-status');
   var processButton = document.getElementById('doris-process');
-  var postcoordination = window.DigitvaDorisPostcoordination;
-  var intervalControl = window.DigitvaDorisInterval;
-  var searchModal = window.DigitvaDorisSearchModal;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
   function post(url, body) {
@@ -40,6 +40,16 @@
       });
     });
   }
+
+  // Logical path -> URL, so the picker never reads dataset/CSRF itself.
+  var TRANSPORT_ENDPOINTS = {
+    terms: 'terms', codeinfo: 'codeinfo', 'selection-check': 'selection',
+    postcoordination: 'postcoordination', 'postcoordination-options': 'postcoordinationOptions',
+    hierarchy: 'hierarchy', related: 'related', details: 'details'
+  };
+  var transport = {
+    post: function (path, body) { return post(endpoint(TRANSPORT_ENDPOINTS[path]), body); }
+  };
 
   function announce(message) { status.textContent = message; }
   function clearResults() {
@@ -90,13 +100,25 @@
     line.querySelector('[data-interval-control]').hidden = false;
   }
 
-  function stageSelection(line, item) {
-    if (!searchModal || !searchModal.stage(line, item, function (button) { verifyAndSelect(line, item, button); })) {
-      verifyAndSelect(line, item, null);
-    } else {
-      searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
-    }
+  // The picker performs selection-check itself; this is its onSelect hook,
+  // called once the server has verified the code and URI. `line` is the
+  // container the picker was asked to stage/verify the choice for.
+  function handleSelect(choice, line) {
+    var condition = conditionFromItem(choice);
+    line._conditions.push(condition);
+    addChip(line, condition);
+    line.querySelector('[data-search]').value = '';
+    line.querySelector('[data-search-results]').replaceChildren();
+    line.querySelector('[data-search]').focus();
+    changed();
   }
+
+  var picker = createIcd11Picker({
+    mount: app,
+    transport: transport,
+    onSelect: handleSelect,
+    revision: function () { return revision; }
+  });
 
   function showSearchResults(line, items, truncated) {
     var container = line.querySelector('[data-search-results]');
@@ -119,10 +141,10 @@
       heading.type = 'button'; heading.className = 'doris-search-title doris-search-title-button fw-semibold';
       heading.textContent = (item.code || 'No code') + ' — ' + (item.title || 'Untitled');
       heading.addEventListener('click', function () {
-        if (item.postcoordination_availability === 2 && !postcoordination.isCompleteExpression(item.code)) {
-          searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
-          if (line._postcoord) line._postcoord.open(item, heading);
-        } else stageSelection(line, item);
+        if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
+          picker.showDetails(line, item);
+          picker.openPostcoordination(line, item, heading);
+        } else picker.stage(line, item, searchStatus);
       });
       header.appendChild(heading);
       var meta = document.createElement('div');
@@ -133,30 +155,30 @@
         match.textContent = 'Matched: ' + item.matching_text;
         meta.appendChild(match);
       }
-      var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
-      var buildIcon = searchModal && searchModal.addContextIcons(meta, item, function (chapter, selected) {
-        searchModal.openRelated(line, chapter, selected, function () { return post(endpoint('related'), {schema_version: 1, code: selected.code, chapter: chapter}); }, function (term) {
+      var complete = picker.isCompleteExpression(item.code);
+      var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
+        picker.openRelated(line, chapter, selected, function (term) {
           if (term.requires_postcoordination || !term.uri) {
             line.querySelector('[data-search]').value = term.code;
             searchLine(line);
-          } else stageSelection(line, term);
+          } else picker.stage(line, term, searchStatus);
         });
       }, item.postcoordination && !complete ? function (button) {
-        searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
-        if (line._postcoord) line._postcoord.open(item, button);
-      } : null, function () { searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); }); });
+        picker.showDetails(line, item);
+        picker.openPostcoordination(line, item, button);
+      } : null, function () { picker.showDetails(line, item); });
       var actions = document.createElement('div');
       actions.className = 'doris-search-actions';
       if (complete || item.postcoordination_availability !== 2) {
         var use = document.createElement('button');
         use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
         use.title = 'Select this code for the certificate line';
-        use.addEventListener('click', function () { stageSelection(line, item); });
+        use.addEventListener('click', function () { picker.stage(line, item, searchStatus); });
         actions.appendChild(use);
       }
       var details = document.createElement('button');
       details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
-      details.addEventListener('click', function () { if (searchModal) searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); }); });
+      details.addEventListener('click', function () { picker.showDetails(line, item); });
       actions.appendChild(details);
       if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
       var controls = document.createElement('div'); controls.className = 'doris-search-controls';
@@ -166,36 +188,10 @@
       container.appendChild(row);
     });
     var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
-    if (automatic && line._postcoord) {
-      if (searchModal) searchModal.showDetails(line, automatic.item, function () { return post(endpoint('details'), {schema_version: 1, code: automatic.item.code}); });
-      line._postcoord.open(automatic.item, automatic.trigger, true);
+    if (automatic) {
+      picker.showDetails(line, automatic.item);
+      picker.openPostcoordination(line, automatic.item, automatic.trigger, true);
     }
-  }
-
-  function verifyAndSelect(line, item, button) {
-    var searchStatus = line.querySelector('[data-search-status]');
-    var sentRevision = revision;
-    if (button) button.disabled = true;
-    searchStatus.textContent = 'Verifying ' + (item.code || 'selection') + '…';
-    var body = {schema_version: 1, code: item.code, uri: item.uri};
-    post(endpoint('selection'), body).then(function (data) {
-      if (sentRevision !== revision || !line.isConnected) return;
-      var verified = data.item || data.selection || data;
-      var condition = conditionFromItem(Object.assign({}, item, verified));
-      if (!condition.Code || !condition.LinearizationURI) throw new Error('The server did not return a verified code and URI.');
-      line._conditions.push(condition);
-      addChip(line, condition);
-      line.querySelector('[data-search]').value = '';
-      line.querySelector('[data-search-results]').replaceChildren();
-      line.querySelector('[data-search]').focus();
-      searchStatus.textContent = condition.Code + ' verified and added.';
-      changed();
-      if (searchModal) searchModal.close();
-    }).catch(function (error) {
-      if (sentRevision !== revision || !line.isConnected) return;
-      if (button) button.disabled = false;
-      searchStatus.textContent = error.message || 'Could not verify this code.';
-    });
   }
 
   function searchLine(line) {
@@ -237,31 +233,8 @@
     var line = document.getElementById('doris-line-template').content.firstElementChild.cloneNode(true);
     line._conditions = [];
     line.dataset.kind = kind;
-    var guidedHost = line.querySelector('[data-doris-guided-panel]');
-    line._postcoord = postcoordination && guidedHost ? postcoordination.mount({
-      container: guidedHost,
-      endpoints: {
-        postcoordination: endpoint('postcoordination'),
-        options: endpoint('postcoordinationOptions'),
-        hierarchy: endpoint('hierarchy')
-      },
-      request: post,
-      revision: function () { return revision; },
-      searchTerms: function (query, subtreeUris) {
-        return post(endpoint('terms'), {schema_version: 1, query: query, limit: MAX_RESULTS, cursor: null, subtree_uris: subtreeUris});
-      },
-      checkExpression: function (code) {
-        return post(endpoint('codeinfo'), {schema_version: 1, code: code}).then(function (data) {
-          return data.item || null;
-        }).catch(function (err) {
-          if (err.response && err.response.error && err.response.error.code === 'CODE_NOT_FOUND') return null;
-          throw err;
-        });
-      },
-      onSelect: function (item) { stageSelection(line, item); }
-    }) : null;
     var conditions = (source && Array.isArray(source.Conditions)) ? source.Conditions : [];
-    line._interval = intervalControl ? intervalControl.mount(line.querySelector('[data-interval-control]'), conditions.length ? (conditions[0].Interval || '') : '') : null;
+    line._interval = mountInterval(line.querySelector('[data-interval-control]'), conditions.length ? (conditions[0].Interval || '') : '');
     conditions.forEach(function (raw) {
       var condition = {
         Text: raw.Text || '', Code: raw.Code || '', LinearizationURI: raw.LinearizationURI || '',
@@ -270,20 +243,19 @@
       line._conditions.push(condition);
       addChip(line, condition);
     });
-    if (line._interval && line._interval.value) line._interval.value.addEventListener('input', function () { changed(); });
-    if (line._interval && line._interval.unit) line._interval.unit.addEventListener('change', function () { changed(); });
+    if (line._interval.value) line._interval.value.addEventListener('input', function () { changed(); });
+    if (line._interval.unit) line._interval.unit.addEventListener('change', function () { changed(); });
     var searchInput = line.querySelector('[data-search]');
     var searchTimer = null;
     function openSearch() {
-      if (searchModal) searchModal.open(line, searchInput, function () {
+      picker.open(line, searchInput, function () {
         clearTimeout(searchTimer); requestNumber += 1;
         line.querySelector('[data-search-results]').replaceChildren();
-        if (line._postcoord) line._postcoord.close();
       }, function () {
         clearTimeout(searchTimer); requestNumber += 1;
         line.querySelector('[data-search-results]').replaceChildren();
         line.querySelector('[data-search-status]').textContent = '';
-        if (line._postcoord) line._postcoord.close();
+        picker.closePostcoordination(line);
       });
     }
     line.querySelector('[data-search-button]').addEventListener('click', function () { openSearch(); searchLine(line); });
@@ -298,18 +270,18 @@
       changed();
     });
     searchInput.addEventListener('input', function () {
-      if (searchModal) searchModal.clearSelection(line);
-      if (searchModal) searchModal.clearDetails(line);
+      picker.clearSelection(line);
+      picker.clearDetails(line);
       openSearch(); clearTimeout(searchTimer);
       if (cleanText(searchInput.value).length >= 2) searchTimer = setTimeout(function () { searchLine(line); }, 250);
-      else { requestNumber += 1; line.querySelector('[data-search-results]').replaceChildren(); if (line._postcoord) line._postcoord.close(); }
+      else { requestNumber += 1; line.querySelector('[data-search-results]').replaceChildren(); picker.closePostcoordination(line); }
     });
     searchInput.addEventListener('keydown', function (event) {
       if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); openSearch(); searchLine(line); }
     });
     line.querySelector('[data-remove-line]').addEventListener('click', function () {
       if (part1.children.length <= 1) return;
-      if (searchModal) searchModal.close();
+      picker.close();
       line.remove(); refreshLineLabels(); changed('Line removed.');
     });
     line.querySelector('[data-move-up]').addEventListener('click', function () {
@@ -335,7 +307,7 @@
           var item = {code: entity && entity.code, title: entity && entity.title, matching_text: entity && entity.selectedText, uri: entity && (entity.linearizationUri || entity.uri)};
           if (!item.code || !item.uri) { ectStatus.textContent = 'Choose a complete WHO code expression.'; return; }
           ectStatus.textContent = 'Verifying the WHO selection…';
-          verifyAndSelect(activeEctLine, item, null);
+          picker.stage(activeEctLine, item, ectStatus);
         }
       });
       ectConfigured = true; ready = Promise.resolve(window.ECT.Handler.bind('doris-help'));

@@ -1,5 +1,48 @@
 # Handoff
 
+## DORIS picker WHO parity and reusable module (2026-09-27)
+
+`digitva-96y`. The picker now matches WHO's postcoordination layout,
+verified side by side with `icd.who.int/doris/workspace`: required axes
+first, each axis its own WHO-ordered section headed with WHO's instruction
+wording and a "search in axis" box, and a final "Other postcoordination?"
+search over the extension chapter for MMS category stems outside chapter
+X. Evidence from WHO's ECT bundle showed axis labels are just the axis id
+in sentence case, so no name table was needed, and "Other
+postcoordination?" is an open-ended search, not a wrapper around optional
+axes. Both `terms` routes share one `search_terms` service function with an
+optional `subtree_uris` filter forwarded as WHO `subtreesFilter`; no new
+endpoint. An open-ended pick is checked through codeinfo with the stem
+before it is accepted, because WHO rejects many pairs (`BD54&XS5W` fails,
+`BD54&XK9J` resolves). The expression puts `&` extensions before `/`
+stems, since WHO canonicalises an `&` after a `/` as belonging to the
+second stem. Uncoded folders are plain `▷` nodes; maternal/perinatal
+panels show WHO's composite (`JB64.4/BD54`) first; modal typography is
+tighter.
+
+The picker is now one framework-free ES module,
+`app/static/js/digitva_icd11_picker.js` (`createIcd11Picker({mount,
+transport, onSelect, onClose, revision})`), with injected transport and no
+globals. `doris_demo.js` and `doris_clinical.js` are ES module hosts; the
+clinical host owns the HTMX close hook and folds its processing revision
+into the picker's staleness guard. `doris_interval.js` stays a sibling
+module owned by the certificate line. `doris_search_modal.js` and
+`doris_postcoordination.js` were deleted. A WebView shell (Cordova, or
+React Native via react-native-webview and a postMessage bridge) can load
+the same module with a transport that adds its own auth header; that is
+blocked on the deferred SSO/bearer-auth work.
+
+Browser verification on the Help page: BD54 built `BD54&XK9J/5A11` and
+added one chip; XS5W was refused at pick time with the WHO message; the
+related panel showed `JB64.4/BD54` first; a 375px viewport had no
+horizontal scroll. The focused Docker DORIS suites passed (73 tests and 35
+subtests before the extraction, 55 route tests after). Not done: a visual
+check of the clinical editor, because no project in the dev database is in
+DORIS mode; tests cover the clinical host wiring. Open question: WHO's
+search row for `NC72.7` shows the mandatory-postcoordination badge although
+all its axes are optional, so DigitVA's required icon may not match WHO for
+such stems.
+
 ## DORIS picker UI follow-up (2026-09-26)
 
 The Help and clinical condition pickers now use a compact full-screen modal
@@ -18,19 +61,6 @@ subtests. No new test cases were written in this UI pass; two existing
 static assertions were updated for code moved into the shared picker module.
 Final review also led to fail-closed handling of malformed clinical initial
 certificate JSON and cleanup of stale final-UCOD related panels on an edit.
-
-Feedback for the next session: compare the remaining modal density and
-typography against the official DORIS view, especially long details and
-postcoordination panels. Review WHO's “Other postcoordination” grouping and
-axis-specific instructions for injury objects, specific anatomy,
-histopathology and manifestations. The WHO screen shown for `2A01.0Y`
-allows expansion of uncoded histopathology categories but alerts if an
-uncoded category itself is selected; our picker should keep that distinction
-clear. Confirm whether maternal/perinatal panels should prioritize the exact
-WHO composite relation (for example `JA63.Z/5A14`) rather than the broader
-related category and child list. Recheck the clinical editor visually after
-these changes. Keep the user's preference for UI work before additional test
-writing.
 
 ## DORIS editor interval and density update (2026-09-26)
 

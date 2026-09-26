@@ -19,6 +19,8 @@ certificate processor and final-COD domain services should be reusable.
 The implementation sequence is in
 `docs/planning/coder-api-first-workflow-plan.md`; DORIS product decisions are
 in `docs/planning/project-cod-masking-doris-plan.md`.
+The [certificate UI contract](../kb/doris-certificate-ui-contract.md) defines
+the shared data and state model for the Help, web and future mobile clients.
 
 The planned coder web client is React. Flask/Jinja and HTMX remain as
 compatibility routes during incremental migration; the React client consumes
@@ -26,10 +28,10 @@ the proposed JSON APIs. A future mobile client should consume the same
 domain contract, without depending on HTML fragments, WHO ECT DOM callbacks,
 or browser hidden inputs. React web components that require the DOM,
 including WHO ECT, are not directly reusable in a native mobile renderer.
-The owner prefers the WHO DORIS web application as-is for DORIS certificate
-entry. Its integration and result handoff are not yet documented by WHO, so
-the DORIS-specific clinical endpoints below are proposed contracts subject
-to that feasibility gate; no custom DORIS form is authorized by this plan.
+DigitVA owns the DORIS certificate editor and results views. The WHO web
+application supplies a behavior reference; the local WHO ICD API supplies
+terminology, CoDEdit and DORIS processing. The same certificate schema is
+used by public Help and, later, authenticated clinical coding.
 
 ## Existing web/HTMX contract to preserve during migration
 
@@ -159,8 +161,10 @@ These routes are anonymous and distinct from clinical case APIs:
 
 | Method and path | Contract |
 | --- | --- |
-| `GET /api/v1/doris-demo/config` | Return application schema version, ICD release, capabilities and the five synthetic `certificate` examples from `resource/doris_help_examples.json`; do not expose saved `observed` results as live outputs |
-| `POST /api/v1/doris-demo/process` | Accept an `example_id` from that fixed set; load its exact certificate server-side, verify code/URI agreement, call local DORIS and CoDEdit, return both normalized live responses with release, input digest and processing status; do not persist certificate or results |
+| `GET /api/v1/doris-demo/config` | Return application schema version, ICD release, supported fields/limits and the six synthetic `certificate` examples from `resource/doris_help_examples.json`; do not expose saved `observed` results as live outputs |
+| `POST /api/v1/doris-demo/process` | Accept `{schema_version, client_revision, certificate}` from the current editor, validate bounds and code/URI agreement, send the same normalized certificate to local DORIS and CoDEdit, and echo the revision with independent live responses, release, input digest and processing status; do not persist certificate or results |
+| `GET/POST /api/v1/doris-demo/who-api/{resource}` | Allowlist only read-oriented ECT search, entity and codeinfo resources; fixed local WHO target, bounds and rate limits; no submission-scoped proxy |
+| `POST /api/v1/doris-demo/selection-check` | Verify a selected complete code/cluster and WHO URI for a certificate condition without applying final-underlying-COD selectability |
 
 The response exposes every DORIS field (`code`, `stemCode`, `uri`, `stemURI`,
 `report`, `tabularReport`, `reject`, `error`, `warning`) and every CoDEdit
@@ -176,13 +180,20 @@ If one processor fails, return its failure status separately from the other
 processor's result. Do not substitute fixture observations or stale prior
 responses. The public endpoint uses fixed WHO targets, bounded input/output,
 timeouts, rate limits and browser CSRF; it never accepts arbitrary URLs.
+Examples populate editable form state. Clear or mark the displayed results
+stale when that state changes, and discard delayed responses whose input
+revision no longer matches the editor. The selected condition code or
+cluster must retain server-verified WHO URI provenance. The existing
+clinical WHO ECT proxy is submission-scoped, so public Help needs a separate
+allowlisted proxy and selection check. Certificate conditions are checked
+against WHO terminology; DigitVA's final-underlying-COD selectability
+policy applies only to the eventual MO final choice. Discard ECT analytics
+events locally, as the current authenticated proxy already does.
 The Help page links to the WHO DORIS web application as a separate
-interactive reference. There is no claimed automatic data transfer from
-that application to DigitVA. The observed WHO Save to file control needs a
-synthetic format/handoff test before it can be part of this contract.
+interactive reference. There is no automatic data transfer from that
+application to DigitVA. Its Save to file control is outside this contract.
 
-If a supported WHO web handoff is established, the clinical
-`POST /cases/{sid}/doris/process` shares the certificate schema and WHO
+The clinical `POST /cases/{sid}/doris/process` shares the certificate schema and WHO
 adapter but requires active allocation and project-mode authorization. Its
 result includes the certificate input digest and ICD release. Preview
 results are display data; final save obtains or verifies a server-trusted

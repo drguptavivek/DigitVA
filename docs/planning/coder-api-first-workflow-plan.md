@@ -27,6 +27,10 @@ DORIS-specific settings, data model and clinical choices remain in
 documents should be described as implemented until it exists and passes
 contract tests.
 
+The [certificate UI contract](../kb/doris-certificate-ui-contract.md) and
+[observed WHO web trace](../kb/doris-web-behavior-and-api-trace.md) define the
+Help form and its later browser/mobile interaction boundary.
+
 ## Current state and gaps
 
 - `app/routes/api/coding.py` already provides `/api/v1/coding` JSON APIs
@@ -69,16 +73,14 @@ flowchart LR
   A --> W[Local WHO ICD API]
 ```
 
-The public Help page is the first integration proof: a small example runner
-calls an anonymous, bounded DigitVA API; that API calls local WHO DORIS and
-CoDEdit. It loads the five synthetic certificates in
-`resource/doris_help_examples.json` and displays **live** outputs, including
-warnings, rejection, both reports, and DORIS rule table/flow/sequence views.
-It also links to the WHO DORIS web
-application for separate interactive exploration. It does not claim to
-transfer entered WHO-web data into DigitVA. This proves the WHO API adapter
-without touching clinical submissions. A supported WHO web embed/result
-handoff is a separate feasibility gate before clinical DORIS entry.
+The public Help page is the first integration proof: a DigitVA-owned,
+editable certificate form calls bounded same-origin APIs for ICD-11
+condition selection, DORIS and CoDEdit. It can load and edit the six
+synthetic certificates in `resource/doris_help_examples.json` or start
+blank, and displays **live** outputs, including warnings, rejection, both
+reports and DORIS rule table/flow/sequence views. It proves the UI and WHO
+API adapter without touching clinical submissions. WHO's web app is a
+behavior reference, not an integration dependency.
 After this proof is reviewed, build clinical APIs and migrate the coder
 journey in slices. Do not begin project-setting or clinical DORIS work
 before the public proof has passed its gate.
@@ -94,17 +96,26 @@ tool after mounting. It is a web DOM integration, not a native mobile
 component. A future WHO web component can be wrapped behind the same
 code-picker interface without changing server API contracts.
 
-WHO DORIS presently exposes a standalone web app and ICD API, rather than
-a documented embeddable React package. The WHO web app is Angular/Material
-styled and bundles Mermaid; its appearance does not determine DigitVA's
-frontend framework. The owner prefers the WHO DORIS web experience as-is.
-Before implementing clinical DORIS entry, determine whether WHO supports
-embedding/hosting it and returning its certificate and result. Loading its
-script bundle alone does not establish that handoff. Do not build a
-replacement DORIS editor while this choice is unresolved. WHO's separate
+Build one `CertificateEditor` and one `DorisResults` React view for the Help
+proof, mounted inside the existing Help shell. Reuse those views later in the
+unmasked clinical coder screen; pass public or case-specific API endpoints
+as configuration while the server independently enforces authorization.
+The editor owns an input revision so an edit clears the displayed result and
+a delayed response cannot overwrite a newer certificate. Keep the WHO ECT
+instance scoped to the active condition and destroy it when that condition
+or its React subtree is removed.
+
+WHO DORIS exposes a standalone web app and ICD API, rather than a documented
+embeddable React package. DigitVA will implement its own certificate editor
+using WHO's published certificate schema and the observed web interaction.
+The existing ECT is the first browser code-picker choice for each condition;
+it already returns complete expressions and is server-validated. In the
+WHO DORIS web app, term typing called MMS `search`, code typing called
+`codeinfo`, and a selection became a removable code chip. Record and compare
+those behaviors in the Help proof. WHO's separate
 [API visualization sample](https://github.com/ICD-API/ICD-API-DORIS-Samples)
 shows how to derive rule-flow and sequence diagrams from `tabularReport`.
-Its functions parsed all five synthetic examples from the pinned local WHO
+Its functions parsed all six synthetic examples from the pinned local WHO
 image, so the Help runner should display those views alongside every live
 DORIS/CoDEdit response field. The sample has no declared license; inspect
 reuse rights before copying source, and safely render WHO-supplied text.
@@ -116,13 +127,14 @@ reuse rights before copying source, and safely render WHO-supplied text.
    error codes, payload/workflow revisions, and no-retention Help behavior.
    Update `docs/policy` before implementation and `docs/current-state`
    when behavior changes.
-2. **Public Help proof first.** Check WHO web reuse options, then add a
-   bounded same-origin public config/process API and example runner. Show live
-   DORIS and CoDEdit outputs for adult, neonatal death, child, maternal and
-   stillbirth examples, with DORIS table/flow/sequence views, and link to
-   WHO's separate web application. Verify
-   rejection, warnings and the code/URI trust boundary. This phase needs no
-   clinical migration or custom DORIS certificate editor.
+2. **Public Help proof first.** Add a bounded same-origin public
+   config/search/selection/process API and DigitVA-owned certificate editor.
+   Load and edit adult, neonatal death, child, maternal, stillbirth and
+   mixed-tuberculosis
+   examples; create a new certificate; search ICD-11 codes in condition rows;
+   show live DORIS and CoDEdit outputs with table/flow/sequence views. Verify
+   conditional questions, rejection, warnings, stale-result handling and the
+   code/URI trust boundary. This phase needs no clinical migration.
 3. **Shared access and read services.** Extract one coder-case access
    decision covering role, form/site/project/language, active allocation,
    retired form, recode/demo and payload revision. Create redacted semantic
@@ -143,8 +155,8 @@ reuse rights before copying source, and safely render WHO-supplied text.
 6. **Add project settings and clinical DORIS.** Apply the additive migration
    and persistence from the DORIS plan only after the Help proof and shared
    finalization service are sound. Clinical DORIS entry also depends on a
-   verified WHO web-app integration contract or a new owner decision if WHO
-   offers none. The clinical API requires active allocation. DORIS/CoDEdit
+   the reusable DigitVA certificate editor and local WHO processing adapter
+   verified in Help. The clinical API requires active allocation. DORIS/CoDEdit
    results and the MO final underlying COD remain separate.
 7. **Mobile enablement later.** Design supported OIDC/OAuth login with PKCE,
    device/token policy and narrowly scoped bearer authorization. Specify
@@ -177,8 +189,9 @@ visibility.
 - Test all three approved COD modes, ICD-10 and complete ICD-11
   expressions/provenance, NQA/Social gates, and Not Codeable when ODK update
   fails. CoDEdit findings never block the human final COD.
-- Test five Help certificates against the pinned local WHO image and through
-  the public Help page. Additional inputs must cover multiple conditions
+- Test six Help certificates against the pinned local WHO image and through
+  the public Help page, including edited and blank-start forms. Additional
+  inputs must cover multiple conditions
   per Part I line, a code cluster, unknown fields, rejection, timeout and
   malformed output. Validate parsed rule rows and both Mermaid views against
   the pinned output, with readable/raw report fallback if visualization

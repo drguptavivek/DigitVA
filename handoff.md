@@ -16,28 +16,41 @@ knowledge in `docs/kb/doris-icd-api-and-va.md`. No application
 code or migration has been started for this plan. The new Beads issue remains
 open and unclaimed pending plan review.
 
-Five invented Help certificates are prepared in `resource/doris_help_examples.json`
-(adult, neonatal death, child, maternal, stillbirth), with their local DORIS and CoDEdit
-observations documented in `docs/kb/doris-icd-api-and-va.md`. They are data
+Six invented Help certificates are prepared in `resource/doris_help_examples.json`
+(adult, neonatal death, child, maternal, stillbirth, mixed tuberculosis
+codes), with their local DORIS and CoDEdit observations documented in
+`docs/kb/doris-icd-api-and-va.md`. They are data
 for the planned Help proof, not a live page or clinical assessment records.
 
 The owner broadened the architecture plan to the entire coder journey from
 opening a form, with JSON API contracts alongside the existing HTMX
 contract and React proposed for the coder web client. See
 `docs/planning/coder-api-first-workflow-plan.md` and
-`docs/planning/coder-web-and-api-contracts.md`. The owner prefers WHO's
-DORIS web application as-is for certificate entry. WHO documents its web
-app and ICD API separately; no supported bundle/embed and result handoff
-was found in the reviewed documentation. This is a clinical DORIS decision
-gate. The Help proof can still process the five synthetic examples through
-the local ICD API and display live DORIS/CoDEdit outputs, with WHO web
-linked separately. WHO's separate vanilla-JS DORIS API sample derives a rule
+`docs/planning/coder-web-and-api-contracts.md`. The owner clarified that
+DigitVA should implement the DORIS **interaction** itself, including an
+editable certificate, conditional questions and ICD-11 code search in each
+condition, using WHO's web page as a behavioral reference and WHO APIs as
+the terminology, CoDEdit and DORIS engines. The public Help proof must load
+and edit six synthetic examples, permit a blank start, and process the
+current certificate through the local ICD API. The clinical form later
+reuses this contract; WHO web embedding is not a blocker. WHO's separate
+vanilla-JS DORIS API sample derives a rule
 table, Mermaid flow and sequence views from `tabularReport`; its parser and
-generators produced nonempty diagrams for all five synthetic examples
+generators produced nonempty diagrams for all six synthetic examples
 against the pinned 2026-01 image. The Help plan now includes these views,
 with safe rendering and raw-report fallback. The sample is not an embeddable
 certificate form and has no declared repository license, so its source has
-not been copied. No application code has been changed for this plan.
+not been copied. A fresh WHO web tab was traced with synthetic input:
+term typing sent MMS `search`, code prefix typing sent `codeinfo`, selection
+made a removable chip, and pregnancy follow-ups changed with sex and
+pregnancy answer. WHO's page sent `1B12.2&XA0G74` as one condition and
+`1B10.Z` as another on the same line; the sixth local synthetic fixture
+tests that exact structure. Its web wrapper DORIS/CoDEdit routes differ
+from the direct local ICD API chosen for DigitVA. The KB records the
+observed request fields and UI limits in
+`docs/kb/doris-web-behavior-and-api-trace.md`; the cross-platform UI/API
+contract is in `docs/kb/doris-certificate-ui-contract.md`.
+No application code has been changed for this revised plan.
 
 ## WHO ICD-11 ECT production assessment integration (2026-09-26)
 

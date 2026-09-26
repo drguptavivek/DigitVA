@@ -32,15 +32,19 @@ to reach DigitVA's WHO container.
 | SmartVA | Gives algorithmic VA cause guidance from the interview | Does not fill the MCCD chain or make DigitVA's final MO decision |
 | Medical officer | Enters or reviews the cause chain and chooses the final COD in DigitVA | Is not replaced by any of the above tools |
 
-### Reusing the WHO DORIS web application
+### WHO DORIS web as a behavioral reference
 
-The owner prefers using WHO's DORIS web interface as it is if DigitVA can
-integrate it. On 2026-09-26, the live WHO workspace was observed as a
+The owner chose a DigitVA-owned implementation of the WHO DORIS workflow,
+using WHO's web interface as a behavioral reference and its ICD APIs as the
+processing engine. On 2026-09-26, the live WHO workspace was observed as a
 standalone Angular application (`app-root`, Angular 16.2.12 and Material
 controls) with Process DORIS, Process CoDEdit, example and Save to file
 actions. Its delivered JavaScript bundle contains Mermaid rendering code;
 WHO documents textual, tabular, rule-flow and rule-sequence report views.
 This is evidence about WHO's web app, **not** a published component API.
+The detailed [web interaction and network trace](doris-web-behavior-and-api-trace.md)
+and [platform-neutral certificate UI contract](doris-certificate-ui-contract.md)
+are the implementation references for browser and future mobile clients.
 
 [WHO's DORIS web documentation](https://icd.who.int/docs/doris/en/doris-web/)
 describes interactive browser use. Its separate
@@ -55,16 +59,85 @@ the page, but DigitVA cannot read its form or output through ordinary
 cross-origin browser access. The observed Save to file control may support
 a manual exchange; its format and completeness have not been verified.
 
-Do not copy or self-host the DORIS web bundle as an integration shortcut.
+DigitVA can implement the documented form and API behavior without copying
+or hosting the DORIS web bundle.
 WHO's [software license](https://icd.who.int/en/docs/icd11-license.pdf)
 expressly discusses incorporation of ICD API and the Embedded
 Classification Tool, but does not expressly identify the DORIS web app as
-an embeddable component. A supported distribution or message/export
-contract must be confirmed with WHO before choosing that path. Until then,
-the public Help page can process the five synthetic certificate bodies
-through DigitVA's local DORIS/CoDEdit APIs and show their live outputs,
-while linking to WHO's web app separately. This does not yet provide
-automatic transfer of a WHO-web-entered certificate into DigitVA.
+an embeddable component. The Help proof will use DigitVA's own editable
+certificate form and local DORIS/CoDEdit APIs. WHO web can remain a separate
+reference link; its form contents are not transferred into DigitVA.
+
+### Observed ICD-11 search and conditional UI behavior
+
+A fresh WHO DORIS workspace was inspected with synthetic input on
+2026-09-26, leaving the owner's open certificate untouched. Typing
+`diabetes` into Part I line A sent `POST
+/icd/release/11/2026-01/mms/search` to WHO's developer-test API as
+multipart form data. The observed fields were `q=diabetes%`,
+`chapterFilter=10;11;…;09;`, empty `subtreesFilter`,
+`includePostcoordination=true`, `useBroaderSynonyms=false`,
+`useFlexiSearch=false`, `includeKeywordResult=true`, `flatResults=true`,
+`highlightingEnabled=true`, and `medicalCodingMode=true`. The response had
+`destinationEntities` (50 in this query), `resultChopped`, `error`,
+`errorMessage`, `uniqueSearchId`, `words` and other metadata. Each result
+carried code, ICD URI, highlighted title, matching synonyms and selection
+metadata. The UI showed code/title rows, matched terms, Details and
+postcoordination indicators; choosing `5A11` made a removable code chip in
+the line. The highlighted title is HTML from WHO, so a DigitVA renderer
+must sanitize or convert it to text before display.
+
+Typing code prefix `BA41` into line B instead sent `GET
+/icd/release/11/2026-01/mms/codeinfo/BA41?flexiblemode=true`, followed
+by the MMS entity request. The codeinfo response had `@id`, `code` and
+`stemId`; the entity response supplied the title. The UI offered `BA41`
+with “Acute myocardial infarction” for selection. WHO also sent a separate
+analytics event after a term selection; DigitVA's current authenticated
+ECT proxy discards such analytics and the local image has analytics off.
+These observed routes and options describe this WHO web build, not a
+version-stable contract; use supported API documentation and the pinned
+local image when implementing.
+
+The live form displayed Part I lines A–D with “Due to” separators and
+allowed more than one selected condition chip per line. Selecting male
+made the pregnancy section inapplicable and disabled its question. Selecting
+female enabled the pregnancy question; choosing “Yes” enabled time-from-
+pregnancy and pregnancy-contribution choices, and opened the time choice.
+Other Frame B sections were visible in this short probe, including surgery,
+autopsy, manner of death and fetal/infant fields. Setting surgery to “No” did
+not remove its follow-up controls in the observed WHO page. Do not claim that all of
+those fields are hidden by age or answer until their behavior is verified.
+DigitVA should use conditional display for truly inapplicable questions and
+omit hidden/inapplicable values from the certificate it processes, without
+inventing unknown clinical answers.
+
+The WHO page's own Process CoDEdit action sent `POST
+/doris/api/ucod/codedit/`, and Process DORIS sent `POST
+/doris/api/ucod/underlyingcauseofdeath/`. Each body wrapped a
+`DeathCertificate` and `DorisSettings` (`lang=en`; DORIS also included
+`fullyAutomatic=true`). The returned object was an enriched certificate:
+CoDEdit added `CE-Checks`, `CE-IssueIds` and `CE-TabularReport`; DORIS added
+`UCComputed` with `UC` and `UCComplete`, plus tabular/flow/progression
+reports. Its modal showed the selected single UCOD and complete
+postcoordinated UCOD separately, with text, table, flow and sequence tabs.
+These **web-app wrapper** routes and payloads differ from the supported
+local ICD API's direct `POST /icd/release/11/2026-01/{doris,codedit}`
+single-certificate requests and simpler response objects. DigitVA should
+use the direct local ICD API contract, not depend on undocumented WHO web
+wrapper routes.
+
+Searching `tuberculosis` showed both simple codes and complete expressions,
+including `1B10.Z` and `1B12.2 &XA0G74`. Selecting the latter produced one
+removable chip `1B12.2&XA0G74`. In the observed WHO DORIS request it was
+one `Conditions` element with the full code and a two-component
+`LinearizationURI` joined by ` & `. Adding `1B10.Z` to that same Part I
+line produced a **second** `Conditions` element. DigitVA must preserve both
+levels of structure: the complete expression belongs to one condition;
+multiple condition objects belong to one line. The sixth local synthetic
+Help example tests this structure against pinned MMS 2026-01. That local
+direct DORIS run returned `code=1B10.Z`, `reject=false`; CoDEdit returned
+no issue IDs. This observation is a technical contract check, not a
+clinical assertion that either TB condition caused the other.
 
 ### WHO's separate API visualization sample
 
@@ -79,8 +152,8 @@ report strings, so DigitVA must render untrusted report text safely.
 
 The sample parser and two diagram generators were exercised **read-only**
 against live DORIS responses from the pinned local 2026-01 image for all
-five synthetic certificates: adult 15 rule rows, neonatal 11, child 9,
-maternal 18 and stillbirth 8. Each generated nonempty flow and sequence
+six synthetic certificates: adult 15 rule rows, neonatal 11, child 9,
+maternal 18, stillbirth 8 and mixed tuberculosis 14. Each generated nonempty flow and sequence
 diagram source. This establishes a feasible Help visualization path, not
 visual correctness or future format compatibility. WHO's published report
 specification has 12 fields, while this image emits a trailing thirteenth
@@ -244,12 +317,13 @@ suggestion for a condition the MO entered, not a confirmed diagnosis,
 causal relationship, DORIS result, or final underlying COD. Automatic
 prefilling and suggestions are deferred from the first Help proof.
 
-## Five synthetic Help examples
+## Six synthetic Help examples
 
-`resource/doris_help_examples.json` contains five single-certificate POST
+`resource/doris_help_examples.json` contains six single-certificate POST
 bodies and compact observations from the pinned local image on 2026-09-26.
-The Help page should load a selected example's `certificate` and
-**run DORIS and CoDEdit afresh**; `observed` is a version-specific
+The Help page should load a selected example's `certificate` into a
+DigitVA-owned editable form and **run DORIS and CoDEdit afresh** on its
+current contents; `observed` is a version-specific
 comparison aid, not a medical answer or a result to display as if freshly
 computed. Each condition's code and `LinearizationURI` matched the local
 `codeinfo` endpoint for ICD-11 MMS 2026-01. No names, real dates, VA records
@@ -262,6 +336,7 @@ or patient identifiers are present.
 | 3 Child | Dehydration due to acute gastroenteritis; sex deliberately omitted | `1A40.Z`, not rejected | `BER-CE-2` for missing sex |
 | 4 Maternal | Postpartum haemorrhage due to uterine atony; within 42 days after pregnancy | `JA43.Z`, not rejected; maternal-rule warning | No issue IDs |
 | 5 Stillbirth | Intrapartum stillbirth with no known underlying cause; fetal details | `KD3B.1`, not rejected; fetal-death manual-check warning | No issue IDs |
+| 6 Tuberculosis mixed expressions | One Part I line with separate `1B12.2&XA0G74` and `1B10.Z` conditions | `1B10.Z`, not rejected, no warning | No issue IDs |
 
 The child example deliberately demonstrates why a CoDEdit finding is
 advisory in VA. The neonatal example's `BirthWeight` follows WHO's format
@@ -269,7 +344,11 @@ description and was accepted in this POST, but the published schema's
 `BirthHeight` discrepancy remains unresolved: acceptance alone does not
 prove that DORIS used the value. The stillbirth warning also cautions that
 `KD3B.1` is inappropriate if the underlying cause is known or other specific
-conditions apply. The five computed codes are **observed
+conditions apply. Example 6 demonstrates a `Conditions` array containing
+both a complete stem-plus-extension expression and a separate simple stem;
+the `&` inside the first expression is not a third condition or a causal
+arrow. It is a structural test, not a validated clinical causal chain.
+The six computed codes are **observed
 engine outputs for invented certificates**, not clinical ground truth or
 preselected MO final CODs. A clinician should review the example chains
 before they become public teaching copy.
@@ -288,9 +367,9 @@ silently promoted into a new MO assertion.
 
 The owner-approved product direction is:
 
-1. First prove the public Help form against this local WHO image, running
-   DORIS and CoDEdit on the same certificate, without saving a VA submission
-   or changing project settings.
+1. First prove an editable DigitVA certificate form on public Help against
+   this local WHO image, including ICD-11 code search, conditional fields,
+   DORIS and CoDEdit, without saving a VA submission or changing settings.
 2. Later add two project settings: masked COD yes/no and final entry mode
    simple/DORIS. DORIS is valid only for unmasked ICD-11 projects.
 3. In unmasked simple mode, a coder or reviewer makes one human final entry

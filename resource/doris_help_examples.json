@@ -75,6 +75,22 @@
         "FetalOrInfantDeath": {"Stillborn": 1, "MultiplePregnancy": 0, "BirthWeight": 2800, "PregnancyWeeks": 38, "AgeMother": 29}
       },
       "observed": {"doris": {"reject": false, "code": "KD3B.1", "warning": "M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).\nM1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.\n"}, "codedit": {"issueIds": ""}}
+    },
+    {
+      "id": "tuberculosis_mixed",
+      "label": "Example 6 — Tuberculosis mixed expressions",
+      "purpose": "One Part I line with two conditions: a stem plus extension and a separate simple stem. This demonstrates structure, not a validated clinical causal chain.",
+      "certificate": {
+        "ICDVersion": "ICD11",
+        "AdministrativeData": {"Sex": 1, "EstimatedAge": "P44Y"},
+        "Part1": [
+          {"Conditions": [
+            {"Text": "Tuberculous otitis media", "Code": "1B12.2&XA0G74", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114", "Interval": "P14D"},
+            {"Text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation", "Code": "1B10.Z", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified", "Interval": "P60D"}
+          ]}
+        ]
+      },
+      "observed": {"doris": {"reject": false, "code": "1B10.Z", "warning": null}, "codedit": {"issueIds": ""}}
     }
   ]
 }

@@ -46,7 +46,9 @@ For DORIS entry, the MO records Part I as ordered lines, each with one or
 more conditions, plus Part II conditions and known intervals or contextual
 fields. Each coded condition retains text, the full ICD-11 code or cluster,
 and verified WHO URI provenance. A cluster is one coded condition, not a
-causal edge. The DORIS form is the input, followed by a separate final
+causal edge. The observed WHO form kept `1B12.2&XA0G74` as one condition
+and `1B10.Z` beside it as a second condition on the same line. The DORIS
+form is the input, followed by a separate final
 underlying COD field chosen by the MO. Show the DORIS-computed underlying
 COD, rule rationale, warnings, or rejection as soon as the form can be
 processed. The MO may choose the same or a different final code. Store the
@@ -95,43 +97,58 @@ release must not infer certificate content silently.
   calls during cluster validation and provenance building; combine them
   within an operation if the service work touches that path.
 
-### WHO DORIS web reuse decision gate
+### DigitVA-owned DORIS interaction
 
-The owner now prefers using **WHO's DORIS web application as it is** for
-certificate entry and rule visualization, rather than building a DigitVA
-copy of that form. Its current site is a standalone Angular/Material app
-whose bundle includes Mermaid code. WHO publishes ECT 1.8 integration
-examples for React, Angular and Vue, but the DORIS documentation reviewed
-describes an interactive web application and the ICD API for software
-integration; it does not document an embeddable DORIS component or a
-certificate/result callback to a host application. A script bundle alone
-is not a supported integration contract. The WHO site's Save to file
-control may permit manual exchange, but its format has not been verified.
-Do not copy/self-host the WHO web bundle or assume an iframe can return
-its data to DigitVA. Establish whether WHO supplies a supported embed,
-deployment and result handoff before designing the clinical DORIS screen.
+The owner clarified that the goal is to reproduce the **behavior** of WHO's
+online DORIS workflow inside DigitVA. Design our own certificate interface
+against WHO's published certificate schema and ICD APIs; do not depend on
+embedding, copying or calling the WHO web application's bundle. WHO's web
+page is a behavioral reference for the field groups, code search, processing
+action and rule-report views. DigitVA owns form state, validation,
+accessibility and persistence; the local WHO ICD API remains the engine for
+ICD-11 terminology, CoDEdit checks and DORIS mortality rule selection.
+This does not mean reimplementing WHO's mortality rules.
+The [observed WHO web trace](../kb/doris-web-behavior-and-api-trace.md) and
+[certificate UI contract](../kb/doris-certificate-ui-contract.md) specify
+the form behavior and shared browser/mobile data boundary.
+
+The form must support administrative data, ordered Part I lines with multiple
+conditions on a line, Part II conditions, condition-specific intervals and
+the applicable Frame B fields. Each condition has ICD-11 term/code search in
+the UI. Start with DigitVA's already integrated WHO ECT for browser
+selection and present its chosen code as a removable chip in the condition
+row; compare that interaction with the observed WHO DORIS inline search in
+the Help proof. ECT supports complete postcoordinated expressions and
+already has server-side code/URI checking. WHO DORIS itself uses MMS
+`search` for terms and `codeinfo` for code prefixes; these observed calls
+are recorded in the KB for a future inline or mobile search client. A
+selection retains the complete code or cluster and URI provenance. Free clinical text
+may remain when a condition cannot be coded, but the UI must show that DORIS
+may reject such input. Process sends the current certificate to both local
+DORIS and CoDEdit and shows the computed cause, warnings, rejection,
+readable rationale and rule reports. Processing does not choose the MO's
+final COD. The public Help form proves this interaction first; the later
+clinical form adds authenticated draft/persistence and a separate MO final
+underlying COD field.
+Show only applicable follow-up questions. The WHO form was observed to make
+pregnancy inapplicable for male sex and to enable timing/contribution after
+female sex plus pregnancy “Yes”; test other conditions rather than assuming
+they are hidden. The processed certificate must omit inapplicable fields.
 
 WHO's separate [DORIS API visualization sample](https://github.com/ICD-API/ICD-API-DORIS-Samples)
-does give a viable path for **report display**: it turns the API's
-`tabularReport` into a table, Mermaid rule-flow graph and rule-sequence
-diagram. Its parser and generators produced nonempty diagrams for all five
-synthetic certificates against our local 2026-01 image. It supplies no
-certificate-entry component or host-app handoff. The repository declares no
-license, so direct source copying needs a reuse-rights check; the Help
-implementation can follow the documented output contract with its own safe
-renderer.
+shows how to transform `tabularReport` into a table, Mermaid rule-flow graph
+and rule-sequence diagram. Its parser and generators produced nonempty
+diagrams for all six synthetic certificates against our local 2026-01
+image. The sample repository declares no license, so use it as a behavioral
+reference and confirm reuse rights before copying source. The DigitVA
+renderer must safely handle report text and preserve raw reports when a
+visualization cannot render.
 
 React remains the proposed frontend for the wider API-first coder journey,
 with Jinja/HTMX compatibility during migration; see
-`docs/planning/coder-api-first-workflow-plan.md`. The Help proof can run
-saved synthetic certificates through DigitVA's local DORIS/CoDEdit API and
-display all live outputs and rule views while linking to the WHO web app for
-separate exploration. It should not imply that the WHO form and DigitVA
-results are automatically synchronized. Clinical DORIS entry is a
-**decision gate**:
-use a WHO-supported bridge if one exists; otherwise return to the owner
-with the confirmed integration limits before choosing a replacement UI.
-The API and certificate data contracts remain useful in either case.
+`docs/planning/coder-api-first-workflow-plan.md`. Reuse the same certificate
+data contract and UI interaction in Help and clinical coding; their public
+and authenticated processing endpoints retain separate access rules.
 
 ## WHO DORIS components and observed API contract
 
@@ -280,14 +297,15 @@ left intact.
 
 Build this milestone first and review its working result before beginning
 project settings or clinical workflow integration. Add a public, anonymous
-`/help/doris-demo` page linked from the public ICD-11 Help browser. First
-confirm whether WHO offers a supported way to embed or host its DORIS web
-app and exchange certificate/result data. Do not start a custom DORIS form
-while that question is unresolved. Independently, make the Help page a
-non-persisting API proof: select one of the synthetic certificate examples,
-send its exact JSON body to DORIS and CoDEdit through DigitVA's local image,
-and display both live responses after processing, in separate panels. The
-DORIS panel shows the
+`/help/doris-demo` page linked from the public ICD-11 Help browser. Build
+an editable DigitVA certificate form with the WHO field groups and
+condition-level ICD-11 term/code search. Let a visitor load and alter any
+of the six synthetic examples or start a blank certificate. Support adding,
+removing and reordering Part I lines and multiple conditions within a line;
+support Part II, intervals, administrative data and applicable Frame B
+fields. Keep the current input in browser state only. Process sends the
+current certificate to DORIS and CoDEdit through DigitVA's local image and
+displays both live responses in separate panels. The DORIS panel shows the
 computed `code`, `stemCode`, `uri`, `stemURI`, readable `report`, `warning`,
 `error` and `reject`; make the raw `tabularReport` available in an expandable
 view. The CoDEdit panel shows its `report`, `issueIds` and expandable raw
@@ -299,14 +317,14 @@ Version-test the parser against this pinned WHO image and escape/sanitize all
 WHO-supplied text before placing it in HTML or diagram source. On parse or
 render failure, show the readable report and raw table with an explicit
 visualization error; the DORIS computation itself may still have succeeded.
-Include five synthetic examples without using a real VA submission: adult,
-neonatal death, child, maternal and stillbirth. Their single-certificate
+Include six synthetic examples without using a real VA submission: adult,
+neonatal death, child, maternal, stillbirth and mixed tuberculosis codes.
+Their single-certificate
 JSON bodies and local DORIS/CoDEdit observations are in
 `resource/doris_help_examples.json`; provide a clear Process action and run
-the selected certificate live rather than showing its saved observation as
-a fresh result.
-Provide a clearly separate link to WHO DORIS web for entering a certificate
-there; no automatic transfer is claimed without a verified WHO bridge.
+the **currently edited** certificate live rather than showing a saved
+observation as a fresh result. Clear or mark results stale after any edit.
+Provide a reference link to WHO DORIS web, labelled as a separate site.
 The page should explain that DORIS applies coding rules and CoDEdit flags
 possible certificate issues; neither validates clinical facts.
 
@@ -316,9 +334,10 @@ which sends the request server-side to the existing `icd_api_service` image
 should depend on `127.0.0.1:8382`: that address is the *visitor's* computer
 for a remote visitor. The existing `/help/icd-codes/search-demo` uses that
 loopback address for its ECT comparison and is role-gated; the public DORIS
-proof may add a narrow public ECT path only if an editable DigitVA form is
-later approved; do not reuse a submission-scoped proxy. Permit only the WHO
-resources and certificate fields needed for the example runner. Enforce
+form needs a narrow, rate-limited same-origin ICD-11 search/ECT path. Reuse
+the current WHO ECT selection callback and server-side code/URI validation
+where possible, but do not expose a submission-scoped proxy. Permit only
+the WHO resources and certificate fields needed for this form. Enforce
 body/response limits, no redirects, short timeouts, rate limits and CSRF on
 processing. Do not write entered conditions, API outputs or IP-linked search
 content to the database, analytics or application logs. Show unavailable and
@@ -332,12 +351,16 @@ Help/API and visualization tests. Keep the certificate/API adapter reusable
 by the later clinical route; the public and clinical authorization boundaries
 remain separate.
 
-Exit gate: exercise all five synthetic certificates against the running
-local image through the *public page* and confirm DORIS code/rationale and
-CoDEdit issue IDs match direct WHO API responses. Test multiple conditions
-on a line, a cluster and unknown/missing optional data at the API boundary;
-then inspect browser network requests and logs. The owner can review this
-proof and WHO web reuse findings before clinical workflow packages start.
+Exit gate: load, edit, code-search and process all six synthetic certificates
+through the *public page* and confirm DORIS code/rationale and CoDEdit issue
+IDs match direct WHO API responses for unchanged examples. Test adding
+multiple conditions on a line, changing line order, a code cluster, a
+text-only condition, unknown/missing optional data, stale-result clearing,
+conditional question display, and safe diagram rendering. Include the sixth
+TB example to confirm a simple stem and a stem-plus-extension expression
+remain two conditions on one line. Inspect browser network requests and logs
+for retained medical text. The owner can review this working interaction
+before clinical workflow packages start.
 This phase needs no project-setting or assessment-table migration.
 
 ### 1. Policy baseline and existing ICD-11 selection defect
@@ -386,8 +409,8 @@ code validation independent of DORIS processing.
 
 Route both roles by project settings. For unmasked simple, show SmartVA
 immediately and save the three fields directly to the final assessment. For
-unmasked DORIS, use the certificate-entry path chosen after the WHO web
-handoff gate, present the computed cause/rationale and separate advisory
+unmasked DORIS, reuse the DigitVA certificate editor and processing contract
+proved on Help, present the computed cause/rationale and separate advisory
 CoDEdit findings, then capture the MO's final underlying code. Reviewer
 entry also shows coder COD and SmartVA immediately. Masked simple screens
 and two-step saves remain unchanged. Preserve NQA, Social Autopsy,

@@ -1,5 +1,21 @@
 # Handoff
 
+## Proposed DORIS Help proof and unmasked COD plan (2026-09-26)
+
+`digitva-ddv.1` is planning only. The owner requested a public, non-persisting
+DORIS/CoDEdit/WHO ECT Help-page proof against the pinned local ICD API image before
+project settings or VA coding workflow changes. The read-only API study found
+that DORIS POST accepts one certificate object; HTTP 200 may still mean
+`reject=true`; computed `code`/`uri` may be clusters; and mismatched input
+code/URI can be recoded with a warning. Both GET and POST exist; the plan
+chooses structured POST for the Help proof and clinical integration. The
+proposed three valid
+project modes, output shape, security boundaries, migration and validation
+gates are in `docs/planning/project-cod-masking-doris-plan.md`, with API
+knowledge in `docs/kb/doris-icd-api-and-va.md`. No application
+code or migration has been started for this plan. The new Beads issue remains
+open and unclaimed pending plan review.
+
 ## WHO ICD-11 ECT production assessment integration (2026-09-26)
 
 `digitva-0kj`: coder and reviewer ICD-11 COD fields use WHO ECT 1.8 through

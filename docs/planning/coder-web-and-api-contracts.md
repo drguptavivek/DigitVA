@@ -1,0 +1,217 @@
+---
+title: Coder Web and JSON API Contracts
+doc_type: planning
+status: proposed
+owner: engineering
+last_updated: 2026-09-26
+---
+
+# Coder Web and JSON API Contracts
+
+## Scope and status
+
+This is a **proposed contract**, not a list of implemented endpoints. It
+covers the coder journey from allocation/opening a VA form through reading
+the submission, notes and quality checks, COD entry, finalization or Not
+Codeable. The public DORIS Help proof has its own anonymous API boundary.
+The reviewer journey remains outside this API migration, although the
+certificate processor and final-COD domain services should be reusable.
+The implementation sequence is in
+`docs/planning/coder-api-first-workflow-plan.md`; DORIS product decisions are
+in `docs/planning/project-cod-masking-doris-plan.md`.
+
+The planned coder web client is React. Flask/Jinja and HTMX remain as
+compatibility routes during incremental migration; the React client consumes
+the proposed JSON APIs. A future mobile client should consume the same
+domain contract, without depending on HTML fragments, WHO ECT DOM callbacks,
+or browser hidden inputs. React web components that require the DOM,
+including WHO ECT, are not directly reusable in a native mobile renderer.
+The owner prefers the WHO DORIS web application as-is for DORIS certificate
+entry. Its integration and result handoff are not yet documented by WHO, so
+the DORIS-specific clinical endpoints below are proposed contracts subject
+to that feasibility gate; no custom DORIS form is authorized by this plan.
+
+## Existing web/HTMX contract to preserve during migration
+
+| Current surface | Request/response contract | Important behavior to preserve |
+| --- | --- | --- |
+| Coder dashboard | Existing `/api/v1/coding/allocation`, `/available`, `/stats`, `/history`, `/projects` JSON APIs; HTML pick/recode actions also remain | Role and project/form eligibility, random/pick/demo/recode allocation |
+| Enter or resume form | `app/routes/coding.py` builds an HTML case shell through `render_va_coding_page()` | Active allocation, navigation metadata, demo/recode handling, one queued open-payload repair |
+| Category and assessment panels | `GET /vaform/<sid>/<partial>` returns HTML fragments for HTMX swaps | Per-case access, active payload, category rendering, existing PII redaction, permitted attachments and SmartVA timing |
+| Coder Step 1 | `POST /vaform/<sid>/vainitialasses` through the current form route | Current masked flow's initial assessment and state transition |
+| Coder final COD | `POST /vaform/<sid>/vafinalasses` through the current form route | ICD validation/provenance, NQA/Social gates, audit, final authority, allocation release and cache effects |
+| Notes and Not Codeable | Other `POST /vaform/<sid>/<partial>` branches | User note, local terminal Not Codeable transition and best-effort ODK update |
+
+These current contracts are implemented across `app/routes/api/coding.py`,
+`app/routes/coding.py`, `app/services/coding_service.py`, and
+`app/routes/va_form.py`. Keep them working until the corresponding JSON API
+and web client pass parity tests. Both the HTML route and JSON route must
+call the **same service operation** for each mutation; they must not contain
+separate copies of COD, allocation or authorization rules.
+
+## Proposed JSON contract, `/api/v1/coding`
+
+All case routes below are **new proposals**. `sid` is the opaque DigitVA
+submission identifier already used by the current routes; it is not an ODK
+form ID or ODK submission key. The server derives project mode, language,
+allowed actions and evidence visibility from the authenticated user and
+current allocation. The client cannot set its own `masked_cod_required`,
+`cod_entry_mode`, role or workflow state.
+
+| Method and path | Response or request responsibility |
+| --- | --- |
+| Existing `GET /allocation`; `POST /allocation` | Keep current fields; add allocation ID, workflow/payload version, expiry, project/mode and capabilities without breaking current dashboard consumers |
+| `GET /cases/{sid}` | Case bootstrap: masked metadata, allocation and workflow revision, server-derived mode, category manifest, completion flags, permitted links/actions |
+| `GET /cases/{sid}/categories/{category_code}` | Semantic, redacted fields and authorized attachment descriptors for one category; no raw ODK payload or local path |
+| `GET /cases/{sid}/cod-context` | ICD classification/search links, current human assessments, available SmartVA guidance, NQA/Social completion; omit evidence that the current phase must mask |
+| `GET /cases/{sid}/note`; `PUT /cases/{sid}/note` | Read or replace the current coder's note under active case access |
+| Existing NQA/Social and ICD search APIs | Link from bootstrap; keep their services and authorization, standardize errors without duplicating endpoints |
+| `PUT /cases/{sid}/initial-assessment` | Masked mode only: immediate, antecedent and other conditions; server-side code/provenance validation |
+| `POST /cases/{sid}/doris/process` | Unmasked ICD-11 DORIS mode only: preview one bounded certificate through DORIS and CoDEdit; no final COD write |
+| `POST /cases/{sid}/finalize` | Mode-specific human final entry, current certificate if DORIS mode, independent final-code validation, atomic assessment/workflow/authority/audit update and allocation release |
+| `POST /cases/{sid}/not-codeable` | Structured reason and local terminal outcome; report ODK update result separately |
+
+The current dashboard allocation API is an existing API, not a newly
+specified route. The new case APIs should be added to its `/api/v1/coding`
+namespace. A separate reviewer contract can later reuse the same
+certificate and final-COD schemas with reviewer-specific authorization.
+
+### Case bootstrap example
+
+```json
+{
+  "schema_version": 1,
+  "sid": "synthetic-sid",
+  "allocation": {"id": "opaque-allocation-id", "expires_at": "2026-09-26T12:00:00Z"},
+  "workflow": {"state": "coding_in_progress", "revision": 4},
+  "payload_version_id": "opaque-version-id",
+  "project": {"icd_classification": "icd11", "coding_mode": "unmasked_doris"},
+  "allowed_actions": ["read_category", "save_note", "process_doris", "finalize"],
+  "categories": [{"code": "narrative", "label": "Narrative", "href": "/api/v1/coding/cases/synthetic-sid/categories/narrative"}],
+  "links": {"cod_context": "/api/v1/coding/cases/synthetic-sid/cod-context"}
+}
+```
+
+The example keys define the intended semantics, not the current database
+shape. Masked metadata follows the existing dashboard policy. `coding_mode`
+is a server-derived snapshot of the approved project configuration. The
+response must not include SmartVA data or hidden coder/reviewer decisions
+when the current workflow phase does not permit them.
+
+### Case mutations and conflicts
+
+Every case mutation supplies `expected_payload_version_id`; terminal
+mutations also supply `expected_workflow_state` and `expected_workflow_revision`.
+The server checks these against the active allocation and current case in
+the same transaction as the write. If they differ, return `409` with the
+current state/version and require a refresh. Repeated terminal requests must
+not create a second assessment; after an uncertain network response the
+client refreshes `GET /cases/{sid}` to discover the committed outcome.
+Document a stronger idempotency-key contract before native mobile retries
+or offline queuing are enabled.
+
+`POST /finalize` accepts exactly one mode-specific body:
+
+- `masked_simple`: current Step 1 already saved; final human underlying COD.
+- `unmasked_simple`: human immediate COD, underlying COD and optional
+  associated conditions, with no artificial Step 1 row.
+- `unmasked_doris`: ordered Part I/Part II certificate plus the MO's
+  independent final underlying COD. Client-supplied DORIS or CoDEdit results
+  are ignored. The server revalidates the certificate and obtains the result
+  for that exact input/release before storing it separately from the MO COD.
+
+The final underlying code is a complete ICD-11 expression when applicable,
+with WHO URI provenance checked on the server. In DORIS mode, CoDEdit
+findings are advisory. A DORIS/CoDEdit failure does not block a human final
+COD if independent WHO codeinfo validation succeeds; a whole WHO API outage
+still prevents the existing ICD-11 final-code provenance check.
+
+### Response and error semantics
+
+New APIs return `application/json` and an application `schema_version`.
+Use `200` for reads and completed commands, `201` for newly created
+allocations, `400` for malformed JSON, `401` for an unauthenticated session,
+`403` for insufficient role/form/site/allocation access, `404` for a missing
+or concealed case, `409` for stale allocation/workflow/payload, `422` for
+field or domain validation, and `503` when a required WHO validation service
+is unavailable. Field errors use JSON paths that a web or mobile client can
+place beside controls.
+
+```json
+{
+  "error": {
+    "code": "STALE_PAYLOAD",
+    "message": "This submission changed. Reload before saving.",
+    "fields": [],
+    "current_state": "coding_in_progress",
+    "current_payload_version_id": "opaque-current-version-id"
+  }
+}
+```
+
+The same HTTP response code must mean the same class of outcome for an
+HTMX-backed web action and the JSON action. Existing API response bodies
+may remain unchanged while new endpoints adopt the common envelope.
+
+## Public DORIS Help API contract
+
+These routes are anonymous and distinct from clinical case APIs:
+
+| Method and path | Contract |
+| --- | --- |
+| `GET /api/v1/doris-demo/config` | Return application schema version, ICD release, capabilities and the five synthetic `certificate` examples from `resource/doris_help_examples.json`; do not expose saved `observed` results as live outputs |
+| `POST /api/v1/doris-demo/process` | Accept an `example_id` from that fixed set; load its exact certificate server-side, verify code/URI agreement, call local DORIS and CoDEdit, return both normalized live responses with release, input digest and processing status; do not persist certificate or results |
+
+The response exposes every DORIS field (`code`, `stemCode`, `uri`, `stemURI`,
+`report`, `tabularReport`, `reject`, `error`, `warning`) and every CoDEdit
+field (`report`, `tabularReport`, `issueIds`). The Help screen shows the
+readable reports and warnings directly and makes raw tabular reports
+expandable. It also derives a rule table, flow graph and sequence diagram
+from nonempty DORIS `tabularReport`; those are presentation views, not extra
+API decisions or persisted clinical data. Parse/render errors must leave the
+readable and raw reports available, and any WHO text in HTML or Mermaid
+source must be safely escaped. A WHO HTTP 200 with `reject=true` is a rejected DORIS result,
+not a successful UCOD. `issueIds` is preserved in its observed string form.
+If one processor fails, return its failure status separately from the other
+processor's result. Do not substitute fixture observations or stale prior
+responses. The public endpoint uses fixed WHO targets, bounded input/output,
+timeouts, rate limits and browser CSRF; it never accepts arbitrary URLs.
+The Help page links to the WHO DORIS web application as a separate
+interactive reference. There is no claimed automatic data transfer from
+that application to DigitVA. The observed WHO Save to file control needs a
+synthetic format/handoff test before it can be part of this contract.
+
+If a supported WHO web handoff is established, the clinical
+`POST /cases/{sid}/doris/process` shares the certificate schema and WHO
+adapter but requires active allocation and project-mode authorization. Its
+result includes the certificate input digest and ICD release. Preview
+results are display data; final save obtains or verifies a server-trusted
+result for the exact submitted certificate.
+
+## Authentication and client boundary
+
+The web client continues to use Flask-Login session cookies and
+`X-CSRFToken` on every state-changing JSON request. Authorization decisions
+belong in a shared service used by the HTML and JSON routes, not in the
+template or client-provided `actiontype`. Keep per-form, site, project,
+language, active-allocation, retired-form and payload-version checks.
+Category JSON must apply the same PII redaction as the existing HTML path.
+Attachment references must be opaque authorized delivery URLs, not disk
+paths. Avoid logging raw certificates or submission payloads.
+
+Native mobile authentication is **not implemented by this contract**.
+Before a mobile app can use clinical APIs, add an approved OIDC/OAuth
+authorization-code-with-PKCE flow, map identity to existing roles, and
+specify token/device lifecycle. A bearer-authenticated request may receive
+a narrowly scoped CSRF exemption only after that authentication succeeds;
+do not disable CSRF for session-authenticated browser requests. Offline
+allocation/sync is a separate decision, not assumed here.
+
+## Parity gate before retiring HTMX mutations
+
+For each action, test the existing HTML/HTMX path and the proposed JSON
+path against the same service: authorization, PII visibility, saved rows,
+workflow state, authority, audit, allocation release, recode/demo behavior,
+NQA/Social gates and error statuses must agree. The existing web route can
+then become a thin compatibility adapter. Remove its mutation branch only
+after the web client uses the JSON path and browser regression passes.

@@ -32,6 +32,63 @@ to reach DigitVA's WHO container.
 | SmartVA | Gives algorithmic VA cause guidance from the interview | Does not fill the MCCD chain or make DigitVA's final MO decision |
 | Medical officer | Enters or reviews the cause chain and chooses the final COD in DigitVA | Is not replaced by any of the above tools |
 
+### Reusing the WHO DORIS web application
+
+The owner prefers using WHO's DORIS web interface as it is if DigitVA can
+integrate it. On 2026-09-26, the live WHO workspace was observed as a
+standalone Angular application (`app-root`, Angular 16.2.12 and Material
+controls) with Process DORIS, Process CoDEdit, example and Save to file
+actions. Its delivered JavaScript bundle contains Mermaid rendering code;
+WHO documents textual, tabular, rule-flow and rule-sequence report views.
+This is evidence about WHO's web app, **not** a published component API.
+
+[WHO's DORIS web documentation](https://icd.who.int/docs/doris/en/doris-web/)
+describes interactive browser use. Its separate
+[software integration guidance](https://icd.who.int/docs/doris/en/doris-api/)
+directs integrators to the ICD API. In the documentation reviewed, there is
+no supported embeddable DORIS JavaScript/React component, configuration
+contract, or callback for passing a completed certificate and DORIS result
+back to another application. Merely loading the WHO Angular bundle does
+not provide that contract: it is an application that expects its own page,
+assets, routing and API configuration. A cross-origin iframe may display
+the page, but DigitVA cannot read its form or output through ordinary
+cross-origin browser access. The observed Save to file control may support
+a manual exchange; its format and completeness have not been verified.
+
+Do not copy or self-host the DORIS web bundle as an integration shortcut.
+WHO's [software license](https://icd.who.int/en/docs/icd11-license.pdf)
+expressly discusses incorporation of ICD API and the Embedded
+Classification Tool, but does not expressly identify the DORIS web app as
+an embeddable component. A supported distribution or message/export
+contract must be confirmed with WHO before choosing that path. Until then,
+the public Help page can process the five synthetic certificate bodies
+through DigitVA's local DORIS/CoDEdit APIs and show their live outputs,
+while linking to WHO's web app separately. This does not yet provide
+automatic transfer of a WHO-web-entered certificate into DigitVA.
+
+### WHO's separate API visualization sample
+
+[ICD-API-DORIS-Samples](https://github.com/ICD-API/ICD-API-DORIS-Samples)
+is a small **vanilla JavaScript example**, not the DORIS web certificate
+application or an embeddable form. Its `sample.html` sends certificate JSON
+to the DORIS API and its `report-mermaid.js` parses `tabularReport` into a
+table, Mermaid rule-flow graph and Mermaid sequence diagram. The supplied
+sample calls a developer-test endpoint directly from the browser; its README
+recommends a backend proxy for production. Its example table builds HTML from
+report strings, so DigitVA must render untrusted report text safely.
+
+The sample parser and two diagram generators were exercised **read-only**
+against live DORIS responses from the pinned local 2026-01 image for all
+five synthetic certificates: adult 15 rule rows, neonatal 11, child 9,
+maternal 18 and stillbirth 8. Each generated nonempty flow and sequence
+diagram source. This establishes a feasible Help visualization path, not
+visual correctness or future format compatibility. WHO's published report
+specification has 12 fields, while this image emits a trailing thirteenth
+`BER` field; parser compatibility needs a versioned regression check. The
+repository currently has no declared license in GitHub metadata and no
+license file, so this plan cites the example without copying its source into
+DigitVA. Confirm reuse rights if direct source reuse is proposed.
+
 WHO describes DORIS as a rule-based aid for selecting one underlying cause
 from a medical certificate. Its web UI exposes the applied steps and
 warnings. WHO separately describes VA as a means of assigning a *probable*
@@ -133,8 +190,11 @@ because the nine-field response does not carry an ICD release field.
 WHO's tabular report specification lists 12 columns and warns that its
 layout may change. The local image produced rows with 13 semicolon-separated
 fields, including a trailing `BER` value. Keep the raw `tabularReport` for
-review. The first UI can show the human-readable `report` without relying on
-fixed tabular column positions.
+review. The Help proof can also render selected columns and rule flow and
+sequence views from parsed rows, following the published sample's approach.
+If parsing or diagram rendering fails, keep the readable report and raw
+tabular output accessible; never replace the underlying DORIS result with a
+diagram interpretation.
 
 ### Code and URI agreement is a trust boundary
 
@@ -184,6 +244,36 @@ suggestion for a condition the MO entered, not a confirmed diagnosis,
 causal relationship, DORIS result, or final underlying COD. Automatic
 prefilling and suggestions are deferred from the first Help proof.
 
+## Five synthetic Help examples
+
+`resource/doris_help_examples.json` contains five single-certificate POST
+bodies and compact observations from the pinned local image on 2026-09-26.
+The Help page should load a selected example's `certificate` and
+**run DORIS and CoDEdit afresh**; `observed` is a version-specific
+comparison aid, not a medical answer or a result to display as if freshly
+computed. Each condition's code and `LinearizationURI` matched the local
+`codeinfo` endpoint for ICD-11 MMS 2026-01. No names, real dates, VA records
+or patient identifiers are present.
+
+| Example | Certificate features | Local DORIS result | Local CoDEdit result |
+| --- | --- | --- | --- |
+| 1 Adult | Myocardial infarction due to coronary atherosclerosis; diabetes in Part II | `BA41.Z`, not rejected, no warning | No issue IDs |
+| 2 Neonatal death | Respiratory distress syndrome of newborn due to prematurity; known infant details | `KB23.0Z`, not rejected; perinatal manual-check warning | No issue IDs |
+| 3 Child | Dehydration due to acute gastroenteritis; sex deliberately omitted | `1A40.Z`, not rejected | `BER-CE-2` for missing sex |
+| 4 Maternal | Postpartum haemorrhage due to uterine atony; within 42 days after pregnancy | `JA43.Z`, not rejected; maternal-rule warning | No issue IDs |
+| 5 Stillbirth | Intrapartum stillbirth with no known underlying cause; fetal details | `KD3B.1`, not rejected; fetal-death manual-check warning | No issue IDs |
+
+The child example deliberately demonstrates why a CoDEdit finding is
+advisory in VA. The neonatal example's `BirthWeight` follows WHO's format
+description and was accepted in this POST, but the published schema's
+`BirthHeight` discrepancy remains unresolved: acceptance alone does not
+prove that DORIS used the value. The stillbirth warning also cautions that
+`KD3B.1` is inappropriate if the underlying cause is known or other specific
+conditions apply. The five computed codes are **observed
+engine outputs for invented certificates**, not clinical ground truth or
+preselected MO final CODs. A clinician should review the example chains
+before they become public teaching copy.
+
 ## Relationship to DigitVA and the planned sequence
 
 DigitVA already has WHO ECT 1.8 and a fixed-target local ICD API client.
@@ -208,11 +298,12 @@ The owner-approved product direction is:
 4. In unmasked DORIS mode, the MO enters the causal chain, sees DORIS's
    computed underlying COD and rationale plus advisory CoDEdit findings,
    then selects one final underlying COD. Save certificate, DORIS result,
-   CoDEdit result and MO final COD distinctly. A
-   rejected or unavailable DORIS run must not invent a result or block the
-   human final COD decision.
+   CoDEdit result and MO final COD distinctly. A rejected or unavailable
+   DORIS run must not invent a result and need not block the human final COD
+   if independent WHO codeinfo validation remains available.
 5. Unmasked reviewers see the coder COD and SmartVA before their one final
-   review. Masked projects retain the current blind first-entry workflow.
+   review. Masked projects retain the current two-step workflow, including
+   its existing coder-COD visibility before reviewer Step 1.
 
 The public Help endpoint requires bounded input and output, rate limits,
 CSRF for processing, fixed local WHO target, and no retention or logging of
@@ -231,6 +322,7 @@ boundaries even if they reuse one certificate adapter.
 - [WHO CoDEdit tabular output](https://icd.who.int/docs/icd-api/CODEDITTabularOutputSpecs/)
 - [WHO CoDEdit identifiers](https://icd.who.int/docs/icd-api/DORIS-CODEDIT-IdsListSpecs/)
 - [WHO ICD API Swagger](https://id.who.int/swagger/index.html)
+- [WHO ICD-API DORIS visualization sample](https://github.com/ICD-API/ICD-API-DORIS-Samples)
 - [WHO ICD-11 Reference Guide](https://icdcdn.who.int/icd11referenceguide/en-2025-01/refguide.pdf)
 - Local synthetic probes of the configured image at
   `http://127.0.0.1:8382/swagger/v2/swagger.json`, DORIS, CoDEdit and

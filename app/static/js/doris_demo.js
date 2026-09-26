@@ -247,6 +247,17 @@
       },
       request: post,
       revision: function () { return revision; },
+      searchTerms: function (query, subtreeUris) {
+        return post(endpoint('terms'), {schema_version: 1, query: query, limit: MAX_RESULTS, cursor: null, subtree_uris: subtreeUris});
+      },
+      checkExpression: function (code) {
+        return post(endpoint('codeinfo'), {schema_version: 1, code: code}).then(function (data) {
+          return data.item || null;
+        }).catch(function (err) {
+          if (err.response && err.response.error && err.response.error.code === 'CODE_NOT_FOUND') return null;
+          throw err;
+        });
+      },
       onSelect: function (item) { stageSelection(line, item); }
     }) : null;
     var conditions = (source && Array.isArray(source.Conditions)) ? source.Conditions : [];

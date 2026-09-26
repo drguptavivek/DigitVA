@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from threading import BoundedSemaphore
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
@@ -19,11 +19,17 @@ from app.services.who_icd_api import (
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9./&+-]{0,127}$")
+_SUBTREE_URI_RE = re.compile(r"^http://id\.who\.int/icd/\S+$")
 _MAX_AXES = 12
 _MAX_OPTIONS = 12
 _MAX_PATH = 12
 _MAX_TERMS = 12
+_MAX_SUBTREE_URIS = 40
 _MAX_CALLS = 48
+# WHO MMS chapter X ("Extension Codes"), foundation entity 979408586, pinned
+# to the release used everywhere else in this module. ECT's open-ended
+# "Other postcoordination?" search is scoped to this subtree.
+X_CHAPTER_URI = f"http://id.who.int/icd/release/11/{DEFAULT_ICD11_RELEASE}/mms/979408586"
 _GUIDANCE_SECONDS = 10.0
 _guidance_capacity = BoundedSemaphore(2)
 _budget: ContextVar[tuple[float, list[int]] | None] = ContextVar(
@@ -188,6 +194,7 @@ def _axes(entity: dict) -> tuple[list[dict], bool]:
             "allow_multiple": multiple_value != "NotAllowed",
             "allow_multiple_values": multiple_value,
             "options": options,
+            "subtree_uris": roots[:_MAX_OPTIONS],
             "truncated": len(roots) > _MAX_OPTIONS,
         })
     return axes, False
@@ -196,11 +203,19 @@ def _axes(entity: dict) -> tuple[list[dict], bool]:
 def postcoordination(code: str) -> dict:
     stem, entity = _stem(code)
     axes, truncated = _axes(entity)
+    other_postcoordination = None
+    if (
+        entity.get("classKind") == "category"
+        and stem["code"]
+        and not stem["code"].startswith("X")
+    ):
+        other_postcoordination = {"subtree_uris": [X_CHAPTER_URI]}
     return {
         "schema_version": 1,
         "release": DEFAULT_ICD11_RELEASE,
         "stem": stem,
         "axes": axes,
+        "other_postcoordination": other_postcoordination,
         "truncated": truncated,
     }
 
@@ -369,6 +384,7 @@ def related_terms(code: str, chapter: str) -> dict:
     if not isinstance(related_uris, list):
         raise WhoIcdApiUnavailable("WHO related terms were malformed")
     terms = []
+    composite = None
     truncated = len(related_uris) > _MAX_OPTIONS
     for foundation_uri in related_uris[:_MAX_OPTIONS]:
         entity_id = _resource(foundation_uri, foundation=True).rsplit("/", 1)[-1]
@@ -379,6 +395,18 @@ def related_terms(code: str, chapter: str) -> dict:
             if exc.code == "CODE_NOT_FOUND":
                 continue
             raise
+        if composite is None:
+            direct_code = related_entity.get("code")
+            direct_title = _plain(related_entity.get("title"))
+            if isinstance(direct_code, str) and direct_code and direct_title:
+                # WHO's own picker shows this as the exact composite, e.g.
+                # "JB64.4/BD54": the related chapter's category joined with
+                # the stem code being annotated, not a separate WHO field.
+                composite = {
+                    "code": f"{direct_code}/{selected['code']}",
+                    "title": f"{direct_title} / {selected['title']}",
+                    "uri": "",
+                }
         candidates = [related_entity]
         children = related_entity.get("child") or []
         if not isinstance(children, list):
@@ -412,6 +440,7 @@ def related_terms(code: str, chapter: str) -> dict:
         "release": DEFAULT_ICD11_RELEASE,
         "selected": selected,
         "chapter": chapter,
+        "composite": composite,
         "terms": terms,
         "truncated": truncated,
     }
@@ -489,4 +518,85 @@ def search_context_from_entity(entity: dict) -> dict:
         "related_maternal": bool(entity.get("relatedEntitiesInMaternalChapter")),
         "related_perinatal": bool(entity.get("relatedEntitiesInPerinatalChapter")),
         "has_coding_note": bool(entity.get("codingNote")),
+    }
+
+
+def valid_subtree_uris(value: object) -> bool:
+    """Format-check the optional WHO subtree scope for a terms search.
+
+    ``None`` (no scoping requested) is valid. Otherwise it must be a list of
+    1 to 40 WHO linearization or foundation URIs, each under 200 characters
+    with no whitespace. This does not resolve or authorize the URIs; the
+    call is a bounded, read-only WHO search forwarded verbatim as
+    ``subtreesFilter``, not a path or identifier used server-side.
+    """
+    if value is None:
+        return True
+    return (
+        isinstance(value, list)
+        and 1 <= len(value) <= _MAX_SUBTREE_URIS
+        and all(
+            isinstance(uri, str) and len(uri) <= 200 and _SUBTREE_URI_RE.fullmatch(uri)
+            for uri in value
+        )
+    )
+
+
+def search_terms(query: str, *, limit: int = 20, subtree_uris: list[str] | None = None) -> dict:
+    """Bounded WHO MMS term search shared by the public and clinical routes."""
+    params = {
+        "q": f"{query.strip()}%",
+        "includePostcoordination": "true",
+        "flatResults": "true",
+        "highlightingEnabled": "true",
+        "medicalCodingMode": "true",
+    }
+    if subtree_uris:
+        params["subtreesFilter"] = ",".join(subtree_uris)
+    body = urlencode(params).encode()
+    upstream = proxy_who_icd_request(
+        f"icd/release/11/{DEFAULT_ICD11_RELEASE}/mms/search",
+        method="POST",
+        body=body,
+        content_type="application/x-www-form-urlencoded",
+    )
+    raw = upstream.json()
+    entities = raw.get("destinationEntities") if isinstance(raw, dict) else None
+    if not isinstance(entities, list):
+        raise WhoIcdApiUnavailable("WHO search response was malformed")
+    items = []
+    for entity in entities:
+        if not isinstance(entity, dict):
+            continue
+        code = entity.get("theCode") or entity.get("code")
+        uri = entity.get("id") or entity.get("uri") or entity.get("@id")
+        title = _plain(entity.get("title") or entity.get("titleWithoutCodes"), 2000)
+        if not all(isinstance(value, str) and value for value in (code, uri, title)):
+            continue
+        matching_source = entity.get("matchingPVs") or entity.get("matchingText")
+        if isinstance(matching_source, list):
+            matching_source = " ".join(item for item in matching_source if isinstance(item, str))
+        matching_text = _plain(matching_source, 2000) or title
+        available, raw_availability = postcoordination_availability(
+            entity.get("postcoordinationAvailability")
+        )
+        items.append(
+            {
+                "code": code,
+                "title": title,
+                "uri": uri,
+                "release": DEFAULT_ICD11_RELEASE,
+                "matching_text": matching_text,
+                "postcoordination": available,
+                "postcoordination_availability": raw_availability,
+                "related_maternal": entity.get("hasMaternalChapterLink") is True,
+                "related_perinatal": entity.get("hasPerinatalChapterLink") is True,
+                "has_coding_note": entity.get("hasCodingNote") is True,
+            }
+        )
+        if len(items) == limit:
+            break
+    return {
+        "items": items,
+        "truncated": bool(raw.get("resultChopped")) or len(entities) > len(items),
     }

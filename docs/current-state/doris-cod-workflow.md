@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # DORIS COD Workflow
@@ -64,8 +64,15 @@ maternal `J`, perinatal `K`, coding-note marker and Details action have distinct
 click targets. Selecting a code stages its code and title in a footer; `OK`
 checks it against WHO before adding the chip. A code with required
 postcoordination opens its details and choices immediately. Required choices
-appear first on screen, while the underlying WHO axis order is retained when
-assembling the expression. Details include available matching terms,
+appear first on screen, each axis is headed with WHO's instruction wording
+and offers a search limited to that axis's WHO subtree, and a final "Other
+postcoordination?" search over the extension chapter appears for MMS
+category stems outside that chapter; an open-ended pick is accepted only
+if WHO codeinfo resolves it with the stem. Uncoded folders render as
+expandable `▷` nodes with no select control. The expression puts `&`
+extensions before `/` stems, each group in WHO axis order, matching WHO's
+canonical form. Maternal and perinatal panels list WHO's exact composite
+category first. Details include available matching terms,
 definition, fully specified name, inclusions, exclusions and coding notes.
 Reset clears the modal query, results and staged choice without removing
 certificate codes already added to the line.
@@ -74,7 +81,9 @@ The shared normalization and traversal service is
 `app/services/icd11_postcoordination.py`. Public routes are under
 `/api/v1/doris-demo/`; clinical routes with case authorization are under
 `/api/v1/doris-clinical/`. Both expose `postcoordination`,
-`postcoordination-options`, and `hierarchy`. WHO's exact multiple-value rule
+`postcoordination-options`, and `hierarchy`, and both `terms` routes share
+one `search_terms` service function that accepts optional `subtree_uris`
+and forwards them as WHO's `subtreesFilter`. WHO's exact multiple-value rule
 is preserved, including the restriction against two choices from the same
 block. A two-slot guidance limit and bounded call budget protect request
 capacity. When a root or child option list has more than 12 choices, the response

@@ -115,17 +115,24 @@
       var code = state.stem.code;
       var uri = state.stem.uri;
       var titles = [state.stem.title];
-      axes.forEach(function (axis) {
-        selectedFor(axis).forEach(function (item) {
-          // WHO uses slash for a causal/associated stem and ampersand for
-          // an X extension. Preserve axis order while keeping both forms as
-          // one complete expression.
-          var separator = /^X/i.test(item.code) ? '&' : '/';
-          if (item.code) code += separator + item.code;
-          if (item.uri) uri += ' ' + separator + ' ' + item.uri;
-          if (item.title) titles.push(item.title);
-        });
-      });
+      function append(item) {
+        // WHO uses slash for a causal/associated stem and ampersand for
+        // an X extension. Preserve axis order while keeping both forms as
+        // one complete expression.
+        var separator = /^X/i.test(item.code) ? '&' : '/';
+        if (item.code) code += separator + item.code;
+        if (item.uri) uri += ' ' + separator + ' ' + item.uri;
+        if (item.title) titles.push(item.title);
+      }
+      // WHO codeinfo canonicalises "stem & extensions / stem & extensions":
+      // an "&" after a "/" belongs to that second stem. Every axis here
+      // annotates the main stem, so emit X extensions first (axis order,
+      // then "Other postcoordination"), then the "/" stems in axis order.
+      var chosen = [];
+      axes.forEach(function (axis) { selectedFor(axis).forEach(function (item) { chosen.push(item); }); });
+      if (state.other_selected) chosen.push(state.other_selected);
+      chosen.filter(function (item) { return /^X/i.test(item.code); }).forEach(append);
+      chosen.filter(function (item) { return !/^X/i.test(item.code); }).forEach(append);
       return {
         code: code,
         uri: uri,
@@ -152,7 +159,7 @@
         } else {
           var group = document.createElement('span');
           group.className = 'small text-muted';
-          group.textContent = option.title + ' (choose a coded child)';
+          group.textContent = '▷ ' + option.title;
           row.appendChild(group);
         }
         var expansionKey = axis.id + '|' + option.uri;
@@ -194,6 +201,59 @@
       warning.setAttribute('role', 'alert'); warning.setAttribute('data-doris-truncated', ''); warning.textContent = message;
       panel.appendChild(warning);
     }
+    // Scoped "search in axis" box shared by per-axis search and the
+    // open-ended "Other postcoordination?" section. Debounces, guards
+    // against stale panels via `stale()`, and renders matches as option
+    // buttons via the supplied `onChoose`/`isActive` callbacks.
+    function mountScopedSearch(subtreeUris, label, onChoose, isActive, onToggle) {
+      var wrap = document.createElement('div');
+      wrap.className = 'mt-1 mb-1';
+      var input = document.createElement('input');
+      input.type = 'search';
+      input.className = 'form-control form-control-sm doris-axis-search';
+      input.placeholder = 'search in axis: ' + label;
+      input.setAttribute('aria-label', 'search in axis: ' + label);
+      var results = document.createElement('div');
+      results.className = 'doris-axis-search-results mt-1';
+      var timer = null;
+      input.addEventListener('input', function () {
+        clearTimeout(timer);
+        var query = text(input.value);
+        if (query.length < 2) {
+          results.replaceChildren();
+          if (onToggle) onToggle(false);
+          return;
+        }
+        timer = setTimeout(function () {
+          if (typeof config.searchTerms !== 'function') return;
+          var snapshot = requestId;
+          config.searchTerms(query, subtreeUris).then(function (data) {
+            if (stale(snapshot)) return;
+            if (onToggle) onToggle(true);
+            results.replaceChildren();
+            var items = list(data.items).filter(function (item) { return text(item.code) && text(item.uri); });
+            if (!items.length) {
+              var none = document.createElement('p');
+              none.className = 'small text-muted mb-0'; none.textContent = 'No matches in this axis.';
+              results.appendChild(none);
+              return;
+            }
+            items.forEach(function (item) {
+              var code = text(item.code), itemTitle = text(item.title), uri = text(item.uri);
+              var choose = button(code + (itemTitle ? ' — ' + itemTitle : ''));
+              choose.classList.toggle('active', isActive(code));
+              choose.setAttribute('aria-pressed', isActive(code) ? 'true' : 'false');
+              choose.addEventListener('click', function () { onChoose({code: code, title: itemTitle, uri: uri}, choose); });
+              results.appendChild(choose);
+            });
+          }).catch(function (err) {
+            if (!stale(snapshot)) { results.replaceChildren(); results.textContent = err.message || 'Search is unavailable.'; }
+          });
+        }, 250);
+      });
+      wrap.append(input, results);
+      return wrap;
+    }
     function renderPostcoordination(focusOption) {
       if (!state) return;
       panel.replaceChildren();
@@ -207,18 +267,74 @@
         section.className = 'doris-axis border-top pt-2 mt-2';
         var heading = document.createElement('h5');
         heading.className = 'small fw-semibold';
-        var multipleLabel = axis.allow_multiple_values === 'AllowedExceptFromSameBlock'
-          ? ' — choose across different blocks'
-          : ((axis.allow_multiple_values === 'AllowAlways' || (!axis.allow_multiple_values && axis.allow_multiple)) ? ' — choose one or more' : ' — choose one');
-        heading.textContent = axis.label + ' (' + (axis.instruction || (axis.required ? 'required' : 'optional')) + ')' + multipleLabel;
+        heading.textContent = axis.label + ' (' + (axis.instruction || (axis.required ? 'required' : 'optional')) + '.)';
+        var multipleHint = document.createElement('span');
+        multipleHint.className = 'text-muted fw-normal';
+        multipleHint.textContent = ' ' + (axis.allow_multiple_values === 'AllowedExceptFromSameBlock'
+          ? '(choose across different blocks)'
+          : ((axis.allow_multiple_values === 'AllowAlways' || (!axis.allow_multiple_values && axis.allow_multiple)) ? '(choose one or more)' : '(choose one)'));
+        heading.appendChild(multipleHint);
         section.appendChild(heading);
         var options = document.createElement('div');
         options.setAttribute('data-doris-axis-options', axis.id);
         appendOptionList(axis, axis.options, options);
+        if (list(axis.subtree_uris).length) {
+          section.appendChild(mountScopedSearch(axis.subtree_uris, axis.label, function (item) {
+            selectOption(axis, {code: item.code, title: item.title, uri: item.uri, has_children: false, block_uri: item.uri});
+          }, function (code) { return isSelected(axis, {code: code}); }, function (active) { options.hidden = active; }));
+        }
         section.appendChild(options);
         if (axis.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
         panel.appendChild(section);
       });
+      if (state.other_postcoordination) {
+        var otherSection = document.createElement('section');
+        otherSection.className = 'doris-axis border-top pt-2 mt-2';
+        var otherHeading = document.createElement('h5');
+        otherHeading.className = 'small fw-semibold';
+        otherHeading.textContent = 'Other postcoordination? (use additional code, if desired.)';
+        otherSection.appendChild(otherHeading);
+        if (state.other_selected) {
+          var chosenRow = document.createElement('div');
+          chosenRow.className = 'doris-axis-option d-flex flex-wrap gap-1 align-items-center mb-1';
+          var chosen = button(state.other_selected.code + (state.other_selected.title ? ' — ' + state.other_selected.title : ''));
+          chosen.classList.add('active'); chosen.setAttribute('aria-pressed', 'true');
+          chosen.addEventListener('click', function () { state.other_selected = null; renderPostcoordination(); });
+          chosenRow.appendChild(chosen);
+          otherSection.appendChild(chosenRow);
+        }
+        var otherAlert = document.createElement('p');
+        otherAlert.className = 'alert alert-warning py-2 mt-2 mb-0';
+        otherAlert.setAttribute('role', 'alert');
+        otherAlert.hidden = true;
+        otherSection.appendChild(mountScopedSearch(state.other_postcoordination.subtree_uris, 'Other postcoordination', function (item, chooseButton) {
+          otherAlert.hidden = true;
+          if (typeof config.checkExpression !== 'function') { state.other_selected = item; renderPostcoordination(); return; }
+          var snapshot = requestId;
+          if (chooseButton) chooseButton.disabled = true;
+          // WHO's own picker only accepts an open-ended extension pick once
+          // codeinfo confirms "stem&code" resolves; not every WHO code is a
+          // valid extension of every stem (verified against the live WHO API).
+          config.checkExpression(state.stem.code + '&' + item.code).then(function (verified) {
+            if (stale(snapshot)) return;
+            if (verified) {
+              state.other_selected = item;
+              renderPostcoordination();
+            } else {
+              if (chooseButton) chooseButton.disabled = false;
+              otherAlert.textContent = 'WHO does not accept ' + item.code + ' as an extension of ' + state.stem.code + '.';
+              otherAlert.hidden = false;
+            }
+          }).catch(function (err) {
+            if (stale(snapshot)) return;
+            if (chooseButton) chooseButton.disabled = false;
+            otherAlert.textContent = err.message || 'The extension could not be verified.';
+            otherAlert.hidden = false;
+          });
+        }, function (code) { return Boolean(state.other_selected && state.other_selected.code === code); }, null));
+        otherSection.appendChild(otherAlert);
+        panel.appendChild(otherSection);
+      }
       if (state.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
       var preview = complete();
       var previewLabel = document.createElement('p');
@@ -281,7 +397,7 @@
             listNode.appendChild(node);
           } else {
             var label = document.createElement('div');
-            label.className = 'list-group-item small text-muted'; label.textContent = value.title + ' (uncoded hierarchy block)';
+            label.className = 'list-group-item small text-muted'; label.textContent = '▷ ' + value.title;
             listNode.appendChild(label);
           }
         });
@@ -321,15 +437,17 @@
       restoreTrigger = trigger || null;
       preserveInputFocus = Boolean(preserveFocus);
       if (item && item.mode === 'hierarchy') { openHierarchy(item.item, trigger); return; }
-      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false};
+      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false, other_postcoordination: null, other_selected: null};
       header('', '');
       config.request(safeUrl(config.endpoints.postcoordination), {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
         state.stem = Object.assign(state.stem, data.stem || {});
         state.truncated = Boolean(data.truncated);
         state.axes = list(data.axes).map(function (axis) {
-          return {id: text(axis.id || axis.name), label: text(axis.label || axis.name), instruction: text(axis.instruction), required: Boolean(axis.required), allow_multiple: Boolean(axis.allow_multiple), allow_multiple_values: text(axis.allow_multiple_values), options: list(axis.options), truncated: Boolean(axis.truncated)};
+          return {id: text(axis.id || axis.name), label: text(axis.label || axis.name), instruction: text(axis.instruction), required: Boolean(axis.required), allow_multiple: Boolean(axis.allow_multiple), allow_multiple_values: text(axis.allow_multiple_values), options: list(axis.options), subtree_uris: list(axis.subtree_uris).map(text).filter(Boolean), truncated: Boolean(axis.truncated)};
         });
+        var otherSubtrees = data.other_postcoordination ? list(data.other_postcoordination.subtree_uris).map(text).filter(Boolean) : [];
+        state.other_postcoordination = otherSubtrees.length ? {subtree_uris: otherSubtrees} : null;
         renderPostcoordination();
       }).catch(function (err) { if (!stale(id)) error(err.message || 'Postcoordination choices are unavailable.'); });
     }

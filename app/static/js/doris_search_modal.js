@@ -172,25 +172,41 @@
       if (!windowNode.isConnected || windowNode._request !== current) return;
       content.replaceChildren();
       var terms = data && data.terms;
-      if (!Array.isArray(terms) || !terms.length) { content.textContent = 'No related terms were returned for this code.'; return; }
+      var composite = data && data.composite;
+      var hasComposite = Boolean(composite && composite.code);
+      if ((!Array.isArray(terms) || !terms.length) && !hasComposite) {
+        content.textContent = 'No related terms were returned for this code.'; return;
+      }
       var stem = document.createElement('div'); stem.className = 'fw-semibold mb-2'; stem.textContent = (item.code || '') + (item.title ? ' — ' + item.title : '');
       content.appendChild(stem);
       var markers = document.createElement('div'); markers.className = 'mb-2';
       addContextIcons(markers, item, function (nextChapter) { openRelated(container, nextChapter, item, load, onCode); });
       content.appendChild(markers);
-      var list = document.createElement('ul'); list.className = 'list-group list-group-flush doris-related-terms';
-      terms.forEach(function (term) {
-        var row = document.createElement('li'); row.className = 'list-group-item';
-        var label = (term.code ? term.code + ' — ' : '') + (term.title || 'Unnamed WHO term');
-        if (term.code) {
-          var choose = document.createElement('button'); choose.type = 'button';
-          choose.className = 'btn btn-link btn-sm text-start p-0'; choose.textContent = label;
-          choose.addEventListener('click', function () { windowNode.remove(); onCode(term); });
-          row.appendChild(choose);
-        } else row.textContent = label;
-        list.appendChild(row);
-      });
-      content.appendChild(list);
+      if (hasComposite) {
+        var compositeRow = document.createElement('div');
+        compositeRow.className = 'alert alert-warning py-2 px-2 mb-2 doris-related-composite';
+        var compositeButton = document.createElement('button'); compositeButton.type = 'button';
+        compositeButton.className = 'btn btn-link btn-sm text-start p-0 fw-semibold';
+        compositeButton.textContent = composite.code + (composite.title ? ' — ' + composite.title : '');
+        compositeButton.addEventListener('click', function () { windowNode.remove(); onCode(composite); });
+        compositeRow.appendChild(compositeButton);
+        content.appendChild(compositeRow);
+      }
+      if (Array.isArray(terms) && terms.length) {
+        var list = document.createElement('ul'); list.className = 'list-group list-group-flush doris-related-terms';
+        terms.forEach(function (term) {
+          var row = document.createElement('li'); row.className = 'list-group-item';
+          var label = (term.code ? term.code + ' — ' : '') + (term.title || 'Unnamed WHO term');
+          if (term.code) {
+            var choose = document.createElement('button'); choose.type = 'button';
+            choose.className = 'btn btn-link btn-sm text-start p-0'; choose.textContent = label;
+            choose.addEventListener('click', function () { windowNode.remove(); onCode(term); });
+            row.appendChild(choose);
+          } else row.textContent = label;
+          list.appendChild(row);
+        });
+        content.appendChild(list);
+      }
       if (data.truncated) { var note = document.createElement('p'); note.className = 'small text-muted mt-2 mb-0'; note.textContent = 'WHO returned a shortened list.'; content.appendChild(note); }
     }).catch(function (error) { if (windowNode.isConnected && windowNode._request === current) content.textContent = error.message || 'Related terms are unavailable.'; });
     closeButton.focus();

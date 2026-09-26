@@ -8,7 +8,6 @@ import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 from threading import BoundedSemaphore
-from urllib.parse import urlencode
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 from flask_wtf.csrf import generate_csrf
@@ -19,8 +18,9 @@ from app.services.doris_processing import process_certificate
 from app.services.icd11_postcoordination import (
     PostcoordinationError,
     guidance_request,
-    postcoordination_availability,
     search_context_from_entity,
+    search_terms,
+    valid_subtree_uris,
 )
 from app.services.icd11_postcoordination import code_details as get_code_details
 from app.services.icd11_postcoordination import (
@@ -153,11 +153,12 @@ def terms():
     payload = _json_object()
     if payload is None:
         return _error("MALFORMED_JSON", "A JSON request is required.", 400)
-    if set(payload) - {"schema_version", "query", "limit", "cursor"}:
+    if set(payload) - {"schema_version", "query", "limit", "cursor", "subtree_uris"}:
         return _error("INVALID_INPUT", "The terminology request is invalid.", 422)
     query = payload.get("query")
     limit = payload.get("limit", 20)
     cursor = payload.get("cursor")
+    subtree_uris = payload.get("subtree_uris")
     if (
         payload.get("schema_version") != 1
         or not isinstance(query, str)
@@ -166,67 +167,18 @@ def terms():
         or not isinstance(limit, int)
         or not 1 <= limit <= 20
         or cursor is not None
+        or not valid_subtree_uris(subtree_uris)
     ):
         return _error("INVALID_INPUT", "The terminology request is invalid.", 422)
 
-    body = urlencode(
-        {
-            "q": f"{query.strip()}%",
-            "includePostcoordination": "true",
-            "flatResults": "true",
-            "highlightingEnabled": "true",
-            "medicalCodingMode": "true",
-        }
-    ).encode()
     try:
-        upstream = proxy_who_icd_request(
-            f"icd/release/11/{DEFAULT_ICD11_RELEASE}/mms/search",
-            method="POST",
-            body=body,
-            content_type="application/x-www-form-urlencoded",
-        )
-        raw = upstream.json()
+        result = search_terms(query, limit=limit, subtree_uris=subtree_uris)
     except (WhoIcdApiUnavailable, ValueError):
         return _error("WHO_UNAVAILABLE", "ICD-11 terminology is unavailable.", 503)
-    entities = raw.get("destinationEntities") if isinstance(raw, dict) else None
-    if not isinstance(entities, list):
-        return _error("WHO_UNAVAILABLE", "ICD-11 terminology returned an invalid response.", 503)
-    items = []
-    for entity in entities:
-        if not isinstance(entity, dict):
-            continue
-        code = entity.get("theCode") or entity.get("code")
-        uri = entity.get("id") or entity.get("uri") or entity.get("@id")
-        title = _plain_text(entity.get("title") or entity.get("titleWithoutCodes"))
-        if not all(isinstance(value, str) and value for value in (code, uri, title)):
-            continue
-        matching_text = _plain_text(
-            entity.get("matchingPVs") or entity.get("matchingText")
-        )
-        available, raw_availability = postcoordination_availability(
-            entity.get("postcoordinationAvailability")
-        )
-        items.append(
-            {
-                "code": code,
-                "title": title,
-                "uri": uri,
-                "release": DEFAULT_ICD11_RELEASE,
-                "matching_text": matching_text or title,
-                "postcoordination": available,
-                "postcoordination_availability": raw_availability,
-                "related_maternal": entity.get("hasMaternalChapterLink") is True,
-                "related_perinatal": entity.get("hasPerinatalChapterLink") is True,
-                "has_coding_note": entity.get("hasCodingNote") is True,
-            }
-        )
-        if len(items) == limit:
-            break
-    chopped = bool(raw.get("resultChopped")) or len(entities) > len(items)
     return jsonify(
         schema_version=1,
-        items=items,
-        truncated=chopped,
+        items=result["items"],
+        truncated=result["truncated"],
         next_cursor=None,
     )
 

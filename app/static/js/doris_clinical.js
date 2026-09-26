@@ -176,6 +176,16 @@
         endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
         request: function (url, body) { return lookup(url, body); },
         revision: function () { return state.revision; },
+        searchTerms: function (query, subtreeUris) {
+          return lookup(editor.dataset.termsUrl, {schema_version: 1, query: query, limit: 20, cursor: null, subtree_uris: subtreeUris});
+        },
+        checkExpression: function (code) {
+          return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) {
+            if (result.ok) return result.data.item || null;
+            if (result.data && result.data.error && result.data.error.code === 'CODE_NOT_FOUND') return null;
+            throw new Error((result.data.error && result.data.error.message) || 'The extension could not be verified.');
+          });
+        },
         onSelect: function (item) { stageSelection(line, item); }
       }) : null;
       line.interval = intervalControl ? intervalControl.mount(element.querySelector('[data-doris-interval-control]'), conditions[0] ? conditions[0].Interval || '' : '') : null;
@@ -287,6 +297,16 @@
       endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
       request: function (url, body) { return lookup(url, body); },
       revision: function () { return state.revision; },
+      searchTerms: function (query, subtreeUris) {
+        return lookup(editor.dataset.termsUrl, {schema_version: 1, query: query, limit: 20, cursor: null, subtree_uris: subtreeUris});
+      },
+      checkExpression: function (code) {
+        return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) {
+          if (result.ok) return result.data.item || null;
+          if (result.data && result.data.error && result.data.error.code === 'CODE_NOT_FOUND') return null;
+          throw new Error((result.data.error && result.data.error.message) || 'The extension could not be verified.');
+        });
+      },
       onSelect: function (item) { verifySelection(null, item, true, query(editor, '[data-doris-final-results]'), query(editor, '[data-doris-final-choice]'), query(editor, '[data-doris-final-search]'), null); }
     }) : null;
     var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); query(editor, '[data-doris-age]').value = admin.EstimatedAge || '';

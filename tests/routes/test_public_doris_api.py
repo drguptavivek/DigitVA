@@ -101,7 +101,9 @@ class TestPublicDorisApi:
             b'"title":"<em>Type 2</em> diabetes","matchingPVs":["diabetes"]}],'
             b'"resultChopped":false}'
         )
-        with patch("app.public_doris.routes.proxy_who_icd_request", return_value=upstream):
+        with patch(
+            "app.services.icd11_postcoordination.proxy_who_icd_request", return_value=upstream
+        ):
             response = self.client.post(
                 "/api/v1/doris-demo/terms",
                 json={"schema_version": 1, "query": "diabetes", "limit": 20, "cursor": None},
@@ -110,6 +112,40 @@ class TestPublicDorisApi:
         assert response.status_code == 200
         assert response.get_json()["items"][0]["title"] == "Type 2 diabetes"
         assert response.get_json()["items"][0]["matching_text"] == "diabetes"
+
+    def test_terms_forwards_valid_subtree_uris_and_rejects_malformed_ones(self):
+        token = self._csrf()
+        upstream = _upstream(b'{"destinationEntities":[],"resultChopped":false}')
+        subtree_uri = "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+        with patch(
+            "app.services.icd11_postcoordination.proxy_who_icd_request", return_value=upstream
+        ) as proxy:
+            response = self.client.post(
+                "/api/v1/doris-demo/terms",
+                json={
+                    "schema_version": 1,
+                    "query": "diabetes",
+                    "limit": 20,
+                    "cursor": None,
+                    "subtree_uris": [subtree_uri],
+                },
+                headers={"X-CSRFToken": token},
+            )
+        assert response.status_code == 200
+        body = proxy.call_args.kwargs["body"].decode()
+        assert "subtreesFilter=" in body
+
+        invalid = self.client.post(
+            "/api/v1/doris-demo/terms",
+            json={
+                "schema_version": 1,
+                "query": "diabetes",
+                "subtree_uris": ["https://not-who.example/icd/1"],
+            },
+            headers={"X-CSRFToken": token},
+        )
+        assert invalid.status_code == 422
+        assert invalid.get_json()["error"]["code"] == "INVALID_INPUT"
 
     def test_process_maps_validation_dual_failure_capacity_and_deadline(self):
         token = self._csrf()

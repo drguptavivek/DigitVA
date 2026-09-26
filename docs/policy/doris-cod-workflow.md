@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # DORIS COD Workflow Policy
@@ -50,6 +50,15 @@ The same picker is available for coder, reviewer and synthetic Help entry.
 The completed expression goes through the existing server selection check
 before it is added. Changing a chosen extension has the same invalidation
 effect as any other certificate edit.
+
+Extension axes follow WHO's presentation: required axes come first, each
+axis is its own section in WHO order with WHO's instruction wording, and
+each axis offers a search limited to that axis's WHO subtree. A final
+"Other postcoordination?" search over the extension-code chapter appears
+only for MMS category stems outside that chapter, as WHO's coding tool
+does. Uncoded WHO folders can be expanded to their coded children but are
+never selectable themselves. Related maternal or perinatal panels present
+WHO's exact composite category first, before the broader category list.
 
 Editing any certificate input clears the displayed processor results and
 the MO's final UCOD choice. Save remains disabled until the edited form is

@@ -45,7 +45,7 @@ def test_public_terms_uses_who_availability_even_for_leaf():
         b'"title":"Tuberculosis of ear","isLeaf":true,'
         b'"postcoordinationAvailability":1}],"resultChopped":false}'
     )
-    with patch("app.public_doris.routes.proxy_who_icd_request", return_value=upstream):
+    with patch("app.services.icd11_postcoordination.proxy_who_icd_request", return_value=upstream):
         response = client.post(
             "/api/v1/doris-demo/terms",
             json={"schema_version": 1, "query": "tuberculosis"},

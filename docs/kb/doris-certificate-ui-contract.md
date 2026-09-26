@@ -3,7 +3,7 @@ title: DORIS Certificate UI and API Contract for DigitVA
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # DORIS Certificate UI and API Contract for DigitVA
@@ -172,7 +172,11 @@ the response is `{"schema_version":1,"items":[{"code":"...","title":"...","uri":
 A codeinfo request is `{"schema_version":1,"code":"1B10.Z"}` and its
 response is `{"schema_version":1,"item":{"code":"...","title":"...","uri":"...","release":"2026-01","postcoordination":false}}`.
 `query` is 2–80 characters, `limit` is 1–20, `code` is at most 128
-characters, and `cursor` is opaque. No code or query goes in a URL. The Help
+characters, and `cursor` is opaque. A terms request may add
+`"subtree_uris":[...]`, 1–40 WHO `http://id.who.int/icd/...` URIs of at
+most 200 characters each; the server forwards them as WHO's
+`subtreesFilter` so the picker can search inside one postcoordination axis
+or the extension-code chapter. Without it the response is unchanged. No code or query goes in a URL. The Help
 editor exercises these responses even if it also shows WHO ECT. Freeze
 errors, pagination and expression handling in phase-0 contract tests. Access
 logs must omit query strings for the ECT GET proxy.
@@ -199,10 +203,22 @@ sibling/child choices for the selected stem. Limits and errors are explicit;
 the browser never assumes absent data means that a WHO axis is optional. A
 truncated choice set disables guided selection; a complete expression can be
 selected directly after the server check.
-The UI shows mandatory axes and may add a stem alone only when all required
-axes are satisfied. It assembles X extension codes with `&` and additional
-stem codes with `/`, in WHO axis order, then sends the complete code and URI
-expression through `selection-check`. Both forms remain one condition.
+Each axis also carries `subtree_uris` (its root option URIs) for scoped
+search, and the response carries `other_postcoordination`:
+`{"subtree_uris":[<extension chapter root>]}` for an MMS category stem
+outside chapter X, otherwise `null`. The `related` response may carry
+`composite` `{code, title, uri}` for WHO's exact maternal or perinatal
+composite such as `JB64.4/BD54`; its `uri` is empty and the client must
+re-validate it by code.
+The UI shows mandatory axes first and may add a stem alone only when all
+required axes are satisfied. Each axis offers a search limited to its
+subtree; the last section, "Other postcoordination?", searches the
+extension chapter and only accepts a code that WHO `codeinfo` resolves
+together with the stem. The UI assembles X extension codes with `&`
+before additional stem codes with `/`, each group in WHO axis order,
+because WHO canonicalises an `&` after a `/` as belonging to that second
+stem. It then sends the complete code and URI expression through
+`selection-check`. Both forms remain one condition.
 
 ## Processing API contract
 

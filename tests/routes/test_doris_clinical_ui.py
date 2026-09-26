@@ -159,7 +159,7 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
         self.assertIn("parent_uri: option.uri", self.script)
         self.assertIn("Use complete expression", self.script)
         self.assertIn("More choices", self.script)
-        self.assertIn("choose a coded child", self.script)
+        self.assertIn("'▷ ' + option.title", self.script)
         self.assertIn("state.truncated", self.script)
 
     def test_same_block_policy_replaces_conflict_but_keeps_other_blocks(self):
@@ -178,3 +178,10 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
         self.assertIn("related_maternal", self.script)
         self.assertIn("related_perinatal", self.script)
         self.assertIn("openHierarchy", self.script)
+
+    def test_open_ended_extension_pick_is_verified_against_who_codeinfo(self):
+        self.assertIn("config.checkExpression(state.stem.code + '&' + item.code)", self.script)
+        self.assertIn(
+            "'WHO does not accept ' + item.code + ' as an extension of ' + state.stem.code + '.'",
+            self.script,
+        )

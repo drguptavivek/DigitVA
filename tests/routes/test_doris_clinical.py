@@ -272,7 +272,7 @@ class TestDorisProcessProof(BaseTestCase):
                     return_value=(SimpleNamespace(), None),
                 ),
                 patch(
-                    "app.routes.api.doris_clinical.proxy_who_icd_request",
+                    "app.services.icd11_postcoordination.proxy_who_icd_request",
                     return_value=upstream,
                 ),
             ):
@@ -282,6 +282,22 @@ class TestDorisProcessProof(BaseTestCase):
         self.assertEqual(body["items"][0]["title"], "Type 2 diabetes")
         self.assertTrue(body["truncated"])
         self.assertIsNone(body["next_cursor"])
+
+    def test_terms_rejects_malformed_subtree_uris(self):
+        payload = {
+            "schema_version": 1,
+            "query": "diabetes",
+            "subtree_uris": ["not-a-who-uri"],
+        }
+        with self.app.test_request_context(json=payload):
+            with patch(
+                "app.routes.api.doris_clinical._require_terminology_context",
+                return_value=(SimpleNamespace(), None),
+            ):
+                response, status = clinical_terms.__wrapped__("SID-1")
+
+        self.assertEqual(status, 422)
+        self.assertEqual(response.get_json()["error"]["code"], "INVALID_INPUT")
 
     def test_codeinfo_and_selection_check_use_canonical_item(self):
         item = {

@@ -1,5 +1,24 @@
 # Handoff
 
+## DORIS planning review corrections (2026-09-26)
+
+`digitva-ddv.1` remains a planning task; no DORIS application code has been
+implemented. The public Help proof is now specified as plain JavaScript with
+vendored ECT/Mermaid, with its normalized terminology and processing JSON
+contracts frozen in phase-0 tests before UI work. The plans set a five-line
+DigitVA cap, one interval per editor line, omission of unknown fetal/infant
+measurements, server-verified code/URI pairs, independent processor statuses,
+and result acknowledgement on clinical final save. The public processing
+plan uses four Gunicorn threads, one Redis-backed cross-worker processing
+slot and a 12-second deadline; query-bearing URLs must be absent from access
+logs. Clinical draft storage and reviewer process/final routes belong to the
+later migration. The sixth fixture's two intervals on one line need
+re-baselining, and multi-issue CoDEdit encoding remains an evidence gate.
+See `docs/planning/project-cod-masking-doris-plan.md`,
+`docs/planning/coder-web-and-api-contracts.md` and
+`docs/kb/doris-certificate-ui-contract.md`. Unrelated untracked KB archives
+and the manuscript presentation were preserved.
+
 ## Proposed DORIS Help proof and unmasked COD plan (2026-09-26)
 
 `digitva-ddv.1` is planning only. The owner requested a public, non-persisting

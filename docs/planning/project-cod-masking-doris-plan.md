@@ -28,8 +28,9 @@ are not superseded.
 | No | Simple | SmartVA visible on entry; one human form with immediate COD, underlying COD, associated conditions | Coder COD and SmartVA visible on entry; one human final review with the same three fields |
 | No | DORIS | SmartVA visible; MO completes DORIS cause chain, sees computed underlying COD, rationale and advisory CoDEdit findings, then chooses final underlying COD | Coder COD and SmartVA visible; reviewer examines/edits the chain, sees DORIS and advisory CoDEdit output, then chooses final underlying COD |
 
-Masked + DORIS is invalid. DORIS is an ICD-11-only project choice. The
-existing masked + simple configuration remains the default for every current
+Masked + DORIS is invalid. DORIS requires
+`icd_classification='icd11'`; explicitly reject `icd10` and `selectable`.
+The existing masked + simple configuration remains the default for every current
 project. SmartVA and DORIS guide the MO; neither automatically becomes the
 authoritative COD. Coder and reviewer decisions remain separate.
 The owner confirmed on 2026-09-26 that masked projects should preserve the
@@ -38,8 +39,11 @@ COD above reviewer Step 1; this plan does not introduce reviewer blinding.
 
 For simple unmasked entry, the final assessment must hold all three fields.
 The immediate and underlying codes use the existing ICD picker and server
-validation (WHO ECT for ICD-11); associated conditions are optional. The
-underlying field alone drives final-COD authority and VA bucket reporting.
+validation (WHO ECT for ICD-11); associated conditions are optional free text,
+following the existing `va_other_conditions` meaning. Add distinct
+`icd11_provenance` entries for immediate and underlying COD when ICD-11 is
+selected; do not claim code provenance for free text. The underlying field
+alone drives final-COD authority and VA bucket reporting.
 There is no artificial Step 1 row in an unmasked project.
 
 For DORIS entry, the MO records Part I as ordered lines, each with one or
@@ -218,10 +222,12 @@ whether the version-tested rule visualizations render. Record the ICD
 release from the request/configuration because it is not one of the nine
 DORIS result fields.
 
-The local Swagger currently marks DORIS pre-release, while WHO ICD API 2.6
-release notes describe the API feature as no longer pre-release. Treat this
-as a contract-version discrepancy: pin the image, test the exact payload and
-response shape, and review the integration before an image upgrade.
+The public Swagger marks the DORIS and CoDEdit GET routes pre-release but
+does not mark their POST routes that way; [WHO's 2.6 release notes](https://icd.who.int/docs/icd-api/ReleaseNotes-Version2.6/)
+say DORIS functionality is no longer pre-release. Swagger describes the POST body only
+as `{}`; the certificate body contract comes from WHO's exchange-format page
+and tests against the pinned local image. Review the contract before an image
+tag or digest change.
 
 ### WHO AutoCoding is a separate input aid
 
@@ -254,9 +260,11 @@ compare each to fresh WHO codeinfo before DORIS receives the certificate.
 | DORIS `report`, `tabularReport`, `warning`, `error`, `reject` | Show readable rationale/status; retain raw result for review; never treat HTTP 200 alone as success |
 | MO's final underlying ICD-11 selection | Validate independently; save in existing `va_conclusive_cod` with provenance; this alone controls final authority and VA reports |
 
-Two official-source differences need a test in the Help proof: the web guide
-describes Part I lines a–d while the current web workspace and local GET
-Swagger expose line E; the published JSON schema calls one fetal/infant
+Two official-source differences need a test in the Help proof: the live web
+workspace shows Part I lines A–D, while the local GET Swagger accepts line E
+and the web wrapper sends five line objects. The supported editor maximum is
+not established by either observation. The published JSON schema calls one
+fetal/infant
 measurement `BirthHeight` where the format description calls it
 `BirthWeight`. Do not infer either limit or field mapping from the UI alone;
 confirm accepted API behavior before copying these controls into VA coding.
@@ -275,8 +283,19 @@ time (currently `d9e0f1a2b3c4`):
    reviewer final assessment tables. Existing rows remain null; the existing
    `va_conclusive_cod` remains the final underlying COD.
 4. Add nullable `doris_certificate`, `doris_result` and `codedit_result`
-   JSONB to both final assessment tables, plus an entry-mode snapshot so
-   historical rows remain interpretable if a project's setting changes.
+   JSONB to both final assessment tables, plus an entry-mode snapshot
+   containing `masked_cod_required`, `cod_entry_mode`, pinned WHO release and
+   WHO image digest so historical rows remain interpretable if a project's
+   setting changes.
+
+5. Add bounded, versioned clinical draft-certificate storage keyed to case
+   and role. Require an active allocation to read or write it, record which
+   allocation last wrote it, and permit an authorized resume after
+   reallocation. Define cleanup after a terminal outcome and audit draft
+   replacement. Store the latest server-trusted preview certificate and
+   result digests with that draft, bound to the payload version and WHO image
+   digest, for final-save acknowledgement. A reviewer starts from a copy of
+   the coder's saved certificate if present and then edits a separate draft.
 
 Do not rewrite previous CODs or synthesize first assessments. Existing
 masked rows retain their source-initial links. New unmasked final rows have
@@ -286,7 +305,9 @@ status, and processing time. Only the human final COD and its verified
 provenance feed existing authority and reporting. Exports can present the
 DORIS result as a separate column without substituting it for the MO COD.
 
-Prevent setting changes while coder or reviewer allocations are active.
+Prevent setting changes while coder or reviewer allocations are active, or
+while a case remains in `coder_step1_saved` and can still finalize after its
+allocation is released.
 Changing a project later affects new sessions only and never mutates saved
 assessments. Recode follows the current project setting, with prior episodes
 left intact.
@@ -342,12 +363,43 @@ body/response limits, no redirects, short timeouts, rate limits and CSRF on
 processing. Do not write entered conditions, API outputs or IP-linked search
 content to the database, analytics or application logs. Show unavailable and
 rejected responses without pretending a UCOD was computed.
+Build each processed WHO condition from a server-verified complete code and
+its matching `LinearizationURI`; set `ICDMinorVersion` to the pinned release.
+Keep release-pinned stored URIs distinct from release-free DORIS output URIs,
+and compare complete code expressions resolved under the same release when
+showing whether the computed and final MO causes agree.
+
+Phase 0 uses plain JavaScript in the Jinja Help page with the vendored WHO ECT
+and Mermaid assets. The later clinical React build follows the JSON contract
+proved here. The Help page must also exercise the same normalized terminology
+response shape planned for mobile. The read-only ECT WHO proxy is CSRF-exempt
+because its POST search cannot attach DigitVA's token; the normalized public
+lookup POSTs are read-only and CSRF-exempt too. `process` and
+`selection-check` require an anonymous session CSRF token issued by Help.
+Set Gunicorn's access-log format to omit query strings, and verify the WHO
+container's URL logging before release.
+
+The current single synchronous Gunicorn worker can be held by one WHO call.
+For phase 0, run Gunicorn with four request threads and use a Redis-backed
+lease to allow only one public `process` call across all app workers; a second
+call gets `429 PROCESS_BUSY` promptly. Give the lease a bounded expiry and
+release it in `finally`. Limit upstream connection/read waits to 2/4 seconds
+and the whole processing call to 12 seconds, returning independent `timeout`
+statuses when that budget expires. Test that the implementation actually
+enforces the deadline during stalled WHO calls; a timeout value in a config
+file alone is insufficient. Rate limits alone do not protect clinical users.
+Freeze numeric limits in phase-0 contract tests:
+at most 5 Part I lines, 8 conditions per line, 20 conditions total, 500
+characters per condition text, 32 KiB request JSON and 512 KiB per processor
+response. Return these limits in `/api/v1/doris-demo/config`; reject excess
+input before WHO calls. The five-line cap is a DigitVA choice, not a claim
+about the number of visible controls in WHO's web page.
 
 Expected touch points for this phase are `app/routes/help.py`, a new Help
-template under `app/templates/help/pages/`, a narrow demo API blueprint
+template and plain JavaScript under the Help assets, a narrow demo API blueprint
 registered in `app/routes/api/__init__.py`, the fixed-target WHO client in
 `app/services/who_icd_api.py` or a small DORIS adapter beside it, and focused
-Help/API and visualization tests. Keep the certificate/API adapter reusable
+Help/API, JSON contract and visualization tests. Keep the certificate/API adapter reusable
 by the later clinical route; the public and clinical authorization boundaries
 remain separate.
 
@@ -358,8 +410,13 @@ multiple conditions on a line, changing line order, a code cluster, a
 text-only condition, unknown/missing optional data, stale-result clearing,
 conditional question display, and safe diagram rendering. Include the sixth
 TB example to confirm a simple stem and a stem-plus-extension expression
-remain two conditions on one line. Inspect browser network requests and logs
-for retained medical text. The owner can review this working interaction
+remain two conditions on one line. Re-baseline its intervals before using it
+for the per-line editor: the current fixture assigns different intervals to
+two conditions on the same line. Add a synthetic multi-issue CoDEdit case to
+establish how `issueIds` encodes several issues; keep it opaque until then.
+Inspect browser network requests and logs for retained medical text. Verify
+clinical requests remain responsive while public WHO calls hit the deadline
+and concurrency cap. The owner can review this working interaction
 before clinical workflow packages start.
 This phase needs no project-setting or assessment-table migration.
 

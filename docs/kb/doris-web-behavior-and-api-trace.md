@@ -147,7 +147,8 @@ answers to satisfy a UI.
 | `Surgery.WasPerformed`, `.Date`, `.Reason` | `0` no, `1` yes, `9` unknown; date/reason only when known/applicable |
 | `Autopsy.WasRequested`, `.Findings` | `0` no, `1` yes, `9` unknown |
 | `MannerOfDeath.MannerOfDeath`, `.DateOfExternalCauseOrPoisoning`, `.DescriptionExternalCause`, `.PlaceOfOccuranceExternalCause` | Manner enum `0` disease, `1` accident, `2` self harm, `3` assault, `4` legal intervention, `5` war, `6` undetermined, `7` pending, `9` unknown; place enum `0`–`9` per WHO format |
-| `FetalOrInfantDeath.MultiplePregnancy`, `.Stillborn`, `.DeathWithin24h`, `.BirthWeight`, `.PregnancyWeeks`, `.AgeMother`, `.PerinatalDescription` | Fetal/perinatal context; unknown answers when offered use `9` |
+| `FetalOrInfantDeath.MultiplePregnancy`, `.Stillborn` | Fetal/perinatal yes/no fields; `0` no, `1` yes, `9` unknown |
+| `FetalOrInfantDeath.DeathWithin24h`, `.BirthWeight`, `.PregnancyWeeks`, `.AgeMother`, `.PerinatalDescription` | Measurements and description; omit unknown values. WHO does not define `9` as unknown for these fields, where it could be read as a measured value. |
 | `MaternalDeath.WasPregnant`, `.TimeFromPregnancy`, `.PregnancyContribute` | Pregnancy yes/no/unknown `1`/`0`/`9`; timing `0` at death, `1` within 42 days, `2` 43 days–1 year, `3` ≥1 year, `9` unknown |
 
 WHO documents unknown onset-to-death intervals as `""`, `"P"`, or `"PT"`.

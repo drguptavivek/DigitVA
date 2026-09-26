@@ -14,8 +14,9 @@ This is a **proposed contract**, not a list of implemented endpoints. It
 covers the coder journey from allocation/opening a VA form through reading
 the submission, notes and quality checks, COD entry, finalization or Not
 Codeable. The public DORIS Help proof has its own anonymous API boundary.
-The reviewer journey remains outside this API migration, although the
-certificate processor and final-COD domain services should be reusable.
+The full reviewer journey remains outside this API migration. The reviewer
+DORIS process and final-save routes are included here because the shared
+certificate and result contract must cover both roles.
 The implementation sequence is in
 `docs/planning/coder-api-first-workflow-plan.md`; DORIS product decisions are
 in `docs/planning/project-cod-masking-doris-plan.md`.
@@ -62,21 +63,28 @@ current allocation. The client cannot set its own `masked_cod_required`,
 
 | Method and path | Response or request responsibility |
 | --- | --- |
-| Existing `GET /allocation`; `POST /allocation` | Keep current fields; add allocation ID, workflow/payload version, expiry, project/mode and capabilities without breaking current dashboard consumers |
-| `GET /cases/{sid}` | Case bootstrap: masked metadata, allocation and workflow revision, server-derived mode, category manifest, completion flags, permitted links/actions |
+| Existing `GET /allocation`; `POST /allocation` | Keep current fields; add the existing allocation ID, current workflow state and payload version, project/mode and capabilities without breaking current dashboard consumers; do not invent an expiry value |
+| `GET /cases/{sid}` | Case bootstrap: masked metadata, allocation ID and workflow state, payload version, server-derived mode, category manifest, completion flags, permitted links/actions |
 | `GET /cases/{sid}/categories/{category_code}` | Semantic, redacted fields and authorized attachment descriptors for one category; no raw ODK payload or local path |
 | `GET /cases/{sid}/cod-context` | ICD classification/search links, current human assessments, available SmartVA guidance, NQA/Social completion; omit evidence that the current phase must mask |
 | `GET /cases/{sid}/note`; `PUT /cases/{sid}/note` | Read or replace the current coder's note under active case access |
 | Existing NQA/Social and ICD search APIs | Link from bootstrap; keep their services and authorization, standardize errors without duplicating endpoints |
 | `PUT /cases/{sid}/initial-assessment` | Masked mode only: immediate, antecedent and other conditions; server-side code/provenance validation |
 | `POST /cases/{sid}/doris/process` | Unmasked ICD-11 DORIS mode only: preview one bounded certificate through DORIS and CoDEdit; no final COD write |
+| `GET /cases/{sid}/doris/draft`; `PUT /cases/{sid}/doris/draft` | Authenticated draft certificate for the active allocation; versioned, bounded and isolated from the final assessment. Draft storage is a later clinical migration, not part of public Help. |
 | `POST /cases/{sid}/finalize` | Mode-specific human final entry, current certificate if DORIS mode, independent final-code validation, atomic assessment/workflow/authority/audit update and allocation release |
 | `POST /cases/{sid}/not-codeable` | Structured reason and local terminal outcome; report ODK update result separately |
 
 The current dashboard allocation API is an existing API, not a newly
 specified route. The new case APIs should be added to its `/api/v1/coding`
-namespace. A separate reviewer contract can later reuse the same
-certificate and final-COD schemas with reviewer-specific authorization.
+namespace. The reviewer process route is
+`POST /api/v1/review/cases/{sid}/doris/process`; its final save is
+`POST /api/v1/review/cases/{sid}/finalize` and uses the same
+certificate and acknowledgement semantics with reviewer-specific
+authorization. The reviewer starts from a copy of the coder's saved
+certificate when one exists, or a blank certificate otherwise, then edits an
+independent reviewer draft.
+Never mutate the coder's certificate through reviewer actions.
 
 ### Case bootstrap example
 
@@ -84,8 +92,8 @@ certificate and final-COD schemas with reviewer-specific authorization.
 {
   "schema_version": 1,
   "sid": "synthetic-sid",
-  "allocation": {"id": "opaque-allocation-id", "expires_at": "2026-09-26T12:00:00Z"},
-  "workflow": {"state": "coding_in_progress", "revision": 4},
+  "allocation": {"id": "opaque-allocation-id"},
+  "workflow": {"state": "coding_in_progress"},
   "payload_version_id": "opaque-version-id",
   "project": {"icd_classification": "icd11", "coding_mode": "unmasked_doris"},
   "allowed_actions": ["read_category", "save_note", "process_doris", "finalize"],
@@ -103,7 +111,7 @@ when the current workflow phase does not permit them.
 ### Case mutations and conflicts
 
 Every case mutation supplies `expected_payload_version_id`; terminal
-mutations also supply `expected_workflow_state` and `expected_workflow_revision`.
+mutations also supply `expected_workflow_state` and the active allocation ID.
 The server checks these against the active allocation and current case in
 the same transaction as the write. If they differ, return `409` with the
 current state/version and require a refresh. Repeated terminal requests must
@@ -116,11 +124,17 @@ or offline queuing are enabled.
 
 - `masked_simple`: current Step 1 already saved; final human underlying COD.
 - `unmasked_simple`: human immediate COD, underlying COD and optional
-  associated conditions, with no artificial Step 1 row.
-- `unmasked_doris`: ordered Part I/Part II certificate plus the MO's
+  associated conditions as free text, with no artificial Step 1 row. ICD-11
+  immediate and underlying selections have separate provenance entries.
+- `unmasked_doris`: ordered Part I/Part II certificate, the preview's
+  `acknowledged_result_digest`, plus the MO's
   independent final underlying COD. Client-supplied DORIS or CoDEdit results
   are ignored. The server revalidates the certificate and obtains the result
   for that exact input/release before storing it separately from the MO COD.
+If the recomputed result digest differs from the acknowledged preview, return
+`409 DORIS_RESULT_CHANGED` with the new result and digest. Commit only after a
+subsequent request acknowledges that result. Compare the payload version,
+workflow state and active allocation again on the second request.
 
 The final underlying code is a complete ICD-11 expression when applicable,
 with WHO URI provenance checked on the server. In DORIS mode, CoDEdit
@@ -141,6 +155,7 @@ place beside controls.
 
 ```json
 {
+  "schema_version": 1,
   "error": {
     "code": "STALE_PAYLOAD",
     "message": "This submission changed. Reload before saving.",
@@ -163,7 +178,8 @@ These routes are anonymous and distinct from clinical case APIs:
 | --- | --- |
 | `GET /api/v1/doris-demo/config` | Return application schema version, ICD release, supported fields/limits and the six synthetic `certificate` examples from `resource/doris_help_examples.json`; do not expose saved `observed` results as live outputs |
 | `POST /api/v1/doris-demo/process` | Accept `{schema_version, client_revision, certificate}` from the current editor, validate bounds and code/URI agreement, send the same normalized certificate to local DORIS and CoDEdit, and echo the revision with independent live responses, release, input digest and processing status; do not persist certificate or results |
-| `GET/POST /api/v1/doris-demo/who-api/{resource}` | Allowlist only read-oriented ECT search, entity and codeinfo resources; fixed local WHO target, bounds and rate limits; no submission-scoped proxy |
+| `POST /api/v1/doris-demo/terms`; `POST /api/v1/doris-demo/codeinfo` | Return the normalized terminology JSON shapes in the UI contract, with public limits and no query or code in the URL; read-only and CSRF-exempt |
+| `GET/POST /api/v1/doris-demo/who-api/{resource}` | Allowlist only read-oriented ECT search, entity and codeinfo resources; fixed local WHO target, bounds and rate limits; CSRF-exempt for ECT POST; no submission-scoped proxy |
 | `POST /api/v1/doris-demo/selection-check` | Verify a selected complete code/cluster and WHO URI for a certificate condition without applying final-underlying-COD selectability |
 
 The response exposes every DORIS field (`code`, `stemCode`, `uri`, `stemURI`,
@@ -175,20 +191,34 @@ from nonempty DORIS `tabularReport`; those are presentation views, not extra
 API decisions or persisted clinical data. Parse/render errors must leave the
 readable and raw reports available, and any WHO text in HTML or Mermaid
 source must be safely escaped. A WHO HTTP 200 with `reject=true` is a rejected DORIS result,
-not a successful UCOD. `issueIds` is preserved in its observed string form.
+not a successful UCOD. `issueIds` remains an opaque upstream value: the
+pinned image has returned strings in current fixtures, but a multi-issue
+case must establish its encoding before the UI splits or labels it.
 If one processor fails, return its failure status separately from the other
-processor's result. Do not substitute fixture observations or stale prior
-responses. The public endpoint uses fixed WHO targets, bounded input/output,
-timeouts, rate limits and browser CSRF; it never accepts arbitrary URLs.
+processor's result. CoDEdit has no `reject` field; classify it from the HTTP
+status and validated response. A valid request with both processors failing
+returns HTTP 503 and two independent failure statuses. Do not substitute
+fixture observations or stale prior responses. The public endpoint uses fixed WHO targets, bounded input/output,
+timeouts, a total deadline, a cross-worker concurrency cap, rate limits and
+browser CSRF for `process` and `selection-check`; it never accepts arbitrary
+URLs. The read-only ECT proxy is CSRF-exempt because ECT cannot attach the
+header. Help issues an anonymous session token for protected POSTs.
 Examples populate editable form state. Clear or mark the displayed results
 stale when that state changes, and discard delayed responses whose input
-revision no longer matches the editor. The selected condition code or
-cluster must retain server-verified WHO URI provenance. The existing
+revision no longer matches the editor. The client compares only echoed
+`client_revision`; the server owns certificate and result digests. The
+selected condition code or cluster must retain server-verified WHO URI
+provenance. The existing
 clinical WHO ECT proxy is submission-scoped, so public Help needs a separate
 allowlisted proxy and selection check. Certificate conditions are checked
 against WHO terminology; DigitVA's final-underlying-COD selectability
 policy applies only to the eventual MO final choice. Discard ECT analytics
 events locally, as the current authenticated proxy already does.
+The Help editor also calls the normalized public terms and codeinfo routes,
+which use the same JSON shape as the future authenticated
+`POST /api/v1/icd11/terms` and `/codeinfo` intended for mobile clients.
+The ECT GET proxy's query strings must be omitted from Gunicorn access logs;
+verify WHO container logs do not retain them before release.
 The Help page links to the WHO DORIS web application as a separate
 interactive reference. There is no automatic data transfer from that
 application to DigitVA. Its Save to file control is outside this contract.

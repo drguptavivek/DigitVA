@@ -96,14 +96,14 @@ tool after mounting. It is a web DOM integration, not a native mobile
 component. A future WHO web component can be wrapped behind the same
 code-picker interface without changing server API contracts.
 
-Build one `CertificateEditor` and one `DorisResults` React view for the Help
-proof, mounted inside the existing Help shell. Reuse those views later in the
-unmasked clinical coder screen; pass public or case-specific API endpoints
-as configuration while the server independently enforces authorization.
-The editor owns an input revision so an edit clears the displayed result and
-a delayed response cannot overwrite a newer certificate. Keep the WHO ECT
-instance scoped to the active condition and destroy it when that condition
-or its React subtree is removed.
+Build the Help `CertificateEditor` and `DorisResults` with plain JavaScript
+inside the existing Help shell, using the vendored WHO ECT and Mermaid assets.
+This proof freezes the JSON and state contract, not React components. The
+later clinical React client implements that same contract after its build
+and CSP choices are specified. The editor owns an input revision so an edit
+clears the displayed result and a delayed response cannot overwrite a newer
+certificate. Keep the WHO ECT instance scoped to the active condition and
+destroy it when that condition is removed.
 
 WHO DORIS exposes a standalone web app and ICD API, rather than a documented
 embeddable React package. DigitVA will implement its own certificate editor
@@ -124,7 +124,9 @@ reuse rights before copying source, and safely render WHO-supplied text.
 
 1. **Freeze contracts and policy.** Review the parallel HTML/HTMX and JSON
    contracts, current reviewer visibility, masking, all three COD modes,
-   error codes, payload/workflow revisions, and no-retention Help behavior.
+   error codes, payload version and workflow state checks, and no-retention
+   Help behavior. Freeze phase-0 request/response fields, status values,
+   error envelopes and numeric limits in contract tests before the Help UI.
    Update `docs/policy` before implementation and `docs/current-state`
    when behavior changes.
 2. **Public Help proof first.** Add a bounded same-origin public
@@ -134,7 +136,11 @@ reuse rights before copying source, and safely render WHO-supplied text.
    examples; create a new certificate; search ICD-11 codes in condition rows;
    show live DORIS and CoDEdit outputs with table/flow/sequence views. Verify
    conditional questions, rejection, warnings, stale-result handling and the
-   code/URI trust boundary. This phase needs no clinical migration.
+   code/URI trust boundary. Include the normalized terminology API used by
+   future mobile clients; ECT alone does not prove that API. Verify the
+   bounded execution pool, cross-worker concurrency cap, total request
+   deadline and content-free access logging before exposing the public page.
+   This phase needs no clinical migration.
 3. **Shared access and read services.** Extract one coder-case access
    decision covering role, form/site/project/language, active allocation,
    retired form, recode/demo and payload revision. Create redacted semantic
@@ -149,7 +155,8 @@ reuse rights before copying source, and safely render WHO-supplied text.
    gate, demo expiry and best-effort ODK side effect.
 5. **Add write APIs and move the coder web client.** Add the proposed
    `/api/v1/coding/cases/{sid}` mutations with server-derived mode,
-   expected payload/workflow revisions and structured errors. Switch the
+   expected payload version, workflow state, allocation ID and structured
+   errors. Switch the
    React coder path from start/open through finalization one section at a
    time. Keep HTML/HTMX compatibility until parity and browser tests pass.
 6. **Add project settings and clinical DORIS.** Apply the additive migration
@@ -183,7 +190,7 @@ visibility.
 - Contract tests compare web/HTMX and JSON authorization, PII redaction,
   category values, attachments, state transitions, audit, allocation,
   authority, errors and saved rows for equivalent actions.
-- Test stale payload/workflow revisions, released allocation, retries after
+- Test stale payload version/workflow state, released allocation, retries after
   uncertain final response, session expiry, form/site/project/language
   access, retired forms, demo/recode and upstream payload changes.
 - Test all three approved COD modes, ICD-10 and complete ICD-11

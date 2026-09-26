@@ -36,7 +36,8 @@ Browser verification on the Help page: BD54 built `BD54&XK9J/5A11` and
 added one chip; XS5W was refused at pick time with the WHO message; the
 related panel showed `JB64.4/BD54` first; a 375px viewport had no
 horizontal scroll. The focused Docker DORIS suites passed (73 tests and 35
-subtests before the extraction, 55 route tests after). Not done: a visual
+subtests before the extraction; 98 DORIS tests with 35 subtests and the
+full `tests/routes` suite, 694 tests, after). Not done: a visual
 check of the clinical editor, because no project in the dev database is in
 DORIS mode; tests cover the clinical host wiring. Open question: WHO's
 search row for `NC72.7` shows the mandatory-postcoordination badge although

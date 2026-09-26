@@ -1,6 +1,6 @@
 # DORIS condition picker: WHO postcoordination parity and reusable component
 
-Status: planned (no code written)
+Status: done 2026-09-27 (commits 3cd435a, 492149f); clinical visual check and mobile auth remain open
 Priority: P1
 Created: 2026-09-27
 Depends on: nothing for the web work; mobile use of the picker depends on

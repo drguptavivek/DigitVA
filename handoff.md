@@ -8,11 +8,17 @@ vendored ECT/Mermaid, with its normalized terminology and processing JSON
 contracts frozen in phase-0 tests before UI work. The plans set a five-line
 DigitVA cap, one interval per editor line, omission of unknown fetal/infant
 measurements, server-verified code/URI pairs, independent processor statuses,
-and result acknowledgement on clinical final save. The public processing
-plan uses four Gunicorn threads, one Redis-backed cross-worker processing
-slot and a 12-second deadline; query-bearing URLs must be absent from access
-logs. Clinical draft storage and reviewer process/final routes belong to the
-later migration. The sixth fixture's two intervals on one line need
+and confirmation on clinical final save. The public Help page and APIs are
+planned for a dedicated same-origin service with CSRF on application POSTs
+and capacity for five simultaneous training submissions, independent of the
+main clinical Flask request threads. Query-bearing URLs must be absent from
+access logs. An edit to clinical DORIS lines clears the computed result and
+selected final UCOD; Save stays disabled until reprocessing and reconfirmation.
+No draft or process response is saved. Final save compares the submitted
+certificate with a signed token from processing and returns a reprocessed
+result for reconfirmation if they differ; only final certificate, DORIS and
+CoDEdit outputs, and human UCOD are persisted. Reviewer process/final routes
+belong to the later clinical work. The sixth fixture's two intervals on one line need
 re-baselining, and multi-issue CoDEdit encoding remains an evidence gate.
 See `docs/planning/project-cod-masking-doris-plan.md`,
 `docs/planning/coder-web-and-api-contracts.md` and

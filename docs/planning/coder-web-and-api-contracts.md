@@ -71,7 +71,6 @@ current allocation. The client cannot set its own `masked_cod_required`,
 | Existing NQA/Social and ICD search APIs | Link from bootstrap; keep their services and authorization, standardize errors without duplicating endpoints |
 | `PUT /cases/{sid}/initial-assessment` | Masked mode only: immediate, antecedent and other conditions; server-side code/provenance validation |
 | `POST /cases/{sid}/doris/process` | Unmasked ICD-11 DORIS mode only: preview one bounded certificate through DORIS and CoDEdit; no final COD write |
-| `GET /cases/{sid}/doris/draft`; `PUT /cases/{sid}/doris/draft` | Authenticated draft certificate for the active allocation; versioned, bounded and isolated from the final assessment. Draft storage is a later clinical migration, not part of public Help. |
 | `POST /cases/{sid}/finalize` | Mode-specific human final entry, current certificate if DORIS mode, independent final-code validation, atomic assessment/workflow/authority/audit update and allocation release |
 | `POST /cases/{sid}/not-codeable` | Structured reason and local terminal outcome; report ODK update result separately |
 
@@ -83,7 +82,7 @@ namespace. The reviewer process route is
 certificate and acknowledgement semantics with reviewer-specific
 authorization. The reviewer starts from a copy of the coder's saved
 certificate when one exists, or a blank certificate otherwise, then edits an
-independent reviewer draft.
+independent browser form. Neither role has a server-side draft endpoint.
 Never mutate the coder's certificate through reviewer actions.
 
 ### Case bootstrap example
@@ -126,15 +125,31 @@ or offline queuing are enabled.
 - `unmasked_simple`: human immediate COD, underlying COD and optional
   associated conditions as free text, with no artificial Step 1 row. ICD-11
   immediate and underlying selections have separate provenance entries.
-- `unmasked_doris`: ordered Part I/Part II certificate, the preview's
-  `acknowledged_result_digest`, plus the MO's
-  independent final underlying COD. Client-supplied DORIS or CoDEdit results
-  are ignored. The server revalidates the certificate and obtains the result
-  for that exact input/release before storing it separately from the MO COD.
-If the recomputed result digest differs from the acknowledged preview, return
-`409 DORIS_RESULT_CHANGED` with the new result and digest. Commit only after a
-subsequent request acknowledges that result. Compare the payload version,
-workflow state and active allocation again on the second request.
+- `unmasked_doris`: ordered Part I/Part II certificate, the signed
+  `process_token` from its current Process response, plus the MO's
+  independent final underlying COD and the DORIS/CoDEdit outputs shown in
+  that response. The server accepts those outputs only when their digest
+  matches the signed token issued for that exact certificate and release.
+An edit clears the displayed result and selected final UCOD in the client
+and disables Save until a new Process response is reviewed and the final UCOD
+is confirmed again. At final save, verify the signed token and compare the
+submitted certificate digest to the one it binds. If they differ, reprocess
+the submitted certificate and return `409 DORIS_CERTIFICATE_CHANGED` with the
+fresh result and token, asking the MO to review and reconfirm; commit nothing.
+If the certificate matches but the submitted processor outputs do not match
+the token's result digest, return `409 DORIS_PROCESS_MISMATCH` and require
+fresh processing; commit
+nothing. When both digests match, do not rerun WHO merely to save. Compare
+payload version, workflow state and active allocation again on resubmission.
+An expired or invalid process token returns `409 DORIS_PROCESS_EXPIRED` and
+requires a fresh Process call and final UCOD confirmation; it saves nothing.
+Persist only the confirmed final certificate, server-obtained DORIS/CoDEdit
+outputs and human final UCOD, not intermediate forms or process responses.
+The changed-certificate response is HTTP 409 with
+`error.code="DORIS_CERTIFICATE_CHANGED"`, a plain message that the form was
+reprocessed, and `processing` containing the fresh Process response shape
+including its new token. The client clears the old final UCOD choice and
+requires an explicit new confirmation before another Save request.
 
 The final underlying code is a complete ICD-11 expression when applicable,
 with WHO URI provenance checked on the server. In DORIS mode, CoDEdit
@@ -178,7 +193,7 @@ These routes are anonymous and distinct from clinical case APIs:
 | --- | --- |
 | `GET /api/v1/doris-demo/config` | Return application schema version, ICD release, supported fields/limits and the six synthetic `certificate` examples from `resource/doris_help_examples.json`; do not expose saved `observed` results as live outputs |
 | `POST /api/v1/doris-demo/process` | Accept `{schema_version, client_revision, certificate}` from the current editor, validate bounds and code/URI agreement, send the same normalized certificate to local DORIS and CoDEdit, and echo the revision with independent live responses, release, input digest and processing status; do not persist certificate or results |
-| `POST /api/v1/doris-demo/terms`; `POST /api/v1/doris-demo/codeinfo` | Return the normalized terminology JSON shapes in the UI contract, with public limits and no query or code in the URL; read-only and CSRF-exempt |
+| `POST /api/v1/doris-demo/terms`; `POST /api/v1/doris-demo/codeinfo` | Return the normalized terminology JSON shapes in the UI contract, with public limits and no query or code in the URL; Help JavaScript sends the CSRF token |
 | `GET/POST /api/v1/doris-demo/who-api/{resource}` | Allowlist only read-oriented ECT search, entity and codeinfo resources; fixed local WHO target, bounds and rate limits; CSRF-exempt for ECT POST; no submission-scoped proxy |
 | `POST /api/v1/doris-demo/selection-check` | Verify a selected complete code/cluster and WHO URI for a certificate condition without applying final-underlying-COD selectability |
 
@@ -199,10 +214,13 @@ processor's result. CoDEdit has no `reject` field; classify it from the HTTP
 status and validated response. A valid request with both processors failing
 returns HTTP 503 and two independent failure statuses. Do not substitute
 fixture observations or stale prior responses. The public endpoint uses fixed WHO targets, bounded input/output,
-timeouts, a total deadline, a cross-worker concurrency cap, rate limits and
-browser CSRF for `process` and `selection-check`; it never accepts arbitrary
-URLs. The read-only ECT proxy is CSRF-exempt because ECT cannot attach the
-header. Help issues an anonymous session token for protected POSTs.
+timeouts, a total deadline, rate limits and browser CSRF for `process`,
+`selection-check`, normalized `terms` and `codeinfo`; it never accepts
+arbitrary URLs. The read-only ECT proxy alone is CSRF-exempt because ECT
+cannot attach the header. Help issues an anonymous session token for its
+protected POSTs. Run the Help page and API on a dedicated same-origin public
+service, routed separately from clinical Flask workers, with capacity for at
+least five concurrent Process submissions during training.
 Examples populate editable form state. Clear or mark the displayed results
 stale when that state changes, and discard delayed responses whose input
 revision no longer matches the editor. The client compares only echoed
@@ -226,8 +244,13 @@ application to DigitVA. Its Save to file control is outside this contract.
 The clinical `POST /cases/{sid}/doris/process` shares the certificate schema and WHO
 adapter but requires active allocation and project-mode authorization. Its
 result includes the certificate input digest and ICD release. Preview
-results are display data; final save obtains or verifies a server-trusted
-result for the exact submitted certificate.
+results are display data; the clinical response includes a short-lived
+server-signed `process_token` binding certificate and result digests to case,
+allocation, payload version, release and WHO image. Final save verifies the
+submitted certificate and processor outputs against that token. It only
+reprocesses if the certificate has changed, returning fresh results for
+reconfirmation rather than saving. No draft or process response is stored
+before final save.
 
 ## Authentication and client boundary
 

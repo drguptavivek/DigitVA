@@ -138,8 +138,10 @@ reuse rights before copying source, and safely render WHO-supplied text.
    conditional questions, rejection, warnings, stale-result handling and the
    code/URI trust boundary. Include the normalized terminology API used by
    future mobile clients; ECT alone does not prove that API. Verify the
-   bounded execution pool, cross-worker concurrency cap, total request
-   deadline and content-free access logging before exposing the public page.
+   dedicated same-origin public service, capacity for five parallel training
+   submissions without using clinical Flask request threads, total request
+   deadline, CSRF on application POSTs and content-free access logging before
+   exposing the public page.
    This phase needs no clinical migration.
 3. **Shared access and read services.** Extract one coder-case access
    decision covering role, form/site/project/language, active allocation,

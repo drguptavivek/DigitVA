@@ -117,7 +117,7 @@ The [observed WHO web trace](../kb/doris-web-behavior-and-api-trace.md) and
 the form behavior and shared browser/mobile data boundary.
 
 The form must support administrative data, ordered Part I lines with multiple
-conditions on a line, Part II conditions, condition-specific intervals and
+conditions on a line, Part II conditions, one interval per line and
 the applicable Frame B fields. Each condition has ICD-11 term/code search in
 the UI. Start with DigitVA's already integrated WHO ECT for browser
 selection and present its chosen code as a removable chip in the condition
@@ -132,8 +132,13 @@ may reject such input. Process sends the current certificate to both local
 DORIS and CoDEdit and shows the computed cause, warnings, rejection,
 readable rationale and rule reports. Processing does not choose the MO's
 final COD. The public Help form proves this interaction first; the later
-clinical form adds authenticated draft/persistence and a separate MO final
-underlying COD field.
+clinical form adds case authorization and a separate MO final underlying COD
+field. Editing any certificate field clears the displayed computed UCOD and
+the selected final UCOD, and disables Save until the edited certificate is
+processed and the MO confirms the final choice again. Processing is transient;
+only the confirmed final certificate, DORIS/CoDEdit outputs and human final
+UCOD are saved.
+
 Show only applicable follow-up questions. The WHO form was observed to make
 pregnancy inapplicable for male sex and to enable timing/contribution after
 female sex plus pregnancy “Yes”; test other conditions rather than assuming
@@ -288,14 +293,12 @@ time (currently `d9e0f1a2b3c4`):
    WHO image digest so historical rows remain interpretable if a project's
    setting changes.
 
-5. Add bounded, versioned clinical draft-certificate storage keyed to case
-   and role. Require an active allocation to read or write it, record which
-   allocation last wrote it, and permit an authorized resume after
-   reallocation. Define cleanup after a terminal outcome and audit draft
-   replacement. Store the latest server-trusted preview certificate and
-   result digests with that draft, bound to the payload version and WHO image
-   digest, for final-save acknowledgement. A reviewer starts from a copy of
-   the coder's saved certificate if present and then edits a separate draft.
+5. Do not add a clinical draft or preview table. Keep edits in the active
+   browser form until final save, warn before leaving with unsaved changes,
+   and persist only the confirmed final certificate, DORIS/CoDEdit outputs
+   and human final UCOD in the final assessment. The reviewer starts from a
+   copy of the coder's saved certificate, or a blank certificate if none was
+   saved, and edits it independently.
 
 Do not rewrite previous CODs or synthesize first assessments. Existing
 masked rows retain their source-initial links. New unmasked final rows have
@@ -373,21 +376,25 @@ Phase 0 uses plain JavaScript in the Jinja Help page with the vendored WHO ECT
 and Mermaid assets. The later clinical React build follows the JSON contract
 proved here. The Help page must also exercise the same normalized terminology
 response shape planned for mobile. The read-only ECT WHO proxy is CSRF-exempt
-because its POST search cannot attach DigitVA's token; the normalized public
-lookup POSTs are read-only and CSRF-exempt too. `process` and
-`selection-check` require an anonymous session CSRF token issued by Help.
-Set Gunicorn's access-log format to omit query strings, and verify the WHO
-container's URL logging before release.
+because its POST search cannot attach DigitVA's token. `process`,
+`selection-check` and normalized public lookup POSTs require an anonymous
+session CSRF token issued by Help.
+Set both clinical and public Gunicorn access-log formats to omit query strings,
+and verify the WHO container's URL logging before release.
 
 The current single synchronous Gunicorn worker can be held by one WHO call.
-For phase 0, run Gunicorn with four request threads and use a Redis-backed
-lease to allow only one public `process` call across all app workers; a second
-call gets `429 PROCESS_BUSY` promptly. Give the lease a bounded expiry and
-release it in `finally`. Limit upstream connection/read waits to 2/4 seconds
-and the whole processing call to 12 seconds, returning independent `timeout`
-statuses when that budget expires. Test that the implementation actually
-enforces the deadline during stalled WHO calls; a timeout value in a config
-file alone is insufficient. Rate limits alone do not protect clinical users.
+For phase 0, serve `/help/doris-demo` and `/api/v1/doris-demo/*` from a
+dedicated same-origin public service behind the ingress router, with its own
+request workers and CSRF session. Do not make the main clinical Flask workers
+wait for public WHO processing. Size the public service for at least five
+simultaneous Process submissions during training, with one spare worker or
+thread, and an explicit bounded queue or prompt busy response beyond that
+capacity. Keep short upstream and total deadlines; measure the real limits
+against the six examples and the deployment host before freezing their
+numbers. Load-test five parallel submissions while clinical requests continue;
+reject this design if main-app latency degrades. The public service must stay
+small enough for the host alongside the pinned WHO image. Rate limits alone
+do not protect clinical users.
 Freeze numeric limits in phase-0 contract tests:
 at most 5 Part I lines, 8 conditions per line, 20 conditions total, 500
 characters per condition text, 32 KiB request JSON and 512 KiB per processor
@@ -399,7 +406,10 @@ Expected touch points for this phase are `app/routes/help.py`, a new Help
 template and plain JavaScript under the Help assets, a narrow demo API blueprint
 registered in `app/routes/api/__init__.py`, the fixed-target WHO client in
 `app/services/who_icd_api.py` or a small DORIS adapter beside it, and focused
-Help/API, JSON contract and visualization tests. Keep the certificate/API adapter reusable
+Help/API, JSON contract and visualization tests. Add the dedicated public
+service and same-origin ingress routing to the runtime configuration, with a
+separate session cookie for that service's CSRF token. Keep the
+certificate/API adapter reusable
 by the later clinical route; the public and clinical authorization boundaries
 remain separate.
 
@@ -415,8 +425,9 @@ for the per-line editor: the current fixture assigns different intervals to
 two conditions on the same line. Add a synthetic multi-issue CoDEdit case to
 establish how `issueIds` encodes several issues; keep it opaque until then.
 Inspect browser network requests and logs for retained medical text. Verify
-clinical requests remain responsive while public WHO calls hit the deadline
-and concurrency cap. The owner can review this working interaction
+five simultaneous public Process calls complete and clinical requests remain
+responsive during those calls and a stalled WHO call. The owner can review
+this working interaction
 before clinical workflow packages start.
 This phase needs no project-setting or assessment-table migration.
 
@@ -454,13 +465,21 @@ on the same certificate and show its findings as **advisory only**: missing
 VA information or a CoDEdit warning does not block the MO's final COD.
 A failed DORIS run does not block human finalization when independent
 codeinfo validation remains available. On final save, rebuild and verify the
-exact certificate on the server, process that certificate with DORIS and
-CoDEdit, and store only those server-obtained results with the ICD release
-and certificate. Never accept a browser-supplied DORIS or CoDEdit result as
-authoritative. If a new computed result differs from what the MO just saw,
-return it for review before finalizing; if processing fails, record that
-status rather than retaining a stale computed cause. Keep the MO's final
-code validation independent of DORIS processing.
+exact certificate on the server and compare its digest with a short-lived,
+server-signed token issued for the certificate just processed. The token
+binds the result digest, ICD release, WHO image, case, allocation and payload
+version; no clinical preview row is stored. The final request includes the
+processor outputs shown to the MO. Verify their digest against the signed
+token so a browser cannot alter them. If the submitted certificate differs
+from the one processed earlier, reprocess it and return
+`409 DORIS_CERTIFICATE_CHANGED` with fresh results and
+the message "DORIS form changed; reprocessed. Review the result and confirm
+your final UCOD again." Save nothing on that request. If the certificate and
+signed result digest both match, do not call WHO again; atomically store the
+final certificate, verified DORIS and CoDEdit outputs, and the MO's separate
+final UCOD. Keep final-code validation independent of DORIS.
+An expired or invalid process token cannot authorize Save; request fresh
+processing and confirmation without persisting an assessment.
 
 ### 4. Coder and reviewer screens and saves
 

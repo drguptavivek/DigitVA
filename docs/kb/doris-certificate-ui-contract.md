@@ -32,7 +32,7 @@ called existing.
 
 | Boundary | Responsibility |
 | --- | --- |
-| `CertificateEditor` | Hold one draft certificate; render applicable questions; manage Part I/II condition arrays, order, one interval per line and code selections; track input revision |
+| `CertificateEditor` | Hold the unsaved certificate in browser memory; render applicable questions; manage Part I/II condition arrays, order, one interval per line and code selections; track input revision |
 | `ConditionPicker` | Search ICD-11 by term or code, distinguish a complete code/cluster from a separate condition, return selection with code, title and WHO URI provenance |
 | `DorisResults` | Show DORIS computed stem and complete code/URI, report, warning, error and rejection; CoDEdit report/issue IDs; raw and derived rule views |
 | DigitVA server | Validate bounds, authorization and code/URI agreement; call the fixed local WHO API; return processor results tagged to exact input; persist only in clinical workflow |
@@ -41,8 +41,9 @@ called existing.
 Web can implement these as React views, but the contract is the certificate
 JSON and state transitions, not React props or DOM events. Public Help has
 no clinical record or final MO COD. The clinical unmasked DORIS screen adds
-case context, authenticated draft handling, and the MO's **separate final
-underlying COD selection**.
+case authorization and the MO's **separate final underlying COD selection**.
+Edits stay in the browser form until final save; there is no server-side
+clinical draft or preview persistence.
 
 ## Certificate data contract
 
@@ -123,14 +124,14 @@ precomputed processor responses.
 
 | Event | Required behavior |
 | --- | --- |
-| Load example / start blank | Replace one browser draft; examples are synthetic and editable; no clinical persistence in Help |
+| Load example / start blank | Replace the current unsaved browser form; examples are synthetic and editable; no clinical persistence in Help |
 | Add/remove/reorder Part I line | Update ordered `Part1[]`; show the “due to” relationship between adjacent lines; do not infer extra causal edges among conditions on the same line |
 | Add/remove condition | Keep each selected complete expression as one removable item; allow several items in one line and in Part II |
 | Search by term or code | Show code, plain title, relevant match and any coding/postcoordination detail; do not render WHO-provided highlight HTML unsanitized; indicate incomplete/truncated results |
 | Select code | Use existing WHO ECT first in the browser; retain complete expression and URI; call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
-| Edit any input | Increment `client_revision`; clear or mark DORIS/CoDEdit results stale immediately |
-| Process | Send the current bounded certificate to both processors through DigitVA; show independent loading/error/reject states; accept the response only if its echoed `client_revision` matches the editor's current revision. The server computes the digest; clinical preview storage, not Help, retains it for finalization. |
-| Select final underlying COD (clinical only) | MO chooses an independently verified complete code/cluster; DORIS guidance does not populate or lock this field automatically |
+| Edit any input | Increment `client_revision`; clear the displayed DORIS/CoDEdit results and, in clinical coding, clear the selected final UCOD and disable Save |
+| Process | Send the current bounded certificate to both processors through DigitVA; show independent loading/error/reject states; accept the response only if its echoed `client_revision` matches the editor's current revision. The server returns a signed process token for clinical finalization. |
+| Select and confirm final UCOD (clinical only) | After a current Process result is visible, the MO independently chooses a server-verified complete code/cluster; DORIS does not populate or lock this field. Enable Save only while the certificate is unchanged. |
 
 Use semantic labels, keyboard-operable selection and removal, visible
 status/error text, and a mobile-width layout. Do not show hidden fields as
@@ -174,6 +175,9 @@ characters, and `cursor` is opaque. No code or query goes in a URL. The Help
 editor exercises these responses even if it also shows WHO ECT. Freeze
 errors, pagination and expression handling in phase-0 contract tests. Access
 logs must omit query strings for the ECT GET proxy.
+Help JavaScript sends its CSRF token on these normalized lookup POSTs,
+`selection-check` and `process`. Only the read-only ECT proxy POST is exempt
+because the ECT widget cannot attach DigitVA's token.
 Search text and selected codes must not go to WHO analytics or DigitVA's
 clinical telemetry from public Help.
 
@@ -204,17 +208,20 @@ be frozen in phase-0 API contract tests before implementation:
 with sorted object keys, compact separators and UTF-8 encoding.
 `result_digest` uses the same encoding over the ICD release, WHO image digest,
 both processor statuses and their returned result objects; it excludes timing
-and transport metadata. The client treats both as opaque values. Clinical
-preview storage binds both digests to the active allocation and payload
-version. A Help response has no such storage or clinical authority.
+and transport metadata. The client treats both as opaque values. The clinical
+response also includes a short-lived `process_token`, signed by the server,
+binding both digests to the case, active allocation, payload version, ICD
+release and WHO image. A Help response has no token or clinical authority;
+neither context stores a draft or preview in the database.
 
 Statuses distinguish `completed`, `rejected`, `timeout`,
 `malformed_response` and `unavailable` for each engine. Invalid input is a
 request-level `422 INVALID_INPUT` error, before either engine is called.
 Malformed JSON is `400 MALFORMED_JSON`. The error envelope is
 `{"schema_version":1,"error":{"code":"INVALID_INPUT","message":"...","fields":[{"path":"certificate.Part1[0].Conditions[0].Code","message":"..."}]}}`;
-messages never echo medical text. When the single public processing slot is
-occupied, return `429 PROCESS_BUSY` in the same envelope without a WHO call.
+messages never echo medical text. Public capacity must support five parallel
+Process submissions during training; a bounded queue or `429 PROCESS_BUSY`
+applies only beyond that capacity.
 CoDEdit has no
 `reject` field: its success or failure comes from the HTTP status and response
 validation. Treat `issueIds` as an opaque WHO value; the current image has
@@ -226,12 +233,20 @@ finding is advisory. A DORIS-only failure need not block the clinical MO
 final COD if independent WHO codeinfo validation still works; loss of the
 whole WHO ICD API prevents existing ICD-11 provenance validation and must
 fail final save closed. Neither client nor UI may submit a DORIS result as
-an authoritative final cause. Clinical finalization checks the exact
-certificate/digest/release against the server-trusted preview. Its request
-includes `acknowledged_result_digest`, obtained from the preview response.
-If recomputation changes that result, return `409 DORIS_RESULT_CHANGED` with
-the new result and digest; the MO must review and submit a second request
-acknowledging that digest before commit.
+an authoritative final cause. The final request resubmits the displayed
+DORIS/CoDEdit outputs, but the server accepts them only when their digest
+matches its signed `process_token`. Clinical finalization also compares the
+submitted certificate digest to the certificate last processed. If the form
+changed, reprocess the submitted certificate and return
+`409 DORIS_CERTIFICATE_CHANGED` with fresh results, a fresh token and a
+prompt to review and reconfirm the final UCOD. Save nothing on that request.
+If certificate and result digests match, save without rerunning WHO. Only the
+confirmed final certificate, verified DORIS/CoDEdit outputs and human UCOD
+are persisted.
+Changed processor outputs return `409 DORIS_PROCESS_MISMATCH` and require
+fresh processing; they are never saved.
+An expired or invalid token returns `409 DORIS_PROCESS_EXPIRED`; the MO must
+process the form and confirm the final UCOD again.
 
 ## Result views
 
@@ -267,3 +282,9 @@ source is not copied because the repository has no declared license.
   arriving after another edit.
 - Exact code/URI agreement on every selected condition and the independent
   final MO field; accessible web interaction and mobile-width layout.
+- Clinical edit clears both displayed processor result and chosen final UCOD;
+  Save remains disabled until fresh processing and confirmation. A forged or
+  raced final request with changed certificate returns 409 and fresh results
+  without saving; an expired token also saves nothing.
+- Five simultaneous public Process submissions complete while clinical
+  requests remain responsive; CSRF rejects unprotected application POSTs.

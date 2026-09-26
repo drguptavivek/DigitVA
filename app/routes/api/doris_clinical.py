@@ -18,6 +18,21 @@ from app.services.coding_service import get_project_for_submission
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
 from app.services.doris_process_proof import generate_process_proof
 from app.services.doris_processing import process_certificate
+from app.services.icd11_postcoordination import (
+    PostcoordinationError,
+    guidance_request,
+    postcoordination_availability,
+    postcoordination_capability,
+)
+from app.services.icd11_postcoordination import (
+    hierarchy as get_hierarchy,
+)
+from app.services.icd11_postcoordination import (
+    postcoordination as get_postcoordination,
+)
+from app.services.icd11_postcoordination import (
+    postcoordination_options as get_postcoordination_options,
+)
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
@@ -160,18 +175,26 @@ def _codeinfo_item(code: str) -> dict | None:
         return None
     title = _plain_text(info.get("title") or info.get("label"))
     stem_uri = info.get("stemId")
+    entity = None
     if not title and isinstance(stem_uri, str) and stem_uri.startswith("http://id.who.int/"):
         entity = proxy_who_icd_request(stem_uri.removeprefix("http://id.who.int/")).json()
         if isinstance(entity, dict):
             title = _plain_text(entity.get("title") or entity.get("label"))
     if not title:
         return None
+    postcoordination = False
+    if "&" not in code and "/" not in code:
+        postcoordination = (
+            bool(entity.get("postcoordinationScale"))
+            if isinstance(entity, dict)
+            else postcoordination_capability(code, info)
+        )
     return {
         "code": code,
         "title": title,
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
-        "postcoordination": any(separator in code for separator in "&/"),
+        "postcoordination": postcoordination,
     }
 
 
@@ -227,6 +250,9 @@ def clinical_terms(va_sid: str):
         title = _plain_text(entity.get("title") or entity.get("titleWithoutCodes"))
         if not all(isinstance(value, str) and value for value in (code, uri, title)):
             continue
+        available, raw_availability = postcoordination_availability(
+            entity.get("postcoordinationAvailability")
+        )
         items.append(
             {
                 "code": code,
@@ -236,9 +262,8 @@ def clinical_terms(va_sid: str):
                 "matching_text": _plain_text(
                     entity.get("matchingPVs") or entity.get("matchingText") or title
                 ),
-                "postcoordination": bool(
-                    entity.get("isLeaf") is False or entity.get("postcoordination")
-                ),
+                "postcoordination": available,
+                "postcoordination_availability": raw_availability,
             }
         )
         if len(items) == limit:
@@ -307,6 +332,54 @@ def clinical_selection_check(va_sid: str):
             "INVALID_SELECTION", "The selected code does not match its WHO URI.", 422
         )
     return jsonify(schema_version=1, item=item)
+
+
+def _guidance_request(va_sid: str, operation, fields: set[str]):
+    _, error = _require_terminology_context(va_sid)
+    if error:
+        return error
+    payload = _json_object()
+    if payload is None or set(payload) != fields or payload.get("schema_version") != 1:
+        return _error("INVALID_INPUT", "The ICD-11 guidance request is invalid.", 422)
+    try:
+        with guidance_request():
+            return jsonify(operation(payload))
+    except PostcoordinationError as exc:
+        return _error(exc.code, str(exc), exc.status)
+    except (WhoIcdApiUnavailable, ValueError):
+        return _error("WHO_API_UNAVAILABLE", "WHO ICD-11 guidance is unavailable.", 503)
+
+
+@bp.post("/postcoordination/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def clinical_postcoordination(va_sid: str):
+    return _guidance_request(
+        va_sid,
+        lambda body: get_postcoordination(body["code"]),
+        {"schema_version", "code"},
+    )
+
+
+@bp.post("/postcoordination-options/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def clinical_postcoordination_options(va_sid: str):
+    return _guidance_request(
+        va_sid,
+        lambda body: get_postcoordination_options(
+            body["stem_code"], body["axis_id"], body["parent_uri"]
+        ),
+        {"schema_version", "stem_code", "axis_id", "parent_uri"},
+    )
+
+
+@bp.post("/hierarchy/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def clinical_hierarchy(va_sid: str):
+    return _guidance_request(
+        va_sid,
+        lambda body: get_hierarchy(body["code"]),
+        {"schema_version", "code"},
+    )
 
 
 @bp.post("/process/<va_sid>")

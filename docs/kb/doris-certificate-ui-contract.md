@@ -126,7 +126,8 @@ precomputed processor responses.
 | Add/remove/reorder Part I line | Update ordered `Part1[]`; show the “due to” relationship between adjacent lines; do not infer extra causal edges among conditions on the same line |
 | Add/remove condition | Keep each selected complete expression as one removable item; allow several items in one line and in Part II |
 | Search by term or code | Show code, plain title, relevant match and any coding/postcoordination detail; do not render WHO-provided highlight HTML unsanitized; indicate incomplete/truncated results |
-| Select code | Use existing WHO ECT first in the browser; retain complete expression and URI; call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
+| Select code | A guided picker may assemble a stem and WHO-allowed extension choices; retain the complete expression and URI; call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
+| See in hierarchy | Show the selected stem within its WHO ancestor path, with bounded sibling and child navigation; keep the selected expression unchanged until the user explicitly confirms a code |
 | Edit any input | Increment `client_revision`; clear the displayed DORIS/CoDEdit results and, in clinical coding, clear the selected final UCOD and disable Save |
 | Process | Send the current bounded certificate to both processors through DigitVA; show independent loading/error/reject states; accept the response only if its echoed `client_revision` matches the editor's current revision. The server returns a signed process token for clinical finalization. |
 | Select and confirm final UCOD (clinical only) | After a current Process result is visible, the MO independently chooses a server-verified complete code/cluster; DORIS does not populate or lock this field. Enable Save only while the certificate is unchanged. |
@@ -179,6 +180,28 @@ Help JavaScript sends its CSRF token on these normalized lookup POSTs,
 because the ECT widget cannot attach DigitVA's token.
 Search text and selected codes must not go to WHO analytics or DigitVA's
 clinical telemetry from public Help.
+
+The guided postcoordination and hierarchy APIs are normalized DigitVA
+contracts backed by the pinned WHO MMS release. Public routes use
+`/api/v1/doris-demo/postcoordination`, `/postcoordination-options`, and
+`/hierarchy`; clinical routes use the same suffixes under
+`/api/v1/doris-clinical/` with `/{sid}`. All are CSRF-protected POSTs.
+`postcoordination` accepts `{"schema_version":1,"code":"1B12.2"}` and
+returns the verified stem plus WHO-ordered axes. Each axis exposes its name,
+required flag, exact WHO multiple-value rule, and bounded root options with code,
+plain title, release-pinned URI, and `has_children`. An options request
+passes the stem code, axis name, and a release-pinned parent option URI to
+load bounded direct children. Each option also carries its root `block_uri`,
+so `AllowedExceptFromSameBlock` permits choices from separate blocks but
+replaces a conflicting choice in the same block. Hierarchy returns an ancestor path and bounded
+sibling/child choices for the selected stem. Limits and errors are explicit;
+the browser never assumes absent data means that a WHO axis is optional. A
+truncated choice set disables guided selection; a complete expression can be
+selected directly after the server check.
+The UI shows mandatory axes and may add a stem alone only when all required
+axes are satisfied. It assembles X extension codes with `&` and additional
+stem codes with `/`, in WHO axis order, then sends the complete code and URI
+expression through `selection-check`. Both forms remain one condition.
 
 ## Processing API contract
 

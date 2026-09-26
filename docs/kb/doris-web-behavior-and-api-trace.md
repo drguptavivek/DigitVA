@@ -10,7 +10,7 @@ last_updated: 2026-09-26
 
 ## Scope and evidence
 
-This records a **synthetic, read-only browser trace** of a fresh WHO DORIS
+This records a **synthetic browser trace** of a fresh WHO DORIS
 workspace on 2026-09-26, WHO's published certificate exchange format, and
 checks against DigitVA's pinned local `whoicd/icd-api:2.6.0` with ICD-11 MMS
 `2026-01`. The owner's already open WHO certificate was not touched. WHO's
@@ -95,6 +95,26 @@ its line. A future mobile client needs a normalized DigitVA search API; it
 cannot mount ECT's browser DOM.
 
 ## Expression versus condition versus causal line
+
+### Guided postcoordination and hierarchy checked in the live web UI
+
+In a fresh synthetic certificate on 2026-09-26, searching “tuberculosis of
+ear” showed stem `1B12.2` and the complete result `1B12.2 &XA0G74`.
+Expanding the stem's details exposed matching terms and a “See in hierarchy”
+control. In its hierarchy panel, WHO showed the stem among parent and sibling
+categories and the stem-specific postcoordination axes. The Specific anatomy
+axis offered `XA0G74 Middle Ear`; choosing it changed the preview to
+`1B12.2&XA0G74`. Select inserted one removable chip. Processing that
+single-condition synthetic certificate showed UCOD `1B12.2` and “UCOD with
+postcoordinated information” `1B12.2&XA0G74` separately.
+
+The owner's screenshots also show WHO search offering a `/` expression such
+as `GB61.Z/5A13` as one chip, matching terms in a Details pane, maternal
+and perinatal related-category markers, a hierarchy view, and a mandatory
+postcoordination indicator. These are UI observations, not proof that every
+displayed combination is a valid final expression. DigitVA should derive
+allowed axes and required status from the pinned WHO MMS metadata and keep
+server-side code/URI verification as the final check.
 
 The observed WHO search returned `1B12.2 &XA0G74` (“Tuberculous otitis
 media”). On selection, it became **one chip** with complete code

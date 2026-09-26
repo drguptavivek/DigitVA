@@ -18,6 +18,7 @@
   var results = document.getElementById('doris-results');
   var status = document.getElementById('doris-app-status');
   var processButton = document.getElementById('doris-process');
+  var postcoordination = window.DigitvaDorisPostcoordination;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
   function post(url, body) {
@@ -94,36 +95,57 @@
     }
     searchStatus.textContent = truncated ? 'Showing the first results; refine the search for more.' : items.length + ' result' + (items.length === 1 ? '' : 's') + '.';
     items.slice(0, MAX_RESULTS).forEach(function (item) {
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'list-group-item list-group-item-action';
+      var row = document.createElement('div');
+      row.className = 'list-group-item';
       var heading = document.createElement('span');
       heading.className = 'd-block fw-semibold';
       heading.textContent = (item.code || 'No code') + ' — ' + (item.title || 'Untitled');
-      button.appendChild(heading);
+      row.appendChild(heading);
       if (item.matching_text && item.matching_text !== item.title) {
         var match = document.createElement('span');
         match.className = 'd-block doris-search-match';
         match.textContent = 'Matched: ' + item.matching_text;
-        button.appendChild(match);
+        row.appendChild(match);
       }
       if (item.postcoordination) {
         var detail = document.createElement('span');
         detail.className = 'badge text-bg-light';
         detail.textContent = 'Postcoordination available';
-        button.appendChild(detail);
+        row.appendChild(detail);
       }
-      button.addEventListener('click', function () { verifyAndSelect(line, item, button); });
-      container.appendChild(button);
+      var actions = document.createElement('div');
+      actions.className = 'd-flex flex-wrap gap-2 mt-2';
+      var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
+      var choose = document.createElement('button');
+      choose.type = 'button'; choose.className = 'btn btn-sm btn-outline-primary';
+      choose.textContent = item.postcoordination && !complete ? 'Build expression' : 'Use this code';
+      choose.addEventListener('click', function () {
+        if (item.postcoordination && !complete && line._postcoord) line._postcoord.open(item, choose);
+        else verifyAndSelect(line, item, choose);
+      });
+      actions.appendChild(choose);
+      if (postcoordination && item.code) {
+        var hierarchy = document.createElement('button');
+        hierarchy.type = 'button'; hierarchy.className = 'btn btn-sm btn-outline-secondary';
+        hierarchy.textContent = 'See in hierarchy';
+        hierarchy.addEventListener('click', function () {
+          if (line._postcoord) line._postcoord.openHierarchy(item, hierarchy);
+        });
+        actions.appendChild(hierarchy);
+      }
+      row.appendChild(actions);
+      container.appendChild(row);
     });
   }
 
   function verifyAndSelect(line, item, button) {
     var searchStatus = line.querySelector('[data-search-status]');
+    var sentRevision = revision;
     if (button) button.disabled = true;
     searchStatus.textContent = 'Verifying ' + (item.code || 'selection') + '…';
     var body = {schema_version: 1, code: item.code, uri: item.uri};
     post(endpoint('selection'), body).then(function (data) {
+      if (sentRevision !== revision || !line.isConnected) return;
       var verified = data.item || data.selection || data;
       var condition = conditionFromItem(Object.assign({}, item, verified));
       if (!condition.Code || !condition.LinearizationURI) throw new Error('The server did not return a verified code and URI.');
@@ -131,9 +153,11 @@
       addChip(line, condition);
       line.querySelector('[data-search]').value = '';
       line.querySelector('[data-search-results]').replaceChildren();
+      line.querySelector('[data-search]').focus();
       searchStatus.textContent = condition.Code + ' verified and added.';
       changed();
     }).catch(function (error) {
+      if (sentRevision !== revision || !line.isConnected) return;
       if (button) button.disabled = false;
       searchStatus.textContent = error.message || 'Could not verify this code.';
     });
@@ -147,6 +171,7 @@
       return;
     }
     var current = ++requestNumber;
+    var sentRevision = revision;
     searchStatus.textContent = 'Searching…';
     line.querySelector('[data-search-results]').replaceChildren();
     var looksLikeCode = /\d/.test(query) && !/\s/.test(query);
@@ -156,10 +181,10 @@
       : post(endpoint('terms'), {schema_version: 1, query: query, limit: MAX_RESULTS, cursor: null});
     lookup
       .then(function (data) {
-        if (current !== requestNumber) return;
+        if (current !== requestNumber || sentRevision !== revision || !line.isConnected) return;
         showSearchResults(line, Array.isArray(data.items) ? data.items : [], Boolean(data.truncated));
       }).catch(function (error) {
-        if (current === requestNumber) searchStatus.textContent = error.message || 'Search is unavailable.';
+        if (current === requestNumber && sentRevision === revision && line.isConnected) searchStatus.textContent = error.message || 'Search is unavailable.';
       });
   }
 
@@ -177,6 +202,18 @@
     var line = document.getElementById('doris-line-template').content.firstElementChild.cloneNode(true);
     line._conditions = [];
     line.dataset.kind = kind;
+    var guidedHost = line.querySelector('[data-doris-guided-panel]');
+    line._postcoord = postcoordination && guidedHost ? postcoordination.mount({
+      container: guidedHost,
+      endpoints: {
+        postcoordination: endpoint('postcoordination'),
+        options: endpoint('postcoordinationOptions'),
+        hierarchy: endpoint('hierarchy')
+      },
+      request: post,
+      revision: function () { return revision; },
+      onSelect: function (item) { verifyAndSelect(line, item, null); }
+    }) : null;
     var conditions = (source && Array.isArray(source.Conditions)) ? source.Conditions : [];
     line.querySelector('[data-interval]').value = conditions.length ? (conditions[0].Interval || '') : '';
     conditions.forEach(function (raw) {

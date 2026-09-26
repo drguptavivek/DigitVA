@@ -6,6 +6,9 @@
      data-terms-url="/api/v1/doris-demo/terms"
      data-codeinfo-url="/api/v1/doris-demo/codeinfo"
      data-selection-url="/api/v1/doris-demo/selection-check"
+     data-postcoordination-url="/api/v1/doris-demo/postcoordination"
+     data-postcoordination-options-url="/api/v1/doris-demo/postcoordination-options"
+     data-hierarchy-url="/api/v1/doris-demo/hierarchy"
      data-process-url="/api/v1/doris-demo/process"
      data-who-api-url="/api/v1/doris-demo/who-api/"
      data-csrf="{{ csrf_token() }}">
@@ -137,11 +140,12 @@
       <label class="form-label" data-interval-label>Interval from onset to death</label><input class="form-control form-control-sm mb-2" data-interval maxlength="24" placeholder="P3D, PT12H, or P">
       <div data-chips class="doris-chips mb-2" aria-live="polite"></div>
       <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-open-ect>WHO Coding Tool</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
-      <p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div>
+      <p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div><div data-doris-guided-panel></div>
     </div>
   </template>
 </div>
 
 <script src="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/doris_postcoordination.js') }}"></script>
 <script src="{{ url_for('static', filename='js/doris_demo.js') }}"></script>

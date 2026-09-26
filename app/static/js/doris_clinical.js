@@ -4,6 +4,7 @@
 
   var MAX_LINES = 5;
   var mounted = new WeakSet();
+  var postcoordination = window.DigitvaDorisPostcoordination;
   function text(value) { return typeof value === 'string' ? value.trim() : ''; }
   function post(editor, url, body) {
     return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-CSRFToken': editor.dataset.csrf}, body: JSON.stringify(body)})
@@ -18,6 +19,8 @@
     if (mounted.has(editor)) return;
     mounted.add(editor);
     var state = {revision: 0, processing: null, lines: [], part2: null};
+    var searchRequest = 0;
+    var finalPostcoordination = null;
     editor._dorisState = state;
     var initial = {};
     try { initial = JSON.parse(query(editor, '[data-doris-initial]').textContent || '{}'); } catch (_error) {}
@@ -48,45 +51,78 @@
     function lookup(url, body) {
       return post(editor, url, body).then(function (result) { if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Lookup failed.'); return result.data; });
     }
+    function verifySelection(line, item, finalMode, resultList, message, input, trigger) {
+      var selectionRevision = state.revision;
+      var selectionProcessing = state.processing;
+      if (trigger) trigger.disabled = true;
+      message.textContent = 'Verifying ' + (item.code || 'selection') + '…';
+      lookup(editor.dataset.selectionUrl, {schema_version: 1, code: item.code, uri: item.uri}).then(function (data) {
+        if (selectionRevision !== state.revision || (finalMode && (selectionProcessing !== state.processing || !state.processing || query(editor, '[data-doris-final-panel]').hidden))) return;
+        var verified = data.item || data.selection || data;
+        if (!verified.code || !verified.uri) throw new Error('The server did not return a verified code and URI.');
+        if (finalMode) {
+          var target = finalInput(editor); if (target) target.value = verified.code + ' ' + (verified.title || item.title || '');
+          query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + verified.code + ' — ' + (verified.title || item.title || '');
+          resultList.replaceChildren();
+          input.focus();
+          var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]');
+          if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
+        } else {
+          var condition = {Text: item.selected_text || item.matching_text || verified.title || item.title, Code: verified.code, LinearizationURI: verified.uri};
+          line.conditions.push(condition); chip(line, condition); input.value = ''; resultList.replaceChildren(); input.focus(); invalidate('Certificate changed. Process it again.');
+        }
+      }).catch(function (error) { if (trigger) trigger.disabled = false; message.textContent = error.message || 'Could not verify this code.'; });
+    }
     function search(line, finalMode) {
       var input = finalMode ? query(editor, '[data-doris-final-search]') : line.element.querySelector('[data-doris-search]');
       var resultList = finalMode ? query(editor, '[data-doris-final-results]') : line.element.querySelector('[data-doris-search-results]');
       var message = finalMode ? query(editor, '[data-doris-final-choice]') : line.element.querySelector('[data-doris-search-status]');
       var value = text(input.value); resultList.replaceChildren();
       if (value.length < 2) { message.textContent = 'Type at least 2 characters.'; return; }
+      var currentRequest = ++searchRequest;
+      var sentRevision = state.revision;
       message.textContent = 'Searching…';
       var looksCode = /\d/.test(value) && !/\s/.test(value);
       var promise = looksCode && editor.dataset.codeinfoUrl
         ? lookup(editor.dataset.codeinfoUrl, {schema_version: 1, code: value}).then(function (data) { return data.item ? [data.item] : []; })
         : lookup(editor.dataset.termsUrl, {schema_version: 1, query: value, limit: 20, cursor: null}).then(function (data) { return data.items || []; });
       promise.then(function (items) {
+        if (currentRequest !== searchRequest || sentRevision !== state.revision) return;
         message.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
         items.forEach(function (item) {
-          var button = document.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action'; button.textContent = (item.code || '') + ' — ' + (item.title || '');
-          button.addEventListener('click', function () {
-            var selectionRevision = state.revision;
-            var selectionProcessing = state.processing;
-            lookup(editor.dataset.selectionUrl, {schema_version: 1, code: item.code, uri: item.uri}).then(function (data) {
-              if (selectionRevision !== state.revision || (finalMode && (selectionProcessing !== state.processing || !state.processing || query(editor, '[data-doris-final-panel]').hidden))) return;
-              var verified = data.item || data.selection || data;
-              if (finalMode) {
-                var target = finalInput(editor); if (target) target.value = verified.code + ' ' + verified.title;
-                query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + verified.code + ' — ' + verified.title;
-                resultList.replaceChildren();
-                var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]'); if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
-              } else {
-                var condition = {Text: item.matching_text || verified.title, Code: verified.code, LinearizationURI: verified.uri};
-                line.conditions.push(condition); chip(line, condition); input.value = ''; resultList.replaceChildren(); invalidate('Certificate changed. Process it again.');
-              }
-            }).catch(function (error) { message.textContent = error.message; });
-          }); resultList.appendChild(button);
+          var row = document.createElement('div'); row.className = 'list-group-item';
+          var title = document.createElement('span'); title.className = 'd-block fw-semibold'; title.textContent = (item.code || '') + ' — ' + (item.title || ''); row.appendChild(title);
+          if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'd-block doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; row.appendChild(match); }
+          if (item.postcoordination) { var badge = document.createElement('span'); badge.className = 'badge text-bg-light'; badge.textContent = 'Postcoordination available'; row.appendChild(badge); }
+          var actions = document.createElement('div'); actions.className = 'd-flex flex-wrap gap-2 mt-2';
+          var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
+          var choose = document.createElement('button'); choose.type = 'button'; choose.className = 'btn btn-sm btn-outline-primary'; choose.textContent = item.postcoordination && !complete ? 'Build expression' : 'Use this code';
+          choose.addEventListener('click', function () {
+            if (item.postcoordination && !complete && (finalMode ? finalPostcoordination : line.postcoord)) {
+              var controller = finalMode ? finalPostcoordination : line.postcoord;
+              if (controller) controller.open(item, choose);
+            } else verifySelection(line, item, finalMode, resultList, message, input, choose);
+          }); actions.appendChild(choose);
+          if (postcoordination && item.code) {
+            var hierarchy = document.createElement('button'); hierarchy.type = 'button'; hierarchy.className = 'btn btn-sm btn-outline-secondary'; hierarchy.textContent = 'See in hierarchy';
+            hierarchy.addEventListener('click', function () { var controller = finalMode ? finalPostcoordination : line.postcoord; if (controller) controller.openHierarchy(item, hierarchy); }); actions.appendChild(hierarchy);
+          }
+          row.appendChild(actions); resultList.appendChild(row);
         });
-      }).catch(function (error) { message.textContent = error.message; });
+      }).catch(function (error) { if (currentRequest === searchRequest && sentRevision === state.revision) message.textContent = error.message; });
     }
     function makeLine(source, isPart2) {
       var element = query(editor, '[data-doris-line-template]').content.firstElementChild.cloneNode(true);
       var conditions = source && Array.isArray(source.Conditions) ? source.Conditions.map(function (condition) { return Object.assign({}, condition); }) : [];
       var line = {element: element, conditions: conditions};
+      var guidedHost = element.querySelector('[data-doris-guided-panel]');
+      line.postcoord = postcoordination && guidedHost ? postcoordination.mount({
+        container: guidedHost,
+        endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
+        request: function (url, body) { return lookup(url, body); },
+        revision: function () { return state.revision; },
+        onSelect: function (item) { verifySelection(line, item, false, element.querySelector('[data-doris-search-results]'), element.querySelector('[data-doris-search-status]'), element.querySelector('[data-doris-search]'), null); }
+      }) : null;
       element.querySelector('[data-doris-interval]').value = conditions[0] ? conditions[0].Interval || '' : '';
       conditions.forEach(function (condition) { chip(line, condition); });
       element.querySelector('[data-doris-interval]').addEventListener('input', function () { invalidate(); });
@@ -145,6 +181,14 @@
     }
     state.lines = (Array.isArray(initial.Part1) && initial.Part1.length ? initial.Part1 : [{Conditions: []}]).slice(0, MAX_LINES).map(function (line) { return makeLine(line, false); });
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
+    var finalGuidedHost = query(editor, '[data-doris-final-guided-panel]');
+    finalPostcoordination = postcoordination && finalGuidedHost ? postcoordination.mount({
+      container: finalGuidedHost,
+      endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
+      request: function (url, body) { return lookup(url, body); },
+      revision: function () { return state.revision; },
+      onSelect: function (item) { verifySelection(null, item, true, query(editor, '[data-doris-final-results]'), query(editor, '[data-doris-final-choice]'), query(editor, '[data-doris-final-search]'), null); }
+    }) : null;
     var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); query(editor, '[data-doris-age]').value = admin.EstimatedAge || '';
     var fetal=initial.FetalOrInfantDeath||{};query(editor,'[data-doris-life-stage]').value=initial.FetalOrInfantDeath?'fetal-infant':'none';[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});

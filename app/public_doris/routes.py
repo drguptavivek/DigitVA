@@ -16,6 +16,21 @@ from flask_wtf.csrf import generate_csrf
 from app.public_doris import csrf, limiter
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
 from app.services.doris_processing import process_certificate
+from app.services.icd11_postcoordination import (
+    PostcoordinationError,
+    guidance_request,
+    postcoordination_availability,
+    postcoordination_capability,
+)
+from app.services.icd11_postcoordination import (
+    hierarchy as get_hierarchy,
+)
+from app.services.icd11_postcoordination import (
+    postcoordination as get_postcoordination,
+)
+from app.services.icd11_postcoordination import (
+    postcoordination_options as get_postcoordination_options,
+)
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
     WhoIcdApiUnavailable,
@@ -63,7 +78,7 @@ def _plain_text(value: object) -> str:
 def _item_from_codeinfo(info: dict) -> dict | None:
     code = info.get("code")
     uri = info.get("stemId")
-    title = _plain_text(info.get("title") or info.get("label") or info.get("browserUrl"))
+    title = _plain_text(info.get("title") or info.get("label"))
     if not all(isinstance(value, str) and value for value in (code, uri, title)):
         return None
     return {
@@ -71,7 +86,7 @@ def _item_from_codeinfo(info: dict) -> dict | None:
         "title": title,
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
-        "postcoordination": any(separator in code for separator in "&/"),
+        "postcoordination": False,
     }
 
 
@@ -82,6 +97,8 @@ def _codeinfo_item(code: str) -> dict | None:
     item = _item_from_codeinfo(info)
     if item is not None:
         item["uri"] = expected_expression_uri(code) or item["uri"]
+        if "&" not in code and "/" not in code:
+            item["postcoordination"] = postcoordination_capability(code, info)
         return item
     uri = info.get("stemId")
     if not isinstance(uri, str) or not uri.startswith("http://id.who.int/"):
@@ -96,6 +113,8 @@ def _codeinfo_item(code: str) -> dict | None:
     item = _item_from_codeinfo(enriched)
     if item is not None:
         item["uri"] = expected_expression_uri(code) or item["uri"]
+        if "&" not in code and "/" not in code:
+            item["postcoordination"] = bool(entity.get("postcoordinationScale"))
     return item
 
 
@@ -186,6 +205,9 @@ def terms():
         matching_text = _plain_text(
             entity.get("matchingPVs") or entity.get("matchingText")
         )
+        available, raw_availability = postcoordination_availability(
+            entity.get("postcoordinationAvailability")
+        )
         items.append(
             {
                 "code": code,
@@ -193,7 +215,8 @@ def terms():
                 "uri": uri,
                 "release": DEFAULT_ICD11_RELEASE,
                 "matching_text": matching_text or title,
-                "postcoordination": bool(entity.get("isLeaf") is False or entity.get("postcoordination")),
+                "postcoordination": available,
+                "postcoordination_availability": raw_availability,
             }
         )
         if len(items) == limit:
@@ -253,6 +276,46 @@ def selection_check():
     if item is None or item["uri"] != uri.strip():
         return _error("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
     return jsonify(schema_version=1, item=item)
+
+
+def _guidance_request(operation, fields: set[str]):
+    payload = _json_object()
+    if payload is None or set(payload) != fields or payload.get("schema_version") != 1:
+        return _error("INVALID_INPUT", "The ICD-11 guidance request is invalid.", 422)
+    try:
+        with guidance_request():
+            return jsonify(operation(payload))
+    except PostcoordinationError as exc:
+        return _error(exc.code, str(exc), exc.status)
+    except (WhoIcdApiUnavailable, ValueError):
+        return _error("WHO_UNAVAILABLE", "ICD-11 guidance is unavailable.", 503)
+
+
+@bp.post("/api/v1/doris-demo/postcoordination")
+@limiter.limit("120 per minute")
+def postcoordination():
+    return _guidance_request(
+        lambda body: get_postcoordination(body["code"]), {"schema_version", "code"}
+    )
+
+
+@bp.post("/api/v1/doris-demo/postcoordination-options")
+@limiter.limit("120 per minute")
+def postcoordination_options():
+    return _guidance_request(
+        lambda body: get_postcoordination_options(
+            body["stem_code"], body["axis_id"], body["parent_uri"]
+        ),
+        {"schema_version", "stem_code", "axis_id", "parent_uri"},
+    )
+
+
+@bp.post("/api/v1/doris-demo/hierarchy")
+@limiter.limit("120 per minute")
+def hierarchy():
+    return _guidance_request(
+        lambda body: get_hierarchy(body["code"]), {"schema_version", "code"}
+    )
 
 
 @bp.post("/api/v1/doris-demo/process")

@@ -35,6 +35,31 @@ draft or assessment row.
 
 ## Process and final save
 
+The public Help certificate and the clinical coder/reviewer certificate now
+share a small JavaScript postcoordination picker. Search results with WHO
+postcoordination availability offer a stem builder, while complete expressions
+remain directly selectable. The builder obtains the pinned WHO release's axes
+through DigitVA's CSRF-protected public or clinical POST API, labels required
+axes, and lazily loads bounded child choices. The hierarchy view shows the
+ancestor path and nearby nodes. Uncoded WHO folders can be expanded but are
+not selectable. The browser previews `&` extensions and `/` additional stem
+codes as one condition, then calls the existing server selection check before
+adding one chip. The clinical editor's existing edit path invalidates current
+processor results, process proof, and final UCOD after a chip changes. The
+vendored WHO ECT remains available from the editor.
+
+The shared normalization and traversal service is
+`app/services/icd11_postcoordination.py`. Public routes are under
+`/api/v1/doris-demo/`; clinical routes with case authorization are under
+`/api/v1/doris-clinical/`. Both expose `postcoordination`,
+`postcoordination-options`, and `hierarchy`. WHO's exact multiple-value rule
+is preserved, including the restriction against two choices from the same
+block. A two-slot guidance limit and bounded call budget protect request
+capacity. When a root or child option list has more than 12 choices, the response
+marks it truncated and the guided picker disables selection; coders can
+search for a complete expression or use WHO ECT. No schema change or new
+stored data is involved.
+
 The authenticated `/api/v1/doris-clinical/process/<va_sid>` endpoint checks
 form access, role, active allocation, active submission payload and project
 mode. It validates the certificate and its selected ICD-11 code/URI pairs

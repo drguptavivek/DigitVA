@@ -29,6 +29,18 @@ by `9`. Every selected code/URI pair is checked against the pinned WHO
 release before processing. DORIS computes guidance; CoDEdit findings are
 advisory. Neither automatically sets the MO's final underlying COD.
 
+The certificate picker may start with an ICD-11 stem, show its location in
+the WHO hierarchy, and show matching terms, related maternal/perinatal
+categories, and extension axes and choices supplied by the pinned WHO release.
+Required postcoordination is identified before selection. A selected
+extension or additional stem produces one complete condition expression
+and WHO URI expression, using WHO's `&` or `/` separator as applicable;
+the UI must not split it into separate certificate conditions or lines.
+The same picker is available for coder, reviewer and synthetic Help entry.
+The completed expression goes through the existing server selection check
+before it is added. Changing a chosen extension has the same invalidation
+effect as any other certificate edit.
+
 Editing any certificate input clears the displayed processor results and
 the MO's final UCOD choice. Save remains disabled until the edited form is
 processed and the MO confirms a final UCOD again. A clinical Process response

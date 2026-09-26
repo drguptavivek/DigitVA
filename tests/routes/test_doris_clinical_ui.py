@@ -67,10 +67,19 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("data-doris-add-uncoded", partial)
         self.assertIn("data-doris-fetal", partial)
         self.assertIn("data-doris-maternal", partial)
+        self.assertIn("data-postcoordination-url", partial)
+        self.assertIn("data-postcoordination-options-url", partial)
+        self.assertIn("data-hierarchy-url", partial)
+        self.assertIn("data-doris-final-guided-panel", partial)
+        self.assertIn("doris_postcoordination.js", partial)
+        self.assertIn("css/doris_demo.css", partial)
         self.assertIn("X-CSRFToken", self._read("app/static/js/doris_clinical.js"))
         script = self._read("app/static/js/doris_clinical.js")
         self.assertIn("JSON.stringify(doris)", script)
         self.assertIn("JSON.stringify(codedit)", script)
+        self.assertIn("Build expression", script)
+        self.assertIn("See in hierarchy", script)
+        self.assertIn("selectionRevision !== state.revision", script)
 
 
 class DorisClinicalJavascriptContractTests(unittest.TestCase):
@@ -116,3 +125,37 @@ class DorisClinicalJavascriptContractTests(unittest.TestCase):
         ):
             source = (ROOT / path).read_text(encoding="utf-8")
             self.assertIn("swapped === root || swapped.contains(root)", source)
+
+
+class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(__file__).resolve().parents[2]
+        self.script = (root / "app/static/js/doris_postcoordination.js").read_text(
+            encoding="utf-8"
+        )
+
+    def test_guided_builder_keeps_who_axis_rules_and_lazy_children(self):
+        self.assertIn("axis.required", self.script)
+        self.assertIn("axis.allow_multiple", self.script)
+        self.assertIn("parent_uri: option.uri", self.script)
+        self.assertIn("Use complete expression", self.script)
+        self.assertIn("More choices", self.script)
+        self.assertIn("choose a coded child", self.script)
+        self.assertIn("state.truncated", self.script)
+
+    def test_same_block_policy_replaces_conflict_but_keeps_other_blocks(self):
+        self.assertIn("policy === 'AllowAlways'", self.script)
+        self.assertNotIn("policy === 'Allowed'", self.script)
+        self.assertIn("AllowedExceptFromSameBlock", self.script)
+        self.assertIn("block_uri: text(option && option.block_uri)", self.script)
+        self.assertIn("item.block_uri === option.block_uri", self.script)
+        self.assertIn("values.splice(sameBlock, 1, option)", self.script)
+        self.assertIn("values.push(option)", self.script)
+
+    def test_expression_and_hierarchy_contracts_are_explicit(self):
+        self.assertIn("/^X/i.test(item.code) ? '&' : '/'", self.script)
+        self.assertIn("uri += ' ' + separator + ' ' + item.uri", self.script)
+        self.assertIn("matching_terms", self.script)
+        self.assertIn("related_maternal", self.script)
+        self.assertIn("related_perinatal", self.script)
+        self.assertIn("openHierarchy", self.script)

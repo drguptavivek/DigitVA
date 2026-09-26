@@ -32,6 +32,11 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn('role="status" aria-live="polite"', body)
         self.assertIn("Add as uncoded text", body)
         self.assertIn("data-who-api-url", body)
+        self.assertIn("data-postcoordination-url", body)
+        self.assertIn("data-postcoordination-options-url", body)
+        self.assertIn("data-hierarchy-url", body)
+        self.assertIn("data-doris-guided-panel", body)
+        self.assertIn("doris_postcoordination.js", body)
         self.assertIn("WHO Coding Tool", body)
 
     def test_icd11_help_links_to_demo(self):
@@ -63,9 +68,24 @@ class DorisDemoStaticContractTests(BaseTestCase):
         self.assertIn("clearResults();", script)
         self.assertIn("if (revision !== expectedRevision", script)
 
+    def test_search_and_selection_ignore_stale_or_removed_line_responses(self):
+        script = self._script()
+
+        self.assertGreaterEqual(script.count("var sentRevision = revision"), 2)
+        self.assertIn("sentRevision !== revision || !line.isConnected", script)
+        self.assertIn("sentRevision === revision && line.isConnected", script)
+
     def test_rule_views_keep_raw_fallback_and_strict_mermaid(self):
         script = self._script()
 
         self.assertIn("securityLevel: 'strict'", script)
         self.assertIn("No parseable rule rows were returned", script)
         self.assertIn("doris-raw-tabular", script)
+
+    def test_search_results_offer_guided_expression_and_hierarchy(self):
+        script = self._script()
+
+        self.assertIn("Build expression", script)
+        self.assertIn("See in hierarchy", script)
+        self.assertIn("postcoordinationOptions", script)
+        self.assertIn("isCompleteExpression", script)

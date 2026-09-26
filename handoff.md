@@ -1,5 +1,33 @@
 # Handoff
 
+## Guided DORIS postcoordination (2026-09-26)
+
+`digitva-ddv.3` adds a reusable DigitVA picker to the synthetic Help and
+clinical coder/reviewer DORIS editors. Search results can open the WHO stem
+hierarchy or build one complete expression using the pinned release's ordered
+postcoordination axes. Required axes block selection until filled; uncoded
+folders expand to coded children. `&` extension and `/` additional-stem
+expressions pass through the existing server selection check and enter the
+certificate as one chip. A clinical certificate edit still clears the
+processor proof and final UCOD. The existing WHO ECT remains available.
+
+The public and clinical APIs now expose CSRF-protected `postcoordination`,
+`postcoordination-options`, and `hierarchy` POST routes. The shared service
+validates WHO URIs against the pinned release and bounds child traversal.
+No migration is needed. The final full Docker suite on `minerva_test_pii`
+passed: 2,257 tests and 321 subtests, with seven existing schema warnings.
+Ruff, JavaScript syntax checks and diff check passed.
+Browser smoke through the local ingress selected `1B12.2&XA0G74` and
+`GB61.Z/5A13` as single chips and processed both synthetic certificates;
+the first returned computed stem `1B12.2` and complete code
+`1B12.2&XA0G74` separately. Hierarchy navigation from the complete
+expression and back into the stem builder also worked.
+The guided picker marks an oversized choice set as truncated and disables
+selection; a complete WHO expression can still be selected directly. Guidance
+requests have a separate two-slot limit and bounded WHO-call budget.
+Production ingress, TLS cookie, image digest and log checks remain tracked
+in `digitva-ddv.2`.
+
 ## DORIS implementation (2026-09-26)
 
 `digitva-ddv.1` implements the approved public DORIS/CoDEdit Help proof and

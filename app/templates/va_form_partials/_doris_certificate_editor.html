@@ -1,4 +1,5 @@
 {# Reusable clinical DORIS editor. Required context is documented by its data attributes. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}">
 {% set _doris_id = doris_editor_id|default('doris-clinical-editor') %}
 <section id="{{ _doris_id }}" class="doris-clinical-editor card border-primary mb-4"
          data-doris-editor
@@ -8,6 +9,9 @@
          data-terms-url="{{ doris_terms_url|default('', true) }}"
          data-codeinfo-url="{{ doris_codeinfo_url|default('', true) }}"
          data-selection-url="{{ doris_selection_check_url|default('', true) }}"
+         data-postcoordination-url="{{ doris_postcoordination_url|default('/api/v1/doris-clinical/postcoordination/' ~ va_sid, true) }}"
+         data-postcoordination-options-url="{{ doris_postcoordination_options_url|default('/api/v1/doris-clinical/postcoordination-options/' ~ va_sid, true) }}"
+         data-hierarchy-url="{{ doris_hierarchy_url|default('/api/v1/doris-clinical/hierarchy/' ~ va_sid, true) }}"
          data-csrf="{{ csrf_token() }}"
          data-final-cod-input="{{ doris_final_cod_input }}">
   <div class="card-header bg-primary-subtle">
@@ -64,6 +68,7 @@
         <p class="small text-muted">This is your clinical decision. DORIS does not fill or lock it.</p>
         <div class="input-group"><input id="{{ _doris_id }}-final-search" class="form-control" maxlength="80" autocomplete="off" data-doris-final-search placeholder="Search ICD-11 by term or complete code"><button type="button" class="btn btn-outline-primary" data-doris-final-search-button>Search</button></div>
         <div class="list-group mt-1" data-doris-final-results></div>
+        <div data-doris-final-guided-panel></div>
         <p class="small mt-2 mb-0" data-doris-final-choice></p>
       </div>
     </div>
@@ -75,7 +80,7 @@
       <label class="form-label small">Interval from onset to death</label><input class="form-control form-control-sm mb-2" maxlength="24" placeholder="P3D, PT12H, or P" data-doris-interval>
       <div class="d-flex flex-wrap gap-2 mb-2" data-doris-chips aria-live="polite"></div>
       <div class="input-group"><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
-      <p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div>
+      <p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div><div data-doris-guided-panel></div>
     </div>
   </template>
 
@@ -85,4 +90,5 @@
   <input type="hidden" name="doris_process_token" data-doris-token>
   <input type="hidden" name="doris_result_digest" data-doris-digest>
 </section>
+<script src="{{ url_for('static', filename='js/doris_postcoordination.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 <script src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

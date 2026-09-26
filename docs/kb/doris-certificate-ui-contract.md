@@ -122,10 +122,11 @@ precomputed processor responses.
 
 | Event | Required behavior |
 | --- | --- |
-| Load example / start blank | Replace the current unsaved browser form; examples are synthetic and editable; no clinical persistence in Help |
+| Load example / start blank | Replace the current unsaved browser form; new blank editors show three Part I lines, while loaded certificates keep their stored line count; examples are synthetic and editable; no clinical persistence in Help |
 | Add/remove/reorder Part I line | Update ordered `Part1[]`; show the “due to” relationship between adjacent lines; do not infer extra causal edges among conditions on the same line |
 | Add/remove condition | Keep each selected complete expression as one removable item; allow several items in one line and in Part II |
-| Search by term or code | Show code, plain title, relevant match and any coding/postcoordination detail; do not render WHO-provided highlight HTML unsanitized; indicate incomplete/truncated results |
+| Enter interval | Show a value and time-unit selector after each line's code entry; convert single-unit answers to ISO 8601 for every condition on that line; preserve an existing ISO value until the coder edits it; omit unused blank lines from the request |
+| Search by term or code | Show compact rows with code and plain title, inline actions, relevant match and any coding/postcoordination detail; do not render WHO-provided highlight HTML unsanitized; indicate incomplete/truncated results |
 | Select code | A guided picker may assemble a stem and WHO-allowed extension choices; retain the complete expression and URI; call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
 | See in hierarchy | Show the selected stem within its WHO ancestor path, with bounded sibling and child navigation; keep the selected expression unchanged until the user explicitly confirms a code |
 | Edit any input | Increment `client_revision`; clear the displayed DORIS/CoDEdit results and, in clinical coding, clear the selected final UCOD and disable Save |

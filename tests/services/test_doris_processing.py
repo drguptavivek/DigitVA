@@ -258,6 +258,26 @@ class TestDorisProcessing(BaseTestCase):
 
         self.assertIn("same interval", caught.exception.fields[0].message)
 
+    def test_rejects_invalid_condition_interval_but_preserves_unknown(self):
+        certificate = _payload()["certificate"]
+        condition = certificate["Part1"][0]["Conditions"][0]
+        for interval in ("14 days", "P1.D", "P.5D", "P1Y2Q"):
+            with self.subTest(interval=interval):
+                condition["Interval"] = interval
+                with self.assertRaises(DorisCertificateError) as caught:
+                    normalize_certificate(certificate)
+                self.assertEqual(
+                    caught.exception.fields[0].path,
+                    "certificate.Part1[0].Conditions[0].Interval",
+                )
+        for interval in ("", "P", "PT", "P1Y2M", "PT0.5H"):
+            with self.subTest(interval=interval):
+                condition["Interval"] = interval
+                normalized = normalize_certificate(certificate)
+                self.assertEqual(
+                    normalized["Part1"][0]["Conditions"][0]["Interval"], interval
+                )
+
     @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
     def test_verifies_each_component_of_complete_expression(self, codeinfo):
         payload = _payload()

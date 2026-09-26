@@ -63,12 +63,12 @@ def _check_budget():
         )
 
 
-def _plain(value: object) -> str:
+def _plain(value: object, max_chars: int = 200) -> str:
     if isinstance(value, dict):
         value = value.get("@value") or value.get("label") or ""
     if not isinstance(value, str):
         return ""
-    return html.unescape(_TAG_RE.sub("", value)).strip()[:200]
+    return html.unescape(_TAG_RE.sub("", value)).strip()[:max_chars]
 
 
 def _resource(uri: str, *, foundation: bool = False) -> str:
@@ -119,13 +119,16 @@ def _stem(code: str) -> tuple[dict, dict]:
     return {"code": code, "title": _plain(entity.get("title")), "uri": uri}, entity
 
 
-def _option(uri: str, *, block_uri: str | None = None) -> dict:
+def _option(uri: str, *, block_uri: str | None = None,
+            skip_uncoded_leaf: bool = False) -> dict | None:
     entity = _entity(uri)
     children = entity.get("child") or []
     if not isinstance(children, list):
         children = []
     code = entity.get("code")
     title = _plain(entity.get("title"))
+    if code == "" and not children and title and skip_uncoded_leaf:
+        return None
     if not isinstance(code, str) or not title or (not code and not children):
         raise WhoIcdApiUnavailable("WHO option metadata was incomplete")
     option = {
@@ -172,10 +175,16 @@ def _axes(entity: dict) -> tuple[list[dict], bool]:
             raise WhoIcdApiUnavailable("WHO postcoordination axis was invalid")
         label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", axis_id).capitalize()
         options = [_option(uri, block_uri=uri) for uri in roots[:_MAX_OPTIONS]]
+        instruction = (
+            "code also" if axis_id == "hasCausingCondition" and required_value in (True, "true")
+            else "use additional code" if required_value in (True, "true")
+            else "use additional code, if desired"
+        )
         axes.append({
             "id": axis_id,
             "label": label,
             "required": required_value is True or required_value == "true",
+            "instruction": instruction,
             "allow_multiple": multiple_value != "NotAllowed",
             "allow_multiple_values": multiple_value,
             "options": options,
@@ -245,15 +254,18 @@ def postcoordination_options(stem_code: str, axis_id: str, parent_uri: str) -> d
     children = _entity(parent_uri).get("child") or []
     if not isinstance(children, list):
         raise WhoIcdApiUnavailable("WHO option children were malformed")
+    options = []
+    for uri in children[:_MAX_OPTIONS]:
+        option = _option(uri, block_uri=block_uri, skip_uncoded_leaf=True)
+        if option is not None:
+            options.append(option)
     return {
         "schema_version": 1,
         "release": DEFAULT_ICD11_RELEASE,
         "stem": stem,
         "axis_id": axis_id,
         "parent_uri": parent_uri,
-        "items": [
-            _option(uri, block_uri=block_uri) for uri in children[:_MAX_OPTIONS]
-        ],
+        "items": options,
         "truncated": len(children) > _MAX_OPTIONS,
     }
 
@@ -311,10 +323,14 @@ def hierarchy(code: str) -> dict:
         uris = entity.get(source_name) or []
         if not isinstance(uris, list):
             uris = []
-        related[output_name] = [
-            {"title": _plain(_entity(uri, foundation=True).get("title")), "uri": uri}
-            for uri in uris[:_MAX_OPTIONS]
-        ]
+        related[output_name] = []
+        for uri in uris[:_MAX_OPTIONS]:
+            related_entity = _entity(uri, foundation=True)
+            related[output_name].append({
+                "code": related_entity.get("code") or "",
+                "title": _plain(related_entity.get("title")),
+                "uri": uri,
+            })
     return {
         "schema_version": 1,
         "release": DEFAULT_ICD11_RELEASE,
@@ -340,7 +356,137 @@ def hierarchy(code: str) -> dict:
     }
 
 
+def related_terms(code: str, chapter: str) -> dict:
+    """Return coded MMS relatives for one WHO maternal or perinatal marker."""
+    source = {
+        "maternal": "relatedEntitiesInMaternalChapter",
+        "perinatal": "relatedEntitiesInPerinatalChapter",
+    }.get(chapter)
+    if source is None:
+        raise PostcoordinationError("INVALID_INPUT", "Choose a valid related chapter.")
+    selected, entity = _stem(_stem_code(code))
+    related_uris = entity.get(source) or []
+    if not isinstance(related_uris, list):
+        raise WhoIcdApiUnavailable("WHO related terms were malformed")
+    terms = []
+    truncated = len(related_uris) > _MAX_OPTIONS
+    for foundation_uri in related_uris[:_MAX_OPTIONS]:
+        entity_id = _resource(foundation_uri, foundation=True).rsplit("/", 1)[-1]
+        mms_uri = f"http://id.who.int/icd/release/11/{DEFAULT_ICD11_RELEASE}/mms/{entity_id}"
+        try:
+            related_entity = _entity(mms_uri)
+        except PostcoordinationError as exc:
+            if exc.code == "CODE_NOT_FOUND":
+                continue
+            raise
+        candidates = [related_entity]
+        children = related_entity.get("child") or []
+        if not isinstance(children, list):
+            raise WhoIcdApiUnavailable("WHO related children were malformed")
+        for child_uri in children[:_MAX_OPTIONS]:
+            candidates.append(_entity(child_uri))
+        truncated = truncated or len(children) > _MAX_OPTIONS
+        for candidate in candidates:
+            candidate_code = candidate.get("code")
+            candidate_title = _plain(candidate.get("title"))
+            if isinstance(candidate_code, str) and candidate_code and candidate_title:
+                scales = candidate.get("postcoordinationScale") or []
+                required = isinstance(scales, list) and any(
+                    isinstance(scale, dict)
+                    and scale.get("requiredPostcoordination") in (True, "true")
+                    for scale in scales
+                )
+                terms.append({
+                    "code": candidate_code,
+                    "title": candidate_title,
+                    "uri": candidate.get("@id") or "",
+                    "requires_postcoordination": required,
+                })
+                if len(terms) >= _MAX_OPTIONS:
+                    truncated = True
+                    break
+        if len(terms) >= _MAX_OPTIONS:
+            break
+    return {
+        "schema_version": 1,
+        "release": DEFAULT_ICD11_RELEASE,
+        "selected": selected,
+        "chapter": chapter,
+        "terms": terms,
+        "truncated": truncated,
+    }
+
+
+def _stem_code(code: str) -> str:
+    if isinstance(code, str) and ("&" in code or "/" in code):
+        if not _CODE_RE.fullmatch(code):
+            raise PostcoordinationError("INVALID_INPUT", "Select a valid ICD-11 expression.")
+        _check_budget()
+        info = get_icd11_codeinfo(code)
+        return info.get("stemCode") if isinstance(info, dict) else None
+    return code
+
+
+def code_details(code: str) -> dict:
+    """Bounded WHO code details for a selected search result."""
+    selected, entity = _stem(_stem_code(code))
+    raw_terms = entity.get("indexTerm") or []
+    raw_exclusions = entity.get("exclusion") or []
+    raw_inclusions = entity.get("inclusion") or []
+    if not all(isinstance(values, list) for values in (raw_terms, raw_exclusions, raw_inclusions)):
+        raise WhoIcdApiUnavailable("WHO code details were malformed")
+    exclusions = []
+    for exclusion in raw_exclusions[:_MAX_OPTIONS]:
+        if not isinstance(exclusion, dict):
+            continue
+        uri = exclusion.get("linearizationReference")
+        if not isinstance(uri, str):
+            continue
+        excluded = _entity(uri)
+        exclusions.append({
+            "code": excluded.get("code") or "",
+            "title": _plain(exclusion.get("label")) or _plain(excluded.get("title")),
+        })
+    return {
+        "schema_version": 1,
+        "release": DEFAULT_ICD11_RELEASE,
+        "selected": selected,
+        "definition": _plain(entity.get("definition"), 2000),
+        "coding_note": _plain(entity.get("codingNote"), 2000),
+        "fully_specified_name": _plain(entity.get("fullySpecifiedName")),
+        "inclusions": [
+            term for term in (_plain(item.get("label")) for item in raw_inclusions[:20]
+                              if isinstance(item, dict)) if term
+        ],
+        "matching_terms": [
+            term for term in (_plain(item.get("label")) for item in raw_terms[:20]
+                              if isinstance(item, dict)) if term
+        ],
+        "exclusions": exclusions,
+        "truncated": len(raw_terms) > 20 or len(raw_exclusions) > _MAX_OPTIONS or len(raw_inclusions) > 20,
+    }
+
+
 def postcoordination_availability(value: object) -> tuple[bool, int | None]:
     """Return WHO's search flag without guessing from isLeaf or code syntax."""
     flag = value if type(value) is int and value in {0, 1, 2} else None
     return bool(flag), flag
+
+
+def search_context_from_entity(entity: dict) -> dict:
+    """Derive search badges when a coder enters a code directly."""
+    scales = entity.get("postcoordinationScale") or []
+    if not isinstance(scales, list):
+        raise WhoIcdApiUnavailable("WHO postcoordination scale was malformed")
+    required = any(
+        isinstance(scale, dict)
+        and scale.get("requiredPostcoordination") in (True, "true")
+        for scale in scales
+    )
+    return {
+        "postcoordination": bool(scales),
+        "postcoordination_availability": 2 if required else 1 if scales else 0,
+        "related_maternal": bool(entity.get("relatedEntitiesInMaternalChapter")),
+        "related_perinatal": bool(entity.get("relatedEntitiesInPerinatalChapter")),
+        "has_coding_note": bool(entity.get("codingNote")),
+    }

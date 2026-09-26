@@ -22,8 +22,9 @@ from app.services.icd11_postcoordination import (
     PostcoordinationError,
     guidance_request,
     postcoordination_availability,
-    postcoordination_capability,
+    search_context_from_entity,
 )
+from app.services.icd11_postcoordination import code_details as get_code_details
 from app.services.icd11_postcoordination import (
     hierarchy as get_hierarchy,
 )
@@ -33,6 +34,7 @@ from app.services.icd11_postcoordination import (
 from app.services.icd11_postcoordination import (
     postcoordination_options as get_postcoordination_options,
 )
+from app.services.icd11_postcoordination import related_terms as get_related_terms
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
@@ -175,27 +177,25 @@ def _codeinfo_item(code: str) -> dict | None:
         return None
     title = _plain_text(info.get("title") or info.get("label"))
     stem_uri = info.get("stemId")
-    entity = None
-    if not title and isinstance(stem_uri, str) and stem_uri.startswith("http://id.who.int/"):
-        entity = proxy_who_icd_request(stem_uri.removeprefix("http://id.who.int/")).json()
-        if isinstance(entity, dict):
-            title = _plain_text(entity.get("title") or entity.get("label"))
+    if not isinstance(stem_uri, str) or not stem_uri.startswith("http://id.who.int/"):
+        return None
+    entity = proxy_who_icd_request(stem_uri.removeprefix("http://id.who.int/")).json()
+    if not isinstance(entity, dict):
+        return None
+    if not title:
+        title = _plain_text(entity.get("title") or entity.get("label"))
     if not title:
         return None
-    postcoordination = False
-    if "&" not in code and "/" not in code:
-        postcoordination = (
-            bool(entity.get("postcoordinationScale"))
-            if isinstance(entity, dict)
-            else postcoordination_capability(code, info)
-        )
-    return {
+    item = {
         "code": code,
         "title": title,
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
-        "postcoordination": postcoordination,
+        "postcoordination": False,
     }
+    if "&" not in code and "/" not in code:
+        item.update(search_context_from_entity(entity))
+    return item
 
 
 @bp.post("/terms/<va_sid>")
@@ -264,6 +264,9 @@ def clinical_terms(va_sid: str):
                 ),
                 "postcoordination": available,
                 "postcoordination_availability": raw_availability,
+                "related_maternal": entity.get("hasMaternalChapterLink") is True,
+                "related_perinatal": entity.get("hasPerinatalChapterLink") is True,
+                "has_coding_note": entity.get("hasCodingNote") is True,
             }
         )
         if len(items) == limit:
@@ -378,6 +381,26 @@ def clinical_hierarchy(va_sid: str):
     return _guidance_request(
         va_sid,
         lambda body: get_hierarchy(body["code"]),
+        {"schema_version", "code"},
+    )
+
+
+@bp.post("/related/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def clinical_related_terms(va_sid: str):
+    return _guidance_request(
+        va_sid,
+        lambda body: get_related_terms(body["code"], body["chapter"]),
+        {"schema_version", "code", "chapter"},
+    )
+
+
+@bp.post("/details/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def clinical_code_details(va_sid: str):
+    return _guidance_request(
+        va_sid,
+        lambda body: get_code_details(body["code"]),
         {"schema_version", "code"},
     )
 

@@ -20,8 +20,9 @@ from app.services.icd11_postcoordination import (
     PostcoordinationError,
     guidance_request,
     postcoordination_availability,
-    postcoordination_capability,
+    search_context_from_entity,
 )
+from app.services.icd11_postcoordination import code_details as get_code_details
 from app.services.icd11_postcoordination import (
     hierarchy as get_hierarchy,
 )
@@ -31,6 +32,7 @@ from app.services.icd11_postcoordination import (
 from app.services.icd11_postcoordination import (
     postcoordination_options as get_postcoordination_options,
 )
+from app.services.icd11_postcoordination import related_terms as get_related_terms
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
     WhoIcdApiUnavailable,
@@ -95,11 +97,6 @@ def _codeinfo_item(code: str) -> dict | None:
     if not isinstance(info, dict):
         return None
     item = _item_from_codeinfo(info)
-    if item is not None:
-        item["uri"] = expected_expression_uri(code) or item["uri"]
-        if "&" not in code and "/" not in code:
-            item["postcoordination"] = postcoordination_capability(code, info)
-        return item
     uri = info.get("stemId")
     if not isinstance(uri, str) or not uri.startswith("http://id.who.int/"):
         return None
@@ -108,13 +105,14 @@ def _codeinfo_item(code: str) -> dict | None:
     entity = upstream.json()
     if not isinstance(entity, dict):
         return None
-    enriched = dict(info)
-    enriched["title"] = entity.get("title")
-    item = _item_from_codeinfo(enriched)
+    if item is None:
+        enriched = dict(info)
+        enriched["title"] = entity.get("title")
+        item = _item_from_codeinfo(enriched)
     if item is not None:
         item["uri"] = expected_expression_uri(code) or item["uri"]
         if "&" not in code and "/" not in code:
-            item["postcoordination"] = bool(entity.get("postcoordinationScale"))
+            item.update(search_context_from_entity(entity))
     return item
 
 
@@ -217,6 +215,9 @@ def terms():
                 "matching_text": matching_text or title,
                 "postcoordination": available,
                 "postcoordination_availability": raw_availability,
+                "related_maternal": entity.get("hasMaternalChapterLink") is True,
+                "related_perinatal": entity.get("hasPerinatalChapterLink") is True,
+                "has_coding_note": entity.get("hasCodingNote") is True,
             }
         )
         if len(items) == limit:
@@ -315,6 +316,23 @@ def postcoordination_options():
 def hierarchy():
     return _guidance_request(
         lambda body: get_hierarchy(body["code"]), {"schema_version", "code"}
+    )
+
+
+@bp.post("/api/v1/doris-demo/related")
+@limiter.limit("120 per minute")
+def related_terms():
+    return _guidance_request(
+        lambda body: get_related_terms(body["code"], body["chapter"]),
+        {"schema_version", "code", "chapter"},
+    )
+
+
+@bp.post("/api/v1/doris-demo/details")
+@limiter.limit("120 per minute")
+def code_details():
+    return _guidance_request(
+        lambda body: get_code_details(body["code"]), {"schema_version", "code"}
     )
 
 

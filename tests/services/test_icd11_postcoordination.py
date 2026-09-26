@@ -72,6 +72,7 @@ def test_postcoordination_preserves_who_axis_order_and_required_flags(who):
         "id": "specificAnatomy",
         "label": "Specific anatomy",
         "required": True,
+        "instruction": "use additional code",
         "allow_multiple": True,
         "allow_multiple_values": "AllowedExceptFromSameBlock",
         "options": [{

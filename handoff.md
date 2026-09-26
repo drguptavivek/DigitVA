@@ -1,5 +1,58 @@
 # Handoff
 
+## DORIS picker UI follow-up (2026-09-26)
+
+The Help and clinical condition pickers now use a compact full-screen modal
+with `Reset`, explicit `Details`, clickable `+ Build`/`J`/`K`/coding-note
+controls, and a selected code/title footer with `OK`. Direct code lookup
+loads WHO metadata, so `BD54` exposes its mandatory postcoordination,
+maternal relation and coding note. The builder shows required axes first on
+screen, preserves WHO axis order in the completed expression, and labels
+optional axes with WHO-style “use additional code, if desired” wording.
+Uncoded terminal WHO choices are skipped; expandable uncoded folders remain
+available. Browser verification selected `BD54/5A14`, confirmed the full
+expression in the footer, and added it to Line A. Reset then cleared a new
+search without deleting that saved line. JavaScript syntax, Ruff and diff
+checks passed. The focused Docker DORIS suite passed with 83 tests and 35
+subtests. No new test cases were written in this UI pass; two existing
+static assertions were updated for code moved into the shared picker module.
+Final review also led to fail-closed handling of malformed clinical initial
+certificate JSON and cleanup of stale final-UCOD related panels on an edit.
+
+Feedback for the next session: compare the remaining modal density and
+typography against the official DORIS view, especially long details and
+postcoordination panels. Review WHO's “Other postcoordination” grouping and
+axis-specific instructions for injury objects, specific anatomy,
+histopathology and manifestations. The WHO screen shown for `2A01.0Y`
+allows expansion of uncoded histopathology categories but alerts if an
+uncoded category itself is selected; our picker should keep that distinction
+clear. Confirm whether maternal/perinatal panels should prioritize the exact
+WHO composite relation (for example `JA63.Z/5A14`) rather than the broader
+related category and child list. Recheck the clinical editor visually after
+these changes. Keep the user's preference for UI work before additional test
+writing.
+
+## DORIS editor interval and density update (2026-09-26)
+
+`digitva-ddv.4` gives new blank Help and clinical certificates three Part I
+lines. Each line asks for interval value and unit after code entry and sends
+the corresponding ISO 8601 duration with its conditions. Existing composite
+or unknown durations remain lossless until edited. Unused blank lines are
+omitted; a blank line between filled lines is blocked. Interval edits clear
+the clinical DORIS/CoDEdit results and final UCOD. Search results now put the
+code, title, context and actions into compact rows, with responsive wrapping.
+No schema or endpoint shape changed.
+Server certificate normalization now rejects malformed nonempty interval
+durations while accepting blank and WHO unknown markers. A malformed or
+incomplete processor response is shown as an error, and blank-line guidance
+names the actual gap. The focused Docker DORIS suite passed with 72 tests and
+35 subtests; Ruff, JavaScript syntax and diff checks passed. Browser smoke
+confirmed Example 6 retains both ICD expressions and its 14-day interval,
+the new interval sits directly below the selected codes, and processing a
+synthetic certificate completes. The repository-wide suite was stopped at
+28% without observed failures because this change is limited to the DORIS UI
+and interval validation.
+
 ## Guided DORIS postcoordination (2026-09-26)
 
 `digitva-ddv.3` adds a reusable DigitVA picker to the synthetic Help and

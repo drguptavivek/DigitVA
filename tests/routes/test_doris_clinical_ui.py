@@ -77,9 +77,15 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         script = self._read("app/static/js/doris_clinical.js")
         self.assertIn("JSON.stringify(doris)", script)
         self.assertIn("JSON.stringify(codedit)", script)
-        self.assertIn("Build expression", script)
-        self.assertIn("See in hierarchy", script)
+        picker = self._read("app/static/js/doris_search_modal.js")
+        guided = self._read("app/static/js/doris_postcoordination.js")
+        self.assertIn("+ Build", picker)
+        self.assertIn("See in hierarchy", guided)
         self.assertIn("selectionRevision !== state.revision", script)
+        self.assertIn("data-doris-interval-value", partial)
+        self.assertIn("data-doris-interval-unit", partial)
+        self.assertIn("doris_interval.js", partial)
+        self.assertIn("doris-search-result-main", script)
 
 
 class DorisClinicalJavascriptContractTests(unittest.TestCase):
@@ -101,6 +107,19 @@ class DorisClinicalJavascriptContractTests(unittest.TestCase):
         self.assertIn("client_revision: state.revision", self.script)
         self.assertIn("role: editor.dataset.role", self.script)
         self.assertIn("if (sent !== state.revision) return", self.script)
+
+    def test_blank_clinical_editor_has_three_lines_and_filters_empty_rows(self):
+        self.assertIn("[{Conditions: []}, {Conditions: []}, {Conditions: []}]", self.script)
+        self.assertIn("state.lines.filter(function (line) { return line.conditions.length; })", self.script)
+        self.assertIn("blank lines cannot separate causes", self.script)
+
+    def test_interval_changes_validate_and_retain_loaded_raw_values(self):
+        self.assertIn("intervalControl.mount", self.script)
+        self.assertIn("intervalError()", self.script)
+        interval = (ROOT / "app/static/js/doris_interval.js").read_text(encoding="utf-8")
+        self.assertIn("dirty: false", interval)
+        self.assertIn("if (!state.dirty) return {value: state.raw, error: ''};", interval)
+        self.assertIn("selected === 'MI' ? 'M'", interval)
 
     def test_changed_certificate_installs_fresh_results_but_reconfirms(self):
         self.assertIn("DORIS_CERTIFICATE_CHANGED", self.script)

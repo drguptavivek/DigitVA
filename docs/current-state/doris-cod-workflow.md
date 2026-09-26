@@ -35,6 +35,17 @@ draft or assessment row.
 
 ## Process and final save
 
+New blank Help and clinical certificates show three Part I lines. Loaded
+certificates retain their stored line count. Each line has a numeric interval
+and unit selector after its code entry; single-unit values are serialized as
+ISO 8601 durations on every condition in the line. Loaded composite or unknown
+durations remain unchanged until the coder edits the interval. Empty trailing
+lines are omitted from processing, and a blank line between filled lines is
+blocked. Search results display code, title, context and actions in compact
+rows. An interval edit clears the clinical processor results and final UCOD.
+The server validates nonempty interval durations before WHO processing and
+final save; empty and WHO unknown markers remain accepted.
+
 The public Help certificate and the clinical coder/reviewer certificate now
 share a small JavaScript postcoordination picker. Search results with WHO
 postcoordination availability offer a stem builder, while complete expressions
@@ -48,6 +59,17 @@ adding one chip. The clinical editor's existing edit path invalidates current
 processor results, process proof, and final UCOD after a chip changes. The
 vendored WHO ECT remains available from the editor.
 
+The condition search now opens in a large modal. The code row, `+ Build`,
+maternal `J`, perinatal `K`, coding-note marker and Details action have distinct
+click targets. Selecting a code stages its code and title in a footer; `OK`
+checks it against WHO before adding the chip. A code with required
+postcoordination opens its details and choices immediately. Required choices
+appear first on screen, while the underlying WHO axis order is retained when
+assembling the expression. Details include available matching terms,
+definition, fully specified name, inclusions, exclusions and coding notes.
+Reset clears the modal query, results and staged choice without removing
+certificate codes already added to the line.
+
 The shared normalization and traversal service is
 `app/services/icd11_postcoordination.py`. Public routes are under
 `/api/v1/doris-demo/`; clinical routes with case authorization are under
@@ -56,8 +78,9 @@ The shared normalization and traversal service is
 is preserved, including the restriction against two choices from the same
 block. A two-slot guidance limit and bounded call budget protect request
 capacity. When a root or child option list has more than 12 choices, the response
-marks it truncated and the guided picker disables selection; coders can
-search for a complete expression or use WHO ECT. No schema change or new
+marks it truncated; coders can expand visible WHO folders and select a complete
+expression once required axes are satisfied, or search for a complete
+expression. No schema change or new
 stored data is involved.
 
 The authenticated `/api/v1/doris-clinical/process/<va_sid>` endpoint checks

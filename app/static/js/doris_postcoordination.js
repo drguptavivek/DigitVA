@@ -24,6 +24,7 @@
     var currentRevision = null;
     var restoreTrigger = null;
     var state = null;
+    var preserveInputFocus = false;
 
     function stale(id) {
       if (id !== requestId) return true;
@@ -35,17 +36,21 @@
       state = null;
       panel.hidden = true;
       panel.replaceChildren();
-      if (restoreTrigger && typeof restoreTrigger.focus === 'function') restoreTrigger.focus();
+      if (!preserveInputFocus && restoreTrigger && typeof restoreTrigger.focus === 'function') restoreTrigger.focus();
       restoreTrigger = null;
+      preserveInputFocus = false;
     }
     function header(title, description) {
       panel.replaceChildren();
       var row = document.createElement('div');
       row.className = 'd-flex justify-content-between align-items-start gap-2';
       var heading = document.createElement('div');
-      var h = document.createElement('h4');
-      h.className = 'h6 mb-1'; h.tabIndex = -1; h.textContent = title;
-      heading.appendChild(h);
+      var h = null;
+      if (title) {
+        h = document.createElement('h4');
+        h.className = 'h6 mb-1'; h.tabIndex = -1; h.textContent = title;
+        heading.appendChild(h);
+      }
       if (description) {
         var p = document.createElement('p');
         p.className = 'small text-muted mb-0'; p.textContent = description;
@@ -56,7 +61,7 @@
       row.append(heading, closeButton);
       panel.appendChild(row);
       panel.hidden = false;
-      h.focus();
+      if (!preserveInputFocus) { if (h) h.focus(); else closeButton.focus(); }
     }
     function error(message) {
       var p = document.createElement('p');
@@ -153,13 +158,14 @@
         var expansionKey = axis.id + '|' + option.uri;
         if (state.expanded[expansionKey]) {
           var loadedChildren = document.createElement('div');
-          loadedChildren.className = 'ms-3 mt-1';
+          loadedChildren.className = 'doris-axis-children ms-3 mt-1';
           appendOptionList(axis, state.expanded[expansionKey], loadedChildren);
           row.appendChild(loadedChildren);
         } else if (option.has_children && option.uri) {
           var expand = button('More choices', 'btn btn-sm btn-link');
           expand.addEventListener('click', function () {
             expand.disabled = true;
+            expand.textContent = 'Loading…';
             var id = requestId;
             config.request(safeUrl(config.endpoints.options), {
               schema_version: 1, stem_code: state.stem.code,
@@ -167,10 +173,12 @@
             }).then(function (data) {
               if (stale(id)) return;
               state.expanded[expansionKey] = list(data.items || data.options);
-              if (data.truncated) markTruncated('WHO returned more choices than this editor can display. Use a complete WHO expression or refine the code.');
+              if (data.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
+              var previousScroll = panel.scrollTop;
               renderPostcoordination();
+              panel.scrollTop = previousScroll;
             }).catch(function (err) {
-              if (!stale(id)) { expand.disabled = false; error(err.message || 'More choices are unavailable.'); }
+              if (!stale(id)) { expand.disabled = false; expand.textContent = 'More choices'; error(err.message || 'More choices are unavailable.'); }
             });
           });
           row.appendChild(expand);
@@ -185,17 +193,16 @@
       warning.className = 'alert alert-warning py-2 mt-2 mb-0';
       warning.setAttribute('role', 'alert'); warning.setAttribute('data-doris-truncated', ''); warning.textContent = message;
       panel.appendChild(warning);
-      panel.querySelectorAll('[data-doris-use-expression]').forEach(function (node) { node.disabled = true; });
     }
     function renderPostcoordination(focusOption) {
       if (!state) return;
       panel.replaceChildren();
-      header('Build complete ICD-11 expression', 'Choose WHO-allowed extensions. Required axes must be completed before selection.');
+      header('', '');
       var stem = document.createElement('p');
       stem.className = 'small mb-2';
       stem.textContent = 'Stem: ' + state.stem.code + ' — ' + state.stem.title;
       panel.appendChild(stem);
-      state.axes.forEach(function (axis) {
+      state.axes.slice().sort(function (a, b) { return Number(b.required) - Number(a.required); }).forEach(function (axis) {
         var section = document.createElement('section');
         section.className = 'doris-axis border-top pt-2 mt-2';
         var heading = document.createElement('h5');
@@ -203,16 +210,16 @@
         var multipleLabel = axis.allow_multiple_values === 'AllowedExceptFromSameBlock'
           ? ' — choose across different blocks'
           : ((axis.allow_multiple_values === 'AllowAlways' || (!axis.allow_multiple_values && axis.allow_multiple)) ? ' — choose one or more' : ' — choose one');
-        heading.textContent = axis.label + (axis.required ? ' (required)' : ' (optional)') + multipleLabel;
+        heading.textContent = axis.label + ' (' + (axis.instruction || (axis.required ? 'required' : 'optional')) + ')' + multipleLabel;
         section.appendChild(heading);
         var options = document.createElement('div');
         options.setAttribute('data-doris-axis-options', axis.id);
         appendOptionList(axis, axis.options, options);
         section.appendChild(options);
-        if (axis.truncated) markTruncated('WHO returned more choices than this editor can display. Use a complete WHO expression or refine the code.');
+        if (axis.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
         panel.appendChild(section);
       });
-      if (state.truncated) markTruncated('WHO returned more choices than this editor can display. Use a complete WHO expression or refine the code.');
+      if (state.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
       var preview = complete();
       var previewLabel = document.createElement('p');
       previewLabel.className = 'small mt-3 mb-1'; previewLabel.textContent = 'Complete code preview';
@@ -223,9 +230,9 @@
       actions.className = 'd-flex flex-wrap gap-2 mt-2';
       var use = button('Use complete expression', 'btn btn-sm btn-primary');
       use.setAttribute('data-doris-use-expression', '');
-      use.disabled = !requiredSatisfied() || state.truncated;
+      use.disabled = !requiredSatisfied();
       use.addEventListener('click', function () {
-        if (!requiredSatisfied() || state.truncated) return;
+        if (!requiredSatisfied()) return;
         config.onSelect(preview);
         close();
       });
@@ -233,8 +240,7 @@
       if (!state.axes.some(function (axis) { return axis.required; })) {
         var stemButton = button('Use stem without extensions', 'btn btn-sm btn-outline-primary');
         stemButton.setAttribute('data-doris-use-expression', '');
-        stemButton.disabled = state.truncated;
-        stemButton.addEventListener('click', function () { if (state.truncated) return; config.onSelect(state.stem); close(); });
+        stemButton.addEventListener('click', function () { config.onSelect(state.stem); close(); });
         actions.appendChild(stemButton);
       }
       panel.appendChild(actions);
@@ -309,19 +315,20 @@
         renderHierarchy(data);
       }).catch(function (err) { if (!stale(id)) error(err.message || 'The hierarchy is unavailable.'); });
     }
-    function open(item, trigger) {
+    function open(item, trigger, preserveFocus) {
       var id = ++requestId;
       currentRevision = typeof config.revision === 'function' ? config.revision() : null;
       restoreTrigger = trigger || null;
+      preserveInputFocus = Boolean(preserveFocus);
       if (item && item.mode === 'hierarchy') { openHierarchy(item.item, trigger); return; }
       state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false};
-      header('Build complete ICD-11 expression', 'Loading WHO postcoordination axes…');
+      header('', '');
       config.request(safeUrl(config.endpoints.postcoordination), {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
         state.stem = Object.assign(state.stem, data.stem || {});
         state.truncated = Boolean(data.truncated);
         state.axes = list(data.axes).map(function (axis) {
-          return {id: text(axis.id || axis.name), label: text(axis.label || axis.name), required: Boolean(axis.required), allow_multiple: Boolean(axis.allow_multiple), allow_multiple_values: text(axis.allow_multiple_values), options: list(axis.options), truncated: Boolean(axis.truncated)};
+          return {id: text(axis.id || axis.name), label: text(axis.label || axis.name), instruction: text(axis.instruction), required: Boolean(axis.required), allow_multiple: Boolean(axis.allow_multiple), allow_multiple_values: text(axis.allow_multiple_values), options: list(axis.options), truncated: Boolean(axis.truncated)};
         });
         renderPostcoordination();
       }).catch(function (err) { if (!stale(id)) error(err.message || 'Postcoordination choices are unavailable.'); });

@@ -107,6 +107,8 @@ def _validate_condition(condition: object, path: str) -> dict:
             raise _error(f"{path}.{key}", "Must be text.")
         if isinstance(value, str):
             result[key] = value.strip()
+    if result.get("Interval"):
+        result["Interval"] = _duration(result["Interval"], f"{path}.Interval")
     return result
 
 

@@ -5,10 +5,12 @@
   var MAX_LINES = 5;
   var mounted = new WeakSet();
   var postcoordination = window.DigitvaDorisPostcoordination;
+  var intervalControl = window.DigitvaDorisInterval;
+  var searchModal = window.DigitvaDorisSearchModal;
   function text(value) { return typeof value === 'string' ? value.trim() : ''; }
   function post(editor, url, body) {
     return fetch(url, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-CSRFToken': editor.dataset.csrf}, body: JSON.stringify(body)})
-      .then(function (response) { return response.json().catch(function () { return {}; }).then(function (data) { return {ok: response.ok, status: response.status, data: data}; }); });
+      .then(function (response) { return response.json().catch(function () { throw new Error('The server returned an invalid response.'); }).then(function (data) { if (!data || typeof data !== 'object') throw new Error('The server returned an invalid response.'); return {ok: response.ok, status: response.status, data: data}; }); });
   }
   function query(editor, selector) { return editor.querySelector(selector); }
   function hidden(editor, selector, value) { var node = query(editor, selector); if (node) node.value = value || ''; }
@@ -22,14 +24,26 @@
     var searchRequest = 0;
     var finalPostcoordination = null;
     editor._dorisState = state;
-    var initial = {};
-    try { initial = JSON.parse(query(editor, '[data-doris-initial]').textContent || '{}'); } catch (_error) {}
+    var initial;
+    try {
+      initial = JSON.parse(query(editor, '[data-doris-initial]').textContent);
+      if (!initial || typeof initial !== 'object' || Array.isArray(initial)) throw new Error('Invalid certificate');
+    } catch (_error) {
+      query(editor, '[data-doris-status]').textContent = 'The certificate could not be loaded. Refresh the page before coding.';
+      query(editor, '[data-doris-process]').disabled = true;
+      var initialForm = document.getElementById(editor.dataset.formId);
+      var initialSave = initialForm && initialForm.querySelector('[type="submit"]');
+      if (initialSave) initialSave.disabled = true;
+      return;
+    }
 
     function status(message) { query(editor, '[data-doris-status]').textContent = message || ''; }
     function clearFinal() {
       var input = finalInput(editor); if (input) input.value = '';
       query(editor, '[data-doris-final-choice]').textContent = '';
       query(editor, '[data-doris-final-results]').replaceChildren();
+      editor.querySelectorAll('[data-doris-related-window]').forEach(function (windowNode) { windowNode.remove(); });
+      if (finalPostcoordination) finalPostcoordination.close();
     }
     function invalidate(message) {
       state.revision += 1; state.processing = null;
@@ -45,8 +59,9 @@
       var item = document.createElement('span'); item.className = 'badge text-bg-light border text-wrap';
       var label = document.createElement('span'); label.textContent = (condition.Code ? condition.Code + ' — ' : 'Uncoded — ') + condition.Text;
       var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-sm p-0 ms-2'; remove.textContent = '×'; remove.setAttribute('aria-label', 'Remove ' + label.textContent);
-      remove.addEventListener('click', function () { line.conditions.splice(line.conditions.indexOf(condition), 1); item.remove(); invalidate('Certificate changed. Process it again.'); });
+      remove.addEventListener('click', function () { line.conditions.splice(line.conditions.indexOf(condition), 1); item.remove(); line.element.querySelector('[data-doris-interval-control]').hidden = !line.conditions.length; invalidate('Certificate changed. Process it again.'); });
       item.append(label, remove); line.element.querySelector('[data-doris-chips]').appendChild(item);
+      line.element.querySelector('[data-doris-interval-control]').hidden = false;
     }
     function lookup(url, body) {
       return post(editor, url, body).then(function (result) { if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Lookup failed.'); return result.data; });
@@ -69,9 +84,20 @@
           if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
         } else {
           var condition = {Text: item.selected_text || item.matching_text || verified.title || item.title, Code: verified.code, LinearizationURI: verified.uri};
-          line.conditions.push(condition); chip(line, condition); input.value = ''; resultList.replaceChildren(); input.focus(); invalidate('Certificate changed. Process it again.');
+          line.conditions.push(condition); chip(line, condition); input.value = ''; resultList.replaceChildren(); input.focus(); invalidate('Certificate changed. Process it again.'); if (searchModal) searchModal.close();
         }
       }).catch(function (error) { if (trigger) trigger.disabled = false; message.textContent = error.message || 'Could not verify this code.'; });
+    }
+    function stageSelection(line, item) {
+      var element = line.element;
+      var resultList = element.querySelector('[data-doris-search-results]');
+      var message = element.querySelector('[data-doris-search-status]');
+      var input = element.querySelector('[data-doris-search]');
+      if (!searchModal || !searchModal.stage(element, item, function (button) { verifySelection(line, item, false, resultList, message, input, button); })) {
+        verifySelection(line, item, false, resultList, message, input, null);
+      } else {
+        searchModal.showDetails(element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
+      }
     }
     function search(line, finalMode) {
       var input = finalMode ? query(editor, '[data-doris-final-search]') : line.element.querySelector('[data-doris-search]');
@@ -87,28 +113,57 @@
         ? lookup(editor.dataset.codeinfoUrl, {schema_version: 1, code: value}).then(function (data) { return data.item ? [data.item] : []; })
         : lookup(editor.dataset.termsUrl, {schema_version: 1, query: value, limit: 20, cursor: null}).then(function (data) { return data.items || []; });
       promise.then(function (items) {
-        if (currentRequest !== searchRequest || sentRevision !== state.revision) return;
+        if (currentRequest !== searchRequest || sentRevision !== state.revision || value !== text(input.value)) return;
         message.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
+        var mandatory = [];
         items.forEach(function (item) {
-          var row = document.createElement('div'); row.className = 'list-group-item';
-          var title = document.createElement('span'); title.className = 'd-block fw-semibold'; title.textContent = (item.code || '') + ' — ' + (item.title || ''); row.appendChild(title);
-          if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'd-block doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; row.appendChild(match); }
-          if (item.postcoordination) { var badge = document.createElement('span'); badge.className = 'badge text-bg-light'; badge.textContent = 'Postcoordination available'; row.appendChild(badge); }
-          var actions = document.createElement('div'); actions.className = 'd-flex flex-wrap gap-2 mt-2';
-          var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
-          var choose = document.createElement('button'); choose.type = 'button'; choose.className = 'btn btn-sm btn-outline-primary'; choose.textContent = item.postcoordination && !complete ? 'Build expression' : 'Use this code';
-          choose.addEventListener('click', function () {
-            if (item.postcoordination && !complete && (finalMode ? finalPostcoordination : line.postcoord)) {
+          var row = document.createElement('div'); row.className = 'list-group-item doris-search-result';
+          var main = document.createElement('div'); main.className = 'doris-search-result-main';
+          var header = document.createElement('div'); header.className = 'doris-search-result-header';
+          var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button fw-semibold'; title.textContent = (item.code || '') + ' — ' + (item.title || '');
+          title.addEventListener('click', function () {
+            if (item.postcoordination_availability === 2 && !postcoordination.isCompleteExpression(item.code)) {
+              if (!finalMode) searchModal.showDetails(line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
               var controller = finalMode ? finalPostcoordination : line.postcoord;
-              if (controller) controller.open(item, choose);
-            } else verifySelection(line, item, finalMode, resultList, message, input, choose);
-          }); actions.appendChild(choose);
-          if (postcoordination && item.code) {
-            var hierarchy = document.createElement('button'); hierarchy.type = 'button'; hierarchy.className = 'btn btn-sm btn-outline-secondary'; hierarchy.textContent = 'See in hierarchy';
-            hierarchy.addEventListener('click', function () { var controller = finalMode ? finalPostcoordination : line.postcoord; if (controller) controller.openHierarchy(item, hierarchy); }); actions.appendChild(hierarchy);
+              if (controller) controller.open(item, title);
+            } else if (finalMode) verifySelection(line, item, true, resultList, message, input, title);
+            else stageSelection(line, item);
+          });
+          header.appendChild(title);
+          var meta = document.createElement('div'); meta.className = 'doris-search-meta';
+          if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; meta.appendChild(match); }
+          var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
+          var buildIcon = searchModal && searchModal.addContextIcons(meta, item, function (chapter, selected) {
+            searchModal.openRelated(finalMode ? editor : line.element, chapter, selected, function () { return lookup(editor.dataset.relatedUrl, {schema_version: 1, code: selected.code, chapter: chapter}); }, function (term) {
+              if (term.requires_postcoordination || !term.uri || finalMode) { input.value = term.code; search(line, finalMode); }
+              else stageSelection(line, term);
+            });
+          }, item.postcoordination && !complete ? function (button) {
+            if (!finalMode) searchModal.showDetails(line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
+            var controller = finalMode ? finalPostcoordination : line.postcoord; if (controller) controller.open(item, button);
+          } : null, function () { searchModal.showDetails(finalMode ? query(editor, '[data-doris-final-panel]') : line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); }); });
+          var actions = document.createElement('div'); actions.className = 'doris-search-actions';
+          if (complete || item.postcoordination_availability !== 2) {
+            var use = document.createElement('button'); use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
+            use.title = 'Select this code';
+            use.addEventListener('click', function () { if (finalMode) verifySelection(line, item, true, resultList, message, input, use); else stageSelection(line, item); });
+            actions.appendChild(use);
           }
-          row.appendChild(actions); resultList.appendChild(row);
+          var details = document.createElement('button'); details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
+          details.addEventListener('click', function () {
+            if (searchModal) searchModal.showDetails(finalMode ? query(editor, '[data-doris-final-panel]') : line.element, item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: item.code}); });
+          });
+          actions.appendChild(details);
+          if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
+          var controls = document.createElement('div'); controls.className = 'doris-search-controls'; controls.append(meta, actions);
+          header.appendChild(controls); main.appendChild(header); row.appendChild(main); resultList.appendChild(row);
         });
+        var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
+        var controller = finalMode ? finalPostcoordination : line.postcoord;
+        if (automatic && controller) {
+          if (!finalMode && searchModal) searchModal.showDetails(line.element, automatic.item, function () { return lookup(editor.dataset.detailsUrl, {schema_version: 1, code: automatic.item.code}); });
+          controller.open(automatic.item, automatic.trigger, true);
+        }
       }).catch(function (error) { if (currentRequest === searchRequest && sentRevision === state.revision) message.textContent = error.message; });
     }
     function makeLine(source, isPart2) {
@@ -121,33 +176,49 @@
         endpoints: {postcoordination: editor.dataset.postcoordinationUrl, options: editor.dataset.postcoordinationOptionsUrl, hierarchy: editor.dataset.hierarchyUrl},
         request: function (url, body) { return lookup(url, body); },
         revision: function () { return state.revision; },
-        onSelect: function (item) { verifySelection(line, item, false, element.querySelector('[data-doris-search-results]'), element.querySelector('[data-doris-search-status]'), element.querySelector('[data-doris-search]'), null); }
+        onSelect: function (item) { stageSelection(line, item); }
       }) : null;
-      element.querySelector('[data-doris-interval]').value = conditions[0] ? conditions[0].Interval || '' : '';
+      line.interval = intervalControl ? intervalControl.mount(element.querySelector('[data-doris-interval-control]'), conditions[0] ? conditions[0].Interval || '' : '') : null;
       conditions.forEach(function (condition) { chip(line, condition); });
-      element.querySelector('[data-doris-interval]').addEventListener('input', function () { invalidate(); });
-      element.querySelector('[data-doris-search-button]').addEventListener('click', function () { search(line, false); });
-      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var input = element.querySelector('[data-doris-search]'); var value = text(input.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); input.value=''; element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); });
-      element.querySelector('[data-doris-search]').addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(line, false); } });
+      if (line.interval && line.interval.value) line.interval.value.addEventListener('input', function () { invalidate(); });
+      if (line.interval && line.interval.unit) line.interval.unit.addEventListener('change', function () { invalidate(); });
+      var searchInput = element.querySelector('[data-doris-search]');
+      var searchTimer = null;
+      function openSearch() {
+        if (searchModal) searchModal.open(element, searchInput, function () {
+          clearTimeout(searchTimer); searchRequest += 1;
+          element.querySelector('[data-doris-search-results]').replaceChildren();
+          if (line.postcoord) line.postcoord.close();
+        }, function () {
+          clearTimeout(searchTimer); searchRequest += 1;
+          element.querySelector('[data-doris-search-results]').replaceChildren();
+          element.querySelector('[data-doris-search-status]').textContent = '';
+          if (line.postcoord) line.postcoord.close();
+        });
+      }
+      element.querySelector('[data-doris-search-button]').addEventListener('click', function () { openSearch(); search(line, false); });
+      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var value = text(searchInput.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); searchInput.value=''; element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); if (searchModal) searchModal.close(); });
+      searchInput.addEventListener('input', function () { openSearch(); if (searchModal) { searchModal.clearSelection(element); searchModal.clearDetails(element); } clearTimeout(searchTimer); if (text(searchInput.value).length >= 2) searchTimer = setTimeout(function () { search(line, false); }, 250); else { searchRequest += 1; element.querySelector('[data-doris-search-results]').replaceChildren(); if (line.postcoord) line.postcoord.close(); } });
+      searchInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); openSearch(); search(line, false); } });
       if (isPart2) { element.querySelector('[data-doris-line-title]').textContent = 'Contributing conditions'; element.querySelector('[data-doris-up]').remove(); element.querySelector('[data-doris-down]').remove(); element.querySelector('[data-doris-remove]').remove(); }
       else {
         element.querySelector('[data-doris-up]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index > 0) { state.lines.splice(index, 1); state.lines.splice(index - 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
         element.querySelector('[data-doris-down]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index < state.lines.length - 1) { state.lines.splice(index, 1); state.lines.splice(index + 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
-        element.querySelector('[data-doris-remove]').addEventListener('click', function () { if (state.lines.length === 1) return; state.lines.splice(state.lines.indexOf(line), 1); renderOrder(); invalidate('Line removed. Process again.'); });
+        element.querySelector('[data-doris-remove]').addEventListener('click', function () { if (state.lines.length === 1) return; if (searchModal) searchModal.close(); state.lines.splice(state.lines.indexOf(line), 1); renderOrder(); invalidate('Line removed. Process again.'); });
       }
       return line;
     }
     function renderOrder() {
       var container = query(editor, '[data-doris-part1]'); container.replaceChildren();
-      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; container.appendChild(line.element); });
+      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index) + (index === 0 ? ' — IMMEDIATE CAUSE' : ''); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; container.appendChild(line.element); });
       query(editor, '[data-doris-add-line]').disabled = state.lines.length >= MAX_LINES;
     }
     function serializeLine(line) {
-      var interval = text(line.element.querySelector('[data-doris-interval]').value);
+      var interval = line.interval ? line.interval.read().value : '';
       return {Conditions: line.conditions.map(function (condition) { var item={Text:condition.Text,Interval:interval}; if(condition.Code)item.Code=condition.Code;if(condition.LinearizationURI)item.LinearizationURI=condition.LinearizationURI;return item; })};
     }
     function certificate() {
-      var result = {ICDVersion: 'ICD11', ICDMinorVersion: '2026-01', Part1: state.lines.map(serializeLine)};
+      var result = {ICDVersion: 'ICD11', ICDMinorVersion: '2026-01', Part1: state.lines.filter(function (line) { return line.conditions.length; }).map(serializeLine)};
       var sex = query(editor, '[data-doris-sex]').value; var age = text(query(editor, '[data-doris-age]').value);
       if (sex || age) { result.AdministrativeData = {}; if (sex) result.AdministrativeData.Sex = Number(sex); if (age) result.AdministrativeData.EstimatedAge = age; }
       var other = serializeLine(state.part2); if (other.Conditions.length) result.Part2 = other;
@@ -158,6 +229,23 @@
       }
       if (sex === '2') { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant!==9){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
       return result;
+    }
+    function part1Gap() {
+      var firstBlank = -1;
+      for (var index = 0; index < state.lines.length; index += 1) {
+        if (!state.lines[index].conditions.length && firstBlank === -1) firstBlank = index;
+        else if (state.lines[index].conditions.length && firstBlank !== -1) return firstBlank;
+      }
+      return -1;
+    }
+    function intervalError() {
+      var lines = state.lines.concat(state.part2 ? [state.part2] : []);
+      for (var index = 0; index < lines.length; index += 1) {
+        if (!lines[index].conditions.length || !lines[index].interval) continue;
+        var result = lines[index].interval.validate();
+        if (result.error) return {line: lines[index], message: result.error};
+      }
+      return null;
     }
     function renderProcessing(processing, requireReconfirm) {
       state.processing = processing;
@@ -175,11 +263,23 @@
       clearFinal(); status(requireReconfirm ? 'The certificate changed during submission. Fresh results are shown; review them and reconfirm your final UCOD.' : 'Processing complete. Review the results and confirm your final UCOD.');
     }
     function process() {
+      var gap = part1Gap();
+      if (gap !== -1) { status('Fill or remove Part I line ' + String.fromCharCode(65 + gap) + ' before processing; blank lines cannot separate causes.'); return; }
+      var invalidInterval = intervalError();
+      if (invalidInterval) { invalidInterval.line.interval.value.focus(); status(invalidInterval.message); return; }
       var payload = {schema_version: 1, client_revision: state.revision, role: editor.dataset.role, certificate: certificate()}; var sent = state.revision;
       var button = query(editor, '[data-doris-process]'); button.disabled = true; status('Processing with DORIS and CoDEdit…');
-      post(editor, editor.dataset.processUrl, payload).then(function (result) { if (sent !== state.revision) return; if (!result.ok) throw new Error((result.data.error && result.data.error.message) || 'Processing failed.'); renderProcessing(result.data, false); }).catch(function (error) { status(error.message); }).finally(function () { button.disabled = false; });
+      post(editor, editor.dataset.processUrl, payload).then(function (result) {
+        if (sent !== state.revision) return;
+        if (!result.ok) throw new Error((result.data.error && result.data.error.message) || 'Processing failed.');
+        if (!result.data || !result.data.certificate || !result.data.doris || !result.data.codedit || !result.data.process_token || !result.data.result_digest) {
+          throw new Error('The server returned an incomplete processing response.');
+        }
+        renderProcessing(result.data, false);
+      }).catch(function (error) { status(error.message); }).finally(function () { button.disabled = false; });
     }
-    state.lines = (Array.isArray(initial.Part1) && initial.Part1.length ? initial.Part1 : [{Conditions: []}]).slice(0, MAX_LINES).map(function (line) { return makeLine(line, false); });
+    var initialPart1 = Array.isArray(initial.Part1) && initial.Part1.length ? initial.Part1 : [{Conditions: []}, {Conditions: []}, {Conditions: []}];
+    state.lines = initialPart1.slice(0, MAX_LINES).map(function (line) { return makeLine(line, false); });
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
     var finalGuidedHost = query(editor, '[data-doris-final-guided-panel]');
     finalPostcoordination = postcoordination && finalGuidedHost ? postcoordination.mount({

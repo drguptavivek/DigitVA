@@ -24,6 +24,16 @@ The underlying COD alone controls final authority and VA bucket reporting.
 
 The MO enters an ordered Part I/II certificate. One interval applies to each
 line and is copied onto every condition on that line in the WHO request.
+New blank editors show three Part I lines. Unused blank lines are omitted
+from the processed certificate; filled lines retain their visible order.
+A blank line between filled lines must be filled or removed before processing.
+After a line's condition codes, the editor asks for the interval from onset
+to death as a value and time unit. It serializes the answer as the WHO
+certificate's ISO 8601 `Interval`, while existing saved durations remain
+lossless on load and resubmission. Changing either interval control
+invalidates current processor results and the final UCOD.
+The server rejects nonempty intervals that are not valid ISO 8601 durations;
+an empty interval and WHO unknown-duration markers remain valid.
 Unknown fetal or infant measurements are omitted, rather than represented
 by `9`. Every selected code/URI pair is checked against the pinned WHO
 release before processing. DORIS computes guidance; CoDEdit findings are

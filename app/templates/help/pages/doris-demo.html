@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v=3">
 
 <div id="doris-demo-app"
      data-config-url="/api/v1/doris-demo/config"
@@ -9,6 +9,8 @@
      data-postcoordination-url="/api/v1/doris-demo/postcoordination"
      data-postcoordination-options-url="/api/v1/doris-demo/postcoordination-options"
      data-hierarchy-url="/api/v1/doris-demo/hierarchy"
+     data-related-url="/api/v1/doris-demo/related"
+     data-details-url="/api/v1/doris-demo/details"
      data-process-url="/api/v1/doris-demo/process"
      data-who-api-url="/api/v1/doris-demo/who-api/"
      data-csrf="{{ csrf_token() }}">
@@ -65,7 +67,7 @@
     <section class="card mb-3" aria-labelledby="doris-part1-heading">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center gap-2">
-          <div><h2 class="h5 mb-1" id="doris-part1-heading">Part I</h2><p class="small text-muted mb-0">Put the immediate cause first. Each lower line means “due to”.</p></div>
+          <h2 class="h5 mb-0" id="doris-part1-heading">Part I</h2>
           <button id="doris-add-line" class="btn btn-sm btn-outline-primary" type="button">Add line</button>
         </div>
         <div id="doris-part1-lines" class="mt-3"></div>
@@ -137,15 +139,23 @@
   <template id="doris-line-template">
     <div class="doris-line card card-body mb-2" data-line>
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h3 class="h6 mb-0" data-line-title></h3><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-move-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-move-down aria-label="Move line down">↓</button><button type="button" class="btn btn-outline-danger" data-remove-line>Remove line</button></div></div>
-      <label class="form-label" data-interval-label>Interval from onset to death</label><input class="form-control form-control-sm mb-2" data-interval maxlength="24" placeholder="P3D, PT12H, or P">
       <div data-chips class="doris-chips mb-2" aria-live="polite"></div>
-      <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-open-ect>WHO Coding Tool</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
-      <p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div><div data-doris-guided-panel></div>
+      <div class="doris-interval" data-interval-control hidden>
+        <label class="form-label small mb-0" data-interval-label>Onset to death</label>
+        <input class="form-control form-control-sm" data-interval-value inputmode="decimal" maxlength="24" placeholder="Interval" aria-label="Interval value">
+        <select class="form-select form-select-sm" data-interval-unit aria-label="Interval time unit"></select>
+        <p class="small text-muted mb-0 mt-1" data-interval-raw hidden></p>
+        <p class="small text-danger mb-0 mt-1" data-interval-error role="alert"></p>
+      </div>
+      <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
+      <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>
     </div>
   </template>
 </div>
 
 <script src="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/doris_postcoordination.js') }}"></script>
-<script src="{{ url_for('static', filename='js/doris_demo.js') }}"></script>
+<script src="{{ url_for('static', filename='js/doris_postcoordination.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/doris_interval.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='js/doris_search_modal.js') }}?v=3"></script>
+<script src="{{ url_for('static', filename='js/doris_demo.js') }}?v=3"></script>

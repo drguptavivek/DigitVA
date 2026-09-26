@@ -37,6 +37,9 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn("data-hierarchy-url", body)
         self.assertIn("data-doris-guided-panel", body)
         self.assertIn("doris_postcoordination.js", body)
+        self.assertIn("data-interval-value", body)
+        self.assertIn("data-interval-unit", body)
+        self.assertIn("doris_interval.js", body)
         self.assertIn("WHO Coding Tool", body)
 
     def test_icd11_help_links_to_demo(self):
@@ -84,8 +87,28 @@ class DorisDemoStaticContractTests(BaseTestCase):
 
     def test_search_results_offer_guided_expression_and_hierarchy(self):
         script = self._script()
+        picker = (Path(__file__).resolve().parents[2] / "app/static/js/doris_search_modal.js").read_text(encoding="utf-8")
+        guided = (Path(__file__).resolve().parents[2] / "app/static/js/doris_postcoordination.js").read_text(encoding="utf-8")
 
-        self.assertIn("Build expression", script)
-        self.assertIn("See in hierarchy", script)
+        self.assertIn("+ Build", picker)
+        self.assertIn("See in hierarchy", guided)
         self.assertIn("postcoordinationOptions", script)
         self.assertIn("isCompleteExpression", script)
+
+    def test_blank_certificate_has_three_lines_and_omits_empty_rows(self):
+        script = self._script()
+
+        self.assertIn("{Conditions: []}, {Conditions: []}, {Conditions: []}", script)
+        self.assertIn("filter(function (line) { return line._conditions.length; })", script)
+        self.assertIn("blank lines cannot separate causes", script)
+
+    def test_interval_controls_are_lossless_and_validate_before_processing(self):
+        script = self._script()
+
+        self.assertIn("intervalControl.mount", script)
+        self.assertIn("intervalError()", script)
+        self.assertIn("invalidInterval.message", script)
+        interval = (Path(__file__).resolve().parents[2] / "app/static/js/doris_interval.js").read_text(encoding="utf-8")
+        self.assertIn("representable: false", interval)
+        self.assertIn("selected === 'MI' ? 'M'", interval)
+        self.assertIn("value === 'P' || value === 'PT'", interval)

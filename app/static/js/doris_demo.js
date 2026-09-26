@@ -19,6 +19,8 @@
   var status = document.getElementById('doris-app-status');
   var processButton = document.getElementById('doris-process');
   var postcoordination = window.DigitvaDorisPostcoordination;
+  var intervalControl = window.DigitvaDorisInterval;
+  var searchModal = window.DigitvaDorisSearchModal;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
   function post(url, body) {
@@ -27,7 +29,8 @@
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': app.dataset.csrf},
       body: JSON.stringify(body)
     }).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (data) {
+      return response.json().catch(function () { throw new Error('The server returned an invalid response.'); }).then(function (data) {
+        if (!data || typeof data !== 'object') throw new Error('The server returned an invalid response.');
         if (!response.ok) {
           var error = new Error((data.error && data.error.message) || 'Request failed (' + response.status + ')');
           error.response = data;
@@ -79,10 +82,20 @@
       var index = line._conditions.indexOf(condition);
       if (index !== -1) line._conditions.splice(index, 1);
       chip.remove();
+      line.querySelector('[data-interval-control]').hidden = !line._conditions.length;
       changed('Condition removed. Process the certificate again to see current results.');
     });
     chip.append(label, remove);
     line.querySelector('[data-chips]').appendChild(chip);
+    line.querySelector('[data-interval-control]').hidden = false;
+  }
+
+  function stageSelection(line, item) {
+    if (!searchModal || !searchModal.stage(line, item, function (button) { verifyAndSelect(line, item, button); })) {
+      verifyAndSelect(line, item, null);
+    } else {
+      searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
+    }
   }
 
   function showSearchResults(line, items, truncated) {
@@ -94,48 +107,69 @@
       return;
     }
     searchStatus.textContent = truncated ? 'Showing the first results; refine the search for more.' : items.length + ' result' + (items.length === 1 ? '' : 's') + '.';
+    var mandatory = [];
     items.slice(0, MAX_RESULTS).forEach(function (item) {
       var row = document.createElement('div');
-      row.className = 'list-group-item';
-      var heading = document.createElement('span');
-      heading.className = 'd-block fw-semibold';
+      row.className = 'list-group-item doris-search-result';
+      var main = document.createElement('div');
+      main.className = 'doris-search-result-main';
+      var header = document.createElement('div');
+      header.className = 'doris-search-result-header';
+      var heading = document.createElement('button');
+      heading.type = 'button'; heading.className = 'doris-search-title doris-search-title-button fw-semibold';
       heading.textContent = (item.code || 'No code') + ' — ' + (item.title || 'Untitled');
-      row.appendChild(heading);
+      heading.addEventListener('click', function () {
+        if (item.postcoordination_availability === 2 && !postcoordination.isCompleteExpression(item.code)) {
+          searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
+          if (line._postcoord) line._postcoord.open(item, heading);
+        } else stageSelection(line, item);
+      });
+      header.appendChild(heading);
+      var meta = document.createElement('div');
+      meta.className = 'doris-search-meta';
       if (item.matching_text && item.matching_text !== item.title) {
         var match = document.createElement('span');
-        match.className = 'd-block doris-search-match';
+        match.className = 'doris-search-match';
         match.textContent = 'Matched: ' + item.matching_text;
-        row.appendChild(match);
+        meta.appendChild(match);
       }
-      if (item.postcoordination) {
-        var detail = document.createElement('span');
-        detail.className = 'badge text-bg-light';
-        detail.textContent = 'Postcoordination available';
-        row.appendChild(detail);
-      }
-      var actions = document.createElement('div');
-      actions.className = 'd-flex flex-wrap gap-2 mt-2';
       var complete = postcoordination && postcoordination.isCompleteExpression(item.code);
-      var choose = document.createElement('button');
-      choose.type = 'button'; choose.className = 'btn btn-sm btn-outline-primary';
-      choose.textContent = item.postcoordination && !complete ? 'Build expression' : 'Use this code';
-      choose.addEventListener('click', function () {
-        if (item.postcoordination && !complete && line._postcoord) line._postcoord.open(item, choose);
-        else verifyAndSelect(line, item, choose);
-      });
-      actions.appendChild(choose);
-      if (postcoordination && item.code) {
-        var hierarchy = document.createElement('button');
-        hierarchy.type = 'button'; hierarchy.className = 'btn btn-sm btn-outline-secondary';
-        hierarchy.textContent = 'See in hierarchy';
-        hierarchy.addEventListener('click', function () {
-          if (line._postcoord) line._postcoord.openHierarchy(item, hierarchy);
+      var buildIcon = searchModal && searchModal.addContextIcons(meta, item, function (chapter, selected) {
+        searchModal.openRelated(line, chapter, selected, function () { return post(endpoint('related'), {schema_version: 1, code: selected.code, chapter: chapter}); }, function (term) {
+          if (term.requires_postcoordination || !term.uri) {
+            line.querySelector('[data-search]').value = term.code;
+            searchLine(line);
+          } else stageSelection(line, term);
         });
-        actions.appendChild(hierarchy);
+      }, item.postcoordination && !complete ? function (button) {
+        searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); });
+        if (line._postcoord) line._postcoord.open(item, button);
+      } : null, function () { searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); }); });
+      var actions = document.createElement('div');
+      actions.className = 'doris-search-actions';
+      if (complete || item.postcoordination_availability !== 2) {
+        var use = document.createElement('button');
+        use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
+        use.title = 'Select this code for the certificate line';
+        use.addEventListener('click', function () { stageSelection(line, item); });
+        actions.appendChild(use);
       }
-      row.appendChild(actions);
+      var details = document.createElement('button');
+      details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
+      details.addEventListener('click', function () { if (searchModal) searchModal.showDetails(line, item, function () { return post(endpoint('details'), {schema_version: 1, code: item.code}); }); });
+      actions.appendChild(details);
+      if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
+      var controls = document.createElement('div'); controls.className = 'doris-search-controls';
+      controls.append(meta, actions); header.appendChild(controls);
+      main.appendChild(header);
+      row.appendChild(main);
       container.appendChild(row);
     });
+    var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
+    if (automatic && line._postcoord) {
+      if (searchModal) searchModal.showDetails(line, automatic.item, function () { return post(endpoint('details'), {schema_version: 1, code: automatic.item.code}); });
+      line._postcoord.open(automatic.item, automatic.trigger, true);
+    }
   }
 
   function verifyAndSelect(line, item, button) {
@@ -156,6 +190,7 @@
       line.querySelector('[data-search]').focus();
       searchStatus.textContent = condition.Code + ' verified and added.';
       changed();
+      if (searchModal) searchModal.close();
     }).catch(function (error) {
       if (sentRevision !== revision || !line.isConnected) return;
       if (button) button.disabled = false;
@@ -181,7 +216,7 @@
       : post(endpoint('terms'), {schema_version: 1, query: query, limit: MAX_RESULTS, cursor: null});
     lookup
       .then(function (data) {
-        if (current !== requestNumber || sentRevision !== revision || !line.isConnected) return;
+        if (current !== requestNumber || sentRevision !== revision || !line.isConnected || query !== cleanText(line.querySelector('[data-search]').value)) return;
         showSearchResults(line, Array.isArray(data.items) ? data.items : [], Boolean(data.truncated));
       }).catch(function (error) {
         if (current === requestNumber && sentRevision === revision && line.isConnected) searchStatus.textContent = error.message || 'Search is unavailable.';
@@ -190,7 +225,7 @@
 
   function refreshLineLabels() {
     Array.from(part1.children).forEach(function (line, index) {
-      line.querySelector('[data-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index);
+      line.querySelector('[data-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index) + (index === 0 ? ' — IMMEDIATE CAUSE' : '');
       line.querySelector('[data-move-up]').disabled = index === 0;
       line.querySelector('[data-move-down]').disabled = index === part1.children.length - 1;
       line.querySelector('[data-remove-line]').disabled = part1.children.length === 1;
@@ -212,10 +247,10 @@
       },
       request: post,
       revision: function () { return revision; },
-      onSelect: function (item) { verifyAndSelect(line, item, null); }
+      onSelect: function (item) { stageSelection(line, item); }
     }) : null;
     var conditions = (source && Array.isArray(source.Conditions)) ? source.Conditions : [];
-    line.querySelector('[data-interval]').value = conditions.length ? (conditions[0].Interval || '') : '';
+    line._interval = intervalControl ? intervalControl.mount(line.querySelector('[data-interval-control]'), conditions.length ? (conditions[0].Interval || '') : '') : null;
     conditions.forEach(function (raw) {
       var condition = {
         Text: raw.Text || '', Code: raw.Code || '', LinearizationURI: raw.LinearizationURI || '',
@@ -224,9 +259,23 @@
       line._conditions.push(condition);
       addChip(line, condition);
     });
-    line.querySelector('[data-interval]').addEventListener('input', function () { changed(); });
-    line.querySelector('[data-search-button]').addEventListener('click', function () { searchLine(line); });
-    line.querySelector('[data-open-ect]').addEventListener('click', function () { openEct(line); });
+    if (line._interval && line._interval.value) line._interval.value.addEventListener('input', function () { changed(); });
+    if (line._interval && line._interval.unit) line._interval.unit.addEventListener('change', function () { changed(); });
+    var searchInput = line.querySelector('[data-search]');
+    var searchTimer = null;
+    function openSearch() {
+      if (searchModal) searchModal.open(line, searchInput, function () {
+        clearTimeout(searchTimer); requestNumber += 1;
+        line.querySelector('[data-search-results]').replaceChildren();
+        if (line._postcoord) line._postcoord.close();
+      }, function () {
+        clearTimeout(searchTimer); requestNumber += 1;
+        line.querySelector('[data-search-results]').replaceChildren();
+        line.querySelector('[data-search-status]').textContent = '';
+        if (line._postcoord) line._postcoord.close();
+      });
+    }
+    line.querySelector('[data-search-button]').addEventListener('click', function () { openSearch(); searchLine(line); });
     line.querySelector('[data-add-uncoded]').addEventListener('click', function () {
       var text = cleanText(line.querySelector('[data-search]').value);
       if (!text) { line.querySelector('[data-search-status]').textContent = 'Enter the condition text first.'; return; }
@@ -237,11 +286,19 @@
       line.querySelector('[data-search-status]').textContent = 'Uncoded text added. DORIS may reject an uncoded condition.';
       changed();
     });
-    line.querySelector('[data-search]').addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') { event.preventDefault(); searchLine(line); }
+    searchInput.addEventListener('input', function () {
+      if (searchModal) searchModal.clearSelection(line);
+      if (searchModal) searchModal.clearDetails(line);
+      openSearch(); clearTimeout(searchTimer);
+      if (cleanText(searchInput.value).length >= 2) searchTimer = setTimeout(function () { searchLine(line); }, 250);
+      else { requestNumber += 1; line.querySelector('[data-search-results]').replaceChildren(); if (line._postcoord) line._postcoord.close(); }
+    });
+    searchInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); openSearch(); searchLine(line); }
     });
     line.querySelector('[data-remove-line]').addEventListener('click', function () {
       if (part1.children.length <= 1) return;
+      if (searchModal) searchModal.close();
       line.remove(); refreshLineLabels(); changed('Line removed.');
     });
     line.querySelector('[data-move-up]').addEventListener('click', function () {
@@ -277,7 +334,7 @@
 
   function renderLines(certificate) {
     part1.replaceChildren();
-    var sourceLines = Array.isArray(certificate.Part1) && certificate.Part1.length ? certificate.Part1.slice(0, MAX_LINES) : [{Conditions: []}];
+    var sourceLines = Array.isArray(certificate.Part1) && certificate.Part1.length ? certificate.Part1.slice(0, MAX_LINES) : [{Conditions: []}, {Conditions: []}, {Conditions: []}];
     sourceLines.forEach(function (source) { part1.appendChild(makeLine('part1', source)); });
     part2.replaceChildren();
     var p2 = makeLine('part2', certificate.Part2 || {Conditions: []});
@@ -320,7 +377,7 @@
   }
 
   function serializeLine(line) {
-    var interval = cleanText(line.querySelector('[data-interval]').value);
+    var interval = line._interval ? line._interval.read().value : '';
     return {Conditions: line._conditions.map(function (condition) {
       var result = {Text: condition.Text, Interval: interval};
       if (condition.Code) result.Code = condition.Code;
@@ -337,7 +394,7 @@
     if (sex !== null) admin.Sex = sex;
     if (age) admin.EstimatedAge = age;
     if (Object.keys(admin).length) certificate.AdministrativeData = admin;
-    certificate.Part1 = Array.from(part1.children).map(serializeLine);
+    certificate.Part1 = Array.from(part1.children).filter(function (line) { return line._conditions.length; }).map(serializeLine);
     var p2 = serializeLine(part2.firstElementChild);
     if (p2.Conditions.length) certificate.Part2 = p2;
     if (document.getElementById('doris-life-stage').value === 'fetal-infant') {
@@ -362,6 +419,26 @@
       }
     }
     return certificate;
+  }
+
+  function hasPart1Gap() {
+    var firstBlank = -1;
+    var lines = Array.from(part1.children);
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lines[index]._conditions.length && firstBlank === -1) firstBlank = index;
+      else if (lines[index]._conditions.length && firstBlank !== -1) return firstBlank;
+    }
+    return -1;
+  }
+
+  function intervalError() {
+    var lines = Array.from(part1.children).concat(part2.firstElementChild ? [part2.firstElementChild] : []);
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lines[index]._conditions.length || !lines[index]._interval) continue;
+      var result = lines[index]._interval.validate();
+      if (result.error) return {line: lines[index], message: result.error};
+    }
+    return null;
   }
 
   function textValue(value) {
@@ -438,6 +515,9 @@
   }
 
   function renderResults(data, expectedRevision) {
+    if (!data || !data.doris || !data.codedit) {
+      throw new Error('The server returned an incomplete processing response.');
+    }
     if (revision !== expectedRevision || data.client_revision !== expectedRevision) {
       announce('A newer edit replaced this response. Process the current certificate again.'); return;
     }
@@ -461,6 +541,17 @@
   }
 
   function processCertificate() {
+    var gap = hasPart1Gap();
+    if (gap !== -1) {
+      announce('Fill or remove Part I line ' + String.fromCharCode(65 + gap) + ' before processing; blank lines cannot separate causes.');
+      return;
+    }
+    var invalidInterval = intervalError();
+    if (invalidInterval) {
+      invalidInterval.line._interval.value.focus();
+      announce(invalidInterval.message);
+      return;
+    }
     var certificate = serializeCertificate();
     if (!certificate.Part1.some(function (line) { return line.Conditions.length; })) {
       announce('Add at least one verified condition to Part I before processing.'); return;

@@ -106,6 +106,14 @@ def create_reviewer_final_assessment(
     remark: str | None = None,
     supersedes_coder_final_assessment: VaFinalAssessments | None = None,
     source_reviewer_initial_assessment: VaReviewerInitialAssessments | None = None,
+    immediate_cod: str | None = None,
+    immediate_icd11_provenance: dict | None = None,
+    other_conditions: str | None = None,
+    doris_certificate: dict | None = None,
+    doris_result: dict | None = None,
+    codedit_result: dict | None = None,
+    cod_entry_mode_snapshot: dict | None = None,
+    icd11_provenance: dict | None = None,
 ) -> VaReviewerFinalAssessments:
     """Create a reviewer-owned final COD row for a submission."""
     if supersedes_coder_final_assessment is not None:
@@ -132,9 +140,20 @@ def create_reviewer_final_assessment(
         payload_version_id=active_payload_version_id,
         va_rfinassess_by=reviewer_user_id,
         va_conclusive_cod=conclusive_cod,
-        icd11_provenance=build_icd11_provenance_for_values(
-            va_sid, {"conclusive": conclusive_cod}
+        icd11_provenance=(
+            icd11_provenance
+            if icd11_provenance is not None
+            else build_icd11_provenance_for_values(
+                va_sid, {"conclusive": conclusive_cod}
+            )
         ),
+        va_immediate_cod=immediate_cod,
+        immediate_icd11_provenance=immediate_icd11_provenance,
+        va_other_conditions=other_conditions,
+        doris_certificate=doris_certificate,
+        doris_result=doris_result,
+        codedit_result=codedit_result,
+        cod_entry_mode_snapshot=cod_entry_mode_snapshot,
         va_rfinassess_remark=remark,
         supersedes_coder_final_assessment_id=(
             supersedes_coder_final_assessment.va_finassess_id

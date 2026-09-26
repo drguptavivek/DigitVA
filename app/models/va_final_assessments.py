@@ -10,6 +10,17 @@ from app.models.va_selectives import VaStatuses
 
 class VaFinalAssessments(db.Model):
     __tablename__ = "va_final_assessments"
+    __table_args__ = (
+        sa.Index(
+            "uq_va_final_assessments_active_sid_payload",
+            "va_sid",
+            "payload_version_id",
+            unique=True,
+            postgresql_where=sa.text(
+                "va_finassess_status = 'active' AND payload_version_id IS NOT NULL"
+            ),
+        ),
+    )
 
     va_finassess_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
@@ -44,6 +55,19 @@ class VaFinalAssessments(db.Model):
     )
     va_conclusive_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
     icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    va_immediate_cod: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    immediate_icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    va_other_conditions: so.Mapped[str | None] = so.mapped_column(
+        sa.Text, nullable=True
+    )
+    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    cod_entry_mode_snapshot: so.Mapped[dict | None] = so.mapped_column(
         JSONB, nullable=True
     )
     va_finassess_remark: so.Mapped[Optional[str]] = so.mapped_column(

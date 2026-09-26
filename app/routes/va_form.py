@@ -1,8 +1,9 @@
+import copy
+import json
 import logging
 import re
 import uuid
 
-log = logging.getLogger(__name__)
 import sqlalchemy as sa
 from flask import (
     Blueprint,
@@ -55,6 +56,17 @@ from app.services.category_rendering_service import (
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.demo_project_service import get_demo_expiry_for_submission
+from app.services.doris_certificate import DorisCertificateError
+from app.services.doris_process_proof import (
+    ProcessProofCertificateChanged,
+    ProcessProofContextMismatch,
+    ProcessProofExpired,
+    ProcessProofInvalid,
+    ProcessProofResultMismatch,
+    generate_process_proof,
+    verify_process_submission,
+)
+from app.services.doris_processing import process_certificate
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
     complete_recode_episode,
@@ -83,6 +95,7 @@ from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
+from app.services.who_icd_api import DEFAULT_ICD11_RELEASE, WhoIcdApiUnavailable
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
@@ -110,6 +123,7 @@ from app.utils import (
 )
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
 
+log = logging.getLogger(__name__)
 va_form = Blueprint("va_form", __name__)
 
 _SECTION_CACHE_TIMEOUT = 1800  # 30 minutes
@@ -154,6 +168,40 @@ def _invalidate_section_data_cache(va_sid: str) -> None:
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     """Return the demo artifact expiry timestamp for demo coding saves."""
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
+
+
+def _project_mode(project) -> str:
+    if project is None or project.masked_cod_required:
+        return "masked_simple"
+    if project.cod_entry_mode == "doris":
+        return "unmasked_doris"
+    return "unmasked_simple"
+
+
+def _cod_entry_mode_snapshot(project, who_image_digest: str) -> dict:
+    return {
+        "masked_cod_required": project.masked_cod_required,
+        "cod_entry_mode": project.cod_entry_mode,
+        "icd_release": DEFAULT_ICD11_RELEASE,
+        "who_image_digest": who_image_digest,
+    }
+
+
+def _json_form_value(name: str):
+    raw = request.form.get(name)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{name} must be valid JSON.") from exc
+
+
+def _doris_conflict(code: str, message: str, processing: dict | None = None):
+    payload = {"schema_version": 1, "error": {"code": code, "message": message}}
+    if processing is not None:
+        payload["processing"] = processing
+    return jsonify(payload), 409
 
 
 def _get_display_initial_assessment(va_sid: str):
@@ -304,9 +352,20 @@ def _data_manager_reason_label(reason_code: str) -> str:
 @login_required
 @va_validate_permissions()
 def renderpartial(va_sid, va_partial):
+    va_submission = db.session.get(VaSubmissions, va_sid)
+    project = _get_project_for_submission(va_sid) if va_submission else None
+    project_mode = _project_mode(project)
+    if (
+        request.method == "POST"
+        and va_partial in {"vainitialasses", "vafinalasses"}
+        and project_mode == "unmasked_doris"
+        and (request.content_length is None or request.content_length > 1_200_000)
+    ):
+        return jsonify(error="DORIS final submission is too large."), 413
     va_action = request.values.get("action", "vacode")
     va_actiontype = request.values.get("actiontype", "")
-    va_submission = db.session.get(VaSubmissions, va_sid)
+    if va_partial == "vainitialasses" and project_mode != "masked_simple":
+        va_partial = "vafinalasses"
     _active_version = get_active_payload_version(va_sid) if va_submission else None
     va_payload_data = _active_version.payload_data if _active_version else None
     _form_type_code = va_get_form_type_code_for_form(
@@ -517,7 +576,6 @@ def renderpartial(va_sid, va_partial):
             va_action,
             va_partial,
         )
-        va_mapping_fieldsitepi = _mapping_svc.get_fieldsitepi(_form_type_code)
         va_mapping_choice = _mapping_svc.get_choices(_form_type_code)
         va_mapping_flip = _mapping_svc.get_flip_labels(_form_type_code)
         va_mapping_info = _mapping_svc.get_info_labels(_form_type_code)
@@ -733,6 +791,12 @@ def renderpartial(va_sid, va_partial):
             template_name = "va_formcategory_partials/category_va_cod_assessment.html"
         elif category_config and category_config.render_mode == "data_manager_panel":
             template_name = "va_formcategory_partials/category_data_manager_triage.html"
+        doris_source = None
+        if project_mode == "unmasked_doris":
+            if va_action == "vareview" and va_reviewer_final_assess:
+                doris_source = va_reviewer_final_assess
+            else:
+                doris_source = get_authoritative_final_assessment(va_sid)
         response = make_response(render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,
@@ -776,6 +840,18 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_data = cod_health_history_data,
             cod_health_history_labels = cod_health_history_labels,
             va_usernote = va_usernote,
+            project_mode=project_mode,
+            doris_initial_certificate=(
+                copy.deepcopy(doris_source.doris_certificate)
+                if doris_source and doris_source.doris_certificate
+                else {}
+            ),
+            doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
+            doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
+            doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",
+            doris_selection_check_url=(
+                f"/api/v1/doris-clinical/selection-check/{va_sid}"
+            ),
         ))
         return _apply_partial_cache_policy(response, va_partial, va_action)
     if va_partial == "vareviewform":
@@ -1094,6 +1170,37 @@ def renderpartial(va_sid, va_partial):
             )
 
         def _render_final_assessment_form(error_messages=None):
+            submitted_unmasked = request.method == "POST" and project_mode != "masked_simple"
+            submitted_certificate = None
+            render_error_messages = (
+                error_messages
+                if error_messages is not None
+                else [message for messages in form1.errors.values() for message in messages]
+            )
+            if submitted_unmasked and project_mode == "unmasked_doris":
+                try:
+                    submitted_certificate = _json_form_value("doris_certificate")
+                except ValueError as exc:
+                    # Do not silently fall back to a previous saved certificate:
+                    # that can make an invalid client payload look like the
+                    # certificate the coder just submitted.
+                    submitted_certificate = {}
+                    render_error_messages = [*render_error_messages, str(exc)]
+            prior_certificate = (
+                prior_authoritative_final.doris_certificate
+                if prior_authoritative_final
+                else None
+            )
+            prior_immediate = (
+                prior_authoritative_final.va_immediate_cod
+                if prior_authoritative_final
+                else None
+            )
+            prior_other_conditions = (
+                prior_authoritative_final.va_other_conditions
+                if prior_authoritative_final
+                else None
+            )
             return render_template(
                 f"va_form_partials/{va_partial}.html",
                 form=form1,
@@ -1104,8 +1211,20 @@ def renderpartial(va_sid, va_partial):
                 va_immediate_cod=va_initial_assess.va_immediate_cod if va_initial_assess else None,
                 va_antecedent_cod=va_initial_assess.va_antecedent_cod if va_initial_assess else None,
                 va_other_conditions=va_initial_assess.va_other_conditions if va_initial_assess else None,
+                pre_immediate_cod=(
+                    request.form.get("va_immediate_cod")
+                    if submitted_unmasked
+                    else prior_immediate
+                ),
+                pre_other_conditions=(
+                    request.form.get("va_other_conditions")
+                    if submitted_unmasked
+                    else prior_other_conditions
+                ),
                 pre_conclusive_cod=(
-                    prior_authoritative_final.va_conclusive_cod
+                    request.form.get("va_conclusive_cod")
+                    if submitted_unmasked
+                    else prior_authoritative_final.va_conclusive_cod
                     if prior_authoritative_final
                     else None
                 ),
@@ -1124,11 +1243,56 @@ def renderpartial(va_sid, va_partial):
                     if prior_final_initial
                     else None
                 ),
-                form_error_messages=error_messages or [],
+                form_error_messages=render_error_messages,
+                pre_remark=(
+                    request.form.get("va_finassess_remark")
+                    if submitted_unmasked
+                    else None
+                ),
+                project_mode=project_mode,
+                doris_initial_certificate=(
+                    copy.deepcopy(
+                        submitted_certificate
+                        if submitted_certificate is not None
+                        else prior_certificate or {}
+                    )
+                ),
+                doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
+                doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
+                doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",
+                doris_selection_check_url=(
+                    f"/api/v1/doris-clinical/selection-check/{va_sid}"
+                ),
             )
 
         if form1.validate_on_submit():
+            # Final assessment replacement is a single-writer operation per
+            # submission.  Lock the existing submission before reading its
+            # allocation/final rows so two requests cannot both pass the
+            # check-then-insert window.
+            locked_submission = db.session.scalar(
+                sa.select(VaSubmissions)
+                .where(VaSubmissions.va_sid == va_sid)
+                .with_for_update()
+            )
+            if locked_submission is None:
+                raise ValueError(f"Submission {va_sid} not found.")
             blocking_messages: list[str] = []
+            active_payload_version = get_active_payload_version(va_sid)
+            active_allocation = db.session.scalar(
+                sa.select(VaAllocations).where(
+                    VaAllocations.va_sid == va_sid,
+                    VaAllocations.va_allocated_to == current_user.user_id,
+                    VaAllocations.va_allocation_for == VaAllocation.coding,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
+            if active_payload_version is None:
+                blocking_messages.append("This submission has no active payload version.")
+            if active_allocation is None:
+                blocking_messages.append(
+                    "An active coder allocation is required to submit the final COD."
+                )
             try:
                 validate_coding_value_for_submission(
                     va_sid,
@@ -1136,6 +1300,112 @@ def renderpartial(va_sid, va_partial):
                 )
             except (LookupError, ValueError) as exc:
                 blocking_messages.append(str(exc))
+
+            immediate_cod = None
+            immediate_icd11_provenance = None
+            other_conditions = None
+            verified_certificate = None
+            verified_doris = None
+            verified_codedit = None
+            who_image_digest = str(
+                current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or ""
+            ).strip()
+            if project_mode == "unmasked_simple":
+                immediate_cod = (request.form.get("va_immediate_cod") or "").strip()
+                other_conditions = (
+                    (request.form.get("va_other_conditions") or "").strip() or None
+                )
+                if not immediate_cod:
+                    blocking_messages.append("Immediate cause of death is required.")
+                else:
+                    try:
+                        validate_coding_value_for_submission(va_sid, immediate_cod)
+                        immediate_icd11_provenance = build_icd11_provenance_for_values(
+                            va_sid, {"immediate": immediate_cod}
+                        )
+                    except (LookupError, ValueError) as exc:
+                        blocking_messages.append(str(exc))
+            elif (
+                project_mode == "unmasked_doris"
+                and active_payload_version is not None
+                and active_allocation is not None
+            ):
+                if not who_image_digest:
+                    return jsonify(
+                        error="The pinned WHO processing image is not configured."
+                    ), 503
+                try:
+                    certificate = _json_form_value("doris_certificate")
+                    doris_result = _json_form_value("doris_result")
+                    codedit_result = _json_form_value("codedit_result")
+                    verified = verify_process_submission(
+                        request.form.get("doris_process_token") or "",
+                        certificate=certificate,
+                        doris_result=doris_result,
+                        codedit_result=codedit_result,
+                        submitted_result_digest=request.form.get("doris_result_digest")
+                        or "",
+                        va_sid=va_sid,
+                        role="coder",
+                        user_id=current_user.user_id,
+                        allocation_id=active_allocation.va_allocation_id,
+                        payload_version_id=active_payload_version.payload_version_id,
+                        icd_release=DEFAULT_ICD11_RELEASE,
+                        who_image_digest=who_image_digest,
+                    )
+                except ProcessProofCertificateChanged:
+                    try:
+                        client_revision = int(
+                            request.form.get("doris_client_revision") or 0
+                        )
+                        processing = process_certificate(
+                            {
+                                "schema_version": 1,
+                                "client_revision": client_revision,
+                                "certificate": certificate,
+                            },
+                            release=DEFAULT_ICD11_RELEASE,
+                            who_image_digest=who_image_digest,
+                        )
+                    except (DorisCertificateError, TypeError, ValueError) as exc:
+                        return jsonify(error=str(exc)), 422
+                    except WhoIcdApiUnavailable:
+                        return jsonify(error="WHO ICD-11 service unavailable."), 503
+                    processing["process_token"] = generate_process_proof(
+                        certificate_digest=processing["certificate_digest"],
+                        result_digest=processing["result_digest"],
+                        va_sid=va_sid,
+                        role="coder",
+                        user_id=current_user.user_id,
+                        allocation_id=active_allocation.va_allocation_id,
+                        payload_version_id=active_payload_version.payload_version_id,
+                        icd_release=DEFAULT_ICD11_RELEASE,
+                        who_image_digest=who_image_digest,
+                    )
+                    return _doris_conflict(
+                        "DORIS_CERTIFICATE_CHANGED",
+                        "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
+                        processing,
+                    )
+                except ProcessProofResultMismatch:
+                    return _doris_conflict(
+                        "DORIS_PROCESS_MISMATCH",
+                        "DORIS processor results changed. Process the form again.",
+                    )
+                except (
+                    ProcessProofExpired,
+                    ProcessProofInvalid,
+                    ProcessProofContextMismatch,
+                ):
+                    return _doris_conflict(
+                        "DORIS_PROCESS_EXPIRED",
+                        "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
+                    )
+                except (DorisCertificateError, ValueError) as exc:
+                    return jsonify(error=str(exc)), 422
+                verified_certificate = verified["certificate"]
+                verified_doris = verified["doris"]
+                verified_codedit = verified["codedit"]
 
             # Enforce NQA completion if enabled for this project
             _project = _get_project_for_submission(va_sid)
@@ -1192,8 +1462,6 @@ def renderpartial(va_sid, va_partial):
                     flash(message, "warning")
                 return redirect(request.referrer or url_for("coding.dashboard"))
             gen_uuid = uuid.uuid4()
-            submission = db.session.get(VaSubmissions, va_sid)
-            active_payload_version = get_active_payload_version(va_sid)
             if active_payload_version is None:
                 raise ValueError(f"Submission {va_sid} has no active payload version.")
             active_recode_episode = get_active_recode_episode(va_sid)
@@ -1212,11 +1480,23 @@ def renderpartial(va_sid, va_partial):
                 payload_version_id=active_payload_version.payload_version_id,
                 va_finassess_by=current_user.user_id,
                 source_initial_assessment_id=(
-                    va_initial_assess.va_iniassess_id if va_initial_assess else None
+                    va_initial_assess.va_iniassess_id
+                    if project_mode == "masked_simple" and va_initial_assess
+                    else None
                 ),
                 va_conclusive_cod=form1.va_conclusive_cod.data,
                 icd11_provenance=final_icd11_provenance,
-                va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
+                va_immediate_cod=immediate_cod,
+                immediate_icd11_provenance=immediate_icd11_provenance,
+                va_other_conditions=other_conditions,
+                doris_certificate=verified_certificate,
+                doris_result=verified_doris,
+                codedit_result=verified_codedit,
+                cod_entry_mode_snapshot=_cod_entry_mode_snapshot(
+                    project, who_image_digest
+                ),
+                va_finassess_remark=(form1.va_finassess_remark.data or "").strip()
+                or None,
                 demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
                 # va_rreview=form.va_rreview.data,
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
@@ -1253,14 +1533,7 @@ def renderpartial(va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
-            va_has_allocation = db.session.scalar(
-                sa.select(VaAllocations).where(
-                    VaAllocations.va_sid == va_sid,
-                    VaAllocations.va_allocated_to == current_user.user_id,
-                    VaAllocations.va_allocation_for == VaAllocation.coding,
-                    VaAllocations.va_allocation_status == VaStatuses.active,
-                )
-            )
+            va_has_allocation = active_allocation
             va_has_allocation.va_allocation_status = VaStatuses.deactive
             db.session.add(
                 VaSubmissionsAuditlog(

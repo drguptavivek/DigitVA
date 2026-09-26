@@ -1,0 +1,12 @@
+#doris-demo-app .doris-line { border-left: .3rem solid #dbeafe; }
+#doris-demo-app .doris-line + .doris-line::before { content: "due to"; display: block; color: #6c757d; font-size: .8rem; margin: -.9rem 0 .65rem; }
+#doris-demo-app .doris-chips { display: flex; flex-wrap: wrap; gap: .4rem; min-height: 1rem; }
+#doris-demo-app .doris-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .35rem .5rem; border: 1px solid #86b7fe; border-radius: .4rem; background: #eff6ff; }
+#doris-demo-app .doris-chip > span { overflow-wrap: anywhere; }
+#doris-demo-app .doris-chip button { border: 0; background: transparent; color: #842029; font-size: 1.1rem; line-height: 1; }
+#doris-demo-app .doris-search-match { font-size: .85rem; color: #495057; }
+#doris-demo-app .report-text { max-height: 18rem; overflow: auto; padding: .75rem; background: #f8f9fa; border: 1px solid #dee2e6; white-space: pre-wrap; overflow-wrap: anywhere; }
+#doris-demo-app .engine-status[data-status="completed"] { color: #146c43; }
+#doris-demo-app .engine-status[data-status="rejected"], #doris-demo-app .engine-status[data-status="unavailable"], #doris-demo-app .engine-status[data-status="timeout"], #doris-demo-app .engine-status[data-status="malformed_response"] { color: #b02a37; }
+#doris-demo-app .mermaid-output { min-height: 5rem; overflow-x: auto; border: 1px solid #dee2e6; border-radius: .25rem; padding: .5rem; }
+@media (max-width: 575.98px) { #doris-demo-app .doris-line .btn-group { width: 100%; } #doris-demo-app .doris-line > .d-flex { align-items: flex-start !important; flex-direction: column; } }

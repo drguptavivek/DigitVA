@@ -16,6 +16,15 @@ class VaReviewerFinalAssessments(db.Model):
             "ix_va_reviewer_final_assessments_supersedes_coder_final_id",
             "supersedes_coder_final_assessment_id",
         ),
+        sa.Index(
+            "uq_va_reviewer_final_assessments_active_sid_payload",
+            "va_sid",
+            "payload_version_id",
+            unique=True,
+            postgresql_where=sa.text(
+                "va_rfinassess_status = 'active' AND payload_version_id IS NOT NULL"
+            ),
+        ),
     )
 
     va_rfinassess_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -45,6 +54,19 @@ class VaReviewerFinalAssessments(db.Model):
     )
     va_conclusive_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
     icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    va_immediate_cod: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    immediate_icd11_provenance: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    va_other_conditions: so.Mapped[str | None] = so.mapped_column(
+        sa.Text, nullable=True
+    )
+    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    cod_entry_mode_snapshot: so.Mapped[dict | None] = so.mapped_column(
         JSONB, nullable=True
     )
     va_rfinassess_remark: so.Mapped[Optional[str]] = so.mapped_column(

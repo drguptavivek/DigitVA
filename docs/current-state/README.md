@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-26
 ---
 
 # Current State Index
@@ -36,6 +36,7 @@ Read these documents in this order:
 13. [COD Bucket Reporting](cod-bucket-reporting.md)
 14. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 15. [Health-System Organization Model](health-system-organization-model.md)
+16. [DORIS COD Workflow](doris-cod-workflow.md)
 
 Related planning:
 

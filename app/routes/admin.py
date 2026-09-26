@@ -396,6 +396,8 @@ def _serialize_project(project, form_type_codes=None):
         "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,
         "icd_classification": project.icd_classification,
+        "masked_cod_required": project.masked_cod_required,
+        "cod_entry_mode": project.cod_entry_mode,
         "project_structure_mode": project.project_structure_mode,
         "coding_scope_level_id": str(project.coding_scope_level_id)
         if project.coding_scope_level_id
@@ -547,6 +549,51 @@ CODING_INTAKE_MODES = {"random_form_allocation", "pick_and_choose"}
 #: not a set, so an unhashable JSON value (list, object) fails membership
 #: with a 400 instead of raising TypeError.
 PROJECT_STRUCTURE_MODES = ("sites", "organization")
+COD_ENTRY_MODES = ("simple", "doris")
+
+
+def _validate_cod_project_mode(masked_cod_required, cod_entry_mode, icd_classification):
+    """Return the public validation error for one proposed COD mode."""
+    if not isinstance(masked_cod_required, bool):
+        return "masked_cod_required must be true or false."
+    if cod_entry_mode not in COD_ENTRY_MODES:
+        return "Invalid cod_entry_mode."
+    if cod_entry_mode == "doris" and masked_cod_required:
+        return "DORIS entry requires masked COD to be off."
+    if cod_entry_mode == "doris" and icd_classification != "icd11":
+        return "DORIS entry requires ICD-11 classification."
+    return None
+
+
+def _project_has_in_progress_coding(project_id):
+    """Whether changing COD mode could reinterpret an already-started case."""
+    from app.models import VaAllocations, VaSubmissionWorkflow, VaSubmissions
+
+    active_allocation = db.session.scalar(
+        sa.select(VaAllocations.va_allocation_id)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaForms.project_id == project_id,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+        .limit(1)
+    )
+    if active_allocation is not None:
+        return True
+    return (
+        db.session.scalar(
+            sa.select(VaSubmissionWorkflow.workflow_id)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionWorkflow.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(
+                VaForms.project_id == project_id,
+                VaSubmissionWorkflow.workflow_state == "coder_step1_saved",
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def _default_web_form_type_id(form_type_code):
@@ -1303,6 +1350,13 @@ def admin_create_project():
     if icd_classification not in PROJECT_ICD_CLASSIFICATIONS:
         return _json_error("Invalid icd_classification.", 400)
 
+    masked_cod_required = payload.get("masked_cod_required", True)
+    cod_entry_mode = payload.get("cod_entry_mode") or "simple"
+    if error := _validate_cod_project_mode(
+        masked_cod_required, cod_entry_mode, icd_classification
+    ):
+        return _json_error(error, 400)
+
     # Validated before the row is built so a rejected payload adds nothing.
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
@@ -1323,6 +1377,8 @@ def admin_create_project():
         ),
         coding_intake_mode=coding_intake_mode,
         icd_classification=icd_classification,
+        masked_cod_required=masked_cod_required,
+        cod_entry_mode=cod_entry_mode,
         project_structure_mode=project_structure_mode,
         web_intake_mode=web_intake_mode,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
@@ -1409,6 +1465,40 @@ def admin_update_project(project_id):
         if payload["icd_classification"] not in PROJECT_ICD_CLASSIFICATIONS:
             return _json_error("Invalid icd_classification.", 400)
         updates["icd_classification"] = payload["icd_classification"]
+
+    if "masked_cod_required" in payload:
+        if not isinstance(payload["masked_cod_required"], bool):
+            return _json_error("masked_cod_required must be true or false.", 400)
+        updates["masked_cod_required"] = payload["masked_cod_required"]
+
+    if "cod_entry_mode" in payload:
+        updates["cod_entry_mode"] = payload["cod_entry_mode"]
+
+    resulting_masked = updates.get(
+        "masked_cod_required", project.masked_cod_required
+    )
+    resulting_cod_entry = updates.get("cod_entry_mode", project.cod_entry_mode)
+    resulting_classification = updates.get(
+        "icd_classification", project.icd_classification
+    )
+    if error := _validate_cod_project_mode(
+        resulting_masked, resulting_cod_entry, resulting_classification
+    ):
+        return _json_error(error, 400)
+    cod_settings_changed = any(
+        updates.get(field, getattr(project, field)) != getattr(project, field)
+        for field in (
+            "masked_cod_required",
+            "cod_entry_mode",
+            "icd_classification",
+        )
+    )
+    if cod_settings_changed and _project_has_in_progress_coding(project.project_id):
+        return _json_error(
+            "COD settings cannot change while this project has active coding "
+            "allocations or cases with coder Step 1 saved.",
+            409,
+        )
 
     if "project_structure_mode" in payload:
         project_structure_mode = payload["project_structure_mode"]

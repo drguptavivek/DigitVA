@@ -3,7 +3,7 @@ title: Architecture Overview
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-28
+last_updated: 2026-09-26
 ---
 
 # Architecture Overview
@@ -22,6 +22,7 @@ The current implementation is single-project-first. It is not yet modeled as a g
 - PostgreSQL as the primary database
 - Gunicorn as the production app server
 - Docker Compose for local/containerized app and DB runtime
+- an isolated, database-free public DORIS training service behind the same-origin ingress when the `icd11` profile is enabled
 
 ## Top-Level App Shape
 

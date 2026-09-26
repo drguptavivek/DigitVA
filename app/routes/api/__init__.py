@@ -10,6 +10,7 @@ from app.routes.api import (  # noqa: E402, F401
     coding,
     coding_search_demo,
     data_management,
+    doris_clinical,
     icd10,
     icd11,
     instruments,
@@ -40,6 +41,7 @@ api_v1.register_blueprint(cod_buckets.bp, url_prefix="/cod-buckets")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
 api_v1.register_blueprint(coding_search_demo.bp, url_prefix="/coding-search-demo")
 api_v1.register_blueprint(data_management.bp, url_prefix="/data-management")
+api_v1.register_blueprint(doris_clinical.bp, url_prefix="/doris-clinical")
 api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(icd11.bp, url_prefix="/icd11")
 api_v1.register_blueprint(instruments.bp, url_prefix="/instruments")

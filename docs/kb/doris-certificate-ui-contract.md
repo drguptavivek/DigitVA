@@ -1,7 +1,7 @@
 ---
 title: DORIS Certificate UI and API Contract for DigitVA
 doc_type: kb
-status: proposed
+status: active
 owner: engineering
 last_updated: 2026-09-26
 ---
@@ -10,11 +10,9 @@ last_updated: 2026-09-26
 
 ## Status and intent
 
-**Proposed contract; no DigitVA DORIS UI or clinical endpoint exists yet.**
-This is the build contract for reproducing the useful behavior of WHO DORIS
-inside DigitVA. The Help proof uses plain JavaScript with the existing vendored
-Mermaid and WHO ECT assets; it needs no new build tool. A later clinical web
-client may use React after its build and CSP contract are specified. A future
+This is the shared certificate and interaction contract for the public Help
+proof and clinical coder/reviewer editors. Both current editors use plain
+JavaScript with the existing vendored Mermaid and WHO ECT assets. A future
 mobile app implements the same state, events and JSON API contract in its own UI. WHO
 ECT is a browser-only picker, not the cross-platform contract. WHO's DORIS
 and CoDEdit engines remain in the pinned local ICD API; DigitVA does not
@@ -25,8 +23,8 @@ provides evidence. The [project workflow plan](../planning/project-cod-masking-d
 sets when this UI appears and what is saved. The
 [parallel HTML/JSON API plan](../planning/coder-web-and-api-contracts.md)
 sets authorization and migration boundaries. All paths in this document
-are repo-relative; all endpoint names below are proposed unless explicitly
-called existing.
+are repo-relative. The implemented routes are recorded below; future mobile
+endpoints remain proposals.
 
 ## Component boundaries
 
@@ -163,7 +161,8 @@ local WHO release; it does not call ECT JavaScript or WHO directly. Define
 its response with at least `code`, plain `title`, full `uri`, release,
 matching text, postcoordination capability and truncation/paging status.
 Use public `POST /api/v1/doris-demo/terms` and `/codeinfo` for Help, and
-authenticated `POST /api/v1/icd11/terms` and `/codeinfo` for a future mobile
+authenticated `POST /api/v1/doris-clinical/terms/{sid}` and
+`/codeinfo/{sid}` for clinical coding. A future mobile
 or inline clinical picker. Both boundaries use the same normalized JSON
 schema, though authorization and rate limits differ. A terms request is
 `{"schema_version":1,"query":"diabetes","limit":20,"cursor":null}`;
@@ -183,14 +182,13 @@ clinical telemetry from public Help.
 
 ## Processing API contract
 
-| Context | Proposed route | Authorization and effect |
+| Context | Route | Authorization and effect |
 | --- | --- | --- |
 | Public Help | `POST /api/v1/doris-demo/process` | Anonymous, rate-limited, CSRF-protected browser request using a token issued by the Help page; bounded current certificate; no database/log/analytics retention of input or output |
-| Clinical coder/reviewer | `POST /api/v1/coding/cases/{sid}/doris/process` and reviewer equivalent | Active allocation, role/project/classification/payload checks; preview only, no final COD write |
+| Clinical coder/reviewer | `POST /api/v1/doris-clinical/process/{sid}` | Active allocation, role/project/classification/payload checks; preview only, no final COD write |
 | Clinical final save | Mode-specific case finalization | Rebuild and verify exact certificate server-side, obtain or validate server-trusted processing result, save input/results and MO final COD separately |
 
-The Help response should have this semantic shape; actual field names must
-be frozen in phase-0 API contract tests before implementation:
+The Help response has this semantic shape, covered by API contract tests:
 
 ```json
 {

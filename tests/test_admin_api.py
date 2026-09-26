@@ -13,6 +13,7 @@ from app.models import (
     MapProjectSiteOdk,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaAllocations,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -23,11 +24,13 @@ from app.models import (
     VaSiteMaster,
     VaSites,
     VaStatuses,
+    VaSubmissionWorkflow,
     VaSubmissionPayloadVersion,
     VaSyncRun,
     VaUserAccessGrants,
     VaUsers,
 )
+from app.models.va_selectives import VaAllocation
 
 from tests.base import BaseTestCase
 
@@ -1063,6 +1066,177 @@ class AdminApiTests(BaseTestCase):
         project = db.session.get(VaProjectMaster, self.project_id)
         db.session.refresh(project)
         self.assertEqual(project.icd_classification, "icd10")
+
+    def test_project_cod_modes_default_and_validate_supported_combinations(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        default_response = self.client.post(
+            "/admin/api/projects",
+            json={
+                "project_id": "CODM01",
+                "project_name": "Default COD mode",
+                "project_nickname": "COD default",
+            },
+            headers=headers,
+        )
+        self.assertEqual(default_response.status_code, 201)
+        self.assertTrue(default_response.get_json()["project"]["masked_cod_required"])
+        self.assertEqual(default_response.get_json()["project"]["cod_entry_mode"], "simple")
+
+        for project_id, payload in (
+            (
+                "CODM02",
+                {"masked_cod_required": False, "cod_entry_mode": "simple"},
+            ),
+            (
+                "CODM03",
+                {
+                    "masked_cod_required": False,
+                    "cod_entry_mode": "doris",
+                    "icd_classification": "icd11",
+                },
+            ),
+        ):
+            response = self.client.post(
+                "/admin/api/projects",
+                json={
+                    "project_id": project_id,
+                    "project_name": project_id,
+                    "project_nickname": project_id,
+                    **payload,
+                },
+                headers=headers,
+            )
+            self.assertEqual(response.status_code, 201, response.get_json())
+
+        for project_id, payload in (
+            (
+                "CODM04",
+                {
+                    "masked_cod_required": True,
+                    "cod_entry_mode": "doris",
+                    "icd_classification": "icd11",
+                },
+            ),
+            (
+                "CODM05",
+                {
+                    "masked_cod_required": False,
+                    "cod_entry_mode": "doris",
+                    "icd_classification": "selectable",
+                },
+            ),
+            ("CODM06", {"masked_cod_required": "false"}),
+        ):
+            response = self.client.post(
+                "/admin/api/projects",
+                json={
+                    "project_id": project_id,
+                    "project_name": project_id,
+                    "project_nickname": project_id,
+                    **payload,
+                },
+                headers=headers,
+            )
+            self.assertEqual(response.status_code, 400, response.get_json())
+            self.assertIsNone(db.session.get(VaProjectMaster, project_id))
+
+    @patch("app.routes.admin._project_has_in_progress_coding", return_value=True)
+    def test_project_cod_mode_change_blocked_during_in_progress_coding(self, _guard):
+        self._login(self.admin_user_id)
+        project = db.session.get(VaProjectMaster, self.project_id)
+        original_name = project.project_name
+
+        response = self.client.put(
+            f"/admin/api/projects/{self.project_id}",
+            json={
+                "project_name": "Must not persist",
+                "masked_cod_required": False,
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 409)
+        db.session.refresh(project)
+        self.assertEqual(project.project_name, original_name)
+        self.assertTrue(project.masked_cod_required)
+
+    def test_project_cod_mode_can_change_when_no_coding_is_in_progress(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        created = self.client.post(
+            "/admin/api/projects",
+            json={
+                "project_id": "CODM07",
+                "project_name": "Change COD mode",
+                "project_nickname": "Change COD",
+            },
+            headers=headers,
+        )
+        self.assertEqual(created.status_code, 201)
+        with patch(
+            "app.routes.admin._project_has_in_progress_coding", return_value=False
+        ):
+            response = self.client.put(
+                "/admin/api/projects/CODM07",
+                json={
+                    "masked_cod_required": False,
+                    "cod_entry_mode": "doris",
+                    "icd_classification": "icd11",
+                },
+                headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        project = db.session.get(VaProjectMaster, "CODM07")
+        self.assertFalse(project.masked_cod_required)
+        self.assertEqual(project.cod_entry_mode, "doris")
+        self.assertEqual(project.icd_classification, "icd11")
+
+    def test_project_cod_mode_guard_detects_allocations_and_saved_step_one(self):
+        from app.routes.admin import _project_has_in_progress_coding
+
+        now = datetime.now(timezone.utc)
+        submission = VaSubmissions(
+            va_sid=f"uuid:cod-mode-{uuid.uuid4().hex}",
+            va_form_id="ADM001AA0101",
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name="cod-mode-guard",
+            va_uniqueid_real=None,
+            va_uniqueid_masked="cod-mode-guard",
+            va_consent="yes",
+            va_narration_language="english",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(submission)
+        db.session.flush()
+        allocation = VaAllocations(
+            va_sid=submission.va_sid,
+            va_allocated_to=uuid.UUID(self.target_id),
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+        )
+        db.session.add(allocation)
+        db.session.flush()
+        self.assertTrue(_project_has_in_progress_coding(self.project_id))
+
+        allocation.va_allocation_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=submission.va_sid,
+                workflow_state="coder_step1_saved",
+            )
+        )
+        db.session.flush()
+        self.assertTrue(_project_has_in_progress_coding(self.project_id))
 
 
     # ── ODK form uniqueness (one ODK form → one project-site per connection) ──

@@ -114,6 +114,13 @@ HELP_PAGES = [
     ("sync-behavior",         "Sync Behavior & Dashboard",    "fa-arrows-rotate",        "Administration",   ["admin"]),
 ]
 
+# The dedicated public ingress overwrites this request header before proxying
+# Help pages to the main app. Keep the DORIS link out of direct-main Help,
+# where its separately hosted API is intentionally unavailable.
+_DORIS_DEMO_PAGE = (
+    "doris-demo", "Try DORIS & CoDEdit", "fa-file-medical", "Coding Workflow", None
+)
+
 # ---------------------------------------------------------------------------
 # Curated engineering docs exposed publicly
 # ---------------------------------------------------------------------------
@@ -250,7 +257,14 @@ def _user_has_role(user, roles):
 
 def _visible_pages(user):
     """Return help pages visible to the given user."""
-    return [p for p in HELP_PAGES if _user_has_role(user, p[4])]
+    return [p for p in _pages_for_request() if _user_has_role(user, p[4])]
+
+
+def _pages_for_request():
+    pages = list(HELP_PAGES)
+    if request.headers.get("X-DigitVA-Public-Ingress") == "1":
+        pages.append(_DORIS_DEMO_PAGE)
+    return pages
 
 
 def _strip_yaml_front_matter(text):
@@ -297,7 +311,7 @@ def _base_ctx():
         categories=_CATEGORIES,
         visible_pages=_visible_pages,
         user_has_role=_user_has_role,
-        all_pages=HELP_PAGES,
+        all_pages=_pages_for_request(),
         engineering_docs=ENGINEERING_DOCS,
         eng_doc_categories=_ENG_DOC_CATEGORIES,
     )

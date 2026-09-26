@@ -28,7 +28,7 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY . .
 
-RUN chmod +x boot.sh scripts/wait-for-celery-beat-db.sh
+RUN chmod +x boot.sh boot-public-doris.sh scripts/wait-for-celery-beat-db.sh
 
 ENV FLASK_APP=run.py
 ENV PATH="/app/.venv/bin:${PATH}"

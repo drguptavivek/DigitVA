@@ -25,7 +25,23 @@
         <div class="small text-muted mb-3">
           This is the COD submitted by the coder. Your reviewer COD below is stored separately and will not overwrite this coder record.
         </div>
-        <div class="row g-3">
+        {% if project_mode|default('masked_simple') in ('unmasked_simple', 'unmasked_doris') %}
+        <div class="row g-3" data-coder-unmasked-reference>
+          <div class="col-md-4"><div class="p-2 border rounded bg-white"><small class="text-secondary d-block mb-1">Coder Immediate COD</small><div class="fw-semibold">{{ va_final_assess.va_immediate_cod or "-" }}</div></div></div>
+          <div class="col-md-4"><div class="p-2 border rounded bg-white"><small class="text-secondary d-block mb-1">Coder Final Underlying COD</small><div class="fw-semibold">{{ va_final_assess.va_conclusive_cod or "-" }}</div></div></div>
+          <div class="col-md-4"><div class="p-2 border rounded bg-white"><small class="text-secondary d-block mb-1">Coder Associated Conditions</small><div class="fw-semibold">{{ va_final_assess.va_other_conditions or "-" }}</div></div></div>
+          {% if project_mode == 'unmasked_doris' %}
+            {% set coder_doris = va_final_assess.doris_result or {} %}
+            {% set coder_doris_output = coder_doris.get('result') or {} %}
+            {% set coder_codedit = va_final_assess.codedit_result or {} %}
+            {% set coder_codedit_output = coder_codedit.get('result') or {} %}
+            <div class="col-md-6"><div class="p-2 border rounded bg-white h-100"><small class="text-secondary d-block mb-1">Coder DORIS Result</small><div><strong>Status:</strong> {{ coder_doris.get('status') or '-' }}</div><div><strong>Computed code:</strong> {{ coder_doris_output.get('code') or '-' }}</div><div class="mt-2 text-break" style="white-space:pre-wrap"><strong>Report:</strong> {{ coder_doris_output.get('report') or 'No report returned.' }}</div></div></div>
+            <div class="col-md-6"><div class="p-2 border rounded bg-white h-100"><small class="text-secondary d-block mb-1">Coder CoDEdit Result</small><div><strong>Status:</strong> {{ coder_codedit.get('status') or '-' }}</div><div><strong>Issue IDs:</strong> {{ coder_codedit_output.get('issueIds') or 'No issues reported.' }}</div><div class="mt-2 text-break" style="white-space:pre-wrap"><strong>Report:</strong> {{ coder_codedit_output.get('report') or 'No report returned.' }}</div></div></div>
+          {% endif %}
+          <div class="col-12"><div class="p-2 border rounded bg-white"><small class="text-secondary d-block mb-1">Coder Remarks</small><div class="fw-semibold">{{ va_final_assess.va_finassess_remark or "-" }}</div></div></div>
+        </div>
+        {% else %}
+        <div class="row g-3" data-coder-masked-reference>
           <div class="col-md-4">
             <div class="p-2 border rounded bg-white">
               <small class="text-secondary d-block mb-1">Coder Step 1 Immediate COD</small>
@@ -57,10 +73,70 @@
             </div>
           </div>
         </div>
+        {% endif %}
       </div>
     </div>
   {% endif %}
 
+  {% if project_mode|default('masked_simple') in ('unmasked_simple', 'unmasked_doris') %}
+  <form id="reviewerUnmaskedFinalForm"
+        data-finalize-url="{{ url_for('api_v1.reviewing_api.finalize', va_sid=va_sid) }}"
+        data-dashboard-url="{{ url_for('reviewing.dashboard') }}"
+        data-csrf="{{ csrf_token() }}">
+    <div class="content-section-title mb-3 mt-4"><i class="fas fa-gavel text-primary me-2"></i>Reviewer Final Cause of Death Assessment</div>
+    {% if project_mode == 'unmasked_simple' %}
+      {% with icd_root_id="reviewer-unmasked-root", icd_preset=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
+      <div class="alert alert-light border">Enter the immediate and underlying causes in one final reviewer assessment. The coder record remains unchanged.</div>
+      <div class="row g-3 mb-4">
+        <div class="col-md-6"><label class="form-label fw-bold" for="reviewer-unmasked-immediate-select">Immediate cause <span class="text-danger">*</span></label><select id="reviewer-unmasked-immediate-select" class="form-select" data-icd-hidden="reviewer-unmasked-immediate" data-icd-ect="true"></select><input type="hidden" id="reviewer-unmasked-immediate"></div>
+        <div class="col-md-6"><label class="form-label fw-bold" for="reviewer-unmasked-final-select">Underlying cause <span class="text-danger">*</span></label><select id="reviewer-unmasked-final-select" class="form-select" data-icd-hidden="reviewer-unmasked-final" data-icd-ect="true"></select><input type="hidden" id="reviewer-unmasked-final"></div>
+        <div class="col-12"><label class="form-label fw-bold" for="reviewer-unmasked-other">Associated conditions (optional)</label><textarea id="reviewer-unmasked-other" class="form-control" rows="3"></textarea></div>
+      </div>
+    {% else %}
+      <input type="hidden" id="reviewer-unmasked-final">
+      {% with doris_editor_id='reviewer-doris-editor', doris_form_id='reviewerUnmaskedFinalForm', doris_role='reviewer', doris_final_cod_input='reviewer-unmasked-final' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
+    {% endif %}
+    <div class="mb-4"><label class="form-label fw-bold" for="reviewer-unmasked-remark">Remarks</label><textarea id="reviewer-unmasked-remark" class="form-control" rows="3"></textarea></div>
+    <div class="text-danger small mb-2" id="reviewer-unmasked-error" role="alert"></div>
+    <div class="d-flex justify-content-center my-4"><button type="submit" class="btn btn-primary px-4 py-2">Save reviewer final assessment</button></div>
+  </form>
+  <script>
+  (function () {
+    var form = document.getElementById('reviewerUnmaskedFinalForm');
+    if (!form) return;
+    {% if project_mode == 'unmasked_simple' %}
+    var root = document.getElementById('reviewer-unmasked-root');
+    if (root && window.jQuery) {
+      [['#reviewer-unmasked-immediate-select','reviewer-unmasked-immediate'], ['#reviewer-unmasked-final-select','reviewer-unmasked-final']].forEach(function (field) {
+        var select = window.jQuery(field[0]); var hidden = document.getElementById(field[1]);
+        select.select2({ajax:{url:function(){return root.dataset.icdUrl;},dataType:'json',delay:250,data:function(params){return {q:params.term};},processResults:function(data){return {results:data.map(function(item){return {id:item.icd_to_display,text:item.icd_to_display};})};}},minimumInputLength:2,width:'100%',placeholder:'Search ICD codes…'});
+        select.on('select2:select', function (event) { hidden.value = event.params.data.id; });
+      });
+    }
+    {% endif %}
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var button = form.querySelector('[type="submit"]'); var error = document.getElementById('reviewer-unmasked-error');
+      var body = {conclusive_cod:(document.getElementById('reviewer-unmasked-final').value || '').trim(), remark:(document.getElementById('reviewer-unmasked-remark').value || '').trim()};
+      {% if project_mode == 'unmasked_simple' %}
+      body.immediate_cod = (document.getElementById('reviewer-unmasked-immediate').value || '').trim(); body.other_conditions = (document.getElementById('reviewer-unmasked-other').value || '').trim();
+      {% else %}
+      ['doris_certificate','doris_result','codedit_result'].forEach(function (name) { body[name] = JSON.parse(form.querySelector('[name="' + name + '"]').value); });
+      ['doris_process_token','doris_result_digest'].forEach(function (name) { body[name] = form.querySelector('[name="' + name + '"]').value; });
+      {% endif %}
+      if (!body.conclusive_cod{% if project_mode == 'unmasked_simple' %} || !body.immediate_cod{% endif %}) { error.textContent = 'Complete all required cause-of-death fields.'; return; }
+      button.disabled = true; error.textContent = '';
+      fetch(form.dataset.finalizeUrl, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':form.dataset.csrf},body:JSON.stringify(body)})
+        .then(function(response){return response.json().catch(function(){return {};}).then(function(data){return {ok:response.ok,status:response.status,data:data};});})
+        .then(function(result){
+          if (result.status === 409 && result.data.error && result.data.error.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error.message || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
+          if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Reviewer final assessment could not be saved.');
+          window.location.href = form.dataset.dashboardUrl;
+        }).catch(function(failure){button.disabled=button.dataset.dorisNeedsConfirmation === 'true';error.textContent=failure.message;});
+    });
+  }());
+  </script>
+  {% else %}
   {% with icd_root_id="reviewer-select2-root", icd_preset=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) or (va_reviewer_initial_assess.va_immediate_cod if va_reviewer_initial_assess else none) %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
   <form id="reviewerInitialCodForm"
         data-initial-url="{{ url_for('api_v1.reviewing_api.initial', va_sid=va_sid) }}"
@@ -406,6 +482,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 {% elif va_action == "vacode" and va_actiontype == "vaview" %}
     {% if va_initial_assess or va_final_assess %}
       <div class="content-section-title mt-4">

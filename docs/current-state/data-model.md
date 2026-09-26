@@ -63,6 +63,8 @@ Key fields:
 - `coding_intake_mode`
 - `demo_training_enabled`
 - `demo_retention_minutes`
+- `masked_cod_required` (default true)
+- `cod_entry_mode` (`simple` by default, or `doris` when unmasked and ICD-11)
 
 Current role:
 
@@ -73,6 +75,13 @@ Current role:
   - whether the project is an open training pool
   - how many minutes demo-created coding artifacts should remain active before
     cleanup
+
+The final coder and reviewer assessment tables also hold the unmasked-mode
+immediate COD and provenance, associated-condition text, and final DORIS
+certificate plus independent DORIS/CoDEdit result envelopes. Their mode
+snapshot records masking, entry mode, ICD release and pinned WHO image digest.
+The existing conclusive COD field remains the human final UCOD and final
+authority source. See [DORIS COD Workflow](doris-cod-workflow.md).
 
 ### `va_sites`
 

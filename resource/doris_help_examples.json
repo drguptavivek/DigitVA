@@ -86,7 +86,7 @@
         "Part1": [
           {"Conditions": [
             {"Text": "Tuberculous otitis media", "Code": "1B12.2&XA0G74", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114", "Interval": "P14D"},
-            {"Text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation", "Code": "1B10.Z", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified", "Interval": "P60D"}
+            {"Text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation", "Code": "1B10.Z", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified", "Interval": "P14D"}
           ]}
         ]
       },

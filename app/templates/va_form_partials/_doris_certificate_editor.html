@@ -1,0 +1,88 @@
+{# Reusable clinical DORIS editor. Required context is documented by its data attributes. #}
+{% set _doris_id = doris_editor_id|default('doris-clinical-editor') %}
+<section id="{{ _doris_id }}" class="doris-clinical-editor card border-primary mb-4"
+         data-doris-editor
+         data-form-id="{{ doris_form_id }}"
+         data-role="{{ doris_role|default('coder') }}"
+         data-process-url="{{ doris_process_url|default('/api/v1/doris-clinical/process/' ~ va_sid, true) }}"
+         data-terms-url="{{ doris_terms_url|default('', true) }}"
+         data-codeinfo-url="{{ doris_codeinfo_url|default('', true) }}"
+         data-selection-url="{{ doris_selection_check_url|default('', true) }}"
+         data-csrf="{{ csrf_token() }}"
+         data-final-cod-input="{{ doris_final_cod_input }}">
+  <div class="card-header bg-primary-subtle">
+    <h3 class="h5 mb-1">Medical Certificate of Cause of Death</h3>
+    <p class="small mb-0">DORIS and CoDEdit provide guidance. You must independently confirm the final underlying cause.</p>
+  </div>
+  <div class="card-body">
+    <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-3"><label class="form-label" for="{{ _doris_id }}-age">Estimated age (ISO 8601)</label><input id="{{ _doris_id }}-age" class="form-control" maxlength="24" placeholder="P44Y or P2D" data-doris-age></div>
+      <div class="col-sm-3"><label class="form-label" for="{{ _doris_id }}-life-stage">Fetal or infant details</label><select id="{{ _doris_id }}-life-stage" class="form-select" data-doris-life-stage><option value="none">Not applicable</option><option value="fetal-infant">Applicable</option></select></div>
+    </div>
+    <div class="border rounded p-3 mb-3" data-doris-fetal hidden><h4 class="h6">Fetal or infant details</h4><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
+      <div class="col-sm-4"><label class="form-label small">Stillborn</label><select class="form-select" data-doris-stillborn><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-4"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-4"><label class="form-label small">Death within 24 hours</label><select class="form-select" data-doris-within24><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option></select></div>
+      <div class="col-sm-4"><label class="form-label small">Birth weight (g)</label><input type="number" min="1" max="9999" class="form-control" data-doris-birth-weight></div>
+      <div class="col-sm-4"><label class="form-label small">Pregnancy weeks</label><input type="number" min="1" max="50" class="form-control" data-doris-pregnancy-weeks></div>
+      <div class="col-sm-4"><label class="form-label small">Mother's age</label><input type="number" min="10" max="80" class="form-control" data-doris-mother-age></div>
+      <div class="col-12"><label class="form-label small">Maternal condition affecting fetus or infant</label><textarea class="form-control" rows="2" maxlength="500" data-doris-perinatal></textarea></div>
+    </div></div>
+    <div class="border rounded p-3 mb-3" data-doris-maternal hidden><h4 class="h6">Pregnancy context</h4><div class="row g-2">
+      <div class="col-sm-4"><label class="form-label small">Pregnant at death</label><select class="form-select" data-doris-pregnant><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-4" data-doris-maternal-followup hidden><label class="form-label small">Time from pregnancy</label><select class="form-select" data-doris-pregnancy-time><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-4" data-doris-maternal-followup hidden><label class="form-label small">Pregnancy contributed</label><select class="form-select" data-doris-pregnancy-contribute><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
+    </div></div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+      <div><h4 class="h6 mb-0">Part I</h4><span class="small text-muted">Each lower line means “due to”. Conditions beside each other remain on the same line.</span></div>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-doris-add-line>Add line</button>
+    </div>
+    <div data-doris-part1></div>
+
+    <h4 class="h6 mt-4">Part II: other significant conditions</h4>
+    <div data-doris-part2></div>
+
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
+      <button type="button" class="btn btn-outline-primary" data-doris-process>Process with DORIS and CoDEdit</button>
+      <span class="small fw-semibold" role="status" aria-live="polite" data-doris-status></span>
+    </div>
+
+    <div class="mt-4" data-doris-results hidden>
+      <div class="alert alert-warning py-2">Review these processor results before choosing the final underlying cause.</div>
+      <div class="row g-3">
+        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">DORIS</h4><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
+        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">CoDEdit</h4><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
+      </div>
+    </div>
+
+    <div class="card bg-light border-0 mt-4" data-doris-final-panel hidden>
+      <div class="card-body">
+        <label class="form-label fw-bold" for="{{ _doris_id }}-final-search">Confirm your final underlying cause <span class="text-danger">*</span></label>
+        <p class="small text-muted">This is your clinical decision. DORIS does not fill or lock it.</p>
+        <div class="input-group"><input id="{{ _doris_id }}-final-search" class="form-control" maxlength="80" autocomplete="off" data-doris-final-search placeholder="Search ICD-11 by term or complete code"><button type="button" class="btn btn-outline-primary" data-doris-final-search-button>Search</button></div>
+        <div class="list-group mt-1" data-doris-final-results></div>
+        <p class="small mt-2 mb-0" data-doris-final-choice></p>
+      </div>
+    </div>
+  </div>
+
+  <template data-doris-line-template>
+    <div class="border rounded p-3 mb-2" data-doris-line>
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><strong data-doris-line-title></strong><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button><button type="button" class="btn btn-outline-danger" data-doris-remove>Remove</button></div></div>
+      <label class="form-label small">Interval from onset to death</label><input class="form-control form-control-sm mb-2" maxlength="24" placeholder="P3D, PT12H, or P" data-doris-interval>
+      <div class="d-flex flex-wrap gap-2 mb-2" data-doris-chips aria-live="polite"></div>
+      <div class="input-group"><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
+      <p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div>
+    </div>
+  </template>
+
+  <input type="hidden" name="doris_certificate" data-doris-certificate>
+  <input type="hidden" name="doris_result" data-doris-result>
+  <input type="hidden" name="codedit_result" data-codedit-result>
+  <input type="hidden" name="doris_process_token" data-doris-token>
+  <input type="hidden" name="doris_result_digest" data-doris-digest>
+</section>
+<script src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

@@ -100,7 +100,7 @@ class TestFinalCodAuthorityService(BaseTestCase):
             payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="R99",
-            va_finassess_status=VaStatuses.active,
+            va_finassess_status=VaStatuses.deactive,
         )
         final_two = VaFinalAssessments(
             va_sid=sid,
@@ -155,6 +155,7 @@ class TestFinalCodAuthorityService(BaseTestCase):
             va_conclusive_cod="I21",
             va_finassess_status=VaStatuses.active,
         )
+        final_row.va_finassess_status = VaStatuses.deactive
         db.session.add(replacement)
         db.session.flush()
         complete_recode_episode(episode, replacement)

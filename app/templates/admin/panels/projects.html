@@ -82,6 +82,19 @@
           </select>
         </div>
         <div class="col-12 col-md-4">
+          <label class="form-label small mb-1" for="project-cod-entry-mode-input">COD Entry</label>
+          <select class="form-select form-select-sm" id="project-cod-entry-mode-input" title="DORIS is available only for unmasked ICD-11 projects.">
+            <option value="simple">Simple</option>
+            <option value="doris">DORIS</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-4 d-flex align-items-end">
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" id="project-masked-cod-required-input" role="switch" checked>
+            <label class="form-check-label small" for="project-masked-cod-required-input">Require masked COD workflow</label>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
           <label class="form-label small mb-1">Web Intake (WHO VA form)</label>
           <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
             <option value="off">Off (ODK only)</option>
@@ -574,6 +587,8 @@
   var statusInput = document.getElementById('project-status-input');
   var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
   var icdClassificationInput = document.getElementById('project-icd-classification-input');
+  var codEntryModeInput = document.getElementById('project-cod-entry-mode-input');
+  var maskedCodRequiredInput = document.getElementById('project-masked-cod-required-input');
   var webIntakeModeInput = document.getElementById('project-web-intake-mode-input');
   var structureModeInput = document.getElementById('project-structure-mode-input');
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
@@ -990,6 +1005,8 @@
     statusInput.disabled = true; // New projects are always active
     codingIntakeModeInput.value = 'random_form_allocation';
     icdClassificationInput.value = 'icd10';
+    codEntryModeInput.value = 'simple';
+    maskedCodRequiredInput.checked = true;
     webIntakeModeInput.value = 'off';
     structureModeInput.value = 'sites';
     socialAutopsyEnabledInput.checked = true;
@@ -1028,6 +1045,8 @@
     statusInput.disabled = false; // Existing projects can change status
     codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
     icdClassificationInput.value = project.icd_classification || 'icd10';
+    codEntryModeInput.value = project.cod_entry_mode || 'simple';
+    maskedCodRequiredInput.checked = project.masked_cod_required !== false;
     webIntakeModeInput.value = project.web_intake_mode || 'off';
     structureModeInput.value = project.project_structure_mode || 'sites';
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
@@ -1064,6 +1083,8 @@
       project_nickname: nicknameInput.value.trim(),
       coding_intake_mode: codingIntakeModeInput.value,
       icd_classification: icdClassificationInput.value,
+      cod_entry_mode: codEntryModeInput.value,
+      masked_cod_required: maskedCodRequiredInput.checked,
       web_intake_mode: webIntakeModeInput.value,
       project_structure_mode: structureModeInput.value,
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,

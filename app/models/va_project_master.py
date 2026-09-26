@@ -30,6 +30,18 @@ class VaProjectMaster(db.Model):
             "icd_classification IN ('icd10', 'icd11', 'selectable')",
             name="icd_classification",
         ),
+        sa.CheckConstraint(
+            "cod_entry_mode IN ('simple', 'doris')",
+            name="cod_entry_mode",
+        ),
+        sa.CheckConstraint(
+            "NOT (masked_cod_required AND cod_entry_mode = 'doris')",
+            name="cod_entry_mode_masking",
+        ),
+        sa.CheckConstraint(
+            "cod_entry_mode <> 'doris' OR icd_classification = 'icd11'",
+            name="doris_requires_icd11",
+        ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
         sa.String(6), primary_key=True, index=True
@@ -103,6 +115,12 @@ class VaProjectMaster(db.Model):
     # Policy: docs/policy/va-form-project-configuration.md ("5. ICD classification").
     icd_classification: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="icd10", server_default="icd10"
+    )
+    masked_cod_required: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=True, server_default="true"
+    )
+    cod_entry_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="simple", server_default="simple"
     )
     demo_training_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"

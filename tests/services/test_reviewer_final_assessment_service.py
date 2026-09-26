@@ -138,6 +138,7 @@ class TestReviewerFinalAssessmentService(BaseTestCase):
             remark="first",
         )
         db.session.flush()
+        first.va_rfinassess_status = VaStatuses.deactive
         second = create_reviewer_final_assessment(
             va_sid=sid,
             reviewer_user_id=self.base_reviewer_user.user_id,

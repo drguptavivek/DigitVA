@@ -5,6 +5,7 @@ from flask_login import current_user
 
 from app.decorators import role_required
 from app.services import coding_search_telemetry_service
+from app.services.coding_service import get_project_for_submission
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -17,7 +18,19 @@ from app.services.workflow.definition import WORKFLOW_REVIEWER_FINALIZED
 bp = Blueprint("reviewing_api", __name__)
 
 
-def _error(message: str, status_code: int):
+def _error(
+    message: str,
+    status_code: int,
+    *,
+    code: str | None = None,
+    processing: dict | None = None,
+):
+    if code:
+        error = {"code": code, "message": message}
+        payload = {"schema_version": 1, "error": error}
+        if processing is not None:
+            payload["processing"] = processing
+        return jsonify(payload), status_code
     return jsonify({"error": message}), status_code
 
 
@@ -41,9 +54,24 @@ def allocate(va_sid):
 @bp.post("/finalize/<va_sid>")
 @role_required("reviewer")
 def finalize(va_sid):
-    body = request.get_json(silent=True) or {}
+    project = get_project_for_submission(va_sid)
+    if (
+        project is not None
+        and not project.masked_cod_required
+        and project.cod_entry_mode == "doris"
+        and (request.content_length is None or request.content_length > 1_200_000)
+    ):
+        return _error("DORIS final submission is too large.", 413)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _error("A JSON object is required.", 400)
+    for name in ("conclusive_cod", "remark", "immediate_cod", "other_conditions"):
+        if body.get(name) is not None and not isinstance(body[name], str):
+            return _error(f"{name} must be text.", 400)
     conclusive_cod = (body.get("conclusive_cod") or "").strip()
     remark = (body.get("remark") or "").strip() or None
+    immediate_cod = (body.get("immediate_cod") or "").strip() or None
+    other_conditions = (body.get("other_conditions") or "").strip() or None
     if not conclusive_cod:
         return _error("conclusive_cod is required.", 400)
     try:
@@ -52,9 +80,22 @@ def finalize(va_sid):
             va_sid,
             conclusive_cod=conclusive_cod,
             remark=remark,
+            immediate_cod=immediate_cod,
+            other_conditions=other_conditions,
+            doris_certificate=body.get("doris_certificate"),
+            doris_result=body.get("doris_result"),
+            codedit_result=body.get("codedit_result"),
+            doris_process_token=body.get("doris_process_token"),
+            doris_result_digest=body.get("doris_result_digest"),
+            doris_client_revision=body.get("doris_client_revision", 0),
         )
     except ReviewerCodingError as exc:
-        return _error(exc.message, exc.status_code)
+        return _error(
+            exc.message,
+            exc.status_code,
+            code=exc.code,
+            processing=exc.processing,
+        )
     # The reviewer's conclusive COD is stored: attach the picked code to the
     # search the browser says produced it (digitva-zpe.3). Never fatal.
     coding_search_telemetry_service.record_choice(

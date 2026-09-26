@@ -8,11 +8,14 @@ headers and failure behaviour consistent.
 
 from __future__ import annotations
 
+import json
 import re
 from urllib.parse import quote, urlsplit
 
 import requests
 from flask import current_app
+from urllib3.exceptions import HTTPError as Urllib3HTTPError
+from urllib3.exceptions import ReadTimeoutError as Urllib3ReadTimeoutError
 
 DEFAULT_ICD11_RELEASE = "2026-01"
 
@@ -26,6 +29,10 @@ _SAFE_RESOURCE_RE = re.compile(r"^[A-Za-z0-9._~%+:/&=\- ]+$")
 
 class WhoIcdApiUnavailable(RuntimeError):
     """The local WHO API could not return a usable response."""
+
+
+class WhoIcdApiTimeout(WhoIcdApiUnavailable):
+    """The local WHO API request exceeded its configured deadline."""
 
 
 def _base_url() -> str:
@@ -72,6 +79,14 @@ def _validate_resource(resource: str) -> str:
     if resource == schema_prefix or resource.startswith(schema_prefix + "/"):
         return resource
     raise ValueError("WHO ICD API resource is not available through DigitVA.")
+
+
+def _processor_resource(processor: str, release: str) -> str:
+    if processor not in {"doris", "codedit"}:
+        raise ValueError("Unknown WHO mortality processor.")
+    if not _RELEASE_RE.fullmatch(release):
+        raise ValueError("Invalid ICD-11 release.")
+    return f"icd/release/11/{release}/{processor}"
 
 
 def _request_timeout() -> tuple[float, float]:
@@ -128,6 +143,8 @@ def proxy_who_icd_request(
             allow_redirects=False,
             stream=True,
         )
+    except requests.Timeout as exc:
+        raise WhoIcdApiTimeout("WHO ICD API request timed out") from exc
     except requests.RequestException as exc:
         raise WhoIcdApiUnavailable("WHO ICD API request failed") from exc
 
@@ -140,7 +157,9 @@ def proxy_who_icd_request(
         raise WhoIcdApiUnavailable("WHO ICD API response is too large")
     try:
         content = response.raw.read(_MAX_RESPONSE_LENGTH + 1)
-    except (AttributeError, OSError, requests.RequestException) as exc:
+    except Urllib3ReadTimeoutError as exc:
+        raise WhoIcdApiTimeout("WHO ICD API response timed out") from exc
+    except (AttributeError, OSError, requests.RequestException, Urllib3HTTPError) as exc:
         response.close()
         raise WhoIcdApiUnavailable("WHO ICD API response could not be read") from exc
     finally:
@@ -150,6 +169,61 @@ def proxy_who_icd_request(
     response._content = content
     response._content_consumed = True
     return response
+
+
+def post_mortality_processor(
+    processor: str,
+    certificate: dict,
+    *,
+    release: str = DEFAULT_ICD11_RELEASE,
+    max_response_bytes: int = 512 * 1024,
+) -> tuple[int, bytes]:
+    """POST one certificate to a fixed local DORIS or CoDEdit endpoint."""
+
+    resource = _processor_resource(processor, release)
+    body = json.dumps(
+        certificate, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    if len(body) > 32 * 1024:
+        raise ValueError("DORIS certificate is too large.")
+
+    headers = {
+        "Accept": "application/json",
+        "Accept-Language": "en",
+        "API-Version": "v2",
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.post(
+            f"{_base_url()}/{resource}",
+            headers=headers,
+            data=body,
+            timeout=_request_timeout(),
+            allow_redirects=False,
+            stream=True,
+        )
+    except requests.Timeout as exc:
+        raise WhoIcdApiTimeout("WHO mortality processor timed out") from exc
+    except requests.RequestException as exc:
+        raise WhoIcdApiUnavailable("WHO mortality processor request failed") from exc
+
+    content_length = response.headers.get("Content-Length")
+    if content_length and content_length.isdigit() and int(content_length) > max_response_bytes:
+        response.close()
+        raise WhoIcdApiUnavailable("WHO mortality processor response is too large")
+    try:
+        content = response.raw.read(max_response_bytes + 1)
+    except Urllib3ReadTimeoutError as exc:
+        raise WhoIcdApiTimeout("WHO mortality processor response timed out") from exc
+    except (AttributeError, OSError, requests.RequestException, Urllib3HTTPError) as exc:
+        raise WhoIcdApiUnavailable(
+            "WHO mortality processor response could not be read"
+        ) from exc
+    finally:
+        response.close()
+    if len(content) > max_response_bytes:
+        raise WhoIcdApiUnavailable("WHO mortality processor response is too large")
+    return response.status_code, content
 
 
 def get_icd11_codeinfo(

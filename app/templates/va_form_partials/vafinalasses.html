@@ -1,3 +1,48 @@
+{% if project_mode|default('masked_simple') in ('unmasked_simple', 'unmasked_doris') %}
+{% if form_error_messages %}
+<div class="alert alert-warning" role="alert">
+  <div class="fw-semibold mb-1">The final assessment was not saved. Review these items:</div>
+  <ul class="mb-0 ps-3">{% for message in form_error_messages %}<li>{{ message }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+<form method="POST" id="unmaskedFinalAssessmentForm"
+      hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}"
+      hx-target="#form-container2" hx-swap="innerHTML">
+  {{ form.hidden_tag() }}
+  <div class="content-section-title mb-3 mt-4"><i class="fas fa-file-medical text-primary me-2"></i>Final Cause of Death Assessment</div>
+
+  {% if project_mode == 'unmasked_simple' %}
+    {% with icd_root_id="unmasked-select2-root", icd_preset=pre_conclusive_cod %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
+    <div class="alert alert-light border">Enter the immediate and underlying causes in one final assessment. Associated conditions are optional.</div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6"><label class="form-label fw-bold" for="unmasked-immediate-cod-select">Immediate cause <span class="text-danger">*</span></label><select id="unmasked-immediate-cod-select" class="form-select" data-icd-hidden="va_immediate_cod" data-icd-ect="true"></select><input type="hidden" id="va_immediate_cod" name="va_immediate_cod" value="{{ pre_immediate_cod or '' }}"></div>
+      <div class="col-md-6"><label class="form-label fw-bold" for="unmasked-underlying-cod-select">Underlying cause <span class="text-danger">*</span></label><select id="unmasked-underlying-cod-select" class="form-select" data-icd-hidden="va_conclusive_cod" data-icd-ect="true"></select><input type="hidden" id="va_conclusive_cod" name="va_conclusive_cod" value="{{ pre_conclusive_cod or '' }}"></div>
+      <div class="col-12"><label class="form-label fw-bold" for="va_other_conditions">Associated conditions (optional)</label><textarea id="va_other_conditions" name="va_other_conditions" class="form-control" rows="3">{{ pre_other_conditions or '' }}</textarea></div>
+    </div>
+  {% else %}
+    <input type="hidden" id="va_conclusive_cod" name="va_conclusive_cod">
+    {% with doris_editor_id='coder-doris-editor', doris_form_id='unmaskedFinalAssessmentForm', doris_role='coder', doris_final_cod_input='va_conclusive_cod' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
+  {% endif %}
+
+  <div class="mb-4"><label class="form-label fw-bold" for="unmasked-final-remark">Remarks</label><textarea id="unmasked-final-remark" name="va_finassess_remark" class="form-control" rows="3">{{ pre_remark if pre_remark is defined else (form.va_finassess_remark.data or '') }}</textarea></div>
+  <div class="d-flex justify-content-center my-4"><button type="submit" name="va_save_assessment" value="Save Assessment" class="btn btn-primary px-4 py-2">Save final assessment</button></div>
+</form>
+{% if project_mode == 'unmasked_simple' %}
+<script>
+(function () {
+  var form = document.getElementById('unmaskedFinalAssessmentForm');
+  var root = document.getElementById('unmasked-select2-root');
+  if (!form || !root || !window.jQuery) return;
+  [['#unmasked-immediate-cod-select','va_immediate_cod'], ['#unmasked-underlying-cod-select','va_conclusive_cod']].forEach(function (field) {
+    var select = window.jQuery(field[0]); var hidden = document.getElementById(field[1]);
+    select.select2({ajax:{url:function(){return root.dataset.icdUrl;},dataType:'json',delay:250,data:function(params){return {q:params.term};},processResults:function(data){return {results:data.map(function(item){return {id:item.icd_to_display,text:item.icd_to_display};})};}},minimumInputLength:2,width:'100%',placeholder:'Search ICD codes…'});
+    if (hidden.value) select.append(new Option(hidden.value, hidden.value, true, true)).trigger('change');
+    select.on('select2:select', function (event) { hidden.value = event.params.data.id; });
+  });
+}());
+</script>
+{% endif %}
+{% else %}
 {% if session_timed_out %}
 <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
   <i class="fas fa-clock me-1"></i>
@@ -302,7 +347,10 @@
 {% endif %}
 <script>
 document.body.addEventListener("htmx:afterSwap", function(event) {
-  const icdUrl = document.getElementById("select2-root")?.dataset.icdUrl;
+  const root = document.getElementById("select2-root");
+  const swapped = event.detail?.target || event.target;
+  if (!root || !swapped || !(swapped === root || swapped.contains(root))) return;
+  const icdUrl = root.dataset.icdUrl;
   if (!icdUrl) return;
 
   // Initialize Select2 with a small delay to ensure DOM is ready
@@ -399,3 +447,4 @@ document.getElementById("icdCodesModal")?.addEventListener("hide.bs.modal", func
   document.activeElement?.blur();
 });
 </script>
+{% endif %}

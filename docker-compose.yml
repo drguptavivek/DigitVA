@@ -44,6 +44,48 @@ services:
       retries: 3
       start_period: 20s
 
+  doris_public_service:
+    profiles: [icd11]
+    build: .
+    command: ./boot-public-doris.sh
+    entrypoint: []
+    volumes:
+      - .:/app
+      - minerva_venv:/app/.venv
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
+      - ICD11_API_BASE_URL=http://icd_api_service
+      - DORIS_PUBLIC_COOKIE_SECURE=${DORIS_PUBLIC_COOKIE_SECURE:-false}
+    depends_on:
+      icd_api_service:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 192m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  digitva_ingress:
+    profiles: [icd11]
+    image: nginx:1.29-alpine
+    ports:
+      - "127.0.0.1:8052:80"
+    volumes:
+      - ./deploy/doris-public-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      minerva_app_service:
+        condition: service_healthy
+      doris_public_service:
+        condition: service_healthy
+    restart: always
+
   minerva_celery_worker:
     build: .
     container_name: minerva_celery_worker

@@ -1,3 +1,6 @@
+{% if project_mode|default('masked_simple') in ('unmasked_simple', 'unmasked_doris') %}
+  {% include "va_form_partials/vafinalasses.html" %}
+{% else %}
 <form method="POST" id="initialAssessmentForm" hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vainitialasses', action=va_action, actiontype=va_actiontype) }}" hx-target="#form-container2" hx-swap="innerHTML">
   {{ form.hidden_tag() }}
 
@@ -91,7 +94,10 @@
 </form>
 <script>
 document.body.addEventListener("htmx:afterSwap", function (event) {
-  const icdUrl = document.getElementById("select2-root")?.dataset.icdUrl;
+  const root = document.getElementById("select2-root");
+  const swapped = event.detail?.target || event.target;
+  if (!root || !swapped || !(swapped === root || swapped.contains(root))) return;
+  const icdUrl = root.dataset.icdUrl;
   if (!icdUrl) return;
 
   // Destroy any existing Select2 instances first
@@ -251,3 +257,4 @@ document.getElementById("icdCodesModal")?.addEventListener("hide.bs.modal", func
   document.activeElement?.blur();
 });
 </script>
+{% endif %}

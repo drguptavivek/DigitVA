@@ -95,6 +95,12 @@ class Config:
     # The fallback is only for development convenience and should never be used in production.
     # Docker Compose will fail to start if .env is missing required variables.
     SECRET_KEY = _require_env("SECRET_KEY")
+    # Keep provenance tied to the immutable digest in docker-compose.yml.
+    DORIS_WHO_IMAGE_DIGEST = (
+        "sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c"
+    )
+    if os.environ.get("DORIS_WHO_IMAGE_DIGEST", DORIS_WHO_IMAGE_DIGEST) != DORIS_WHO_IMAGE_DIGEST:
+        raise RuntimeError("DORIS_WHO_IMAGE_DIGEST differs from the pinned WHO image")
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
     STATIC_ASSET_CACHE_MAX_AGE = int(

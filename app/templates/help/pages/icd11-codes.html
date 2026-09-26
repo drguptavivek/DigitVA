@@ -4,6 +4,15 @@
   These reference details are read-only.
 </p>
 
+{% if request.headers.get('X-DigitVA-Public-Ingress') == '1' %}
+<p>
+  To practise entering a complete death certificate and see separate DORIS
+  and CoDEdit results, open the
+  <a href="{{ url_for('help.page', slug='doris-demo') }}">DORIS training demonstration</a>.
+  It uses synthetic examples and does not save the certificate.
+</p>
+{% endif %}
+
 {% include "help/pages/_origin_legend.html" %}
 
 <div class="d-flex justify-content-between align-items-center mb-2 small">

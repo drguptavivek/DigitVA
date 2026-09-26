@@ -1,5 +1,37 @@
 # Handoff
 
+## DORIS implementation (2026-09-26)
+
+`digitva-ddv.1` implements the approved public DORIS/CoDEdit Help proof and
+clinical coder/reviewer flow. The dedicated public Flask service is routed
+through the same-origin ingress on local port 8052; the clinical app remains
+separate. The Help proof uses six synthetic certificates, requires CSRF on
+application POSTs, and stores no records. Five concurrent Process requests
+completed while clinical health requests remained responsive in local load
+validation. Production host routing to the ingress remains a release setting.
+
+Projects default to masked/simple. An additive migration adds unmasked/simple
+and unmasked/DORIS ICD-11 settings plus final-assessment payload columns.
+Clinical DORIS edits clear processor results and the selected UCOD. A signed
+Process proof binds certificate and output digests to the case and allocation;
+final save verifies the proof and persists only the final certificate, DORIS
+and CoDEdit outputs, and the independently selected human UCOD. Changed
+certificate submission returns 409 with fresh processing and requires
+reconfirmation; no row is saved on that request. Coder and reviewer results
+remain separate. Final-save writes lock the submission row and the migration
+enforces one active final per role, submission and non-null payload version.
+The local development database had zero duplicate active keys at this
+checkpoint; deployment databases need the same pre-migration check. See
+`docs/policy/doris-cod-workflow.md` and
+`docs/current-state/doris-cod-workflow.md`.
+
+The final full Docker test suite on `minerva_test_pii` passed: 2,241 tests and
+321 subtests, with seven existing schema-drift warnings. Browser smoke through
+the ingress processed an adult synthetic certificate and rendered DORIS,
+CoDEdit, rule table and diagrams. `digitva-ddv.2` tracks production hostname,
+TLS cookie, deployed image and log-privacy checks. The section below records
+the earlier planning checkpoint and is superseded by this implementation.
+
 ## DORIS planning review corrections (2026-09-26)
 
 `digitva-ddv.1` remains a planning task; no DORIS application code has been

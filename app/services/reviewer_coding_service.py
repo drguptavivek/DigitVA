@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 import sqlalchemy as sa
+from flask import current_app
 
 from app import db
 from app.models import (
@@ -18,8 +19,22 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.doris_certificate import DorisCertificateError
+from app.services.doris_process_proof import (
+    ProcessProofCertificateChanged,
+    ProcessProofContextMismatch,
+    ProcessProofExpired,
+    ProcessProofInvalid,
+    ProcessProofResultMismatch,
+    generate_process_proof,
+    verify_process_submission,
+)
+from app.services.doris_processing import process_certificate
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
-from app.services.icd_coding_value import validate_coding_value_for_submission
+from app.services.icd_coding_value import (
+    build_icd11_provenance_for_values,
+    validate_coding_value_for_submission,
+)
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
 from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
@@ -30,6 +45,7 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
     get_latest_active_reviewer_initial_assessment,
 )
+from app.services.who_icd_api import DEFAULT_ICD11_RELEASE, WhoIcdApiUnavailable
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -51,10 +67,36 @@ class ReviewerCodingResult:
 class ReviewerCodingError(Exception):
     """Raised when reviewer coding cannot proceed."""
 
-    def __init__(self, message: str, status_code: int = 403):
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 403,
+        *,
+        code: str | None = None,
+        processing: dict | None = None,
+    ):
         self.message = message
         self.status_code = status_code
+        self.code = code
+        self.processing = processing
         super().__init__(message)
+
+
+def _project_mode(project) -> str:
+    if project.masked_cod_required:
+        return "masked_simple"
+    if project.cod_entry_mode == "doris":
+        return "unmasked_doris"
+    return "unmasked_simple"
+
+
+def _mode_snapshot(project, who_image_digest: str) -> dict:
+    return {
+        "masked_cod_required": project.masked_cod_required,
+        "cod_entry_mode": project.cod_entry_mode,
+        "icd_release": DEFAULT_ICD11_RELEASE,
+        "who_image_digest": who_image_digest,
+    }
 
 
 def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) -> bool:
@@ -169,8 +211,26 @@ def submit_reviewer_final_cod(
     *,
     conclusive_cod: str,
     remark: str | None = None,
+    immediate_cod: str | None = None,
+    other_conditions: str | None = None,
+    doris_certificate: dict | None = None,
+    doris_result: dict | None = None,
+    codedit_result: dict | None = None,
+    doris_process_token: str | None = None,
+    doris_result_digest: str | None = None,
+    doris_client_revision: int = 0,
 ) -> VaReviewerFinalAssessments:
-    submission = db.session.get(VaSubmissions, va_sid)
+    from app.services.coding_service import get_project_for_submission
+
+    # Reviewer final replacement is a single-writer operation per
+    # submission.  Lock the existing row before checking the allocation and
+    # active final so concurrent requests cannot both pass the check-then-
+    # insert window.
+    submission = db.session.scalar(
+        sa.select(VaSubmissions)
+        .where(VaSubmissions.va_sid == va_sid)
+        .with_for_update()
+    )
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
     if not user.has_va_form_access(submission.va_form_id, "reviewer"):
@@ -198,15 +258,114 @@ def submit_reviewer_final_cod(
             "An active reviewer allocation is required to submit reviewer final COD."
         )
 
+    project = get_project_for_submission(va_sid)
+    if project is None:
+        raise ReviewerCodingError("Project not found.", 404)
+    project_mode = _project_mode(project)
+
     reviewer_initial = get_latest_active_reviewer_initial_assessment(
         va_sid,
         user.user_id,
     )
-    if not reviewer_initial:
+    if project_mode == "masked_simple" and not reviewer_initial:
         raise ReviewerCodingError(
             "Reviewer initial COD assessment must be completed before submitting reviewer final COD.",
             400,
         )
+
+    immediate_provenance = None
+    verified_certificate = None
+    verified_doris = None
+    verified_codedit = None
+    who_image_digest = str(
+        current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or ""
+    ).strip()
+    if project_mode == "unmasked_simple":
+        if not immediate_cod:
+            raise ReviewerCodingError("immediate_cod is required.", 400)
+        try:
+            validate_coding_value_for_submission(va_sid, immediate_cod)
+            immediate_provenance = build_icd11_provenance_for_values(
+                va_sid, {"immediate": immediate_cod}
+            )
+        except (LookupError, ValueError) as exc:
+            raise ReviewerCodingError(str(exc), 400) from exc
+    elif project_mode == "unmasked_doris":
+        if not who_image_digest:
+            raise ReviewerCodingError(
+                "The pinned WHO processing image is not configured.", 503
+            )
+        try:
+            verified = verify_process_submission(
+                doris_process_token or "",
+                certificate=doris_certificate,
+                doris_result=doris_result,
+                codedit_result=codedit_result,
+                submitted_result_digest=doris_result_digest or "",
+                va_sid=va_sid,
+                role="reviewer",
+                user_id=user.user_id,
+                allocation_id=active_allocation.va_allocation_id,
+                payload_version_id=submission.active_payload_version_id,
+                icd_release=DEFAULT_ICD11_RELEASE,
+                who_image_digest=who_image_digest,
+            )
+        except ProcessProofCertificateChanged:
+            try:
+                processing = process_certificate(
+                    {
+                        "schema_version": 1,
+                        "client_revision": doris_client_revision,
+                        "certificate": doris_certificate,
+                    },
+                    release=DEFAULT_ICD11_RELEASE,
+                    who_image_digest=who_image_digest,
+                )
+            except (DorisCertificateError, TypeError, ValueError) as exc:
+                raise ReviewerCodingError(str(exc), 422) from exc
+            except WhoIcdApiUnavailable as exc:
+                raise ReviewerCodingError("WHO ICD-11 service unavailable.", 503) from exc
+            processing["process_token"] = generate_process_proof(
+                certificate_digest=processing["certificate_digest"],
+                result_digest=processing["result_digest"],
+                va_sid=va_sid,
+                role="reviewer",
+                user_id=user.user_id,
+                allocation_id=active_allocation.va_allocation_id,
+                payload_version_id=submission.active_payload_version_id,
+                icd_release=DEFAULT_ICD11_RELEASE,
+                who_image_digest=who_image_digest,
+            )
+            raise ReviewerCodingError(
+                "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
+                409,
+                code="DORIS_CERTIFICATE_CHANGED",
+                processing=processing,
+            )
+        except ProcessProofResultMismatch as exc:
+            raise ReviewerCodingError(
+                "DORIS processor results changed. Process the form again.",
+                409,
+                code="DORIS_PROCESS_MISMATCH",
+            ) from exc
+        except (ProcessProofExpired, ProcessProofInvalid, ProcessProofContextMismatch) as exc:
+            raise ReviewerCodingError(
+                "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
+                409,
+                code="DORIS_PROCESS_EXPIRED",
+            ) from exc
+        except (DorisCertificateError, ValueError) as exc:
+            raise ReviewerCodingError(str(exc), 422) from exc
+        verified_certificate = verified["certificate"]
+        verified_doris = verified["doris"]
+        verified_codedit = verified["codedit"]
+
+    try:
+        final_provenance = build_icd11_provenance_for_values(
+            va_sid, {"conclusive": conclusive_cod}
+        )
+    except (LookupError, ValueError) as exc:
+        raise ReviewerCodingError(str(exc), 400) from exc
 
     if _reviewer_social_autopsy_required(va_sid, submission):
         social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
@@ -256,7 +415,17 @@ def submit_reviewer_final_cod(
             conclusive_cod=conclusive_cod,
             remark=remark,
             supersedes_coder_final_assessment=supersedes_coder_final,
-            source_reviewer_initial_assessment=reviewer_initial,
+            source_reviewer_initial_assessment=(
+                reviewer_initial if project_mode == "masked_simple" else None
+            ),
+            immediate_cod=immediate_cod if project_mode == "unmasked_simple" else None,
+            immediate_icd11_provenance=immediate_provenance,
+            other_conditions=other_conditions if project_mode == "unmasked_simple" else None,
+            doris_certificate=verified_certificate,
+            doris_result=verified_doris,
+            codedit_result=verified_codedit,
+            cod_entry_mode_snapshot=_mode_snapshot(project, who_image_digest),
+            icd11_provenance=final_provenance,
         )
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400) from exc
@@ -305,11 +474,21 @@ def submit_reviewer_initial_cod(
     antecedent_cod: str,
     other_conditions: str | None = None,
 ) -> VaReviewerInitialAssessments:
+    from app.services.coding_service import get_project_for_submission
+
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
     if not user.has_va_form_access(submission.va_form_id, "reviewer"):
         raise ReviewerCodingError("Reviewer access is required.", 403)
+    project = get_project_for_submission(va_sid)
+    if project is None:
+        raise ReviewerCodingError("Project not found.", 404)
+    if _project_mode(project) != "masked_simple":
+        raise ReviewerCodingError(
+            "This project uses one final COD assessment; reviewer Step 1 is not available.",
+            409,
+        )
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(

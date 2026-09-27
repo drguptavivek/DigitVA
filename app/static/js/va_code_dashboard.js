@@ -346,6 +346,9 @@
         const banner = document.getElementById('demo-training-banner');
         if (!banner) return;
         banner.style.display = isDemoProjectSelected() ? '' : 'none';
+        const minutes = (CONFIG.demoRetentionMinutes || {})[selectedProjectId()];
+        const label = document.getElementById('demo-retention-minutes');
+        if (label && minutes) label.textContent = String(minutes);
       }
 
       function selectFirstDemoProject() {

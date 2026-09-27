@@ -29,6 +29,8 @@ from app.services.coder_workflow_service import (
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
+from app.services.demo_project_service import get_demo_project_retention_minutes
+from app.models.va_project_master import VaProjectMaster
 from app.models.va_project_sites import VaProjectSites
 from datetime import datetime
 
@@ -185,6 +187,11 @@ def dashboard():
     demo_projects = []
     if va_form_access:
         demo_projects = get_demo_training_project_ids(va_form_access)
+    # The banner states each demo project's own retention, not a fixed 10.
+    demo_retention_minutes = {
+        project_id: get_demo_project_retention_minutes(db.session.get(VaProjectMaster, project_id))
+        for project_id in demo_projects
+    }
 
     return render_template(
         "va_frontpages/va_code.html",
@@ -200,6 +207,7 @@ def dashboard():
         va_recodeable=get_coder_recodeable_sids(current_user.user_id, va_form_access),
         is_admin=current_user.is_admin(),
         demo_projects=demo_projects,
+        demo_retention_minutes=demo_retention_minutes,
         coder_eligibility=coder_eligibility,
         coder_languages=coder_languages,
         has_org_unit_area=_has_org_unit_area(),

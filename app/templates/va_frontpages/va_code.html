@@ -254,7 +254,7 @@
       <i class="fas fa-flask text-warning mt-1"></i>
       <div>
         <div class="fw-semibold">These are demo-training forms.</div>
-        <div>Codes persist for 10 minutes. Pending forms are revoked after 15 minutes of allocation.</div>
+        <div>Codes persist for <span id="demo-retention-minutes">10</span> minutes. Pending forms are revoked after 15 minutes of allocation.</div>
       </div>
     </div>
   </div>
@@ -360,6 +360,7 @@
     window.DIGITVA_CODING_DASHBOARD = {
       csrfToken: {{ csrf_token()|tojson }},
       demoProjects: {{ demo_projects|tojson }},
+      demoRetentionMinutes: {{ demo_retention_minutes|default({})|tojson }},
       timezone: {{ (current_user.timezone or '')|tojson }}
     };
   </script>

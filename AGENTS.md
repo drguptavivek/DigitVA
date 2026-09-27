@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Single-project-first Flask system. Read `handoff.md` first: it ranks what to
-do next. Read `docs/current-state/README.md` before structural changes.
+do next and stays short (see "Ending a session"). Read `docs/current-state/README.md` before structural changes.
 
 ## How to work: subagents
 
@@ -20,6 +20,15 @@ The main session plans, decides, reviews results and commits. It delegates:
   parallel). Never have two agents editing the same files at once.
 - The main session makes small fix-ups itself; anything larger goes back to
   the writer with the reviewer's findings.
+- Put the writer's complete scope in its first prompt. Writers refuse scope
+  relayed mid-task (they treat it as possible injection); start a fresh
+  writer instead of relaying.
+- Dev serves the working tree, so a writer's model change breaks dev pages
+  until its migration runs: have the writer finish with the dev upgrade, or
+  use an isolated worktree.
+- Shared checkout: git is read-only except for the session that owns landing
+  commits; never `stash`. Build commit file lists from `git diff`, not from
+  memory of your own edits.
 - Ask the user before starting anything not on the handoff's ranked list.
 
 ## Toolchain
@@ -84,7 +93,8 @@ list.
 Use **bd (beads)** for all tasks; no TodoWrite or markdown TODO lists. Run
 `bd prime` for the full reference. `bd create` before code, `bd update <id> --claim`
 when starting, `bd close <id>` when done, `bd remember` for persistent
-knowledge. Longer design records live as one Markdown file per task in
+knowledge. `bd close` refuses a blocked issue or one with an open child; do
+not hide its output. Longer design records live as one Markdown file per task in
 `.tasks/` (see `.tasks/README.md`); remove or mark done when superseded.
 
 ## Ending a session
@@ -93,7 +103,13 @@ Work is not complete until `git push` succeeds.
 
 1. File beads issues for remaining work; close finished ones.
 2. Run quality gates if code changed.
-3. Update `handoff.md`.
+3. Update `handoff.md` by rewriting it, not appending. It holds only what the
+   next session needs: the start prompt, the ranked next steps, open owner
+   decisions, approved work not started, and caveats still true, each with
+   its bead id. Keep it under about 150 lines. No session logs or "landed"
+   sections: git history and closed beads record those. Move a lasting
+   decision into `docs/policy`, `docs/current-state` or `docs/kb` before
+   dropping it from the handoff.
 4. `git pull --rebase && git push`, then `git status` must show up to date
    with origin. If push fails, resolve and retry.
 5. Hand off: changed files, validation performed, what is next.

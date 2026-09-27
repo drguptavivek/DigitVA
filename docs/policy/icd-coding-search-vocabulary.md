@@ -3,7 +3,7 @@ title: ICD Coding Search Vocabulary
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-27
 ---
 
 # ICD coding search vocabulary (`digitva-zpe.1`)
@@ -63,6 +63,10 @@ second surface and stays out of scope here.
 - Terms that the current lexical search already finds (e.g. `stroke`,
   `pneumonia`) are deliberately NOT seeded; the vocabulary holds only what
   lexical matching cannot reach.
+
+Deliberately not seeded (diarrhoea vocabulary, migration `f2b7c9e4a1d8`):
+ME05.1, a symptom code that maps to "unknown"; and the abbreviation "AGE",
+whose key `age` would hijack plain "age" queries.
 
 ## Matching semantics
 

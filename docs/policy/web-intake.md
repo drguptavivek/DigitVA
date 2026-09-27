@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-27
 ---
 
 # Web Intake Policy
@@ -85,6 +85,9 @@ submission enters the workflow. Plan:
   consent question (`Id10013`) is answered. Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
+- Submission is refused while the draft's organization unit is unplaced (no
+  parent below the top level; `digitva-8ii`, 2026-09-27), with a 409 asking an
+  administrator to map its parent. The picker already hides such units.
 - Submission is refused if the draft's organization unit has been deactivated
   or deleted since the draft was started (decision 2026-09-18). Routing only
   attributes a submission to a live unit, so a stale unit would fall back to

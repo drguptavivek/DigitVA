@@ -789,15 +789,16 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
 
 
 def _require_live_org_unit(draft: VaWebIntakeDraft) -> None:
-    """Refuse a submission whose organization unit is no longer active.
+    """Refuse a submission whose organization unit is inactive or unplaced.
 
-    A unit can be deactivated between starting a draft and submitting it.
-    Routing only attributes a submission to a live unit, so the case would fall
-    back to the mapping's unit or stay unrouted — and since coding eligibility
-    is decided by the routed unit, an unrouted case in a project with an
-    organization tree is visible to no coder at all. Failing here tells the
-    interviewer while the draft is still safe, instead of filing a death
-    nobody can see.
+    A unit can be deactivated, or turn out to be unplaced (imported, parent
+    not yet mapped — see ``unplaced_unit_codes``), between starting a draft
+    and submitting it. Routing only attributes a submission to a live, placed
+    unit, so the case would fall back to the mapping's unit or stay unrouted —
+    and since coding eligibility is decided by the routed unit, an unrouted
+    case in a project with an organization tree is visible to no coder at
+    all. Failing here tells the interviewer while the draft is still safe,
+    instead of filing a death nobody can see.
     """
     if not draft.org_unit_id:
         return
@@ -814,6 +815,14 @@ def _require_live_org_unit(draft: VaWebIntakeDraft) -> None:
             "longer active, so the case could not be attributed to it or "
             "reach a coder. Ask an administrator to reactivate it or move the "
             "case before submitting.",
+            409,
+        )
+    unplaced = org.unplaced_unit_codes(unit.project_id)  # same predicate as the intake unit picker
+    if str(unit.path).split(".")[0] in unplaced:
+        raise WebIntakeError(
+            f"The organization unit for this case ({unit.unit_name}) is not yet placed in the "
+            "organization tree, so the case could not be attributed to it or reach a coder. Ask an "
+            "administrator to map its parent (Organization → Units → Map parents) before submitting.",
             409,
         )
 

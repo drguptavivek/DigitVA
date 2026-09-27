@@ -697,6 +697,63 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertIn("no longer active", str(caught.exception))
         self.assertEqual(draft.status, "draft", "the draft must survive the refusal")
 
+    def _unplaced_unit(self):
+        """A depth-2 unit with no parent: imported, not yet mapped."""
+        from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+        from app.services import organization_service as org
+
+        level = db.session.scalar(
+            sa.select(MasOrgLevel).where(
+                MasOrgLevel.project_id == self.PROJECT_ID,
+                MasOrgLevel.level_code == "chc",
+            )
+        )
+        if level is None:
+            level = MasOrgLevel(
+                project_id=self.PROJECT_ID,
+                level_code="chc",
+                level_name="CHC",
+                depth=2,
+            )
+            db.session.add(level)
+            db.session.flush()
+        code = f"C{uuid.uuid4().hex[:6]}"
+        unit = MasOrgUnit(
+            org_unit_id=uuid.uuid4(),
+            project_id=self.PROJECT_ID,
+            org_level_id=level.org_level_id,
+            unit_code=code,
+            unit_name="Test CHC",
+            path=code,
+        )
+        db.session.add(unit)
+        db.session.flush()
+        return unit, org
+
+    def test_submit_is_refused_while_the_unit_is_unplaced(self):
+        """An imported unit whose parent is not yet mapped cannot be
+        attributed to a coder any more than an inactive one can."""
+        district = self._org_unit()  # gives WIT01 a top-level district
+        unit, org = self._unplaced_unit()
+        self.assertIn(unit.unit_code, org.unplaced_unit_codes(self.PROJECT_ID))
+
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            org_unit_id=unit.org_unit_id,
+        )
+        with self.assertRaises(intake_svc.WebIntakeError) as caught:
+            intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertIn("not yet placed", str(caught.exception))
+        self.assertEqual(draft.status, "draft", "the draft must survive the refusal")
+
+        org.update_unit(self.PROJECT_ID, unit.org_unit_id, parent_org_unit_id=district.org_unit_id)
+        db.session.flush()
+        self.assertNotIn(unit.unit_code, org.unplaced_unit_codes(self.PROJECT_ID))
+
+        submission = intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
+        self.assertIsNotNone(submission)
+
     def test_a_deactivated_unit_contributes_no_code_to_the_payload(self):
         unit = self._org_unit(active=False)
         self.assertNotIn("org_district_code", intake_svc._unit_context(unit.org_unit_id))

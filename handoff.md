@@ -36,8 +36,9 @@ client and `https`; before, every user would have shared the proxy's IP
 for rate limits and IP bans. It also re-resolves app containers through
 Docker DNS, so an app restart no longer needs an ingress restart (verified
 with a recreated container on a new IP). Remaining for `digitva-ddv.2`, on
-the app VM: publish the ingress on the MZ interface, point the proxy's
-`proxy_pass` at it, set `COMPOSE_PROFILES=icd11` and
+the app VM only (owner: the reverse proxy stays unchanged): in the
+untracked compose override move port 8051 from `minerva_app_service` to
+`digitva_ingress` (`8051:80`), set `COMPOSE_PROFILES=icd11` and
 `DORIS_PUBLIC_COOKIE_SECURE=true`, then the digest, log-privacy and
 five-parallel-Process checks in the bead.
 

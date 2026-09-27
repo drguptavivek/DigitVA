@@ -175,10 +175,12 @@ through Docker DNS every 10 seconds, so restarting or recreating either app
 does not leave the ingress returning 502 until it is itself restarted.
 
 Production wiring: the DMZ reverse proxy terminates TLS for the public hostname
-and `proxy_pass`es to the ingress port published on the app VM's MZ
-interface (the base compose file binds it to loopback only), with `Host`,
-`X-Real-IP`, `X-Forwarded-For` and `X-Forwarded-Proto` set. The app VM runs
-with `COMPOSE_PROFILES=icd11` and `DORIS_PUBLIC_COOKIE_SECURE=true`.
+and sets `Host`, `X-Real-IP`, `X-Forwarded-For` and `X-Forwarded-Proto`; it is
+not changed for the ingress. Routing is local to the app VM: its untracked
+compose override publishes the ingress on the port the proxy already targets
+and no longer publishes `minerva_app_service` (the base compose file binds the
+ingress to loopback only). The app VM runs with `COMPOSE_PROFILES=icd11` and
+`DORIS_PUBLIC_COOKIE_SECURE=true`.
 
 The pinned WHO image is `whoicd/icd-api:2.6.0` with MMS `2026-01` and image
 digest `sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c`.

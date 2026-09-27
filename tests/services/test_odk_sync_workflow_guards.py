@@ -7,6 +7,8 @@ Critical behavior under test:
 - Non-protected submissions follow the existing destructive update path.
 """
 import uuid
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from datetime import datetime, timezone, timedelta
 
 import sqlalchemy as sa
@@ -36,6 +38,7 @@ from app.models.va_submission_payload_versions import (
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -45,6 +48,7 @@ from app.services.workflow.state_store import (
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    va_data_sync_odkcentral,
     _upsert_form_submissions,
 )
 from tests.base import BaseTestCase
@@ -260,6 +264,64 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
         self.assertEqual(initial.va_iniassess_status, VaStatuses.active)
         self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODING_IN_PROGRESS)
+
+    def test_full_sync_with_no_changes_keeps_live_coding_and_review_sessions(self):
+        # Runs the real full sync against the database; only ODK is stubbed,
+        # and it reports no changes. The removed global release ended every
+        # active allocation here, coder and reviewer alike.
+        coded = self._make_submission("uuid:guard-full-coding")
+        allocation, initial = self._start_coding(coded.va_sid)
+        reviewed = self._make_submission("uuid:guard-full-review")
+        set_submission_workflow_state(
+            reviewed.va_sid, WORKFLOW_REVIEWER_CODING_IN_PROGRESS, reason="test", by_role="test"
+        )
+        review_allocation = VaAllocations(
+            va_sid=reviewed.va_sid,
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.reviewing,
+            va_allocation_status=VaStatuses.active,
+        )
+        db.session.add(review_allocation)
+        db.session.commit()
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+        self.assertEqual(review_allocation.va_allocation_status, VaStatuses.active)
+
+        sync = "app.services.va_data_sync.va_data_sync_01_odkcentral"
+        mapping = SimpleNamespace(last_synced_at=datetime.now(timezone.utc) - timedelta(hours=6))
+        progress = []
+        with (
+            patch(f"{sync}.sync_runtime_forms_from_site_mappings",
+                  return_value=[db.session.get(VaForms, self.FORM_ID)]),
+            patch(f"{sync}._resolve_project_connections", return_value={}),
+            patch(f"{sync}.get_active_mapping_for_form", return_value=mapping),
+            patch(f"{sync}._get_or_create_sync_odk_client", return_value=Mock()),
+            patch(f"{sync}._warn_on_missing_org_fields"),
+            patch(f"{sync}._mark_form_sync_issues"),
+            patch(f"{sync}.va_odk_fetch_instance_ids",
+                  return_value=["uuid:guard-full-coding", "uuid:guard-full-review"]),
+            patch(f"{sync}.va_odk_delta_count", return_value=0),
+        ):
+            result = va_data_sync_odkcentral(log_progress=progress.append)
+
+        self.assertEqual((result["added"], result["updated"]), (0, 0))
+        self.assertTrue(any("in sync" in line for line in progress), progress)
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaAllocations, allocation.va_allocation_id).va_allocation_status,
+            VaStatuses.active,
+        )
+        self.assertEqual(
+            db.session.get(VaInitialAssessments, initial.va_iniassess_id).va_iniassess_status,
+            VaStatuses.active,
+        )
+        self.assertEqual(
+            db.session.get(VaAllocations, review_allocation.va_allocation_id).va_allocation_status,
+            VaStatuses.active,
+        )
+        self.assertEqual(self._get_workflow_state(coded.va_sid), WORKFLOW_CODING_IN_PROGRESS)
+        self.assertEqual(
+            self._get_workflow_state(reviewed.va_sid), WORKFLOW_REVIEWER_CODING_IN_PROGRESS
+        )
 
     def test_sync_with_payload_change_releases_that_coder_session(self):
         # The per-case release on changed data replaces the global one.

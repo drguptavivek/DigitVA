@@ -1,4 +1,5 @@
 <div class="alert alert-warning mt-4" role="status" data-nqa-required>
+  {% if step1_saved %}<p class="mb-2" data-step1-saved>Your Step 1 cause of death is saved.</p>{% endif %}
   <div class="fw-semibold mb-1">Complete the Narrative Quality Assessment first</div>
   <p class="mb-2">This project needs it before the final cause of death. Saving it reloads the page, so the final assessment opens only after it is saved.</p>
   <button type="button" class="btn btn-sm btn-primary"

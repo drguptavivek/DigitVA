@@ -186,6 +186,18 @@ class TestNarrativeQaRoute(BaseTestCase):
         body = self.client.get(url).get_data(as_text=True)
         self.assertNotIn("data-nqa-required", body)
 
+    def test_cod_assessment_partial_is_not_http_cached_in_coding_mode(self):
+        response = _apply_partial_cache_policy(
+            Response("ok", status=200),
+            "vacodassessment",
+            "vacode",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cache_control = response.headers.get("Cache-Control", "")
+        self.assertIn("private", cache_control)
+        self.assertIn("no-store", cache_control)
+
     def test_narration_partial_is_not_http_cached_in_coding_mode(self):
         response = _apply_partial_cache_policy(
             Response("ok", status=200),

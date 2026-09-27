@@ -10,6 +10,12 @@
   {% with doris_editor_id='coder-step1-doris-editor', doris_form_id='initialAssessmentForm', doris_role='coder', doris_final_cod_input='va_antecedent_cod', doris_step1_title='DORIS certificate', doris_step2_title='Underlying cause of death', doris_final_wait_text='Process the certificate above first.' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
   <div class="text-danger small mb-2" role="alert" data-step-error></div>
   <div class="d-flex justify-content-center gap-3 my-5">
+    {% if doris_initial_processing %}
+    {# Step 1 is already saved: open Step 2 without re-saving. doris_clinical.js hides this once the certificate or cause changes. #}
+    <button type="button" class="btn btn-primary px-4 py-2" data-doris-continue
+            hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}"
+            hx-params="none" hx-target="#form-container2" hx-swap="innerHTML">Continue to Step 2</button>
+    {% endif %}
     {{ form.va_save_assessment(class="btn btn-primary px-4 py-2") }}
     {{ form.va_not_codeable(class="btn btn-outline-danger px-4 py-2") }}
   </div>

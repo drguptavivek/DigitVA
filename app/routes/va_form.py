@@ -145,7 +145,9 @@ def _response_contains_user_specific_artifacts(va_partial: str, va_action: str) 
     """Return whether a rendered partial includes user-specific coding artifacts."""
     if va_action not in {"vacode", "vareview"}:
         return False
-    return va_partial in {"vanarrationanddocuments", "social_autopsy"}
+    # vacodassessment picks Step 1 or Step 2 from the user's own saved
+    # assessment; a cached copy reopens Step 1 after it was saved.
+    return va_partial in {"vanarrationanddocuments", "social_autopsy", "vacodassessment"}
 
 
 def _apply_partial_cache_policy(response, va_partial: str, va_action: str):
@@ -198,6 +200,20 @@ def _is_masked(project_mode: str) -> bool:
 
 def _is_doris(project_mode: str) -> bool:
     return project_mode.endswith("_doris")
+
+
+def _nqa_blocks_final(va_sid, va_action, project) -> bool:
+    """True when this coder must save the NQA before the final COD form.
+
+    Saving the NQA reloads the page, so a final assessment typed before it
+    would be lost; callers show ``_nqa_required_notice.html`` instead.
+    """
+    return bool(
+        va_action == "vacode"
+        and project
+        and project.narrative_qa_enabled
+        and not get_current_payload_narrative_assessment(va_sid, current_user.user_id)
+    )
 
 
 def _cod_entry_mode_snapshot(project, who_image_digest: str) -> dict:
@@ -1352,6 +1368,15 @@ def renderpartial(va_sid, va_partial):
                 )
                 raise
             db.session.commit()
+            # Step 1 is saved; Step 2 would only be refused at save time.
+            if _nqa_blocks_final(va_sid, va_action, project):
+                return render_template(
+                    "va_form_partials/_nqa_required_notice.html",
+                    va_sid=va_sid,
+                    va_action=va_action,
+                    va_actiontype=va_actiontype,
+                    step1_saved=True,
+                )
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
             step2_context = (
                 _masked_doris_step2_context(new_review, smartva)
@@ -1399,6 +1424,23 @@ def renderpartial(va_sid, va_partial):
             form.va_antecedent_cod.data = pre_antecedent_cod
             if existing_assess.va_other_conditions:
                 form.va_other_conditions.data = existing_assess.va_other_conditions.split(" | ")
+        # A saved masked DORIS Step 1 reopens with its result shown so the
+        # coder can continue to Step 2 without processing again. No process
+        # token is minted here: the result is display-only, and saving a
+        # changed Step 1 still needs a fresh Process (digitva-0n3.4).
+        saved_doris_processing = None
+        if (
+            project_mode == "masked_doris"
+            and existing_assess is not None
+            and existing_assess.va_iniassess_status == VaStatuses.active
+            and existing_assess.doris_result is not None
+        ):
+            saved_doris_processing = {
+                "certificate": existing_assess.doris_certificate,
+                "doris": existing_assess.doris_result,
+                "codedit": existing_assess.codedit_result,
+                "final_choice": existing_assess.va_antecedent_cod or "",
+            }
         return render_template(
             f"va_form_partials/{va_partial}.html",
             form=form,
@@ -1414,6 +1456,7 @@ def renderpartial(va_sid, va_partial):
                 if existing_assess and existing_assess.doris_certificate
                 else _doris_admin_defaults(va_submission)
             ),
+            doris_initial_processing=saved_doris_processing,
             doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
             doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
             doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",
@@ -1422,15 +1465,7 @@ def renderpartial(va_sid, va_partial):
             ),
         )
     if va_partial == "vafinalasses":
-        # Saving the NQA reloads the page, so a final assessment typed before
-        # it would be lost; show where to go instead of the form.
-        if (
-            request.method == "GET"
-            and va_action == "vacode"
-            and project
-            and project.narrative_qa_enabled
-            and not get_current_payload_narrative_assessment(va_sid, current_user.user_id)
-        ):
+        if request.method == "GET" and _nqa_blocks_final(va_sid, va_action, project):
             return render_template(
                 "va_form_partials/_nqa_required_notice.html",
                 va_sid=va_sid,

@@ -65,6 +65,17 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   is a 400. The DORIS clinical API (`_clinical_context`) accepts a masked
   project for the coder role only; the reviewer still gets 409
   `DORIS_NOT_ENABLED` on a masked project.
+- **Reopening a saved Step 1** (active Step 1 row with a DORIS result) shows
+  the saved result and underlying cause through the editor's
+  `doris_initial_processing` input, with no process token (none is minted on
+  GET). "Continue to Step 2" loads Step 2 without re-saving. Save stays
+  disabled: editing the certificate, or choosing a different underlying
+  cause, needs Process and Save again (the cause can also be changed in
+  Step 2). Unmasked DORIS reopen is unchanged.
+- **NQA gate.** When the project requires the Narrative Quality Assessment
+  and this coder has none for the current payload, a successful Step 1 save
+  (masked simple and masked DORIS) responds with `_nqa_required_notice.html`
+  instead of the Step 2 form, as the Step 2 GET does. Step 1 is still saved.
 - **Step 2** shows the SmartVA table, a read-only summary of the Step 1 DORIS
   run (`doris_result_summary.js` over the Step 1 envelopes) with the Step 1
   underlying cause, and three choices: "Use Step 1 underlying cause" (the

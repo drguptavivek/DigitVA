@@ -322,6 +322,164 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertEqual(reviewer.status_code, 409)
         self.assertEqual(reviewer.get_json()["error"]["code"], "DORIS_NOT_ENABLED")
 
+    def _initial_processing(self, body):
+        start = body.index("data-doris-initial-processing>") + len("data-doris-initial-processing>")
+        return json.loads(body[start:body.index("</script>", start)])
+
+    def test_step1_reopen_shows_saved_result_and_continue(self):
+        sid = self._start_coder()
+        self._step1_row(sid, underlying="1C62.Z HIV disease")
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        saved = self._initial_processing(body)
+        self.assertEqual(saved["certificate"], _CERTIFICATE)
+        self.assertEqual(saved["doris"], _DORIS)
+        self.assertEqual(saved["codedit"], _CODEDIT)
+        self.assertEqual(saved["final_choice"], "1C62.Z HIV disease")
+        # Display only: no signed proof is minted on GET.
+        self.assertNotIn("process_token", saved)
+        self.assertNotIn("result_digest", saved)
+        self.assertIn("data-doris-continue", body)
+        self.assertIn("Continue to Step 2", body)
+        self.assertIn('hx-params="none"', body)
+        self.assertIn(f"/vaform/{sid}/vafinalasses?", body)
+
+    def test_step1_without_saved_row_has_no_continue(self):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn("data-doris-editor", body)
+        self.assertIn("data-doris-initial-processing", body)
+        self.assertIsNone(self._initial_processing(body))
+        self.assertNotIn("data-doris-continue", body)
+
+    def test_step1_reopen_ignores_superseded_row(self):
+        sid = self._start_coder()
+        row = self._step1_row(sid)
+        row.va_iniassess_status = VaStatuses.deactive
+        db.session.commit()
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn("data-doris-editor", body)
+        self.assertIsNone(self._initial_processing(body))
+        self.assertNotIn("data-doris-continue", body)
+
+    # ---- NQA gate after a Step 1 save -----------------------------------
+
+    def _require_nqa(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.narrative_qa_enabled = True
+        db.session.commit()
+
+    def _saved_step1(self, sid):
+        return db.session.scalar(
+            db.select(VaInitialAssessments).where(
+                VaInitialAssessments.va_sid == sid,
+                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            )
+        )
+
+    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=None)
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_masked_doris_step1_post_shows_nqa_notice_when_nqa_missing(
+        self, verify, _validate, _provenance, _nqa
+    ):
+        self._require_nqa()
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+
+        response = self._post_step1(sid)
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200, body)
+        self.assertIn("data-nqa-required", body)
+        self.assertIn("data-step1-saved", body)
+        self.assertNotIn("data-doris-final-host", body)
+        self.assertIsNotNone(self._saved_step1(sid))
+
+    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=object())
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_masked_doris_step1_post_shows_step2_when_nqa_done(
+        self, verify, _validate, _provenance, _nqa
+    ):
+        self._require_nqa()
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+
+        body = self._post_step1(sid).get_data(as_text=True)
+
+        self.assertIn("data-doris-final-host", body)
+        self.assertNotIn("data-nqa-required", body)
+
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_masked_doris_step1_post_shows_step2_when_nqa_not_required(
+        self, verify, _validate, _provenance
+    ):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+
+        body = self._post_step1(sid).get_data(as_text=True)
+
+        self.assertIn("data-doris-final-host", body)
+        self.assertNotIn("data-nqa-required", body)
+
+    def _post_masked_simple_step1(self, sid):
+        with (
+            patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None),
+            patch("app.routes.va_form.validate_coding_value_for_submission", return_value="icd10"),
+        ):
+            return self.client.post(
+                _STEP1_URL.format(sid=sid),
+                data={
+                    "va_immediate_cod": "A16.9 Respiratory tuberculosis",
+                    "va_antecedent_cod": "B20 HIV disease",
+                    "va_save_assessment": "1",
+                },
+                headers={**self._csrf_headers(), "HX-Request": "true"},
+            )
+
+    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=None)
+    def test_masked_simple_step1_post_shows_nqa_notice_when_nqa_missing(self, _nqa):
+        self._mode(masked=True, doris=False)
+        self._require_nqa()
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        response = self._post_masked_simple_step1(sid)
+
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200, body)
+        self.assertIn("data-nqa-required", body)
+        self.assertNotIn("conclusive-cod-select", body)
+        self.assertIsNotNone(self._saved_step1(sid))
+
+    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=object())
+    def test_masked_simple_step1_post_shows_step2_when_nqa_done(self, _nqa):
+        self._mode(masked=True, doris=False)
+        self._require_nqa()
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        body = self._post_masked_simple_step1(sid).get_data(as_text=True)
+
+        self.assertIn("conclusive-cod-select", body)
+        self.assertNotIn("data-nqa-required", body)
+
     # ---- Step 2 ---------------------------------------------------------
 
     @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1B10.Z")

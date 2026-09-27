@@ -77,11 +77,15 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     editor._dorisPicker = picker;
 
     function status(message) { query(editor, '[data-doris-status]').textContent = message || ''; }
+    // "Continue to Step 2" is offered only while a saved Step 1 is shown unchanged.
+    function hideContinue() { var form = document.getElementById(editor.dataset.formId); var button = form && form.querySelector('[data-doris-continue]'); if (button) button.hidden = true; }
     function selectFinal(choice) {
       var target = finalInput(editor); if (target) target.value = choice.code + ' ' + (choice.title || '');
       query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + choice.code + ' — ' + (choice.title || '');
       query(editor, '[data-doris-final-results]').replaceChildren();
       query(editor, '[data-doris-final-search]').focus();
+      // A saved result has no process token, so it cannot be saved again.
+      if (state.savedOnly) { hideContinue(); status('To save a different underlying cause, process the certificate again. You can also change it in Step 2.'); return; }
       var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]');
       if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
     }
@@ -101,7 +105,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     }
     function invalidate(message) {
       var hadResult = state.processing !== null;
-      state.revision += 1; state.processing = null;
+      state.revision += 1; state.processing = null; state.savedOnly = false; hideContinue();
       query(editor, '[data-doris-results]').hidden = true;
       query(editor, '[data-doris-final-panel]').hidden = true; query(editor, '[data-doris-final-wait]').hidden = false; query(editor, '[data-doris-technical]').hidden = true;
       hidden(editor, '[data-doris-certificate]', ''); hidden(editor, '[data-doris-result]', ''); hidden(editor, '[data-codedit-result]', ''); hidden(editor, '[data-doris-token]', ''); hidden(editor, '[data-doris-digest]', '');
@@ -265,6 +269,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     function renderProcessing(processing, requireReconfirm) {
       state.processing = processing;
       state.processingRevision += 1;
+      state.savedOnly = !processing.process_token; if (!state.savedOnly) hideContinue();
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
       renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
         return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return result.data && result.data.item ? result.data.item.title : ''; });
@@ -341,6 +346,16 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
         if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
       }
       status('Your processed certificate was kept. Resolve the items above, then save again.');
+    } else if (restored && restored.certificate && restored.doris && restored.codedit) {
+      // A saved masked Step 1 (no token): show it read-only; Save stays
+      // disabled until the certificate is processed again.
+      renderProcessing(restored, false);
+      var savedFinal = text(restored.final_choice);
+      if (savedFinal) {
+        var savedTarget = finalInput(editor); if (savedTarget) savedTarget.value = savedFinal;
+        query(editor, '[data-doris-final-choice]').textContent = 'Saved underlying cause: ' + savedFinal;
+      }
+      status('Step 1 is saved. Continue to Step 2, or edit the certificate and process it again to change it.');
     }
   }
 

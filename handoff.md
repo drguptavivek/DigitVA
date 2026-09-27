@@ -20,6 +20,17 @@ second stem. Uncoded folders are plain `▷` nodes; maternal/perinatal
 panels show WHO's composite (`JB64.4/BD54`) first; modal typography is
 tighter.
 
+The WHO behaviours the picker mirrors, with evidence and the DigitVA
+equivalent for each, are recorded in
+`docs/kb/doris-picker-who-behaviour-rules.md`; extend that file when a new
+WHO behaviour is matched. Later in the same day the picker gained: plain
+code weight in rows, footer and details heading; the results list as the
+narrow column with controls stacked right-aligned under the title; no
+matching terms in details; the live expression and its actions in the
+sticky footer; scroll kept across "More choices"; "+ Build" on a composite
+result and the maternal/perinatal composite link both opening the stem
+builder with the other parts preselected, as WHO does.
+
 The picker is now one framework-free ES module,
 `app/static/js/digitva_icd11_picker.js` (`createIcd11Picker({mount,
 transport, onSelect, onClose, revision})`), with injected transport and no

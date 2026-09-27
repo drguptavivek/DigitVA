@@ -157,7 +157,9 @@ import { mount as mountInterval } from './doris_interval.js';
           var complete = picker.isCompleteExpression(item.code);
           var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
             picker.openRelated(container, chapter, selected, function (term) {
-              if (term.requires_postcoordination || !term.uri || finalMode) { input.value = term.code; search(line, finalMode); }
+              if (term.requires_postcoordination || finalMode) { input.value = term.code; search(line, finalMode); }
+              else if (!term.uri && picker.isCompleteExpression(term.code)) { var partsOfTerm = term.code.split(/[&/]/); picker.openPostcoordination(container, {code: partsOfTerm[0], title: '', uri: '', preselect: partsOfTerm.slice(1)}, null); }
+              else if (!term.uri) picker.resolveAndStage(container, term.code, message);
               else picker.stage(container, term, message);
             });
           }, item.postcoordination ? function (button) {

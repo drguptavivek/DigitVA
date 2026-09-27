@@ -474,7 +474,11 @@ export function createIcd11Picker(options) {
     }
     function requiredSatisfied() { return state.axes.every(function (axis) { return !axis.required || selectedFor(axis).length > 0; }); }
     function appendOptionList(axis, optionsList, parent) {
-      list(optionsList).forEach(function (raw) {
+      // Selected values that are not root options (preselected composite
+      // parts, deeper children) still need a visible, pressable chip.
+      var rootCodes = list(optionsList).map(function (raw) { return optionValue(raw).code; });
+      var extras = parent.hasAttribute('data-doris-axis-options') ? selectedFor(axis).filter(function (chosen) { return rootCodes.indexOf(chosen.code) === -1; }) : [];
+      list(optionsList).concat(extras).forEach(function (raw) {
         var option = optionValue(raw);
         if (!option.code && !option.title) return;
         var row = document.createElement('div');
@@ -788,15 +792,28 @@ export function createIcd11Picker(options) {
         });
         var otherSubtrees = data.other_postcoordination ? list(data.other_postcoordination.subtree_uris).map(text).filter(Boolean) : [];
         state.other_postcoordination = otherSubtrees.length ? {subtree_uris: otherSubtrees} : null;
-        // WHO's tool opens a composite result as its stem with the other
-        // parts already chosen; preselect any part that is a root option.
-        list(item.preselect).map(text).filter(Boolean).forEach(function (code) {
+        // WHO's tool opens a composite result (or a maternal/perinatal
+        // composite link) as its stem with the other parts already chosen.
+        // A part that is a root option is selected directly; otherwise it
+        // is resolved through codeinfo and attached to the first axis that
+        // takes stem codes (an X code goes to "Other postcoordination").
+        var pending = list(item.preselect).map(text).filter(Boolean).map(function (code) {
+          var placed = false;
           state.axes.forEach(function (axis) {
             var match = list(axis.options).map(optionValue).find(function (option) { return option.code === code; });
-            if (match && !isSelected(axis, match)) state.selected[axis.id] = selectedFor(axis).concat([match]);
+            if (match) { placed = true; if (!isSelected(axis, match)) state.selected[axis.id] = selectedFor(axis).concat([match]); }
           });
-        });
-        renderPostcoordination();
+          if (placed) return null;
+          return transport.post('codeinfo', {schema_version: 1, code: code}).then(function (info) {
+            var part = info && info.item;
+            if (!part || !part.code || !part.uri) return;
+            var chosen = {code: text(part.code), title: text(part.title), uri: text(part.uri), block_uri: '', has_children: false};
+            if (/^X/i.test(chosen.code)) { state.other_selected = chosen; return; }
+            var axis = state.axes.find(function (candidate) { return list(candidate.options).some(function (option) { return option.code && !/^X/i.test(option.code); }); });
+            if (axis && !isSelected(axis, chosen)) state.selected[axis.id] = selectedFor(axis).concat([chosen]);
+          }).catch(function () { /* the coder can still pick the part by hand */ });
+        }).filter(Boolean);
+        Promise.all(pending).then(function () { if (!stale(id)) renderPostcoordination(); });
       }).catch(function (err) { if (!stale(id)) error(err.message || 'Postcoordination choices are unavailable.'); });
     }
     panel.addEventListener('keydown', function (event) { if (event.key === 'Escape') { event.preventDefault(); closePanel(); } });
@@ -825,9 +842,27 @@ export function createIcd11Picker(options) {
 
   window.addEventListener('pagehide', close);
 
+  // Resolve a code without a client-side URI (WHO's maternal or perinatal
+  // composite, e.g. JB64.4/BD54) through codeinfo, then stage it as the
+  // choice; the selection check still runs on OK.
+  function resolveAndStage(container, code, statusEl) {
+    if (statusEl) statusEl.textContent = 'Checking ' + code + ' with WHO…';
+    closePostcoordination(container);
+    return transport.post('codeinfo', {schema_version: 1, code: code}).then(function (data) {
+      var item = data && data.item;
+      if (!item || !item.code || !item.uri) throw new Error('WHO did not return ' + code + '.');
+      if (statusEl) statusEl.textContent = '';
+      return stage(container, item, statusEl);
+    }).catch(function (err) {
+      var message = (err.response && err.response.error && err.response.error.message) || err.message || 'The code could not be checked.';
+      if (statusEl) statusEl.textContent = message;
+      else if (active && active.line === container) active.choice.textContent = message;
+      return false;
+    });
+  }
   return {
     open: open, close: close, reset: reset,
-    stage: stage, clearSelection: clearSelection,
+    stage: stage, resolveAndStage: resolveAndStage, clearSelection: clearSelection,
     showDetails: showDetails, clearDetails: clearDetails,
     addContextIcons: addContextIcons, openRelated: openRelated,
     openPostcoordination: openPostcoordination, closePostcoordination: closePostcoordination,

@@ -160,10 +160,16 @@ import { mount as mountInterval } from './doris_interval.js';
       var complete = picker.isCompleteExpression(item.code);
       var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
         picker.openRelated(line, chapter, selected, function (term) {
-          if (term.requires_postcoordination || !term.uri) {
+          if (term.requires_postcoordination) {
             line.querySelector('[data-search]').value = term.code;
             searchLine(line);
-          } else picker.stage(line, term, searchStatus);
+          } else if (!term.uri && picker.isCompleteExpression(term.code)) {
+            // WHO opens a maternal/perinatal composite as its stem with the
+            // original code preselected in the relevant axis.
+            var partsOfTerm = term.code.split(/[&/]/);
+            picker.openPostcoordination(line, {code: partsOfTerm[0], title: '', uri: '', preselect: partsOfTerm.slice(1)}, null);
+          } else if (!term.uri) picker.resolveAndStage(line, term.code, searchStatus);
+          else picker.stage(line, term, searchStatus);
         });
       }, item.postcoordination ? function (button) {
         // A complete expression opens the builder for its stem so the

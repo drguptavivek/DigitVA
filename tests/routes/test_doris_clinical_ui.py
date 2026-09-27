@@ -66,6 +66,7 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn('data-role="{{ doris_role', partial)
         self.assertIn("data-doris-add-uncoded", partial)
         self.assertIn("data-doris-fetal", partial)
+        self.assertIn("data-doris-summary", partial)
         self.assertIn("data-doris-maternal", partial)
         self.assertIn("data-postcoordination-url", partial)
         self.assertIn("data-postcoordination-options-url", partial)

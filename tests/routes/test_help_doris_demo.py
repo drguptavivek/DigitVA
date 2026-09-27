@@ -28,6 +28,7 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn('id="doris-add-line"', body)
         self.assertIn('id="doris-part2-line"', body)
         self.assertIn('id="doris-fetal-section"', body)
+        self.assertIn('id="doris-summary"', body)
         self.assertIn('id="doris-maternal-section"', body)
         self.assertIn('role="status" aria-live="polite"', body)
         self.assertIn("Add as uncoded text", body)

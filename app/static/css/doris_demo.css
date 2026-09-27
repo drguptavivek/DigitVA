@@ -81,3 +81,6 @@
 @media (max-width: 767.98px) { .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); } .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 35vh; } }
 
 .doris-code-details h4 { font-weight: 400; }
+.doris-summary-headline { font-size: 1.1rem; }
+.doris-summary-checks { padding-left: 1.1rem; }
+.doris-summary-checks li + li { margin-top: .25rem; }

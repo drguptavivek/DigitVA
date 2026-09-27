@@ -1,5 +1,6 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js';
+import { renderSummary } from './doris_result_summary.js';
 
 (function () {
   'use strict';
@@ -263,6 +264,9 @@ import { mount as mountInterval } from './doris_interval.js';
       state.processing = processing;
       state.processingRevision += 1;
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
+      renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
+        return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return result.data && result.data.item ? result.data.item.title : ''; });
+      } : null);
       query(editor, '[data-doris-engine-status]').textContent = 'Status: ' + (doris.status || 'unavailable');
       query(editor, '[data-codedit-engine-status]').textContent = 'Status: ' + (codedit.status || 'unavailable');
       var dl = query(editor, '[data-doris-computed]'); dl.replaceChildren();

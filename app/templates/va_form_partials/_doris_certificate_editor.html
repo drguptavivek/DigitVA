@@ -56,11 +56,13 @@
     </div>
 
     <div class="mt-4" data-doris-results hidden>
-      <div class="alert alert-warning py-2">Review these processor results before choosing the final underlying cause.</div>
-      <div class="row g-3">
+      <div class="border rounded p-3 mb-2 doris-summary" data-doris-summary></div>
+      <details class="doris-technical"><summary>Technical details</summary>
+      <div class="row g-3 mt-1">
         <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">DORIS</h4><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
         <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">CoDEdit</h4><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
       </div>
+      </details>
     </div>
 
     <div class="card bg-light border-0 mt-4" data-doris-final-panel hidden>

@@ -110,6 +110,14 @@ independently. The response has separate processor statuses and a short-lived
 signed token binding certificate and result digests to the case, actor,
 allocation, payload version, release and WHO image.
 
+Results open as a short summary built by `app/static/js/doris_result_summary.js`
+for both editors: the code DORIS suggests with its certificate text (or WHO
+title through `codeinfo` when DORIS chose a code nobody typed), DORIS
+warnings and CoDEdit report sentences as one "Check before you decide" list,
+or "No problems found". A rejected or failed run says so in place of the
+code. Engine status, stem, URI, readable reports and the Help rule trace sit
+in a collapsed "Technical details" section.
+
 Every certificate edit clears the browser's processor results and human UCOD
 choice. At final save, the server normalizes the submitted certificate and
 checks both processor envelopes and the signed token. A changed certificate

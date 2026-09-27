@@ -1,5 +1,6 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js';
+import { renderSummary } from './doris_result_summary.js';
 
 (function () {
   'use strict';
@@ -514,6 +515,9 @@ import { mount as mountInterval } from './doris_interval.js';
     var doris = data.doris || {}; var codedit = data.codedit || {};
     var dorisResult = doris.result || {}; var codeditResult = codedit.result || {};
     renderEngineStatus('doris-engine-status', doris); renderEngineStatus('codedit-engine-status', codedit);
+    renderSummary(document.getElementById('doris-summary'), data, data.certificate || serializeCertificate(), function (code) {
+      return post(endpoint('codeinfo'), {schema_version: 1, code: code}).then(function (info) { return info.item ? info.item.title : ''; });
+    });
     var computed = document.getElementById('doris-computed'); computed.replaceChildren();
     addDefinition(computed, 'Computed stem', dorisResult.stemCode);
     addDefinition(computed, 'Complete code', dorisResult.code);
@@ -526,7 +530,7 @@ import { mount as mountInterval } from './doris_interval.js';
     document.getElementById('doris-raw-tabular').textContent = textValue(dorisResult.tabularReport);
     document.getElementById('codedit-raw-tabular').textContent = textValue(codeditResult.tabularReport);
     results.hidden = false; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
-    announce('Processing complete. Review the independent DORIS and CoDEdit results.');
+    announce('Processing complete. Review the DORIS result.');
     results.scrollIntoView({behavior: 'smooth', block: 'start'});
   }
 

@@ -1,12 +1,14 @@
 """Draft the ICD-11 coding-selectability policy from WHO's VA annex.
 
 Policy: docs/policy/who-2022-icd11-coding-allowability.md (draft, owner
-review pending). A category is selectable when WHO's annex ICD-11 ranges
-cover it (expanded with the bucket generator's own range helpers) or owner
-decision 5a names it, unless its chapter is never selectable. Sex and age
-restrictions come from the reviewed ICD-10 policy through WHO's
-10To11MapToOneCategory table, then from the chapter rules the ICD-10 policy
-applies to the equivalent chapters.
+review pending). Every active category is selectable unless its chapter is
+never selectable (rule 3): chapters Q, S, V, X; chapter 25 (RA) emergency
+codes outside the RA01 family; KD3B/KD3B.Z. A category no annex ICD-11 range
+(or owner decision 5a) covers is still selectable but carries no VA cause
+bucket. Sex and age restrictions come from the reviewed ICD-10 policy through
+WHO's 10To11MapToOneCategory table, then from the chapter rules the ICD-10
+policy applies to the equivalent chapters, using the same rules regardless of
+whether the category is in an annex range.
 
 Nothing here writes to the database: the output is a policy JSON in the
 ``import_icd11_mms_policy_json`` format plus a review CSV and README, for the
@@ -280,10 +282,12 @@ def draft_icd11_policy(
 
     `rows` are the release's active categories in WHO order (parents before
     children); `catalogue` is `load_catalogue`'s `{code: {"title", "parent"}}`.
-    Selectable: annex or decision 5a, minus the excluded chapters. Sex/age of
-    a selectable code, first match wins: a chapter or block rule; its ICD-10
-    sources when they all agree; its parent's ICD-10-derived value; the one
-    value all its selectable children share; else both/all.
+    Selectable: everything except the excluded chapters/codes (owner decision
+    2026-09-27, `digitva-ddv.6`) -- annex and decision-5a coverage no longer
+    gates selectability, only the VA cause bucket. Sex/age of a selectable
+    code, first match wins: a chapter or block rule; its ICD-10 sources when
+    they all agree; its parent's ICD-10-derived value; the one value all its
+    selectable children share; else both/all.
     """
     draft = Icd11PolicyDraft(release=release)
     selectable_rules, flags = _selectable_rules(catalogue, cause_rows, draft.range_issues)
@@ -312,7 +316,8 @@ def draft_icd11_policy(
             "chapter_no": chapter,
             "is_residual": bool(row.get("is_residual")),
             "is_leaf": bool(row.get("is_leaf", True)),
-            "selectable": rule in (RULE_ANNEX, RULE_DECISION_5A),
+            "selectable": rule
+            in (RULE_ANNEX, RULE_DECISION_5A, RULE_NOT_IN_ANNEX),
             "rule": rule,
             "sex": None,
             "age": None,
@@ -552,15 +557,17 @@ def _readme(draft: Icd11PolicyDraft) -> str:
         "|---|---:|",
         *[f"| `{flag}` | {count} |" for flag, count in sorted(flag_counts.items())],
         "",
-        "## Not selectable outside the excluded chapters",
+        "## Not selectable (rule 3 exclusions outside the excluded chapters)",
         "",
-        "Categories no annex range or decision 5a covers (`not_in_annex`) and the "
-        "non-RA01 emergency codes (`excluded_emergency`):",
+        "The never-selectable chapters (`excluded_chapter`: Q, S, V, X) are "
+        "counted in 'Selectable per chapter' above and not repeated here. "
+        "Everything else rule 3 excludes: non-RA01 emergency codes "
+        "(`excluded_emergency`) and KD3B/KD3B.Z (`decision_18_not_selectable`):",
         "",
         *[
             f"- `{row['code']}` {row['title']} ({row['rule']})"
             for row in draft.decisions
-            if row["rule"] in (RULE_NOT_IN_ANNEX, RULE_EXCLUDED_EMERGENCY)
+            if row["rule"] in (RULE_EXCLUDED_EMERGENCY, RULE_DECISION_18)
         ],
         "",
         "## Range issues",

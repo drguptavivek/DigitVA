@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-27
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -12,7 +12,11 @@ last_updated: 2026-09-25
 approval, the draft was imported into the **dev database only** (through
 `flask icd11 policy-import`; no row marked `reviewed`) so the owner can review
 it in the admin ICD-11 browser. No migration reads it, and no other database
-has it.
+has it. Owner decision 18 (2026-09-25) and rule 4 (2026-09-27, `digitva-ddv.6`)
+were applied the same dev-only way: regenerate the artifact with
+`flask icd11 policy-draft`, then re-run `flask icd11 policy-import` (183 rows
+changed for rule 4, all additions, none of the 16,202 previously selectable
+rows' sex/age moved).
 
 ## Purpose
 
@@ -74,7 +78,21 @@ from (`Draft: ...`).
    (`KD3B.0` antepartum); the vocabulary term "stillbirth" offers `KD3B.1`
    first. ICD-10 `P95` is unaffected: WHO gives one code for both timings and
    ICD-10 cannot distinguish them, so DigitVA does not invent a split there.
-4. Everything else is not selectable.
+4. **Everything else is selectable too** (owner decision 2026-09-27,
+   `digitva-ddv.6`). ICD-11 coding goes through DORIS, whose result, and the
+   coder's own pick, may be any real cause of death, so a category no annex
+   range or decision 5a covers (for example the inborn errors of metabolism
+   `5C52`-`5C59`) is selectable the same as an annex-covered one, with sex
+   and age decided by the same rules below. Selectability carries no promise
+   of a VA cause bucket: whether such a category has one today is a separate,
+   unreviewed question for the COD bucket mapping (decision 5b,
+   `docs/policy/icd10-to-icd11-transition.md` section 6), not this policy.
+   Rule 3's exclusions stay, whatever rule 1, 2 or 4 would otherwise select.
+
+For a combination code (`/` cluster, `&` extensions), WHO's code service
+validates the whole expression and this policy checks only the **first
+stem**, as it does today. The VA cause bucket also comes from the stem,
+never from an extension (as the COD bucket mapping already does).
 
 **Parents and residuals.** A parent category and its residual
 (`.Y`/`.Z`, `Y`/`Z`) categories are selectable when a range covers them. This

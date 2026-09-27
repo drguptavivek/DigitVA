@@ -1,12 +1,13 @@
-"""ICD-11 coding-selectability policy draft (digitva-dus.3).
+"""ICD-11 coding-selectability policy draft (digitva-dus.3, digitva-ddv.6).
 
 Policy: docs/policy/who-2022-icd11-coding-allowability.md. A small synthetic
-catalogue pins each rule with a code whose answer is known: annex ranges and
-decision 5a make codes selectable, the S/V/Q/X chapters and the non-RA01
-emergency codes never are, ICD-10 restrictions carry over only when every
-ICD-10 source agrees (never from the blanket O/P/Q chapter rules; chapter 20
-is all ages, owner 2026-09-24), and the draft imports through the existing
-policy importer.
+catalogue pins each rule with a code whose answer is known: every category is
+selectable unless its chapter/code is one of rule 3's exclusions (S/V/Q/X
+chapters, non-RA01 emergency codes, KD3B/KD3B.Z) -- a category no annex range
+or decision 5a covers is still selectable, just without a VA cause bucket.
+ICD-10 restrictions carry over only when every ICD-10 source agrees (never
+from the blanket O/P/Q chapter rules; chapter 20 is all ages, owner
+2026-09-24), and the draft imports through the existing policy importer.
 """
 
 import tempfile
@@ -145,10 +146,13 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
             self.assertTrue(self.decisions[code]["selectable"], code)
             self.assertEqual(self.decisions[code]["rule"], "annex")
         self.assertIn("1H00", self.decisions)
-        self.assertFalse(self.decisions["1H00"]["selectable"])
+        self.assertTrue(self.decisions["1H00"]["selectable"])
         self.assertEqual(self.decisions["1H00"]["rule"], "not_in_annex")
 
-    def test_uncovered_code_without_crosswalk_suggestion_stays_unselectable(self):
+    def test_uncovered_code_without_crosswalk_suggestion_is_selectable_without_a_bucket(self):
+        # Owner decision 2026-09-27 (digitva-ddv.6): a code no annex range or
+        # decision 5a covers is still selectable; the VA bucket generator is
+        # what leaves it unmapped, not this policy.
         code = "1H00"
         crosswalk_targets = {
             target
@@ -157,7 +161,7 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
             for target in alternative.split("&")
         }
         self.assertNotIn(code, crosswalk_targets)
-        self.assertFalse(self.decisions[code]["selectable"])
+        self.assertTrue(self.decisions[code]["selectable"])
         self.assertEqual(self.decisions[code]["rule"], "not_in_annex")
 
     def test_malformed_5c52_range_is_read_as_owner_corrected(self):
@@ -210,6 +214,7 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
         payload = policy_payload(_draft())
         codes = {item["code"] for item in payload["items"]}
         self.assertIn("1G41.Z", codes)
+        self.assertIn("1H00", codes)  # not_in_annex, still selectable (digitva-ddv.6)
         self.assertNotIn("QA00", codes)
         self.assertEqual(payload["row_count"], len(payload["items"]))
         self.assertTrue(all("policy_status" not in item for item in payload["items"]))
@@ -284,8 +289,10 @@ class Icd11PolicyDraftImportTests(BaseTestCase):
         self.assertEqual(policy["JA00"], (True, "female", "adult"))
         self.assertEqual(policy["LA00"], (True, "both", "all"))
         self.assertEqual(policy["1G41.Z"], (True, "both", "all"))
-        # Unlisted categories, chapter X included, become not selectable.
-        for code in ("XA0001", "QA00", "1H00", "RA02"):
+        # not_in_annex is now selectable too (digitva-ddv.6), just both/all.
+        self.assertEqual(policy["1H00"], (True, "both", "all"))
+        # Unlisted categories, chapter X included, stay/become not selectable.
+        for code in ("XA0001", "QA00", "RA02"):
             self.assertEqual(policy[code], (False, None, None), code)
         selectable = {code for code, values in policy.items() if values[0]}
         self.assertEqual(selectable, {item["code"] for item in payload["items"]})

@@ -274,6 +274,48 @@ class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission
         with self.assertRaisesRegex(ValueError, "not selectable"):
             validate_coding_value_for_submission(self.SID, "1A00 Cholera")
 
+    def test_icd11_accepts_a_disease_chapter_code_no_annex_range_covers(self):
+        # digitva-ddv.6: rule 4 now makes every disease-chapter category
+        # selectable, including ones (like 5C52-5C59 inborn errors of
+        # metabolism) no WHO annex range covers -- they just carry no VA
+        # bucket. Q/S/V/X stay refused (rule 3).
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/5C53.24",
+                code="5C53.24",
+                title="Leigh syndrome",
+                class_kind="category",
+                chapter_no="05",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/QA00",
+                code="QA00",
+                title="Test factors influencing health status",
+                class_kind="category",
+                chapter_no="24",
+                is_coding_selectable=False,
+                sex_selectable=None,
+                age_group_selectable=None,
+                source_version="test",
+            )
+        )
+        db.session.flush()
+
+        self.assertEqual(
+            validate_coding_value_for_submission(self.SID, "5C53.24 Leigh syndrome"), "icd11"
+        )
+        with self.assertRaisesRegex(ValueError, "not selectable"):
+            validate_coding_value_for_submission(self.SID, "QA00 Test")
+
     def test_icd11_accepts_a_who_verified_cluster_and_checks_its_stem(self):
         self._set_project("icd11")
         db.session.merge(

@@ -67,8 +67,9 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   `DORIS_NOT_ENABLED` on a masked project.
 - **Step 2** shows the SmartVA table, a read-only summary of the Step 1 DORIS
   run (`doris_result_summary.js` over the Step 1 envelopes) with the Step 1
-  underlying cause, and three choices: "Use DORIS result" (the Step 1
-  underlying cause), "Use SmartVA result", or the coder's own code through
+  underlying cause, and three choices: "Use Step 1 underlying cause" (the
+  cause the coder confirmed in Step 1, not DORIS's computed code, which the
+  summary shows for information), "Use SmartVA result", or the coder's own code through
   the picker's search (`app/static/js/doris_final_cod.js`, a small host of
   `digitva_icd11_picker.js`). There is no second certificate and no Process;
   a Step 2 save that posts a certificate or process proof is a 400. The
@@ -76,7 +77,11 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   (`smartva_icd11_mapping`): one click when the map gives a single
   expression, otherwise a search prefilled with the first `/` alternative.
   No WHO call decides this; the chosen code is checked at save as the
-  unmasked final UCOD is.
+  unmasked final UCOD is. A recode presets the picker with the previous
+  active final code, as the masked simple flow does. Inside masked Step 1
+  the embedded editor's headings read "DORIS certificate" and "Underlying
+  cause of death" (template variables `doris_step1_title`,
+  `doris_step2_title`); unmasked DORIS keeps "Step 1: DORIS" / "Step 2".
 - The final row stores no envelopes (they stay on the Step 1 row, linked by
   `source_initial_assessment_id`). Its `cod_entry_mode_snapshot` adds
   `final_ucod_source`: `doris` when the final code expression equals the

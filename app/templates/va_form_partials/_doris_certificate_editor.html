@@ -24,7 +24,7 @@
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
     <script type="application/json" data-doris-initial-processing>{{ doris_initial_processing|default(none)|tojson }}</script>
     <section class="card doris-step-card mb-3"><div class="card-body">
-    <h4 class="h5 doris-step-heading">Step 1: DORIS</h4>
+    <h4 class="h5 doris-step-heading">{{ doris_step1_title|default('Step 1: DORIS') }}</h4>
     <div class="row g-3 mb-3">
       <div class="col-sm-6"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-6" data-doris-age-control><label class="form-label" for="{{ _doris_id }}-age">Estimated age</label><div class="d-flex gap-2"><input id="{{ _doris_id }}-age" class="form-control" inputmode="decimal" maxlength="24" placeholder="Age" data-doris-interval-value><select class="form-select" aria-label="Age unit" data-doris-interval-unit></select></div><p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p></div>
@@ -65,8 +65,8 @@
     </div></section>
 
     <section class="card doris-step-card mb-3"><div class="card-body">
-    <h4 class="h5 doris-step-heading" id="{{ _doris_id }}-step2-heading">Step 2: Final underlying cause of death <span class="text-danger">*</span></h4>
-    <p class="text-muted small mb-0" data-doris-final-wait>Process the certificate in Step 1 first.</p>
+    <h4 class="h5 doris-step-heading" id="{{ _doris_id }}-step2-heading">{{ doris_step2_title|default('Step 2: Final underlying cause of death') }} <span class="text-danger">*</span></h4>
+    <p class="text-muted small mb-0" data-doris-final-wait>{{ doris_final_wait_text|default('Process the certificate in Step 1 first.') }}</p>
     <div class="card bg-light border-0" data-doris-final-panel hidden>
       <div class="card-body">
         <label class="visually-hidden" for="{{ _doris_id }}-final-search">Final underlying cause of death</label>

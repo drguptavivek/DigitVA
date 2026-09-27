@@ -232,9 +232,10 @@ def _final_ucod_source(final_value, doris_value, smartva_alternatives) -> str:
     """Where a masked DORIS Step 2 final UCOD came from: doris, smartva or own.
 
     Derived server-side from the saved code, never from the client.
-    ``doris_value`` is the coder's Step 1 underlying cause (the DORIS
-    step's confirmed result). A code equal to both it and a SmartVA target
-    is recorded as ``doris``.
+    ``doris_value`` is the coder's Step 1 underlying cause (the cause the
+    coder confirmed in the DORIS step, not necessarily DORIS's computed
+    code). A code equal to both it and a SmartVA target is recorded as
+    ``doris``.
     """
     final_code = extract_icd11_code_expression(final_value)
     if final_code is None:
@@ -604,7 +605,7 @@ def renderpartial(va_sid, va_partial):
         and _is_doris(project_mode)
         and (request.content_length is None or request.content_length > 1_200_000)
     ):
-        return jsonify(error="DORIS final submission is too large."), 413
+        return jsonify(error="DORIS submission is too large."), 413
     va_action = request.values.get("action", "vacode")
     va_actiontype = request.values.get("actiontype", "")
     if va_partial == "vainitialasses" and not _is_masked(project_mode):

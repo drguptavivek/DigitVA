@@ -1,8 +1,9 @@
 # ICD-11 means DORIS; masked ICD-11 puts DORIS in Step 1 (`digitva-0n3`)
 
-- Status: phases 1-3 done (coder flow; migrations `a3f7c1d8e5b2`, `b8e2d4f6a1c3`); phase 4 (reviewer, help) next.
-  Open: `digitva-0n3.1` (what Step 2 "Use DORIS result" means; today the
-  coder's Step 1 cause), `.2` (browser check), `.3` (recode preset, wording).
+- Status: phases 1-3 done and browser-checked (coder flow; migrations
+  `a3f7c1d8e5b2`, `b8e2d4f6a1c3`); phase 4 (reviewer, help) next.
+  Step 2's first choice is the coder's Step 1 underlying cause, labelled
+  so (owner, 2026-09-27). Open: `digitva-0n3.4`.
 - Priority: P1
 - Created: 2026-09-27
 - Policy baseline: `docs/policy/doris-cod-workflow.md`, "Decided 2026-09-27"

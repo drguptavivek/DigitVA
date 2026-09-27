@@ -349,6 +349,43 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIn('data-final-search-code="1A00"', body)
         self.assertNotIn("data-final-use-code", body)
 
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value=None)
+    def test_step2_labels_step1_cause_not_doris_result(self, _mapping):
+        # The one-click choice is the coder's Step 1 underlying cause, not
+        # DORIS's computed code; DORIS's result stays as information.
+        sid = self._start_coder()
+        self._step1_row(sid, underlying="1C62.Z HIV disease")
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn("Use Step 1 underlying cause: 1C62.Z HIV disease", body)
+        self.assertNotIn("Use DORIS result", body)
+        self.assertIn("DORIS result from Step 1 (for information)", body)
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value=None)
+    def test_step2_recode_presets_previous_final_code(self, _mapping):
+        sid = self._start_coder()
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+        fresh = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+        submission = db.session.get(VaSubmissions, sid)
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid,
+                payload_version_id=submission.active_payload_version_id,
+                va_finassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod="BA41.Z Acute myocardial infarction",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        recode = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn('data-preset-final=""', fresh)
+        self.assertIn('data-preset-final="BA41.Z Acute myocardial infarction"', recode)
+
     def _save_step2(self, sid, conclusive):
         with (
             patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False),
@@ -372,6 +409,16 @@ class TestMaskedDorisCoding(BaseTestCase):
         # Envelopes stay on the Step 1 row (decision 4).
         self.assertIsNone(final.doris_certificate)
         self.assertIsNone(final.doris_result)
+        # SQL NULL, not a JSON null, so "IS NULL" queries find these rows.
+        sql_null = db.session.execute(
+            db.text(
+                "SELECT doris_certificate IS NULL AND doris_result IS NULL"
+                " AND codedit_result IS NULL FROM va_final_assessments"
+                " WHERE va_finassess_id = :id"
+            ),
+            {"id": final.va_finassess_id},
+        ).scalar_one()
+        self.assertTrue(sql_null)
 
     @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
     def test_step2_provenance_smartva(self, _mapping):
@@ -469,6 +516,30 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertEqual(final.source_initial_assessment_id, row.va_iniassess_id)
         self.assertEqual(final.cod_entry_mode_snapshot["cod_entry_mode"], "simple")
         self.assertNotIn("final_ucod_source", final.cod_entry_mode_snapshot)
+
+    def test_step1_editor_headings_retitled(self):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn(">DORIS certificate</h4>", body)
+        self.assertIn("Underlying cause of death <span", body)
+        self.assertNotIn("Step 1: DORIS", body)
+        self.assertNotIn("Step 2: Final underlying cause of death", body)
+
+    def test_unmasked_doris_editor_headings_unchanged(self):
+        self._mode(masked=False, doris=True)
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn("data-doris-editor", body)
+        self.assertIn(">Step 1: DORIS</h4>", body)
+        self.assertIn("Step 2: Final underlying cause of death <span", body)
+        self.assertIn("Process the certificate in Step 1 first.", body)
+        self.assertNotIn("DORIS certificate</h4>", body)
 
     @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
     @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})

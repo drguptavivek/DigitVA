@@ -110,7 +110,9 @@ import { renderSummary } from './doris_result_summary.js';
     host.querySelector('[data-doris-final-search-button]').addEventListener('click', search);
     input.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(); } });
 
-    // A refused save re-renders with the submitted choice kept.
+    // A refused save re-renders with the submitted choice kept; a recode
+    // starts from the previous final code, as the masked simple picker does.
+    if (target && !text(target.value) && text(host.dataset.presetFinal)) target.value = text(host.dataset.presetFinal);
     if (target && text(target.value)) message.textContent = 'Confirmed final UCOD: ' + text(target.value);
     else if (save) save.disabled = true;
   }

@@ -1,4 +1,4 @@
-{# Masked ICD-11 Step 2 (digitva-0n3): confirm the final underlying cause through the DORIS picker's search. No certificate and no Process: the DORIS run and its envelopes stay on the Step 1 row. The server derives which choice was used (doris | smartva | own). #}
+{# Masked ICD-11 Step 2 (digitva-0n3): confirm the final underlying cause through the DORIS picker's search. No certificate and no Process: the DORIS run and its envelopes stay on the Step 1 row. The server derives which choice was used (doris = the Step 1 underlying cause | smartva | own). A recode presets the previous final code (data-preset-final). #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3">
 <section class="card border-primary mb-4" data-doris-final-host
          data-form-id="finalAssessmentForm"
@@ -11,13 +11,14 @@
          data-hierarchy-url="/api/v1/doris-clinical/hierarchy/{{ va_sid }}"
          data-related-url="/api/v1/doris-clinical/related/{{ va_sid }}"
          data-details-url="/api/v1/doris-clinical/details/{{ va_sid }}"
+         data-preset-final="{{ pre_conclusive_cod or '' }}"
          data-csrf="{{ csrf_token() }}">
   <div class="card-header bg-primary-subtle">
     <h3 class="h5 mb-1">Final underlying cause of death <span class="text-danger">*</span></h3>
-    <p class="small mb-0">Use your Step 1 (DORIS) result, the SmartVA result, or your own code.</p>
+    <p class="small mb-0">Use your Step 1 underlying cause, the SmartVA result, or your own code.</p>
   </div>
   <div class="card-body">
-    <h4 class="h6">Step 1 DORIS result</h4>
+    <h4 class="h6">DORIS result from Step 1 (for information)</h4>
     <script type="application/json" data-step1-processing>{{ step1_doris_processing|default(none)|tojson }}</script>
     <script type="application/json" data-step1-certificate>{{ step1_doris_certificate|default(none)|tojson }}</script>
     <div class="border rounded p-3 mb-2 doris-summary" data-doris-summary>{% if not step1_doris_processing %}<p class="small text-muted mb-0">No DORIS result was saved with Step 1.</p>{% endif %}</div>
@@ -25,7 +26,7 @@
 
     <div class="d-flex flex-wrap gap-2 mb-3">
       {% if va_antecedent_cod %}
-      <button type="button" class="btn btn-sm btn-outline-primary" data-final-use-value="{{ va_antecedent_cod }}">Use DORIS result: {{ va_antecedent_cod }}</button>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-final-use-value="{{ va_antecedent_cod }}">Use Step 1 underlying cause: {{ va_antecedent_cod }}</button>
       {% endif %}
       {% set smartva_alternatives = smartva_icd11_alternatives|default([]) %}
       {% if smartva_alternatives|length == 1 %}
@@ -48,4 +49,4 @@
     <div class="text-danger small mt-2" role="alert" data-step-error></div>
   </div>
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-1"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-2"></script>

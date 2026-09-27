@@ -43,9 +43,9 @@ class VaReviewerInitialAssessments(db.Model):
         sa.Text, nullable=True
     )
     # Masked DORIS Step 1 envelopes (digitva-0n3); NULL for simple entry.
-    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
-    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
-    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
+    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
+    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
     cod_entry_mode_snapshot: so.Mapped[dict | None] = so.mapped_column(
         JSONB, nullable=True
     )

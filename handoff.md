@@ -11,9 +11,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > public DORIS service and ingress). Log in on port 8051 as the seeded admin
 > in `AGENTS.md`; the ingress (clinical app plus public DORIS demo) is on
 > 8052, e.g. `http://localhost:8052/help/doris-demo`. SADEMO is the DORIS dev
-> project: ICD-11, unmasked, Demo/Training, 30-minute retention.
+> project: ICD-11, masked, Demo/Training, 30-minute retention.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes tests/services -q -p no:cacheprovider`
-> (1735 tests, all pass; do not run the whole `tests/migrations` directory,
+> (1739 tests, all pass; do not run the whole `tests/migrations` directory,
 > it is very slow: run only the migration you touched plus
 > `test_schema_drift.py` and `test_no_app_imports_in_migrations.py`), `node tests/js/doris_result_summary_check.mjs`, and
 > `node --input-type=module --check < <file>` on edited JS. Use `bd`; commit
@@ -32,13 +32,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `DORIS_PUBLIC_COOKIE_SECURE=true`; `docker compose up -d`; then the image
    digest, log-privacy, five-parallel-Process and Secure-cookie checks in the
    bead. Wiring: `docs/current-state/doris-cod-workflow.md`.
-3. `digitva-0n3` (P1): ICD-11 projects always use DORIS. Phases 1-3 done:
-   masked ICD-11 coder Step 1 is the DORIS editor without SmartVA (envelopes
-   on the Step 1 row, migration `b8e2d4f6a1c3`); Step 2 confirms the final
-   cause (DORIS, SmartVA or own pick) with `final_ucod_source` provenance.
-   Next: `digitva-0n3.2` browser check (needs owner OK to make a dev project
-   masked ICD-11), then phase 4: reviewer (still masked simple; the DORIS
-   gate stays 409 for reviewers), help pages. `digitva-0n3.3` is polish.
+3. `digitva-0n3` (P1): ICD-11 projects always use DORIS. Phases 1-3 done
+   and browser-checked on SADEMO, which is now masked ICD-11 (switch back
+   to unmasked for unmasked DORIS demos). Masked coder Step 1 is the DORIS
+   editor without SmartVA (envelopes on the Step 1 row, migration
+   `b8e2d4f6a1c3`); Step 2 confirms the final cause (Step 1 cause, SmartVA
+   or own pick) with `final_ucod_source` provenance. Next: phase 4, the
+   reviewer (still masked simple; the DORIS gate stays 409 for reviewers)
+   and help pages. `digitva-0n3.4` (P3): Step 1 reopen loses the processed
+   result; NQA notice missing after a Step 1 save.
    Design: `.tasks/2026-09-27-icd11-means-doris.md`.
 4. `digitva-fb5` (P1): code-prefix typos are fixed at render time; what is
    left needs a speaker (Odia and Kannada labels carrying another
@@ -51,8 +53,6 @@ ICD-11 value by its first stem through the native `WHO_2022_VA_2026` scheme.
 
 ## Waiting on the owner
 
-- `digitva-0n3.1`: masked Step 2 "Use DORIS result" is the coder's Step 1
-  underlying cause today; switch to DORIS's computed code?
 
 - `digitva-712.6`: 12 ICD-11 crosswalk disagreements with specific causes on
   both sides.

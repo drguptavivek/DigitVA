@@ -7,7 +7,7 @@
   <div class="content-section-title mt-4"><i class="fas fa-file-alt"></i> Cause of Death Ascertainment - Step 1</div>
   <div class="alert alert-light border mb-4">Enter the medical certificate, process it with DORIS and confirm the underlying cause of death. Part I line 1 is the immediate cause. You can change the underlying cause in Step 2.</div>
   <input type="hidden" id="va_antecedent_cod" name="va_antecedent_cod">
-  {% with doris_editor_id='coder-step1-doris-editor', doris_form_id='initialAssessmentForm', doris_role='coder', doris_final_cod_input='va_antecedent_cod' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
+  {% with doris_editor_id='coder-step1-doris-editor', doris_form_id='initialAssessmentForm', doris_role='coder', doris_final_cod_input='va_antecedent_cod', doris_step1_title='DORIS certificate', doris_step2_title='Underlying cause of death', doris_final_wait_text='Process the certificate above first.' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
   <div class="text-danger small mb-2" role="alert" data-step-error></div>
   <div class="d-flex justify-content-center gap-3 my-5">
     {{ form.va_save_assessment(class="btn btn-primary px-4 py-2") }}

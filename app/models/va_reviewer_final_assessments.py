@@ -63,9 +63,9 @@ class VaReviewerFinalAssessments(db.Model):
     va_other_conditions: so.Mapped[str | None] = so.mapped_column(
         sa.Text, nullable=True
     )
-    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
-    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
-    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
+    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
+    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB(none_as_null=True), nullable=True)
     cod_entry_mode_snapshot: so.Mapped[dict | None] = so.mapped_column(
         JSONB, nullable=True
     )

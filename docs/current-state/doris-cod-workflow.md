@@ -20,7 +20,10 @@ and non-null payload version. Before applying it to an existing database,
 check for duplicate active rows on those keys; the migration stops if any
 exist rather than discarding or choosing a clinical record automatically.
 
-An unmasked/simple coder or reviewer submits one final assessment with an
+Unmasked coding is one step: the coder's final-assessment form shows the
+SmartVA result table (`app/templates/va_form_partials/_smartva_summary.html`,
+shared with the masked final step) above the simple fields or the DORIS
+certificate. An unmasked/simple coder or reviewer submits one final assessment with an
 immediate COD, an underlying COD and optional associated-condition text. In
 unmasked/DORIS, the MO enters a Part I/II certificate, processes it, reviews
 the DORIS and CoDEdit outputs, and independently confirms a final underlying

@@ -67,6 +67,8 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("data-doris-add-uncoded", partial)
         self.assertIn("data-doris-fetal", partial)
         self.assertIn("data-doris-summary", partial)
+        self.assertLess(partial.index("data-doris-part2"), partial.index("data-doris-maternal"))
+        self.assertLess(partial.index("data-doris-maternal"), partial.index("data-doris-process"))
         self.assertIn("data-doris-maternal", partial)
         self.assertIn("data-postcoordination-url", partial)
         self.assertIn("data-postcoordination-options-url", partial)

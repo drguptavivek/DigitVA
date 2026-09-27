@@ -116,7 +116,11 @@ title through `codeinfo` when DORIS chose a code nobody typed), DORIS
 warnings and CoDEdit report sentences as one "Check before you decide" list,
 or "No problems found". A rejected or failed run says so in place of the
 code. Engine status, stem, URI, readable reports and the Help rule trace sit
-in a collapsed "Technical details" section.
+in a collapsed "Technical details" section. Both editors follow DORIS's
+order (Part I, Part II, fetal or infant, pregnancy context) with the Process
+button after pregnancy context, and a "Final underlying cause of death" field
+below the result. The Help field takes one verified code and is not saved;
+certificate edits clear it with the results.
 
 Every certificate edit clears the browser's processor results and human UCOD
 choice. At final save, the server normalizes the submitted certificate and

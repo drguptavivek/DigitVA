@@ -22,6 +22,8 @@ import { renderSummary } from './doris_result_summary.js';
   var results = document.getElementById('doris-results');
   var status = document.getElementById('doris-app-status');
   var processButton = document.getElementById('doris-process');
+  var finalSection = document.getElementById('doris-final-section');
+  var finalLine = null;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
   function post(url, body) {
@@ -56,6 +58,8 @@ import { renderSummary } from './doris_result_summary.js';
   function clearResults() {
     results.hidden = true;
     results.removeAttribute('data-revision');
+    finalSection.hidden = true;
+    if (finalLine) { finalLine._conditions = []; finalLine.querySelector('[data-chips]').replaceChildren(); }
   }
   function changed(message) {
     revision += 1;
@@ -94,6 +98,7 @@ import { renderSummary } from './doris_result_summary.js';
       if (index !== -1) line._conditions.splice(index, 1);
       chip.remove();
       line.querySelector('[data-interval-control]').hidden = !line._conditions.length;
+      if (line === finalLine) return;
       changed('Condition removed. Process the certificate again to see current results.');
     });
     chip.append(label, remove);
@@ -106,6 +111,15 @@ import { renderSummary } from './doris_result_summary.js';
   // container the picker was asked to stage/verify the choice for.
   function handleSelect(choice, line) {
     var condition = conditionFromItem(choice);
+    if (line === finalLine) {
+      line._conditions = [condition];
+      line.querySelector('[data-chips]').replaceChildren();
+      addChip(line, condition);
+      line.querySelector('[data-search]').value = '';
+      line.querySelector('[data-search-results]').replaceChildren();
+      announce('Final underlying cause recorded: ' + condition.Code + '.');
+      return;
+    }
     line._conditions.push(condition);
     addChip(line, condition);
     line.querySelector('[data-search]').value = '';
@@ -340,6 +354,14 @@ import { renderSummary } from './doris_result_summary.js';
     refreshLineLabels();
   }
 
+  function renderFinalLine() {
+    finalLine = makeLine('final', {Conditions: []});
+    finalLine.querySelector('[data-line-title]').textContent = 'Final underlying cause of death';
+    ['[data-move-up]', '[data-move-down]', '[data-remove-line]', '[data-add-uncoded]'].forEach(function (selector) { finalLine.querySelector(selector).remove(); });
+    finalLine.querySelector('[data-interval-control]').classList.add('d-none');
+    document.getElementById('doris-final-line').appendChild(finalLine);
+  }
+
   function updateConditionalSections(notify) {
     var sex = document.getElementById('doris-sex').value;
     var maternal = document.getElementById('doris-maternal-section');
@@ -529,7 +551,7 @@ import { renderSummary } from './doris_result_summary.js';
     document.getElementById('codedit-issues').textContent = codeditResult.issueIds ? 'WHO issue IDs: ' + textValue(codeditResult.issueIds) : 'No issues reported.';
     document.getElementById('doris-raw-tabular').textContent = textValue(dorisResult.tabularReport);
     document.getElementById('codedit-raw-tabular').textContent = textValue(codeditResult.tabularReport);
-    results.hidden = false; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
+    results.hidden = false; finalSection.hidden = false; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
     announce('Processing complete. Review the DORIS result.');
     results.scrollIntoView({behavior: 'smooth', block: 'start'});
   }
@@ -601,5 +623,5 @@ import { renderSummary } from './doris_result_summary.js';
   });
 
   if (window.mermaid && window.mermaid.initialize) window.mermaid.initialize({startOnLoad: false, securityLevel: 'strict', theme: 'neutral'});
-  loadCertificate({}, 'Blank certificate ready.'); loadConfig();
+  renderFinalLine(); loadCertificate({}, 'Blank certificate ready.'); loadConfig();
 }());

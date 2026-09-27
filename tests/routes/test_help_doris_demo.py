@@ -29,6 +29,10 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn('id="doris-part2-line"', body)
         self.assertIn('id="doris-fetal-section"', body)
         self.assertIn('id="doris-summary"', body)
+        self.assertIn('id="doris-final-section"', body)
+        # DORIS order: pregnancy context, then Process, then result and final UCOD.
+        self.assertLess(body.index('id="doris-maternal-section"'), body.index('id="doris-process"'))
+        self.assertLess(body.index('id="doris-process"'), body.index('id="doris-final-section"'))
         self.assertIn('id="doris-maternal-section"', body)
         self.assertIn('role="status" aria-live="polite"', body)
         self.assertIn("Add as uncoded text", body)

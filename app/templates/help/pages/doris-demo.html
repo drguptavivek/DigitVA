@@ -30,12 +30,9 @@
       </div>
       <button id="doris-load-example" class="btn btn-outline-primary" type="button">Load</button>
       <button id="doris-new" class="btn btn-outline-secondary" type="button">Start blank</button>
-      <button id="doris-process" class="btn btn-primary" type="button">Process certificate</button>
     </div>
     <p id="doris-example-purpose" class="card-footer mb-0 small text-muted" hidden></p>
   </div>
-
-  <p id="doris-app-status" class="small fw-semibold" role="status" aria-live="polite"></p>
 
   <form id="doris-certificate" novalidate>
     <section class="card mb-3" aria-labelledby="doris-admin-heading">
@@ -103,6 +100,11 @@
         </div>
       </div>
     </section>
+
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <button id="doris-process" class="btn btn-primary" type="button">Process certificate</button>
+      <p id="doris-app-status" class="small fw-semibold mb-0" role="status" aria-live="polite"></p>
+    </div>
   </form>
 
   <section id="doris-ect-panel" class="card mb-3" hidden aria-labelledby="doris-ect-heading">
@@ -131,6 +133,13 @@
       <details class="mt-3"><summary>Raw processor reports</summary><h4 class="h6 mt-2">DORIS tabular report</h4><pre id="doris-raw-tabular" class="report-text"></pre><h4 class="h6">CoDEdit tabular report</h4><pre id="codedit-raw-tabular" class="report-text"></pre></details>
     </div></div>
     </details>
+  </section>
+
+  <section id="doris-final-section" class="card mt-3 mb-3" aria-label="Final underlying cause of death" hidden>
+    <div class="card-body">
+      <p class="small text-muted">Your decision, which may differ from DORIS. This training page does not save it.</p>
+      <div id="doris-final-line"></div>
+    </div>
   </section>
 
   <template id="doris-line-template">

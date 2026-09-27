@@ -72,6 +72,11 @@ for reconfirmation. If the token and data match, it saves the final
 certificate, verified DORIS/CoDEdit outputs and the MO's separate final UCOD
 atomically. It does not store drafts or intermediate Process responses.
 
+DORIS never fills the final UCOD on its own. A "Use DORIS result" button in the
+final UCOD step copies DORIS's suggested code into the field only when the MO
+clicks it; the code is checked through WHO `codeinfo` and the selection check
+like a searched code, and the MO may replace it before saving.
+
 A DORIS or CoDEdit failure does not by itself bar a human final UCOD when
 independent WHO codeinfo validation works. A whole WHO API outage blocks
 ICD-11 final-code provenance validation and final save. Coder and reviewer

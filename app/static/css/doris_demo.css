@@ -85,4 +85,5 @@
 .doris-summary-checks { padding-left: 1.1rem; }
 .doris-summary-checks li + li { margin-top: .25rem; }
 .doris-step-heading { font-weight: 700; margin: 1.75rem 0 .75rem; padding-bottom: .35rem; border-bottom: 2px solid #1f3b73; }
-.doris-clinical-editor script + .doris-step-heading { margin-top: 0; }
+.doris-step-card > .card-body > .doris-step-heading:first-child { margin-top: 0; }
+.doris-step-card { border: 1px solid #c9d3e6; }

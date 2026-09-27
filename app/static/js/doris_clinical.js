@@ -102,7 +102,7 @@ import { renderSummary } from './doris_result_summary.js';
     function invalidate(message) {
       state.revision += 1; state.processing = null;
       query(editor, '[data-doris-results]').hidden = true;
-      query(editor, '[data-doris-final-panel]').hidden = true; query(editor, '[data-doris-final-wait]').hidden = false;
+      query(editor, '[data-doris-final-panel]').hidden = true; query(editor, '[data-doris-final-wait]').hidden = false; query(editor, '[data-doris-technical]').hidden = true;
       hidden(editor, '[data-doris-certificate]', ''); hidden(editor, '[data-doris-result]', ''); hidden(editor, '[data-codedit-result]', ''); hidden(editor, '[data-doris-token]', ''); hidden(editor, '[data-doris-digest]', '');
       clearFinal();
       var form = document.getElementById(editor.dataset.formId);
@@ -264,9 +264,10 @@ import { renderSummary } from './doris_result_summary.js';
       state.processing = processing;
       state.processingRevision += 1;
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
-      renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
+      state.dorisCode = renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
         return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return result.data && result.data.item ? result.data.item.title : ''; });
       } : null);
+      var useDoris = query(editor, '[data-doris-final-use]'); useDoris.hidden = !state.dorisCode; useDoris.textContent = 'Use DORIS result: ' + state.dorisCode;
       query(editor, '[data-doris-engine-status]').textContent = 'Status: ' + (doris.status || 'unavailable');
       query(editor, '[data-codedit-engine-status]').textContent = 'Status: ' + (codedit.status || 'unavailable');
       var dl = query(editor, '[data-doris-computed]'); dl.replaceChildren();
@@ -275,7 +276,7 @@ import { renderSummary } from './doris_result_summary.js';
       [['Rejected', dr.reject ? 'Yes — no reliable computed UCOD' : ''], ['Warning', dr.warning], ['Error', dr.error]].forEach(function (entry) { if (!entry[1]) return; var p = document.createElement('p'); p.className = 'alert alert-warning py-2'; p.textContent = entry[0] + ': ' + entry[1]; messages.appendChild(p); });
       query(editor, '[data-doris-report]').textContent = dr.report || 'No report returned.'; query(editor, '[data-codedit-report]').textContent = cr.report || 'No report returned.';
       query(editor, '[data-codedit-issues]').textContent = cr.issueIds ? 'WHO issue IDs: ' + JSON.stringify(cr.issueIds) : 'No issues reported.';
-      query(editor, '[data-doris-results]').hidden = false; query(editor, '[data-doris-final-panel]').hidden = false; query(editor, '[data-doris-final-wait]').hidden = true;
+      query(editor, '[data-doris-results]').hidden = false; query(editor, '[data-doris-final-panel]').hidden = false; query(editor, '[data-doris-final-wait]').hidden = true; query(editor, '[data-doris-technical]').hidden = false;
       hidden(editor, '[data-doris-certificate]', JSON.stringify(processing.certificate || certificate())); hidden(editor, '[data-doris-result]', JSON.stringify(doris)); hidden(editor, '[data-codedit-result]', JSON.stringify(codedit)); hidden(editor, '[data-doris-token]', processing.process_token); hidden(editor, '[data-doris-digest]', processing.result_digest);
       clearFinal(); status(requireReconfirm ? 'The certificate changed during submission. Fresh results are shown; review them and reconfirm your final UCOD.' : 'Processing complete. Review the results and confirm your final UCOD.');
     }
@@ -309,6 +310,10 @@ import { renderSummary } from './doris_result_summary.js';
     query(editor, '[data-doris-add-line]').addEventListener('click', function () { if (state.lines.length < MAX_LINES) { state.lines.push(makeLine({Conditions: []}, false)); renderOrder(); invalidate('Line added. Process again.'); } });
     query(editor, '[data-doris-process]').addEventListener('click', process);
     query(editor, '[data-doris-final-search-button]').addEventListener('click', function () { search(null, true); });
+    // Copies DORIS's suggestion into Step 2 only on this click, verified like a searched code.
+    query(editor, '[data-doris-final-use]').addEventListener('click', function () {
+      if (state.dorisCode) picker.resolveAndStage(query(editor, '[data-doris-final-panel]'), state.dorisCode, query(editor, '[data-doris-final-choice]'));
+    });
     query(editor, '[data-doris-final-search]').addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(null, true); } });
     var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
     editor._installFreshDorisResults = function (processing) { renderProcessing(processing, true); };

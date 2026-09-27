@@ -22,6 +22,7 @@
   </div>
   <div class="card-body">
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
+    <section class="card doris-step-card mb-3"><div class="card-body">
     <h4 class="h5 doris-step-heading">Step 1: DORIS</h4>
     <div class="row g-3 mb-3">
       <div class="col-sm-6"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
@@ -58,21 +59,18 @@
     </div>
 
     <div class="mt-4" data-doris-results hidden>
-      <div class="border rounded p-3 mb-2 doris-summary" data-doris-summary></div>
-      <details class="doris-technical"><summary>Technical details</summary>
-      <div class="row g-3 mt-1">
-        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">DORIS</h5><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
-        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">CoDEdit</h5><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
-      </div>
-      </details>
+      <div class="border rounded p-3 doris-summary" data-doris-summary></div>
     </div>
+    </div></section>
 
+    <section class="card doris-step-card mb-3"><div class="card-body">
     <h4 class="h5 doris-step-heading" id="{{ _doris_id }}-step2-heading">Step 2: Final underlying cause of death <span class="text-danger">*</span></h4>
-    <p class="text-muted small" data-doris-final-wait>Process the certificate in Step 1 first.</p>
+    <p class="text-muted small mb-0" data-doris-final-wait>Process the certificate in Step 1 first.</p>
     <div class="card bg-light border-0" data-doris-final-panel hidden>
       <div class="card-body">
         <label class="visually-hidden" for="{{ _doris_id }}-final-search">Final underlying cause of death</label>
         <p class="small text-muted">This is your clinical decision. DORIS does not fill or lock it.</p>
+        <button type="button" class="btn btn-sm btn-outline-primary mb-2" data-doris-final-use hidden>Use DORIS result</button>
         <div class="input-group"><input id="{{ _doris_id }}-final-search" class="form-control" maxlength="80" autocomplete="off" data-doris-final-search placeholder="Search ICD-11 by term or complete code"><button type="button" class="btn btn-outline-primary" data-doris-final-search-button>Search</button></div>
         <div class="list-group mt-1" data-doris-final-results></div>
         <div class="doris-code-details mt-2" data-doris-details-panel hidden></div>
@@ -80,6 +78,13 @@
         <p class="small mt-2 mb-0" data-doris-final-choice></p>
       </div>
     </div>
+    </div></section>
+    <details class="doris-technical" data-doris-technical hidden><summary>Technical details</summary>
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">DORIS</h5><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
+      <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">CoDEdit</h5><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
+    </div>
+    </details>
   </div>
 
   <template data-doris-line-template>

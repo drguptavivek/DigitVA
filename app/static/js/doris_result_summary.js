@@ -64,4 +64,7 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   } else if (doris.status === 'completed') {
     container.appendChild(el('p', 'small text-success mb-0', 'No problems found in the certificate.'));
   }
+  // The code DORIS suggests, or '' when it rejected, failed or did not run;
+  // hosts offer it in Step 2 as "Use DORIS result".
+  return doris.status === 'completed' && !dr.reject && dr.code ? dr.code : '';
 }

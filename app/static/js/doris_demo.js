@@ -24,6 +24,9 @@ import { renderSummary } from './doris_result_summary.js';
   var processButton = document.getElementById('doris-process');
   var finalSection = document.getElementById('doris-final-section');
   var finalWait = document.getElementById('doris-final-wait');
+  var technical = document.getElementById('doris-technical');
+  var useDoris = document.getElementById('doris-final-use');
+  var dorisCode = '';
   var finalLine = null;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
@@ -59,7 +62,7 @@ import { renderSummary } from './doris_result_summary.js';
   function clearResults() {
     results.hidden = true;
     results.removeAttribute('data-revision');
-    finalSection.hidden = true; finalWait.hidden = false;
+    finalSection.hidden = true; finalWait.hidden = false; technical.hidden = true;
     if (finalLine) { finalLine._conditions = []; finalLine.querySelector('[data-chips]').replaceChildren(); }
   }
   function changed(message) {
@@ -118,6 +121,7 @@ import { renderSummary } from './doris_result_summary.js';
       addChip(line, condition);
       line.querySelector('[data-search]').value = '';
       line.querySelector('[data-search-results]').replaceChildren();
+      line.querySelector('[data-search-status]').textContent = '';
       return;
     }
     line._conditions.push(condition);
@@ -538,9 +542,10 @@ import { renderSummary } from './doris_result_summary.js';
     var doris = data.doris || {}; var codedit = data.codedit || {};
     var dorisResult = doris.result || {}; var codeditResult = codedit.result || {};
     renderEngineStatus('doris-engine-status', doris); renderEngineStatus('codedit-engine-status', codedit);
-    renderSummary(document.getElementById('doris-summary'), data, data.certificate || serializeCertificate(), function (code) {
+    dorisCode = renderSummary(document.getElementById('doris-summary'), data, data.certificate || serializeCertificate(), function (code) {
       return post(endpoint('codeinfo'), {schema_version: 1, code: code}).then(function (info) { return info.item ? info.item.title : ''; });
     });
+    useDoris.hidden = !dorisCode; useDoris.textContent = 'Use DORIS result: ' + dorisCode;
     var computed = document.getElementById('doris-computed'); computed.replaceChildren();
     addDefinition(computed, 'Computed stem', dorisResult.stemCode);
     addDefinition(computed, 'Complete code', dorisResult.code);
@@ -552,7 +557,7 @@ import { renderSummary } from './doris_result_summary.js';
     document.getElementById('codedit-issues').textContent = codeditResult.issueIds ? 'WHO issue IDs: ' + textValue(codeditResult.issueIds) : 'No issues reported.';
     document.getElementById('doris-raw-tabular').textContent = textValue(dorisResult.tabularReport);
     document.getElementById('codedit-raw-tabular').textContent = textValue(codeditResult.tabularReport);
-    results.hidden = false; finalSection.hidden = false; finalWait.hidden = true; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
+    results.hidden = false; finalSection.hidden = false; finalWait.hidden = true; technical.hidden = false; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
     announce('Processing complete. Review the DORIS result.');
     results.scrollIntoView({behavior: 'smooth', block: 'start'});
   }
@@ -614,6 +619,10 @@ import { renderSummary } from './doris_result_summary.js';
     loadCertificate({}, 'Blank certificate ready.');
   });
   processButton.addEventListener('click', processCertificate);
+  // Copies DORIS's suggestion into Step 2 only on this click, verified like a searched code.
+  useDoris.addEventListener('click', function () {
+    if (dorisCode) picker.resolveAndStage(finalLine, dorisCode, finalLine.querySelector('[data-search-status]'));
+  });
   document.getElementById('doris-ect-close').addEventListener('click', function () { document.getElementById('doris-ect-panel').hidden = true; activeEctLine = null; });
   form.addEventListener('input', function (event) {
     if (!event.target.matches('[data-certificate-input]')) return;

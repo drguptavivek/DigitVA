@@ -2096,3 +2096,133 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(len(stats), 1)
         self.assertEqual(stats[0]["project_id"], self.PROJECT_ID)
         self.assertEqual(stats[0]["site_id"], self.SITE_ID)
+
+    def test_final_cod_frequency_loader_counts_per_code_and_excludes_demo_projects(self):
+        """digitva-4f6: the coding-search frequency ranking's loader counts
+        confirmed finals per code, globally, with demo/training projects
+        (owner decision 2026-09-27) excluded."""
+        from app.services.icd_search_vocabulary_service import (
+            _load_final_cod_frequencies,
+        )
+
+        now = datetime.now(timezone.utc)
+        demo_project_id = "ANMVFD"
+        demo_form_id = "ANMVFDF1"
+        db.session.add(
+            VaResearchProjects(
+                project_id=demo_project_id,
+                project_code=demo_project_id,
+                project_name="Analytics MV Freq Demo",
+                project_nickname=demo_project_id,
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectMaster(
+                project_id=demo_project_id,
+                project_code=demo_project_id,
+                project_name="Analytics MV Freq Demo",
+                project_nickname=demo_project_id,
+                project_status=VaStatuses.active,
+                demo_training_enabled=True,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=demo_project_id,
+                site_id=self.SITE_ID,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaForms(
+                form_id=demo_form_id,
+                project_id=demo_project_id,
+                site_id=self.SITE_ID,
+                odk_form_id="ANALYTICS_MV_FREQ_DEMO_FORM",
+                odk_project_id="23",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.commit()
+
+        def _submission_with_final(sid, form_id, cod_text):
+            db.session.add(
+                VaSubmissions(
+                    va_sid=sid,
+                    va_form_id=form_id,
+                    va_submission_date=now,
+                    va_odk_updatedat=now,
+                    va_data_collector="analytics",
+                    va_odk_reviewstate="reviewed",
+                    va_instance_name=sid,
+                    va_uniqueid_real=sid,
+                    va_uniqueid_masked=sid,
+                    va_consent="yes",
+                    va_narration_language="English",
+                    va_deceased_age=0,
+                    va_deceased_gender="female",
+                    va_summary=[],
+                    va_catcount={},
+                    va_category_list=[],
+                )
+            )
+            db.session.flush()
+            submission = db.session.get(VaSubmissions, sid)
+            ensure_active_payload_version(
+                submission,
+                payload_data={"age_group": "adult", "ageInYears": "40"},
+                source_updated_at=None,
+                created_by_role="vasystem",
+            )
+            db.session.add(
+                VaSubmissionWorkflow(
+                    va_sid=sid,
+                    workflow_state="coder_finalized",
+                    workflow_reason="test",
+                    workflow_updated_by_role="vasystem",
+                )
+            )
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=self.base_coder_user.user_id,
+                    va_conclusive_cod=cod_text,
+                    va_finassess_status=VaStatuses.active,
+                )
+            )
+
+        _submission_with_final(
+            "uuid:mv-freq-i21-a", self.FORM_ID, "I21-Acute myocardial infarction"
+        )
+        _submission_with_final(
+            "uuid:mv-freq-i21-b", self.FORM_ID, "I21-Acute myocardial infarction"
+        )
+        _submission_with_final("uuid:mv-freq-i50", self.FORM_ID, "I50-Heart failure")
+        _submission_with_final(
+            "uuid:mv-freq-icd11", self.FORM_ID, "1B10.1-Tuberculosis, not confirmed"
+        )
+        # Same code as the I21 pair above, but on the demo/training project:
+        # must not count towards the global frequency.
+        _submission_with_final(
+            "uuid:mv-freq-demo", demo_form_id, "I21-Acute myocardial infarction"
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        freq = _load_final_cod_frequencies()
+
+        # ICD-10 only: the ICD-11 final is not counted, and the demo
+        # project's I21 is excluded.
+        self.assertEqual(freq, {"I21": 2, "I50": 1})

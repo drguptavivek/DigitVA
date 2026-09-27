@@ -88,6 +88,15 @@ whose key `age` would hijack plain "age" queries.
   word-boundary and qualifier-stripped matching also governs display
   order; this never changes WHICH rows SQL fetched or the catalogue's own
   policy filters.
+- **Final-COD frequency tie-break, ICD-10 only (owner, 2026-09-27)**:
+  within the focused tier, an exact-code match still lists first; remaining
+  ties break by how often each code has been a final COD, globally across
+  projects, demo/training projects excluded. The expanded tier and
+  vocabulary-hit ordering (`sort_order`) are unaffected. Frequencies come
+  from the submission-analytics materialized views (hourly refresh) through
+  an in-process cache with a 1-hour TTL, so a new final COD can take about
+  two hours to move the ranking. ICD-11 search is not ranked this way:
+  ICD-11 coding goes through WHO's coding tool and DORIS.
 - **Qualifier stripping (`core_title`, `digitva-wqc`)**: WHO titles carry
   boilerplate that pushes the actual diagnosis word away from the title's
   start — "other and unspecified", "other", "not otherwise specified",

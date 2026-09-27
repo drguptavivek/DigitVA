@@ -28,6 +28,7 @@ from app.services.icd_search_vocabulary_service import (
     RESULT_TIER_FOCUSED,
     fuzzy_vocabulary_matches,
     merge_vocabulary_results,
+    rank_focused_by_frequency,
     result_tier,
     spelling_like_clauses,
     spelling_variants,
@@ -1117,9 +1118,11 @@ def search_icd10_2019_2_coding_choices_for_policy(
     ]
     # digitva-wqc: re-rank the already-fetched rows so a focused tier
     # (word-boundary/qualifier-stripped match, computed above) lists
-    # before an expanded one; a stable sort keeps SQL's own ordering
-    # within each tier. This never changes WHICH rows SQL fetched.
-    lexical_results.sort(key=lambda result: result["tier"] != RESULT_TIER_FOCUSED)
+    # before an expanded one, ties within focused broken by exact-code
+    # match then by final-COD frequency (owner decision 2026-09-27); a
+    # stable sort keeps SQL's own ordering within any remaining tie. This
+    # never changes WHICH rows SQL fetched.
+    rank_focused_by_frequency(lexical_results, normalized_query)
     # Clinician shorthand (MI, CVA, Kochs) shares no substring with any ICD
     # title, so the lexical pass alone never reaches it. Vocabulary matches
     # rank first, on top of the capped lexical list: a vocabulary hit never

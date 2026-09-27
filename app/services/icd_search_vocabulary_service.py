@@ -18,6 +18,7 @@ from __future__ import annotations
 import difflib
 import logging
 import re
+import time
 import uuid
 
 import sqlalchemy as sa
@@ -106,6 +107,18 @@ def _escape_like(text: str) -> str:
 # ponytail: one table per process, rebuilt on a key change; a multi-worker
 # server builds it once per worker. Move to the shared cache if that hurts.
 _cache: dict = {"key": None, "links": ()}
+
+# Owner decision 2026-09-27: rank "focused" ICD-10 matches by how often each
+# code has been a final COD, globally across projects, demo/training
+# excluded. ICD-11 is not ranked: its coding goes through WHO's coding tool
+# and DORIS.
+# Literal MV/table names below (not imported from submission_analytics_mv):
+# that module imports icd11_mms_service, which imports this module, so a
+# module-level import here would be a cycle.
+_COD_DETAIL_MV_NAME = "va_submission_cod_detail_mv"
+_ANALYTICS_CORE_MV_NAME = "va_submission_analytics_core_mv"
+_FREQ_CACHE_TTL_SECONDS = 3600.0
+_freq_cache: dict = {"expires": 0.0, "codes": {}}
 
 
 def normalize_term(text: str) -> str:
@@ -290,6 +303,8 @@ def clear_cache() -> None:
     search in this worker sees the change."""
     _cache["key"] = None
     _cache["links"] = ()
+    _freq_cache["expires"] = 0.0
+    _freq_cache["codes"] = {}
 
 
 def _load_links() -> tuple[dict, ...]:
@@ -372,6 +387,16 @@ def _title_word_starts_with(lowered_text: str, variant: str) -> bool:
     return re.search(r"(?<![a-z0-9])" + re.escape(variant), lowered_text) is not None
 
 
+def _exact_code_match(code: str | None, variant: str) -> bool:
+    """Whether ``variant`` (a query spelling variant, already lowercased) is
+    an exact match of ``code`` — plain or separator-stripped. Shared by
+    :func:`result_tier` and :func:`rank_focused_by_frequency` so the two
+    never drift on what counts as "the" exact code."""
+    if code is None:
+        return False
+    return code.lower() == variant or _compact_key(code.lower()) == _compact_key(variant)
+
+
 def result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
     """``focused`` for an exact-code match or a query that starts the title
     (or any word inside it), ``expanded`` otherwise — compared over the
@@ -389,16 +414,13 @@ def result_tier(*, code: str | None, title: str, normalized_query: str) -> str:
             v for v in spelling_variants(core_query) if v not in query_variants
         ]
 
-    stripped_code = _compact_key(code.lower()) if code is not None else None
     lowered_title = title.lower()
     stripped_title = _compact_key(lowered_title)
     core_lowered_title = core_title(title).lower()
 
     for variant in query_variants:
         stripped_variant = _compact_key(variant)
-        if code is not None and (
-            code.lower() == variant or stripped_code == stripped_variant
-        ):
+        if _exact_code_match(code, variant):
             return RESULT_TIER_FOCUSED
         if stripped_title.startswith(stripped_variant):
             return RESULT_TIER_FOCUSED
@@ -568,6 +590,75 @@ def merge_vocabulary_results(
         result for result in lexical_results if result.get("icd_code") not in promoted_codes
     )
     return merged
+
+
+def _load_final_cod_frequencies() -> dict[str, int]:
+    """Count of final-COD assignments per ICD-10 code, globally across
+    projects, demo/training projects excluded (owner decision 2026-09-27).
+
+    Reads the analytics materialized views by literal name (see the module
+    constants above) rather than importing ``submission_analytics_mv``,
+    which would be a cycle. Either view missing (``to_regclass``) returns
+    ``{}``, which leaves the SQL order unchanged.
+    """
+    views_available = bool(
+        db.session.scalar(sa.text(f"SELECT to_regclass('{_COD_DETAIL_MV_NAME}')"))
+        and db.session.scalar(sa.text(f"SELECT to_regclass('{_ANALYTICS_CORE_MV_NAME}')"))
+    )
+    if not views_available:
+        return {}
+
+    from app.services.demo_project_service import get_demo_training_project_ids
+
+    demo_project_ids = get_demo_training_project_ids()
+
+    cod = sa.table(_COD_DETAIL_MV_NAME, sa.column("va_sid"), sa.column("final_icd"))
+    core = sa.table(_ANALYTICS_CORE_MV_NAME, sa.column("va_sid"), sa.column("project_id"))
+    stmt = (
+        sa.select(cod.c.final_icd, sa.func.count().label("n"))
+        .select_from(cod)
+        .join(core, core.c.va_sid == cod.c.va_sid)
+        .where(cod.c.final_icd.is_not(None))
+    )
+    if demo_project_ids:
+        stmt = stmt.where(core.c.project_id.not_in(demo_project_ids))
+    stmt = stmt.group_by(cod.c.final_icd)
+    return {row[0]: int(row[1]) for row in db.session.execute(stmt)}
+
+
+def final_cod_frequencies() -> dict[str, int]:
+    """Cached ``{icd10_code: final_cod_count}``, reloaded when the TTL
+    (:data:`_FREQ_CACHE_TTL_SECONDS`) has passed since the last load."""
+    # ponytail: up to ~2 h stale (hourly MV refresh plus this TTL); clear the
+    # cache from the refresh task, or move it to the shared cache, if that
+    # ever matters.
+    if time.monotonic() > _freq_cache["expires"]:
+        _freq_cache["codes"] = _load_final_cod_frequencies()
+        _freq_cache["expires"] = time.monotonic() + _FREQ_CACHE_TTL_SECONDS
+    return _freq_cache["codes"]
+
+
+def rank_focused_by_frequency(lexical_results: list[dict], normalized_query: str) -> None:
+    """Stable-sort ICD-10 ``lexical_results`` in place: focused tier before
+    expanded (as before), an exact-code match first within focused, then by
+    descending final-COD frequency. The expanded tier and which rows SQL
+    fetched are both untouched: this only breaks ties among already-fetched
+    focused rows."""
+    freq = final_cod_frequencies()
+    query_variants = spelling_variants(normalized_query)
+
+    def is_exact_code(code: str | None) -> bool:
+        return any(_exact_code_match(code, variant) for variant in query_variants)
+
+    def key(result: dict) -> tuple[bool, bool, int]:
+        focused = result["tier"] == RESULT_TIER_FOCUSED
+        return (
+            not focused,
+            not is_exact_code(result.get("icd_code")) if focused else False,
+            -freq.get(result.get("icd_code"), 0) if focused else 0,
+        )
+
+    lexical_results.sort(key=key)
 
 
 def _validated_classification(value) -> str:

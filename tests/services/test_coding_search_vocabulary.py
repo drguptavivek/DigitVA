@@ -10,6 +10,7 @@ Run (inside Docker):
   docker compose exec -T minerva_app_service uv run --no-sync pytest \
     tests/services/test_coding_search_vocabulary.py -q -p no:cacheprovider
 """
+import math
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -27,11 +28,20 @@ from app.models import (
 from app.services.icd10_2019_2_service import search_icd10_2019_2_coding_choices
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, search_icd11_mms
 from app.services.icd_search_vocabulary_service import (
+    _freq_cache,
     clear_cache,
     create_term,
     set_active,
 )
 from tests.base import BaseTestCase
+
+
+def _seed_final_cod_frequency(codes):
+    """Seed the process-global final-COD frequency cache directly, bypassing
+    the materialized-view loader (``clear_cache`` in setUp/tearDown already
+    resets it — see :func:`app.services.icd_search_vocabulary_service.clear_cache`)."""
+    _freq_cache["expires"] = math.inf
+    _freq_cache["codes"] = codes
 
 _ICD11_SOURCE_VERSION = "ICD-11-MMS-2026-01"
 _FUTURE_RELEASE = "2099-01"
@@ -177,6 +187,92 @@ class Icd10CodingChoicesVocabularyTest(CodingSearchVocabularyTestCase):
         results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "TB")
 
         self.assertEqual(_vocabulary_flags_only(results), ["A16", "A15"])
+
+    def test_vocabulary_hit_order_unaffected_by_frequency(self):
+        # digitva-4f6: vocabulary hits are ranked by their own sort_order,
+        # never by final-COD frequency -- seed A15 far more frequent than
+        # A16 and confirm A16 (sort_order=1) still lists first.
+        db.session.add_all(
+            [
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+                _icd10_row("A16", "Respiratory tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        create_term(term="TB", icd_classification="icd10", icd_code="A15", sort_order=2)
+        create_term(term="TB", icd_classification="icd10", icd_code="A16", sort_order=1)
+        _seed_final_cod_frequency({"A15": 100, "A16": 1})
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "TB")
+
+        self.assertEqual(_vocabulary_flags_only(results), ["A16", "A15"])
+
+    def test_focused_matches_rank_by_final_cod_frequency(self):
+        # Owner decision 2026-09-27: within the focused tier, ties break by
+        # how often each code has been a final COD, globally.
+        db.session.add_all(
+            [
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+                _icd10_row("A16", "Respiratory tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        _seed_final_cod_frequency({"A16": 50, "A15": 2})
+
+        results = search_icd10_2019_2_coding_choices(
+            self.SID_FEMALE, "respiratory tuberculosis"
+        )
+
+        self.assertEqual([row["icd_code"] for row in results[:2]], ["A16", "A15"])
+        self.assertEqual([row["tier"] for row in results[:2]], ["focused", "focused"])
+
+    def test_exact_code_match_stays_first_despite_frequency(self):
+        # B51's title carries "B50" at a word boundary, so it also matches
+        # (and also lands in the focused tier) -- but the exact code match
+        # for the typed query must still win regardless of frequency.
+        db.session.add(_icd10_row("B51", "B50 co-infection with malaria"))
+        db.session.flush()
+        _seed_final_cod_frequency({"B51": 999})
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "B50")
+
+        self.assertEqual(results[0]["icd_code"], "B50")
+
+    def test_expanded_tier_unaffected_by_frequency(self):
+        # Two mid-word (expanded-tier) matches, reverse-seeded: SQL's own
+        # order (rank band, sort_order, code) is kept, frequency never
+        # reaches the expanded tier.
+        db.session.add_all(
+            [
+                _icd10_row("Z01", "Alphaxyzbeta condition"),
+                _icd10_row("Z02", "Gammaxyzdelta condition"),
+            ]
+        )
+        db.session.flush()
+        _seed_final_cod_frequency({"Z02": 100, "Z01": 1})
+
+        results = search_icd10_2019_2_coding_choices(self.SID_FEMALE, "xyz")
+
+        self.assertEqual([row["icd_code"] for row in results], ["Z01", "Z02"])
+        self.assertEqual([row["tier"] for row in results], ["expanded", "expanded"])
+
+    def test_missing_frequency_source_keeps_sql_order(self):
+        # No MV/loader data (empty dict): ranking falls back to tier then
+        # SQL's own order, same as before this feature existed.
+        db.session.add_all(
+            [
+                _icd10_row("A15", "Respiratory tuberculosis, bacteriologically confirmed"),
+                _icd10_row("A16", "Respiratory tuberculosis, not confirmed"),
+            ]
+        )
+        db.session.flush()
+        _seed_final_cod_frequency({})
+
+        results = search_icd10_2019_2_coding_choices(
+            self.SID_FEMALE, "respiratory tuberculosis"
+        )
+
+        self.assertEqual([row["icd_code"] for row in results[:2]], ["A15", "A16"])
 
     def test_tuberculosis_promotes_a16_with_vocabulary_flag(self):
         db.session.add_all(

@@ -174,12 +174,12 @@
   // server refuse and say why, and the operator retries having been told.
   function confirmDemotionIfApproved(locale) {
     var row = _localesByCode[locale];
-    if (!row || row.lifecycle_state !== 'approved') return 'proceed';
+    if (!row || row.lifecycle_state !== 'approved') return Promise.resolve('proceed');
     var msg = locale + ' is approved' + (row.is_active ? ' and active' : '')
       + '. Importing into it will move it back to in_review, clear its approval'
       + (row.is_active ? ' and deactivate it -- taking it off the forms' : '')
       + ' until it is re-approved. Continue?';
-    return confirm(msg) ? 'acknowledged' : 'declined';
+    return window.confirmDialog(msg).then(function (ok) { return ok ? 'acknowledged' : 'declined'; });
   }
 
   // Lifecycle state a locale must reach before Activate is allowed (decided
@@ -340,33 +340,34 @@
     if (!locale) { alertBox('warning', 'Enter the locale code.'); return; }
     if (!input.files || !input.files.length) { alertBox('warning', 'Choose a workbook.'); return; }
     var crossCheck = document.getElementById('itr-cross-check').checked;
-    var demotion = crossCheck ? 'proceed' : confirmDemotionIfApproved(locale);
-    if (demotion === 'declined') return;
+    (crossCheck ? Promise.resolve('proceed') : confirmDemotionIfApproved(locale)).then(function (demotion) {
+      if (demotion === 'declined') return;
 
-    var form = new FormData();
-    form.append('file', input.files[0]);
-    if (crossCheck) form.append('cross_check', '1');
-    else if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
-    var languageName = document.getElementById('itr-import-language-name').value.trim();
-    if (languageName) form.append('language_name', languageName);
+      var form = new FormData();
+      form.append('file', input.files[0]);
+      if (crossCheck) form.append('cross_check', '1');
+      else if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
+      var languageName = document.getElementById('itr-import-language-name').value.trim();
+      if (languageName) form.append('language_name', languageName);
 
-    var btn = this;
-    btn.disabled = true;
-    out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the workbook…';
-    fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/import', {
-      method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
-    }).then(function (r) {
-      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
-    }).then(function (res) {
-      btn.disabled = false;
-      if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
-      renderReport(res.data.report);
-      loadLocales();
-    }).catch(function () {
-      btn.disabled = false;
-      out.innerHTML = '';
-      alertBox('danger', 'Network error.');
-    });
+      var btn = this;
+      btn.disabled = true;
+      out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the workbook…';
+      fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/import', {
+        method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+      }).then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
+        renderReport(res.data.report);
+        loadLocales();
+      }).catch(function () {
+        btn.disabled = false;
+        out.innerHTML = '';
+        alertBox('danger', 'Network error.');
+      });
+    }.bind(this));
   });
 
   function renderReport(report) {
@@ -404,27 +405,29 @@
     var out = document.getElementById('itr-xliff-result');
     out.innerHTML = '';
     if (!_xliffLocale || !this.files || !this.files.length) return;
-    var demotion = confirmDemotionIfApproved(_xliffLocale);
-    if (demotion === 'declined') { this.value = ''; return; }
+    var input = this;
+    confirmDemotionIfApproved(_xliffLocale).then(function (demotion) {
+      if (demotion === 'declined') { input.value = ''; return; }
 
-    var form = new FormData();
-    form.append('file', this.files[0]);
-    form.append('as', document.getElementById('itr-xliff-as').value);
-    if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
+      var form = new FormData();
+      form.append('file', input.files[0]);
+      form.append('as', document.getElementById('itr-xliff-as').value);
+      if (demotion === 'acknowledged') form.append('acknowledge_demotion', '1');
 
-    var locale = _xliffLocale;
-    out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the XLIFF document…';
-    fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/xliff', {
-      method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
-    }).then(function (r) {
-      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
-    }).then(function (res) {
-      if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
-      renderXliffReport(res.data.report);
-      loadLocales();
-    }).catch(function () {
-      out.innerHTML = '';
-      alertBox('danger', 'Network error.');
+      var locale = _xliffLocale;
+      out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the XLIFF document…';
+      fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/xliff', {
+        method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+      }).then(function (res) {
+        if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
+        renderXliffReport(res.data.report);
+        loadLocales();
+      }).catch(function () {
+        out.innerHTML = '';
+        alertBox('danger', 'Network error.');
+      });
     });
   });
 

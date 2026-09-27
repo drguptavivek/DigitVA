@@ -6,6 +6,7 @@ caches it by version and revalidates with ``If-None-Match``. The admin routes
 behind ``/admin/api/instrument-translations/`` are admin-only and are how a
 language is imported, activated and corrected.
 """
+import re
 from datetime import UTC, datetime
 
 from app import db
@@ -976,3 +977,22 @@ class InstrumentTranslationAdminTests(BaseTestCase):
 
         payload = self.client.get(self._api("/export")).get_json()
         self.assertGreater(len(payload["questions"]), 400)
+
+    def test_panel_and_editor_use_confirm_dialog_not_native_confirm(self):
+        # Native confirm() is suppressed by some browsers. The panel's
+        # demotion prompt uses the shared window.confirmDialog helper; the
+        # editor asks about unsaved changes inside its own dialog, because
+        # Bootstrap 5 does not stack modals.
+        self._login(self.base_admin_id)
+
+        panel_body = self.client.get(
+            "/admin/panels/instrument-translations"
+        ).get_data(as_text=True)
+        self.assertIn("window.confirmDialog(", panel_body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", panel_body))
+
+        editor_body = self.client.get(self._editor_url()).get_data(as_text=True)
+        self.assertIn('id="ite-discard-strip"', editor_body)
+        self.assertIn("askDiscardInline()", editor_body)
+        self.assertNotIn("window.confirmDialog(", editor_body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", editor_body))

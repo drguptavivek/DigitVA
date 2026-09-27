@@ -770,16 +770,18 @@
   // ── delete category ────────────────────────────────────────────────────────
 
   window.deleteCat = function (code) {
-    if (!confirm('Delete category "' + code + '"? This will not delete fields assigned to it.')) return;
-    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
-      + '/categories/' + encodeURIComponent(code), 'DELETE')
-      .then(function (res) {
-        if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
-        _cats = _cats.filter(function (c) { return c.category_code !== code; });
-        if (_selectedCat === code) { _selectedCat = null; _selectedSub = null; _subs = []; }
-        renderCats();
-        renderSubs();
-      });
+    window.confirmDialog('Delete category "' + code + '"? This will not delete fields assigned to it.').then(function (ok) {
+      if (!ok) return;
+      apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+        + '/categories/' + encodeURIComponent(code), 'DELETE')
+        .then(function (res) {
+          if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
+          _cats = _cats.filter(function (c) { return c.category_code !== code; });
+          if (_selectedCat === code) { _selectedCat = null; _selectedSub = null; _subs = []; }
+          renderCats();
+          renderSubs();
+        });
+    });
   };
 
   // ── add subcategory modal ──────────────────────────────────────────────────
@@ -873,16 +875,18 @@
   // ── delete subcategory ─────────────────────────────────────────────────────
 
   window.deleteSub = function (code) {
-    if (!confirm('Delete subcategory "' + code + '"?')) return;
-    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
-      + '/categories/' + encodeURIComponent(_selectedCat)
-      + '/subcategories/' + encodeURIComponent(code), 'DELETE')
-      .then(function (res) {
-        if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
-        _subs = _subs.filter(function (s) { return s.subcategory_code !== code; });
-        if (_selectedSub === code) _selectedSub = null;
-        renderSubs();
-      });
+    window.confirmDialog('Delete subcategory "' + code + '"?').then(function (ok) {
+      if (!ok) return;
+      apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+        + '/categories/' + encodeURIComponent(_selectedCat)
+        + '/subcategories/' + encodeURIComponent(code), 'DELETE')
+        .then(function (res) {
+          if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
+          _subs = _subs.filter(function (s) { return s.subcategory_code !== code; });
+          if (_selectedSub === code) _selectedSub = null;
+          renderSubs();
+        });
+    });
   };
 
 }());

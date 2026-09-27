@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -203,3 +204,15 @@ class AdminSyncDashboardTests(BaseTestCase):
         self.assertIn(b"Start Maintenance", response.data)
         self.assertIn(b"End Maintenance", response.data)
         self.assertIn(b"Only admin login is allowed right now.", response.data)
+
+    def test_sync_panel_uses_confirm_modal_not_native_confirm(self):
+        # Native confirm() is suppressed by some browsers; the force-resync
+        # prompt must go through the panel's own Bootstrap confirm modal.
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/panels/sync")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("showConfirmModal(", body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", body))

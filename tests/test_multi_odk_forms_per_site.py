@@ -6,6 +6,8 @@ still holds. Policy: docs/policy/admin-api-access.md.
 """
 from datetime import UTC, datetime
 
+import re
+
 import sqlalchemy as sa
 
 from app import db
@@ -254,3 +256,13 @@ class MultipleOdkFormsPerProjectSiteTests(BaseTestCase):
         self.assertIn("Add another form", body)
         # The save payload must name the mapping, or an edit would add a form.
         self.assertIn("mapping_id: mappingId || null", body)
+
+    def test_panel_uses_confirm_dialog_not_native_confirm(self):
+        # Native confirm() is suppressed by some browsers; removeMapping must
+        # go through the shared in-page confirmation helper instead.
+        self._login(str(self.base_admin_id))
+        response = self.client.get("/admin/panels/project-forms")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("window.confirmDialog(", body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", body))

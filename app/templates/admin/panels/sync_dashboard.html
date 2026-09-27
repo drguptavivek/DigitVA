@@ -168,24 +168,6 @@
     </div>
   </div>
 
-  <div class="modal fade" id="sync-confirm-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="sync-confirm-modal-title">Confirm</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-0 small" id="sync-confirm-modal-body"></p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-sm btn-primary" id="sync-confirm-modal-accept">Continue</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="modal fade" id="sync-info-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -264,24 +246,9 @@
   }
 
   function showConfirmModal(title, message, onConfirm) {
-    var modalEl = document.getElementById('sync-confirm-modal');
-    var titleEl = document.getElementById('sync-confirm-modal-title');
-    var bodyEl = document.getElementById('sync-confirm-modal-body');
-    var acceptEl = document.getElementById('sync-confirm-modal-accept');
-    if (!modalEl || !titleEl || !bodyEl || !acceptEl || !window.bootstrap || !window.bootstrap.Modal) {
-      if (confirm(message)) onConfirm();
-      return;
-    }
-    titleEl.textContent = title;
-    bodyEl.textContent = message;
-    var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-    var handleClick = function () {
-      acceptEl.removeEventListener('click', handleClick);
-      modal.hide();
-      onConfirm();
-    };
-    acceptEl.addEventListener('click', handleClick);
-    modal.show();
+    window.confirmDialog(message, { title: title, okLabel: 'Continue' }).then(function (ok) {
+      if (ok) onConfirm();
+    });
   }
 
   function showInfoModal(title, message) {
@@ -1084,36 +1051,38 @@
 
   function syncForm(formId, btn) {
     if (!formId) return;
-    if (!confirm(
-      'Force-resync ' + formId + '?\n\n'
-      + 'This re-downloads ALL submissions from ODK.\n\n'
+    showConfirmModal(
+      'Force-resync ' + formId,
+      'This re-downloads ALL submissions from ODK.\n\n'
       + 'Finalized submissions with ODK edits will be flagged as "Revoked — Data Changed" '
       + 'instead of being reset. A data manager must then accept or reject each change.\n\n'
       + 'Unchanged submissions are not affected.\n\n'
-      + 'Prefer running a normal sync first — it uses gap detection to fetch only missing records safely.'
-    )) return;
-    var origHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      + 'Prefer running a normal sync first — it uses gap detection to fetch only missing records safely.',
+      function () {
+        var origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
-    apiJson('/admin/api/sync/form/' + encodeURIComponent(formId), 'POST').then(function (res) {
-      if (!res.ok) {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-        showToast(res.data.error || 'Failed to start Force-resync for ' + formId + '.', 'danger');
-        return;
+        apiJson('/admin/api/sync/form/' + encodeURIComponent(formId), 'POST').then(function (res) {
+          if (!res.ok) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            showToast(res.data.error || 'Failed to start Force-resync for ' + formId + '.', 'danger');
+            return;
+          }
+          showToast('Force-resync started for ' + formId + '.', 'success');
+          armCompletionModal(formId + ' force-resync');
+          loadStatus();
+          loadHistory();
+          // Re-enable after a short delay so the user can see it fired
+          setTimeout(function () { btn.disabled = false; btn.innerHTML = origHtml; }, 3000);
+        }).catch(function () {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          showToast('Network error.', 'danger');
+        });
       }
-      showToast('Force-resync started for ' + formId + '.', 'success');
-      armCompletionModal(formId + ' force-resync');
-      loadStatus();
-      loadHistory();
-      // Re-enable after a short delay so the user can see it fired
-      setTimeout(function () { btn.disabled = false; btn.innerHTML = origHtml; }, 3000);
-    }).catch(function () {
-      btn.disabled = false;
-      btn.innerHTML = origHtml;
-      showToast('Network error.', 'danger');
-    });
+    );
   }
 
   function syncProjectSite(projectId, siteId, btn) {

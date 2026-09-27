@@ -1,4 +1,6 @@
+import re
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 from app import db
@@ -395,3 +397,22 @@ class ReviewingRoutesTests(BaseTestCase):
             projects[0]["sites"][0]["forms"][self.FORM_ID]["revoked"],
             1,
         )
+
+
+class ReviewerDashboardConfirmDialogTests(BaseTestCase):
+    """Initiate QA uses window.confirmDialog, not native confirm() (digitva-bt1).
+
+    Native confirm() is suppressed in some browsers, so the Initiate QA link
+    and the shared helper it relies on must not call it.
+    """
+
+    _STATIC = Path(__file__).resolve().parents[2] / "app" / "static" / "js"
+
+    def test_reviewer_dashboard_js_has_no_native_confirm(self):
+        body = (self._STATIC / "va_reviewer_dashboard.js").read_text()
+        self.assertIn("window.confirmDialog(", body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", body))
+
+    def test_base_js_defines_confirm_dialog(self):
+        body = (self._STATIC / "base.js").read_text()
+        self.assertIn("window.confirmDialog = ", body)

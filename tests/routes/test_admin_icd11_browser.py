@@ -1,5 +1,6 @@
 import io
 import json
+import re
 from datetime import UTC, datetime
 from io import BytesIO
 
@@ -197,6 +198,17 @@ class TestAdminIcd11Browser(BaseTestCase):
         self.assertIn('id="icd11-browser-columns"', body)
         self.assertIn('id="icd11-browser-path"', body)
         self.assertNotIn('id="icd11-browser-tree"', body)
+
+    def test_admin_panel_uses_confirm_dialog_not_native_confirm(self):
+        # Native confirm() is suppressed by some browsers; the policy-import
+        # apply prompt must go through the shared window.confirmDialog helper.
+        self._login(str(self.base_admin_user.user_id))
+
+        body = self.client.get("/admin/panels/icd11-browser").get_data(as_text=True)
+
+        self.assertIn("window.confirmDialog(", body)
+        self.assertNotIn("window.confirm(", body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", body))
 
     def test_children_api_reports_status_indicator(self):
         self._login(str(self.base_admin_user.user_id))

@@ -187,6 +187,78 @@ window.showAppToast = function (message, type, options) {
   }
 };
 
+// Shared in-page confirmation dialog, replacing native confirm() (which some
+// browsers suppress). Lazily builds its own Bootstrap modal on first call.
+// Usage: window.confirmDialog(message, {title, okLabel}).then(function (ok) {...});
+window.confirmDialog = (function () {
+  var modalEl = null;
+  var modal = null;
+  var titleEl = null;
+  var bodyEl = null;
+  var okEl = null;
+  var settlePending = null; // an unanswered earlier call, answered "no" by a newer one
+
+  function ensureModal() {
+    if (modalEl) return;
+    modalEl = document.createElement("div");
+    modalEl.className = "modal fade";
+    modalEl.tabIndex = -1;
+    modalEl.setAttribute("aria-hidden", "true");
+    modalEl.setAttribute("aria-labelledby", "confirm-dialog-title");
+    modalEl.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered">' +
+      '<div class="modal-content">' +
+      '<div class="modal-header">' +
+      '<h5 class="modal-title" id="confirm-dialog-title"></h5>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>' +
+      "</div>" +
+      '<div class="modal-body" style="white-space: pre-line;"></div>' +
+      '<div class="modal-footer">' +
+      '<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>' +
+      '<button type="button" class="btn btn-sm btn-primary confirm-dialog-ok"></button>' +
+      "</div></div></div>";
+    document.body.appendChild(modalEl);
+    titleEl = modalEl.querySelector(".modal-title");
+    bodyEl = modalEl.querySelector(".modal-body");
+    okEl = modalEl.querySelector(".confirm-dialog-ok");
+    modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    // Native confirm() focused OK, so Enter confirmed; keep that.
+    modalEl.addEventListener("shown.bs.modal", function () { okEl.focus(); });
+  }
+
+  return function confirmDialog(message, opts) {
+    ensureModal();
+    var config = opts || {};
+    titleEl.textContent = config.title || "Confirm";
+    bodyEl.textContent = message;
+    okEl.textContent = config.okLabel || "OK";
+    if (settlePending) settlePending(false);
+
+    return new Promise(function (resolve) {
+      var settled = false;
+      function settle(result) {
+        if (settled) return;
+        settled = true;
+        settlePending = null;
+        okEl.removeEventListener("click", handleOk);
+        modalEl.removeEventListener("hidden.bs.modal", handleHidden);
+        resolve(result);
+      }
+      function handleOk() {
+        settle(true);
+        modal.hide();
+      }
+      function handleHidden() {
+        settle(false);
+      }
+      settlePending = settle;
+      okEl.addEventListener("click", handleOk);
+      modalEl.addEventListener("hidden.bs.modal", handleHidden);
+      modal.show();
+    });
+  };
+})();
+
 function initImageViewer() {
   const image = document.getElementById("zoomableImage");
   const brightnessSlider = document.getElementById("brightnessSlider");

@@ -260,8 +260,16 @@
       this.eGui.innerHTML = `
         ${viewButton}
         <a href="/reviewing/start/${sid}"
-           class="btn btn-sm btn-primary py-0 px-2"
-           onclick="return confirm('Are you sure you want to initiate QA for this form?');">Initiate QA</a>`;
+           class="btn btn-sm btn-primary py-0 px-2 reviewer-initiate-qa">Initiate QA</a>`;
+
+      const initiateLink = this.eGui.querySelector('.reviewer-initiate-qa');
+      initiateLink.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        const href = initiateLink.href;
+        window.confirmDialog('Are you sure you want to initiate QA for this form?').then((ok) => {
+          if (ok) window.location.href = href;
+        });
+      });
     }
     getGui() {
       return this.eGui;

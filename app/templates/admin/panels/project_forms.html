@@ -548,17 +548,19 @@
   function removeMapping(sid, mappingId) {
     var mapping = _siteMappings.find(function (m) { return m.mapping_id === mappingId; });
     var label = mapping ? ('#' + mapping.odk_project_id + ' / ' + mapping.odk_form_id) : 'this form';
-    if (!confirm('Remove the mapping for ' + label + ' on site ' + sid + '?')) return;
-    apiJson(
-      '/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings/'
-        + encodeURIComponent(sid) + '?mapping_id=' + encodeURIComponent(mappingId),
-      'DELETE'
-    ).then(function (res) {
-      if (!res.ok) { showError((res.data && res.data.error) || 'Failed to remove the mapping.'); return; }
-      _siteMappings = _siteMappings.filter(function (m) { return m.mapping_id !== mappingId; });
-      delete _editingMapping[sid];
-      _odkFormsCache = {};
-      renderTable();
+    window.confirmDialog('Remove the mapping for ' + label + ' on site ' + sid + '?').then(function (ok) {
+      if (!ok) return;
+      apiJson(
+        '/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings/'
+          + encodeURIComponent(sid) + '?mapping_id=' + encodeURIComponent(mappingId),
+        'DELETE'
+      ).then(function (res) {
+        if (!res.ok) { showError((res.data && res.data.error) || 'Failed to remove the mapping.'); return; }
+        _siteMappings = _siteMappings.filter(function (m) { return m.mapping_id !== mappingId; });
+        delete _editingMapping[sid];
+        _odkFormsCache = {};
+        renderTable();
+      });
     });
   }
 

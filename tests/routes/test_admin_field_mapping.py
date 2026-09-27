@@ -4,6 +4,7 @@ Tests for admin field mapping panel routes (Phase 7 TDD).
 Run (inside Docker):
   docker compose exec minerva_app_service uv run pytest tests/routes/test_admin_field_mapping.py -v
 """
+import re
 from decimal import Decimal
 
 from app import db
@@ -250,3 +251,18 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
             )
         )
         self.assertEqual(display_cfg.display_order, 99)
+
+    def test_14_categories_panel_uses_confirm_dialog_not_native_confirm(self):
+        """Delete-category/subcategory prompts use the shared confirm dialog.
+
+        Native confirm() is suppressed by some browsers; deleteCat/deleteSub
+        must go through window.confirmDialog instead.
+        """
+        self._login(self.base_admin_id)
+        resp = self.client.get(
+            "/admin/panels/field-mapping/categories?form_type=WHO_2022_VA",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_data(as_text=True)
+        self.assertIn("window.confirmDialog(", body)
+        self.assertIsNone(re.search(r"(?<![\w.])confirm\(", body))

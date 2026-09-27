@@ -840,7 +840,8 @@
   // Preview the import first, then apply only after the admin confirms.
   async function importPolicyFile(file) {
     var preview = await postPolicyFile(file, true);
-    if (!window.confirm('Import preview: ' + importSummary(preview) + '\n\nApply this import?')) {
+    var ok = await window.confirmDialog('Import preview: ' + importSummary(preview) + '\n\nApply this import?');
+    if (!ok) {
       showStatus('Import cancelled; nothing was changed.', 'info');
       return;
     }

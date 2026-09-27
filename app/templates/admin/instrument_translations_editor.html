@@ -60,6 +60,12 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body" id="ite-modal-body"></div>
+        <div class="alert alert-warning d-flex align-items-center gap-2 rounded-0 border-start-0 border-end-0 mb-0 py-2 small d-none"
+             id="ite-discard-strip" role="alertdialog" aria-live="assertive">
+          <span class="me-auto">This question has unsaved changes. Discard them?</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="ite-keep-btn">Keep editing</button>
+          <button type="button" class="btn btn-sm btn-danger" id="ite-discard-btn">Discard</button>
+        </div>
         <div class="modal-footer py-2">
           <div class="small text-muted me-auto" id="ite-modal-status"></div>
           <button type="button" class="btn btn-sm btn-outline-secondary" id="ite-undo-btn">Undo</button>
@@ -334,15 +340,40 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
 
   modalEl.addEventListener('hide.bs.modal', function (evt) {
     if (suppressDirtyConfirm) return;
-    if (isDirty() && !confirm('This question has unsaved changes. Discard them?')) {
-      evt.preventDefault();
-    }
+    if (!isDirty()) return;
+    evt.preventDefault();
+    askDiscardInline().then(function (ok) {
+      if (ok) closeModalDiscarding();
+    });
   });
 
   modalEl.addEventListener('hidden.bs.modal', function () {
     openIndex = null;
     fieldRefs = [];
+    settleDiscard(false);
   });
+
+  // The unsaved-changes question is asked inside the editor dialog, not in a
+  // second modal: Bootstrap 5 does not support stacked modals.
+  var discardStrip = document.getElementById('ite-discard-strip');
+  var discardResolve = null;
+
+  function settleDiscard(ok) {
+    discardStrip.classList.add('d-none');
+    var resolve = discardResolve;
+    discardResolve = null;
+    if (resolve) resolve(ok);
+  }
+
+  function askDiscardInline() {
+    settleDiscard(false); // a newer question replaces an unanswered one
+    discardStrip.classList.remove('d-none');
+    document.getElementById('ite-discard-btn').focus();
+    return new Promise(function (resolve) { discardResolve = resolve; });
+  }
+
+  document.getElementById('ite-discard-btn').addEventListener('click', function () { settleDiscard(true); });
+  document.getElementById('ite-keep-btn').addEventListener('click', function () { settleDiscard(false); });
 
   function closeModalDiscarding() {
     if (!bsModal) return;
@@ -351,13 +382,15 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     suppressDirtyConfirm = false;
   }
 
-  // True and lets the caller proceed; false means the operator declined to
-  // discard, so the caller must not navigate.
+  // Resolves true and lets the caller proceed; false means the operator
+  // declined to discard, so the caller must not navigate.
   function confirmLeaveModal() {
-    if (openIndex === null) return true;
-    if (isDirty() && !confirm('This question has unsaved changes. Discard them?')) return false;
-    closeModalDiscarding();
-    return true;
+    if (openIndex === null) return Promise.resolve(true);
+    if (!isDirty()) { closeModalDiscarding(); return Promise.resolve(true); }
+    return askDiscardInline().then(function (ok) {
+      if (ok) closeModalDiscarding();
+      return ok;
+    });
   }
 
   function buildFieldRow(descriptor) {
@@ -679,24 +712,32 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     if (evt.key === 'Enter') runSearch();
   });
   function runSearch() {
-    if (!confirmLeaveModal()) return;
-    state.q = document.getElementById('ite-search').value.trim();
-    state.page = 1;
-    pushUrlState();
-    loadQuestions();
+    confirmLeaveModal().then(function (ok) {
+      if (!ok) return;
+      state.q = document.getElementById('ite-search').value.trim();
+      state.page = 1;
+      pushUrlState();
+      loadQuestions();
+    });
   }
 
   document.getElementById('ite-prev').addEventListener('click', function () {
-    if (state.page <= 1 || !confirmLeaveModal()) return;
-    state.page -= 1;
-    pushUrlState();
-    loadQuestions();
+    if (state.page <= 1) return;
+    confirmLeaveModal().then(function (ok) {
+      if (!ok) return;
+      state.page -= 1;
+      pushUrlState();
+      loadQuestions();
+    });
   });
   document.getElementById('ite-next').addEventListener('click', function () {
-    if (state.page * PAGE_SIZE >= state.total || !confirmLeaveModal()) return;
-    state.page += 1;
-    pushUrlState();
-    loadQuestions();
+    if (state.page * PAGE_SIZE >= state.total) return;
+    confirmLeaveModal().then(function (ok) {
+      if (!ok) return;
+      state.page += 1;
+      pushUrlState();
+      loadQuestions();
+    });
   });
 
   // ── init ──────────────────────────────────────────────────────────────

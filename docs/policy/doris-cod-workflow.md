@@ -20,6 +20,24 @@ Unmasked/simple has one final assessment with an independently validated
 immediate COD, underlying COD and optional associated-condition free text.
 The underlying COD alone controls final authority and VA bucket reporting.
 
+### Decided 2026-09-27, not yet implemented (`digitva-0n3`)
+
+Owner decision; DigitVA is not deployed anywhere, so no production data is
+affected. It replaces the three combinations above once implemented.
+
+- **ICD-11 means DORIS.** Choosing `icd_classification='icd11'` sets
+  `cod_entry_mode='doris'`; simple entry is refused for ICD-11 projects.
+  ICD-10 projects stay simple. The `selectable` classification (ICD-10 or
+  ICD-11 chosen per death) is retired; dev projects on it move to `icd10`.
+- **Unmasked ICD-11** keeps today's one-step DORIS final assessment.
+- **Masked ICD-11** keeps the two steps. Step 1 is the DORIS certificate,
+  entered and processed without SmartVA. Step 2 only confirms the final
+  underlying COD, which may be the DORIS result, the SmartVA result or the
+  coder's own judgement; its code entry is the DORIS picker's ICD-11 search
+  (the shared `digitva_icd11_picker.js` module), with no second certificate.
+- The local ICD-11 catalogue search (`search_icd11_mms`) remains for the
+  admin ICD-11 browser and Help pages, not for ICD-11 coding.
+
 ## DORIS entry and confirmation
 
 The MO enters an ordered Part I/II certificate. One interval applies to each

@@ -140,6 +140,8 @@
     <div class="doris-line card card-body mb-2" data-line>
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h3 class="h6 mb-0" data-line-title></h3><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-move-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-move-down aria-label="Move line down">↓</button><button type="button" class="btn btn-outline-danger" data-remove-line>Remove line</button></div></div>
       <div data-chips class="doris-chips mb-2" aria-live="polite"></div>
+      <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
+      <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>
       <div class="doris-interval" data-interval-control hidden>
         <label class="form-label small mb-0" data-interval-label>Onset to death</label>
         <input class="form-control form-control-sm" data-interval-value inputmode="decimal" maxlength="24" placeholder="Interval" aria-label="Interval value">
@@ -147,8 +149,6 @@
         <p class="small text-muted mb-0 mt-1" data-interval-raw hidden></p>
         <p class="small text-danger mb-0 mt-1" data-interval-error role="alert"></p>
       </div>
-      <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
-      <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>
     </div>
   </template>
 </div>

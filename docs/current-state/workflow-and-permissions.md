@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-27
 ---
 
 # Workflow And Permissions
@@ -491,6 +491,19 @@ it no longer controls the visible category flow in coding.
 Reviewer dashboard behavior:
 
 - reviewer visibility is filtered by permitted forms and allowed narration languages
+
+Demo reviewing (`demo_training_enabled` projects):
+
+- a demo coder final COD moves the case `coder_finalized -> reviewer_eligible`
+  at once (`demo_reviewer_eligible_immediately`); admin-started demo sessions
+  on ordinary projects keep the 24-hour recode window
+- demo project forms join every active user's reviewer scope, as they join
+  coder scope, so any user may review demo cases; non-demo forms stay grant-only
+- when the coder's demo final COD expires, demo-retention cleanup also
+  deactivates the case's reviewer final/initial COD, reviewer review, NQA,
+  Social Autopsy and reviewing allocation (audited), clears the reviewer
+  authority pointer, and `reset_demo_state` (now allowed from the three
+  reviewer states) returns the case to `ready_for_coding`
 
 Starting review:
 

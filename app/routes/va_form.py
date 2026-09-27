@@ -55,7 +55,10 @@ from app.services.category_rendering_service import (
 )
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-from app.services.demo_project_service import get_demo_expiry_for_submission
+from app.services.demo_project_service import (
+    get_demo_expiry_for_submission,
+    is_demo_training_submission,
+)
 from app.services.doris_certificate import DorisCertificateError
 from app.services.doris_process_proof import (
     ProcessProofCertificateChanged,
@@ -115,6 +118,8 @@ from app.services.workflow.transitions import (
     mark_coder_step1_saved,
     mark_data_manager_not_codeable,
     mark_recode_finalized,
+    mark_reviewer_eligible_after_recode_window,
+    system_actor,
 )
 from app.utils import (
     va_get_form_type_code_for_form,
@@ -1625,6 +1630,15 @@ def renderpartial(va_sid, va_partial):
                     va_sid,
                     reason="final_cod_submitted",
                     actor=coder_actor(current_user.user_id),
+                )
+            # Demo/training projects skip the 24-hour recode window so
+            # trainees can practise reviewing at once. Admin-started demo
+            # sessions on ordinary projects keep the window.
+            if is_demo_training_submission(va_sid):
+                mark_reviewer_eligible_after_recode_window(
+                    va_sid,
+                    reason="demo_reviewer_eligible_immediately",
+                    actor=system_actor(),
                 )
             db.session.commit()
             bust_coder_dashboard_cache(current_user.user_id)

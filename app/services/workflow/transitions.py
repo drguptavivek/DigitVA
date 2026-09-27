@@ -803,6 +803,10 @@ def reset_demo_state(
             wd.WORKFLOW_CODER_STEP1_SAVED,
             wd.WORKFLOW_CODER_FINALIZED,
             wd.WORKFLOW_NOT_CODEABLE_BY_CODER,
+            # Demo reviews expire with the coder's demo final COD.
+            wd.WORKFLOW_REVIEWER_ELIGIBLE,
+            wd.WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+            wd.WORKFLOW_REVIEWER_FINALIZED,
         ),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
         reason=reason,

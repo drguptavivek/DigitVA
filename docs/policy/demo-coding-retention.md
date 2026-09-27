@@ -65,6 +65,21 @@ Current intended baseline:
   - after `va_project_master.demo_retention_minutes` for project-declared
     demo/training projects
 
+## Demo Reviewing
+
+Owner decision 2026-09-27; design in `.tasks/2026-09-27-demo-reviewing.md`.
+
+- on `demo_training_enabled` projects a demo coder final code makes the case
+  reviewer-eligible at once; the 24-hour recode window applies only to
+  non-demo work and to admin-started demo sessions on ordinary projects
+- demo/training projects are open reviewer pools: any active authenticated
+  user may start reviewing their cases, as for demo coding
+- the review on a demo case expires with the coder's demo final code: when
+  that code expires, the case's reviewer final and initial assessments,
+  reviewer review, NQA, social autopsy and reviewing allocation are
+  deactivated and audited, final COD authority is cleared, and the case
+  returns to ready for coding, even mid-review
+
 ## Retention Window
 
 Current intended baseline:

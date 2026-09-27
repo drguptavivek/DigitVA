@@ -16,6 +16,8 @@ from app.models import (
     VaResearchProjects,
     VaProjectMaster,
     VaProjectSites,
+    VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaSiteMaster,
     VaSites,
     VaStatuses,
@@ -39,13 +41,16 @@ from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
     upsert_final_cod_authority,
+    upsert_reviewer_final_cod_authority,
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
 )
 from app.services.workflow.state_store import (
     set_submission_workflow_state,
@@ -435,6 +440,227 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertIsNotNone(authority)
         self.assertIsNone(authority.authoritative_final_assessment_id)
         self.assertEqual(workflow.workflow_state, "ready_for_coding")
+
+    def _seed_expired_demo_case_with_review(self, sid, workflow_state, *, reviewer_final):
+        """An expired demo coder final plus the review started on it."""
+        self._add_submission(sid)
+        db.session.flush()
+        expired_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_admin_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        reviewer_initial = VaReviewerInitialAssessments(
+            va_sid=sid,
+            va_riniassess_by=self.base_coder_user.user_id,
+            va_immediate_cod="R99",
+            va_antecedent_cod="R99",
+            va_riniassess_status=VaStatuses.active,
+        )
+        reviewer_nqa = VaNarrativeAssessment(
+            va_sid=sid,
+            va_nqa_by=self.base_coder_user.user_id,
+            va_nqa_length=2,
+            va_nqa_pos_symptoms=2,
+            va_nqa_neg_symptoms=1,
+            va_nqa_chronology=1,
+            va_nqa_doc_review=1,
+            va_nqa_comorbidity=1,
+            va_nqa_score=8,
+            va_nqa_status=VaStatuses.active,
+        )
+        allocation = VaAllocations(
+            va_allocation_id=uuid.uuid4(),
+            va_sid=sid,
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.reviewing,
+            va_allocation_status=VaStatuses.active,
+        )
+        rows = [coder_final, reviewer_initial, reviewer_nqa, allocation]
+        final = None
+        if reviewer_final:
+            final = VaReviewerFinalAssessments(
+                va_sid=sid,
+                va_rfinassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod="R99",
+                va_rfinassess_status=VaStatuses.active,
+            )
+            rows.append(final)
+        db.session.add_all(rows)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            coder_final,
+            reason="final_cod_submitted",
+            source_role="vacoder",
+        )
+        if final is not None:
+            upsert_reviewer_final_cod_authority(
+                sid, final, reason="reviewer_final_cod_submitted"
+            )
+        set_submission_workflow_state(
+            sid,
+            workflow_state,
+            by_user_id=self.base_coder_user.user_id,
+            by_role="reviewer",
+        )
+        db.session.commit()
+        return coder_final, reviewer_initial, reviewer_nqa, allocation, final
+
+    def test_cleanup_expired_demo_final_expires_finished_review(self):
+        sid = "uuid:demo-expired-reviewed"
+        coder_final, initial, nqa, allocation, final = (
+            self._seed_expired_demo_case_with_review(
+                sid, WORKFLOW_REVIEWER_FINALIZED, reviewer_final=True
+            )
+        )
+        authority = db.session.scalar(
+            db.select(VaFinalCodAuthority).where(VaFinalCodAuthority.va_sid == sid)
+        )
+        self.assertEqual(
+            authority.authoritative_reviewer_final_assessment_id,
+            final.va_rfinassess_id,
+        )
+        self.assertEqual(final.va_rfinassess_status, VaStatuses.active)
+        self.assertEqual(nqa.va_nqa_status, VaStatuses.active)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        # coder final + reviewer final, initial, NQA and allocation
+        self.assertEqual(expired, 5)
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaReviewerFinalAssessments, final.va_rfinassess_id).va_rfinassess_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaReviewerInitialAssessments, initial.va_riniassess_id).va_riniassess_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaNarrativeAssessment, nqa.va_nqa_id).va_nqa_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaAllocations, allocation.va_allocation_id).va_allocation_status,
+            VaStatuses.deactive,
+        )
+        authority = db.session.scalar(
+            db.select(VaFinalCodAuthority).where(VaFinalCodAuthority.va_sid == sid)
+        )
+        self.assertIsNone(authority.authoritative_final_assessment_id)
+        self.assertIsNone(authority.authoritative_reviewer_final_assessment_id)
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
+        )
+        self.assertEqual(workflow.workflow_state, WORKFLOW_READY_FOR_CODING)
+        audit_actions = set(
+            db.session.scalars(
+                db.select(VaSubmissionsAuditlog.va_audit_action).where(
+                    VaSubmissionsAuditlog.va_sid == sid
+                )
+            ).all()
+        )
+        self.assertIn("reviewer final cod expired after demo retention", audit_actions)
+        self.assertIn("reviewer initial cod expired after demo retention", audit_actions)
+        self.assertIn("reviewer allocation released after demo retention", audit_actions)
+
+    def test_cleanup_keeps_review_while_coder_final_is_live(self):
+        # The coder's NQA is saved before the final, so it expires first; the
+        # review must survive until the coder final itself expires.
+        sid = "uuid:demo-nqa-expired-final-live"
+        self._add_submission(sid)
+        db.session.flush()
+        now = datetime.now(timezone.utc)
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_admin_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+            demo_expires_at=now + timedelta(minutes=3),
+        )
+        coder_nqa = VaNarrativeAssessment(
+            va_sid=sid,
+            va_nqa_by=self.base_admin_user.user_id,
+            va_nqa_length=2,
+            va_nqa_pos_symptoms=2,
+            va_nqa_neg_symptoms=1,
+            va_nqa_chronology=1,
+            va_nqa_doc_review=1,
+            va_nqa_comorbidity=1,
+            va_nqa_score=8,
+            va_nqa_status=VaStatuses.active,
+            demo_expires_at=now - timedelta(minutes=1),
+        )
+        reviewer_final = VaReviewerFinalAssessments(
+            va_sid=sid,
+            va_rfinassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_rfinassess_status=VaStatuses.active,
+        )
+        db.session.add_all([coder_final, coder_nqa, reviewer_final])
+        db.session.flush()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_FINALIZED,
+            by_user_id=self.base_coder_user.user_id,
+            by_role="reviewer",
+        )
+        db.session.commit()
+        self.assertEqual(coder_nqa.va_nqa_status, VaStatuses.active)
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        self.assertEqual(expired, 1)
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaNarrativeAssessment, coder_nqa.va_nqa_id).va_nqa_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaFinalAssessments, coder_final.va_finassess_id).va_finassess_status,
+            VaStatuses.active,
+        )
+        self.assertEqual(
+            db.session.get(VaReviewerFinalAssessments, reviewer_final.va_rfinassess_id).va_rfinassess_status,
+            VaStatuses.active,
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
+        )
+        self.assertEqual(workflow.workflow_state, WORKFLOW_REVIEWER_FINALIZED)
+
+    def test_cleanup_expired_demo_final_expires_review_in_progress(self):
+        sid = "uuid:demo-expired-reviewing"
+        _, initial, nqa, allocation, _ = self._seed_expired_demo_case_with_review(
+            sid, WORKFLOW_REVIEWER_CODING_IN_PROGRESS, reviewer_final=False
+        )
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        self.assertEqual(expired, 4)
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaAllocations, allocation.va_allocation_id).va_allocation_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaReviewerInitialAssessments, initial.va_riniassess_id).va_riniassess_status,
+            VaStatuses.deactive,
+        )
+        self.assertEqual(
+            db.session.get(VaNarrativeAssessment, nqa.va_nqa_id).va_nqa_status,
+            VaStatuses.deactive,
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
+        )
+        self.assertEqual(workflow.workflow_state, WORKFLOW_READY_FOR_CODING)
 
     def test_cleanup_expired_demo_coding_artifacts_repairs_stale_step1_state(self):
         stale_sid = "uuid:demo-expired-stale-step1"

@@ -84,6 +84,7 @@
         data-dashboard-url="{{ url_for('reviewing.dashboard') }}"
         data-csrf="{{ csrf_token() }}">
     <div class="content-section-title mb-3 mt-4"><i class="fas fa-gavel text-primary me-2"></i>Reviewer Final Cause of Death Assessment</div>
+    {% if smartva %}{% include "va_form_partials/_smartva_summary.html" %}{% endif %}
     {% if project_mode == 'unmasked_simple' %}
       {% with icd_root_id="reviewer-unmasked-root", icd_preset=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
       <div class="alert alert-light border">Enter the immediate and underlying causes in one final reviewer assessment. The coder record remains unchanged.</div>

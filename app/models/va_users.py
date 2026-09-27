@@ -464,7 +464,7 @@ class VaUsers(UserMixin, db.Model):
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
-        if role in ("coder", "coding_tester", "data_manager"):
+        if role in ("coder", "coding_tester", "data_manager", "reviewer"):
             return granted_form_ids | get_coder_demo_project_form_ids()
         return granted_form_ids
 

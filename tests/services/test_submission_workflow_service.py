@@ -777,6 +777,23 @@ class TestSubmissionWorkflowService(BaseTestCase):
                 actor=system_actor(),
             )
 
+    def test_reset_demo_state_accepts_reviewer_finalized_source(self):
+        """A reviewed demo case resets when its coder final expires."""
+        sid = "uuid:wf-demo-reset-reviewed"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_FINALIZED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        result = reset_demo_state(sid, actor=system_actor())
+
+        self.assertEqual(result.previous_state, WORKFLOW_REVIEWER_FINALIZED)
+        self.assertEqual(result.current_state, WORKFLOW_READY_FOR_CODING)
+
     def test_mark_coder_step1_saved_from_ready_for_coding_session_timeout(self):
         """Step 1 save must succeed when allocation timed out (state = ready_for_coding).
 

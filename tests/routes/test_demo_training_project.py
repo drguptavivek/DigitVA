@@ -21,6 +21,10 @@ from app.models import (
     VaSubmissions,
     VaUsers,
 )
+from app.services.reviewer_coding_service import (
+    ReviewerCodingError,
+    start_reviewer_coding,
+)
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
@@ -324,3 +328,105 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             expires_at,
             before + timedelta(minutes=11),
         )
+
+    def _demo_final_save(self):
+        self._login(self.base_coder_id)
+        self.client.post(
+            f"/coding/start?project_id={self.DEMO_PROJECT_ID}",
+            headers=self._csrf_headers(),
+            follow_redirects=True,
+        )
+        self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
+        response = self.client.post(
+            (
+                f"/vaform/{self.DEMO_SID}/vafinalasses"
+                "?action=vacode&actiontype=vademo_start_coding"
+            ),
+            data={
+                "va_conclusive_cod": "I24-Other acute ischaemic heart diseases",
+                "va_finassess_remark": "training final cod",
+                "va_save_assessment": "1",
+            },
+            headers={**self._csrf_headers(), "HX-Request": "true"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def _workflow_state(self, sid):
+        return db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+
+    def test_demo_final_cod_makes_case_reviewer_eligible_immediately(self):
+        self._demo_final_save()
+
+        self.assertEqual(self._workflow_state(self.DEMO_SID), "reviewer_eligible")
+
+    def test_plain_user_can_start_reviewing_demo_case_without_grant(self):
+        self._demo_final_save()
+        plain_user = db.session.get(VaUsers, self.demo_plain_user.user_id)
+        self.assertTrue(plain_user.is_reviewer(self.DEMO_FORM_ID))
+
+        result = start_reviewer_coding(plain_user, self.DEMO_SID)
+
+        self.assertEqual(result.actiontype, "vastartreviewing")
+        self.assertEqual(
+            self._workflow_state(self.DEMO_SID), "reviewer_coding_in_progress"
+        )
+
+    def test_plain_user_cannot_start_reviewing_non_demo_case(self):
+        form_id = "BASE01BS0199"
+        sid = "uuid:non-demo-reviewable"
+        now = datetime.now(timezone.utc)
+        self._ensure_base_research_project_and_site()
+        db.session.add(
+            VaForms(
+                form_id=form_id,
+                project_id=self.BASE_PROJECT_ID,
+                site_id=self.BASE_SITE_ID,
+                odk_form_id="BASE_FORM",
+                odk_project_id="13",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissions(
+                va_sid=sid,
+                va_form_id=form_id,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="tester",
+                va_odk_reviewstate=None,
+                va_instance_name=sid,
+                va_uniqueid_masked=sid,
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=34,
+                va_deceased_gender="Female",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=sid,
+                workflow_state="reviewer_eligible",
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.commit()
+        plain_user = db.session.get(VaUsers, self.demo_plain_user.user_id)
+
+        with self.assertRaises(ReviewerCodingError) as ctx:
+            start_reviewer_coding(plain_user, sid)
+
+        self.assertEqual(ctx.exception.status_code, 403)
+        self.assertEqual(self._workflow_state(sid), "reviewer_eligible")

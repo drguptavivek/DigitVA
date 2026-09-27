@@ -11,6 +11,8 @@ from app.models import (
     VaFinalAssessments,
     VaInitialAssessments,
     VaNarrativeAssessment,
+    VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaReviewerReview,
     VaSocialAutopsyAnalysis,
     VaStatuses,
@@ -22,11 +24,22 @@ from app.services.final_cod_authority_service import (
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
+from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import (
     get_demo_coding_allocation_timeout_minutes,
     should_use_demo_actiontype_for_submission,
 )
-from app.services.workflow.definition import WORKFLOW_CODER_STEP1_SAVED
+from app.services.payload_bound_coding_artifact_service import (
+    deactivate_active_narrative_assessments_for_submission,
+    deactivate_active_reviewer_reviews_for_submission,
+    deactivate_active_social_autopsy_analyses_for_submission,
+)
+from app.services.workflow.definition import (
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
+)
 from app.services.workflow.transitions import (
     reset_demo_state,
     reset_incomplete_first_pass,
@@ -35,6 +48,7 @@ from app.services.workflow.transitions import (
     system_actor,
 )
 from app.services.workflow.state_store import (
+    get_submission_workflow_state,
     sync_submission_workflow_from_legacy_records,
 )
 
@@ -267,6 +281,92 @@ def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
     return released
 
 
+def _expire_demo_review_for_submission(va_sid: str) -> int:
+    """Deactivate the review on a case whose demo coder final COD expired.
+
+    Reviewer rows carry no demo_expires_at; the review expires with the coder
+    final it reviewed (docs/policy/demo-coding-retention.md, "Demo
+    Reviewing"). Covers a finished review and one still in progress. The
+    caller has already cleared the reviewer authority pointer through
+    upsert_final_cod_authority. Returns the number of rows deactivated.
+    """
+    expired = 0
+    reviewer_finals = db.session.scalars(
+        sa.select(VaReviewerFinalAssessments).where(
+            VaReviewerFinalAssessments.va_sid == va_sid,
+            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+        )
+    ).all()
+    for row in reviewer_finals:
+        row.va_rfinassess_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_rfinassess_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="reviewer final cod expired after demo retention",
+            )
+        )
+        expired += 1
+
+    reviewer_initials = db.session.scalars(
+        sa.select(VaReviewerInitialAssessments).where(
+            VaReviewerInitialAssessments.va_sid == va_sid,
+            VaReviewerInitialAssessments.va_riniassess_status == VaStatuses.active,
+        )
+    ).all()
+    for row in reviewer_initials:
+        row.va_riniassess_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_riniassess_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="reviewer initial cod expired after demo retention",
+            )
+        )
+        expired += 1
+
+    expired += deactivate_active_reviewer_reviews_for_submission(
+        va_sid,
+        audit_byrole="vasystem",
+        audit_action="reviewer review expired after demo retention",
+    )
+    expired += deactivate_active_narrative_assessments_for_submission(
+        va_sid,
+        audit_byrole="vasystem",
+        audit_action="narrative quality assessment expired after demo retention",
+    )
+    expired += deactivate_active_social_autopsy_analyses_for_submission(
+        va_sid,
+        audit_byrole="vasystem",
+        audit_action="social autopsy analysis expired after demo retention",
+    )
+
+    reviewing_allocations = db.session.scalars(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    ).all()
+    for allocation in reviewing_allocations:
+        allocation.va_allocation_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=allocation.va_allocation_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="d",
+                va_audit_action="reviewer allocation released after demo retention",
+            )
+        )
+        expired += 1
+    return expired
+
+
 def cleanup_expired_demo_coding_artifacts(
     *,
     now: datetime | None = None,
@@ -449,6 +549,17 @@ def cleanup_expired_demo_coding_artifacts(
                 by_role="vasystem",
             )
             continue
+        if va_sid in expired_final_users_by_sid:
+            expired_count += _expire_demo_review_for_submission(va_sid)
+        elif get_submission_workflow_state(va_sid) in (
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+            WORKFLOW_REVIEWER_FINALIZED,
+        ):
+            # The coder's NQA and Social Autopsy are saved before the final
+            # code, so they expire first. A case under review stays as it is
+            # until the coder's final code itself expires.
+            continue
         reset_demo_state(
             va_sid,
             reason="demo_retention_cleanup",
@@ -457,5 +568,8 @@ def cleanup_expired_demo_coding_artifacts(
 
     if expired_count:
         db.session.commit()
+        for user_ids in expired_final_users_by_sid.values():
+            for user_id in user_ids:
+                bust_coder_dashboard_cache(user_id)
 
     return expired_count

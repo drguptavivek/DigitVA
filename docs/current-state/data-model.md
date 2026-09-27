@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # Current Data Model
@@ -803,7 +803,19 @@ Key fields:
 - `va_antecedent_cod`
 - `va_other_conditions`
 - `icd11_provenance` (nullable JSONB)
+- `doris_certificate`, `doris_result`, `codedit_result`,
+  `cod_entry_mode_snapshot` (nullable JSONB, migration `b8e2d4f6a1c3`)
 - `va_iniassess_status`
+
+Current behavior:
+
+- masked DORIS (masked ICD-11) Step 1 stores the verified certificate and
+  DORIS/CoDEdit envelopes here; `va_immediate_cod` is the first condition on
+  Part I line 1 and `va_antecedent_cod` is the coder's confirmed underlying
+  cause. The envelopes stay on this row; the final row links to it through
+  `source_initial_assessment_id`
+- `va_reviewer_initial_assessments` has the same four nullable JSONB
+  columns; the reviewer does not write them yet (digitva-0n3 phase 4)
 
 ### `va_final_assessments`
 

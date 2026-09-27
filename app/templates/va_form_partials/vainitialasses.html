@@ -1,5 +1,20 @@
 {% if project_mode|default('masked_simple') in ('unmasked_simple', 'unmasked_doris') %}
   {% include "va_form_partials/vafinalasses.html" %}
+{% elif project_mode == 'masked_doris' %}
+{# Masked ICD-11 Step 1: the DORIS certificate without SmartVA (digitva-0n3). The confirmed cause becomes the Step 1 underlying cause. #}
+<form method="POST" id="initialAssessmentForm" hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vainitialasses', action=va_action, actiontype=va_actiontype) }}" hx-target="#form-container2" hx-swap="innerHTML">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="content-section-title mt-4"><i class="fas fa-file-alt"></i> Cause of Death Ascertainment - Step 1</div>
+  <div class="alert alert-light border mb-4">Enter the medical certificate, process it with DORIS and confirm the underlying cause of death. Part I line 1 is the immediate cause. You can change the underlying cause in Step 2.</div>
+  <input type="hidden" id="va_antecedent_cod" name="va_antecedent_cod">
+  {% with doris_editor_id='coder-step1-doris-editor', doris_form_id='initialAssessmentForm', doris_role='coder', doris_final_cod_input='va_antecedent_cod' %}{% include "va_form_partials/_doris_certificate_editor.html" %}{% endwith %}
+  <div class="text-danger small mb-2" role="alert" data-step-error></div>
+  <div class="d-flex justify-content-center gap-3 my-5">
+    {{ form.va_save_assessment(class="btn btn-primary px-4 py-2") }}
+    {{ form.va_not_codeable(class="btn btn-outline-danger px-4 py-2") }}
+  </div>
+</form>
+{% with step_form_id='initialAssessmentForm' %}{% include "va_form_partials/_step_error_script.html" %}{% endwith %}
 {% else %}
 <form method="POST" id="initialAssessmentForm" hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vainitialasses', action=va_action, actiontype=va_actiontype) }}" hx-target="#form-container2" hx-swap="innerHTML">
   {{ form.hidden_tag() }}

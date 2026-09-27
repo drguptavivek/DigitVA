@@ -80,6 +80,7 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.icd_coding_value import (
     build_icd11_provenance_for_values,
+    extract_icd11_code_expression,
     validate_coding_value_for_submission,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
@@ -94,6 +95,7 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
     get_latest_active_reviewer_initial_assessment,
 )
+from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
@@ -176,11 +178,26 @@ def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
 
 
 def _project_mode(project) -> str:
-    if project is None or project.masked_cod_required:
+    """The coder's COD entry mode: masked or unmasked, simple or DORIS.
+
+    Masked projects keep Step 1 / Step 2; ``masked_doris`` puts the DORIS
+    certificate in Step 1 (digitva-0n3). Reviewer screens compute their own
+    mode in reviewer_coding_service and do not know ``masked_doris``.
+    """
+    if project is None:
         return "masked_simple"
-    if project.cod_entry_mode == "doris":
-        return "unmasked_doris"
-    return "unmasked_simple"
+    doris = project.cod_entry_mode == "doris"
+    if project.masked_cod_required:
+        return "masked_doris" if doris else "masked_simple"
+    return "unmasked_doris" if doris else "unmasked_simple"
+
+
+def _is_masked(project_mode: str) -> bool:
+    return project_mode.startswith("masked_")
+
+
+def _is_doris(project_mode: str) -> bool:
+    return project_mode.endswith("_doris")
 
 
 def _cod_entry_mode_snapshot(project, who_image_digest: str) -> dict:
@@ -190,6 +207,128 @@ def _cod_entry_mode_snapshot(project, who_image_digest: str) -> dict:
         "icd_release": DEFAULT_ICD11_RELEASE,
         "who_image_digest": who_image_digest,
     }
+
+
+_DORIS_ENVELOPE_FIELDS = (
+    "doris_certificate",
+    "doris_result",
+    "codedit_result",
+    "doris_process_token",
+    "doris_result_digest",
+)
+
+
+def _smartva_icd11_alternatives(smartva) -> list[str]:
+    """WHO's ICD-11 target for SmartVA's primary cause, split on ``/``.
+
+    The WHO 10-to-11 map joins alternative expressions with ``/``; one item
+    means SmartVA's result can be used in one click (owner decision 2).
+    """
+    target = smartva_icd11_mapping(smartva.va_smartva_cause1icd) if smartva else None
+    return [part.strip().upper() for part in (target or "").split("/") if part.strip()]
+
+
+def _final_ucod_source(final_value, doris_value, smartva_alternatives) -> str:
+    """Where a masked DORIS Step 2 final UCOD came from: doris, smartva or own.
+
+    Derived server-side from the saved code, never from the client.
+    ``doris_value`` is the coder's Step 1 underlying cause (the DORIS
+    step's confirmed result). A code equal to both it and a SmartVA target
+    is recorded as ``doris``.
+    """
+    final_code = extract_icd11_code_expression(final_value)
+    if final_code is None:
+        return "own"
+    if final_code == extract_icd11_code_expression(doris_value):
+        return "doris"
+    if final_code in smartva_alternatives:
+        return "smartva"
+    return "own"
+
+
+def _masked_doris_step2_context(step1, smartva) -> dict:
+    """Template data for the masked DORIS Step 2 picker host.
+
+    The picker's API URLs default in the template from ``va_sid``.
+    """
+    return {
+        "smartva_icd11_alternatives": _smartva_icd11_alternatives(smartva),
+        "step1_doris_certificate": step1.doris_certificate if step1 else None,
+        "step1_doris_processing": (
+            {"doris": step1.doris_result, "codedit": step1.codedit_result}
+            if step1 and step1.doris_result is not None
+            else None
+        ),
+    }
+
+
+def _masked_doris_step1_fields(va_sid, project):
+    """Verified Step 1 columns for a masked DORIS coder save.
+
+    Returns ``(fields, None)`` or ``(None, response)``. The immediate COD is
+    the first condition on Part I line 1 of the verified certificate; the
+    underlying (``va_antecedent_cod``) is the coder's own confirmed cause
+    (owner decision 1). A missing cause or line is a 400, not a DB error.
+    """
+    who_image_digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
+    if not who_image_digest:
+        return None, (jsonify(error="The pinned WHO processing image is not configured."), 503)
+    underlying_cod = (request.form.get("va_antecedent_cod") or "").strip()
+    if not underlying_cod:
+        return None, (
+            jsonify(error="Confirm the underlying cause of death: use the DORIS result or search for your own code."),
+            400,
+        )
+    active_payload_version = get_active_payload_version(va_sid)
+    allocation_id = db.session.scalar(
+        sa.select(VaAllocations.va_allocation_id).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocated_to == current_user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    )
+    if active_payload_version is None or allocation_id is None:
+        return None, (
+            jsonify(error="An active coder allocation and submission payload are required to save Step 1."),
+            409,
+        )
+    verified, failure = _verify_doris_submission(
+        va_sid,
+        allocation_id,
+        active_payload_version.payload_version_id,
+        who_image_digest,
+    )
+    if failure is not None:
+        return None, failure
+    part1 = verified["certificate"].get("Part1") or []
+    line1 = (part1[0].get("Conditions") if part1 else None) or []
+    first = line1[0] if line1 else {}
+    immediate_cod = f"{first.get('Code') or ''} {first.get('Text') or ''}".strip()
+    if not immediate_cod:
+        return None, (
+            jsonify(error="Part I line 1 needs a condition: it is the immediate cause of death."),
+            400,
+        )
+    try:
+        validate_coding_value_for_submission(va_sid, underlying_cod)
+        # The immediate cause was checked against WHO when the certificate
+        # was processed; only the coder's own pick needs catalogue provenance.
+        provenance = build_icd11_provenance_for_values(
+            va_sid, {"antecedent": underlying_cod}
+        )
+    except (LookupError, ValueError) as exc:
+        return None, (jsonify(error=str(exc)), 400)
+    return {
+        "va_immediate_cod": immediate_cod,
+        "va_antecedent_cod": underlying_cod,
+        "icd11_provenance": provenance,
+        "va_other_conditions": None,
+        "doris_certificate": verified["certificate"],
+        "doris_result": verified["doris"],
+        "codedit_result": verified["codedit"],
+        "cod_entry_mode_snapshot": _cod_entry_mode_snapshot(project, who_image_digest),
+    }, None
 
 
 def _json_form_value(name: str):
@@ -225,6 +364,87 @@ def _doris_conflict(code: str, message: str, processing: dict | None = None):
     if processing is not None:
         payload["processing"] = processing
     return jsonify(payload), 409
+
+
+def _verify_doris_submission(va_sid, allocation_id, payload_version_id, who_image_digest):
+    """Verify the coder's posted DORIS certificate against its signed proof.
+
+    Reads ``doris_certificate``, ``doris_result``, ``codedit_result``,
+    ``doris_process_token`` and ``doris_result_digest`` from the form.
+    Returns ``(verified, None)`` with the server-normalized envelopes, or
+    ``(None, response)``: a changed certificate is reprocessed and returned
+    as a 409 carrying a fresh proof (nothing is saved); a stale or
+    mismatched proof is a 409; an invalid certificate a 422; an unavailable
+    WHO service a 503. Shared by the unmasked DORIS final save and the
+    masked DORIS Step 1 save.
+    """
+    try:
+        certificate = _json_form_value("doris_certificate")
+        doris_result = _json_form_value("doris_result")
+        codedit_result = _json_form_value("codedit_result")
+        verified = verify_process_submission(
+            request.form.get("doris_process_token") or "",
+            certificate=certificate,
+            doris_result=doris_result,
+            codedit_result=codedit_result,
+            submitted_result_digest=request.form.get("doris_result_digest") or "",
+            va_sid=va_sid,
+            role="coder",
+            user_id=current_user.user_id,
+            allocation_id=allocation_id,
+            payload_version_id=payload_version_id,
+            icd_release=DEFAULT_ICD11_RELEASE,
+            who_image_digest=who_image_digest,
+        )
+    except ProcessProofCertificateChanged:
+        try:
+            client_revision = int(request.form.get("doris_client_revision") or 0)
+            processing = process_certificate(
+                {
+                    "schema_version": 1,
+                    "client_revision": client_revision,
+                    "certificate": certificate,
+                },
+                release=DEFAULT_ICD11_RELEASE,
+                who_image_digest=who_image_digest,
+            )
+        except (DorisCertificateError, TypeError, ValueError) as exc:
+            return None, (jsonify(error=str(exc)), 422)
+        except WhoIcdApiUnavailable:
+            return None, (jsonify(error="WHO ICD-11 service unavailable."), 503)
+        processing["process_token"] = generate_process_proof(
+            certificate_digest=processing["certificate_digest"],
+            result_digest=processing["result_digest"],
+            va_sid=va_sid,
+            role="coder",
+            user_id=current_user.user_id,
+            allocation_id=allocation_id,
+            payload_version_id=payload_version_id,
+            icd_release=DEFAULT_ICD11_RELEASE,
+            who_image_digest=who_image_digest,
+        )
+        return None, _doris_conflict(
+            "DORIS_CERTIFICATE_CHANGED",
+            "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
+            processing,
+        )
+    except ProcessProofResultMismatch:
+        return None, _doris_conflict(
+            "DORIS_PROCESS_MISMATCH",
+            "DORIS processor results changed. Process the form again.",
+        )
+    except (
+        ProcessProofExpired,
+        ProcessProofInvalid,
+        ProcessProofContextMismatch,
+    ):
+        return None, _doris_conflict(
+            "DORIS_PROCESS_EXPIRED",
+            "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
+        )
+    except (DorisCertificateError, ValueError) as exc:
+        return None, (jsonify(error=str(exc)), 422)
+    return verified, None
 
 
 def _get_display_initial_assessment(va_sid: str):
@@ -381,13 +601,13 @@ def renderpartial(va_sid, va_partial):
     if (
         request.method == "POST"
         and va_partial in {"vainitialasses", "vafinalasses"}
-        and project_mode == "unmasked_doris"
+        and _is_doris(project_mode)
         and (request.content_length is None or request.content_length > 1_200_000)
     ):
         return jsonify(error="DORIS final submission is too large."), 413
     va_action = request.values.get("action", "vacode")
     va_actiontype = request.values.get("actiontype", "")
-    if va_partial == "vainitialasses" and project_mode != "masked_simple":
+    if va_partial == "vainitialasses" and not _is_masked(project_mode):
         va_partial = "vafinalasses"
     _active_version = get_active_payload_version(va_sid) if va_submission else None
     va_payload_data = _active_version.payload_data if _active_version else None
@@ -815,7 +1035,7 @@ def renderpartial(va_sid, va_partial):
         elif category_config and category_config.render_mode == "data_manager_panel":
             template_name = "va_formcategory_partials/category_data_manager_triage.html"
         doris_source = None
-        if project_mode == "unmasked_doris":
+        if _is_doris(project_mode) and not _is_masked(project_mode):
             if va_action == "vareview" and va_reviewer_final_assess:
                 doris_source = va_reviewer_final_assess
             else:
@@ -1013,7 +1233,15 @@ def renderpartial(va_sid, va_partial):
             form.va_other_conditions.choices = neonate
         else:
             form.va_other_conditions.choices = adult
-        if save_clicked and form.validate_on_submit():
+        step1_fields = None
+        if save_clicked and project_mode == "masked_doris":
+            # The immediate COD comes from the certificate, so the simple
+            # form's required fields are not posted; CSRF is still enforced
+            # app-wide by CSRFProtect.
+            step1_fields, failure = _masked_doris_step1_fields(va_sid, project)
+            if failure is not None:
+                return failure
+        elif save_clicked and form.validate_on_submit():
             coding_errors: list[tuple[object, str]] = []
             classifications = set()
             for field in (form.va_immediate_cod, form.va_antecedent_cod):
@@ -1055,6 +1283,17 @@ def renderpartial(va_sid, va_partial):
                     pre_immediate_cod=form.va_immediate_cod.data,
                     pre_antecedent_cod=form.va_antecedent_cod.data,
                 )
+            step1_fields = {
+                "va_immediate_cod": form.va_immediate_cod.data,
+                "va_antecedent_cod": form.va_antecedent_cod.data,
+                "icd11_provenance": initial_icd11_provenance,
+                "va_other_conditions": (
+                    " | ".join(form.va_other_conditions.data)
+                    if form.va_other_conditions.data
+                    else None
+                ),
+            }
+        if step1_fields is not None:
             form1 = VaFinalAssessmentForm()
             smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
             for existing_initial in db.session.scalars(
@@ -1080,13 +1319,7 @@ def renderpartial(va_sid, va_partial):
                 va_iniassess_id=gen_uuid,
                 va_sid=va_sid,
                 va_iniassess_by=current_user.user_id,
-                va_immediate_cod=form.va_immediate_cod.data,
-                va_antecedent_cod=form.va_antecedent_cod.data,
-                icd11_provenance=initial_icd11_provenance,
-                va_other_conditions=" | ".join(form.va_other_conditions.data) if form.va_other_conditions.data else None,
-                # va_rreview=form.va_rreview.data,
-                # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
-                # va_rreview_remark=form.va_rreview_remark.data.strip() or None,
+                **step1_fields,
             )
             db.session.add(new_review)
             db.session.add(
@@ -1119,7 +1352,12 @@ def renderpartial(va_sid, va_partial):
                 raise
             db.session.commit()
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
-            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out, step1_resaved=step1_resaved)
+            step2_context = (
+                _masked_doris_step2_context(new_review, smartva)
+                if project_mode == "masked_doris"
+                else {}
+            )
+            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out, step1_resaved=step1_resaved, project_mode=project_mode, **step2_context)
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)
@@ -1168,6 +1406,19 @@ def renderpartial(va_sid, va_partial):
             va_sid=va_sid,
             pre_immediate_cod=pre_immediate_cod,
             pre_antecedent_cod=pre_antecedent_cod,
+            project_mode=project_mode,
+            # No SmartVA in masked Step 1: the certificate is entered blind.
+            doris_initial_certificate=copy.deepcopy(
+                existing_assess.doris_certificate
+                if existing_assess and existing_assess.doris_certificate
+                else _doris_admin_defaults(va_submission)
+            ),
+            doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
+            doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
+            doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",
+            doris_selection_check_url=(
+                f"/api/v1/doris-clinical/selection-check/{va_sid}"
+            ),
         )
     if va_partial == "vafinalasses":
         # Saving the NQA reloads the page, so a final assessment typed before
@@ -1208,7 +1459,7 @@ def renderpartial(va_sid, va_partial):
             )
 
         def _render_final_assessment_form(error_messages=None):
-            submitted_unmasked = request.method == "POST" and project_mode != "masked_simple"
+            submitted_unmasked = request.method == "POST" and not _is_masked(project_mode)
             submitted_certificate = None
             render_error_messages = (
                 error_messages
@@ -1324,7 +1575,23 @@ def renderpartial(va_sid, va_partial):
                 doris_selection_check_url=(
                     f"/api/v1/doris-clinical/selection-check/{va_sid}"
                 ),
+                **(
+                    _masked_doris_step2_context(va_initial_assess, smartva)
+                    if project_mode == "masked_doris"
+                    else {}
+                ),
             )
+
+        # Masked DORIS Step 2 only confirms the underlying cause; the
+        # certificate and its envelopes stay on the Step 1 row (decision 4).
+        if (
+            request.method == "POST"
+            and project_mode == "masked_doris"
+            and any(request.form.get(name) for name in _DORIS_ENVELOPE_FIELDS)
+        ):
+            return jsonify(
+                error="Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1."
+            ), 400
 
         if form1.validate_on_submit():
             # Final assessment replacement is a single-writer operation per
@@ -1395,75 +1662,14 @@ def renderpartial(va_sid, va_partial):
                     return jsonify(
                         error="The pinned WHO processing image is not configured."
                     ), 503
-                try:
-                    certificate = _json_form_value("doris_certificate")
-                    doris_result = _json_form_value("doris_result")
-                    codedit_result = _json_form_value("codedit_result")
-                    verified = verify_process_submission(
-                        request.form.get("doris_process_token") or "",
-                        certificate=certificate,
-                        doris_result=doris_result,
-                        codedit_result=codedit_result,
-                        submitted_result_digest=request.form.get("doris_result_digest")
-                        or "",
-                        va_sid=va_sid,
-                        role="coder",
-                        user_id=current_user.user_id,
-                        allocation_id=active_allocation.va_allocation_id,
-                        payload_version_id=active_payload_version.payload_version_id,
-                        icd_release=DEFAULT_ICD11_RELEASE,
-                        who_image_digest=who_image_digest,
-                    )
-                except ProcessProofCertificateChanged:
-                    try:
-                        client_revision = int(
-                            request.form.get("doris_client_revision") or 0
-                        )
-                        processing = process_certificate(
-                            {
-                                "schema_version": 1,
-                                "client_revision": client_revision,
-                                "certificate": certificate,
-                            },
-                            release=DEFAULT_ICD11_RELEASE,
-                            who_image_digest=who_image_digest,
-                        )
-                    except (DorisCertificateError, TypeError, ValueError) as exc:
-                        return jsonify(error=str(exc)), 422
-                    except WhoIcdApiUnavailable:
-                        return jsonify(error="WHO ICD-11 service unavailable."), 503
-                    processing["process_token"] = generate_process_proof(
-                        certificate_digest=processing["certificate_digest"],
-                        result_digest=processing["result_digest"],
-                        va_sid=va_sid,
-                        role="coder",
-                        user_id=current_user.user_id,
-                        allocation_id=active_allocation.va_allocation_id,
-                        payload_version_id=active_payload_version.payload_version_id,
-                        icd_release=DEFAULT_ICD11_RELEASE,
-                        who_image_digest=who_image_digest,
-                    )
-                    return _doris_conflict(
-                        "DORIS_CERTIFICATE_CHANGED",
-                        "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
-                        processing,
-                    )
-                except ProcessProofResultMismatch:
-                    return _doris_conflict(
-                        "DORIS_PROCESS_MISMATCH",
-                        "DORIS processor results changed. Process the form again.",
-                    )
-                except (
-                    ProcessProofExpired,
-                    ProcessProofInvalid,
-                    ProcessProofContextMismatch,
-                ):
-                    return _doris_conflict(
-                        "DORIS_PROCESS_EXPIRED",
-                        "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
-                    )
-                except (DorisCertificateError, ValueError) as exc:
-                    return jsonify(error=str(exc)), 422
+                verified, failure = _verify_doris_submission(
+                    va_sid,
+                    active_allocation.va_allocation_id,
+                    active_payload_version.payload_version_id,
+                    who_image_digest,
+                )
+                if failure is not None:
+                    return failure
                 verified_certificate = verified["certificate"]
                 verified_doris = verified["doris"]
                 verified_codedit = verified["codedit"]
@@ -1527,6 +1733,13 @@ def renderpartial(va_sid, va_partial):
                 raise ValueError(f"Submission {va_sid} has no active payload version.")
             active_recode_episode = get_active_recode_episode(va_sid)
             prior_authoritative_final = get_authoritative_final_assessment(va_sid)
+            cod_entry_mode_snapshot = _cod_entry_mode_snapshot(project, who_image_digest)
+            if project_mode == "masked_doris":
+                cod_entry_mode_snapshot["final_ucod_source"] = _final_ucod_source(
+                    form1.va_conclusive_cod.data,
+                    va_initial_assess.va_antecedent_cod if va_initial_assess else None,
+                    _smartva_icd11_alternatives(smartva),
+                )
             existing_active_finals = db.session.scalars(
                 sa.select(VaFinalAssessments).where(
                     VaFinalAssessments.va_sid == va_sid,
@@ -1542,7 +1755,7 @@ def renderpartial(va_sid, va_partial):
                 va_finassess_by=current_user.user_id,
                 source_initial_assessment_id=(
                     va_initial_assess.va_iniassess_id
-                    if project_mode == "masked_simple" and va_initial_assess
+                    if _is_masked(project_mode) and va_initial_assess
                     else None
                 ),
                 va_conclusive_cod=form1.va_conclusive_cod.data,
@@ -1553,9 +1766,7 @@ def renderpartial(va_sid, va_partial):
                 doris_certificate=verified_certificate,
                 doris_result=verified_doris,
                 codedit_result=verified_codedit,
-                cod_entry_mode_snapshot=_cod_entry_mode_snapshot(
-                    project, who_image_digest
-                ),
+                cod_entry_mode_snapshot=cod_entry_mode_snapshot,
                 va_finassess_remark=(form1.va_finassess_remark.data or "").strip()
                 or None,
                 demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),

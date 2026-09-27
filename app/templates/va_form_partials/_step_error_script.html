@@ -1,0 +1,20 @@
+{# Shows a refused masked DORIS save's JSON error inside the form: htmx does not swap 4xx bodies. A 409 DORIS_CERTIFICATE_CHANGED is handled by doris_clinical.js. Needs step_form_id and a [data-step-error] element in that form. #}
+<script>
+(function () {
+  var form = document.getElementById({{ step_form_id|tojson }});
+  var box = form && form.querySelector('[data-step-error]');
+  if (!box || form.dataset.stepErrorBound) return;
+  form.dataset.stepErrorBound = 'true';
+  form.addEventListener('htmx:beforeRequest', function () { box.textContent = ''; });
+  form.addEventListener('htmx:responseError', function (event) {
+    var xhr = event.detail && event.detail.xhr;
+    var message = 'The assessment could not be saved.';
+    try {
+      var error = JSON.parse(xhr.responseText).error;
+      if (error && error.code === 'DORIS_CERTIFICATE_CHANGED') return;
+      message = (error && error.message) || (typeof error === 'string' && error) || message;
+    } catch (_error) {}
+    box.textContent = message;
+  });
+}());
+</script>

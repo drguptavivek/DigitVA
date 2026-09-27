@@ -1,0 +1,500 @@
+"""Masked ICD-11 coder Step 1 (DORIS certificate) and Step 2 (confirm the
+final UCOD) -- digitva-0n3 phases 2 and 3."""
+
+import json
+import uuid
+from datetime import UTC, datetime
+from unittest.mock import patch
+
+from app import db
+from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaAllocation,
+    VaAllocations,
+    VaFinalAssessments,
+    VaForms,
+    VaInitialAssessments,
+    VaProjectMaster,
+    VaProjectSites,
+    VaSmartvaResults,
+    VaStatuses,
+    VaSubmissions,
+    VaUserAccessGrants,
+)
+from app.routes.va_form import _final_ucod_source
+from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.workflow.definition import WORKFLOW_CODING_IN_PROGRESS
+from app.services.workflow.state_store import set_submission_workflow_state
+from tests.base import BaseTestCase
+
+_SUFFIX = uuid.uuid4().hex[:4].upper()
+_URI = "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified"
+_TB = "1B10.Z Respiratory tuberculosis"
+_STEP1_URL = "/vaform/{sid}/vainitialasses?action=vacode&actiontype=vastartcoding"
+_STEP2_URL = "/vaform/{sid}/vafinalasses?action=vacode&actiontype=vastartcoding"
+
+
+def _certificate(part1):
+    return {"ICDVersion": "ICD11", "ICDMinorVersion": "2026-01", "Part1": part1}
+
+
+_CERTIFICATE = _certificate(
+    [
+        {"Conditions": [{"Text": "Respiratory tuberculosis", "Code": "1B10.Z", "LinearizationURI": _URI, "Interval": "P14D"}]},
+        {"Conditions": [{"Text": "HIV disease", "Code": "1C62.Z", "LinearizationURI": _URI, "Interval": "P2Y"}]},
+    ]
+)
+_DORIS = {"status": "completed", "result": {"code": "1C62.Z", "stemCode": "1C62.Z"}}
+_CODEDIT = {"status": "completed", "result": {"issueIds": ""}}
+
+
+class TestMaskedDorisCoding(BaseTestCase):
+    BASE_PROJECT_ID = f"MD{_SUFFIX}"
+    BASE_SITE_ID = f"M{_SUFFIX[:3]}"
+    FORM_ID = f"M{_SUFFIX}000001"
+    USER_EMAIL_SUFFIX = f"+maskeddoris{_SUFFIX.lower()}"
+
+    @classmethod
+    def _make_user(cls, email, password):
+        local, domain = email.split("@", 1)
+        return super()._make_user(f"{local}{cls.USER_EMAIL_SUFFIX}@{domain}", password)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._ensure_base_research_project_and_site()
+        db.session.add(
+            VaForms(
+                form_id=cls.FORM_ID,
+                project_id=cls.BASE_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                odk_form_id="MASKED_DORIS_FORM",
+                odk_project_id="1",
+                form_type="WHO_2022_VA",
+                form_status=VaStatuses.active,
+            )
+        )
+        project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        )
+        cls.reviewer = cls._make_user("reviewer.masked.doris@test.local", "ReviewerMaskedDoris123")
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.reviewer.user_id,
+                role=VaAccessRoles.reviewer,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                notes="masked DORIS reviewer",
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self._mode(masked=True, doris=True)
+        self.app.config["DORIS_WHO_IMAGE_DIGEST"] = "sha256:pinned-image"
+
+    def _mode(self, masked, doris):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.masked_cod_required = masked
+        # ICD-11 means DORIS (CHECK cod_entry_mode_classification).
+        project.icd_classification = "icd11" if doris else "icd10"
+        project.cod_entry_mode = "doris" if doris else "simple"
+        project.narrative_qa_enabled = False
+        db.session.commit()
+
+    def _start_coder(self, smartva_icd=None):
+        sid = f"uuid:masked-doris-{uuid.uuid4()}"
+        now = datetime.now(UTC)
+        submission = VaSubmissions(
+            va_sid=sid,
+            va_form_id=self.FORM_ID,
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_instance_name=sid,
+            va_uniqueid_masked=sid,
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(submission)
+        db.session.flush()
+        ensure_active_payload_version(
+            submission, payload_data={}, source_updated_at=submission.va_odk_updatedat
+        )
+        db.session.add(
+            VaAllocations(
+                va_sid=sid,
+                va_allocated_to=self.base_coder_user.user_id,
+                va_allocation_for=VaAllocation.coding,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        if smartva_icd:
+            db.session.add(
+                VaSmartvaResults(
+                    va_sid=sid,
+                    va_smartva_status=VaStatuses.active,
+                    va_smartva_cause1="Tuberculosis",
+                    va_smartva_cause1icd=smartva_icd,
+                )
+            )
+        set_submission_workflow_state(
+            sid, WORKFLOW_CODING_IN_PROGRESS, reason="test", by_role="vasystem"
+        )
+        db.session.commit()
+        return sid
+
+    def _step1_row(self, sid, underlying=_TB):
+        row = VaInitialAssessments(
+            va_sid=sid,
+            va_iniassess_by=self.base_coder_user.user_id,
+            va_immediate_cod=_TB,
+            va_antecedent_cod=underlying,
+            doris_certificate=_CERTIFICATE,
+            doris_result=_DORIS,
+            codedit_result=_CODEDIT,
+        )
+        db.session.add(row)
+        db.session.commit()
+        return row
+
+    def _post_step1(self, sid, **overrides):
+        data = {
+            "va_antecedent_cod": _TB,
+            "doris_certificate": json.dumps(_CERTIFICATE),
+            "doris_result": json.dumps(_DORIS),
+            "codedit_result": json.dumps(_CODEDIT),
+            "doris_process_token": "signed",
+            "doris_result_digest": "digest",
+            "va_save_assessment": "1",
+        }
+        data.update(overrides)
+        return self.client.post(
+            _STEP1_URL.format(sid=sid),
+            data={key: value for key, value in data.items() if value is not None},
+            headers={**self._csrf_headers(), "HX-Request": "true"},
+        )
+
+    def _post_step2(self, sid, conclusive, **extra):
+        return self.client.post(
+            _STEP2_URL.format(sid=sid),
+            data={"va_conclusive_cod": conclusive, "va_save_assessment": "1", **extra},
+            headers={**self._csrf_headers(), "HX-Request": "true"},
+        )
+
+    def _final(self, sid):
+        return db.session.scalar(
+            db.select(VaFinalAssessments).where(VaFinalAssessments.va_sid == sid)
+        )
+
+    # ---- Step 1 ---------------------------------------------------------
+
+    def test_step1_get_shows_doris_editor_without_smartva(self):
+        sid = self._start_coder(smartva_icd="A16.9")
+        self._login(self.base_coder_id)
+
+        step1 = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+        self._step1_row(sid)
+        step2 = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        # SmartVA exists for this death and Step 2 shows it...
+        self.assertIn("SmartVA Analysis", step2)
+        # ...but Step 1 is the DORIS certificate, entered blind.
+        self.assertIn("data-doris-editor", step1)
+        self.assertIn('data-final-cod-input="va_antecedent_cod"', step1)
+        self.assertNotIn("SmartVA", step1)
+        self.assertNotIn("Tuberculosis", step1)
+        self.assertNotIn("select2-root", step1)
+
+    @patch("app.routes.va_form.build_icd11_provenance_for_values")
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_step1_post_stores_envelopes_and_derives_text_columns(
+        self, verify, validate, provenance
+    ):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+        provenance.return_value = {"antecedent": {"code": "1C62.Z"}}
+
+        response = self._post_step1(sid, va_antecedent_cod="1C62.Z HIV disease")
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        row = db.session.scalar(
+            db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid)
+        )
+        # Immediate: the first condition on Part I line 1.
+        self.assertEqual(row.va_immediate_cod, _TB)
+        # Underlying: the coder's own confirmed cause (owner decision 1).
+        self.assertEqual(row.va_antecedent_cod, "1C62.Z HIV disease")
+        self.assertEqual(row.doris_certificate, _CERTIFICATE)
+        self.assertEqual(row.doris_result, _DORIS)
+        self.assertEqual(row.codedit_result, _CODEDIT)
+        self.assertEqual(row.cod_entry_mode_snapshot["cod_entry_mode"], "doris")
+        self.assertTrue(row.cod_entry_mode_snapshot["masked_cod_required"])
+        self.assertEqual(row.icd11_provenance, {"antecedent": {"code": "1C62.Z"}})
+        validate.assert_called_once_with(sid, "1C62.Z HIV disease")
+        self.assertEqual(verify.call_args.kwargs["role"], "coder")
+        # The response is Step 2's picker host, with no second certificate.
+        body = response.get_data(as_text=True)
+        self.assertIn("data-doris-final-host", body)
+        self.assertNotIn("data-doris-editor", body)
+
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_step1_post_without_part1_line1_is_400(self, verify, _validate):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _certificate([]), "doris": _DORIS, "codedit": _CODEDIT}
+
+        response = self._post_step1(sid)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Part I line 1", response.get_json()["error"])
+        self.assertIsNone(
+            db.session.scalar(db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid))
+        )
+
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_step1_post_without_underlying_cause_is_400(self, verify):
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        response = self._post_step1(sid, va_antecedent_cod=None)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("underlying cause", response.get_json()["error"])
+        verify.assert_not_called()
+        self.assertIsNone(
+            db.session.scalar(db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid))
+        )
+
+    @patch("app.routes.api.doris_clinical.process_certificate")
+    def test_doris_gate_open_for_masked_coder_closed_for_masked_reviewer(self, process):
+        sid = self._start_coder()
+        db.session.add(
+            VaAllocations(
+                va_sid=sid,
+                va_allocated_to=self.reviewer.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        process.return_value = {
+            "schema_version": 1,
+            "client_revision": 0,
+            "icd_release": "2026-01",
+            "certificate": _CERTIFICATE,
+            "certificate_digest": "c" * 64,
+            "result_digest": "r" * 64,
+            "doris": _DORIS,
+            "codedit": _CODEDIT,
+        }
+        url = f"/api/v1/doris-clinical/process/{sid}"
+
+        self._login(self.base_coder_id)
+        coder = self.client.post(
+            url,
+            json={"schema_version": 1, "client_revision": 0, "role": "coder", "certificate": _CERTIFICATE},
+            headers=self._csrf_headers(),
+        )
+        self._login(str(self.reviewer.user_id))
+        reviewer = self.client.post(
+            url,
+            json={"schema_version": 1, "client_revision": 0, "role": "reviewer", "certificate": _CERTIFICATE},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(coder.status_code, 200, coder.get_data(as_text=True))
+        self.assertTrue(coder.get_json()["process_token"])
+        self.assertEqual(reviewer.status_code, 409)
+        self.assertEqual(reviewer.get_json()["error"]["code"], "DORIS_NOT_ENABLED")
+
+    # ---- Step 2 ---------------------------------------------------------
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1B10.Z")
+    def test_step2_single_smartva_target_is_one_click(self, _mapping):
+        sid = self._start_coder(smartva_icd="A16.9")
+        self._step1_row(sid, underlying="1C62.Z HIV disease")
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn('data-final-use-code="1B10.Z"', body)
+        self.assertNotIn("data-final-search-code", body)
+        self.assertIn('data-final-use-value="1C62.Z HIV disease"', body)
+        self.assertIn("data-step1-processing", body)
+        self.assertNotIn("data-doris-editor", body)
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00/1A01")
+    def test_step2_multi_alternative_smartva_target_opens_search(self, _mapping):
+        sid = self._start_coder(smartva_icd="A00.9")
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertIn('data-final-search-code="1A00"', body)
+        self.assertNotIn("data-final-use-code", body)
+
+    def _save_step2(self, sid, conclusive):
+        with (
+            patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False),
+            patch("app.routes.va_form.validate_coding_value_for_submission"),
+            patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None),
+        ):
+            response = self._post_step2(sid, conclusive)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        return self._final(sid)
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    def test_step2_provenance_doris(self, _mapping):
+        sid = self._start_coder(smartva_icd="A00.9")
+        step1 = self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        final = self._save_step2(sid, _TB)
+
+        self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "doris")
+        self.assertEqual(final.source_initial_assessment_id, step1.va_iniassess_id)
+        # Envelopes stay on the Step 1 row (decision 4).
+        self.assertIsNone(final.doris_certificate)
+        self.assertIsNone(final.doris_result)
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    def test_step2_provenance_smartva(self, _mapping):
+        sid = self._start_coder(smartva_icd="A00.9")
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        final = self._save_step2(sid, "1A00 Cholera")
+
+        self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "smartva")
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00/1A01")
+    def test_step2_provenance_smartva_any_who_alternative(self, _mapping):
+        sid = self._start_coder(smartva_icd="A00.9")
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        final = self._save_step2(sid, "1A01 Intestinal infection")
+
+        self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "smartva")
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    def test_step2_provenance_own(self, _mapping):
+        sid = self._start_coder(smartva_icd="A00.9")
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        final = self._save_step2(sid, "BA41.Z Acute myocardial infarction")
+
+        self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "own")
+
+    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1B10.Z")
+    def test_step2_tie_between_doris_and_smartva_records_doris(self, _mapping):
+        # Tie rule: the final code equals both the Step 1 (DORIS) underlying
+        # cause and SmartVA's WHO target -> doris.
+        sid = self._start_coder(smartva_icd="A16.9")
+        self._step1_row(sid, underlying=_TB)
+        self._login(self.base_coder_id)
+
+        final = self._save_step2(sid, _TB)
+
+        self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "doris")
+
+    def test_final_ucod_source_compares_code_expressions(self):
+        self.assertEqual(_final_ucod_source("1b10.z typed", _TB, []), "doris")
+        self.assertEqual(_final_ucod_source("1A00 Cholera", None, ["1A00"]), "smartva")
+        self.assertEqual(_final_ucod_source("not a code", _TB, ["1A00"]), "own")
+
+    def test_step2_refuses_a_certificate(self):
+        sid = self._start_coder()
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        response = self._post_step2(
+            sid, _TB, doris_certificate=json.dumps(_CERTIFICATE), doris_process_token="signed"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Step 1", response.get_json()["error"])
+        self.assertIsNone(self._final(sid))
+
+    # ---- Regression: other modes unchanged ------------------------------
+
+    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.routes.va_form.validate_coding_value_for_submission", return_value="icd10")
+    def test_masked_simple_step1_and_step2_unchanged(self, _validate, _provenance, _social):
+        self._mode(masked=True, doris=False)
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+
+        step1_get = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+        step1 = self.client.post(
+            _STEP1_URL.format(sid=sid),
+            data={
+                "va_immediate_cod": "A16.9 Respiratory tuberculosis",
+                "va_antecedent_cod": "B20 HIV disease",
+                "va_save_assessment": "1",
+            },
+            headers={**self._csrf_headers(), "HX-Request": "true"},
+        )
+        row = db.session.scalar(
+            db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid)
+        )
+        final = self._save_step2(sid, "B20 HIV disease")
+
+        self.assertIn("immediate-cod-select", step1_get)
+        self.assertNotIn("data-doris-editor", step1_get)
+        self.assertEqual(step1.status_code, 200, step1.get_data(as_text=True))
+        self.assertIn("conclusive-cod-select", step1.get_data(as_text=True))
+        self.assertEqual(row.va_immediate_cod, "A16.9 Respiratory tuberculosis")
+        self.assertEqual(row.va_antecedent_cod, "B20 HIV disease")
+        self.assertIsNone(row.doris_certificate)
+        self.assertIsNone(row.cod_entry_mode_snapshot)
+        self.assertEqual(final.source_initial_assessment_id, row.va_iniassess_id)
+        self.assertEqual(final.cod_entry_mode_snapshot["cod_entry_mode"], "simple")
+        self.assertNotIn("final_ucod_source", final.cod_entry_mode_snapshot)
+
+    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_unmasked_doris_final_unchanged(self, verify, _validate, _provenance, _social):
+        self._mode(masked=False, doris=True)
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+
+        response = self._post_step2(
+            sid,
+            _TB,
+            doris_certificate=json.dumps(_CERTIFICATE),
+            doris_result=json.dumps(_DORIS),
+            codedit_result=json.dumps(_CODEDIT),
+            doris_process_token="signed",
+            doris_result_digest="digest",
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        final = self._final(sid)
+        self.assertEqual(final.doris_certificate, _CERTIFICATE)
+        self.assertIsNone(final.source_initial_assessment_id)
+        self.assertEqual(
+            set(final.cod_entry_mode_snapshot),
+            {"masked_cod_required", "cod_entry_mode", "icd_release", "who_image_digest"},
+        )

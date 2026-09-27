@@ -147,6 +147,9 @@
       </div>
       {% endif %}
   
+      {% if project_mode == 'masked_doris' %}
+        {% include "va_form_partials/_masked_doris_final_cod.html" %}
+      {% else %}
       {% with icd_root_id="select2-root", icd_preset=pre_conclusive_cod or va_immediate_cod %}{% include "va_form_partials/_icd_classification_switch.html" %}{% endwith %}
       <!-- Final COD Selection -->  
       <div class="row mb-4">  
@@ -172,6 +175,7 @@
         </div>  
       </div>  
   
+      {% endif %}
       <!-- Remarks -->  
       <div class="row mb-4">  
         <div class="col-12">  
@@ -196,6 +200,7 @@
         {{ form.va_save_assessment(class="btn btn-primary px-4 py-2") }}  
       </div>  
 </form>
+{% if project_mode == 'masked_doris' %}{% with step_form_id='finalAssessmentForm' %}{% include "va_form_partials/_step_error_script.html" %}{% endwith %}{% endif %}
 {% if form_error_messages %}
 <script>
   if (window.showAppToast) {

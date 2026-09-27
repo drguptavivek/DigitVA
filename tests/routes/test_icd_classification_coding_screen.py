@@ -179,6 +179,21 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
             {"va_immediate_cod": immediate, "va_antecedent_cod": antecedent},
         )
 
+    def _save_doris_step1(self, underlying):
+        # A masked ICD-11 project's Step 1 is the DORIS certificate
+        # (digitva-0n3 phase 2); the coder's underlying cause is still
+        # checked against the project's catalogue.
+        self.app.config["DORIS_WHO_IMAGE_DIGEST"] = "sha256:pinned-image"
+        certificate = {"ICDVersion": "ICD11", "Part1": [{"Conditions": [{"Text": "Acute myocardial infarction", "Code": "BA41"}]}]}
+        with patch(
+            "app.routes.va_form.verify_process_submission",
+            return_value={"certificate": certificate, "doris": {}, "codedit": {}},
+        ):
+            return self._post(
+                "vainitialasses",
+                {"va_antecedent_cod": underlying, "doris_certificate": "{}", "doris_process_token": "signed"},
+            )
+
     def _active_initial(self):
         return db.session.scalar(
             db.select(VaInitialAssessments).where(
@@ -196,11 +211,13 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         self.assertIsNone(self._active_initial())
 
         self._set_project("icd11")
-        response = self._save_step1(ICD10_VALUE, ICD10_VALUE)
+        response = self._save_doris_step1(ICD10_VALUE)
+        self.assertEqual(response.status_code, 400)
         self.assertIn(b"Select a valid ICD-11 code.", response.data)
         self.assertIsNone(self._active_initial())
 
-        response = self._save_step1(ICD11_VALUE, ICD11_VALUE)
+        response = self._save_doris_step1(ICD11_VALUE)
+        self.assertEqual(response.status_code, 200, response.data)
         self.assertIsNotNone(self._active_initial())
 
     # ── Screen ─────────────────────────────────────────────────────────────
@@ -208,9 +225,11 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
     def test_switch_never_renders(self):
         url = f"/vaform/{self.sid}/vainitialasses{ACTION}"
 
+        # Masked ICD-11 Step 1 is the DORIS certificate, not a catalogue search.
         self._set_project("icd11")
         body = self.client.get(url).data
-        self.assertIn(b'data-icd-classification="icd11"', body)
+        self.assertIn(b"data-doris-editor", body)
+        self.assertNotIn(b"data-icd-classification", body)
         self.assertNotIn(b"Code this death in", body)
 
         self._set_project("icd10")
@@ -224,7 +243,7 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         # presets the ICD-11 value but must search ICD-10, because the ICD-11
         # APIs refuse an ICD-10 project.
         self._set_project("icd11")
-        self._save_step1(ICD11_VALUE, ICD11_VALUE)
+        self._save_doris_step1(ICD11_VALUE)
         self.assertIsNotNone(self._active_initial())
         self._set_project("icd10")
 

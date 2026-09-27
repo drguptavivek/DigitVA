@@ -15,12 +15,12 @@ last_updated: 2026-09-27
 `cod_entry_mode='doris'` are equivalent (CHECK
 `cod_entry_mode_classification`, migration `a3f7c1d8e5b2`, digitva-0n3): an
 ICD-11 project always uses DORIS, an ICD-10 project always uses simple
-entry, and the `selectable` classification is retired. Masked and DORIS may
-combine at the settings level; the masked DORIS Step 1/Step 2 screens are a
-later phase. Until then a masked ICD-11 project gets the masked simple
-two-step flow with ICD-11 search, and its assessments' snapshot records
-`cod_entry_mode: doris` although no certificate was entered (no dev project
-is masked ICD-11).
+entry, and the `selectable` classification is retired. Masked and DORIS
+combine as the coder's `masked_doris` mode (`_project_mode` in
+`app/routes/va_form.py`; see "Masked ICD-11 coder flow" below). The masked
+reviewer still gets the masked simple two-step flow with ICD-11 search until
+digitva-0n3 phase 4; `reviewer_coding_service._project_mode` does not know
+`masked_doris`.
 Existing masked/simple and unmasked ICD-10/ICD-11 projects keep their
 historical flow. The additive migration is `c7a4e2d9f1b6`.
 It also adds unique indexes for active coder and reviewer finals by submission
@@ -43,6 +43,46 @@ and CoDEdit envelopes, human final COD, and a snapshot of project mode, ICD
 release and WHO image digest. The final COD remains the value used by final
 authority and COD bucket reporting. No intermediate Process call writes a
 draft or assessment row.
+
+## Masked ICD-11 coder flow
+
+A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
+(digitva-0n3 phases 2 and 3).
+
+- **Step 1** is the unmasked DORIS editor
+  (`_doris_certificate_editor.html`) without SmartVA anywhere in the page:
+  certificate, Process, and the coder's final-cause card ("Use DORIS result"
+  or the coder's own code through the picker's search). The save reuses the
+  unmasked final save's verify-or-reprocess path
+  (`_verify_doris_submission`): a changed certificate is reprocessed and
+  returned as a 409 with a fresh proof. The Step 1 row
+  (`va_initial_assessments`) stores the verified certificate, DORIS and
+  CoDEdit envelopes and the mode snapshot. Its text columns are derived:
+  `va_immediate_cod` is the first condition on Part I line 1 (`<code>
+  <text>`, or the text alone when uncoded) and `va_antecedent_cod` is the
+  coder's confirmed underlying cause, checked against the local catalogue as
+  the unmasked final UCOD is. An empty Part I line 1 or no confirmed cause
+  is a 400. The DORIS clinical API (`_clinical_context`) accepts a masked
+  project for the coder role only; the reviewer still gets 409
+  `DORIS_NOT_ENABLED` on a masked project.
+- **Step 2** shows the SmartVA table, a read-only summary of the Step 1 DORIS
+  run (`doris_result_summary.js` over the Step 1 envelopes) with the Step 1
+  underlying cause, and three choices: "Use DORIS result" (the Step 1
+  underlying cause), "Use SmartVA result", or the coder's own code through
+  the picker's search (`app/static/js/doris_final_cod.js`, a small host of
+  `digitva_icd11_picker.js`). There is no second certificate and no Process;
+  a Step 2 save that posts a certificate or process proof is a 400. The
+  SmartVA choice is WHO's ICD-10-to-11 target for SmartVA's primary cause
+  (`smartva_icd11_mapping`): one click when the map gives a single
+  expression, otherwise a search prefilled with the first `/` alternative.
+  No WHO call decides this; the chosen code is checked at save as the
+  unmasked final UCOD is.
+- The final row stores no envelopes (they stay on the Step 1 row, linked by
+  `source_initial_assessment_id`). Its `cod_entry_mode_snapshot` adds
+  `final_ucod_source`: `doris` when the final code expression equals the
+  Step 1 underlying cause, else `smartva` when it equals any alternative of
+  the SmartVA target, else `own`. It is derived server-side; a code equal to
+  both is `doris`. Other modes' snapshots are unchanged.
 
 ## Process and final save
 

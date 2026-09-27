@@ -27,7 +27,7 @@ Unmasked/DORIS keeps today's one-step DORIS final assessment. A masked
 ICD-11 project is legal to save today but has no masked DORIS Step 1/Step 2
 screens yet -- see below.
 
-### Masked ICD-11, not yet implemented (`digitva-0n3` phase 2+)
+### Masked ICD-11 (`digitva-0n3`: coder flow done; reviewer is phase 4)
 
 Owner decision in docs/policy/doris-cod-workflow.md; design record
 `.tasks/2026-09-27-icd11-means-doris.md`. DigitVA is not deployed anywhere,

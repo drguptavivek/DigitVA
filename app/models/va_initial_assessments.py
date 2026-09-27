@@ -28,6 +28,13 @@ class VaInitialAssessments(db.Model):
     va_other_conditions: so.Mapped[Optional[str]] = so.mapped_column(
         sa.Text, nullable=True
     )
+    # Masked DORIS Step 1 envelopes (digitva-0n3); NULL for simple entry.
+    doris_certificate: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    doris_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    codedit_result: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    cod_entry_mode_snapshot: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, nullable=True
+    )
     va_iniassess_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,

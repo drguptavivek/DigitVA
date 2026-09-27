@@ -8,7 +8,7 @@
 #doris-demo-app .doris-chip button { border: 0; background: transparent; color: #842029; font-size: 1.1rem; line-height: 1; }
 #doris-demo-app .doris-search-result, .doris-clinical-editor .doris-search-result { padding: .25rem .55rem; }
 #doris-demo-app .doris-search-result-main, .doris-clinical-editor .doris-search-result-main { display: block; }
-#doris-demo-app .doris-search-result-header, .doris-clinical-editor .doris-search-result-header { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; align-items: center; column-gap: .4rem; }
+#doris-demo-app .doris-search-result-header, .doris-clinical-editor .doris-search-result-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: .4rem; }
 #doris-demo-app .doris-search-title, .doris-clinical-editor .doris-search-title { min-width: 0; overflow-wrap: anywhere; }
 #doris-demo-app .doris-search-controls, .doris-clinical-editor .doris-search-controls { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; min-width: 0; }
 #doris-demo-app .doris-search-meta, .doris-clinical-editor .doris-search-meta { display: flex; justify-content: flex-end; align-items: center; min-width: 0; }
@@ -48,7 +48,9 @@
 .doris-selection-choice { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .doris-search-workspace { min-width: 0; }
 .doris-search-side:has(> .doris-code-details[hidden]):has(.doris-guided-panel[hidden]) { display: none; }
-.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, .9fr); gap: .6rem; }
+.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { display: grid; grid-template-columns: minmax(18rem, .65fr) minmax(0, 1.35fr); gap: .6rem; }
+.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; row-gap: .15rem; }
+.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) .doris-search-controls { justify-content: flex-start !important; }
 .doris-search-modal-open .doris-search-list-wrap { min-width: 0; }
 .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 68vh; overflow-y: auto; }
 .doris-search-modal-open .doris-search-side { min-width: 0; max-height: 68vh; overflow-y: auto; }

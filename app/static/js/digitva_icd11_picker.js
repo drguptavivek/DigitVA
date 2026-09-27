@@ -233,7 +233,6 @@ export function createIcd11Picker(options) {
         var value = document.createElement('p'); value.className = 'mb-1'; value.textContent = data.fully_specified_name;
         body.append(label, value);
       }
-      section('Matching terms', data.matching_terms || [], function (term) { return term; });
       section('Includes', data.inclusions || [], function (term) { return term; });
       section('Exclusions', data.exclusions || [], function (term) { return term.title + (term.code ? ' (' + term.code + ')' : ''); });
       if (!body.childNodes.length) body.textContent = 'No additional WHO details were returned.';
@@ -721,7 +720,7 @@ export function createIcd11Picker(options) {
       choices('Ancestor path', data.ancestors);
       choices('Siblings', data.siblings);
       choices('Children', data.children);
-      [['Matching terms', data.matching_terms], ['Maternal context', data.related_maternal], ['Perinatal context', data.related_perinatal]].forEach(function (entry) {
+      [['Maternal context', data.related_maternal], ['Perinatal context', data.related_perinatal]].forEach(function (entry) {
         if (!list(entry[1]).length) return;
         var p = document.createElement('p'); p.className = 'small mb-1'; p.textContent = entry[0] + ': ' + list(entry[1]).map(function (item) { return text(item.title || item); }).join('; '); panel.appendChild(p);
       });

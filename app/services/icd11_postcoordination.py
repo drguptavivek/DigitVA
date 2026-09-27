@@ -459,10 +459,9 @@ def _stem_code(code: str) -> str:
 def code_details(code: str) -> dict:
     """Bounded WHO code details for a selected search result."""
     selected, entity = _stem(_stem_code(code))
-    raw_terms = entity.get("indexTerm") or []
     raw_exclusions = entity.get("exclusion") or []
     raw_inclusions = entity.get("inclusion") or []
-    if not all(isinstance(values, list) for values in (raw_terms, raw_exclusions, raw_inclusions)):
+    if not all(isinstance(values, list) for values in (raw_exclusions, raw_inclusions)):
         raise WhoIcdApiUnavailable("WHO code details were malformed")
     exclusions = []
     for exclusion in raw_exclusions[:_MAX_OPTIONS]:
@@ -487,12 +486,8 @@ def code_details(code: str) -> dict:
             term for term in (_plain(item.get("label")) for item in raw_inclusions[:20]
                               if isinstance(item, dict)) if term
         ],
-        "matching_terms": [
-            term for term in (_plain(item.get("label")) for item in raw_terms[:20]
-                              if isinstance(item, dict)) if term
-        ],
         "exclusions": exclusions,
-        "truncated": len(raw_terms) > 20 or len(raw_exclusions) > _MAX_OPTIONS or len(raw_inclusions) > 20,
+        "truncated": len(raw_exclusions) > _MAX_OPTIONS or len(raw_inclusions) > 20,
     }
 
 

@@ -189,7 +189,7 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
     def test_expression_and_hierarchy_contracts_are_explicit(self):
         self.assertIn("/^X/i.test(item.code) ? '&' : '/'", self.script)
         self.assertIn("uri += ' ' + separator + ' ' + item.uri", self.script)
-        self.assertIn("matching_terms", self.script)
+        self.assertNotIn("Matching terms", self.script)
         self.assertIn("related_maternal", self.script)
         self.assertIn("related_perinatal", self.script)
         self.assertIn("openHierarchy", self.script)

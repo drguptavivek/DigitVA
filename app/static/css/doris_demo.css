@@ -1,6 +1,6 @@
 #doris-demo-app .doris-line { border-left: .3rem solid #dbeafe; }
 #doris-demo-app .doris-line, .doris-clinical-editor [data-doris-line] { padding: .65rem !important; margin-bottom: .4rem !important; }
-#doris-demo-app .doris-line + .doris-line::before, .doris-clinical-editor [data-doris-part1] [data-doris-line] + [data-doris-line]::before { content: "DUE TO"; display: block; color: #344054; font-size: 1rem; font-weight: 700; margin: -.65rem 0 .45rem; }
+#doris-part1-lines > .doris-line:first-child, .doris-clinical-editor [data-doris-part1] > [data-doris-line]:first-child { border-left: .3rem solid #f1aeb5 !important; }
 #doris-demo-app .doris-chips { display: flex; flex-wrap: wrap; gap: .4rem; min-height: 1rem; }
 #doris-demo-app .doris-chips:empty, .doris-clinical-editor [data-doris-chips]:empty { display: none !important; }
 #doris-demo-app .doris-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .35rem .5rem; border: 1px solid #86b7fe; border-radius: .4rem; background: #eff6ff; }

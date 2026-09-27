@@ -83,6 +83,24 @@ shapes are in `docs/kb/doris-certificate-ui-contract.md`.
     panel shows the coding note first, then definition, fully specified
     name, inclusions and exclusions.
 
+## Certificate form (DORIS workspace)
+
+12. **Part I lines carry no underlying-cause label.** DORIS labels lines
+    A to D with "Due to" between them and computes the underlying cause
+    itself; no line is marked as the underlying cause and there is no field
+    for it. DigitVA heads the first line "Immediate cause" and each later
+    line "Due to", under "Part I: Cause of death", and never labels a line
+    as the underlying cause. The line letters are not shown, so a blank-line
+    error names the line by number.
+13. **Estimated age is a number and a unit.** DORIS shows "Estimated age"
+    with an "Age unit" list: Years, Months, Weeks, Days, Hours, Minutes,
+    Seconds, Unknown. DigitVA uses the same units through
+    `doris_interval.js` and still sends an ISO 8601 duration (`P44Y`,
+    `P2D`); Unknown omits the age.
+14. **The fetal or infant section is always shown.** DORIS has no
+    applicable switch. DigitVA shows the section and sends
+    `FetalOrInfantDeath` only when at least one of its fields is filled.
+
 ## Not observed or deliberately different
 
 - WHO's per-term "+" inside Details (one per matching term) is not

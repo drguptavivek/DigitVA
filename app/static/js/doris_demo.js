@@ -233,7 +233,7 @@ import { mount as mountInterval } from './doris_interval.js';
 
   function refreshLineLabels() {
     Array.from(part1.children).forEach(function (line, index) {
-      line.querySelector('[data-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index) + (index === 0 ? ' — IMMEDIATE CAUSE' : '');
+      line.querySelector('[data-line-title]').textContent = (index === 0 ? 'Immediate cause' : 'Due to');
       line.querySelector('[data-move-up]').disabled = index === 0;
       line.querySelector('[data-move-down]').disabled = index === part1.children.length - 1;
       line.querySelector('[data-remove-line]').disabled = part1.children.length === 1;
@@ -341,26 +341,23 @@ import { mount as mountInterval } from './doris_interval.js';
 
   function updateConditionalSections(notify) {
     var sex = document.getElementById('doris-sex').value;
-    var lifeStage = document.getElementById('doris-life-stage').value;
     var maternal = document.getElementById('doris-maternal-section');
-    var fetal = document.getElementById('doris-fetal-section');
-    fetal.hidden = lifeStage !== 'fetal-infant';
     maternal.hidden = sex !== '2';
     var pregnant = document.getElementById('doris-pregnant').value;
     var followups = document.getElementById('doris-maternal-followups');
     followups.hidden = pregnant === '' || pregnant === '9';
     if (notify) {
       if (sex !== '2') announce('Pregnancy fields are inapplicable and will be omitted.');
-      if (lifeStage !== 'fetal-infant') announce('Fetal and infant fields are inapplicable and will be omitted.');
     }
   }
 
+  var ageControl;
   function loadCertificate(certificate, message) {
     certificate = certificate || {};
     var admin = certificate.AdministrativeData || {};
-    setValue('doris-sex', admin.Sex); setValue('doris-age', admin.EstimatedAge);
+    setValue('doris-sex', admin.Sex);
+    ageControl = mountInterval(document.getElementById('doris-age-control'), admin.EstimatedAge || '');
     var fetal = certificate.FetalOrInfantDeath || {};
-    setValue('doris-life-stage', certificate.FetalOrInfantDeath ? 'fetal-infant' : 'none');
     setValue('doris-stillborn', fetal.Stillborn); setValue('doris-multiple', fetal.MultiplePregnancy);
     setValue('doris-within24', fetal.DeathWithin24h); setValue('doris-birth-weight', fetal.BirthWeight);
     setValue('doris-pregnancy-weeks', fetal.PregnancyWeeks); setValue('doris-mother-age', fetal.AgeMother);
@@ -385,22 +382,20 @@ import { mount as mountInterval } from './doris_interval.js';
     var certificate = {ICDVersion: 'ICD11', ICDMinorVersion: release};
     var admin = {};
     var sex = intOrNull(document.getElementById('doris-sex'));
-    var age = cleanText(document.getElementById('doris-age').value);
+    var age = ageControl.read().value;
     if (sex !== null) admin.Sex = sex;
     if (age) admin.EstimatedAge = age;
     if (Object.keys(admin).length) certificate.AdministrativeData = admin;
     certificate.Part1 = Array.from(part1.children).filter(function (line) { return line._conditions.length; }).map(serializeLine);
     var p2 = serializeLine(part2.firstElementChild);
     if (p2.Conditions.length) certificate.Part2 = p2;
-    if (document.getElementById('doris-life-stage').value === 'fetal-infant') {
-      var fetal = {};
-      [['Stillborn','doris-stillborn'],['MultiplePregnancy','doris-multiple'],['DeathWithin24h','doris-within24'],['BirthWeight','doris-birth-weight'],['PregnancyWeeks','doris-pregnancy-weeks'],['AgeMother','doris-mother-age']].forEach(function (entry) {
-        var value = intOrNull(document.getElementById(entry[1])); if (value !== null) fetal[entry[0]] = value;
-      });
-      var description = cleanText(document.getElementById('doris-perinatal-description').value);
-      if (description) fetal.PerinatalDescription = description;
-      if (Object.keys(fetal).length) certificate.FetalOrInfantDeath = fetal;
-    }
+    var fetal = {};
+    [['Stillborn','doris-stillborn'],['MultiplePregnancy','doris-multiple'],['DeathWithin24h','doris-within24'],['BirthWeight','doris-birth-weight'],['PregnancyWeeks','doris-pregnancy-weeks'],['AgeMother','doris-mother-age']].forEach(function (entry) {
+      var value = intOrNull(document.getElementById(entry[1])); if (value !== null) fetal[entry[0]] = value;
+    });
+    var description = cleanText(document.getElementById('doris-perinatal-description').value);
+    if (description) fetal.PerinatalDescription = description;
+    if (Object.keys(fetal).length) certificate.FetalOrInfantDeath = fetal;
     if (document.getElementById('doris-sex').value === '2') {
       var pregnant = intOrNull(document.getElementById('doris-pregnant'));
       if (pregnant !== null) {
@@ -538,7 +533,7 @@ import { mount as mountInterval } from './doris_interval.js';
   function processCertificate() {
     var gap = hasPart1Gap();
     if (gap !== -1) {
-      announce('Fill or remove Part I line ' + String.fromCharCode(65 + gap) + ' before processing; blank lines cannot separate causes.');
+      announce('Fill or remove Part I line ' + (gap + 1) + ' before processing; blank lines cannot separate causes.');
       return;
     }
     var invalidInterval = intervalError();
@@ -547,6 +542,8 @@ import { mount as mountInterval } from './doris_interval.js';
       announce(invalidInterval.message);
       return;
     }
+    var ageCheck = ageControl.validate();
+    if (ageCheck.error) { ageControl.value.focus(); announce('Estimated age: ' + ageCheck.error); return; }
     var certificate = serializeCertificate();
     if (!certificate.Part1.some(function (line) { return line.Conditions.length; })) {
       announce('Add at least one verified condition to Part I before processing.'); return;
@@ -593,7 +590,7 @@ import { mount as mountInterval } from './doris_interval.js';
   document.getElementById('doris-ect-close').addEventListener('click', function () { document.getElementById('doris-ect-panel').hidden = true; activeEctLine = null; });
   form.addEventListener('input', function (event) {
     if (!event.target.matches('[data-certificate-input]')) return;
-    updateConditionalSections(event.target.id === 'doris-sex' || event.target.id === 'doris-life-stage'); changed();
+    updateConditionalSections(event.target.id === 'doris-sex'); changed();
   });
   form.addEventListener('change', function (event) {
     if (event.target.id === 'doris-pregnant') updateConditionalSections(false);

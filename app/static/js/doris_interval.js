@@ -42,15 +42,15 @@ export function serialize(value, unit) {
   var selected = trim(unit);
   if (selected === '' && number === '') return {value: '', error: ''};
   if (selected === 'unknown' && number === '') return {value: '', error: ''};
-  if (selected === '' && number !== '') return {value: '', error: 'Choose a time unit for the interval.'};
+  if (selected === '' && number !== '') return {value: '', error: 'Choose a time unit.'};
   if (selected !== 'unknown' && !validNumber(number)) {
-    return {value: '', error: 'Enter a non-negative decimal interval without an exponent.'};
+    return {value: '', error: 'Enter a non-negative decimal number without an exponent.'};
   }
   if (selected === 'unknown' && number !== '') {
     return {value: '', error: 'Remove the interval value or choose a time unit.'};
   }
   var matchedUnit = units.find(function (item) { return item.value === selected; });
-  if (!matchedUnit) return {value: '', error: 'Choose a valid time unit for the interval.'};
+  if (!matchedUnit) return {value: '', error: 'Choose a valid time unit.'};
   return {value: matchedUnit.prefix + number + (selected === 'MI' ? 'M' : matchedUnit.value), error: ''};
 }
 
@@ -80,7 +80,7 @@ export function mount(container, rawValue) {
   valueInput.value = parsed.representable ? parsed.value : '';
   unitSelect.value = parsed.representable ? parsed.unit : '';
   if (rawDisplay) {
-    rawDisplay.textContent = parsed.representable || !state.raw ? '' : 'Existing interval: ' + state.raw;
+    rawDisplay.textContent = parsed.representable || !state.raw ? '' : 'Existing value: ' + state.raw;
     rawDisplay.hidden = parsed.representable || !state.raw;
   }
   function edited() {

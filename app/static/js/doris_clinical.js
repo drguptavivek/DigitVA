@@ -224,7 +224,7 @@ import { mount as mountInterval } from './doris_interval.js';
     }
     function renderOrder() {
       var container = query(editor, '[data-doris-part1]'); container.replaceChildren();
-      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-title]').textContent = 'Line ' + String.fromCharCode(65 + index) + (index === 0 ? ' — IMMEDIATE CAUSE' : ''); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; container.appendChild(line.element); });
+      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-title]').textContent = (index === 0 ? 'Immediate cause' : 'Due to'); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; container.appendChild(line.element); });
       query(editor, '[data-doris-add-line]').disabled = state.lines.length >= MAX_LINES;
     }
     function serializeLine(line) {
@@ -233,14 +233,12 @@ import { mount as mountInterval } from './doris_interval.js';
     }
     function certificate() {
       var result = {ICDVersion: 'ICD11', ICDMinorVersion: '2026-01', Part1: state.lines.filter(function (line) { return line.conditions.length; }).map(serializeLine)};
-      var sex = query(editor, '[data-doris-sex]').value; var age = text(query(editor, '[data-doris-age]').value);
+      var sex = query(editor, '[data-doris-sex]').value; var age = ageControl.read().value;
       if (sex || age) { result.AdministrativeData = {}; if (sex) result.AdministrativeData.Sex = Number(sex); if (age) result.AdministrativeData.EstimatedAge = age; }
       var other = serializeLine(state.part2); if (other.Conditions.length) result.Part2 = other;
-      if (query(editor, '[data-doris-life-stage]').value === 'fetal-infant') {
-        var fetal = {};
-        [['Stillborn','[data-doris-stillborn]'],['MultiplePregnancy','[data-doris-multiple]'],['DeathWithin24h','[data-doris-within24]'],['BirthWeight','[data-doris-birth-weight]'],['PregnancyWeeks','[data-doris-pregnancy-weeks]'],['AgeMother','[data-doris-mother-age]']].forEach(function(entry){var value=numberOrNull(query(editor,entry[1]));if(value!==null)fetal[entry[0]]=value;});
-        var perinatal=text(query(editor,'[data-doris-perinatal]').value);if(perinatal)fetal.PerinatalDescription=perinatal;if(Object.keys(fetal).length)result.FetalOrInfantDeath=fetal;
-      }
+      var fetal = {};
+      [['Stillborn','[data-doris-stillborn]'],['MultiplePregnancy','[data-doris-multiple]'],['DeathWithin24h','[data-doris-within24]'],['BirthWeight','[data-doris-birth-weight]'],['PregnancyWeeks','[data-doris-pregnancy-weeks]'],['AgeMother','[data-doris-mother-age]']].forEach(function(entry){var value=numberOrNull(query(editor,entry[1]));if(value!==null)fetal[entry[0]]=value;});
+      var perinatal=text(query(editor,'[data-doris-perinatal]').value);if(perinatal)fetal.PerinatalDescription=perinatal;if(Object.keys(fetal).length)result.FetalOrInfantDeath=fetal;
       if (sex === '2') { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant!==9){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
       return result;
     }
@@ -279,9 +277,11 @@ import { mount as mountInterval } from './doris_interval.js';
     }
     function process() {
       var gap = part1Gap();
-      if (gap !== -1) { status('Fill or remove Part I line ' + String.fromCharCode(65 + gap) + ' before processing; blank lines cannot separate causes.'); return; }
+      if (gap !== -1) { status('Fill or remove Part I line ' + (gap + 1) + ' before processing; blank lines cannot separate causes.'); return; }
       var invalidInterval = intervalError();
       if (invalidInterval) { invalidInterval.line.interval.value.focus(); status(invalidInterval.message); return; }
+      var ageCheck = ageControl.validate();
+      if (ageCheck.error) { ageControl.value.focus(); status('Estimated age: ' + ageCheck.error); return; }
       var payload = {schema_version: 1, client_revision: state.revision, role: editor.dataset.role, certificate: certificate()}; var sent = state.revision;
       var button = query(editor, '[data-doris-process]'); button.disabled = true; status('Processing with DORIS and CoDEdit…');
       post(editor, editor.dataset.processUrl, payload).then(function (result) {
@@ -296,13 +296,12 @@ import { mount as mountInterval } from './doris_interval.js';
     var initialPart1 = Array.isArray(initial.Part1) && initial.Part1.length ? initial.Part1 : [{Conditions: []}, {Conditions: []}, {Conditions: []}];
     state.lines = initialPart1.slice(0, MAX_LINES).map(function (line) { return makeLine(line, false); });
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
-    var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); query(editor, '[data-doris-age]').value = admin.EstimatedAge || '';
-    var fetal=initial.FetalOrInfantDeath||{};query(editor,'[data-doris-life-stage]').value=initial.FetalOrInfantDeath?'fetal-infant':'none';[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
+    var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); var ageControl = mountInterval(query(editor, '[data-doris-age-control]'), admin.EstimatedAge || '');
+    var fetal=initial.FetalOrInfantDeath||{};[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
-    function conditionals(){var sexValue=query(editor,'[data-doris-sex]').value;query(editor,'[data-doris-fetal]').hidden=query(editor,'[data-doris-life-stage]').value!=='fetal-infant';query(editor,'[data-doris-maternal]').hidden=sexValue!=='2';var pregnant=query(editor,'[data-doris-pregnant]').value;editor.querySelectorAll('[data-doris-maternal-followup]').forEach(function(node){node.hidden=pregnant===''||pregnant==='9';});}conditionals();
+    function conditionals(){var sexValue=query(editor,'[data-doris-sex]').value;query(editor,'[data-doris-maternal]').hidden=sexValue!=='2';var pregnant=query(editor,'[data-doris-pregnant]').value;editor.querySelectorAll('[data-doris-maternal-followup]').forEach(function(node){node.hidden=pregnant===''||pregnant==='9';});}conditionals();
     editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select').forEach(function(field){field.addEventListener('input',function(){conditionals();invalidate();});});
-    query(editor,'[data-doris-life-stage]').addEventListener('change',function(){conditionals();invalidate();});
-    query(editor, '[data-doris-sex]').addEventListener('change', function () { conditionals(); invalidate(); }); query(editor, '[data-doris-age]').addEventListener('input', function () { invalidate(); });
+    query(editor, '[data-doris-sex]').addEventListener('change', function () { conditionals(); invalidate(); }); ageControl.value.addEventListener('input', function () { invalidate(); }); ageControl.unit.addEventListener('change', function () { invalidate(); });
     query(editor, '[data-doris-add-line]').addEventListener('click', function () { if (state.lines.length < MAX_LINES) { state.lines.push(makeLine({Conditions: []}, false)); renderOrder(); invalidate('Line added. Process again.'); } });
     query(editor, '[data-doris-process]').addEventListener('click', process);
     query(editor, '[data-doris-final-search-button]').addEventListener('click', function () { search(null, true); });

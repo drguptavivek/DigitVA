@@ -24,10 +24,9 @@
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
     <div class="row g-3 mb-3">
       <div class="col-sm-6"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-3"><label class="form-label" for="{{ _doris_id }}-age">Estimated age (ISO 8601)</label><input id="{{ _doris_id }}-age" class="form-control" maxlength="24" placeholder="P44Y or P2D" data-doris-age></div>
-      <div class="col-sm-3"><label class="form-label" for="{{ _doris_id }}-life-stage">Fetal or infant details</label><select id="{{ _doris_id }}-life-stage" class="form-select" data-doris-life-stage><option value="none">Not applicable</option><option value="fetal-infant">Applicable</option></select></div>
+      <div class="col-sm-6" data-doris-age-control><label class="form-label" for="{{ _doris_id }}-age">Estimated age</label><div class="d-flex gap-2"><input id="{{ _doris_id }}-age" class="form-control" inputmode="decimal" maxlength="24" placeholder="Age" data-doris-interval-value><select class="form-select" aria-label="Age unit" data-doris-interval-unit></select></div><p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p></div>
     </div>
-    <div class="border rounded p-3 mb-3" data-doris-fetal hidden><h4 class="h6">Fetal or infant details</h4><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
+    <div class="border rounded p-3 mb-3" data-doris-fetal><h4 class="h6">Fetal or infant details</h4><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
       <div class="col-sm-4"><label class="form-label small">Stillborn</label><select class="form-select" data-doris-stillborn><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4"><label class="form-label small">Death within 24 hours</label><select class="form-select" data-doris-within24><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option></select></div>
@@ -43,7 +42,7 @@
     </div></div>
 
     <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-      <h4 class="h6 mb-0">Part I</h4>
+      <h4 class="h6 mb-0">Part I: Cause of death</h4>
       <button type="button" class="btn btn-sm btn-outline-primary" data-doris-add-line>Add line</button>
     </div>
     <div data-doris-part1></div>
@@ -79,7 +78,7 @@
 
   <template data-doris-line-template>
     <div class="border rounded p-3 mb-2" data-doris-line>
-      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><strong data-doris-line-title></strong><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button><button type="button" class="btn btn-outline-danger" data-doris-remove>Remove</button></div></div>
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><strong data-doris-line-title></strong><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-doris-remove>Remove</button></div></div>
       <div class="d-flex flex-wrap gap-2 mb-2" data-doris-chips aria-live="polite"></div>
       <div class="input-group"><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
       <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>

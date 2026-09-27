@@ -39,10 +39,10 @@ horizontal scroll. The focused Docker DORIS suites passed (73 tests and 35
 subtests before the extraction; 98 DORIS tests with 35 subtests and the
 full `tests/routes` suite, 694 tests, after). Not done: a visual
 check of the clinical editor, because no project in the dev database is in
-DORIS mode; tests cover the clinical host wiring. Open question: WHO's
-search row for `NC72.7` shows the mandatory-postcoordination badge although
-all its axes are optional, so DigitVA's required icon may not match WHO for
-such stems.
+DORIS mode; tests cover the clinical host wiring. Resolved: the local WHO API reports `NC72.7` as optional
+postcoordination (availability 1, every axis optional) with a coding note,
+so its `Use` button is correct; the "mandatory" label seen on WHO's page
+was a row icon's accessible name, not a code property.
 
 ## DORIS picker UI follow-up (2026-09-26)
 

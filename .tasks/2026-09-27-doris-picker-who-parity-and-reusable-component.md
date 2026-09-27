@@ -181,12 +181,9 @@ the same provenance shape.
 - The open-ended X-chapter search can return large sets; bound it like the
   other guidance calls and mark truncation.
 - Mobile parity is not proven until bearer auth exists; do not claim it.
-- WHO's search row for `NC72.7` carried the "Mandatory postcoordination"
-  badge although every axis in its builder was optional; `BD54` carried
-  the same badge and did have "code also". The badge is not driven by
-  `requiredPostcoordination` alone. Compare the local API's
-  `postcoordinationAvailability` for `NC72.7` with `_axes()` output before
-  trusting the required icon in DigitVA search rows.
+- Resolved 2026-09-27: the local WHO API reports `NC72.7` availability 1
+  with all axes optional and a coding note; `BD54` has a required axis.
+  DigitVA gates `Use` on availability 2 only, which matches.
 - The uncoded-folder check clicked a node title inside an axis, not the
   top "Select" button on an uncoded tree node; the design (no select
   control on uncoded nodes) sidesteps both cases.

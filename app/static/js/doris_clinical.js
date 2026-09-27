@@ -160,9 +160,11 @@ import { mount as mountInterval } from './doris_interval.js';
               if (term.requires_postcoordination || !term.uri || finalMode) { input.value = term.code; search(line, finalMode); }
               else picker.stage(container, term, message);
             });
-          }, item.postcoordination && !complete ? function (button) {
+          }, item.postcoordination ? function (button) {
+            var parts = item.code.split(/[&/]/);
+            var stem = complete ? {code: parts[0], title: '', uri: '', preselect: parts.slice(1)} : item;
             if (!finalMode) picker.showDetails(container, item);
-            picker.openPostcoordination(container, item, button);
+            picker.openPostcoordination(container, stem, button);
           } : null, function () { picker.showDetails(container, item); });
           var actions = document.createElement('div'); actions.className = 'doris-search-actions';
           if (complete || item.postcoordination_availability !== 2) {

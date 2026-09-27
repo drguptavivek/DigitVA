@@ -762,6 +762,14 @@ export function createIcd11Picker(options) {
         });
         var otherSubtrees = data.other_postcoordination ? list(data.other_postcoordination.subtree_uris).map(text).filter(Boolean) : [];
         state.other_postcoordination = otherSubtrees.length ? {subtree_uris: otherSubtrees} : null;
+        // WHO's tool opens a composite result as its stem with the other
+        // parts already chosen; preselect any part that is a root option.
+        list(item.preselect).map(text).filter(Boolean).forEach(function (code) {
+          state.axes.forEach(function (axis) {
+            var match = list(axis.options).map(optionValue).find(function (option) { return option.code === code; });
+            if (match && !isSelected(axis, match)) state.selected[axis.id] = selectedFor(axis).concat([match]);
+          });
+        });
         renderPostcoordination();
       }).catch(function (err) { if (!stale(id)) error(err.message || 'Postcoordination choices are unavailable.'); });
     }

@@ -165,9 +165,13 @@ import { mount as mountInterval } from './doris_interval.js';
             searchLine(line);
           } else picker.stage(line, term, searchStatus);
         });
-      }, item.postcoordination && !complete ? function (button) {
+      }, item.postcoordination ? function (button) {
+        // A complete expression opens the builder for its stem so the
+        // coder can choose their own extensions; the server verifies the stem.
+        var parts = item.code.split(/[&/]/);
+        var stem = complete ? {code: parts[0], title: '', uri: '', preselect: parts.slice(1)} : item;
         picker.showDetails(line, item);
-        picker.openPostcoordination(line, item, button);
+        picker.openPostcoordination(line, stem, button);
       } : null, function () { picker.showDetails(line, item); });
       var actions = document.createElement('div');
       actions.className = 'doris-search-actions';

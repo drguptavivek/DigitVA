@@ -111,6 +111,25 @@ and keep working exactly as they did.
 
 ## Project structure mode
 
+### CSV setup
+
+- An organization-mode project offers a blank units CSV template with the
+  existing unit import columns. Administrators and that project's PI may dry
+  run and apply it through the existing organization importer. A blank
+  `parent_code` creates an unplaced unit for later mapping; applying a CSV
+  does not deactivate missing units unless the operator explicitly selects
+  that option.
+- A separate project-users CSV has `email,name,role,org_unit_code,cadre_code,language_codes,phone` columns. `org_unit_code` blank explicitly grants the whole project; a populated code grants that unit and its descendants. `cadre_code` is permitted only with a unit grant and is checked against that level's permissions. `language_codes` is a semicolon-separated list of active language codes, required with `name` for a new account.
+- An admin may create invite-only accounts and grants. A project PI may grant
+  roles to existing active users in their own project only, excluding
+  `project_pi` and `admin`. Existing account profiles are never changed.
+  Imports validate every row and authorization before writing, reject duplicate
+  grants in the file, apply in one transaction, and are safe to rerun: existing
+  grants are retained or reactivated without removing other grants. Invitations
+  are queued only after the transaction commits. The result distinguishes
+  queued invitations from known skips and queue failures; asynchronous email
+  delivery is not confirmed by the import response.
+
 Every project states how it is structured, in
 `va_project_master.project_structure_mode`:
 

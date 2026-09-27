@@ -1,9 +1,20 @@
 """HTTP contract of app/routes/admin_organization.py: authorization and thin dispatch."""
 import io
 from datetime import UTC, datetime
+from unittest.mock import patch
+
+import sqlalchemy as sa
 
 from app import db
-from app.models import VaProjectMaster, VaStatuses
+from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaProjectMaster,
+    VaStatuses,
+    VaUserAccessGrants,
+    VaUsers,
+)
+from app.models.mas_languages import MasLanguages
 from app.services import organization_service as org
 from tests.base import BaseTestCase
 
@@ -39,10 +50,137 @@ class AdminOrganizationApiTests(BaseTestCase):
                 project_updated_at=now,
             )
         )
+        if db.session.get(MasLanguages, "en") is None:
+            db.session.add(MasLanguages(language_code="en", language_name="English", is_active=True))
         db.session.commit()
 
     def _url(self, suffix=""):
         return f"/admin/api/organization/{self.PROJECT}{suffix}"
+
+    def _import_users(self, text, dry_run="1"):
+        return self.client.post(
+            self._url("/project-users/import"),
+            data={"file": (io.BytesIO(text.encode("utf-8")), "users.csv"), "dry_run": dry_run},
+            content_type="multipart/form-data", headers=self._csrf_headers(),
+        )
+
+    def test_blank_csv_templates(self):
+        self._login(str(self.base_admin_id))
+        units = self.client.get(self._url("/templates/units.csv"))
+        users = self.client.get(self._url("/templates/project-users.csv"))
+        self.assertEqual(units.status_code, 200)
+        self.assertEqual(users.status_code, 200)
+        self.assertTrue(units.get_data(as_text=True).startswith("unit_code,unit_name,level_code,parent_code"))
+        self.assertNotIn(",path,", units.get_data(as_text=True))
+        self.assertEqual(users.get_data(as_text=True).strip(),
+                         "email,name,role,org_unit_code,cadre_code,language_codes,phone")
+
+    def test_invalid_row_leaves_no_account_or_grant(self):
+        self._login(str(self.base_admin_id))
+        header = "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+        response = self._import_users(header +
+            "valid@example.org,Valid,coder,,,en,\n" +
+            "bad@example.org,Bad,admin,,,en,\n", dry_run="0")
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "valid@example.org")))
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)
+                          .where(VaUserAccessGrants.project_id == self.PROJECT)), 0)
+
+    def test_blank_line_keeps_physical_row_number(self):
+        self._login(str(self.base_admin_id))
+        response = self._import_users(
+            "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+            "\n"
+            "bad@example.org,Bad,admin,,,en,\n"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Row 3", response.get_json()["error"])
+
+    def test_conflicting_new_user_profiles_reject_whole_file(self):
+        self._login(str(self.base_admin_id))
+        response = self._import_users(
+            "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+            "conflict@example.org,First,reviewer,,,en,\n"
+            "conflict@example.org,Second,data_manager,,,en,\n",
+            dry_run="0",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("profile differs", response.get_json()["error"])
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "conflict@example.org")))
+
+    def test_admin_import_creates_one_account_and_rerun_retains_grant(self):
+        self._login(str(self.base_admin_id))
+        text = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+                "bulk@example.org,Bulk User,reviewer,,,en,\n")
+        preview = self._import_users(text)
+        self.assertEqual(preview.status_code, 200, preview.get_json())
+        self.assertEqual(preview.get_json()["rows"][0]["scope"], "whole project")
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "bulk@example.org")))
+        with patch("app.services.email_service.is_mail_configured", return_value=True), patch(
+            "app.services.email_service.send_verification_email", return_value=True
+        ) as verification, patch(
+            "app.services.email_service.send_password_reset_email", return_value=True
+        ) as password:
+            first = self._import_users(text, dry_run="0")
+        self.assertEqual(first.status_code, 200, first.get_json())
+        self.assertEqual(first.get_json()["created_users"], 1)
+        self.assertEqual(first.get_json()["invitations_queued"], 1)
+        verification.assert_called_once()
+        password.assert_called_once()
+        second = self._import_users(text, dry_run="0")
+        self.assertEqual(second.status_code, 200, second.get_json())
+        self.assertEqual(second.get_json()["changed_grants"], 0)
+
+    def test_disabled_email_reports_skipped_invitation(self):
+        self._login(str(self.base_admin_id))
+        text = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+                "skipped@example.org,Skipped,reviewer,,,en,\n")
+        with patch("app.services.email_service.is_mail_configured", return_value=True), patch(
+            "app.services.email_service._email_delivery_enabled", return_value=False
+        ):
+            response = self._import_users(text, dry_run="0")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["invitations_queued"], 0)
+        self.assertTrue(any("skipped@example.org" in warning
+                            for warning in response.get_json()["invite_warnings"]))
+
+    def test_unconfigured_email_does_not_queue_invitations(self):
+        self._login(str(self.base_admin_id))
+        text = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+                "unconfigured@example.org,Unconfigured,reviewer,,,en,\n")
+        with patch("app.services.email_service.is_mail_configured", return_value=False), patch(
+            "app.services.email_service.send_verification_email"
+        ) as verification, patch(
+            "app.services.email_service.send_password_reset_email"
+        ) as password:
+            response = self._import_users(text, dry_run="0")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["invitations_queued"], 0)
+        self.assertTrue(any("not configured" in warning
+                            for warning in response.get_json()["invite_warnings"]))
+        verification.assert_not_called()
+        password.assert_not_called()
+
+    def test_project_pi_can_attach_existing_user_but_cannot_create_account(self):
+        db.session.add(VaUserAccessGrants(
+            user_id=self.base_project_pi_user.user_id,
+            role=VaAccessRoles.project_pi,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._login(str(self.base_project_pi_id))
+        existing = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+                    "base.coder@test.local,,reviewer,,,,\n")
+        response = self._import_users(existing, dry_run="0")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["created_users"], 0)
+        new = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+               "new-pi@example.org,New,reviewer,,,en,\n")
+        denied = self._import_users(new, dry_run="0")
+        self.assertEqual(denied.status_code, 400, denied.get_json())
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "new-pi@example.org")))
 
     def test_panel_renders_for_admin(self):
         self._login(str(self.base_admin_id))

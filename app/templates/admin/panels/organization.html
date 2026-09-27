@@ -37,11 +37,11 @@
     <div class="mb-1">Pick an organization-mode project above (set <em>Structure: Organization</em> in the Projects panel), then work through the tabs in order:</div>
     <ol class="mb-1 ps-3">
       <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Seed template</em> adds a standard set.</li>
-      <li><strong>Units</strong>: add the actual places at each level, top level first, each under its parent. A facility list with no parents can be imported first (Export / Import), then placed with <em>Map parents</em> or by dragging.</li>
+      <li><strong>Units</strong>: add places at each level, or use <em>Upload units CSV</em> in Export / Import. Import top-level units before children; a blank parent code leaves a unit to place with <em>Map parents</em>.</li>
       <li><strong>Cadres &amp; permissions</strong>: the worker types, and at which level each may fill or code VA forms.</li>
       <li><strong>Workers</strong>: attach health workers to units.</li>
     </ol>
-    <div>Optional: <strong>ODK form fields</strong> for projects that also collect through ODK; <strong>Export / Import</strong> to copy a tree.</div>
+    <div>Then use <strong>Export / Import</strong> to upload project users and roles. <strong>ODK form fields</strong> is optional for projects collecting through ODK.</div>
   </div>
 
   <ul class="nav nav-tabs mb-3" id="org-tabs" role="tablist">
@@ -315,9 +315,18 @@
       </div>
       <div class="col-md-7">
         <div class="card"><div class="card-body">
-          <h6 class="card-title">Import</h6>
-          <p class="small text-muted">Upload a workbook in the export layout, or a CSV of one sheet for quick adding. Rows are matched by code; nothing is deleted. Run the dry run first, then apply.</p>
-          <p class="small mb-2">CSV templates (current data, edit and re-upload):
+          <h6 class="card-title">Upload units CSV</h6>
+          <p class="small text-muted">Download the <a href="#" id="org-units-template">blank units CSV template</a> and fill <code>unit_code</code>, <code>unit_name</code>, <code>level_code</code> and <code>parent_code</code>. The levels must already exist. A blank parent makes an unplaced unit. Existing units are matched by code; units absent from this file stay active.</p>
+          <input type="file" id="org-units-file" class="form-control form-control-sm mb-2" accept=".csv">
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="org-units-dry">Preview units</button>
+            <button class="btn btn-sm btn-danger" id="org-units-apply" disabled>Apply units</button>
+          </div>
+          <pre id="org-units-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;" role="status"></pre>
+          <hr>
+          <h6>Advanced import</h6>
+          <p class="small text-muted">Upload a workbook in the export layout, or a CSV of one sheet. Rows are matched by code; nothing is deleted. Run the dry run first, then apply.</p>
+          <p class="small mb-2">Current data CSVs (edit and re-upload):
             <a href="#" class="org-csv-template" data-sheet="cadres">cadres</a> ·
             <a href="#" class="org-csv-template" data-sheet="level_cadres">level_cadres</a> ·
             <a href="#" class="org-csv-template" data-sheet="units">units</a> ·
@@ -341,6 +350,15 @@
             <button class="btn btn-sm btn-danger" id="org-import-apply" disabled><i class="fa-solid fa-upload me-1"></i>Apply</button>
           </div>
           <pre id="org-import-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;"></pre>
+          <hr>
+          <h6>Project users and roles</h6>
+          <p class="small text-muted">Download the <a href="#" id="org-users-template">blank project users CSV template</a>. Enter email and role on every row. Leave <code>org_unit_code</code> blank for access to the <strong>whole project</strong>; enter a unit code to limit access to its subtree. A new account also needs name and active language codes separated by semicolons. Existing account profiles stay unchanged. Project PIs may grant only existing active users and cannot grant project PI.</p>
+          <input type="file" id="org-users-file" class="form-control form-control-sm mb-2" accept=".csv">
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="org-users-dry">Preview users</button>
+            <button class="btn btn-sm btn-danger" id="org-users-apply" disabled>Import users</button>
+          </div>
+          <pre id="org-users-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;"></pre>
         </div></div>
       </div>
     </div>
@@ -535,7 +553,7 @@
       + ids.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
     if (ids.indexOf(PROJECT_ID) < 0) PROJECT_ID = null;
     if (PROJECT_ID) sel.value = PROJECT_ID;
-    sel.addEventListener('change', function () { PROJECT_ID = this.value; loadAll(); });
+    sel.addEventListener('change', function () { PROJECT_ID = this.value; invalidateUnitsPreview(); invalidateUsersPreview(); loadAll(); });
     loadAll();
   });
   $('org-show-inactive').addEventListener('change', loadAll);
@@ -1425,11 +1443,59 @@
   });
 
   function renderTransfer() {
+    $('org-units-template').href = base() + '/templates/units.csv';
+    $('org-users-template').href = base() + '/templates/project-users.csv';
     $('org-export-xlsx').href = base() + '/export.xlsx';
     $('org-export-choices').href = base() + '/odk-choices.csv';
     document.querySelectorAll('.org-csv-template').forEach(function (a) { a.href = base() + '/export/' + a.dataset.sheet + '.csv'; });
     $('org-export-csv-links').innerHTML = 'CSV: ' + ['levels','units','cadres','level_cadres','workers'].map(function (s) { return '<a href="' + base() + '/export/' + s + '.csv">' + s + '</a>'; }).join(' · ');
   }
+  var unitsPreviewFile = null, unitsPreviewProject = null, unitsRequest = 0;
+  function invalidateUnitsPreview() {
+    unitsPreviewFile = null; unitsPreviewProject = null; unitsRequest++;
+    $('org-units-apply').disabled = true;
+    $('org-units-result').classList.add('d-none');
+  }
+  // Preview or apply the selected units CSV in this project. This guided path
+  // never deactivates missing units, even when advanced import has that option set.
+  function runUnitsImport(apply) {
+    var file = $('org-units-file').files[0], project = PROJECT_ID;
+    if (!file || !/\.csv$/i.test(file.name)) { alertBox('warning', 'Choose a units CSV file first.'); return; }
+    if (apply && (file !== unitsPreviewFile || project !== unitsPreviewProject)) return;
+    if (!apply) { unitsPreviewFile = null; unitsPreviewProject = null; }
+    $('org-units-apply').disabled = true;
+    var request = ++unitsRequest;
+    var fd = new FormData();
+    fd.append('file', file); fd.append('sheet', 'units');
+    fd.append('dry_run', apply ? '0' : '1'); fd.append('deactivate_missing', '0');
+    var out = $('org-units-result');
+    out.classList.remove('d-none'); out.textContent = apply ? 'Applying units…' : 'Checking units…';
+    api(base() + '/import', 'POST', fd).then(function (res) {
+      if (request !== unitsRequest || project !== PROJECT_ID || file !== $('org-units-file').files[0]) return;
+      if (!res.data || !res.data.plan) {
+        out.textContent = (res.data && res.data.error) || 'Import failed.';
+        return;
+      }
+      var plan = res.data.plan, counts = plan.counts.units;
+      var lines = ['Units: ' + counts.rows + ' row(s), ' + counts.create + ' to create, ' + counts.update + ' to update.'];
+      if (plan.unplaced.length) lines.push('Unplaced active units after import (' + plan.unplaced.length + '): ' + plan.unplaced.join(', ') + '. Map their parents in Units → Map parents.');
+      plan.errors.forEach(function (error) { lines.push('ERROR: ' + error); });
+      lines.push(plan.applied ? 'Applied.' : (plan.errors.length ? 'Not applied.' : 'Preview only. No units changed.'));
+      out.textContent = lines.join('\n');
+      if (res.ok && !apply && !plan.errors.length) {
+        unitsPreviewFile = file; unitsPreviewProject = project;
+        $('org-units-apply').disabled = false;
+      }
+      if (plan.applied) loadAll().then(function () { if (plan.unplaced.length) openPlaceModal(); });
+    }).catch(function () {
+      if (request === unitsRequest) out.textContent = 'Import failed. Please try again.';
+    });
+  }
+  $('org-units-file').addEventListener('change', invalidateUnitsPreview);
+  $('org-units-dry').addEventListener('click', function () { runUnitsImport(false); });
+  $('org-units-apply').addEventListener('click', function () {
+    askConfirm('Apply these units to project ' + PROJECT_ID + '?', function () { runUnitsImport(true); });
+  });
   function runImport(apply) {
     var file = $('org-import-file').files[0];
     if (!file) { alertBox('warning', 'Choose a file first.'); return; }
@@ -1462,6 +1528,48 @@
   });
   // Changing what the CSV holds invalidates the last dry run.
   $('org-import-sheet').addEventListener('change', function () { $('org-import-apply').disabled = true; });
+
+  var usersPreviewFile = null, usersPreviewProject = null, usersRequest = 0;
+  function invalidateUsersPreview() {
+    usersPreviewFile = null; usersPreviewProject = null; usersRequest++;
+    $('org-users-apply').disabled = true;
+    $('org-users-result').classList.add('d-none');
+  }
+  function runUsersImport(apply) {
+    var file = $('org-users-file').files[0], project = PROJECT_ID;
+    if (!file) { alertBox('warning', 'Choose a project users CSV first.'); return; }
+    if (apply && (file !== usersPreviewFile || project !== usersPreviewProject)) return;
+    $('org-users-apply').disabled = true;
+    var request = ++usersRequest;
+    var fd = new FormData(); fd.append('file', file); fd.append('dry_run', apply ? '0' : '1');
+    api(base() + '/project-users/import', 'POST', fd).then(function (res) {
+      if (request !== usersRequest || project !== PROJECT_ID || file !== $('org-users-file').files[0]) return;
+      var out = $('org-users-result'); out.classList.remove('d-none');
+      if (!res.ok) { out.textContent = (res.data && res.data.error) || 'Import failed.'; return; }
+      var lines = res.data.rows.map(function (row) {
+        return 'Row ' + row.row + ': ' + row.email + ' — ' + row.role + ' — ' + row.scope + ' — ' + row.action;
+      });
+      if (apply) {
+        lines.push('Applied: ' + res.data.created_users + ' new account(s), ' + res.data.changed_grants + ' new/reactivated grant(s).');
+        lines.push(res.data.invitations_queued + ' invitation(s) queued. Delivery is not confirmed.');
+        (res.data.invite_warnings || []).forEach(function (warning) { lines.push('WARNING: ' + warning); });
+      } else { lines.push('Preview only. No accounts or grants changed.'); }
+      out.textContent = lines.join('\n');
+      if (!apply) {
+        usersPreviewFile = file; usersPreviewProject = project;
+        $('org-users-apply').disabled = false;
+      }
+    }).catch(function () {
+      if (request !== usersRequest) return;
+      var out = $('org-users-result'); out.classList.remove('d-none');
+      out.textContent = 'Import request failed. Check the current users before retrying.';
+    });
+  }
+  $('org-users-file').addEventListener('change', invalidateUsersPreview);
+  $('org-users-dry').addEventListener('click', function () { runUsersImport(false); });
+  $('org-users-apply').addEventListener('click', function () {
+    askConfirm('Import these users and grants into project ' + PROJECT_ID + '?', function () { runUsersImport(true); });
+  });
 
   function findBy(list, key, value) { for (var i = 0; i < list.length; i++) if (list[i][key] === value) return list[i]; return null; }
 }());

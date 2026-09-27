@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import smtplib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from flask import current_app, render_template
 from flask_mail import Mail, Message
@@ -69,7 +69,7 @@ def _mark_suppressed_email(to: str, exc: Exception) -> None:
     payload = {
         "reason": type(exc).__name__,
         "message": str(exc),
-        "suppressed_at": datetime.now(timezone.utc).isoformat(),
+        "suppressed_at": datetime.now(UTC).isoformat(),
     }
     try:
         cache.set(key, payload, timeout=ttl_seconds)
@@ -106,7 +106,7 @@ def _email_link_base_url() -> str:
     return base_url
 
 
-def send_password_reset_email(user, token: str, invite_mode: bool = False) -> None:
+def send_password_reset_email(user, token: str, invite_mode: bool = False) -> bool:
     """Dispatch a password email via Celery.
 
     invite_mode=True is used for first-time onboarding so the email copy
@@ -117,7 +117,7 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
     subject = "Set Your DigitVA Password" if invite_mode else "Reset Your DigitVA Password"
 
     if not _should_attempt_email_delivery(user.email):
-        return
+        return False
 
     _dispatch_email.delay(
         to=user.email,
@@ -129,14 +129,15 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
             "invite_mode": invite_mode,
         },
     )
+    return True
 
 
-def send_verification_email(user, token: str) -> None:
+def send_verification_email(user, token: str) -> bool:
     """Dispatch an email-verification email via Celery."""
     verify_url = f"{_email_link_base_url()}/vaauth/verify-email/{token}"
 
     if not _should_attempt_email_delivery(user.email):
-        return
+        return False
 
     _dispatch_email.delay(
         to=user.email,
@@ -144,6 +145,7 @@ def send_verification_email(user, token: str) -> None:
         template_name="emails/verify_email",
         context={"name": user.name, "verify_url": verify_url},
     )
+    return True
 
 
 # ---------------------------------------------------------------------------

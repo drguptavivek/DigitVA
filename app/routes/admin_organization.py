@@ -14,6 +14,7 @@ from app import db
 from app.decorators import role_required
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
 from app.services import organization_service as org
+from app.services import project_user_import_service as user_import
 
 log = logging.getLogger(__name__)
 
@@ -473,6 +474,107 @@ def admin_org_export_csv(project_id, sheet):
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="organization_{project_id}_{sheet}.csv"'},
     )
+
+
+@admin.get(f"{_API}/templates/units.csv")
+@role_required("admin", "project_pi")
+def admin_org_units_template(project_id):
+    if err := _guard(project_id):
+        return err
+    # Keep the import column order, excluding the computed ltree path.
+    from app.services.organization_service import _UNIT_HEADERS
+    return current_app.response_class(
+        ",".join(header for header in _UNIT_HEADERS if header != "path") + "\r\n", mimetype="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="organization_units_template.csv"'},
+    )
+
+
+@admin.get(f"{_API}/templates/project-users.csv")
+@role_required("admin", "project_pi")
+def admin_org_users_template(project_id):
+    if err := _guard(project_id):
+        return err
+    return current_app.response_class(
+        user_import.template_csv(), mimetype="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="project_users_template.csv"'},
+    )
+
+
+@admin.post(f"{_API}/project-users/import")
+@role_required("admin", "project_pi")
+def admin_org_import_users(project_id):
+    if err := _guard(project_id):
+        return err
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename or not uploaded.filename.lower().endswith(".csv"):
+        return _json_error("Upload a project users CSV as 'file'.", 400)
+    dry_run = request.form.get("dry_run", "1") != "0"
+    try:
+        rows = user_import.parse_csv(uploaded.stream)
+        plan = user_import.prepare(project_id, rows, is_admin=current_user.is_admin())
+        preview = [{"row": item["row"], "email": item["email"],
+                    "role": item["role"].value,
+                    "scope": item["unit"].unit_code if item["unit"] else "whole project",
+                    "action": item["action"]} for item in plan]
+        if dry_run:
+            return jsonify({"dry_run": True, "rows": preview})
+        new_users, changed_grants = user_import.apply(
+            project_id, plan, actor_user_id=current_user.user_id
+        )
+        db.session.commit()
+    except user_import.ProjectUserImportError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    except Exception:
+        db.session.rollback()
+        log.exception("project users CSV import failed | project=%s", project_id)
+        return _json_error("The project users import failed.", 500)
+
+    from app.logging.va_logger import log_grant_action
+    for grant, action in changed_grants:
+        log_grant_action(
+            action=action, actor_user_id=current_user.user_id, actor_role="admin" if current_user.is_admin() else "project_pi",
+            target_user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
+            scope_type=grant.scope_type.value, project_id=project_id,
+            org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id,
+            request_ip=request.remote_addr,
+        )
+    invite_warnings = []
+    invitations_queued = 0
+    if new_users:
+        from app.services.email_service import (
+            is_mail_configured,
+            send_password_reset_email,
+            send_verification_email,
+        )
+        from app.services.token_service import generate_token
+        if not is_mail_configured():
+            invite_warnings.append(
+                "Email delivery is not configured; invitations were not queued. "
+                "Resend from Users after configuring email."
+            )
+        else:
+            for user in new_users:
+                try:
+                    verification_queued = send_verification_email(
+                        user, generate_token(user.user_id, "email_verify")
+                    )
+                    password_queued = send_password_reset_email(
+                        user, generate_token(user.user_id, "password_reset"), invite_mode=True
+                    )
+                    if verification_queued and password_queued:
+                        invitations_queued += 1
+                    else:
+                        invite_warnings.append(f"Invitation for {user.email} was skipped; resend from Users.")
+                except Exception:
+                    log.exception("project users invitation failed | project=%s user_id=%s", project_id, user.user_id)
+                    invite_warnings.append(f"Invitation for {user.email} could not be queued; resend from Users.")
+    log.info("project users import | project=%s by=%s rows=%s new_users=%s",
+             project_id, current_user.user_id, len(plan), len(new_users))
+    return jsonify({"dry_run": False, "rows": preview,
+                    "created_users": len(new_users), "changed_grants": len(changed_grants),
+                    "invitations_queued": invitations_queued,
+                    "invite_warnings": invite_warnings})
 
 
 @admin.get(f"{_API}/odk-choices.csv")

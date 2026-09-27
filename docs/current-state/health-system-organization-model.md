@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-27
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -85,6 +85,16 @@ update in `app/routes/admin.py` and by `flask org ensure-site`. Rules:
 [Project structure mode](../policy/organization-model.md#project-structure-mode).
 
 ### People
+
+The Organization panel now offers blank units and project-users CSV templates.
+Units use the existing organization importer and its dry-run preview. The users
+importer (`project_user_import_service`) accepts up to 1 MB and 1,000 rows,
+checks every role, account, unit, cadre and language before writing, and commits
+new invite-only accounts and grants together. A blank unit code is shown as
+"whole project" in the preview. Only admins may create accounts; a project PI
+may grant existing active users in their own project. New-account invitations
+are queued after commit. The response reports known skips and queue failures;
+delivery by the asynchronous worker is not confirmed at import time.
 
 Rules: [Unit-scoped grants](../policy/organization-model.md#unit-scoped-grants) for what a grant may
 carry and how the cadre is validated; [Scope Model](../policy/access-control-model.md#scope-model) and

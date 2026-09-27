@@ -1,0 +1,7 @@
+<div class="alert alert-warning mt-4" role="status" data-nqa-required>
+  <div class="fw-semibold mb-1">Complete the Narrative Quality Assessment first</div>
+  <p class="mb-2">This project needs it before the final cause of death. Saving it reloads the page, so the final assessment opens only after it is saved.</p>
+  <button type="button" class="btn btn-sm btn-primary"
+          hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vanarrationanddocuments', action=va_action, actiontype=va_actiontype) }}"
+          hx-target="#form-content">Go to Narration / Documents</button>
+</div>

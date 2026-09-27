@@ -3,7 +3,7 @@ title: Narrative Quality Assessment Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-09-27
 ---
 
 # Narrative Quality Assessment Policy
@@ -48,6 +48,12 @@ Current baseline:
   because the case returns to coding against new data
 - `Keep Current ICD Decision` after upstream ODK change promotes the new ODK
   payload and rebinds the preserved active NQA to that new payload
+- when the project enables NQA, the coder's final-assessment form does not
+  open until the coder's NQA for the current payload is saved; the COD
+  screen shows a notice with a link to Narration / Documents instead.
+  Saving NQA reloads the page, so a final assessment typed before it would
+  be lost. The final-COD save block stays as the server-side check.
+  Reviewers are unchanged: reviewer save does not require NQA.
 
 ## Simple Examples
 

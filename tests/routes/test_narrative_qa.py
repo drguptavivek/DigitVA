@@ -163,6 +163,29 @@ class TestNarrativeQaRoute(BaseTestCase):
         self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
         self.assertEqual(rows[1].va_nqa_status, VaStatuses.active)
 
+    def test_final_assessment_waits_for_nqa(self):
+        # Class-shared submission: start without an NQA whatever ran before.
+        db.session.execute(db.delete(VaNarrativeAssessment).where(VaNarrativeAssessment.va_sid == self.sid))
+        db.session.commit()
+        self._login(self.base_admin_id)
+        url = f"/vaform/{self.sid}/vafinalasses?action=vacode&actiontype=vademo_start_coding"
+
+        response = self.client.get(url)
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("data-nqa-required", body)
+        self.assertNotIn("Save final assessment", body)
+
+        saved = self.client.post(
+            f"/api/v1/va/{self.sid}/narrative-qa",
+            json={"va_actiontype": "vademo_start_coding", "length": 2, "pos_symptoms": 2,
+                  "neg_symptoms": 1, "chronology": 1, "doc_review": 1, "comorbidity": 1},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200)
+        body = self.client.get(url).get_data(as_text=True)
+        self.assertNotIn("data-nqa-required", body)
+
     def test_narration_partial_is_not_http_cached_in_coding_mode(self):
         response = _apply_partial_cache_policy(
             Response("ok", status=200),

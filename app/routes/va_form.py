@@ -1147,6 +1147,21 @@ def renderpartial(va_sid, va_partial):
             pre_antecedent_cod=pre_antecedent_cod,
         )
     if va_partial == "vafinalasses":
+        # Saving the NQA reloads the page, so a final assessment typed before
+        # it would be lost; show where to go instead of the form.
+        if (
+            request.method == "GET"
+            and va_action == "vacode"
+            and project
+            and project.narrative_qa_enabled
+            and not get_current_payload_narrative_assessment(va_sid, current_user.user_id)
+        ):
+            return render_template(
+                "va_form_partials/_nqa_required_notice.html",
+                va_sid=va_sid,
+                va_action=va_action,
+                va_actiontype=va_actiontype,
+            )
         form1 = VaFinalAssessmentForm()
         smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
         va_initial_assess = db.session.scalar(

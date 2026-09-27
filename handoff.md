@@ -60,9 +60,6 @@ ICD-11 value by its first stem through the native `WHO_2022_VA_2026` scheme.
   disease-chapter category selectable (`digitva-ddv.6`); dev took it through
   `flask icd11 policy-import`, not a migration, so another database needs
   the same import until the draft is signed off.
-- `digitva-ddv.7`: keep or drop the fallback buckets (`vas_98` 145,
-  `vas_99` 33, others 5) that decision 5b gives the 183 newly selectable
-  ICD-11 codes; the owner first said they should report as unmapped.
 - `digitva-mdj`: WHO answered #95 only; #94 (Id10304_a relevance) unanswered.
 
 ## Approved, not started

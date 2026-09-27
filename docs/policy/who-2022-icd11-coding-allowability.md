@@ -84,9 +84,11 @@ from (`Draft: ...`).
    range or decision 5a covers (for example the inborn errors of metabolism
    `5C52`-`5C59`) is selectable the same as an annex-covered one, with sex
    and age decided by the same rules below. Selectability carries no promise
-   of a VA cause bucket: whether such a category has one today is a separate,
-   unreviewed question for the COD bucket mapping (decision 5b,
+   of a VA cause bucket; that belongs to the COD bucket mapping (decision 5b,
    `docs/policy/icd10-to-icd11-transition.md` section 6), not this policy.
+   The 183 categories rule 4 added keep their decision-5b fallback buckets
+   (145 `VAs-98`, 33 `VAs-99`, 5 others) rather than reporting as unmapped
+   (owner decision 2026-09-27, `digitva-ddv.7`).
    Rule 3's exclusions stay, whatever rule 1, 2 or 4 would otherwise select.
 
 For a combination code (`/` cluster, `&` extensions), WHO's code service

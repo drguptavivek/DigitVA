@@ -57,8 +57,10 @@ judgement) through the DORIS picker's search, with no second certificate.
 
 1. Step 1 text columns: immediate COD = first condition on Part I line 1;
    underlying (`va_antecedent_cod`) = DORIS's processed underlying cause.
-   Open detail for implementation: what Step 1 stores when DORIS rejects or
-   returns no code (ask the owner then; do not guess).
+   When DORIS rejects the certificate or returns no underlying cause, the
+   coder assigns the underlying cause in Step 1 with the DORIS picker's
+   search, and that is stored (owner, 2026-09-27); the Step 1 save needs
+   either DORIS's cause or the coder's.
 2. "Use SmartVA result" is a one-click button only when WHO's map gives a
    single expression that codeinfo accepts; otherwise the search opens
    prefilled with the first alternative.

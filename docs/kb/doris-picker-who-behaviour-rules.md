@@ -115,6 +115,15 @@ shapes are in `docs/kb/doris-certificate-ui-contract.md`.
     define an integer count of hours, not yes/no. DigitVA's field is a
     0-24 number, matching the server's existing bound.
 
+17. **DORIS's injury cluster is not a codeinfo code.** For an injury death
+    DORIS returns the external cause first (`PA60/NC72.Z`, stem `PA60`),
+    the mortality convention. WHO `codeinfo` on the local 2026-01 release
+    returns not found for that string and resolves only `NC72.Z/PA60`, whose
+    stem is the injury. Step 2's "Use DORIS result" therefore offers DORIS's
+    full code when codeinfo resolves it and otherwise its stem (`PA60`), the
+    underlying cause itself; never the reversed cluster. Observed
+    2026-09-27 in the clinical editor on a SADEMO case.
+
 ## Not observed or deliberately different
 
 - WHO's per-term "+" inside Details (one per matching term) is not

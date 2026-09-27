@@ -64,7 +64,20 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   } else if (doris.status === 'completed') {
     container.appendChild(el('p', 'small text-success mb-0', 'No problems found in the certificate.'));
   }
-  // The code DORIS suggests, or '' when it rejected, failed or did not run;
-  // hosts offer it in Step 2 as "Use DORIS result".
-  return doris.status === 'completed' && !dr.reject && dr.code ? dr.code : '';
+}
+
+// The code Step 2's "Use DORIS result" should enter, or '' if none.
+// DORIS can return a mortality cluster that WHO codeinfo does not resolve:
+// for an injury death it puts the external cause first (PA60/NC72.Z), while
+// codeinfo only accepts NC72.Z/PA60, whose stem is the injury. Offer the
+// full code when it resolves, otherwise DORIS's stem, which is the
+// underlying cause itself. resolves(code) -> Promise<boolean>.
+export function usableDorisCode(processing, resolves) {
+  var doris = processing.doris || {}; var dr = doris.result || {};
+  if (doris.status !== 'completed' || dr.reject || !dr.code) return Promise.resolve('');
+  return resolves(dr.code).then(function (ok) {
+    if (ok) return dr.code;
+    if (!dr.stemCode || dr.stemCode === dr.code) return '';
+    return resolves(dr.stemCode).then(function (stemOk) { return stemOk ? dr.stemCode : ''; });
+  });
 }

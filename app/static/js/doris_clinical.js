@@ -1,6 +1,6 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js';
-import { renderSummary } from './doris_result_summary.js';
+import { renderSummary, usableDorisCode } from './doris_result_summary.js';
 
 (function () {
   'use strict';
@@ -264,10 +264,19 @@ import { renderSummary } from './doris_result_summary.js';
       state.processing = processing;
       state.processingRevision += 1;
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
-      state.dorisCode = renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
+      renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
         return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return result.data && result.data.item ? result.data.item.title : ''; });
       } : null);
-      var useDoris = query(editor, '[data-doris-final-use]'); useDoris.hidden = !state.dorisCode; useDoris.textContent = 'Use DORIS result: ' + state.dorisCode;
+      var useDoris = query(editor, '[data-doris-final-use]'); var shownRevision = state.processingRevision;
+      state.dorisCode = ''; useDoris.hidden = true;
+      if (editor.dataset.codeinfoUrl) {
+        usableDorisCode(processing, function (code) {
+          return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return Boolean(result.ok && result.data && result.data.item); }, function () { return false; });
+        }).then(function (code) {
+          if (state.processingRevision !== shownRevision) return;
+          state.dorisCode = code; useDoris.hidden = !code; useDoris.textContent = 'Use DORIS result: ' + code;
+        });
+      }
       query(editor, '[data-doris-engine-status]').textContent = 'Status: ' + (doris.status || 'unavailable');
       query(editor, '[data-codedit-engine-status]').textContent = 'Status: ' + (codedit.status || 'unavailable');
       var dl = query(editor, '[data-doris-computed]'); dl.replaceChildren();

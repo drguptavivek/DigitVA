@@ -125,7 +125,8 @@ export function createIcd11Picker(options) {
       if (!active || active.line !== line || !active.selection) return;
       verifyAndSelect(line, active.selection, null, confirm);
     });
-    footer.append(choice, confirm); line.appendChild(footer);
+    var builderActions = document.createElement('div'); builderActions.className = 'doris-footer-actions d-flex flex-wrap gap-2';
+    footer.append(choice, builderActions, confirm); line.appendChild(footer);
     document.body.classList.add('doris-modal-lock');
     function onKeydown(event) {
       if (event.key === 'Escape') { event.preventDefault(); close(); return; }
@@ -136,7 +137,7 @@ export function createIcd11Picker(options) {
       else if (!event.shiftKey && document.activeElement === controls[controls.length - 1]) { event.preventDefault(); controls[0].focus(); }
     }
     document.addEventListener('keydown', onKeydown, true);
-    active = {line: line, input: input, onClose: onClose, onReset: onReset, onKeydown: onKeydown, backdrop: backdrop, closeButton: closeButton, resetButton: resetButton, footer: footer, choice: choice, confirm: confirm, selection: null};
+    active = {line: line, input: input, onClose: onClose, onReset: onReset, onKeydown: onKeydown, backdrop: backdrop, closeButton: closeButton, resetButton: resetButton, footer: footer, choice: choice, builderActions: builderActions, confirm: confirm, selection: null};
     input.focus();
   }
 
@@ -165,7 +166,7 @@ export function createIcd11Picker(options) {
   function stage(container, item, statusEl) {
     if (active && active.line === container) {
       active.selection = item;
-      active.choice.textContent = 'Selected: ' + (item.code || '') + (item.title ? ' — ' + item.title : '');
+      codeTitle(active.choice, item.code, item.title, 'Selected: ');
       active.confirm.disabled = false;
       showDetails(container, item);
       return true;
@@ -203,7 +204,7 @@ export function createIcd11Picker(options) {
     panel.hidden = false;
     panel.replaceChildren();
     var heading = document.createElement('h4'); heading.className = 'h6 mb-2';
-    heading.textContent = (item.code || '') + (item.title ? ' — ' + item.title : '');
+    codeTitle(heading, item.code, item.title);
     var body = document.createElement('div'); body.className = 'small'; body.textContent = 'Loading WHO code details…';
     panel.append(heading, body);
     var current = Symbol(); panel._request = current;
@@ -347,6 +348,16 @@ export function createIcd11Picker(options) {
 
   var postcoordControllers = new WeakMap();
 
+  // Render "CODE — Title" with the code in plain weight and the title
+  // emphasised, matching the search rows.
+  function codeTitle(target, code, title, prefix, suffix) {
+    target.replaceChildren();
+    if (prefix) target.append(prefix);
+    var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = code || '';
+    target.appendChild(codeNode);
+    if (title) { var titleNode = document.createElement('span'); titleNode.className = 'fw-semibold'; titleNode.textContent = title; target.append(' — ', titleNode); }
+    if (suffix) target.append(suffix);
+  }
   function optionValue(option) {
     return {
       code: text(option && option.code), title: text(option && option.title),
@@ -378,13 +389,14 @@ export function createIcd11Picker(options) {
     function closePanel() {
       requestId += 1;
       state = null;
+      if (active && active.line === container) { active.builderActions.replaceChildren(); if (!active.selection) active.choice.textContent = 'No code selected'; }
       panel.hidden = true;
       panel.replaceChildren();
       if (!preserveInputFocus && restoreTrigger && typeof restoreTrigger.focus === 'function') restoreTrigger.focus();
       restoreTrigger = null;
       preserveInputFocus = false;
     }
-    function header(title, description) {
+    function header(title, description, skipFocus) {
       panel.replaceChildren();
       var row = document.createElement('div');
       row.className = 'd-flex justify-content-between align-items-start gap-2';
@@ -405,7 +417,7 @@ export function createIcd11Picker(options) {
       row.append(heading, closeButton);
       panel.appendChild(row);
       panel.hidden = false;
-      if (!preserveInputFocus) { if (h) h.focus(); else closeButton.focus(); }
+      if (!preserveInputFocus && !skipFocus) { if (h) h.focus(); else closeButton.focus(); }
     }
     function error(message) {
       var p = document.createElement('p');
@@ -573,8 +585,14 @@ export function createIcd11Picker(options) {
     }
     function renderPostcoordination(focusOption) {
       if (!state) return;
+      // Re-rendering must not jump the scrolled panel back to the top:
+      // keep the scroll offset and only move focus on the first render.
+      var scroller = panel.closest('.doris-search-side') || panel.parentElement;
+      var scrollTop = scroller ? scroller.scrollTop : 0;
+      var rerender = Boolean(state.rendered);
+      state.rendered = true;
       panel.replaceChildren();
-      header('', '');
+      header('', '', rerender);
       var stem = document.createElement('p');
       stem.className = 'small mb-2';
       stem.textContent = 'Stem: ' + state.stem.code + ' — ' + state.stem.title;
@@ -651,13 +669,20 @@ export function createIcd11Picker(options) {
       }
       if (state.truncated) markTruncated('More WHO options exist. Refine the search if the needed choice is not shown.');
       var preview = complete();
-      var previewLabel = document.createElement('p');
-      previewLabel.className = 'small mt-3 mb-1'; previewLabel.textContent = 'Complete code preview';
-      var previewCode = document.createElement('code');
-      previewCode.className = 'd-block text-break'; previewCode.textContent = preview.code;
-      panel.append(previewLabel, previewCode);
-      var actions = document.createElement('div');
-      actions.className = 'd-flex flex-wrap gap-2 mt-2';
+      if (active && active.line === container && !active.selection) {
+        // The modal footer is the stable area; show the live expression there.
+        codeTitle(active.choice, preview.code, preview.title, 'Building: ', requiredSatisfied() ? '' : ' (required axis missing)');
+      } else {
+        var previewLabel = document.createElement('p');
+        previewLabel.className = 'small mt-3 mb-1'; previewLabel.textContent = 'Complete code preview';
+        var previewCode = document.createElement('code');
+        previewCode.className = 'd-block text-break'; previewCode.textContent = preview.code;
+        panel.append(previewLabel, previewCode);
+      }
+      var inFooter = Boolean(active && active.line === container && !active.selection);
+      var actions = inFooter ? active.builderActions : document.createElement('div');
+      actions.className = inFooter ? 'doris-footer-actions d-flex flex-wrap gap-2' : 'd-flex flex-wrap gap-2 mt-2';
+      actions.replaceChildren();
       var use = button('Use complete expression', 'btn btn-sm btn-primary');
       use.setAttribute('data-doris-use-expression', '');
       use.disabled = !requiredSatisfied();
@@ -673,17 +698,18 @@ export function createIcd11Picker(options) {
         stemButton.addEventListener('click', function () { stage(container, state.stem, statusElementFor(container)); closePanel(); });
         actions.appendChild(stemButton);
       }
-      panel.appendChild(actions);
+      if (!inFooter) panel.appendChild(actions);
       if (focusOption) {
         var optionButtons = panel.querySelectorAll('[data-doris-option-axis]');
         for (var i = 0; i < optionButtons.length; i += 1) {
           if (optionButtons[i].getAttribute('data-doris-option-axis') === focusOption.axis &&
               optionButtons[i].getAttribute('data-doris-option-code') === focusOption.code) {
-            optionButtons[i].focus();
+            optionButtons[i].focus({preventScroll: true});
             break;
           }
         }
       }
+      if (rerender && scroller) scroller.scrollTop = scrollTop;
     }
     function renderHierarchy(data) {
       header('See in hierarchy', 'Explore the selected stem. Choosing a different node requires an explicit confirmation.');

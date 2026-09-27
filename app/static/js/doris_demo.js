@@ -23,6 +23,7 @@ import { renderSummary } from './doris_result_summary.js';
   var status = document.getElementById('doris-app-status');
   var processButton = document.getElementById('doris-process');
   var finalSection = document.getElementById('doris-final-section');
+  var finalWait = document.getElementById('doris-final-wait');
   var finalLine = null;
 
   function endpoint(name) { return app.dataset[name + 'Url']; }
@@ -58,7 +59,7 @@ import { renderSummary } from './doris_result_summary.js';
   function clearResults() {
     results.hidden = true;
     results.removeAttribute('data-revision');
-    finalSection.hidden = true;
+    finalSection.hidden = true; finalWait.hidden = false;
     if (finalLine) { finalLine._conditions = []; finalLine.querySelector('[data-chips]').replaceChildren(); }
   }
   function changed(message) {
@@ -356,7 +357,7 @@ import { renderSummary } from './doris_result_summary.js';
   function renderFinalLine() {
     finalLine = makeLine('final', {Conditions: []});
     var finalTitle = finalLine.querySelector('[data-line-title]');
-    finalTitle.textContent = 'Final underlying cause of death'; finalTitle.className = 'h5 fw-bold mb-0';
+    finalTitle.textContent = 'Final underlying cause of death'; finalTitle.className = 'visually-hidden';
     ['[data-move-up]', '[data-move-down]', '[data-remove-line]', '[data-add-uncoded]'].forEach(function (selector) { finalLine.querySelector(selector).remove(); });
     finalLine.querySelector('[data-interval-control]').classList.add('d-none');
     document.getElementById('doris-final-line').appendChild(finalLine);
@@ -551,7 +552,7 @@ import { renderSummary } from './doris_result_summary.js';
     document.getElementById('codedit-issues').textContent = codeditResult.issueIds ? 'WHO issue IDs: ' + textValue(codeditResult.issueIds) : 'No issues reported.';
     document.getElementById('doris-raw-tabular').textContent = textValue(dorisResult.tabularReport);
     document.getElementById('codedit-raw-tabular').textContent = textValue(codeditResult.tabularReport);
-    results.hidden = false; finalSection.hidden = false; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
+    results.hidden = false; finalSection.hidden = false; finalWait.hidden = true; results.dataset.revision = String(revision); renderTrace(dorisResult.tabularReport);
     announce('Processing complete. Review the DORIS result.');
     results.scrollIntoView({behavior: 'smooth', block: 'start'});
   }

@@ -30,6 +30,7 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertIn('id="doris-fetal-section"', body)
         self.assertIn('id="doris-summary"', body)
         self.assertIn('id="doris-final-section"', body)
+        self.assertLess(body.index("Step 1: DORIS"), body.index("Step 2: Final underlying cause of death"))
         # DORIS order: pregnancy context, then Process, then result and final UCOD.
         self.assertLess(body.index('id="doris-maternal-section"'), body.index('id="doris-process"'))
         self.assertLess(body.index('id="doris-process"'), body.index('id="doris-final-section"'))

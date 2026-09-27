@@ -116,10 +116,11 @@ title through `codeinfo` when DORIS chose a code nobody typed), DORIS
 warnings and CoDEdit report sentences as one "Check before you decide" list,
 or "No problems found". A rejected or failed run says so in place of the
 code. Engine status, stem, URI, readable reports and the Help rule trace sit
-in a collapsed "Technical details" section. Both editors follow DORIS's
-order (Part I, Part II, fetal or infant, pregnancy context) with the Process
-button after pregnancy context, and a "Final underlying cause of death" field
-below the result. The Help field takes one verified code and is not saved;
+in a collapsed "Technical details" section. Both editors are two steps.
+"Step 1: DORIS" holds the certificate in DORIS's order (Part I, Part II,
+fetal or infant, pregnancy context), the Process button and the result.
+"Step 2: Final underlying cause of death" is always shown, says to process
+Step 1 first, and shows the final UCOD field once a result exists. The Help field takes one verified code and is not saved;
 certificate edits clear it with the results.
 
 Every certificate edit clears the browser's processor results and human UCOD

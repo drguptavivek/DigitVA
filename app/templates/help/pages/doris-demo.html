@@ -34,10 +34,12 @@
     <p id="doris-example-purpose" class="card-footer mb-0 small text-muted" hidden></p>
   </div>
 
+  <h2 class="h3 doris-step-heading">Step 1: DORIS</h2>
+
   <form id="doris-certificate" novalidate>
     <section class="card mb-3" aria-labelledby="doris-admin-heading">
       <div class="card-body">
-        <h2 class="h5" id="doris-admin-heading">About the deceased</h2>
+        <h3 class="h5" id="doris-admin-heading">About the deceased</h3>
         <div class="row g-3">
           <div class="col-sm-4">
             <label class="form-label" for="doris-sex">Sex</label>
@@ -58,7 +60,7 @@
     <section class="card mb-3" aria-labelledby="doris-part1-heading">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center gap-2">
-          <h2 class="h5 mb-0" id="doris-part1-heading">Part I: Cause of death</h2>
+          <h3 class="h5 mb-0" id="doris-part1-heading">Part I: Cause of death</h3>
           <button id="doris-add-line" class="btn btn-sm btn-outline-primary" type="button">Add line</button>
         </div>
         <div id="doris-part1-lines" class="mt-3"></div>
@@ -67,14 +69,14 @@
 
     <section class="card mb-3" aria-labelledby="doris-part2-heading">
       <div class="card-body">
-        <h2 class="h5" id="doris-part2-heading">Part II: contributing conditions</h2>
+        <h3 class="h5" id="doris-part2-heading">Part II: contributing conditions</h3>
         <div id="doris-part2-line"></div>
       </div>
     </section>
 
     <section id="doris-fetal-section" class="card mb-3" aria-labelledby="doris-fetal-heading">
       <div class="card-body">
-        <h2 class="h5" id="doris-fetal-heading">Fetal or infant details</h2>
+        <h3 class="h5" id="doris-fetal-heading">Fetal or infant details</h3>
         <p class="small text-muted">Leave unknown measurements blank. A blank value is omitted.</p>
         <div class="row g-3">
           <div class="col-sm-4"><label class="form-label" for="doris-stillborn">Stillborn</label><select id="doris-stillborn" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
@@ -90,7 +92,7 @@
 
     <section id="doris-maternal-section" class="card mb-3" aria-labelledby="doris-maternal-heading" hidden>
       <div class="card-body">
-        <h2 class="h5" id="doris-maternal-heading">Pregnancy context</h2>
+        <h3 class="h5" id="doris-maternal-heading">Pregnancy context</h3>
         <div class="row g-3">
           <div class="col-sm-4"><label class="form-label" for="doris-pregnant">Pregnant at death</label><select id="doris-pregnant" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
           <div id="doris-maternal-followups" class="col-sm-8" hidden><div class="row g-3">
@@ -109,7 +111,7 @@
 
   <section id="doris-ect-panel" class="card mb-3" hidden aria-labelledby="doris-ect-heading">
     <div class="card-body">
-      <div class="d-flex justify-content-between gap-2"><div><h2 class="h5" id="doris-ect-heading">WHO ICD-11 Coding Tool</h2><p class="small text-muted">Search, inspect details and postcoordinate a complete expression for the selected certificate line.</p></div><button id="doris-ect-close" type="button" class="btn-close" aria-label="Close WHO Coding Tool"></button></div>
+      <div class="d-flex justify-content-between gap-2"><div><h3 class="h5" id="doris-ect-heading">WHO ICD-11 Coding Tool</h3><p class="small text-muted">Search, inspect details and postcoordinate a complete expression for the selected certificate line.</p></div><button id="doris-ect-close" type="button" class="btn-close" aria-label="Close WHO Coding Tool"></button></div>
       <input id="doris-ect-query" type="text" class="ctw-input form-control" autocomplete="off" data-ctw-ino="doris-help">
       <div class="ctw-window" data-ctw-ino="doris-help"></div>
       <p id="doris-ect-status" class="small mt-2" role="status" aria-live="polite"></p>
@@ -117,33 +119,37 @@
   </section>
 
   <section id="doris-results" aria-labelledby="doris-results-heading" hidden>
-    <h2 class="h4" id="doris-results-heading">DORIS result</h2>
+    <h3 class="h4" id="doris-results-heading">DORIS result</h3>
     <div class="card mb-3"><div class="card-body doris-summary" id="doris-summary"></div></div>
     <details class="doris-technical"><summary>Technical details</summary>
     <div class="row g-3 mt-1">
-      <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h3 class="h5">DORIS</h3><p id="doris-engine-status" class="engine-status"></p><dl id="doris-computed" class="row"></dl><div id="doris-messages"></div><details><summary>Readable report</summary><pre id="doris-report" class="report-text"></pre></details></div></div></div>
-      <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h3 class="h5">CoDEdit</h3><p id="codedit-engine-status" class="engine-status"></p><p id="codedit-issues"></p><details><summary>Readable report</summary><pre id="codedit-report" class="report-text"></pre></details></div></div></div>
+      <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h4 class="h5">DORIS</h4><p id="doris-engine-status" class="engine-status"></p><dl id="doris-computed" class="row"></dl><div id="doris-messages"></div><details><summary>Readable report</summary><pre id="doris-report" class="report-text"></pre></details></div></div></div>
+      <div class="col-lg-6"><div class="card h-100"><div class="card-body"><h4 class="h5">CoDEdit</h4><p id="codedit-engine-status" class="engine-status"></p><p id="codedit-issues"></p><details><summary>Readable report</summary><pre id="codedit-report" class="report-text"></pre></details></div></div></div>
     </div>
     <div class="card mt-3"><div class="card-body">
-      <h3 class="h5">Versioned DORIS rule trace</h3>
+      <h4 class="h5">Versioned DORIS rule trace</h4>
       <p id="doris-trace-status" class="small text-muted"></p>
       <div class="table-responsive"><table class="table table-sm" id="doris-rule-table"><thead></thead><tbody></tbody></table></div>
-      <div class="row g-3"><div class="col-lg-6"><h4 class="h6">Rule flow</h4><div id="doris-rule-flow" class="mermaid-output"></div></div><div class="col-lg-6"><h4 class="h6">Rule sequence</h4><div id="doris-rule-sequence" class="mermaid-output"></div></div></div>
-      <details class="mt-3"><summary>Raw processor reports</summary><h4 class="h6 mt-2">DORIS tabular report</h4><pre id="doris-raw-tabular" class="report-text"></pre><h4 class="h6">CoDEdit tabular report</h4><pre id="codedit-raw-tabular" class="report-text"></pre></details>
+      <div class="row g-3"><div class="col-lg-6"><h5 class="h6">Rule flow</h5><div id="doris-rule-flow" class="mermaid-output"></div></div><div class="col-lg-6"><h5 class="h6">Rule sequence</h5><div id="doris-rule-sequence" class="mermaid-output"></div></div></div>
+      <details class="mt-3"><summary>Raw processor reports</summary><h5 class="h6 mt-2">DORIS tabular report</h5><pre id="doris-raw-tabular" class="report-text"></pre><h5 class="h6">CoDEdit tabular report</h5><pre id="codedit-raw-tabular" class="report-text"></pre></details>
     </div></div>
     </details>
   </section>
 
-  <section id="doris-final-section" class="card mt-3 mb-3" aria-label="Final underlying cause of death" hidden>
-    <div class="card-body">
-      <p class="small text-muted">Your decision, which may differ from DORIS. This training page does not save it.</p>
-      <div id="doris-final-line"></div>
+  <section class="mb-3" aria-labelledby="doris-step2-heading">
+    <h2 class="h3 doris-step-heading" id="doris-step2-heading">Step 2: Final underlying cause of death</h2>
+    <p id="doris-final-wait" class="text-muted">Process the certificate in Step 1 first.</p>
+    <div id="doris-final-section" class="card" hidden>
+      <div class="card-body">
+        <p class="small text-muted">Your decision, which may differ from DORIS. This training page does not save it.</p>
+        <div id="doris-final-line"></div>
+      </div>
     </div>
   </section>
 
   <template id="doris-line-template">
     <div class="doris-line card card-body mb-2" data-line>
-      <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h3 class="h6 mb-0" data-line-title></h3><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-move-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-move-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-remove-line>Remove line</button></div></div>
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h4 class="h6 mb-0" data-line-title></h4><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-move-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-move-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-remove-line>Remove line</button></div></div>
       <div data-chips class="doris-chips mb-2" aria-live="polite"></div>
       <div class="input-group"><input class="form-control" data-search autocomplete="off" maxlength="80" placeholder="Search by term or ICD-11 code" aria-label="Search ICD-11 conditions"><button class="btn btn-outline-primary" type="button" data-search-button>Search</button><button class="btn btn-outline-secondary" type="button" data-add-uncoded>Add as uncoded text</button></div>
       <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mt-1 mb-0" data-search-status role="status"></p><div class="list-group mt-1" data-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>

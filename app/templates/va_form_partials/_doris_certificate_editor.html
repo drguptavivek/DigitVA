@@ -22,21 +22,22 @@
   </div>
   <div class="card-body">
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
+    <h4 class="h5 doris-step-heading">Step 1: DORIS</h4>
     <div class="row g-3 mb-3">
       <div class="col-sm-6"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-6" data-doris-age-control><label class="form-label" for="{{ _doris_id }}-age">Estimated age</label><div class="d-flex gap-2"><input id="{{ _doris_id }}-age" class="form-control" inputmode="decimal" maxlength="24" placeholder="Age" data-doris-interval-value><select class="form-select" aria-label="Age unit" data-doris-interval-unit></select></div><p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p></div>
     </div>
 
     <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-      <h4 class="h6 mb-0">Part I: Cause of death</h4>
+      <h5 class="h6 mb-0">Part I: Cause of death</h5>
       <button type="button" class="btn btn-sm btn-outline-primary" data-doris-add-line>Add line</button>
     </div>
     <div data-doris-part1></div>
 
-    <h4 class="h6 mt-4">Part II: other significant conditions</h4>
+    <h5 class="h6 mt-4">Part II: other significant conditions</h5>
     <div data-doris-part2></div>
 
-    <div class="border rounded p-3 mb-3 mt-4" data-doris-fetal><h4 class="h6">Fetal or infant details</h4><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
+    <div class="border rounded p-3 mb-3 mt-4" data-doris-fetal><h5 class="h6">Fetal or infant details</h5><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
       <div class="col-sm-4"><label class="form-label small">Stillborn</label><select class="form-select" data-doris-stillborn><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4"><label class="form-label small">If death within 24 h, hours survived</label><input type="number" min="0" max="24" class="form-control" data-doris-within24></div>
@@ -45,7 +46,7 @@
       <div class="col-sm-4"><label class="form-label small">Mother's age</label><input type="number" min="10" max="80" class="form-control" data-doris-mother-age></div>
       <div class="col-12"><label class="form-label small">Maternal condition affecting fetus or infant</label><textarea class="form-control" rows="2" maxlength="500" data-doris-perinatal></textarea></div>
     </div></div>
-    <div class="border rounded p-3 mb-3" data-doris-maternal hidden><h4 class="h6">Pregnancy context</h4><div class="row g-2">
+    <div class="border rounded p-3 mb-3" data-doris-maternal hidden><h5 class="h6">Pregnancy context</h5><div class="row g-2">
       <div class="col-sm-4"><label class="form-label small">Pregnant at death</label><select class="form-select" data-doris-pregnant><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4" data-doris-maternal-followup hidden><label class="form-label small">Time from pregnancy</label><select class="form-select" data-doris-pregnancy-time><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4" data-doris-maternal-followup hidden><label class="form-label small">Pregnancy contributed</label><select class="form-select" data-doris-pregnancy-contribute><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
@@ -60,15 +61,17 @@
       <div class="border rounded p-3 mb-2 doris-summary" data-doris-summary></div>
       <details class="doris-technical"><summary>Technical details</summary>
       <div class="row g-3 mt-1">
-        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">DORIS</h4><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
-        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h4 class="h6">CoDEdit</h4><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
+        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">DORIS</h5><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
+        <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">CoDEdit</h5><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
       </div>
       </details>
     </div>
 
-    <div class="card bg-light border-0 mt-4" data-doris-final-panel hidden>
+    <h4 class="h5 doris-step-heading" id="{{ _doris_id }}-step2-heading">Step 2: Final underlying cause of death <span class="text-danger">*</span></h4>
+    <p class="text-muted small" data-doris-final-wait>Process the certificate in Step 1 first.</p>
+    <div class="card bg-light border-0" data-doris-final-panel hidden>
       <div class="card-body">
-        <label class="form-label fw-bold fs-5" for="{{ _doris_id }}-final-search">Final underlying cause of death <span class="text-danger">*</span></label>
+        <label class="visually-hidden" for="{{ _doris_id }}-final-search">Final underlying cause of death</label>
         <p class="small text-muted">This is your clinical decision. DORIS does not fill or lock it.</p>
         <div class="input-group"><input id="{{ _doris_id }}-final-search" class="form-control" maxlength="80" autocomplete="off" data-doris-final-search placeholder="Search ICD-11 by term or complete code"><button type="button" class="btn btn-outline-primary" data-doris-final-search-button>Search</button></div>
         <div class="list-group mt-1" data-doris-final-results></div>

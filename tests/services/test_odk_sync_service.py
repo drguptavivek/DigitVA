@@ -29,7 +29,6 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
     _attach_all_odk_comments,
     _enrich_submission_payload_for_storage,
-    _release_active_allocations_after_sync,
     _mark_form_sync_issues,
     _upsert_form_submissions,
     va_data_sync_odkcentral,
@@ -545,128 +544,6 @@ class OdkSyncServiceTests(BaseTestCase):
             original_active_id,
         )
 
-    def test_release_allocations_after_sync_preserves_smartva_pending(self):
-        sid = f"uuid:sync-release-pending-{self.FORM_ID.lower()}"
-        db.session.add(
-            VaSubmissions(
-                va_sid=sid,
-                va_form_id=self.FORM_ID,
-                va_submission_date=datetime.now(timezone.utc),
-                va_odk_updatedat=datetime.now(timezone.utc),
-                va_data_collector="Collector",
-                va_odk_reviewstate=None,
-                va_consent="yes",
-                va_narration_language="English",
-                va_deceased_age=42,
-                va_deceased_gender="male",
-                va_uniqueid_masked="masked",
-                va_summary=[],
-                va_catcount={},
-                va_category_list=[],
-            )
-        )
-        db.session.flush()
-        set_submission_workflow_state(
-            sid,
-            WORKFLOW_SMARTVA_PENDING,
-            reason="test_setup",
-            by_role="vasystem",
-        )
-        db.session.add(
-            VaAllocations(
-                va_sid=sid,
-                va_allocated_to=self.base_coder_user.user_id,
-                va_allocation_for=VaAllocation.coding,
-                va_allocation_status=VaStatuses.active,
-            )
-        )
-        db.session.add(
-            VaInitialAssessments(
-                va_sid=sid,
-                va_iniassess_by=self.base_coder_user.user_id,
-                va_immediate_cod="R99",
-                va_antecedent_cod="R99",
-                va_iniassess_status=VaStatuses.active,
-            )
-        )
-        db.session.commit()
-
-        _release_active_allocations_after_sync()
-
-        workflow_state = db.session.scalar(
-            db.select(VaSubmissionWorkflow.workflow_state).where(
-                VaSubmissionWorkflow.va_sid == sid
-            )
-        )
-        allocation_status = db.session.scalar(
-            db.select(VaAllocations.va_allocation_status).where(
-                VaAllocations.va_sid == sid
-            )
-        )
-        initial_status = db.session.scalar(
-            db.select(VaInitialAssessments.va_iniassess_status).where(
-                VaInitialAssessments.va_sid == sid
-            )
-        )
-        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
-        self.assertEqual(allocation_status, VaStatuses.deactive)
-        self.assertEqual(initial_status, VaStatuses.deactive)
-
-    def test_release_allocations_after_sync_resets_incomplete_first_pass_state(self):
-        sid = f"uuid:sync-release-coding-{self.FORM_ID.lower()}"
-        db.session.add(
-            VaSubmissions(
-                va_sid=sid,
-                va_form_id=self.FORM_ID,
-                va_submission_date=datetime.now(timezone.utc),
-                va_odk_updatedat=datetime.now(timezone.utc),
-                va_data_collector="Collector",
-                va_odk_reviewstate=None,
-                va_consent="yes",
-                va_narration_language="English",
-                va_deceased_age=42,
-                va_deceased_gender="male",
-                va_uniqueid_masked="masked",
-                va_summary=[],
-                va_catcount={},
-                va_category_list=[],
-            )
-        )
-        db.session.flush()
-        set_submission_workflow_state(
-            sid,
-            WORKFLOW_CODING_IN_PROGRESS,
-            reason="test_setup",
-            by_role="vasystem",
-        )
-        db.session.add(
-            VaAllocations(
-                va_sid=sid,
-                va_allocated_to=self.base_coder_user.user_id,
-                va_allocation_for=VaAllocation.coding,
-                va_allocation_status=VaStatuses.active,
-            )
-        )
-        db.session.add(
-            VaInitialAssessments(
-                va_sid=sid,
-                va_iniassess_by=self.base_coder_user.user_id,
-                va_immediate_cod="R99",
-                va_antecedent_cod="R99",
-                va_iniassess_status=VaStatuses.active,
-            )
-        )
-        db.session.commit()
-
-        _release_active_allocations_after_sync()
-
-        workflow_state = db.session.scalar(
-            db.select(VaSubmissionWorkflow.workflow_state).where(
-                VaSubmissionWorkflow.va_sid == sid
-            )
-        )
-        self.assertEqual(workflow_state, WORKFLOW_READY_FOR_CODING)
-
     def test_mark_form_sync_issues_flags_local_records_missing_in_odk(self):
         sid = f"uuid:sync-orphan-{self.FORM_ID.lower()}"
         db.session.add(
@@ -979,10 +856,6 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"
                 ".db.session.scalars",
                 return_value=Mock(all=lambda: []),
-            ),
-            patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
-                "._release_active_allocations_after_sync",
             ),
             patch(
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"

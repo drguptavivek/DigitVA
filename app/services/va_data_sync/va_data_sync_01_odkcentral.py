@@ -28,8 +28,6 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.workflow.definition import (
     PROTECTED_WORKFLOW_STATES,
-    WORKFLOW_CODER_STEP1_SAVED,
-    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -43,7 +41,6 @@ from app.services.workflow.state_store import (
 )
 from app.services.workflow.transitions import (
     mark_upstream_change_detected,
-    reset_incomplete_first_pass,
     route_synced_submission,
     system_actor,
 )
@@ -56,7 +53,6 @@ from app.services.submission_payload_version_service import (
 )
 from app.models import (
     VaAllocations,
-    VaAllocation,
     VaCoderReview,
     VaDataManagerReview,
     VaFinalAssessments,
@@ -1082,62 +1078,6 @@ def _finalize_enriched_submissions_for_form(
     return finalized
 
 
-def _release_active_allocations_after_sync() -> None:
-    """Release active allocations after sync without bypassing the workflow layer."""
-    active_allocations = db.session.scalars(
-        sa.select(VaAllocations).where(
-            VaAllocations.va_allocation_status == VaStatuses.active
-        )
-    ).all()
-
-    for record in active_allocations:
-        record.va_allocation_status = VaStatuses.deactive
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=record.va_sid,
-                va_audit_entityid=record.va_allocation_id,
-                va_audit_byrole="vasystem",
-                va_audit_operation="d",
-                va_audit_action="va_allocation_deletion_during_datasync",
-            )
-        )
-
-        if record.va_allocation_for != VaAllocation.coding:
-            continue
-
-        va_initialassess = db.session.scalar(
-            sa.select(VaInitialAssessments).where(
-                VaInitialAssessments.va_sid == record.va_sid,
-                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-            )
-        )
-        if va_initialassess:
-            va_initialassess.va_iniassess_status = VaStatuses.deactive
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid=va_initialassess.va_sid,
-                    va_audit_entityid=va_initialassess.va_iniassess_id,
-                    va_audit_byrole="vasystem",
-                    va_audit_operation="d",
-                    va_audit_action="va_partial_iniasses_deletion_during_datasync",
-                )
-            )
-
-        current_state = get_submission_workflow_state(record.va_sid)
-        if current_state in {
-            None,
-            WORKFLOW_CODING_IN_PROGRESS,
-            WORKFLOW_CODER_STEP1_SAVED,
-        }:
-            reset_incomplete_first_pass(
-                record.va_sid,
-                reason="sync_reset_after_submission_update",
-                actor=system_actor(),
-            )
-
-    db.session.commit()
-
-
 def va_data_sync_odkcentral(
     log_progress=None,
     attachment_sync_dispatcher=None,
@@ -1667,10 +1607,12 @@ def va_data_sync_odkcentral(
                 _progress(f"[{form_id}] FAILED: {form_err}")
                 failed_form_ids.append(form_id)
 
-        # ── Release allocations (global — runs after all forms) ─────────────────
-
-        _progress("Releasing active coding allocations…")
-        _release_active_allocations_after_sync()
+        # No global allocation release here: a case whose ODK data changed has
+        # its own allocation released in _upsert_form_submissions (unprotected
+        # states) or goes to the protected upstream-change path, and abandoned
+        # allocations are released by the scheduled stale-allocation cleanup.
+        # Releasing every active allocation ended coders' and reviewers' live
+        # sessions on every sync, even when nothing had changed.
 
         phase1_msg = (
             f"Per-form sync loop complete — added: {va_submissions_added}, "

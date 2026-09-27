@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-09-27
 ---
 
 # ODK Sync Policy
@@ -411,6 +411,20 @@ These states allow normal ODK sync behavior (consent re-evaluated on each update
   and re-routes to `smartva_pending`; coder may re-exclude after review
 - `not_codeable_by_data_manager` — ODK data change deactivates the DM exclusion
   artifact and re-routes to `smartva_pending`; DM may re-exclude after review
+
+### Allocations During Sync
+
+A sync releases an allocation only for a case whose ODK payload changed in
+that run and whose state is non-protected: the case's own coding allocation
+is released with its first-pass artifacts
+(`va_allocation_released_during_datasync`). A protected case keeps its
+allocations and goes through the upstream-change path. A case whose payload
+did not change keeps any coder or reviewer session untouched, including a
+metadata-only refresh. Abandoned allocations are released only by the
+scheduled stale-allocation cleanup. Until 2026-09-27 every sync also
+released every active allocation in the system
+(`va_allocation_deletion_during_datasync`); that global release was removed
+because it ended live sessions on unchanged cases.
 
 ## Sync Operations
 

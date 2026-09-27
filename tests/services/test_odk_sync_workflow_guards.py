@@ -13,7 +13,10 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    VaAllocation,
+    VaAllocations,
     VaFinalAssessments,
+    VaInitialAssessments,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -32,6 +35,7 @@ from app.models.va_submission_payload_versions import (
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -211,7 +215,75 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             )
         )
 
+    def _start_coding(self, va_sid: str):
+        """A coder mid-case: active coding allocation and a saved first pass."""
+        set_submission_workflow_state(
+            va_sid, WORKFLOW_CODING_IN_PROGRESS, reason="test", by_role="test"
+        )
+        allocation = VaAllocations(
+            va_sid=va_sid,
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+        )
+        initial = VaInitialAssessments(
+            va_sid=va_sid,
+            va_iniassess_by=self.base_coder_user.user_id,
+            va_immediate_cod="R99",
+            va_antecedent_cod="R99",
+            va_iniassess_status=VaStatuses.active,
+        )
+        db.session.add_all([allocation, initial])
+        db.session.flush()
+        return allocation, initial
+
     # ── tests ──────────────────────────────────────────────────────────────────
+
+    def test_sync_without_payload_change_keeps_coder_session(self):
+        # A sync that finds nothing new must not end a coder's live session;
+        # the old global release after every sync did.
+        sub = self._make_submission("uuid:guard-unchanged")
+        record = self._updated_record("uuid:guard-unchanged")
+        ensure_active_payload_version(
+            sub,
+            payload_data=record,
+            source_updated_at=sub.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        allocation, initial = self._start_coding(sub.va_sid)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        _upsert_form_submissions(va_form, [record], set(), {}, enrich_payloads=False)
+        db.session.flush()
+
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+        self.assertEqual(initial.va_iniassess_status, VaStatuses.active)
+        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODING_IN_PROGRESS)
+
+    def test_sync_with_payload_change_releases_that_coder_session(self):
+        # The per-case release on changed data replaces the global one.
+        sub = self._make_submission("uuid:guard-changed-coding")
+        allocation, initial = self._start_coding(sub.va_sid)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        _upsert_form_submissions(
+            va_form, [self._updated_record("uuid:guard-changed-coding")], set(), {}
+        )
+        db.session.flush()
+
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)
+        self.assertEqual(initial.va_iniassess_status, VaStatuses.deactive)
+        self.assertNotEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODING_IN_PROGRESS)
+        self.assertIsNone(
+            db.session.scalar(
+                sa.select(VaSubmissionsAuditlog.va_audit_id).where(
+                    VaSubmissionsAuditlog.va_sid == sub.va_sid,
+                    VaSubmissionsAuditlog.va_audit_action == "va_allocation_deletion_during_datasync",
+                )
+            )
+        )
 
     def test_coder_finalized_submission_is_not_destroyed_on_odk_data_change(self):
         """VaFinalAssessments must survive an ODK data change for a finalized submission."""

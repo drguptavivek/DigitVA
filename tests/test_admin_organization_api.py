@@ -138,6 +138,23 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(perm.status_code, 200)
         self.assertTrue(perm.get_json()["level_cadre"]["can_code_va_form"])
 
+        reactivated = self.client.post(self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": True}, headers=headers)
+        self.assertEqual(reactivated.status_code, 200)
+        smo_cadre_id = next(c["cadre_id"] for c in summary["cadres"] if c["cadre_code"] == "SMO")
+        worker = self.client.post(
+            self._url("/workers"),
+            json={"org_unit_id": chc["org_unit_id"], "cadre_id": smo_cadre_id, "worker_name": "Dr Test"},
+            headers=headers,
+        )
+        self.assertEqual(worker.status_code, 201, worker.get_json())
+        blocked = self.client.put(
+            self._url("/level-cadres"),
+            json={"org_level_id": levels["chc"]["org_level_id"], "cadre_id": smo_cadre_id, "can_fill_va_form": False, "can_code_va_form": True, "is_active": False},
+            headers=headers,
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("first", blocked.get_json()["error"])
+
     def test_export_and_import_endpoints(self):
         self._login(str(self.base_admin_id))
         headers = self._csrf_headers()

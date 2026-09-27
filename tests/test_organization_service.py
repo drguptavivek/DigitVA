@@ -126,6 +126,68 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertTrue(perm.can_fill_va_form)
         self.assertFalse(perm.can_code_va_form)
 
+    def test_level_cadre_cannot_be_removed_while_active_workers_hold_it(self):
+        d, c, p, s = self._seed_tree()
+        cadres = {cd.cadre_code: cd for cd in org.list_cadres(self.PROJECT)}
+        worker = org.create_worker(self.PROJECT, org_unit_id=s.org_unit_id, cadre_id=cadres["CHO"].cadre_id, worker_code="W01", worker_name="A CHO")
+        perm = org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id)
+        self.assertIsNotNone(perm)
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.upsert_level_cadre(
+                self.PROJECT, org_level_id=s.org_level_id, cadre_id=cadres["CHO"].cadre_id,
+                can_fill_va_form=perm.can_fill_va_form, can_code_va_form=perm.can_code_va_form, is_active=False,
+            )
+        self.assertIn("first", str(ctx.exception))
+        org.update_worker(self.PROJECT, worker.worker_id, is_active=False)
+        org.upsert_level_cadre(
+            self.PROJECT, org_level_id=s.org_level_id, cadre_id=cadres["CHO"].cadre_id,
+            can_fill_va_form=perm.can_fill_va_form, can_code_va_form=perm.can_code_va_form, is_active=False,
+        )
+        self.assertIsNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
+
+    def test_worker_cannot_be_created_or_moved_onto_inactive_cadre(self):
+        d, c, p, s = self._seed_tree()
+        cadres = {cd.cadre_code: cd for cd in org.list_cadres(self.PROJECT)}
+        w1 = org.create_worker(self.PROJECT, org_unit_id=s.org_unit_id, cadre_id=cadres["CHO"].cadre_id, worker_code="W01", worker_name="A CHO")
+        w2 = org.create_worker(self.PROJECT, org_unit_id=s.org_unit_id, cadre_id=cadres["MPW"].cadre_id, worker_code="W02", worker_name="An MPW")
+        org.update_cadre(self.PROJECT, cadres["CHO"].cadre_id, is_active=False)
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.create_worker(self.PROJECT, org_unit_id=s.org_unit_id, cadre_id=cadres["CHO"].cadre_id, worker_code="W03", worker_name="Another CHO")
+        self.assertIn("inactive", str(ctx.exception))
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.update_worker(self.PROJECT, w2.worker_id, cadre_id=cadres["CHO"].cadre_id)
+        self.assertIn("inactive", str(ctx.exception))
+        org.update_worker(self.PROJECT, w1.worker_id, worker_name="Renamed")
+        listed = {w["worker_id"]: w for w in org.list_workers(self.PROJECT)}
+        self.assertEqual(listed[str(w1.worker_id)]["worker_name"], "Renamed")
+        self.assertEqual(listed[str(w1.worker_id)]["cadre_code"], "CHO")
+
+    def test_import_retires_level_cadre_and_its_workers_in_one_file(self):
+        # Level-cadre deactivations are applied after workers, so one file
+        # can retire a level-cadre and deactivate the workers holding it.
+        d, c, p, s = self._seed_tree()
+        cadres = {cd.cadre_code: cd for cd in org.list_cadres(self.PROJECT)}
+        worker = org.create_worker(self.PROJECT, org_unit_id=s.org_unit_id, cadre_id=cadres["CHO"].cadre_id, worker_code="W01", worker_name="A CHO")
+        sheets = org.export_organization_rows(self.PROJECT)
+        self.assertIn(("subcentre", "CHO"), {(r["level_code"], r["cadre_code"]) for r in sheets["level_cadres"]})
+        sheets["level_cadres"] = [r for r in sheets["level_cadres"] if (r["level_code"], r["cadre_code"]) != ("subcentre", "CHO")]
+
+        # The worker still active: the guard refuses the whole import.
+        plan = org.import_organization(self.PROJECT, sheets, dry_run=False, deactivate_missing=True)
+        self.assertTrue(any("first" in e for e in plan.errors), plan.errors)
+        self.assertFalse(plan.applied)
+        self.assertIsNotNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
+
+        for row in sheets["workers"]:
+            if row["worker_code"] == "W01":
+                row["is_active"] = False
+        plan = org.import_organization(self.PROJECT, sheets, dry_run=False, deactivate_missing=True)
+        self.assertEqual(plan.errors, [])
+        self.assertTrue(plan.applied)
+        self.assertIn("subcentre/CHO", plan.deactivates["level_cadres"])
+        self.assertIsNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
+        self.assertFalse(db.session.get(type(worker), worker.worker_id).is_active)
+
     def test_level_cannot_deactivate_while_units_exist(self):
         self._seed_tree()
         lv = self._levels()

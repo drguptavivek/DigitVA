@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-09-27
 ---
 
 # Organization Model Policy
@@ -102,6 +102,12 @@ and keep working exactly as they did.
 - **Workers** (`mas_org_unit_worker`) are people attached to a unit with a
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.
+- A cadre cannot be removed from a level (its grid row deactivated) while
+  active workers of that cadre sit at units of that level; deactivate or move
+  them first. The import applies grid deactivations after workers, so one
+  file may do both. A deactivated cadre takes no new worker and no worker
+  moved onto it; workers already holding it keep it and stay editable
+  (`digitva-zu3`, 2026-09-27).
 
 ## Project structure mode
 
@@ -256,7 +262,9 @@ afterwards.
 - **Exclusions**, so a half-mapped import is safe:
   - the unit picker API (`/api/v1/organization/<project_id>/units`, used by
     web intake) never returns an unplaced unit or anything below it;
-  - web intake readiness warns (`org_unplaced`) while any exist.
+  - web intake readiness warns (`org_unplaced`) while any exist;
+  - web intake refuses to submit a draft whose unit is unplaced or below one
+    (409, `digitva-8ii`), by the same predicate as the picker.
 - **Not excluded:** routing and grants. Routing resolves a unit by code and
   level, so a synced submission naming an unplaced facility's code routes to
   it. Grant scope is by `path`, so an unplaced unit is reached only by

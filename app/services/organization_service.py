@@ -1154,6 +1154,22 @@ def upsert_level_cadre(
         db.session.add(row)
     row.can_fill_va_form = bool(can_fill_va_form)
     row.can_code_va_form = bool(can_code_va_form)
+    if not is_active:
+        active_workers = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(MasOrgUnitWorker)
+            .join(MasOrgUnit, MasOrgUnit.org_unit_id == MasOrgUnitWorker.org_unit_id)
+            .where(
+                MasOrgUnit.org_level_id == level.org_level_id,
+                MasOrgUnitWorker.cadre_id == cadre.cadre_id,
+                MasOrgUnitWorker.is_active.is_(True),
+            )
+        )
+        if active_workers:
+            raise OrganizationError(
+                f"Deactivate or move the {active_workers} active {cadre.cadre_code!r} worker(s) "
+                f"at level {level.level_code!r} first."
+            )
     row.is_active = bool(is_active)
     db.session.flush()
     return row
@@ -1201,6 +1217,8 @@ def _get_worker(project_id: str, worker_id: object) -> MasOrgUnitWorker:
 
 
 def _require_cadre_at_unit_level(unit: MasOrgUnit, cadre: MasCadre) -> None:
+    if not cadre.is_active:
+        raise OrganizationError(f"Cadre {cadre.cadre_code!r} is inactive.")
     if get_level_cadre_permission(unit.org_level_id, cadre.cadre_id) is None:
         raise OrganizationError(
             f"Cadre {cadre.cadre_code!r} is not defined at level {unit.level.level_code!r}; "
@@ -1577,11 +1595,21 @@ def import_organization(project_id: str, sheets: dict[str, list[dict]], *, dry_r
     try:
         _import_levels(project_id, sheets.get("levels"), plan, deactivate_missing)
         _import_cadres(project_id, sheets.get("cadres"), plan, deactivate_missing)
-        _import_level_cadres(project_id, sheets.get("level_cadres"), plan, deactivate_missing)
+        # Level-cadre deactivations wait until workers are imported, so a
+        # file that retires a level-cadre and deactivates its workers
+        # together is not refused by the active-worker guard.
+        deferred_level_cadres = _import_level_cadres(
+            project_id, sheets.get("level_cadres"), plan, deactivate_missing
+        )
         _import_units(project_id, sheets.get("units"), plan, deactivate_missing)
         if sheets.get("units") is not None:
             plan.unplaced = unplaced_unit_codes(project_id)
         _import_workers(project_id, sheets.get("workers"), plan, deactivate_missing)
+        for label, kwargs in deferred_level_cadres:
+            try:
+                upsert_level_cadre(project_id, **kwargs)
+            except OrganizationError as exc:
+                raise OrganizationError(f"{label}: {exc}") from exc
     except OrganizationError as exc:
         plan.errors.append(str(exc))
     if plan.errors or dry_run:
@@ -1661,8 +1689,11 @@ def _import_cadres(project_id, rows, plan, deactivate_missing):
 
 
 def _import_level_cadres(project_id, rows, plan, deactivate_missing):
+    """Apply level-cadre rows; return the deactivations as (label, kwargs)
+    for the caller to apply after workers."""
+    deferred = []
     if rows is None:
-        return
+        return deferred
     levels = {lv.level_code: lv for lv in list_levels(project_id, include_inactive=True)}
     cadres = {c.cadre_code: c for c in list_cadres(project_id, include_inactive=True)}
     existing = {(lc["level_code"], lc["cadre_code"]): lc for lc in list_level_cadres(project_id)}
@@ -1679,29 +1710,35 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                 raise OrganizationError(f"unknown cadre {cadre_code!r}")
             key = (level_code, cadre_code)
             seen.add(key)
-            upsert_level_cadre(
-                project_id,
+            kwargs = dict(
                 org_level_id=level.org_level_id,
                 cadre_id=cadre.cadre_id,
                 can_fill_va_form=_to_bool(row.get("can_fill_va_form")),
                 can_code_va_form=_to_bool(row.get("can_code_va_form")),
                 is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else True,
             )
+            if kwargs["is_active"]:
+                upsert_level_cadre(project_id, **kwargs)
+            else:
+                deferred.append((f"level_cadres row {i}", kwargs))
             (plan.updates if key in existing else plan.creates)["level_cadres"].append(f"{level_code}/{cadre_code}")
         except OrganizationError as exc:
             raise OrganizationError(f"level_cadres row {i}: {exc}") from exc
     if deactivate_missing:
         for key, lc in existing.items():
             if key not in seen and lc["is_active"]:
-                upsert_level_cadre(
-                    project_id,
-                    org_level_id=lc["org_level_id"],
-                    cadre_id=lc["cadre_id"],
-                    can_fill_va_form=lc["can_fill_va_form"],
-                    can_code_va_form=lc["can_code_va_form"],
-                    is_active=False,
-                )
+                deferred.append((
+                    f"level_cadres {key[0]}/{key[1]}",
+                    dict(
+                        org_level_id=lc["org_level_id"],
+                        cadre_id=lc["cadre_id"],
+                        can_fill_va_form=lc["can_fill_va_form"],
+                        can_code_va_form=lc["can_code_va_form"],
+                        is_active=False,
+                    ),
+                ))
                 plan.deactivates["level_cadres"].append(f"{key[0]}/{key[1]}")
+    return deferred
 
 
 def _import_units(project_id, rows, plan, deactivate_missing):

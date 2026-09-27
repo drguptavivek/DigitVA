@@ -1066,7 +1066,7 @@
     document.querySelectorAll('.perm-remove').forEach(function (btn) { btn.addEventListener('click', function () {
       var lc = lookup[btn.dataset.l + '|' + btn.dataset.c];
       var cadre = findBy(cadres, 'cadre_id', btn.dataset.c), level = findBy(levels, 'org_level_id', btn.dataset.l);
-      askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; existing ones stay.', function () {
+      askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; removal only succeeds once no active ' + cadre.cadre_code + ' worker remains at this level.', function () {
         save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, false);
       });
     }); });

@@ -138,8 +138,10 @@ import { mount as mountInterval } from './doris_interval.js';
       var header = document.createElement('div');
       header.className = 'doris-search-result-header';
       var heading = document.createElement('button');
-      heading.type = 'button'; heading.className = 'doris-search-title doris-search-title-button fw-semibold';
-      heading.textContent = (item.code || 'No code') + ' — ' + (item.title || 'Untitled');
+      heading.type = 'button'; heading.className = 'doris-search-title doris-search-title-button';
+      var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || 'No code';
+      var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || 'Untitled';
+      heading.append(codeNode, ' — ', titleNode);
       heading.addEventListener('click', function () {
         if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
           picker.showDetails(line, item);

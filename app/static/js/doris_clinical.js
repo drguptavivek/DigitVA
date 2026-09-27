@@ -141,7 +141,10 @@ import { mount as mountInterval } from './doris_interval.js';
           var row = document.createElement('div'); row.className = 'list-group-item doris-search-result';
           var main = document.createElement('div'); main.className = 'doris-search-result-main';
           var header = document.createElement('div'); header.className = 'doris-search-result-header';
-          var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button fw-semibold'; title.textContent = (item.code || '') + ' — ' + (item.title || '');
+          var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button';
+      var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || '';
+      var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || '';
+      title.append(codeNode, ' — ', titleNode);
           title.addEventListener('click', function () {
             if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
               if (!finalMode) picker.showDetails(container, item);

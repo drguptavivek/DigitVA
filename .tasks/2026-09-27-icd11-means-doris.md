@@ -43,9 +43,9 @@ judgement) through the DORIS picker's search, with no second certificate.
    projects; add nullable JSONB `doris_certificate`, `doris_result`,
    `codedit_result`, `cod_entry_mode_snapshot` to both initial tables
    (second migration); Step 1 POST reuses the final save's
-   verify-or-reprocess path (lift into a helper); editor in a Step-1-only
-   mode (no final card, Save enabled after processing); no SmartVA in
-   context.
+   verify-or-reprocess path (lift into a helper); the editor as in
+   unmasked DORIS, with the coder's final-cause card (its value becomes the
+   Step 1 underlying cause); no SmartVA in context.
 3. Masked Step 2: SmartVA summary, a DORIS summary from the Step 1 row,
    three choices; a small picker host (no certificate, no Process);
    provenance of the choice derived server-side
@@ -56,11 +56,14 @@ judgement) through the DORIS picker's search, with no second certificate.
 ## Owner decisions, answered 2026-09-27
 
 1. Step 1 text columns: immediate COD = first condition on Part I line 1;
-   underlying (`va_antecedent_cod`) = DORIS's processed underlying cause.
-   When DORIS rejects the certificate or returns no underlying cause, the
-   coder assigns the underlying cause in Step 1 with the DORIS picker's
-   search, and that is stored (owner, 2026-09-27); the Step 1 save needs
-   either DORIS's cause or the coder's.
+   underlying (`va_antecedent_cod`) = the coder's own underlying cause. DORIS
+   is only a suggestion: as in unmasked DORIS today, the coder confirms the
+   underlying cause (a "Use DORIS result" button or their own code through
+   the picker's search), whether DORIS succeeded, rejected or returned
+   nothing. Masked Step 1 is therefore the unmasked DORIS editor, including
+   its final-cause card, without SmartVA (owner, 2026-09-27; replaces an
+   earlier note that stored DORIS's cause). DORIS's own result is kept in
+   the Step 1 row's `doris_result` envelope.
 2. "Use SmartVA result" is a one-click button only when WHO's map gives a
    single expression that codeinfo accepts; otherwise the search opens
    prefilled with the first alternative.

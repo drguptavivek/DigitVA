@@ -29,7 +29,7 @@
     <div class="border rounded p-3 mb-3" data-doris-fetal><h4 class="h6">Fetal or infant details</h4><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
       <div class="col-sm-4"><label class="form-label small">Stillborn</label><select class="form-select" data-doris-stillborn><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4"><label class="form-label small">Death within 24 hours</label><select class="form-select" data-doris-within24><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option></select></div>
+      <div class="col-sm-4"><label class="form-label small">If death within 24 h, hours survived</label><input type="number" min="0" max="24" class="form-control" data-doris-within24></div>
       <div class="col-sm-4"><label class="form-label small">Birth weight (g)</label><input type="number" min="1" max="9999" class="form-control" data-doris-birth-weight></div>
       <div class="col-sm-4"><label class="form-label small">Pregnancy weeks</label><input type="number" min="1" max="50" class="form-control" data-doris-pregnancy-weeks></div>
       <div class="col-sm-4"><label class="form-label small">Mother's age</label><input type="number" min="10" max="80" class="form-control" data-doris-mother-age></div>

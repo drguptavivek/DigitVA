@@ -101,6 +101,20 @@ shapes are in `docs/kb/doris-certificate-ui-contract.md`.
     applicable switch. DigitVA shows the section and sends
     `FetalOrInfantDeath` only when at least one of its fields is filled.
 
+15. **No fetal or infant field is mandatory, and only Stillborn changed
+    the selection.** DORIS marks the section "fields are not mandatory" and
+    keeps it on screen at age 44 years. Local engine runs on 2026-09-27: a
+    stillbirth certificate gave `KD3B.1` with `Stillborn` 1 and `KD5Z`
+    without it; a 2-day neonate gave `KB23.0Z` with or without the section,
+    but CoDEdit raised `FER-CE-934` (birth weight and completed weeks
+    missing, advisory) for any age under one year. Fetal data on an adult
+    raised `FER-CE-987`. For VA, send Stillborn when relevant and birth
+    weight and weeks when the interview has them; omit the rest.
+16. **`DeathWithin24h` is hours survived.** WHO's exchange format and the
+    DORIS label ("If death within 24h specify number of hours survived")
+    define an integer count of hours, not yes/no. DigitVA's field is a
+    0-24 number, matching the server's existing bound.
+
 ## Not observed or deliberately different
 
 - WHO's per-term "+" inside Details (one per matching term) is not

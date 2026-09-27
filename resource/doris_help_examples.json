@@ -29,7 +29,7 @@
           {"Conditions": [{"Text": "Respiratory distress syndrome of newborn", "Code": "KB23.0Z", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified", "Interval": "P2D"}]},
           {"Conditions": [{"Text": "Preterm newborn", "Code": "KA21.4Z", "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified", "Interval": "P2D"}]}
         ],
-        "FetalOrInfantDeath": {"Stillborn": 0, "DeathWithin24h": 0, "MultiplePregnancy": 0, "BirthWeight": 1700, "PregnancyWeeks": 32, "AgeMother": 27}
+        "FetalOrInfantDeath": {"Stillborn": 0, "MultiplePregnancy": 0, "BirthWeight": 1700, "PregnancyWeeks": 32, "AgeMother": 27}
       },
       "observed": {"doris": {"reject": false, "code": "KB23.0Z", "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"}, "codedit": {"issueIds": ""}}
     },

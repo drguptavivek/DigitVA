@@ -50,7 +50,7 @@
 .doris-search-side:has(> .doris-code-details[hidden]):has(.doris-guided-panel[hidden]) { display: none; }
 .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { display: grid; grid-template-columns: minmax(18rem, .65fr) minmax(0, 1.35fr); gap: .6rem; }
 .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; row-gap: .15rem; }
-.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) .doris-search-controls { justify-content: flex-start !important; }
+.doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) .doris-search-controls { justify-content: flex-end !important; }
 .doris-search-modal-open .doris-search-list-wrap { min-width: 0; }
 .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 68vh; overflow-y: auto; }
 .doris-search-modal-open .doris-search-side { min-width: 0; max-height: 68vh; overflow-y: auto; }
@@ -76,5 +76,5 @@
 #doris-demo-app .doris-guided-panel code, .doris-clinical-editor .doris-guided-panel code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .doris-axis-children { flex-basis: 100%; width: calc(100% - 1rem); border-left: 2px solid #b6d4fe; padding-left: .45rem; }
 @media (max-width: 575.98px) { #doris-demo-app .doris-line .btn-group { width: 100%; } #doris-demo-app .doris-line > .d-flex { align-items: flex-start !important; flex-direction: column; } }
-@media (max-width: 640px) { .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; } .doris-search-controls { justify-content: flex-start !important; } }
+@media (max-width: 640px) { .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; } .doris-search-controls { justify-content: flex-end !important; } }
 @media (max-width: 767.98px) { .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); } .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 35vh; } }

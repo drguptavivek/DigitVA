@@ -15,9 +15,18 @@ from app.models import (
     VaFinalAssessments,
     VaReviewerFinalAssessments,
     VaReviewerInitialAssessments,
+    VaSmartvaResults,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
+)
+from app.services.cod_entry_mode import (
+    cod_entry_mode_snapshot,
+    final_ucod_source,
+    is_masked,
+    part1_line1_cod,
+    project_mode,
+    smartva_icd11_alternatives,
 )
 from app.services.doris_certificate import DorisCertificateError
 from app.services.doris_process_proof import (
@@ -82,21 +91,98 @@ class ReviewerCodingError(Exception):
         super().__init__(message)
 
 
-def _project_mode(project) -> str:
-    if project.masked_cod_required:
-        return "masked_simple"
-    if project.cod_entry_mode == "doris":
-        return "unmasked_doris"
-    return "unmasked_simple"
+def _who_image_digest() -> str:
+    digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
+    if not digest:
+        raise ReviewerCodingError(
+            "The pinned WHO processing image is not configured.", 503
+        )
+    return digest
 
 
-def _mode_snapshot(project, who_image_digest: str) -> dict:
-    return {
-        "masked_cod_required": project.masked_cod_required,
-        "cod_entry_mode": project.cod_entry_mode,
-        "icd_release": DEFAULT_ICD11_RELEASE,
-        "who_image_digest": who_image_digest,
-    }
+def _verify_reviewer_doris(
+    user,
+    va_sid: str,
+    allocation_id,
+    payload_version_id,
+    who_image_digest: str,
+    *,
+    certificate,
+    doris_result,
+    codedit_result,
+    process_token: str | None,
+    result_digest: str | None,
+    client_revision: int = 0,
+) -> dict:
+    """Verify the reviewer's posted DORIS certificate against its signed proof.
+
+    Returns the server-normalized envelopes. Raises ReviewerCodingError: a
+    changed certificate is reprocessed and returned as a 409 carrying a
+    fresh proof (nothing is saved); a stale or mismatched proof is a 409; an
+    invalid certificate a 422; an unavailable WHO service a 503. Shared by
+    the unmasked DORIS final and the masked DORIS Step 1.
+    """
+    try:
+        return verify_process_submission(
+            process_token or "",
+            certificate=certificate,
+            doris_result=doris_result,
+            codedit_result=codedit_result,
+            submitted_result_digest=result_digest or "",
+            va_sid=va_sid,
+            role="reviewer",
+            user_id=user.user_id,
+            allocation_id=allocation_id,
+            payload_version_id=payload_version_id,
+            icd_release=DEFAULT_ICD11_RELEASE,
+            who_image_digest=who_image_digest,
+        )
+    except ProcessProofCertificateChanged:
+        try:
+            processing = process_certificate(
+                {
+                    "schema_version": 1,
+                    "client_revision": client_revision,
+                    "certificate": certificate,
+                },
+                release=DEFAULT_ICD11_RELEASE,
+                who_image_digest=who_image_digest,
+            )
+        except (DorisCertificateError, TypeError, ValueError) as exc:
+            raise ReviewerCodingError(str(exc), 422) from exc
+        except WhoIcdApiUnavailable as exc:
+            raise ReviewerCodingError("WHO ICD-11 service unavailable.", 503) from exc
+        processing["process_token"] = generate_process_proof(
+            certificate_digest=processing["certificate_digest"],
+            result_digest=processing["result_digest"],
+            va_sid=va_sid,
+            role="reviewer",
+            user_id=user.user_id,
+            allocation_id=allocation_id,
+            payload_version_id=payload_version_id,
+            icd_release=DEFAULT_ICD11_RELEASE,
+            who_image_digest=who_image_digest,
+        )
+        raise ReviewerCodingError(
+            "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
+            409,
+            code="DORIS_CERTIFICATE_CHANGED",
+            processing=processing,
+        )
+    except ProcessProofResultMismatch as exc:
+        raise ReviewerCodingError(
+            "DORIS processor results changed. Process the form again.",
+            409,
+            code="DORIS_PROCESS_MISMATCH",
+        ) from exc
+    except (ProcessProofExpired, ProcessProofInvalid, ProcessProofContextMismatch) as exc:
+        raise ReviewerCodingError(
+            "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
+            409,
+            code="DORIS_PROCESS_EXPIRED",
+        ) from exc
+    except (DorisCertificateError, ValueError) as exc:
+        raise ReviewerCodingError(str(exc), 422) from exc
 
 
 def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) -> bool:
@@ -261,15 +347,24 @@ def submit_reviewer_final_cod(
     project = get_project_for_submission(va_sid)
     if project is None:
         raise ReviewerCodingError("Project not found.", 404)
-    project_mode = _project_mode(project)
+    mode = project_mode(project)
 
     reviewer_initial = get_latest_active_reviewer_initial_assessment(
         va_sid,
         user.user_id,
     )
-    if project_mode == "masked_simple" and not reviewer_initial:
+    if is_masked(mode) and not reviewer_initial:
         raise ReviewerCodingError(
             "Reviewer initial COD assessment must be completed before submitting reviewer final COD.",
+            400,
+        )
+    # Masked DORIS Step 2 only confirms the underlying cause; the
+    # certificate and its envelopes stay on the reviewer's Step 1 row.
+    if mode == "masked_doris" and any(
+        (doris_certificate, doris_result, codedit_result, doris_process_token, doris_result_digest)
+    ):
+        raise ReviewerCodingError(
+            "Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1.",
             400,
         )
 
@@ -280,7 +375,7 @@ def submit_reviewer_final_cod(
     who_image_digest = str(
         current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or ""
     ).strip()
-    if project_mode == "unmasked_simple":
+    if mode == "unmasked_simple":
         if not immediate_cod:
             raise ReviewerCodingError("immediate_cod is required.", 400)
         try:
@@ -290,75 +385,40 @@ def submit_reviewer_final_cod(
             )
         except (LookupError, ValueError) as exc:
             raise ReviewerCodingError(str(exc), 400) from exc
-    elif project_mode == "unmasked_doris":
-        if not who_image_digest:
-            raise ReviewerCodingError(
-                "The pinned WHO processing image is not configured.", 503
-            )
-        try:
-            verified = verify_process_submission(
-                doris_process_token or "",
-                certificate=doris_certificate,
-                doris_result=doris_result,
-                codedit_result=codedit_result,
-                submitted_result_digest=doris_result_digest or "",
-                va_sid=va_sid,
-                role="reviewer",
-                user_id=user.user_id,
-                allocation_id=active_allocation.va_allocation_id,
-                payload_version_id=submission.active_payload_version_id,
-                icd_release=DEFAULT_ICD11_RELEASE,
-                who_image_digest=who_image_digest,
-            )
-        except ProcessProofCertificateChanged:
-            try:
-                processing = process_certificate(
-                    {
-                        "schema_version": 1,
-                        "client_revision": doris_client_revision,
-                        "certificate": doris_certificate,
-                    },
-                    release=DEFAULT_ICD11_RELEASE,
-                    who_image_digest=who_image_digest,
-                )
-            except (DorisCertificateError, TypeError, ValueError) as exc:
-                raise ReviewerCodingError(str(exc), 422) from exc
-            except WhoIcdApiUnavailable as exc:
-                raise ReviewerCodingError("WHO ICD-11 service unavailable.", 503) from exc
-            processing["process_token"] = generate_process_proof(
-                certificate_digest=processing["certificate_digest"],
-                result_digest=processing["result_digest"],
-                va_sid=va_sid,
-                role="reviewer",
-                user_id=user.user_id,
-                allocation_id=active_allocation.va_allocation_id,
-                payload_version_id=submission.active_payload_version_id,
-                icd_release=DEFAULT_ICD11_RELEASE,
-                who_image_digest=who_image_digest,
-            )
-            raise ReviewerCodingError(
-                "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
-                409,
-                code="DORIS_CERTIFICATE_CHANGED",
-                processing=processing,
-            )
-        except ProcessProofResultMismatch as exc:
-            raise ReviewerCodingError(
-                "DORIS processor results changed. Process the form again.",
-                409,
-                code="DORIS_PROCESS_MISMATCH",
-            ) from exc
-        except (ProcessProofExpired, ProcessProofInvalid, ProcessProofContextMismatch) as exc:
-            raise ReviewerCodingError(
-                "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
-                409,
-                code="DORIS_PROCESS_EXPIRED",
-            ) from exc
-        except (DorisCertificateError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 422) from exc
+    elif mode == "unmasked_doris":
+        who_image_digest = _who_image_digest()
+        verified = _verify_reviewer_doris(
+            user,
+            va_sid,
+            active_allocation.va_allocation_id,
+            submission.active_payload_version_id,
+            who_image_digest,
+            certificate=doris_certificate,
+            doris_result=doris_result,
+            codedit_result=codedit_result,
+            process_token=doris_process_token,
+            result_digest=doris_result_digest,
+            client_revision=doris_client_revision,
+        )
         verified_certificate = verified["certificate"]
         verified_doris = verified["doris"]
         verified_codedit = verified["codedit"]
+
+    snapshot = cod_entry_mode_snapshot(project, who_image_digest)
+    if mode == "masked_doris":
+        # Derived server-side, never trusted from the client; "doris" is the
+        # reviewer's own Step 1 cause and wins a tie with SmartVA.
+        smartva = db.session.scalar(
+            sa.select(VaSmartvaResults).where(
+                VaSmartvaResults.va_sid == va_sid,
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        )
+        snapshot["final_ucod_source"] = final_ucod_source(
+            conclusive_cod,
+            reviewer_initial.va_antecedent_cod,
+            smartva_icd11_alternatives(smartva),
+        )
 
     try:
         final_provenance = build_icd11_provenance_for_values(
@@ -416,15 +476,15 @@ def submit_reviewer_final_cod(
             remark=remark,
             supersedes_coder_final_assessment=supersedes_coder_final,
             source_reviewer_initial_assessment=(
-                reviewer_initial if project_mode == "masked_simple" else None
+                reviewer_initial if is_masked(mode) else None
             ),
-            immediate_cod=immediate_cod if project_mode == "unmasked_simple" else None,
+            immediate_cod=immediate_cod if mode == "unmasked_simple" else None,
             immediate_icd11_provenance=immediate_provenance,
-            other_conditions=other_conditions if project_mode == "unmasked_simple" else None,
+            other_conditions=other_conditions if mode == "unmasked_simple" else None,
             doris_certificate=verified_certificate,
             doris_result=verified_doris,
             codedit_result=verified_codedit,
-            cod_entry_mode_snapshot=_mode_snapshot(project, who_image_digest),
+            cod_entry_mode_snapshot=snapshot,
             icd11_provenance=final_provenance,
         )
     except (LookupError, ValueError) as exc:
@@ -470,10 +530,25 @@ def submit_reviewer_initial_cod(
     user,
     va_sid: str,
     *,
-    immediate_cod: str,
+    immediate_cod: str | None = None,
     antecedent_cod: str,
     other_conditions: str | None = None,
+    doris_certificate: dict | None = None,
+    doris_result: dict | None = None,
+    codedit_result: dict | None = None,
+    doris_process_token: str | None = None,
+    doris_result_digest: str | None = None,
+    doris_client_revision: int = 0,
 ) -> VaReviewerInitialAssessments:
+    """Save the reviewer's masked Step 1.
+
+    Masked simple takes the immediate and antecedent causes as typed.
+    Masked DORIS takes the reviewer's own processed certificate: its signed
+    proof is verified (or the certificate reprocessed, see
+    ``_verify_reviewer_doris``), the immediate cause is Part I line 1 and
+    the antecedent is the reviewer's confirmed underlying cause. A missing
+    line or cause is a 400. The coder's records are never touched.
+    """
     from app.services.coding_service import get_project_for_submission
 
     submission = db.session.get(VaSubmissions, va_sid)
@@ -484,7 +559,8 @@ def submit_reviewer_initial_cod(
     project = get_project_for_submission(va_sid)
     if project is None:
         raise ReviewerCodingError("Project not found.", 404)
-    if _project_mode(project) != "masked_simple":
+    mode = project_mode(project)
+    if not is_masked(mode):
         raise ReviewerCodingError(
             "This project uses one final COD assessment; reviewer Step 1 is not available.",
             409,
@@ -507,20 +583,65 @@ def submit_reviewer_initial_cod(
             "An active reviewer allocation is required to submit reviewer initial COD."
         )
 
-    classifications = set()
-    for coding_value in (immediate_cod, antecedent_cod):
-        try:
-            classifications.add(
-                validate_coding_value_for_submission(va_sid, coding_value)
+    doris_fields = {}
+    provenance_fields = ("immediate", "antecedent")
+    if mode == "masked_doris":
+        if not antecedent_cod:
+            raise ReviewerCodingError(
+                "Confirm the underlying cause of death: use the DORIS result or search for your own code.",
+                400,
             )
+        who_image_digest = _who_image_digest()
+        verified = _verify_reviewer_doris(
+            user,
+            va_sid,
+            active_allocation.va_allocation_id,
+            submission.active_payload_version_id,
+            who_image_digest,
+            certificate=doris_certificate,
+            doris_result=doris_result,
+            codedit_result=codedit_result,
+            process_token=doris_process_token,
+            result_digest=doris_result_digest,
+            client_revision=doris_client_revision,
+        )
+        immediate_cod = part1_line1_cod(verified["certificate"])
+        if not immediate_cod:
+            raise ReviewerCodingError(
+                "Part I line 1 needs a condition: it is the immediate cause of death.",
+                400,
+            )
+        try:
+            validate_coding_value_for_submission(va_sid, antecedent_cod)
         except (LookupError, ValueError) as exc:
             raise ReviewerCodingError(str(exc), 400) from exc
-    # One classification per save.
-    if len(classifications) > 1:
-        raise ReviewerCodingError(
-            "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
-            400,
-        )
+        # The immediate cause was checked against WHO when the certificate
+        # was processed; only the reviewer's own pick needs provenance.
+        provenance_fields = ("antecedent",)
+        other_conditions = None
+        doris_fields = {
+            "doris_certificate": verified["certificate"],
+            "doris_result": verified["doris"],
+            "codedit_result": verified["codedit"],
+            "cod_entry_mode_snapshot": cod_entry_mode_snapshot(project, who_image_digest),
+        }
+    else:
+        if not immediate_cod:
+            raise ReviewerCodingError("immediate_cod is required.", 400)
+        classifications = set()
+        for coding_value in (immediate_cod, antecedent_cod):
+            try:
+                classifications.add(
+                    validate_coding_value_for_submission(va_sid, coding_value)
+                )
+            except (LookupError, ValueError) as exc:
+                raise ReviewerCodingError(str(exc), 400) from exc
+        # One classification per save.
+        if len(classifications) > 1:
+            raise ReviewerCodingError(
+                "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
+                400,
+            )
 
     try:
         reviewer_initial = create_reviewer_initial_assessment(
@@ -529,6 +650,8 @@ def submit_reviewer_initial_cod(
             immediate_cod=immediate_cod,
             antecedent_cod=antecedent_cod,
             other_conditions=other_conditions,
+            provenance_fields=provenance_fields,
+            **doris_fields,
         )
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400) from exc

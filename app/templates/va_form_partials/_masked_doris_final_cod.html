@@ -1,8 +1,8 @@
-{# Masked ICD-11 Step 2 (digitva-0n3): confirm the final underlying cause through the DORIS picker's search. No certificate and no Process: the DORIS run and its envelopes stay on the Step 1 row. The server derives which choice was used (doris = the Step 1 underlying cause | smartva | own). A recode presets the previous final code (data-preset-final). #}
+{# Masked ICD-11 Step 2 (digitva-0n3): confirm the final underlying cause through the DORIS picker's search. No certificate and no Process: the DORIS run and its envelopes stay on the Step 1 row. The server derives which choice was used (doris = the Step 1 underlying cause | smartva | own). A recode presets the previous final code (data-preset-final). The reviewer's Step 2 passes masked_final_form_id / masked_final_cod_input. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3">
 <section class="card border-primary mb-4" data-doris-final-host
-         data-form-id="finalAssessmentForm"
-         data-final-cod-input="va_conclusive_cod"
+         data-form-id="{{ masked_final_form_id|default('finalAssessmentForm') }}"
+         data-final-cod-input="{{ masked_final_cod_input|default('va_conclusive_cod') }}"
          data-terms-url="{{ doris_terms_url|default('/api/v1/doris-clinical/terms/' ~ va_sid, true) }}"
          data-codeinfo-url="{{ doris_codeinfo_url|default('/api/v1/doris-clinical/codeinfo/' ~ va_sid, true) }}"
          data-selection-url="{{ doris_selection_check_url|default('/api/v1/doris-clinical/selection-check/' ~ va_sid, true) }}"

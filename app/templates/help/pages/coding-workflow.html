@@ -112,6 +112,15 @@
   </li>
 </ol>
 
+<div class="help-info">
+  <strong>ICD-11 projects.</strong> An ICD-11 project always codes the cause
+  of death through DORIS. When the project hides SmartVA until Step 2
+  (masked coding), Step 1 is the medical certificate of cause of death: enter
+  it, process it with DORIS, and confirm your own underlying cause, either
+  DORIS's suggestion or a code you choose. SmartVA is not shown in Step 1.
+  Part I line 1 is saved as the immediate cause.
+</div>
+
 <div class="help-warning">
   <strong>Step 1 is not the final COD.</strong> It is an intermediate
   assessment. The submission remains allocated to the coder for completion of
@@ -133,7 +142,10 @@
     <strong>Select ICD-10 cause of death code</strong> &mdash; the coder
     searches and selects a specific ICD-10 code. Only codes allowed by WHO VA
     coding allowability rules are available (see <em>ICD-10 Codes</em> help
-    page).
+    page). In an ICD-11 project with masked coding, Step 2 shows the SmartVA
+    result and your Step 1 DORIS result, and you confirm the final underlying
+    cause: your Step 1 underlying cause, the SmartVA result, or your own
+    ICD-11 code found through the search. There is no second certificate.
   </li>
   <li>
     <strong>Submit final COD</strong> &mdash; the coder submits the final
@@ -188,6 +200,15 @@
     own COD. The state becomes <code>reviewer_finalized</code>.
   </li>
 </ol>
+
+<p>
+  With masked coding the reviewer also works in two steps and sees SmartVA
+  only in Step 2, in ICD-10 and ICD-11 projects alike. In an ICD-11 project
+  the reviewer's Step 1 certificate starts as a copy of the coder's; the
+  reviewer edits it, processes it with DORIS and confirms their own
+  underlying cause, then confirms the final cause in Step 2 with the same
+  three choices as the coder. The coder's record is never changed.
+</p>
 
 <div class="help-info">
   <strong>Reviewer authority:</strong> The reviewer final COD takes precedence

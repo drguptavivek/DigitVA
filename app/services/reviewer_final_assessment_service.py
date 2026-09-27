@@ -61,8 +61,19 @@ def create_reviewer_initial_assessment(
     immediate_cod: str,
     antecedent_cod: str,
     other_conditions: str | None = None,
+    provenance_fields: tuple[str, ...] = ("immediate", "antecedent"),
+    doris_certificate: dict | None = None,
+    doris_result: dict | None = None,
+    codedit_result: dict | None = None,
+    cod_entry_mode_snapshot: dict | None = None,
 ) -> VaReviewerInitialAssessments:
-    """Create a reviewer-owned initial COD row for a submission."""
+    """Create a reviewer-owned initial COD row for a submission.
+
+    ``provenance_fields`` names the causes given catalogue provenance: a
+    masked DORIS Step 1 passes ``("antecedent",)`` because its immediate
+    cause comes from the WHO-processed certificate. The DORIS envelopes are
+    set only by that Step 1.
+    """
     active_payload_version_id = db.session.scalar(
         sa.select(VaSubmissions.active_payload_version_id).where(
             VaSubmissions.va_sid == va_sid
@@ -90,9 +101,20 @@ def create_reviewer_initial_assessment(
         va_antecedent_cod=antecedent_cod,
         icd11_provenance=build_icd11_provenance_for_values(
             va_sid,
-            {"immediate": immediate_cod, "antecedent": antecedent_cod},
+            {
+                field: value
+                for field, value in (
+                    ("immediate", immediate_cod),
+                    ("antecedent", antecedent_cod),
+                )
+                if field in provenance_fields
+            },
         ),
         va_other_conditions=other_conditions,
+        doris_certificate=doris_certificate,
+        doris_result=doris_result,
+        codedit_result=codedit_result,
+        cod_entry_mode_snapshot=cod_entry_mode_snapshot,
     )
     db.session.add(reviewer_initial)
     return reviewer_initial

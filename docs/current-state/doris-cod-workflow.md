@@ -16,11 +16,13 @@ last_updated: 2026-09-27
 `cod_entry_mode_classification`, migration `a3f7c1d8e5b2`, digitva-0n3): an
 ICD-11 project always uses DORIS, an ICD-10 project always uses simple
 entry, and the `selectable` classification is retired. Masked and DORIS
-combine as the coder's `masked_doris` mode (`_project_mode` in
-`app/routes/va_form.py`; see "Masked ICD-11 coder flow" below). The masked
-reviewer still gets the masked simple two-step flow with ICD-11 search until
-digitva-0n3 phase 4; `reviewer_coding_service._project_mode` does not know
-`masked_doris`.
+combine as the `masked_doris` mode. The mode and its predicates
+(`project_mode`, `is_masked`, `is_doris`), the mode snapshot, the Part I
+line 1 immediate COD and the Step 2 provenance helpers live in
+`app/services/cod_entry_mode.py`, shared by the coder screens
+(`app/routes/va_form.py`) and the reviewer service
+(`app/services/reviewer_coding_service.py`); see "Masked ICD-11 coder flow"
+and "Masked ICD-11 reviewer flow" below.
 Existing masked/simple and unmasked ICD-10/ICD-11 projects keep their
 historical flow. The additive migration is `c7a4e2d9f1b6`.
 It also adds unique indexes for active coder and reviewer finals by submission
@@ -63,8 +65,9 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   coder's confirmed underlying cause, checked against the local catalogue as
   the unmasked final UCOD is. An empty Part I line 1 or no confirmed cause
   is a 400. The DORIS clinical API (`_clinical_context`) accepts a masked
-  project for the coder role only; the reviewer still gets 409
-  `DORIS_NOT_ENABLED` on a masked project.
+  DORIS project for the coder and the reviewer, each only with their own
+  active allocation for that role; a masked ICD-10 project stays 409
+  `DORIS_NOT_ENABLED`.
 - **Reopening a saved Step 1** (active Step 1 row with a DORIS result) shows
   the saved result and underlying cause through the editor's
   `doris_initial_processing` input, with no process token (none is minted on
@@ -99,6 +102,41 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   Step 1 underlying cause, else `smartva` when it equals any alternative of
   the SmartVA target, else `own`. It is derived server-side; a code equal to
   both is `doris`. Other modes' snapshots are unchanged.
+
+## Masked ICD-11 reviewer flow
+
+A masked ICD-11 reviewer (digitva-0n3 phase 4) follows the coder's two
+steps on the reviewer COD panel
+(`app/templates/va_formcategory_partials/_va_cod_assessment_panel.html`),
+where Step 1 and, once saved, Step 2 sit on one page.
+
+- **Step 1** is the DORIS editor with `doris_role='reviewer'` and no SmartVA.
+  It is seeded (deep copy) from the reviewer's own active Step 1 row when it
+  has a certificate, else from the certificate of the coder's Step 1 behind
+  the authoritative coder final (`source_initial_assessment_id`), else from
+  the admin defaults (`_masked_reviewer_doris_context` in
+  `app/routes/va_form.py`). The reviewer processes it and confirms their own
+  underlying cause. `POST /api/v1/reviewing/initial/<sid>` (JSON,
+  `X-CSRFToken`, 1.2 MB limit) calls `submit_reviewer_initial_cod`, which
+  verifies the envelopes with `role="reviewer"` and the reviewer's active
+  reviewing allocation through `_verify_reviewer_doris` (the same
+  verify-or-reprocess helper as the unmasked DORIS reviewer final), and
+  stores them with the mode snapshot on `va_reviewer_initial_assessments`.
+  The text columns are derived as for the coder; only the underlying cause
+  gets catalogue provenance. The coder's rows are never written.
+- **Reopening** shows the saved result and cause without a process token
+  and offers "Continue to Step 2", an anchor to the Step 2 form below.
+- **Step 2** shows SmartVA, the reviewer's Step 1 DORIS summary and the
+  same three choices as the coder (`_masked_doris_final_cod.html` with
+  `masked_final_form_id='reviewerFinalCodForm'`), posted to
+  `/api/v1/reviewing/finalize/<sid>`. Posting any envelope field is a 400.
+  The reviewer final row stores no envelopes (SQL NULL) and records
+  `final_ucod_source` against the reviewer's own Step 1 cause.
+- **Masked ICD-10 reviewer** Step 2 now also shows the SmartVA table
+  (display only); Step 1 and the save are unchanged.
+- The reviewer saves are not refused for a missing NQA (the NQA only
+  blocks moving on from the narration section), so the coder's Step 1 NQA
+  notice has no reviewer counterpart.
 
 ## Process and final save
 

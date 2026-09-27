@@ -281,7 +281,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         )
 
     @patch("app.routes.api.doris_clinical.process_certificate")
-    def test_doris_gate_open_for_masked_coder_closed_for_masked_reviewer(self, process):
+    def test_doris_gate_open_for_masked_coder_and_masked_reviewer(self, process):
         sid = self._start_coder()
         db.session.add(
             VaAllocations(
@@ -319,8 +319,9 @@ class TestMaskedDorisCoding(BaseTestCase):
 
         self.assertEqual(coder.status_code, 200, coder.get_data(as_text=True))
         self.assertTrue(coder.get_json()["process_token"])
-        self.assertEqual(reviewer.status_code, 409)
-        self.assertEqual(reviewer.get_json()["error"]["code"], "DORIS_NOT_ENABLED")
+        # The masked reviewer runs DORIS on their own Step 1 (phase 4).
+        self.assertEqual(reviewer.status_code, 200, reviewer.get_data(as_text=True))
+        self.assertTrue(reviewer.get_json()["process_token"])
 
     def _initial_processing(self, body):
         start = body.index("data-doris-initial-processing>") + len("data-doris-initial-processing>")
@@ -482,7 +483,7 @@ class TestMaskedDorisCoding(BaseTestCase):
 
     # ---- Step 2 ---------------------------------------------------------
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1B10.Z")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1B10.Z")
     def test_step2_single_smartva_target_is_one_click(self, _mapping):
         sid = self._start_coder(smartva_icd="A16.9")
         self._step1_row(sid, underlying="1C62.Z HIV disease")
@@ -496,7 +497,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIn("data-step1-processing", body)
         self.assertNotIn("data-doris-editor", body)
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00/1A01")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1A00/1A01")
     def test_step2_multi_alternative_smartva_target_opens_search(self, _mapping):
         sid = self._start_coder(smartva_icd="A00.9")
         self._step1_row(sid)
@@ -507,7 +508,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIn('data-final-search-code="1A00"', body)
         self.assertNotIn("data-final-use-code", body)
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value=None)
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value=None)
     def test_step2_labels_step1_cause_not_doris_result(self, _mapping):
         # The one-click choice is the coder's Step 1 underlying cause, not
         # DORIS's computed code; DORIS's result stays as information.
@@ -521,7 +522,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertNotIn("Use DORIS result", body)
         self.assertIn("DORIS result from Step 1 (for information)", body)
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value=None)
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value=None)
     def test_step2_recode_presets_previous_final_code(self, _mapping):
         sid = self._start_coder()
         self._step1_row(sid)
@@ -554,7 +555,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         return self._final(sid)
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1A00")
     def test_step2_provenance_doris(self, _mapping):
         sid = self._start_coder(smartva_icd="A00.9")
         step1 = self._step1_row(sid)
@@ -578,7 +579,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         ).scalar_one()
         self.assertTrue(sql_null)
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1A00")
     def test_step2_provenance_smartva(self, _mapping):
         sid = self._start_coder(smartva_icd="A00.9")
         self._step1_row(sid)
@@ -588,7 +589,7 @@ class TestMaskedDorisCoding(BaseTestCase):
 
         self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "smartva")
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00/1A01")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1A00/1A01")
     def test_step2_provenance_smartva_any_who_alternative(self, _mapping):
         sid = self._start_coder(smartva_icd="A00.9")
         self._step1_row(sid)
@@ -598,7 +599,7 @@ class TestMaskedDorisCoding(BaseTestCase):
 
         self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "smartva")
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1A00")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1A00")
     def test_step2_provenance_own(self, _mapping):
         sid = self._start_coder(smartva_icd="A00.9")
         self._step1_row(sid)
@@ -608,7 +609,7 @@ class TestMaskedDorisCoding(BaseTestCase):
 
         self.assertEqual(final.cod_entry_mode_snapshot["final_ucod_source"], "own")
 
-    @patch("app.routes.va_form.smartva_icd11_mapping", return_value="1B10.Z")
+    @patch("app.services.cod_entry_mode.smartva_icd11_mapping", return_value="1B10.Z")
     def test_step2_tie_between_doris_and_smartva_records_doris(self, _mapping):
         # Tie rule: the final code equals both the Step 1 (DORIS) underlying
         # cause and SmartVA's WHO target -> doris.

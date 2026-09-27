@@ -105,11 +105,11 @@ def _clinical_context(va_sid: str, role: str) -> ClinicalDorisContext:
         )
 
     project = get_project_for_submission(va_sid)
-    # Masked DORIS is the coder's Step 1 (digitva-0n3 phase 2); the masked
-    # reviewer keeps the simple flow until phase 4.
+    # Masked DORIS puts the certificate in Step 1 for coder and reviewer
+    # alike (digitva-0n3); the allocation check above scopes it to the
+    # caller's own active allocation for that role.
     if (
         project is None
-        or (project.masked_cod_required and role == "reviewer")
         or project.cod_entry_mode != "doris"
         or project.icd_classification != "icd11"
     ):

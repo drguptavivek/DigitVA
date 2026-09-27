@@ -815,7 +815,9 @@ Current behavior:
   cause. The envelopes stay on this row; the final row links to it through
   `source_initial_assessment_id`
 - `va_reviewer_initial_assessments` has the same four nullable JSONB
-  columns; the reviewer does not write them yet (digitva-0n3 phase 4)
+  columns; the masked DORIS reviewer's own Step 1 writes them the same way
+  (its certificate starts as a copy of the coder's; the coder's row is not
+  changed)
 
 ### `va_final_assessments`
 

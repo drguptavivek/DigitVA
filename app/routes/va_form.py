@@ -53,6 +53,17 @@ from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
+from app.services.cod_entry_mode import (
+    cod_entry_mode_snapshot as _cod_entry_mode_snapshot,
+)
+from app.services.cod_entry_mode import final_ucod_source as _final_ucod_source
+from app.services.cod_entry_mode import is_doris as _is_doris
+from app.services.cod_entry_mode import is_masked as _is_masked
+from app.services.cod_entry_mode import part1_line1_cod as _part1_line1_cod
+from app.services.cod_entry_mode import project_mode as _project_mode
+from app.services.cod_entry_mode import (
+    smartva_icd11_alternatives as _smartva_icd11_alternatives,
+)
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.demo_project_service import (
@@ -80,7 +91,6 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.icd_coding_value import (
     build_icd11_provenance_for_values,
-    extract_icd11_code_expression,
     validate_coding_value_for_submission,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
@@ -95,7 +105,6 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
     get_latest_active_reviewer_initial_assessment,
 )
-from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
@@ -179,29 +188,6 @@ def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
 
 
-def _project_mode(project) -> str:
-    """The coder's COD entry mode: masked or unmasked, simple or DORIS.
-
-    Masked projects keep Step 1 / Step 2; ``masked_doris`` puts the DORIS
-    certificate in Step 1 (digitva-0n3). Reviewer screens compute their own
-    mode in reviewer_coding_service and do not know ``masked_doris``.
-    """
-    if project is None:
-        return "masked_simple"
-    doris = project.cod_entry_mode == "doris"
-    if project.masked_cod_required:
-        return "masked_doris" if doris else "masked_simple"
-    return "unmasked_doris" if doris else "unmasked_simple"
-
-
-def _is_masked(project_mode: str) -> bool:
-    return project_mode.startswith("masked_")
-
-
-def _is_doris(project_mode: str) -> bool:
-    return project_mode.endswith("_doris")
-
-
 def _nqa_blocks_final(va_sid, va_action, project) -> bool:
     """True when this coder must save the NQA before the final COD form.
 
@@ -216,15 +202,6 @@ def _nqa_blocks_final(va_sid, va_action, project) -> bool:
     )
 
 
-def _cod_entry_mode_snapshot(project, who_image_digest: str) -> dict:
-    return {
-        "masked_cod_required": project.masked_cod_required,
-        "cod_entry_mode": project.cod_entry_mode,
-        "icd_release": DEFAULT_ICD11_RELEASE,
-        "who_image_digest": who_image_digest,
-    }
-
-
 _DORIS_ENVELOPE_FIELDS = (
     "doris_certificate",
     "doris_result",
@@ -232,35 +209,6 @@ _DORIS_ENVELOPE_FIELDS = (
     "doris_process_token",
     "doris_result_digest",
 )
-
-
-def _smartva_icd11_alternatives(smartva) -> list[str]:
-    """WHO's ICD-11 target for SmartVA's primary cause, split on ``/``.
-
-    The WHO 10-to-11 map joins alternative expressions with ``/``; one item
-    means SmartVA's result can be used in one click (owner decision 2).
-    """
-    target = smartva_icd11_mapping(smartva.va_smartva_cause1icd) if smartva else None
-    return [part.strip().upper() for part in (target or "").split("/") if part.strip()]
-
-
-def _final_ucod_source(final_value, doris_value, smartva_alternatives) -> str:
-    """Where a masked DORIS Step 2 final UCOD came from: doris, smartva or own.
-
-    Derived server-side from the saved code, never from the client.
-    ``doris_value`` is the coder's Step 1 underlying cause (the cause the
-    coder confirmed in the DORIS step, not necessarily DORIS's computed
-    code). A code equal to both it and a SmartVA target is recorded as
-    ``doris``.
-    """
-    final_code = extract_icd11_code_expression(final_value)
-    if final_code is None:
-        return "own"
-    if final_code == extract_icd11_code_expression(doris_value):
-        return "doris"
-    if final_code in smartva_alternatives:
-        return "smartva"
-    return "own"
 
 
 def _masked_doris_step2_context(step1, smartva) -> dict:
@@ -277,6 +225,35 @@ def _masked_doris_step2_context(step1, smartva) -> dict:
             else None
         ),
     }
+
+
+def _masked_reviewer_doris_context(va_sid, reviewer_initial, smartva):
+    """Seed row and template data for the masked DORIS reviewer panel.
+
+    Returns ``(doris_source, context)``. The reviewer's Step 1 editor starts
+    from their own saved certificate, else from the certificate of the
+    coder's Step 1 behind the authoritative coder final (the template
+    deep-copies it, so the coder's rows never change), else ``None`` for the
+    admin defaults. A saved reviewer Step 1 reopens display-only: no process
+    token is minted on GET, so saving a changed Step 1 still needs Process.
+    """
+    context = _masked_doris_step2_context(reviewer_initial, smartva)
+    if reviewer_initial is not None and reviewer_initial.doris_certificate:
+        if reviewer_initial.doris_result is not None:
+            context["doris_initial_processing"] = {
+                "certificate": reviewer_initial.doris_certificate,
+                "doris": reviewer_initial.doris_result,
+                "codedit": reviewer_initial.codedit_result,
+                "final_choice": reviewer_initial.va_antecedent_cod or "",
+            }
+        return reviewer_initial, context
+    coder_final = get_authoritative_final_assessment(va_sid)
+    coder_step1 = (
+        db.session.get(VaInitialAssessments, coder_final.source_initial_assessment_id)
+        if coder_final is not None and coder_final.source_initial_assessment_id
+        else None
+    )
+    return coder_step1, context
 
 
 def _masked_doris_step1_fields(va_sid, project):
@@ -318,10 +295,7 @@ def _masked_doris_step1_fields(va_sid, project):
     )
     if failure is not None:
         return None, failure
-    part1 = verified["certificate"].get("Part1") or []
-    line1 = (part1[0].get("Conditions") if part1 else None) or []
-    first = line1[0] if line1 else {}
-    immediate_cod = f"{first.get('Code') or ''} {first.get('Text') or ''}".strip()
+    immediate_cod = _part1_line1_cod(verified["certificate"])
     if not immediate_cod:
         return None, (
             jsonify(error="Part I line 1 needs a condition: it is the immediate cause of death."),
@@ -1052,11 +1026,21 @@ def renderpartial(va_sid, va_partial):
         elif category_config and category_config.render_mode == "data_manager_panel":
             template_name = "va_formcategory_partials/category_data_manager_triage.html"
         doris_source = None
+        masked_reviewer_doris = {}
         if _is_doris(project_mode) and not _is_masked(project_mode):
             if va_action == "vareview" and va_reviewer_final_assess:
                 doris_source = va_reviewer_final_assess
             else:
                 doris_source = get_authoritative_final_assessment(va_sid)
+        elif (
+            project_mode == "masked_doris"
+            and va_action == "vareview"
+            and category_config
+            and category_config.render_mode == "workflow_panel"
+        ):
+            doris_source, masked_reviewer_doris = _masked_reviewer_doris_context(
+                va_sid, va_reviewer_initial_assess, smartva
+            )
         response = make_response(render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,
@@ -1112,6 +1096,7 @@ def renderpartial(va_sid, va_partial):
             doris_selection_check_url=(
                 f"/api/v1/doris-clinical/selection-check/{va_sid}"
             ),
+            **masked_reviewer_doris,
         ))
         return _apply_partial_cache_policy(response, va_partial, va_action)
     if va_partial == "vareviewform":

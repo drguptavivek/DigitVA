@@ -5,6 +5,7 @@ from flask_login import current_user
 
 from app.decorators import role_required
 from app.services import coding_search_telemetry_service
+from app.services.cod_entry_mode import project_mode
 from app.services.coding_service import get_project_for_submission
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
@@ -116,11 +117,24 @@ def finalize(va_sid):
 @bp.post("/initial/<va_sid>")
 @role_required("reviewer")
 def initial(va_sid):
-    body = request.get_json(silent=True) or {}
+    project = get_project_for_submission(va_sid)
+    masked_doris = project is not None and project_mode(project) == "masked_doris"
+    # Masked DORIS Step 1 carries the certificate and its envelopes.
+    if masked_doris and (
+        request.content_length is None or request.content_length > 1_200_000
+    ):
+        return _error("DORIS submission is too large.", 413)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _error("A JSON object is required.", 400)
+    for name in ("immediate_cod", "antecedent_cod", "other_conditions"):
+        if body.get(name) is not None and not isinstance(body[name], str):
+            return _error(f"{name} must be text.", 400)
     immediate_cod = (body.get("immediate_cod") or "").strip()
     antecedent_cod = (body.get("antecedent_cod") or "").strip()
     other_conditions = (body.get("other_conditions") or "").strip() or None
-    if not immediate_cod:
+    # Masked DORIS derives the immediate cause from the certificate.
+    if not immediate_cod and not masked_doris:
         return _error("immediate_cod is required.", 400)
     if not antecedent_cod:
         return _error("antecedent_cod is required.", 400)
@@ -128,12 +142,23 @@ def initial(va_sid):
         reviewer_initial = submit_reviewer_initial_cod(
             current_user,
             va_sid,
-            immediate_cod=immediate_cod,
+            immediate_cod=immediate_cod or None,
             antecedent_cod=antecedent_cod,
             other_conditions=other_conditions,
+            doris_certificate=body.get("doris_certificate"),
+            doris_result=body.get("doris_result"),
+            codedit_result=body.get("codedit_result"),
+            doris_process_token=body.get("doris_process_token"),
+            doris_result_digest=body.get("doris_result_digest"),
+            doris_client_revision=body.get("doris_client_revision", 0),
         )
     except ReviewerCodingError as exc:
-        return _error(exc.message, exc.status_code)
+        return _error(
+            exc.message,
+            exc.status_code,
+            code=exc.code,
+            processing=exc.processing,
+        )
     return jsonify(
         {
             "va_sid": va_sid,

@@ -16,18 +16,17 @@ last_updated: 2026-09-27
 or ICD-11 chosen per death) is retired; the migration moved every dev
 project on it to `icd10`. Masked and DORIS may now combine at the settings
 level (`masked_cod_required` no longer forbids `cod_entry_mode='doris'`);
-the masked ICD-11 Step 1/Step 2 UI itself is a later phase (below). A
-project's settings do not rewrite completed assessments.
+masked ICD-11 has its own Step 1/Step 2 flow (below). A project's settings
+do not rewrite completed assessments.
 
 Masked/simple retains the current two-step coder and reviewer workflow.
 Unmasked/simple has one final assessment with an independently validated
 immediate COD, underlying COD and optional associated-condition free text.
 The underlying COD alone controls final authority and VA bucket reporting.
-Unmasked/DORIS keeps today's one-step DORIS final assessment. A masked
-ICD-11 project is legal to save today but has no masked DORIS Step 1/Step 2
-screens yet -- see below.
+Unmasked/DORIS keeps today's one-step DORIS final assessment. Masked
+ICD-11 is described below.
 
-### Masked ICD-11 (`digitva-0n3`: coder flow done; reviewer is phase 4)
+### Masked ICD-11 (`digitva-0n3`: coder and reviewer flows implemented)
 
 Owner decision in docs/policy/doris-cod-workflow.md; design record
 `.tasks/2026-09-27-icd11-means-doris.md`. DigitVA is not deployed anywhere,
@@ -38,6 +37,13 @@ so no production data is affected.
   underlying COD, which may be the DORIS result, the SmartVA result or the
   coder's own judgement; its code entry is the DORIS picker's ICD-11 search
   (the shared `digitva_icd11_picker.js` module), with no second certificate.
+- **The masked ICD-11 reviewer** does the same. Their Step 1 certificate
+  starts as a copy of the coder's Step 1 certificate (or their own saved
+  one); they process it with DORIS themselves and confirm their own
+  underlying cause. The coder's records never change. Their Step 2 confirms
+  the final underlying COD with the same three choices.
+- **SmartVA for the masked reviewer.** The masked reviewer sees SmartVA in
+  Step 2 (never in Step 1) for every masked project, ICD-10 included.
 - The local ICD-11 catalogue search (`search_icd11_mms`) remains for the
   admin ICD-11 browser and Help pages, not for ICD-11 coding.
 

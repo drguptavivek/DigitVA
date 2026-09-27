@@ -4,6 +4,14 @@
   These reference details are read-only.
 </p>
 
+<p>
+  An ICD-11 project always codes the cause of death through DORIS. With
+  masked coding, Step 1 is the DORIS certificate without SmartVA and Step 2
+  confirms the final underlying cause (the Step 1 cause, the SmartVA result
+  or your own code); reviewers do the same from a copy of the coder's
+  certificate.
+</p>
+
 {% if request.headers.get('X-DigitVA-Public-Ingress') == '1' %}
 <p>
   To practise entering a complete death certificate and see separate DORIS

@@ -117,7 +117,6 @@ import { renderSummary } from './doris_result_summary.js';
       addChip(line, condition);
       line.querySelector('[data-search]').value = '';
       line.querySelector('[data-search-results]').replaceChildren();
-      announce('Final underlying cause recorded: ' + condition.Code + '.');
       return;
     }
     line._conditions.push(condition);
@@ -356,7 +355,8 @@ import { renderSummary } from './doris_result_summary.js';
 
   function renderFinalLine() {
     finalLine = makeLine('final', {Conditions: []});
-    finalLine.querySelector('[data-line-title]').textContent = 'Final underlying cause of death';
+    var finalTitle = finalLine.querySelector('[data-line-title]');
+    finalTitle.textContent = 'Final underlying cause of death'; finalTitle.className = 'h5 fw-bold mb-0';
     ['[data-move-up]', '[data-move-down]', '[data-remove-line]', '[data-add-uncoded]'].forEach(function (selector) { finalLine.querySelector(selector).remove(); });
     finalLine.querySelector('[data-interval-control]').classList.add('d-none');
     document.getElementById('doris-final-line').appendChild(finalLine);

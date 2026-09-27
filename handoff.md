@@ -1,5 +1,35 @@
 # Handoff
 
+## Prompt for the next session
+
+Paste this to start:
+
+> Read `handoff.md`, then `docs/kb/doris-picker-who-behaviour-rules.md`
+> (the WHO behaviours the picker mirrors, with evidence) and
+> `.tasks/2026-09-27-doris-picker-who-parity-and-reusable-component.md`.
+> Bring up the stack with `docker compose up -d` and open the Help proof at
+> `http://localhost:8052/help/doris-demo` in the built-in browser; it needs
+> no login. Search "diabetic foot ulcer" for a required-axis stem (`BD54`),
+> "NC72.7" for an optional one, "femur" for a long list. WHO's reference is
+> `https://icd.who.int/doris/workspace/en`: type a term into line A and use
+> the "+" next to a matching term to open its builder; retype the term if
+> the dropdown stays empty. Conventions: keep the picker matching WHO's
+> tool and record every matched behaviour as a numbered rule in the KB
+> file above; JS and CSS are served live from `app/static` but Python and
+> templates need `docker compose restart doris_public_service` (and
+> `minerva_app_service` for the clinical editor); the picker is one ES
+> module `app/static/js/digitva_icd11_picker.js` with hosts
+> `doris_demo.js` and `doris_clinical.js`, no globals, transport injected;
+> codes render plain and titles semibold; the sticky modal footer is the
+> stable area for the live expression and its actions; run
+> `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes/test_help_doris_demo.py tests/routes/test_doris_clinical_ui.py tests/services/test_icd11_postcoordination.py -q -p no:cacheprovider`
+> plus `node --input-type=module --check < <file>` on edited JS; use
+> `bd` for tasks; commit in the repo's voice and push. Still open: a
+> visual check of the clinical editor needs one dev project switched to
+> unmasked, ICD-11, DORIS mode through the admin UI on port 8051 (seeded
+> admin login in `CLAUDE.md`); mobile use of the picker waits on bearer
+> auth from the deferred SSO work.
+
 ## DORIS picker WHO parity and reusable module (2026-09-27)
 
 `digitva-96y`. The picker now matches WHO's postcoordination layout,

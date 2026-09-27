@@ -1158,6 +1158,11 @@
       if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
       if (LOCKED) {
         // Re-render the Setup home so its header and Overview show the save.
+        // Empty the panel first: htmx "settles" a swap by putting back, about
+        // 20 ms later, the server-rendered class of every element whose id was
+        // also in the old content, which hid the edit form this panel had
+        // already reopened and left Basics on "Loading…" (digitva-cba).
+        document.getElementById('admin-panel').innerHTML = '';
         htmx.ajax('GET', '/admin/panels/project-setup/' + encodeURIComponent(LOCKED) + '?saved=1',
           { target: '#admin-panel', swap: 'innerHTML' });
         return;

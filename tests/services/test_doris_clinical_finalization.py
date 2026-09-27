@@ -379,6 +379,15 @@ class TestDorisClinicalFinalization(BaseTestCase):
         self.assertIn("Narrative Quality Assessment must be completed", html)
         self.assertIn("New clinical entry", html)
         self.assertIn("Keep this clinical remark", html)
+        # The processed result and final choice come back, so the coder need
+        # not process again; the token is re-checked at the next save.
+        marker = "<script type=\"application/json\" data-doris-initial-processing>"
+        self.assertIn(marker, html)
+        restored = json.loads(html.split(marker, 1)[1].split("</script>", 1)[0])
+        self.assertEqual(restored["process_token"], "signed")
+        self.assertEqual(restored["result_digest"], "digest")
+        self.assertEqual(restored["final_choice"], "1B10.Z Respiratory tuberculosis")
+        self.assertEqual(restored["certificate"], certificate)
         self.assertIsNone(
             db.session.scalar(
                 db.select(VaFinalAssessments).where(VaFinalAssessments.va_sid == sid)

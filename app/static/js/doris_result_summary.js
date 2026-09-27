@@ -4,6 +4,8 @@
 // URIs, reports and rule trace stay in the host's "Technical details".
 'use strict';
 
+import { codeditMessages } from './codedit_messages.js';
+
 function el(tag, className, text) {
   var node = document.createElement(tag);
   if (className) node.className = className;
@@ -13,6 +15,40 @@ function el(tag, className, text) {
 
 function lines(value) {
   return typeof value === 'string' ? value.split('\n').map(function (line) { return line.trim(); }).filter(Boolean) : [];
+}
+
+// DORIS warns with a bare rule id ("M4 may have been applied.") and explains
+// the rule in its report ("M4: Adding the main injury - NC72.Z - as
+// postcoordination for the current TUC - PA60."). Join the two, spelling
+// out TUC and TSP, so a coder need not know WHO's rule numbers.
+function explained(warning, report) {
+  var rule = warning.match(/^(SP\d+|M\d+)\b(?!:)/);
+  if (!rule) return warning;
+  var detail = lines(report).find(function (line) { return line.indexOf(rule[1] + ':') === 0; });
+  if (!detail) return warning;
+  detail = detail.slice(rule[1].length + 1).trim()
+    .replace(/\bTUC\b/g, 'tentative underlying cause').replace(/\bTSP\b/g, 'tentative starting point');
+  return warning.replace(/\.$/, '') + ': ' + detail;
+}
+
+// CoDEdit's report is a sentence for front-end rules but a bare key for
+// back-end ones (RE_W_IV_CodeURIMismatch). Its tabular report has one row per
+// issue, "n,KEY,BER-CE-9;param0;param1", so a bare key is replaced by WHO's
+// published sentence for that ID with the parameters filled in.
+function codeditChecks(result) {
+  var rows = lines(result.tabularReport).map(function (row) {
+    var fields = row.split(';'); var head = fields[0].split(',');
+    return {key: head[1], id: head[2], params: fields.slice(1)};
+  });
+  var checks = lines(result.report).map(function (line) {
+    if (/\s/.test(line)) return line;
+    var row = rows.find(function (candidate) { return candidate.key === line; });
+    var template = row && codeditMessages[row.id];
+    if (!template) return 'The certificate check (CoDEdit) reported ' + line + (row && row.id ? ' (' + row.id + ').' : '.');
+    return template.replace(/\{(\d+)\}/g, function (_match, index) { return row.params[Number(index)] || ''; })
+      .replace(/ [-\u2013] +[-\u2013] /g, ' ').replace(/\(\s*\)/g, '').replace(/\s{2,}/g, ' ').trim();
+  });
+  return checks.length ? checks : ['The certificate check (CoDEdit) reported: ' + result.issueIds];
 }
 
 // Text the certifier typed for this code, if DORIS picked a certificate line.
@@ -49,12 +85,11 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
     }
   }
 
-  var checks = lines(dr.warning);
+  var checks = lines(dr.warning).map(function (warning) { return explained(warning, dr.report); });
   if (codedit.status !== 'completed') {
     checks.push('The certificate check (CoDEdit) did not run.');
   } else if (cr.issueIds) {
-    var reported = lines(cr.report);
-    checks = checks.concat(reported.length ? reported : ['The certificate check (CoDEdit) reported: ' + cr.issueIds]);
+    checks = checks.concat(codeditChecks(cr));
   }
   if (checks.length) {
     container.appendChild(el('p', 'small fw-semibold mb-1', 'Check before you decide'));

@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -1142,7 +1142,9 @@ def build_icd11_provenance(
     stem_id = codeinfo.get("stemId")
     if not isinstance(codeinfo_uri, str) or not isinstance(stem_id, str):
         raise ValueError("The ICD-11 code metadata is incomplete.")
-    if codeinfo_uri != _icd11_codeinfo_uri(expression, release):
+    # Compare decoded: WHO escapes "/" as %2f and quote() as %2F, which RFC
+    # 3986 treats as the same URI; a text compare refused every "/" cluster.
+    if unquote(codeinfo_uri) != unquote(_icd11_codeinfo_uri(expression, release)):
         raise ValueError("The ICD-11 code metadata does not match the expression.")
     expected_stem_id = _versioned_icd11_uri(row.linearization_uri, release)
     if _versioned_icd11_uri(stem_id, release) != expected_stem_id:

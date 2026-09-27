@@ -100,6 +100,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       picker.closePostcoordination(query(editor, '[data-doris-final-panel]'));
     }
     function invalidate(message) {
+      var hadResult = state.processing !== null;
       state.revision += 1; state.processing = null;
       query(editor, '[data-doris-results]').hidden = true;
       query(editor, '[data-doris-final-panel]').hidden = true; query(editor, '[data-doris-final-wait]').hidden = false; query(editor, '[data-doris-technical]').hidden = true;
@@ -108,6 +109,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       var form = document.getElementById(editor.dataset.formId);
       var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
       if (message) status(message);
+      else if (hadResult) status('Certificate changed. Process it again before saving.');
     }
     function chip(line, condition) {
       var item = document.createElement('span'); item.className = 'badge text-bg-light border text-wrap';
@@ -326,6 +328,20 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     query(editor, '[data-doris-final-search]').addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(null, true); } });
     var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
     editor._installFreshDorisResults = function (processing) { renderProcessing(processing, true); };
+    // After a save refused for another reason, the server sends back the
+    // processed result and final choice; its token is re-checked at save.
+    var restored = null;
+    try { restored = JSON.parse((query(editor, '[data-doris-initial-processing]') || {}).textContent || 'null'); } catch (_error) { restored = null; }
+    if (restored && restored.certificate && restored.doris && restored.codedit && restored.process_token && restored.result_digest) {
+      renderProcessing(restored, false);
+      var restoredFinal = text(restored.final_choice);
+      if (restoredFinal) {
+        var target = finalInput(editor); if (target) target.value = restoredFinal;
+        query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + restoredFinal;
+        if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
+      }
+      status('Your processed certificate was kept. Resolve the items above, then save again.');
+    }
   }
 
   function boot(root) { (root || document).querySelectorAll('[data-doris-editor]').forEach(mount); }

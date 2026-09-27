@@ -70,6 +70,7 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("data-doris-add-uncoded", partial)
         self.assertIn("data-doris-fetal", partial)
         self.assertIn("data-doris-summary", partial)
+        self.assertIn("data-doris-initial-processing", partial)
         self.assertLess(partial.index("Step 1: DORIS"), partial.index("Step 2: Final underlying cause of death"))
         self.assertLess(partial.index("Step 2: Final underlying cause of death"), partial.index("data-doris-final-panel"))
         self.assertLess(partial.index("data-doris-final-panel"), partial.index("data-doris-final-use"))
@@ -228,3 +229,35 @@ class Icd11PickerNoGlobalsContractTests(unittest.TestCase):
         self.assertIn("htmx:beforeSwap", clinical)
         self.assertIn("editor._dorisPicker.close()", clinical)
         self.assertNotIn("htmx:beforeSwap", picker)
+
+    def test_side_browser_tab_follows_project_icd_classification(self):
+        page = (ROOT / "app/templates/va_frontpages/va_coding.html").read_text(encoding="utf-8")
+        service = (ROOT / "app/services/coding_service.py").read_text(encoding="utf-8")
+
+        self.assertIn("icd_classification == 'icd11'", page)
+        self.assertIn("icd.who.int/browse/2026-01/mms/en", page)
+        self.assertIn("icd.who.int/browse10/2019/en", page)
+        self.assertIn("icd_classification=", service)
+
+
+class TestDorisAdminDefaults(unittest.TestCase):
+    def test_interview_sex_and_whole_year_age_start_a_new_certificate(self):
+        from types import SimpleNamespace
+
+        from app.routes.va_form import _doris_admin_defaults
+
+        def submission(gender, age):
+            return SimpleNamespace(va_deceased_gender=gender, va_deceased_age=age)
+
+        self.assertEqual(
+            _doris_admin_defaults(submission("Male", 76)),
+            {"AdministrativeData": {"Sex": 1, "EstimatedAge": "P76Y"}},
+        )
+        self.assertEqual(
+            _doris_admin_defaults(submission(" female ", 30)),
+            {"AdministrativeData": {"Sex": 2, "EstimatedAge": "P30Y"}},
+        )
+        # Under a year is left for the coder; unknown sex and odd ages are omitted.
+        self.assertEqual(_doris_admin_defaults(submission("Male", 0)), {"AdministrativeData": {"Sex": 1}})
+        self.assertEqual(_doris_admin_defaults(submission("Unknown", 999)), {})
+        self.assertEqual(_doris_admin_defaults(None), {})

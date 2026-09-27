@@ -349,6 +349,42 @@ class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission
         )
         codeinfo.assert_called_once_with("GB61.Z", release=DEFAULT_ICD11_RELEASE)
 
+    def test_icd11_provenance_accepts_who_lowercase_escape_in_a_slash_cluster(self):
+        # WHO's codeinfo @id escapes "/" as %2f; quote() gives %2F. Same URI.
+        self._set_project("icd11")
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/release/11/mms/412389819/unspecified",
+                foundation_uri="http://id.who.int/icd/entity/412389819",
+                code="GB61.Z",
+                title="Chronic kidney disease, stage unspecified",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.flush()
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo",
+            return_value={
+                "@id": "http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z%2f5A11",
+                "code": "GB61.Z/5A11",
+                "stemId": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+            },
+        ):
+            provenance = build_icd11_provenance_for_values(
+                self.SID, {"conclusive": "GB61.Z/5A11 Diabetic chronic kidney disease"}
+            )
+
+        self.assertEqual(provenance["conclusive"]["code"], "GB61.Z/5A11")
+        self.assertEqual(
+            provenance["conclusive"]["codeinfo_uri"],
+            "http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z%2f5A11",
+        )
+
     def test_icd10_provenance_is_null(self):
         self.assertIsNone(
             build_icd11_provenance_for_values(

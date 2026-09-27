@@ -197,6 +197,24 @@ def _json_form_value(name: str):
         raise ValueError(f"{name} must be valid JSON.") from exc
 
 
+def _doris_admin_defaults(submission) -> dict:
+    """Sex and age from the interview, to start a new DORIS certificate.
+
+    Only whole years are known here, so an age under one year is left for
+    the coder, who can enter days or months.
+    """
+    if submission is None:
+        return {}
+    admin = {}
+    sex = {"male": 1, "female": 2}.get((submission.va_deceased_gender or "").strip().lower())
+    if sex:
+        admin["Sex"] = sex
+    age = submission.va_deceased_age
+    if isinstance(age, int) and 0 < age < 130:
+        admin["EstimatedAge"] = f"P{age}Y"
+    return {"AdministrativeData": admin} if admin else {}
+
+
 def _doris_conflict(code: str, message: str, processing: dict | None = None):
     payload = {"schema_version": 1, "error": {"code": code, "message": message}}
     if processing is not None:
@@ -844,7 +862,7 @@ def renderpartial(va_sid, va_partial):
             doris_initial_certificate=(
                 copy.deepcopy(doris_source.doris_certificate)
                 if doris_source and doris_source.doris_certificate
-                else {}
+                else _doris_admin_defaults(va_submission)
             ),
             doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
             doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
@@ -1192,9 +1210,31 @@ def renderpartial(va_sid, va_partial):
                 if error_messages is not None
                 else [message for messages in form1.errors.values() for message in messages]
             )
+            submitted_processing = None
             if submitted_unmasked and project_mode == "unmasked_doris":
                 try:
                     submitted_certificate = _json_form_value("doris_certificate")
+                    # A save refused for another reason (for example a
+                    # missing NQA) keeps the processed result and the chosen
+                    # final UCOD on screen. The signed token is checked
+                    # again at the next save, as for any other submission.
+                    doris_result = _json_form_value("doris_result")
+                    codedit_result = _json_form_value("codedit_result")
+                    if (
+                        submitted_certificate
+                        and doris_result
+                        and codedit_result
+                        and request.form.get("doris_process_token")
+                        and request.form.get("doris_result_digest")
+                    ):
+                        submitted_processing = {
+                            "certificate": submitted_certificate,
+                            "doris": doris_result,
+                            "codedit": codedit_result,
+                            "process_token": request.form.get("doris_process_token"),
+                            "result_digest": request.form.get("doris_result_digest"),
+                            "final_choice": request.form.get("va_conclusive_cod") or "",
+                        }
                 except ValueError as exc:
                     # Do not silently fall back to a previous saved certificate:
                     # that can make an invalid client payload look like the
@@ -1269,9 +1309,10 @@ def renderpartial(va_sid, va_partial):
                     copy.deepcopy(
                         submitted_certificate
                         if submitted_certificate is not None
-                        else prior_certificate or {}
+                        else prior_certificate or _doris_admin_defaults(va_submission)
                     )
                 ),
+                doris_initial_processing=submitted_processing,
                 doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
                 doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
                 doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",

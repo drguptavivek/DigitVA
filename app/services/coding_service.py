@@ -145,6 +145,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         project_code=project_code,
         site_code=site_code,
         is_demo_project=is_demo_project,
+        icd_classification=getattr(project, "icd_classification", None) or "icd10",
         back_dashboard_role=back_dashboard_role,
         is_upstream_recode=is_upstream_recode(submission.va_sid),
         has_pending_upstream_change=has_pending_upstream_change,

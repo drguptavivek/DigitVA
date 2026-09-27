@@ -124,6 +124,35 @@ shapes are in `docs/kb/doris-certificate-ui-contract.md`.
     underlying cause itself; never the reversed cluster. Observed
     2026-09-27 in the clinical editor on a SADEMO case.
 
+18. **DORIS names rules by number; its report explains them.** A warning
+    such as "M4 may have been applied." has a matching report line ("M4:
+    Adding the main injury - NC72.Z - as postcoordination for the current
+    TUC - PA60."). The summary joins the two and spells out TUC (tentative
+    underlying cause) and TSP (tentative starting point).
+19. **CoDEdit returns back-end issues as bare keys.** `report` is
+    `RE_W_IV_CodeURIMismatch` with `issueIds` `BER-CE-9` and a tabular row
+    `0,RE_W_IV_CodeURIMismatch,BER-CE-9;5A11/GB61.Z;;;`. WHO publishes the
+    sentence for each BER-CE ID; `scripts/generate_codedit_messages.py`
+    turns the saved page into `app/static/js/codedit_messages.js` and the
+    summary fills `{0}`, `{1}` from the row.
+20. **WHO codeinfo escapes `/` as `%2f`.** Its `@id` for `5A11/GB61.Z` ends
+    `codeinfo/5A11%2fGB61.Z`; Python `quote` gives `%2F`. DigitVA compares
+    the decoded URIs; a text compare refused every `/` final UCOD.
+
+## To report to WHO
+
+- **CoDEdit BER-CE-9 on a consistent cluster (local engine, release
+  2026-01, image `sha256:1b77eb6d...`).** A Part I condition sent as
+  `Code: GB61.Z/5A11` with `LinearizationURI` `.../mms/412389819/unspecified
+  / .../mms/119724091` (the order WHO's own search returns) gets
+  `BER-CE-9` "code and URI correspond to different ICD entities" for
+  `5A11/GB61.Z`: CoDEdit reorders the code but compares it with the URIs in
+  their original order. The same condition sent as `5A11/GB61.Z` with the
+  URIs reversed, or as `GB61.Z` alone, is clean. DORIS selects `5A11/GB61.Z`
+  in all three. Reproduced 2026-09-27 on the DigitVA Help processor.
+  DigitVA does not reorder coder input, because the first code of a
+  cluster is its stem.
+
 ## Not observed or deliberately different
 
 - WHO's per-term "+" inside Details (one per matching term) is not

@@ -129,6 +129,17 @@ suggested a code; clicking it runs the code through `codeinfo` and the
 selection check, like a searched code. The Help field takes one verified code and is not saved;
 certificate edits clear it with the results.
 
+A new clinical certificate starts with sex and whole-year age from the
+interview (`_doris_admin_defaults` in `app/routes/va_form.py`); under one
+year is left to the coder. DORIS rule warnings are joined with the matching
+line of DORIS's report, and CoDEdit back-end keys are shown as WHO's
+published sentence. After an edit the status reads "Certificate changed.
+Process it again before saving." If a save is refused for another reason,
+the re-rendered form carries the processed result, token and chosen final
+UCOD back (`data-doris-initial-processing`), so the coder need not process
+again; the token is re-checked at the next save. The coding page's side
+browser tab opens ICD-11 for ICD-11 projects and ICD-10 otherwise.
+
 Every certificate edit clears the browser's processor results and human UCOD
 choice. At final save, the server normalizes the submitted certificate and
 checks both processor envelopes and the signed token. A changed certificate

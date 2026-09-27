@@ -163,6 +163,23 @@ proxy is the sole CSRF-exempt POST. Both ingress and Gunicorn omit query
 strings from access logs. Direct access to the clinical app does not serve
 the public DORIS demonstration; the public hostname must point to the ingress.
 
+The ingress passes incoming `X-Forwarded-For` and `X-Forwarded-Proto` through
+unchanged, falling back to its own peer address and scheme only when they are
+absent, so both apps' `ProxyFix(x_for=1, x_proto=1)` see the client address
+and `https` set by the upstream TLS reverse proxy. The trust boundary is the
+cloud firewall: only the reverse-proxy VM may reach the ingress. If the ingress
+port were reachable by clients directly they could spoof their address; the
+upgrade path is nginx `real_ip` with `set_real_ip_from` the reverse proxy.
+The ingress re-resolves `minerva_app_service` and `doris_public_service`
+through Docker DNS every 10 seconds, so restarting or recreating either app
+does not leave the ingress returning 502 until it is itself restarted.
+
+Production wiring: the DMZ reverse proxy terminates TLS for the public hostname
+and `proxy_pass`es to the ingress port published on the app VM's MZ
+interface (the base compose file binds it to loopback only), with `Host`,
+`X-Real-IP`, `X-Forwarded-For` and `X-Forwarded-Proto` set. The app VM runs
+with `COMPOSE_PROFILES=icd11` and `DORIS_PUBLIC_COOKIE_SECURE=true`.
+
 The pinned WHO image is `whoicd/icd-api:2.6.0` with MMS `2026-01` and image
 digest `sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c`.
 Changing that digest requires a fresh contract and fixture review.

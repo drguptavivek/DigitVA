@@ -18,11 +18,28 @@ Paste this to start:
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes tests/services -q -p no:cacheprovider`
 > (1766 pass), `node tests/js/doris_result_summary_check.mjs`, and
 > `node --input-type=module --check < <file>` on edited JS. Use `bd`; commit
-> in the repo's voice and push. Next, in order: (1) send the CoDEdit
-> BER-CE-9 report to WHO (text in the KB file, owner sends it);
-> (2) `digitva-ddv.2` production DORIS ingress release; (3) ICD-11 bucket
-> scheme `digitva-712` before DORIS results feed VA cause reporting;
-> (4) `digitva-cba` admin Basics "Loading" after save (P3).
+> in the repo's voice and push. Next, in order: (1) owner sends the
+> CoDEdit BER-CE-9 report to WHO (`digitva-ddv.5`, GitHub issue 41);
+> (2) `digitva-ddv.2` release checks on the production app VM (ingress
+> code is done, see below); (3) `digitva-cba` admin Basics "Loading" after
+> save (P3). `digitva-712` needs only the owner review `digitva-712.6`:
+> DORIS final causes already bucket by their first ICD-11 stem.
+
+## DORIS ingress ready for production (2026-09-27)
+
+Production topology from the owner: a DMZ reverse-proxy VM terminates TLS
+for `digitva.causeofdeathindia.com` and forwards to the app VM; a cloud
+firewall admits only that VM. `deploy/doris-public-nginx.conf` now passes
+the proxy's `X-Forwarded-For` / `X-Forwarded-Proto` through (fallback to
+its own peer and scheme), so both apps' `ProxyFix(x_for=1)` see the real
+client and `https`; before, every user would have shared the proxy's IP
+for rate limits and IP bans. It also re-resolves app containers through
+Docker DNS, so an app restart no longer needs an ingress restart (verified
+with a recreated container on a new IP). Remaining for `digitva-ddv.2`, on
+the app VM: publish the ingress on the MZ interface, point the proxy's
+`proxy_pass` at it, set `COMPOSE_PROFILES=icd11` and
+`DORIS_PUBLIC_COOKIE_SECURE=true`, then the digest, log-privacy and
+five-parallel-Process checks in the bead.
 
 ## Clinical DORIS coding, demo reviewing and sync release fix (2026-09-27)
 

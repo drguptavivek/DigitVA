@@ -4,31 +4,61 @@
 
 Paste this to start:
 
-> Read `handoff.md`, then `docs/kb/doris-picker-who-behaviour-rules.md`
-> (the WHO behaviours the picker mirrors, with evidence) and
-> `.tasks/2026-09-27-doris-picker-who-parity-and-reusable-component.md`.
-> Bring up the stack with `docker compose up -d` and open the Help proof at
-> `http://localhost:8052/help/doris-demo` in the built-in browser; it needs
-> no login. Search "diabetic foot ulcer" for a required-axis stem (`BD54`),
-> "NC72.7" for an optional one, "femur" for a long list. WHO's reference is
-> `https://icd.who.int/doris/workspace/en`: type a term into line A and use
-> the "+" next to a matching term to open its builder; retype the term if
-> the dropdown stays empty. Conventions: keep the picker matching WHO's
-> tool and record every matched behaviour as a numbered rule in the KB
-> file above; JS and CSS are served live from `app/static` but Python and
-> templates need `docker compose restart doris_public_service` (and
-> `minerva_app_service` for the clinical editor); the picker is one ES
-> module `app/static/js/digitva_icd11_picker.js` with hosts
-> `doris_demo.js` and `doris_clinical.js`, no globals, transport injected;
-> codes render plain and titles semibold; the sticky modal footer is the
-> stable area for the live expression and its actions; run
-> `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes/test_help_doris_demo.py tests/routes/test_doris_clinical_ui.py tests/services/test_icd11_postcoordination.py -q -p no:cacheprovider`
-> plus `node --input-type=module --check < <file>` on edited JS; use
-> `bd` for tasks; commit in the repo's voice and push. Still open: a
-> visual check of the clinical editor needs one dev project switched to
-> unmasked, ICD-11, DORIS mode through the admin UI on port 8051 (seeded
-> admin login in `CLAUDE.md`); mobile use of the picker waits on bearer
-> auth from the deferred SSO work.
+> Read `handoff.md` (top section first), then
+> `docs/kb/doris-picker-who-behaviour-rules.md` (WHO behaviours rules 1-20
+> plus "To report to WHO") and `.tasks/2026-09-27-demo-reviewing.md`.
+> `docker compose up -d`. The dev project SADEMO is set to ICD-11, unmasked,
+> DORIS, Demo/Training, 30-minute retention; log in on port 8051 as the
+> seeded admin in `CLAUDE.md`, "VA Coding" > "Start Random Allocation
+> Coding" on SADEMO, save the NQA (Narration / Documents), then code in COD
+> Assessment; the case becomes reviewable at once under "VA Review". The
+> Help proof is `http://localhost:8052/help/doris-demo` (no login). After
+> restarting `minerva_app_service` and `doris_public_service` together,
+> restart `digitva_ingress` too or it returns 502 (it caches the old IPs).
+> Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes tests/services -q -p no:cacheprovider`
+> (1766 pass), `node tests/js/doris_result_summary_check.mjs`, and
+> `node --input-type=module --check < <file>` on edited JS. Use `bd`; commit
+> in the repo's voice and push. Next, in order: (1) send the CoDEdit
+> BER-CE-9 report to WHO (text in the KB file, owner sends it);
+> (2) `digitva-ddv.2` production DORIS ingress release; (3) ICD-11 bucket
+> scheme `digitva-712` before DORIS results feed VA cause reporting;
+> (4) `digitva-cba` admin Basics "Loading" after save (P3).
+
+## Clinical DORIS coding, demo reviewing and sync release fix (2026-09-27)
+
+Tested the clinical DORIS editor end to end on SADEMO as coder and
+reviewer. Owner-requested changes, all pushed:
+
+- Certificate layout matches WHO's DORIS workspace: "Part I: Cause of
+  death", lines "Immediate cause" / "Due to" with no letters or
+  underlying-cause label, red edge on the immediate-cause line, Remove apart
+  from the move buttons, age as value + unit, fetal/infant section always
+  shown, `DeathWithin24h` as hours survived (KB rules 12-16).
+- Two steps, each a card: "Step 1: DORIS" (certificate, Process after
+  pregnancy context, a short result summary) and "Step 2: Final underlying
+  cause of death" with "Use DORIS result: <code>"; technical details at the
+  bottom. DORIS rule warnings carry DORIS's own report line; CoDEdit
+  back-end keys show WHO's sentence (`scripts/generate_codedit_messages.py`
+  builds `app/static/js/codedit_messages.js`).
+- Clinical fixes found in testing: sex and age prefilled from the interview;
+  side browser tab follows the project's ICD classification; a refused save
+  keeps the processed result and final choice; final UCODs containing "/"
+  were refused (WHO escapes `%2f`, compare decoded); DORIS injury clusters
+  (`PA60/NC72.Z`) are offered as their stem; SmartVA shown to unmasked coder
+  and reviewer; the coder final form waits for a saved NQA (saving NQA
+  reloads the page and lost the certificate).
+- Demo projects: history lists demo saves until expiry (and history dates
+  were 5.5 h early for India time, fixed); the banner states each project's
+  retention; demo cases are reviewable at once, open to all users, and the
+  review expires with the coder's demo code (policy
+  `docs/policy/demo-coding-retention.md`). Demo recode is no longer offered.
+- ODK sync no longer releases every active allocation after each run
+  (`0e3664a`, test `5026f52`); a changed non-protected case still releases
+  its own coder. History in `digitva-9l7`.
+
+Dev data changed: SADEMO settings above; several SADEMO demo cases coded
+and expired. Not done: the CoDEdit BER-CE-9 false warning is WHO's to fix
+(report drafted in the KB); `digitva-cba` open.
 
 ## DORIS picker WHO parity and reusable module (2026-09-27)
 

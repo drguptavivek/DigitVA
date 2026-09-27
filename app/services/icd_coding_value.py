@@ -20,11 +20,11 @@ from app import db
 # The catalogues a code can come from.
 ICD_CLASSIFICATIONS = ("icd10", "icd11")
 DEFAULT_ICD_CLASSIFICATION = "icd10"
-# A project setting, not a catalogue: the coder picks ICD-10 or ICD-11 per death.
-ICD_CLASSIFICATION_SELECTABLE = "selectable"
 # Valid values of va_project_master.icd_classification. A tuple, so an
-# unhashable JSON value fails membership instead of raising TypeError.
-PROJECT_ICD_CLASSIFICATIONS = ICD_CLASSIFICATIONS + (ICD_CLASSIFICATION_SELECTABLE,)
+# unhashable JSON value fails membership instead of raising TypeError. The
+# 'selectable' classification (coder picks ICD-10 or ICD-11 per death) is
+# retired (digitva-0n3): a project is one classification or the other.
+PROJECT_ICD_CLASSIFICATIONS = ICD_CLASSIFICATIONS
 
 # ICD-10: one letter, two digits, optional dotted decimal (e.g. A00, A00.1).
 ICD10_CODE_RE = re.compile(r"^\s*([A-Z]\d{2}(?:\.\d+)?)\b", re.IGNORECASE)
@@ -124,9 +124,9 @@ def get_icd_classification_for_submission(va_sid: str) -> str:
     """The ICD classification setting of a submission's project.
 
     Path: submission -> va_forms.project_id -> va_project_master. Returns one
-    of ``PROJECT_ICD_CLASSIFICATIONS`` (``selectable`` included), so ODK and
-    web-form submissions resolve alike. Defaults to ``icd10`` when the
-    submission, its form or its project cannot be found. The per-form
+    of ``PROJECT_ICD_CLASSIFICATIONS``, so ODK and web-form submissions
+    resolve alike. Defaults to ``icd10`` when the submission, its form or its
+    project cannot be found. The per-form
     ``map_project_site_odk.icd_classification`` is deprecated and not read.
     """
     from app.models import VaForms, VaProjectMaster, VaSubmissions
@@ -143,11 +143,10 @@ def get_icd_classification_for_submission(va_sid: str) -> str:
 def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
     """Check a COD value against the catalogue its project allows.
 
-    A project set to ``icd10`` or ``icd11`` checks against that catalogue; a
-    ``selectable`` project checks against the catalogue the value's code
-    shape names. Returns the value's classification. Raises ``ValueError``
-    when the value is not a selectable code for this submission and
-    ``LookupError`` when the submission does not exist.
+    The project's ``icd_classification`` setting (``icd10`` or ``icd11``) is
+    the classification checked against. Returns the value's classification.
+    Raises ``ValueError`` when the value is not a selectable code for this
+    submission and ``LookupError`` when the submission does not exist.
     """
     from app.services.icd10_2019_2_service import (
         validate_icd10_2019_2_coding_value_for_submission,
@@ -156,12 +155,7 @@ def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
         validate_icd11_mms_coding_value_for_submission,
     )
 
-    setting = get_icd_classification_for_submission(va_sid)
-    classification = (
-        classification_of_value(value)
-        if setting == ICD_CLASSIFICATION_SELECTABLE
-        else setting
-    )
+    classification = get_icd_classification_for_submission(va_sid)
     if classification == "icd10":
         validate_icd10_2019_2_coding_value_for_submission(va_sid, value)
     elif classification == "icd11":

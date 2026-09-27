@@ -1,9 +1,9 @@
 """The coding screen follows the project's ICD classification.
 
-digitva-dus.2. Policy: docs/policy/va-form-project-configuration.md
-("5. ICD classification"). A selectable project stores whichever
-classification the coder picked, recorded by the value's code shape; a fixed
-project refuses the other catalogue on save and in search.
+digitva-dus.2, digitva-0n3. Policy:
+docs/policy/va-form-project-configuration.md ("5. ICD classification"). The
+'selectable' classification is retired: every project is fixed to one
+catalogue, which refuses the other catalogue on save and in search.
 
 Run (inside Docker)::
 
@@ -20,7 +20,6 @@ from app.models import (
     MasIcd1020192,
     VaAllocation,
     VaAllocations,
-    VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
     VaProjectMaster,
@@ -159,7 +158,12 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         db.session.commit()
 
     def _set_project(self, value):
-        db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).icd_classification = value
+        # ICD-11 means DORIS at the DB level (CHECK
+        # cod_entry_mode_classification, digitva-0n3): keep cod_entry_mode in
+        # sync with the classification being tested.
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.icd_classification = value
+        project.cod_entry_mode = "doris" if value == "icd11" else "simple"
         db.session.commit()
 
     def _post(self, partial, data):
@@ -185,48 +189,6 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
 
     # ── Save round trip ────────────────────────────────────────────────────
 
-    def test_selectable_project_stores_an_icd11_pick(self):
-        self._set_project("selectable")
-        response = self._save_step1(ICD11_VALUE, ICD11_VALUE)
-        self.assertEqual(response.status_code, 200)
-        saved = self._active_initial()
-        self.assertIsNotNone(saved)
-        self.assertEqual(saved.va_immediate_cod, ICD11_VALUE)
-        self.assertEqual(saved.va_antecedent_cod, ICD11_VALUE)
-        # The final screen that comes back starts on ICD-11, from Step 1's value.
-        self.assertIn(b'data-icd-classification="icd11"', response.data)
-
-        final = self._post(
-            "vafinalasses",
-            {"va_conclusive_cod": ICD11_VALUE, "va_finassess_remark": "icd11"},
-        )
-        self.assertEqual(final.status_code, 200)
-        self.assertTrue(final.get_json()["success"])
-        final_row = db.session.scalar(
-            db.select(VaFinalAssessments).where(
-                VaFinalAssessments.va_sid == self.sid,
-                VaFinalAssessments.va_finassess_status == VaStatuses.active,
-            )
-        )
-        self.assertIsNotNone(final_row)
-        self.assertEqual(final_row.va_conclusive_cod, ICD11_VALUE)
-
-    def test_selectable_project_stores_an_icd10_pick(self):
-        self._set_project("selectable")
-        response = self._save_step1(ICD10_VALUE, ICD10_VALUE)
-        self.assertEqual(response.status_code, 200)
-        saved = self._active_initial()
-        self.assertIsNotNone(saved)
-        self.assertEqual(saved.va_immediate_cod, ICD10_VALUE)
-        self.assertIn(b'data-icd-classification="icd10"', response.data)
-
-    def test_selectable_project_rejects_a_mixed_step1(self):
-        self._set_project("selectable")
-        response = self._save_step1(ICD10_VALUE, ICD11_VALUE)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"both be ICD-10 or both be ICD-11", response.data)
-        self.assertIsNone(self._active_initial())
-
     def test_fixed_projects_refuse_the_other_catalogue(self):
         self._set_project("icd10")
         response = self._save_step1(ICD11_VALUE, ICD11_VALUE)
@@ -243,13 +205,8 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
 
     # ── Screen ─────────────────────────────────────────────────────────────
 
-    def test_switch_renders_only_for_selectable_projects(self):
+    def test_switch_never_renders(self):
         url = f"/vaform/{self.sid}/vainitialasses{ACTION}"
-        self._set_project("selectable")
-        body = self.client.get(url).data
-        self.assertIn(b"Code this death in", body)
-        self.assertIn(b'data-icd-classification="icd10"', body)
-        self.assertIn(b"/api/v1/icd11/coding-search/", body)
 
         self._set_project("icd11")
         body = self.client.get(url).data
@@ -261,19 +218,31 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         self.assertIn(b'data-icd-classification="icd10"', body)
         self.assertNotIn(b"Code this death in", body)
 
+    def test_screen_follows_the_project_not_a_stored_value(self):
+        # A Step 1 saved in ICD-11, then the project fixed to ICD-10 (as the
+        # digitva-0n3 migration does to a former 'selectable' project): Step 2
+        # presets the ICD-11 value but must search ICD-10, because the ICD-11
+        # APIs refuse an ICD-10 project.
+        self._set_project("icd11")
+        self._save_step1(ICD11_VALUE, ICD11_VALUE)
+        self.assertIsNotNone(self._active_initial())
+        self._set_project("icd10")
+
+        body = self.client.get(f"/vaform/{self.sid}/vafinalasses{ACTION}").data
+        self.assertIn(ICD11_VALUE.split()[0].encode(), body)
+        self.assertIn(b'data-icd-classification="icd10"', body)
+        self.assertNotIn(b'data-icd-classification="icd11"', body)
+
     # ── Search ─────────────────────────────────────────────────────────────
 
     def test_search_follows_the_project_setting(self):
         icd10_url = f"/api/v1/icd10/2019-2/coding-search/{self.sid}?q=ischaemic"
         icd11_url = f"/api/v1/icd11/coding-search/{self.sid}?q=myocardial"
 
-        self._set_project("selectable")
+        self._set_project("icd11")
         icd11 = self.client.get(icd11_url)
         self.assertEqual(icd11.status_code, 200)
         self.assertEqual([r["icd_code"] for r in icd11.get_json()], ["BA41"])
-        icd10 = self.client.get(icd10_url)
-        self.assertEqual(icd10.status_code, 200)
-        self.assertEqual([r["icd_code"] for r in icd10.get_json()], ["I24"])
 
         self._set_project("icd10")
         self.assertEqual(self.client.get(icd11_url).status_code, 400)

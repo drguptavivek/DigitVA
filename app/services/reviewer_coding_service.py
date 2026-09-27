@@ -515,7 +515,7 @@ def submit_reviewer_initial_cod(
             )
         except (LookupError, ValueError) as exc:
             raise ReviewerCodingError(str(exc), 400) from exc
-    # One classification per save, even in a selectable project.
+    # One classification per save.
     if len(classifications) > 1:
         raise ReviewerCodingError(
             "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",

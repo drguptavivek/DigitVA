@@ -68,7 +68,7 @@ class TestExtractIcdCode(BaseTestCase):
 
     def test_icd_classifications_constant(self):
         self.assertEqual(ICD_CLASSIFICATIONS, ("icd10", "icd11"))
-        self.assertEqual(PROJECT_ICD_CLASSIFICATIONS, ("icd10", "icd11", "selectable"))
+        self.assertEqual(PROJECT_ICD_CLASSIFICATIONS, ("icd10", "icd11"))
 
     def test_classification_of_value_reads_the_code_shape(self):
         self.assertEqual(classification_of_value("A00.1 Cholera"), "icd10")
@@ -164,7 +164,12 @@ class TestGetIcdClassificationForSubmission(BaseTestCase):
         db.session.flush()
 
     def _set_project(self, value):
-        db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).icd_classification = value
+        # ICD-11 means DORIS at the DB level (CHECK
+        # cod_entry_mode_classification, digitva-0n3): keep cod_entry_mode in
+        # sync with the classification being tested.
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.icd_classification = value
+        project.cod_entry_mode = "doris" if value == "icd11" else "simple"
         db.session.flush()
 
     def test_defaults_to_icd10(self):
@@ -176,7 +181,7 @@ class TestGetIcdClassificationForSubmission(BaseTestCase):
     def test_resolves_every_project_setting(self):
         # The form has no ODK mapping row, exactly like a web-form submission:
         # the project setting still applies.
-        for value in ("icd11", "selectable", "icd10"):
+        for value in ("icd11", "icd10"):
             self._set_project(value)
             self.assertEqual(get_icd_classification_for_submission(self.SID), value)
 
@@ -195,8 +200,8 @@ class TestGetIcdClassificationForSubmission(BaseTestCase):
 
 
 class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission):
-    """Save validation dispatches on the project setting (and, for a
-    selectable project, on the value's code shape)."""
+    """Save validation dispatches on the project's fixed classification
+    setting."""
 
     ICD10 = "I24 Other acute ischaemic heart diseases"
     ICD11 = "BA41 Acute myocardial infarction"
@@ -258,14 +263,6 @@ class TestValidateCodingValueForSubmission(TestGetIcdClassificationForSubmission
         self.assertEqual(validate_coding_value_for_submission(self.SID, self.ICD11), "icd11")
         with self.assertRaisesRegex(ValueError, "ICD-11"):
             validate_coding_value_for_submission(self.SID, self.ICD10)
-
-    def test_selectable_project_accepts_both_by_shape(self):
-        self._set_project("selectable")
-        self.assertEqual(validate_coding_value_for_submission(self.SID, self.ICD10), "icd10")
-        self.assertEqual(validate_coding_value_for_submission(self.SID, self.ICD11), "icd11")
-        for bad in (None, "", "not a code"):
-            with self.assertRaisesRegex(ValueError, "ICD-10 or ICD-11"):
-                validate_coding_value_for_submission(self.SID, bad)
 
     def test_icd11_applies_catalogue_and_sex_policy(self):
         self._set_project("icd11")

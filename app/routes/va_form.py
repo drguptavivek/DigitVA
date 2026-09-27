@@ -1023,7 +1023,7 @@ def renderpartial(va_sid, va_partial):
                     )
                 except (LookupError, ValueError) as exc:
                     coding_errors.append((field, str(exc)))
-            # One classification per save, even in a selectable project.
+            # One classification per save.
             if not coding_errors and len(classifications) > 1:
                 coding_errors.append(
                     (

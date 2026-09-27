@@ -58,7 +58,11 @@ class TestDorisClinicalFinalization(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
+        # ICD-11 means DORIS at the DB level (CHECK
+        # cod_entry_mode_classification, digitva-0n3); each test's setUp /
+        # _unmasked call moves both fields together from here.
         project.icd_classification = "icd11"
+        project.cod_entry_mode = "doris"
         cls._ensure_base_research_project_and_site()
         db.session.commit()
         db.session.add(
@@ -98,8 +102,12 @@ class TestDorisClinicalFinalization(BaseTestCase):
         super().setUp()
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         project.masked_cod_required = True
+        # Default masked/simple. ICD-11 means DORIS at the DB level (CHECK
+        # cod_entry_mode_classification, digitva-0n3), so the default
+        # classification is icd10; a test that needs DORIS moves both
+        # fields together through _unmasked.
         project.cod_entry_mode = "simple"
-        project.icd_classification = "icd11"
+        project.icd_classification = "icd10"
         db.session.flush()
 
     def _start(self, sid):
@@ -135,6 +143,10 @@ class TestDorisClinicalFinalization(BaseTestCase):
     def _unmasked(self, mode):
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         project.masked_cod_required = False
+        # ICD-11 means DORIS at the DB level (CHECK
+        # cod_entry_mode_classification, digitva-0n3): keep the
+        # classification in step with the requested entry mode.
+        project.icd_classification = "icd11" if mode == "doris" else "icd10"
         project.cod_entry_mode = mode
         db.session.commit()
 

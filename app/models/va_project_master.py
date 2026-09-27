@@ -27,20 +27,19 @@ class VaProjectMaster(db.Model):
             name="project_structure_mode",
         ),
         sa.CheckConstraint(
-            "icd_classification IN ('icd10', 'icd11', 'selectable')",
+            "icd_classification IN ('icd10', 'icd11')",
             name="icd_classification",
         ),
         sa.CheckConstraint(
             "cod_entry_mode IN ('simple', 'doris')",
             name="cod_entry_mode",
         ),
+        # ICD-11 always means DORIS; ICD-10 always means simple entry.
+        # Masked + DORIS is legal at this level (digitva-0n3 phase 1); the
+        # masked DORIS UI itself is a later phase.
         sa.CheckConstraint(
-            "NOT (masked_cod_required AND cod_entry_mode = 'doris')",
-            name="cod_entry_mode_masking",
-        ),
-        sa.CheckConstraint(
-            "cod_entry_mode <> 'doris' OR icd_classification = 'icd11'",
-            name="doris_requires_icd11",
+            "(icd_classification = 'icd11') = (cod_entry_mode = 'doris')",
+            name="cod_entry_mode_classification",
         ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
@@ -109,10 +108,12 @@ class VaProjectMaster(db.Model):
     above_scope_coding_mode: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="view_only", server_default="view_only"
     )
-    # How this project's deaths are coded: 'icd10', 'icd11', or 'selectable'
-    # (the coder picks ICD-10 or ICD-11 per death). The only source of the
-    # coding classification, for ODK and web-form submissions alike.
-    # Policy: docs/policy/va-form-project-configuration.md ("5. ICD classification").
+    # How this project's deaths are coded: 'icd10' or 'icd11'. The only
+    # source of the coding classification, for ODK and web-form submissions
+    # alike. ICD-11 always means DORIS (cod_entry_mode='doris'); ICD-10
+    # always means simple entry. The 'selectable' classification is retired
+    # (digitva-0n3). Policy: docs/policy/va-form-project-configuration.md
+    # ("5. ICD classification"), docs/policy/doris-cod-workflow.md.
     icd_classification: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="icd10", server_default="icd10"
     )

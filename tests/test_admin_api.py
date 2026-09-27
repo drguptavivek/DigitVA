@@ -995,7 +995,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(create_resp.status_code, 201)
         self.assertEqual(create_resp.get_json()["project"]["icd_classification"], "icd10")
 
-        for value in ("selectable", "icd11", "icd10"):
+        for value in ("icd11", "icd10"):
             resp = self.client.put(
                 "/admin/api/projects/ICDP01",
                 json={"icd_classification": value},
@@ -1006,8 +1006,13 @@ class AdminApiTests(BaseTestCase):
             self.assertEqual(
                 db.session.get(VaProjectMaster, "ICDP01").icd_classification, value
             )
+            # The entry mode follows the classification (digitva-0n3).
+            self.assertEqual(
+                db.session.get(VaProjectMaster, "ICDP01").cod_entry_mode,
+                "doris" if value == "icd11" else "simple",
+            )
 
-        for bad in ("icd9", "", None, ["icd10"], 11):
+        for bad in ("icd9", "selectable", "", None, ["icd10"], 11):
             resp = self.client.put(
                 "/admin/api/projects/ICDP01",
                 json={"icd_classification": bad, "project_name": "Must not stick"},
@@ -1031,21 +1036,6 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(create_bad.status_code, 400)
         self.assertIsNone(db.session.get(VaProjectMaster, "ICDP02"))
-
-        create_selectable = self.client.post(
-            "/admin/api/projects",
-            json={
-                "project_id": "ICDP03",
-                "project_name": "ICD",
-                "project_nickname": "ICD",
-                "icd_classification": "selectable",
-            },
-            headers=headers,
-        )
-        self.assertEqual(create_selectable.status_code, 201)
-        self.assertEqual(
-            create_selectable.get_json()["project"]["icd_classification"], "selectable"
-        )
 
     def test_project_icd_classification_requires_csrf_and_admin(self):
         self._login(self.admin_user_id)
@@ -1097,6 +1087,19 @@ class AdminApiTests(BaseTestCase):
                     "icd_classification": "icd11",
                 },
             ),
+            # digitva-0n3: masked + DORIS is now legal at the settings level.
+            (
+                "CODM04",
+                {
+                    "masked_cod_required": True,
+                    "cod_entry_mode": "doris",
+                    "icd_classification": "icd11",
+                },
+            ),
+            # icd_classification alone derives cod_entry_mode: icd11 -> doris.
+            ("CODM07", {"icd_classification": "icd11"}),
+            # ... and icd10 -> simple.
+            ("CODM08", {"icd_classification": "icd10"}),
         ):
             response = self.client.post(
                 "/admin/api/projects",
@@ -1109,22 +1112,28 @@ class AdminApiTests(BaseTestCase):
                 headers=headers,
             )
             self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(
+            db.session.get(VaProjectMaster, "CODM07").cod_entry_mode, "doris"
+        )
+        self.assertEqual(
+            db.session.get(VaProjectMaster, "CODM08").cod_entry_mode, "simple"
+        )
 
         for project_id, payload in (
-            (
-                "CODM04",
-                {
-                    "masked_cod_required": True,
-                    "cod_entry_mode": "doris",
-                    "icd_classification": "icd11",
-                },
-            ),
+            # Explicit, contradicting cod_entry_mode: icd10 can't be doris.
             (
                 "CODM05",
                 {
-                    "masked_cod_required": False,
                     "cod_entry_mode": "doris",
-                    "icd_classification": "selectable",
+                    "icd_classification": "icd10",
+                },
+            ),
+            # ... nor icd11 be simple.
+            (
+                "CODM09",
+                {
+                    "cod_entry_mode": "simple",
+                    "icd_classification": "icd11",
                 },
             ),
             ("CODM06", {"masked_cod_required": "false"}),

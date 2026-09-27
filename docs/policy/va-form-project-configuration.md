@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-27
 ---
 
 # VA Form Project Configuration Policy
@@ -121,44 +121,47 @@ The legacy `survey_state` / `survey_district` / `survey_block` fields predate
 the organization model and are not themselves routing inputs; routing reads
 `org_<level_code>_code` (decision O4).
 
-### 5. ICD classification (decided 2026-09-24)
+### 5. ICD classification (decided 2026-09-24; `selectable` retired 2026-09-27)
 
 A project declares how its deaths are coded, in
 `va_project_master.icd_classification`. Owner decision 8 in
-[ICD-10 to ICD-11 Transition](icd10-to-icd11-transition.md).
+[ICD-10 to ICD-11 Transition](icd10-to-icd11-transition.md); the
+`selectable` classification was retired by the digitva-0n3 owner decision in
+[DORIS COD Workflow Policy](doris-cod-workflow.md) ("Decided 2026-09-27").
 
 | Value | Coding screen |
 |---|---|
-| `icd10` (default) | ICD-10 search only; an ICD-11 code is rejected on save. |
-| `icd11` | ICD-11 search only; an ICD-10 code is rejected on save. |
-| `selectable` | The coder picks ICD-10 or ICD-11 for each death with a switch above the COD fields. The pick drives the search and is checked on save. |
+| `icd10` (default) | ICD-10 search only; an ICD-11 code is rejected on save. Always `cod_entry_mode='simple'`. |
+| `icd11` | ICD-11 search only; an ICD-10 code is rejected on save. Always `cod_entry_mode='doris'`. |
+
+`selectable` (the coder picking ICD-10 or ICD-11 per death with a switch
+above the COD fields) is retired: a project is fixed to one classification.
+A value saved while a project was still `selectable` keeps rendering in its
+own catalogue, by its code shape (`icd_classification_of` /
+`classification_of_value`); it is not reinterpreted.
 
 - **The project setting is the only source.** It covers every submission of
   the project, ODK and web forms alike (a web form has no ODK mapping row, so
   before this it always fell back to ICD-10). The per-form column
   `map_project_site_odk.icd_classification` is deprecated: kept in the schema
   so the change can be rolled back, no longer read, written or shown.
-- **Moving the per-form values up (migration).** A project whose ODK forms all
-  carry one value takes that value. A project whose forms carry both `icd10`
-  and `icd11` becomes `selectable`, so no form loses the catalogue its coders
-  were using. A project with no ODK forms takes `icd10`. The migration logs
-  every project it sets to something other than `icd10`.
+- **ICD-11 means DORIS.** Choosing `icd_classification='icd11'` sets
+  `cod_entry_mode='doris'`; ICD-10 always means simple entry. Admin derives
+  `cod_entry_mode` from the classification and only rejects an explicit,
+  contradicting value. See [DORIS COD Workflow Policy](doris-cod-workflow.md)
+  ("Project modes").
 - **A stored value records its own classification.** COD values are stored as
   `"<CODE> <title>"`, and ICD-10 (`A00.1`) and ICD-11 (`1A00`, `BA00.1`) code
   shapes do not overlap. Anything that reads an already-coded value (the VA
   definition panel, final COD and reviewer screens, recode) takes the
   classification from the code's shape, never from the project's current
   setting, so changing the setting never reinterprets past coding.
-- **One classification per save.** The switch applies to the whole form. A
-  Step 1 save (coder or reviewer) whose immediate and antecedent causes are in
-  different classifications is rejected. A later step, or a recode, may use
-  the other classification in a `selectable` project; each save is checked on
-  its own.
-- **Server-side checks.** Save validation dispatches on the project setting:
-  a fixed project checks against its one catalogue; a `selectable` project
-  checks the value against the catalogue its shape names. The ICD-11 coding
-  search refuses a project set to `icd10`, and the ICD-10 coding search a
-  project set to `icd11`.
+- **One classification per save.** A Step 1 save (coder or reviewer) whose
+  immediate and antecedent causes are in different classifications is
+  rejected.
+- **Server-side checks.** Save validation dispatches on the project's fixed
+  classification setting. The ICD-11 coding search refuses a project set to
+  `icd10`, and the ICD-10 coding search a project set to `icd11`.
 - **Changing the setting** is an admin edit on the project (Setup, Basics).
   It affects only new coding; existing values keep their shape.
 

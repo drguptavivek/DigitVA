@@ -184,7 +184,10 @@ class TestCodingSearchMatching(BaseTestCase):
         return self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.sid}?q={query}")
 
     def _icd11(self, query):
-        db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).icd_classification = "icd11"
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        # ICD-11 projects always use DORIS entry (digitva-0n3).
+        project.icd_classification = "icd11"
+        project.cod_entry_mode = "doris"
         db.session.commit()
         return self.client.get(f"/api/v1/icd11/coding-search/{self.sid}?q={query}")
 

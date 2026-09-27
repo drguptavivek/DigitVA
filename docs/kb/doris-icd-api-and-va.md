@@ -3,7 +3,7 @@ title: WHO DORIS, CoDEdit and AutoCoding in DigitVA
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # WHO DORIS, CoDEdit and AutoCoding in DigitVA
@@ -371,7 +371,8 @@ The owner-approved product direction is:
    this local WHO image, including ICD-11 code search, conditional fields,
    DORIS and CoDEdit, without saving a VA submission or changing settings.
 2. Later add two project settings: masked COD yes/no and final entry mode
-   simple/DORIS. DORIS is valid only for unmasked ICD-11 projects.
+   simple/DORIS. Since 2026-09-27 (digitva-0n3) every ICD-11 project uses
+   DORIS, masked ones included; ICD-10 projects use simple entry.
 3. In unmasked simple mode, a coder or reviewer makes one human final entry
    with immediate COD, underlying COD and associated conditions.
 4. In unmasked DORIS mode, the MO enters the causal chain, sees DORIS's

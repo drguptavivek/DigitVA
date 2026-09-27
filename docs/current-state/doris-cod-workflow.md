@@ -11,10 +11,18 @@ last_updated: 2026-09-27
 ## Project setting and storage
 
 `va_project_master.masked_cod_required` defaults to true and
-`cod_entry_mode` defaults to `simple`. The accepted combinations are
-masked/simple, unmasked/simple, and unmasked/DORIS. DORIS requires an ICD-11
-project. Existing projects therefore keep their historical two-step coder and
-reviewer flow. The additive migration is `c7a4e2d9f1b6`.
+`cod_entry_mode` defaults to `simple`. `icd_classification='icd11'` and
+`cod_entry_mode='doris'` are equivalent (CHECK
+`cod_entry_mode_classification`, migration `a3f7c1d8e5b2`, digitva-0n3): an
+ICD-11 project always uses DORIS, an ICD-10 project always uses simple
+entry, and the `selectable` classification is retired. Masked and DORIS may
+combine at the settings level; the masked DORIS Step 1/Step 2 screens are a
+later phase. Until then a masked ICD-11 project gets the masked simple
+two-step flow with ICD-11 search, and its assessments' snapshot records
+`cod_entry_mode: doris` although no certificate was entered (no dev project
+is masked ICD-11).
+Existing masked/simple and unmasked ICD-10/ICD-11 projects keep their
+historical flow. The additive migration is `c7a4e2d9f1b6`.
 It also adds unique indexes for active coder and reviewer finals by submission
 and non-null payload version. Before applying it to an existing database,
 check for duplicate active rows on those keys; the migration stops if any

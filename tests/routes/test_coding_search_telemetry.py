@@ -249,7 +249,10 @@ class TestCodingSearchTelemetry(BaseTestCase):
         self.assertFalse(rows[0].zero_results)
 
     def test_icd11_search_records_the_icd11_surface(self):
-        db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).icd_classification = "icd11"
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        # ICD-11 projects always use DORIS entry (digitva-0n3).
+        project.icd_classification = "icd11"
+        project.cod_entry_mode = "doris"
         db.session.commit()
 
         search_id = uuid.uuid4()

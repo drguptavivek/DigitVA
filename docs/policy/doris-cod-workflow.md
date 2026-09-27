@@ -10,26 +10,29 @@ last_updated: 2026-09-27
 
 ## Project modes
 
-Existing projects remain masked and simple. A project may use one of three
-combinations: masked/simple, unmasked/simple, or unmasked/DORIS. DORIS requires
-`icd_classification='icd11'`; `icd10` and `selectable` are invalid for this
-mode. A project's settings do not rewrite completed assessments.
+**ICD-11 means DORIS (implemented, `digitva-0n3` phase 1).** Choosing
+`icd_classification='icd11'` always sets `cod_entry_mode='doris'`; choosing
+`icd10` always means simple entry. The `selectable` classification (ICD-10
+or ICD-11 chosen per death) is retired; the migration moved every dev
+project on it to `icd10`. Masked and DORIS may now combine at the settings
+level (`masked_cod_required` no longer forbids `cod_entry_mode='doris'`);
+the masked ICD-11 Step 1/Step 2 UI itself is a later phase (below). A
+project's settings do not rewrite completed assessments.
 
 Masked/simple retains the current two-step coder and reviewer workflow.
 Unmasked/simple has one final assessment with an independently validated
 immediate COD, underlying COD and optional associated-condition free text.
 The underlying COD alone controls final authority and VA bucket reporting.
+Unmasked/DORIS keeps today's one-step DORIS final assessment. A masked
+ICD-11 project is legal to save today but has no masked DORIS Step 1/Step 2
+screens yet -- see below.
 
-### Decided 2026-09-27, not yet implemented (`digitva-0n3`)
+### Masked ICD-11, not yet implemented (`digitva-0n3` phase 2+)
 
-Owner decision; DigitVA is not deployed anywhere, so no production data is
-affected. It replaces the three combinations above once implemented.
+Owner decision in docs/policy/doris-cod-workflow.md; design record
+`.tasks/2026-09-27-icd11-means-doris.md`. DigitVA is not deployed anywhere,
+so no production data is affected.
 
-- **ICD-11 means DORIS.** Choosing `icd_classification='icd11'` sets
-  `cod_entry_mode='doris'`; simple entry is refused for ICD-11 projects.
-  ICD-10 projects stay simple. The `selectable` classification (ICD-10 or
-  ICD-11 chosen per death) is retired; dev projects on it move to `icd10`.
-- **Unmasked ICD-11** keeps today's one-step DORIS final assessment.
 - **Masked ICD-11** keeps the two steps. Step 1 is the DORIS certificate,
   entered and processed without SmartVA. Step 2 only confirms the final
   underlying COD, which may be the DORIS result, the SmartVA result or the

@@ -552,16 +552,27 @@ PROJECT_STRUCTURE_MODES = ("sites", "organization")
 COD_ENTRY_MODES = ("simple", "doris")
 
 
+def _derive_cod_entry_mode(icd_classification):
+    """The only cod_entry_mode legal for a classification.
+
+    ICD-11 means DORIS; ICD-10 means simple entry (digitva-0n3). Masked and
+    DORIS may combine; the masked DORIS UI itself is a later phase.
+    """
+    return "doris" if icd_classification == "icd11" else "simple"
+
+
 def _validate_cod_project_mode(masked_cod_required, cod_entry_mode, icd_classification):
     """Return the public validation error for one proposed COD mode."""
     if not isinstance(masked_cod_required, bool):
         return "masked_cod_required must be true or false."
+    if icd_classification not in PROJECT_ICD_CLASSIFICATIONS:
+        return "Invalid icd_classification."
     if cod_entry_mode not in COD_ENTRY_MODES:
         return "Invalid cod_entry_mode."
-    if cod_entry_mode == "doris" and masked_cod_required:
-        return "DORIS entry requires masked COD to be off."
-    if cod_entry_mode == "doris" and icd_classification != "icd11":
-        return "DORIS entry requires ICD-11 classification."
+    if cod_entry_mode != _derive_cod_entry_mode(icd_classification):
+        return (
+            "ICD-11 projects use DORIS entry; ICD-10 projects use simple entry."
+        )
     return None
 
 
@@ -1351,7 +1362,11 @@ def admin_create_project():
         return _json_error("Invalid icd_classification.", 400)
 
     masked_cod_required = payload.get("masked_cod_required", True)
-    cod_entry_mode = payload.get("cod_entry_mode") or "simple"
+    # Not sent: derive from the classification. Sent: validated against it,
+    # so a contradicting value (e.g. icd10 + doris) is a 400.
+    cod_entry_mode = payload.get("cod_entry_mode")
+    if cod_entry_mode is None:
+        cod_entry_mode = _derive_cod_entry_mode(icd_classification)
     if error := _validate_cod_project_mode(
         masked_cod_required, cod_entry_mode, icd_classification
     ):
@@ -1472,7 +1487,15 @@ def admin_update_project(project_id):
         updates["masked_cod_required"] = payload["masked_cod_required"]
 
     if "cod_entry_mode" in payload:
+        # Sent: validated below against the resulting classification, so a
+        # contradicting value is a 400.
         updates["cod_entry_mode"] = payload["cod_entry_mode"]
+    elif "icd_classification" in updates:
+        # classification changed without an explicit cod_entry_mode: derive
+        # it, so a classification-only update never leaves an illegal combo.
+        derived = _derive_cod_entry_mode(updates["icd_classification"])
+        if derived != project.cod_entry_mode:
+            updates["cod_entry_mode"] = derived
 
     resulting_masked = updates.get(
         "masked_cod_required", project.masked_cod_required

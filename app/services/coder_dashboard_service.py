@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime, timezone
 import hashlib
 
 import sqlalchemy as sa
@@ -254,6 +255,54 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
         scoped_form_ids,
         compute,
     )
+
+
+def get_coder_demo_history(user_id) -> list[dict]:
+    """Return the coder's demo final codes that have not expired yet.
+
+    Demo work is kept out of the cached history and KPIs, but a trainee
+    should still find what they just saved. Rows are read uncached so each
+    disappears when its retention ends, matching the cleanup task's naive
+    UTC comparison. Demo projects need no grant, so rows are scoped by
+    author, not form access. Not-codeable reviews carry no demo expiry and
+    are left out.
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    rows = db.session.execute(
+        sa.select(
+            VaForms.project_id.label("project_id"),
+            VaForms.site_id.label("site_id"),
+            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            VaSubmissions.va_form_id,
+            VaSubmissions.va_sid,
+            VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_deceased_age,
+            VaSubmissions.va_deceased_gender,
+            VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
+            VaFinalAssessments.demo_expires_at,
+        )
+        .select_from(VaFinalAssessments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaFinalAssessments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaForms.project_id)
+        .where(
+            VaFinalAssessments.va_finassess_by == user_id,
+            VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            VaFinalAssessments.demo_expires_at > now,
+            VaProjectMaster.demo_training_enabled.is_(True),
+        )
+        .order_by(VaFinalAssessments.va_finassess_createdat.desc())
+    ).mappings().all()
+    history = []
+    for row in rows:
+        item = va_render_serialisedates(dict(row), ["va_submission_date"])
+        item["va_coding_date"] = row["va_coding_date"].isoformat()
+        # Stored as naive UTC; the Z lets the browser show local time.
+        item["demo_expires_at"] = row["demo_expires_at"].isoformat() + "Z"
+        item["va_code_status"] = "VA Coding Completed"
+        item["is_demo"] = True
+        history.append(item)
+    return history
 
 
 def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> list[str]:

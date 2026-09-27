@@ -178,7 +178,10 @@
 
   function formatHistoryDateTime(isoValue) {
     if (!isoValue) return '-';
-    const parsed = new Date(isoValue);
+    // The API sends naive UTC timestamps; without a zone the browser read
+    // them as local time, so coding dates showed the UTC clock.
+    const zoned = /T/.test(isoValue) && !/(Z|[+-]\d\d:?\d\d)$/.test(isoValue) ? isoValue + 'Z' : isoValue;
+    const parsed = new Date(zoned);
     if (Number.isNaN(parsed.getTime())) return isoValue;
     try {
       return new Intl.DateTimeFormat(historyLocale, {
@@ -190,6 +193,16 @@
         hour12: false,
         timeZone: historyTimezone,
       }).format(parsed);
+    } catch (error) {
+      return isoValue;
+    }
+  }
+
+  function formatHistoryTime(isoValue) {
+    const parsed = new Date(isoValue);
+    if (!isoValue || Number.isNaN(parsed.getTime())) return '-';
+    try {
+      return new Intl.DateTimeFormat(historyLocale, {hour: '2-digit', minute: '2-digit', hour12: false, timeZone: historyTimezone}).format(parsed);
     } catch (error) {
       return isoValue;
     }
@@ -217,8 +230,9 @@
         { data: null, title: 'Age / Gender',
           render: r => `${r.va_deceased_age || '-'} / ${r.va_deceased_gender || '-'}` },
         { data: 'va_code_status', title: 'VA Code Status',
-          render: d => {
+          render: (d, _type, row) => {
             if (d === '__pending__') return '<span class="badge bg-warning text-dark">In Progress</span>';
+            if (row.is_demo) return `<span class="badge bg-success">VA Coding Completed</span> <span class="badge bg-info text-dark" title="Demo codes are removed when their retention ends">Demo · until ${formatHistoryTime(row.demo_expires_at)}</span>`;
             if (d === 'VA Coding Completed') return '<span class="badge bg-success">VA Coding Completed</span>';
             return '<span class="badge bg-danger">Not Codeable</span>';
           }

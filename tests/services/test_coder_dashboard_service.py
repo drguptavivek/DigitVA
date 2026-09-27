@@ -13,6 +13,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.coder_dashboard_service import (
+    get_coder_demo_history,
     bust_coder_dashboard_cache,
     get_coder_completed_count,
     get_coder_completed_history,
@@ -221,6 +222,37 @@ class TestCoderDashboardService(BaseTestCase):
         self.assertEqual(summary["not_codeable"], 1)
         self.assertEqual(get_coder_completed_count(self.dashboard_user.user_id, [self.FORM_ID]), 1)
         self.assertEqual(get_coder_not_codeable_count(self.dashboard_user.user_id, [self.FORM_ID]), 1)
+
+    def test_demo_history_lists_only_unexpired_demo_finals(self):
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        live_sid, expired_sid, normal_sid = (
+            f"uuid:coderdash-demo-{name}-{uuid.uuid4().hex[:6]}" for name in ("live", "expired", "normal")
+        )
+        self._add_submission(live_sid, form_id=self.DEMO_FORM_ID)
+        self._add_submission(expired_sid, form_id=self.DEMO_FORM_ID)
+        self._add_submission(normal_sid)
+        for sid, expires in (
+            (live_sid, now + timedelta(minutes=20)),
+            (expired_sid, now - timedelta(minutes=1)),
+            (normal_sid, None),
+        ):
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=self.dashboard_user.user_id,
+                    va_conclusive_cod="R99",
+                    va_finassess_status=VaStatuses.active,
+                    demo_expires_at=expires,
+                )
+            )
+        db.session.commit()
+
+        rows = get_coder_demo_history(self.dashboard_user.user_id)
+
+        self.assertEqual([row["va_sid"] for row in rows], [live_sid])
+        self.assertTrue(rows[0]["is_demo"])
+        self.assertTrue(rows[0]["demo_expires_at"].endswith("Z"))
+        self.assertEqual(rows[0]["project_id"], self.DEMO_PROJECT_ID)
 
     def test_completed_history_uses_workflow_state_to_label_rows(self):
         final_sid = "uuid:coderdash-history-final"

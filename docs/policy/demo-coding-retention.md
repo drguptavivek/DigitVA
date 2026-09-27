@@ -3,7 +3,7 @@ title: Demo Coding Retention Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-05-20
+last_updated: 2026-09-27
 ---
 
 # Demo Coding Retention Policy
@@ -50,6 +50,11 @@ Current intended baseline:
 - demo-created artifacts must remain readable in the UI after save
 - a demo-coded submission may appear on the coder dashboard while its demo
   artifacts are still active
+- the coder's history lists their own demo final codes until
+  `demo_expires_at`, marked "Demo · until <time>" with View and no Recode;
+  they are read uncached so each drops out when it expires, and they stay
+  out of the coder's completed and not-codeable counts. Demo not-codeable
+  reviews carry no expiry and are not listed
 - project-declared demo/training projects are open training pools:
   - no project-specific coder grant is required
   - any active authenticated user may enter the coder flow for those project

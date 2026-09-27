@@ -10,6 +10,7 @@ from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
+    get_coder_demo_history,
     get_coder_output_summary,
     get_coder_project_options,
     get_coder_project_ids,
@@ -238,6 +239,10 @@ def history():
     recodeable_sids = set(get_coder_recodeable_sids(current_user.user_id, va_form_access))
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
+    demo_rows = get_coder_demo_history(current_user.user_id)
+    for row in demo_rows:
+        row["recodeable"] = False
+    rows = [*demo_rows, *rows]
     return jsonify({"history": rows, "count": len(rows)})
 
 

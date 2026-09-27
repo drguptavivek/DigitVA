@@ -31,6 +31,11 @@ from app.services.web_form_instruments import is_servable
 
 bp = Blueprint("instruments_api", __name__)
 
+#: Bumped whenever export_translations' render-time rules change, so a cached
+#: body (keyed on this ETag) is refetched even though the locale's own
+#: ``version`` did not move.
+_RENDER_RULES = "r1"
+
 
 @bp.get("/<instrument_code>/translations/<locale>")
 @login_required
@@ -58,7 +63,7 @@ def instrument_translations(instrument_code: str, locale: str):
 
     # Weak ETag: the body is regenerated per request, so byte equality is not
     # promised — semantic equality at this version is.
-    etag = f"{code}-{locale}-{payload['version']}"
+    etag = f"{code}-{locale}-{payload['version']}-{_RENDER_RULES}"
     if request.if_none_match.contains_weak(etag):
         response = jsonify({})
         response.status_code = 304

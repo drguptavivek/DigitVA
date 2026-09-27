@@ -305,6 +305,30 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertNotIn(("question", "socialautopsy", "label"), self._rows())
         self.assertIn("question:socialautopsy:label", report.missing_from_workbook)
 
+    def test_a_trailing_newline_with_no_translation_is_untranslated(self):
+        """Regression (digitva-fb5.2): a choice cell carries English plus a
+        bare trailing newline and no Hindi at all -- stripping it still
+        equals English, so it must not count as translated.
+        """
+        self._extend_reference(
+            extra_choices=[{"list_name": "yes_no", "name": "dontknow",
+                             "label::English (en)": "Don't know"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "yes_no", "name": "dontknow",
+                 "label::English (en)": "Don't know",
+                 "label::Hindi (hi)": "Don't know\n"},
+            ],
+        )
+        self._import(workbook)
+        db.session.flush()
+        self.assertNotIn(("choice", "yes_no/dontknow", "label"), self._rows())
+
     def test_a_parenthetical_that_reduces_to_english_is_untranslated(self):
         """'English (English)' unpacks to plain English -- still untranslated."""
         self._extend_reference(
@@ -733,6 +757,85 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertEqual(payload["questions"]["Q1"]["label"], "पहला प्रश्न")
         self.assertEqual(payload["choices"]["yes_no/yes"]["label"], "हाँ")
         self.assertGreaterEqual(payload["version"], 1)
+
+    def test_export_fixes_a_mistyped_code_prefix_against_the_english_reference(self):
+        """Class 2 (docs/current-state/translation-label-code-mismatches.md):
+        a translated label carries a typo'd item code on otherwise-correct
+        text. The stored row keeps the typo -- an import is never rewritten
+        -- but export_translations swaps the shown prefix for the English
+        one so a form never displays a wrong code.
+        """
+        self._extend_reference(
+            extra_survey=[{"type": "text", "name": "Q3",
+                            "label::English (en)": "(Id1) First question"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "Q3", "label::English (en)": "(Id1) First question",
+                 "label::Hindi (hi)": "(Id10) पहला प्रश्न"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self._import(workbook)
+        db.session.flush()
+        # Stored row: untouched, typo and all.
+        self.assertEqual(
+            self._rows()[("question", "Q3", "label")].text, "(Id10) पहला प्रश्न"
+        )
+        payload = svc.export_translations(INSTRUMENT, "hi")
+        self.assertEqual(payload["questions"]["Q3"]["label"], "(Id1) पहला प्रश्न")
+
+    def test_export_leaves_a_shown_code_that_is_a_real_reference_item(self):
+        """A wrong-but-real code (a translator pasted a different question's
+        row) stays visible: it may carry that other question's wording,
+        which a speaker still needs to see -- unlike a typo naming nothing.
+        """
+        self._extend_reference(
+            extra_survey=[
+                {"type": "text", "name": "Q3", "label::English (en)": "(Id1) First question"},
+                {"type": "text", "name": "Id2", "label::English (en)": "(Id2) Another question"},
+            ]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "Q3", "label::English (en)": "(Id1) First question",
+                 "label::Hindi (hi)": "(Id2) गलत पाठ"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self._import(workbook)
+        db.session.flush()
+        payload = svc.export_translations(INSTRUMENT, "hi")
+        self.assertEqual(payload["questions"]["Q3"]["label"], "(Id2) गलत पाठ")
+
+    def test_export_leaves_a_non_id_parenthetical_shown_prefix(self):
+        """A parenthetical that isn't code-shaped (e.g. "(commentaire)") is
+        content, not a mistyped code, and is never touched.
+        """
+        self._extend_reference(
+            extra_survey=[{"type": "text", "name": "Q3",
+                            "label::English (en)": "(Id1) First question"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "Q3", "label::English (en)": "(Id1) First question",
+                 "label::Hindi (hi)": "(commentaire) पाठ"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self._import(workbook)
+        db.session.flush()
+        payload = svc.export_translations(INSTRUMENT, "hi")
+        self.assertEqual(payload["questions"]["Q3"]["label"], "(commentaire) पाठ")
 
     def test_active_locale_versions_always_carries_the_base_locale(self):
         versions = svc.active_locale_versions(INSTRUMENT)

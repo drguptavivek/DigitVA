@@ -149,6 +149,46 @@ _TRANSLATABLE_FIELDS = (FIELD_LABEL, FIELD_HINT, FIELD_GUIDANCE)
 #: log line is an audit record, not a copy of the questionnaire.
 _LOG_TEXT_LIMIT = 120
 
+#: A WHO question label's leading "(Id10192)"-style code.
+_LABEL_CODE_PREFIX_RE = re.compile(r"^\((?P<code>\w+)\)")
+#: Whether a shown prefix even looks like a question code, not content such
+#: as "(commentaire)".
+_SHOWN_CODE_LIKE_RE = re.compile(r"^[Ii][Dd]\d")
+
+
+def _fix_mistyped_code_prefix(
+    english_label: str | None,
+    shown_text: str,
+    reference: dict[tuple[str, str, str], str],
+) -> str:
+    # ponytail: prefix-only rewrite; wrong wording (Class 3) is a speaker's job
+    """Swap a mistyped leading "(Id...)" code for the English one.
+
+    Class 2 in docs/current-state/translation-label-code-mismatches.md: a
+    translated label carries a typo'd code on otherwise-correct text, e.g.
+    "(Id100010)" for "Id10010". A shown prefix that looks like a code but
+    names no real reference item is a typo and is swapped for the English
+    prefix's own code (mirroring the English row, not ``item_key``, since the
+    English row is itself the reference here). A shown prefix that IS a real
+    reference key is left alone -- it may carry that other question's
+    wording, which a speaker still needs to see. Render-time only: the
+    stored row is never touched.
+    """
+    if not english_label:
+        return shown_text
+    en_match = _LABEL_CODE_PREFIX_RE.match(english_label)
+    shown_match = _LABEL_CODE_PREFIX_RE.match(shown_text)
+    if not en_match or not shown_match:
+        return shown_text
+    code, shown = en_match.group("code"), shown_match.group("code")
+    if shown == code:
+        return shown_text
+    if not _SHOWN_CODE_LIKE_RE.match(shown):
+        return shown_text
+    if (ITEM_KIND_QUESTION, shown, FIELD_LABEL) in reference:
+        return shown_text
+    return f"({code})" + shown_text[shown_match.end():]
+
 
 class InstrumentTranslationError(RuntimeError):
     """The import or edit cannot be performed as asked."""
@@ -949,6 +989,7 @@ def export_translations(instrument_code: str, locale_code: str) -> dict:
         raise InstrumentTranslationError(
             f"No {locale_code!r} translation exists for {instrument_code}."
         )
+    reference = reference_items(instrument_code)
     questions: dict[str, dict[str, str]] = {}
     choices: dict[str, dict[str, str]] = {}
     for item in db.session.scalars(
@@ -964,7 +1005,13 @@ def export_translations(instrument_code: str, locale_code: str) -> dict:
         )
     ):
         bucket = questions if item.item_kind == ITEM_KIND_QUESTION else choices
-        bucket.setdefault(item.item_key, {})[item.field] = item.text
+        text = item.text
+        if item.item_kind == ITEM_KIND_QUESTION and item.field == FIELD_LABEL:
+            english_label = reference.get(
+                (ITEM_KIND_QUESTION, item.item_key, FIELD_LABEL)
+            )
+            text = _fix_mistyped_code_prefix(english_label, text, reference)
+        bucket.setdefault(item.item_key, {})[item.field] = text
     return {
         "instrument_code": instrument_code,
         "locale": locale_code,

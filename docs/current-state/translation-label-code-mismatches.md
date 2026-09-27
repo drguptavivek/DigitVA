@@ -3,7 +3,7 @@ title: "Translated labels that display another question's code"
 doc_type: reference
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-20
+last_updated: 2026-09-27
 ---
 
 # Translated labels that display another question's code
@@ -282,13 +282,39 @@ order by locale_code, item_key;
 ```
 
 Odia and Kannada were demoted from `approved` to `in_review` and deactivated
-on 2026-09-20 by migration `c8e4a1f7b209`, so DigitVA's web form no longer
-serves them and falls back to English. ODK collection is unaffected. The
+on 2026-09-20 by migration `c8e4a1f7b209`. As of commit `d2a5a35`,
+`SERVABLE_LOCALE` (`app/services/web_form_instruments.py`) still serves an
+`in_review` locale — with its English forced alongside, marked "(under
+review)" — so Odia and Kannada are not withheld; a form just shows an
+interviewer the English pairing until the locale is re-approved. Only a
+`draft` locale is withheld. ODK collection is unaffected either way. The
 migration captures each locale's prior state into
 `_mig_c8e4a1f7b209_prior_locale_state` so `downgrade` can restore it, and its
 UPDATE matches only a locale still `approved`, so re-running changes nothing.
 Re-approving a locale after review is a deliberate administrator action:
 `flask instrument-translations lifecycle WHO_2022_VA <locale> approved
 --approved-by <admin>` then `activate`.
+
+## Disposition, by class (digitva-fb5)
+
+- **Class 1** (case only) — no action. Harmless, as noted above.
+- **Class 2** (a code that is not any question) — fixed at render time.
+  `export_translations` (`app/services/instrument_translation_service.py`)
+  now swaps a mistyped `(Id...)` prefix for the English reference row's own
+  prefix whenever the shown code names no real reference item; the stored
+  row is left as imported, so the SQL sweep above still finds these slips —
+  reading it no longer means a form shows the wrong number.
+- **fb5.2** (a choice cell with English plus a bare trailing newline and no
+  translation) — already refused at import: `_text` strips whitespace before
+  comparing to English, so the cell is stored as untranslated rather than as
+  a false translation. Pinned by
+  `test_a_trailing_newline_with_no_translation_is_untranslated` in
+  `tests/services/test_instrument_translation_import.py`.
+- **fb5.1** — never reached DigitVA. The `mr`/`units_5` cascade traced back to
+  `KEM_VAADU`, whose own `units_5` column is correct; only the `KA01_DS`
+  workbook maintainer needs telling, not a DigitVA fix.
+- **Class 3** (another question's text) — still needs a speaker's review, per
+  row, as above. No automated fix is possible: the shown code names a real
+  question, so the wording may be exactly what belongs there.
 
 Tracked as `digitva-fb5`.

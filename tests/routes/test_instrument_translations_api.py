@@ -17,6 +17,7 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.routes import admin_translations as svc_routes
+from app.routes.api import instruments as instruments_routes
 from app.services import instrument_translation_service as svc
 from tests.base import BaseTestCase
 
@@ -143,6 +144,9 @@ class InstrumentTranslationServingTests(BaseTestCase):
         first = self.client.get(self._url("hi"))
         self.assertEqual(first.status_code, 200)
         etag = first.headers["ETag"]
+        # The render-rule revision rides along, so a rule change alone
+        # (no version bump) still forces a refetch.
+        self.assertIn(instruments_routes._RENDER_RULES, etag)
 
         again = self.client.get(self._url("hi"), headers={"If-None-Match": etag})
         self.assertEqual(again.status_code, 304)

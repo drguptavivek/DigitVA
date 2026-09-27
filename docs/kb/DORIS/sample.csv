@@ -1,0 +1,8 @@
+﻿CertificateKey,ICDVersion,ICDMinorVersion,Sex,DateBirth,DateDeath,EstimatedAge,CauseOfDeathCodeA,CauseOfDeathURIA,CauseOfDeathTextA,IntervalA,CauseOfDeathCodeB,CauseOfDeathURIB,CauseOfDeathTextB,IntervalB,CauseOfDeathCodeC,CauseOfDeathURIC,CauseOfDeathTextC,IntervalC,CauseOfDeathCodeD,CauseOfDeathURID,CauseOfDeathTextD,IntervalD,CauseOfDeathCodeE,CauseOfDeathURIE,CauseOfDeathTextE,IntervalE,CauseOfDeathCodePart2,CauseOfDeathURIPart2,CauseOfDeathTextPart2,SurgeryWasPerformed,SurgeryDate,SurgeryReason,AutopsyWasRequested,AutopsyFindings,MannerOfDeath,MannerOfDeathDateOfExternalCauseOrPoisoning,MannerOfDeathDescriptionExternalCause,MannerOfDeathPlaceOfOccuranceExternalCause,FetalOrInfantDeathMultiplePregnancy,FetalOrInfantDeathStillborn,FetalOrInfantDeathDeathWithin24h,FetalOrInfantDeathBirthWeight,FetalOrInfantDeathPregnancyWeeks,FetalOrInfantDeathAgeMother,FetalOrInfantDeathPerinatalDescription,MaternalDeathWasPregnant,MaternalDeathTimeFromPregnancy,MaternalDeathPregnancyContribute
+1,,,1,Fri Mar 26 1943,Tue Jun 17 2025,,BC42.Z,,,,,,,,,,,,,,,,,,,,BA00.Z,,,0,,,0,,0,,,,,,,,,,,,,
+2,,,2,,,P52Y,2C10.Z,,,,2C10.Z,,,,3A9Z,,,,,,,,,,,,,,,1,2025-06-03T22:00:00.000Z,,0,,0,,,,,,,,,,,0,,
+3,,,2,,,P52Y,MG40.1,,,,ME24.A5,,,,,,,,,,,,,,,,5A11,,,,,,,,,,,,,,,,,,,,,
+4,,,1,,,P87Y,BD10,,,P1Y,BA00.Z,,,P10Y,,,,,,,,,,,,,"5A11,CA22.Z",,,0,,,0,,0,,,,,,,,,,,,,
+5,,,2,,,P72Y,PL11.0,,,,FA82,,,,,,,,,,,,,,,,"CA22.Z,BA00.Z,BA01",,,1,2017-06-08T22:00:00.000Z,,0,,1,,,,,,,,,,,,,
+6,,,,,,,MC82.Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+7,,,,Tue Feb 04 2003,Tue Jun 17 2025,,PA0Z,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,

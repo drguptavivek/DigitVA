@@ -121,7 +121,7 @@
   });
 
   removeBtn.addEventListener("click", async () => {
-    if (!window.confirm("Remove TOTP? You will need another way to sign in if it was your only factor.")) return;
+    if (!(await window.confirmDialog("You will need another way to sign in if it was your only factor.", { title: "Remove TOTP?", okLabel: "Remove" }))) return;
     const { ok, status, data } = await apiFetch("/api/v1/profile/totp", "DELETE");
     if (!ok) {
       if (needsReauth(status)) return;
@@ -133,7 +133,7 @@
   });
 
   recoveryRegenBtn.addEventListener("click", async () => {
-    if (!window.confirm("Regenerate recovery codes? Your existing codes will stop working.")) return;
+    if (!(await window.confirmDialog("Your existing recovery codes will stop working.", { title: "Regenerate recovery codes?", okLabel: "Regenerate" }))) return;
     const { ok, status, data } = await apiFetch("/api/v1/profile/recovery-codes/regenerate", "POST");
     if (!ok) {
       if (needsReauth(status)) return;

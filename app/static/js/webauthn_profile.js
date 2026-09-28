@@ -140,10 +140,25 @@
 
   listEl.addEventListener("click", async (event) => {
     const renameBtn = event.target.closest(".passkey-rename");
+    const saveBtn = event.target.closest(".passkey-rename-save");
     const revokeBtn = event.target.closest(".passkey-revoke");
     if (renameBtn) {
-      const id = renameBtn.dataset.id;
-      const name = window.prompt("New name for this passkey:");
+      // Inline edit rather than window.prompt, which embedded browsers block.
+      const row = renameBtn.closest("[data-id]");
+      const nameEl = row.querySelector(".fw-bold");
+      const current = nameEl.firstChild ? nameEl.firstChild.textContent.trim() : "";
+      nameEl.innerHTML = '<div class="input-group input-group-sm" style="max-width: 18rem;">'
+        + '<input type="text" class="form-control passkey-rename-input" maxlength="64">'
+        + '<button class="btn btn-primary passkey-rename-save" data-id="' + renameBtn.dataset.id + '">Save</button></div>';
+      const input = nameEl.querySelector(".passkey-rename-input");
+      input.value = current;
+      input.focus();
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") nameEl.querySelector(".passkey-rename-save").click(); });
+      return;
+    }
+    if (saveBtn) {
+      const id = saveBtn.dataset.id;
+      const name = saveBtn.parentElement.querySelector(".passkey-rename-input").value.trim();
       if (!name) return;
       const { ok, status, data } = await apiFetch(`/api/v1/profile/passkeys/${id}`, "PATCH", { name });
       if (!ok) {
@@ -155,7 +170,7 @@
       await loadPasskeys();
     } else if (revokeBtn) {
       const id = revokeBtn.dataset.id;
-      if (!window.confirm("Revoke this passkey? This cannot be undone.")) return;
+      if (!(await window.confirmDialog("This cannot be undone.", { title: "Revoke this passkey?", okLabel: "Revoke" }))) return;
       const { ok, status, data } = await apiFetch(`/api/v1/profile/passkeys/${id}`, "DELETE");
       if (!ok) {
         if (needsReauth(status)) return;

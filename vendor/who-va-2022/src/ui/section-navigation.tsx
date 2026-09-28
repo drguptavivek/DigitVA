@@ -291,7 +291,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
               />
               <StepCircle item={active} small />
               <View style={[navStyles.stripLine, { flexGrow: Math.max(1, total - current) }]} />
-              <Text style={navStyles.stripCount}>{total - current}</Text>
+              <Text style={navStyles.stripCount}>{messages.sectionsRemaining(total - current)}</Text>
             </>
           ) : (
             items.map((item, index) => (

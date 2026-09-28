@@ -4207,6 +4207,7 @@ export default {
     sectionProgress: "अनुभाग {current} / {total}",
     sections: "अनुभाग",
     sectionsDone: "{count} पूरे",
+    sectionsRemaining: "{count} बाकी",
     moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे",
     close: "बंद करें",
     back: "वापस",

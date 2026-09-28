@@ -24,6 +24,7 @@ export interface WhoVaUiMessageTemplates {
   sectionProgress: string;
   sections: string;
   sectionsDone: string;
+  sectionsRemaining: string;
   moreSectionsNote: string;
   close: string;
   back: string;
@@ -129,6 +130,7 @@ export interface WhoVaUiMessages {
   sectionProgress: (current: number, total: number) => string;
   sections: string;
   sectionsDone: (count: number) => string;
+  sectionsRemaining: (count: number) => string;
   moreSectionsNote: string;
   close: string;
   back: string;
@@ -215,6 +217,7 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   sectionProgress: "Section {current} of {total}",
   sections: "Sections",
   sectionsDone: "{count} done",
+  sectionsRemaining: "{count} left",
   moreSectionsNote: "More sections appear as you answer",
   close: "Close",
   back: "Back",
@@ -309,6 +312,7 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
     ...templates,
     sectionProgress: (current, total) => format(templates.sectionProgress, { current, total }),
     sectionsDone: (count) => format(templates.sectionsDone, { count }),
+    sectionsRemaining: (count) => format(templates.sectionsRemaining, { count }),
     draftSaved: (id) => format(templates.draftSaved, { id }),
     draftId: (id) => format(templates.draftId, { id }),
     required: (label) => format(templates.required, { label }),

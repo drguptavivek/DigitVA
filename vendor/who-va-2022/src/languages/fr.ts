@@ -4250,6 +4250,7 @@ export default {
     sectionProgress: "Section {current} sur {total}",
     sections: "Sections",
     sectionsDone: "{count} terminées",
+    sectionsRemaining: "{count} restantes",
     moreSectionsNote: "D’autres sections apparaissent au fil des réponses",
     close: "Fermer",
     back: "Retour",

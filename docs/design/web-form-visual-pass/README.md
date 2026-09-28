@@ -1,7 +1,7 @@
 ---
 title: Web VA questionnaire visual pass (before/after)
 doc_type: design
-status: approved
+status: proposed
 owner: engineering
 last_updated: 2026-09-28
 ---
@@ -104,8 +104,20 @@ round-1 state.
 
 ### The section count is not fixed
 
-Measured with the real engine (`createWhoVaSession(...).getSnapshot().visibleSections`,
-script in the session scratchpad; WHO core = `createWhoVa2022Instrument([])`):
+Measured with the real engine; to reproduce, from `vendor/who-va-2022`
+(`pnpm exec tsx` on this, with each scenario's `initialData`):
+
+```ts
+import { createWhoVaSession } from "./src/engine/session.ts";
+import { createWhoVa2022Instrument } from "./src/instrument.ts";
+import { ALL_DIGITVA_EXTENSIONS } from "./src/digitva-extension.ts";
+const consent = { Id10013: "yes", Id10020: "yes", Id10022: "yes", Id10023_a: "2026-07-17" };
+const core = createWhoVa2022Instrument([]); // (g): createWhoVa2022Instrument(ALL_DIGITVA_EXTENSIONS)
+const session = createWhoVaSession(core, { initialData: { ...consent, Id10019: "male", Id10021: "1980-01-01" } });
+console.log(session.getSnapshot().visibleSections.map((s) => s.name));
+// (a) {}  (c) female, born 1996-01-01  (d) born 2022-07-17  (e) born 2026-06-20  (f) (b) + Id10077: "yes"
+```
+
 
 | Scenario | Visible sections | Names |
 | --- | --- | --- |
@@ -139,13 +151,15 @@ Symptom-gated pages (breathdur, paindur, abdominal_pain) appear mid-interview.
   indented under their parent page (Health history > Duration of illness,
   Signs and symptoms, ...); a parent that is not a page (WHO
   `deceased_CRVS`, DigitVA `socialautopsy`) becomes a small uppercase
-  heading. Collapsible groups were considered and not built: the list peaks
+  heading; WHO's "Interview completion" (`consented`) is such a heading
+  too, because the engine pages its own three questions after all of its
+  children. Collapsible groups were considered and not built: the list peaks
   at about 20 items, fits the rail without scrolling, and folding a group
   would hide the per-section status the stepper exists to show.
 - **Medium and narrow (< 900 px):** horizontal stepper across the top; the
   current section's name starts under its circle. When the circles would
   need a pitch under 34 px (phone: more than ~11 sections) it collapses to
-  "N done" - brand line - current circle - grey line - "M remaining" with
+  "N done" - brand line - current circle - grey line - "M left" with
   "Section x of y . name" beneath, rather than shrinking. The whole strip is
   the drawer toggle (`section-drawer-toggle`, `aria-haspopup="dialog"`);
   the drawer (`section-drawer`, `role="dialog"`, `aria-modal`) holds the
@@ -184,7 +198,7 @@ Symptom-gated pages (breathdur, paindur, abdominal_pain) appear mid-interview.
   `section-progress`, `section-drawer`, `section-drawer-close`,
   `section-drawer-scrim`, `section-drawer-overlay`.
 - New UI strings (English, French, Hindi): `sections`, `close`,
-  `sectionsDone`, `moreSectionsNote`.
+  `sectionsDone`, `sectionsRemaining`, `moreSectionsNote`.
 - Theme tokens added in `web-theme.ts`: `overlayPosition` (fixed),
   `stickyPosition` (sticky), `entryTransition` (opacity fade, honours
   reduced motion). `--who-2022-web-form-max-width` default 48rem -> 64rem

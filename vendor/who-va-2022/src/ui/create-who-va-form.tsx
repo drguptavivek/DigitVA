@@ -194,10 +194,12 @@ function sectionStatuses({
 }
 
 /**
- * The visible sections as stepper items. Depth counts the visible ancestors,
- * so nesting reads as indentation; an ancestor that is not itself a page (it
- * holds no questions, like the WHO "deceased_CRVS" wrapper) becomes a plain
- * heading above its first visible child.
+ * The visible sections as stepper items. Depth counts the ancestors that are
+ * themselves pages listed earlier, so nesting reads as indentation. Any other
+ * ancestor -- one that is not a page (WHO's "deceased_CRVS" wrapper), or one
+ * the engine pages after its children (WHO's "consented", whose own three
+ * questions come last) -- becomes a plain heading above its first visible
+ * descendant; the outermost such ancestor names the heading.
  */
 function sectionNavItems({
   instrument,
@@ -213,14 +215,15 @@ function sectionNavItems({
   snapshot: SessionSnapshot;
 }): SectionNavItem[] {
   const byName = new Map(instrument.sections.map((section) => [section.name, section]));
-  const visible = new Set(snapshot.visibleSections.map((section) => section.name));
+  const position = new Map(snapshot.visibleSections.map((section, index) => [section.name, index]));
   const headed = new Set<string>();
   return snapshot.visibleSections.map((section, index) => {
     let depth = 0;
     let groupLabel: string | undefined;
     for (let parent = section.parent; parent; parent = byName.get(parent)?.parent) {
-      if (visible.has(parent)) depth += 1;
-      else if (!headed.has(parent) && !groupLabel) {
+      const parentIndex = position.get(parent);
+      if (parentIndex !== undefined && parentIndex < index) depth += 1;
+      else if (!headed.has(parent)) {
         headed.add(parent);
         const parentSection = byName.get(parent);
         if (parentSection) groupLabel = localized(parentSection.label, locale, parent);

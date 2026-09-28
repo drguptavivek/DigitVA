@@ -99,9 +99,12 @@ describe("answer preview", () => {
     root.render(
       <WhoVaForm instrument={previewInstrument} draftId="draft-b" draftStore={{ save: vi.fn(), load }} />
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(load).not.toHaveBeenCalled();
+    // The configured draft (draft-b) is loaded on mount -- that is the fix
+    // for digitva-ybz -- but the foreign one named only in history (draft-a)
+    // is never touched, and its data never reaches this form.
+    await vi.waitFor(() => expect(load).toHaveBeenCalledWith("draft-b"));
+    expect(load).not.toHaveBeenCalledWith("draft-a");
     expect(container.textContent).not.toContain("Foreign respondent");
 
     history.pushState(
@@ -118,7 +121,7 @@ describe("answer preview", () => {
     window.dispatchEvent(new PopStateEvent("popstate"));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(load).not.toHaveBeenCalled();
+    expect(load).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("Foreign respondent");
     root.unmount();
   });
@@ -176,10 +179,21 @@ describe("answer preview", () => {
 
     const firstRoot = createRoot(container);
     const insecureDefaults = createInsecureWhoVaBrowserDefaults();
-    firstRoot.render(
-      <WhoVaForm instrument={previewInstrument} session={session} draftStore={insecureDefaults.draftStore} />
-    );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Preview saves the draft (onPreview -> saveDraft), which digitva-ybz's
+    // fix now withholds until the mount-time restore has settled -- there is
+    // nothing to restore for this fresh draft id, so wait for that instead
+    // of a fixed tick.
+    const restored = new Promise<void>((resolve) => {
+      firstRoot.render(
+        <WhoVaForm
+          instrument={previewInstrument}
+          session={session}
+          draftStore={insecureDefaults.draftStore}
+          onDraftRestored={() => resolve()}
+        />
+      );
+    });
+    await restored;
     button(container, "Preview answers")?.click();
     await vi.waitFor(() => expect(container.textContent).toContain("Answer preview"));
     expect(container.textContent).toContain("Answer preview");

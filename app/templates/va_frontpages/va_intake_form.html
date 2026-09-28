@@ -120,6 +120,13 @@ const INSTRUMENT_FACTORIES = {
 const sectionMapFor = (instr) =>
   new Map(instr.questions.map((q) => [q.name, q.sectionPath[q.sectionPath.length - 1] || "_root"]));
 let sectionOf = new Map();
+// The instrument identity draftStore.load() fills into a never-saved draft's
+// envelope (see below): the server has no instrumentVersion or
+// currentSection to report until the first PATCH, and the package's own
+// decodeWhoVaDraft refuses an envelope with either blank (digitva-ybz --
+// draftStore.load() now runs on every mount, not only a resumed one, so a
+// brand-new draft's envelope reaches decode too).
+let instrumentIdentity = { id: "", version: "", firstSection: "" };
 function splitBySection(data) {
   const out = {};
   for (const [name, value] of Object.entries(data || {})) {
@@ -132,6 +139,11 @@ function splitBySection(data) {
 // Server-backed draft store: sends only the sections whose answers changed.
 let lastSaved = {};
 let lastSavedSection;
+// Belt and braces alongside the package's own restore-before-autosave gate
+// (digitva-ybz): even if something calls save() before load() has ever run
+// for this draft, nothing is sent -- there is no confirmed server baseline
+// yet to safely diff against.
+let baselineLoaded = false;
 
 // The form calls save() on every answer change (auto-save-draft-on-change) and
 // awaits the promise before calling again, so the store's own latency sets the
@@ -159,6 +171,12 @@ let waiters = [];
 let writing = Promise.resolve();
 
 async function writeDraft(draft) {
+  // Refuse to PATCH anything until load() has established a baseline for
+  // this draft (digitva-ybz belt and braces, alongside the package's own
+  // restore-before-autosave gate): without a baseline there is nothing to
+  // diff sections against, and writing now risks overwriting saved answers
+  // with the form's still-unrestored state.
+  if (!baselineLoaded) return;
   const sections = splitBySection(draft.data);
   const changed = {};
   for (const [name, answers] of Object.entries(sections)) {
@@ -213,7 +231,17 @@ const draftStore = {
       Object.assign(data, PREFILL.answers || {});
       envelope.data = data;
     }
+    // A never-saved draft has no instrumentVersion or currentSection on the
+    // server yet -- both are only written by the first PATCH -- so fill in
+    // the client's own instrument identity. Without this,
+    // WhoVa.decodeWhoVaDraft refuses the envelope (it requires both
+    // non-blank) and the package never applies the prefill above
+    // (digitva-ybz: draftStore.load() now runs on every mount, not only a
+    // resumed one, so a brand-new draft's envelope reaches decode too).
+    envelope.instrumentVersion ||= instrumentIdentity.version;
+    envelope.currentSection ||= instrumentIdentity.firstSection;
     envelope.id = id;
+    baselineLoaded = true;
     return envelope;
   },
   save(draft) {
@@ -380,6 +408,11 @@ async function main() {
   }
   const chosenInstrument = buildInstrument(options.enabled_extensions || []);
   sectionOf = sectionMapFor(chosenInstrument);
+  instrumentIdentity = {
+    id: chosenInstrument.id,
+    version: chosenInstrument.version,
+    firstSection: chosenInstrument.sections[0]?.name || "",
+  };
 
   const el = document.createElement("who-va-2022-form");
   el.setAttribute("draft-id", DRAFT.draft_id);

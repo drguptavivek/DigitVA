@@ -15,6 +15,14 @@ afterEach(() => {
   localStorage.clear();
 });
 
+// The element only knows it is safe to overwrite a draft once its mount-time
+// restore has settled (digitva-ybz); tests that save or autosave wait for
+// who-va-ready rather than a fixed tick, or a click against the still-loading
+// Save-draft button (disabled until then) would silently do nothing.
+function waitForReady(element: WhoVaFormElement): Promise<void> {
+  return new Promise((resolve) => element.addEventListener("who-va-ready", () => resolve(), { once: true }));
+}
+
 describe("framework-independent web embedding", () => {
   it("does not enable plaintext browser persistence by default", async () => {
     defineWhoVaElement("who-va-secure-default-test");
@@ -83,8 +91,9 @@ describe("framework-independent web embedding", () => {
     element.addEventListener("who-va-draft-saved", (event) => {
       savedDraft = (event as CustomEvent<{ id: string }>).detail;
     });
+    const ready = waitForReady(element);
     document.body.append(element);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await ready;
 
     const saveDraft = [...element.querySelectorAll('[role="button"]')].find(
       (button) => button.getAttribute("aria-label") === "Save draft"
@@ -104,8 +113,9 @@ describe("framework-independent web embedding", () => {
     const element = document.createElement("who-va-secure-draft-test") as WhoVaFormElement;
     const save = vi.fn();
     element.draftStore = { save };
+    const ready = waitForReady(element);
     document.body.append(element);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await ready;
 
     const saveDraft = [...element.querySelectorAll('[role="button"]')].find(
       (button) => button.getAttribute("aria-label") === "Save draft"
@@ -138,8 +148,9 @@ describe("framework-independent web embedding", () => {
     element.addEventListener("who-va-draft-saved", (event) => {
       savedDraft = (event as CustomEvent<{ data: Record<string, unknown> }>).detail;
     });
+    const ready = waitForReady(element);
     document.body.append(element);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await ready;
     element.setData({ Id10010: "Autosaved interviewer" });
 
     const next = [...element.querySelectorAll('[role="button"]')].find(

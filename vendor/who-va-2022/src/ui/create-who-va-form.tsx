@@ -75,6 +75,14 @@ interface WhoVaFormCommonProps {
   onValidation?: (issues: ValidationIssue[]) => void;
   onDraftSaved?: (draft: WhoVaDraft) => void;
   onDraftError?: (error: Error) => void;
+  /**
+   * Fires once the initial draft restore has settled -- after the mount-time
+   * load from `draftStore` (if any) has applied its data, found nothing, or
+   * failed. `status` is "restored" when saved data was applied, "empty" when
+   * there was no draft store or no matching draft, and "error" when the load
+   * failed (autosave then stays off for the rest of this mount).
+   */
+  onDraftRestored?: (result: { status: "restored" | "empty" | "error" }) => void;
   onDraftController?: (controller: WhoVaDraftController | undefined) => void;
   autoSaveDraftOnChange?: boolean;
   autoSaveDraftIntervalMs?: number | false;
@@ -626,7 +634,8 @@ export function createWhoVaForm(
     if (props.session && props.initialData !== undefined) {
       throw new Error("WhoVaForm cannot combine a caller-owned session with initialData");
     }
-    const { draftStore, onChange, onDraftController, onDraftError, onDraftSaved, onReady } = props;
+    const { draftStore, onChange, onDraftController, onDraftError, onDraftRestored, onDraftSaved, onReady } =
+      props;
     const showQuestionCodes = props.showQuestionCodes ?? true;
     const instrument = props.resolvedInstrument;
     const locale = props.locale ?? localeFromLanguageName(instrument.defaultLanguage) ?? "en";
@@ -662,6 +671,17 @@ export function createWhoVaForm(
     const [draftIssues, setDraftIssues] = useState<Record<string, ValidationIssue>>({});
     const [draftId] = useState(() => props.draftId ?? restoredNavigation?.draftId ?? createDraftId());
     const [draftStatus, setDraftStatus] = useState<DraftStatus>("idle");
+    // Gates every save path (autosave-on-change, the autosave interval, a
+    // section switch, the manual Save-draft button) behind the mount-time
+    // restore: "pending" until settled, "ready" once it is safe to overwrite
+    // what draftStore holds, "blocked" forever after a failed load so a
+    // draft this mount could not read is never silently replaced. Starts
+    // "ready" when navigation already restored the data in place (no load
+    // needed).
+    const [draftRestoreState, setDraftRestoreState] = useState<"pending" | "ready" | "blocked">(() =>
+      restoredNavigation?.data ? "ready" : "pending"
+    );
+    const [draftRestoreOutcome, setDraftRestoreOutcome] = useState<"restored" | "empty" | "error">();
     const autoSaveDraftIntervalMs = props.autoSaveDraftIntervalMs ?? 20_000;
     const draftCreatedAt = useRef(new Date().toISOString());
     const draftSaveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -706,28 +726,73 @@ export function createWhoVaForm(
       session.setInstrument(instrument);
     }, [instrument, session]);
 
+    // Loads the draft on first mount whenever a draftStore is configured --
+    // not only when the navigation adapter restored a position (digitva-ybz:
+    // a host that sets draft-id + draftStore without a navigation adapter
+    // never got a load, so the form showed empty over 48 saved answers and
+    // the first autosave then overwrote them). Runs once; draftRestoreState
+    // leaving "pending" is what stops it from running again.
     useEffect(() => {
-      if (!restoredNavigation || restoredNavigation.data) return;
+      if (draftRestoreState !== "pending") return;
       const store = draftStore ?? primitives.draftStore;
+      if (!store) {
+        setDraftRestoreState("ready");
+        setDraftRestoreOutcome("empty");
+        return;
+      }
       let active = true;
       const restore = async () => {
-        const loadedDraft = await store?.load?.(restoredNavigation.draftId);
+        const loadedDraft = await store.load?.(draftId);
         const draft = loadedDraft ? decodeWhoVaDraft(loadedDraft) : undefined;
         if (!active) return;
-        if (draft && draft.instrumentId === instrument.id && draft.instrumentVersion === instrument.version) {
-          session.replaceData(draft.data);
+        const matches =
+          Boolean(draft) &&
+          draft!.instrumentId === instrument.id &&
+          draft!.instrumentVersion === instrument.version;
+        if (matches) {
+          session.replaceData(draft!.data);
+          // Otherwise every save after a restore stamps createdAt with this
+          // mount's start time (draftCreatedAt defaults to "now"), drifting
+          // the server's original creation time forward on every reload.
+          draftCreatedAt.current = draft!.createdAt;
         }
-        session.goToSection(restoredNavigation.currentSection);
-        setView(restoredNavigation.view);
+        if (restoredNavigation) {
+          session.goToSection(restoredNavigation.currentSection);
+          setView(restoredNavigation.view);
+        } else if (matches) {
+          session.goToSection(draft!.currentSection);
+        }
+        setDraftRestoreState("ready");
+        setDraftRestoreOutcome(matches ? "restored" : "empty");
       };
       void restore().catch((error: unknown) => {
         if (!active) return;
+        setDraftRestoreState("blocked");
         onDraftError?.(error instanceof Error ? error : new Error(String(error)));
+        setDraftRestoreOutcome("error");
       });
       return () => {
         active = false;
       };
-    }, [instrument.id, instrument.version, draftStore, onDraftError, restoredNavigation, session]);
+    }, [
+      draftId,
+      draftRestoreState,
+      draftStore,
+      instrument.id,
+      instrument.version,
+      onDraftError,
+      restoredNavigation,
+      session
+    ]);
+
+    // Fires after the restore's own state update has committed, so a host
+    // reacting to who-va-ready (e.g. re-enabling the Save-draft button) sees
+    // a DOM that already reflects the restored data, not the render still in
+    // flight when the restore effect above set state.
+    useEffect(() => {
+      if (!draftRestoreOutcome) return;
+      onDraftRestored?.({ status: draftRestoreOutcome });
+    }, [draftRestoreOutcome, onDraftRestored]);
 
     useEffect(() => {
       primitives.navigation?.replace({
@@ -831,6 +896,12 @@ export function createWhoVaForm(
     const saveDraft = useCallback(async () => {
       const store = draftStore ?? primitives.draftStore;
       if (!store) return;
+      // Every save path -- autosave-on-change, the autosave interval, a
+      // section switch, the manual Save-draft button -- routes through here,
+      // so gating this one function is enough: nothing writes while the
+      // mount-time restore is still pending, and nothing ever writes again
+      // this mount if that restore failed (digitva-ybz).
+      if (draftRestoreState !== "ready") return;
       const requestId = ++latestDraftSaveRequest.current;
       const now = new Date().toISOString();
       const current = session.getSnapshot();
@@ -859,7 +930,7 @@ export function createWhoVaForm(
       });
       draftSaveQueue.current = save;
       await save;
-    }, [draftId, instrument.id, instrument.version, draftStore, session]);
+    }, [draftId, draftRestoreState, instrument.id, instrument.version, draftStore, session]);
 
     useEffect(() => {
       onDraftController?.({ draftId, saveDraft });
@@ -1108,7 +1179,7 @@ export function createWhoVaForm(
       <FormFooter
         canGoBack={snapshot.canGoBack}
         canGoForward={snapshot.canGoForward}
-        canSave={Boolean(props.draftStore ?? primitives.draftStore)}
+        canSave={Boolean(props.draftStore ?? primitives.draftStore) && draftRestoreState === "ready"}
         draftStatus={draftStatus}
         messages={messages}
         narrow={compact}

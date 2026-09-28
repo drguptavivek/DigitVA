@@ -40,6 +40,12 @@ export class WhoVaFormElement extends HTMLElement {
    * different questionnaire needs a new session rather than a language swap.
    */
   private sessionBase: InstrumentDefinition;
+  /**
+   * Set once the first renderForm has built a session for sessionBase. Until
+   * then, a matching id/version is not proof of a matching question set (see
+   * renderForm), so the first render always starts a fresh session.
+   */
+  private sessionEstablished = false;
   private readonly generatedDraftId = createDraftId();
   private configuredDraftStore: WhoVaDraftStore | undefined;
   private configuredInstrument: InstrumentDefinition | undefined;
@@ -183,10 +189,24 @@ export class WhoVaFormElement extends HTMLElement {
       : await loadWhoVa2022Language(requestedLocale);
     if (!this.isConnected || renderVersion !== this.renderVersion) return;
     const base = this.configuredInstrument ?? whoVa2022Instrument;
-    if (base !== this.sessionBase) {
+    // Same questionnaire (id + version) as a locale switch re-supplies: a
+    // translated copy is a new object every time (see applyTranslations),
+    // so comparing by reference treated every language switch as a new
+    // questionnaire and dropped the session's answers (digitva-ybz). Only a
+    // genuine contract change -- a different id or version -- starts fresh.
+    // The very first render always starts fresh too: the constructor's
+    // session was built from the full built-in instrument, which can have
+    // the same id and version as a host's extension-filtered one (id and
+    // version come from the generated JSON, not from which extensions are
+    // enabled) while carrying a different question set -- reusing it would
+    // hand setInstrument a real content change, which it rejects.
+    const sameQuestionnaire =
+      this.sessionEstablished && base.id === this.sessionBase.id && base.version === this.sessionBase.version;
+    this.sessionBase = base;
+    this.sessionEstablished = true;
+    if (!sameQuestionnaire) {
       // A different questionnaire: start a session for it. Answers do not
       // carry across, which is the only safe reading of a contract change.
-      this.sessionBase = base;
       this.session = createWhoVaSession(base);
       this.sessionVersion += 1;
       this.session.setLockedQuestionNames(this.configuredLockedQuestionNames);
@@ -223,6 +243,9 @@ export class WhoVaFormElement extends HTMLElement {
         }
         onDraftError={(error) =>
           this.dispatchEvent(new CustomEvent("who-va-draft-error", { detail: error, bubbles: true }))
+        }
+        onDraftRestored={(result) =>
+          this.dispatchEvent(new CustomEvent("who-va-ready", { detail: result, bubbles: true }))
         }
         onComplete={(result) =>
           this.dispatchEvent(new CustomEvent("who-va-complete", { detail: result, bubbles: true }))

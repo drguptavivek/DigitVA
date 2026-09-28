@@ -761,9 +761,12 @@ is step 1 only:
    `second_factor_lockout`, and redirect to the email step.
 
 **TOTP and recovery codes** (`app/services/totp_service.py`). TOTP secrets
-are Fernet-encrypted at rest under `AUTH_FACTOR_ENCRYPTION_KEY`
-(`config.py`; production requires it set to a valid Fernet key — see
-`create_app`; development/test derive one from `SECRET_KEY`). Recovery
+are AES-256-GCM-encrypted at rest under a key derived (HKDF-SHA256) from
+`AUTH_FACTOR_ENCRYPTION_KEY`, bound to the owning user as associated data
+(`config.py`; production requires that key set to a valid 32-byte
+urlsafe-base64 value — see `create_app`; development/test derive one from
+`SECRET_KEY`). Values written before this scheme (legacy Fernet) still
+decrypt and are re-encrypted on next successful use. Recovery
 codes are stored only as HMAC-SHA256 hashes keyed off the same secret under
 a distinct label, shown to the caller exactly once at generation time.
 Recovery codes are issued automatically the moment a user enrols their

@@ -96,10 +96,14 @@ and send the user back to the email step.
   compatibility) through `pyotp`, accepting one step of clock drift either
   way. Enrolment shows a QR code and the secret once and needs a valid code to
   complete.
-- Secrets are stored encrypted (Fernet) under `AUTH_FACTOR_ENCRYPTION_KEY`.
-  Production must set that key; development derives one from `SECRET_KEY`.
-  Losing the key makes every TOTP secret unreadable, so it is backed up with
-  the other deployment secrets.
+- Secrets are stored encrypted with AES-256-GCM under a key derived
+  (HKDF-SHA256) from `AUTH_FACTOR_ENCRYPTION_KEY`, with the secret bound to
+  its owning user as associated data so a ciphertext copied to another
+  user's row cannot be decrypted. Production must set that key; development
+  derives one from `SECRET_KEY`. Losing the key makes every TOTP secret
+  unreadable, so it is backed up with the other deployment secrets. Values
+  written before this scheme (legacy Fernet) still decrypt and are
+  re-encrypted the next time a code against them is accepted.
 - **Replay protection:** the last accepted time step is stored; a code for
   that step or an earlier one is refused.
 - **Recovery codes:** ten codes are issued when a user enrols their first

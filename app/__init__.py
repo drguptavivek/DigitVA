@@ -166,12 +166,15 @@ def create_app(config_class=None):
                 "to your .env file or container environment."
             )
         try:
+            # Format check only: a valid Fernet key is exactly a 44-character
+            # urlsafe-base64 encoding of 32 random bytes, which is also what
+            # the AES-256-GCM key derivation (totp_service._aes_key) needs.
             Fernet(auth_factor_key.encode("utf-8"))
         except Exception as exc:
             raise RuntimeError(
-                "AUTH_FACTOR_ENCRYPTION_KEY must be a valid Fernet key (a "
-                "44-character urlsafe-base64 string, e.g. from "
-                "`openssl rand -base64 32 | tr '+/' '-_'`)."
+                "AUTH_FACTOR_ENCRYPTION_KEY must be a 44-character "
+                "urlsafe-base64 string encoding 32 random bytes, e.g. from "
+                "`openssl rand -base64 32 | tr '+/' '-_'`."
             ) from exc
 
     # CSRFProtect reads multipart form data in its before_request hook. Bound

@@ -1,9 +1,14 @@
 """TOTP enrolment/verification and recovery codes.
 
 Baseline: docs/policy/authentication-factors.md sections 4, 6, 7. TOTP
-secrets are stored encrypted at rest (Fernet) under
-``AUTH_FACTOR_ENCRYPTION_KEY``; recovery codes are stored only as keyed
-HMAC-SHA256 hashes and shown to the caller exactly once, at generation time.
+secrets are stored encrypted at rest with AES-256-GCM under a key derived
+(HKDF-SHA256) from ``AUTH_FACTOR_ENCRYPTION_KEY``, bound to the owning user
+via associated data so a ciphertext copied to another user's row will not
+decrypt (``v2:`` prefix; see ``_encrypt``/``_decrypt``). Values written
+before this scheme (no ``v2:`` prefix) are legacy Fernet ciphertext, still
+readable, and are rewritten as v2 the next time a code against them is
+accepted. Recovery codes are stored only as keyed HMAC-SHA256 hashes and
+shown to the caller exactly once, at generation time.
 
 Replay protection stores the last accepted time step and rejects that step
 or an earlier one, applied with an atomic conditional UPDATE so two
@@ -18,19 +23,28 @@ import base64
 import hashlib
 import hmac
 import io
+import os
 import re
 import secrets
 import time
+import uuid
 from datetime import date, datetime, timezone
 
 import pyotp
 import segno
 import sqlalchemy as sa
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import current_app
 
 from app import db
 from app.models import AuthRecoveryCode, AuthTotp, AuthWebauthnCredential
 from app.services.security_event_service import record_security_event
+
+_HKDF_INFO = b"digitva auth_totp aes-256-gcm v2"
+_V2_PREFIX = "v2:"
 
 RECOVERY_CODE_COUNT = 10
 # RFC 4648 base32 alphabet -- no ambiguous 0/1/8/9 to transcribe by hand.
@@ -47,10 +61,12 @@ class TotpEnrolmentError(ValueError):
 # ---------------------------------------------------------------------------
 
 def _fernet_key() -> bytes:
-    """The Fernet key encrypting TOTP secrets: ``AUTH_FACTOR_ENCRYPTION_KEY``
+    """The root key material, as urlsafe-base64: ``AUTH_FACTOR_ENCRYPTION_KEY``
     if set, else derived from ``SECRET_KEY`` for development/test
     convenience. Production requires ``AUTH_FACTOR_ENCRYPTION_KEY``
-    explicitly (see app.create_app)."""
+    explicitly (see app.create_app). Feeds ``_aes_key()`` (HKDF, current TOTP
+    secret encryption) and ``_recovery_hmac_key()``; ``_fernet()`` also uses
+    it directly to decrypt secrets stored before the move to AES-GCM."""
     configured = (current_app.config.get("AUTH_FACTOR_ENCRYPTION_KEY") or "").strip()
     if configured:
         return configured.encode("utf-8")
@@ -67,15 +83,42 @@ def _fernet():
 
 def _recovery_hmac_key() -> bytes:
     """Key for recovery-code hashes, derived from the same factor key under
-    a distinct label so the two purposes never share key material."""
+    a distinct label so the two purposes never share key material.
+    Unchanged by the move to AES-GCM: changing it would void every
+    already-issued recovery code."""
     return hashlib.sha256(_fernet_key() + b":recovery-code").digest()
 
 
-def _encrypt(secret: str) -> str:
-    return _fernet().encrypt(secret.encode("utf-8")).decode("utf-8")
+def _aes_key() -> bytes:
+    """The AES-256-GCM key encrypting TOTP secrets: HKDF-SHA256 over the raw
+    32 bytes of ``_fernet_key()`` (itself urlsafe-base64), under a
+    TOTP-specific info label so this key never overlaps the recovery-code
+    HMAC key or any other future use of the same root key."""
+    raw = base64.urlsafe_b64decode(_fernet_key())
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=_HKDF_INFO).derive(raw)
 
 
-def _decrypt(secret_encrypted: str) -> str:
+def _encrypt(secret: str, user_id: uuid.UUID) -> str:
+    """Encrypt a TOTP secret for ``user_id``, AAD-bound to it so the
+    ciphertext cannot be decrypted under a different row."""
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(_aes_key()).encrypt(nonce, secret.encode("utf-8"), user_id.bytes)
+    return _V2_PREFIX + base64.urlsafe_b64encode(nonce + ciphertext).decode("ascii")
+
+
+def _decrypt(secret_encrypted: str, user_id: uuid.UUID) -> str:
+    """Decrypt a stored TOTP secret. Handles both current AES-GCM values
+    (``v2:`` prefix) and legacy Fernet values written before this scheme.
+    Raises on a wrong key, wrong user, or tampered ciphertext rather than
+    returning garbage."""
+    if secret_encrypted.startswith(_V2_PREFIX):
+        raw = base64.urlsafe_b64decode(secret_encrypted[len(_V2_PREFIX):])
+        nonce, ciphertext = raw[:12], raw[12:]
+        try:
+            plaintext = AESGCM(_aes_key()).decrypt(nonce, ciphertext, user_id.bytes)
+        except InvalidTag as exc:
+            raise ValueError("TOTP secret failed to decrypt: wrong key, user, or tampered ciphertext.") from exc
+        return plaintext.decode("utf-8")
     return _fernet().decrypt(secret_encrypted.encode("utf-8")).decode("utf-8")
 
 
@@ -126,7 +169,7 @@ def begin_enrolment(user) -> dict:
         raise TotpEnrolmentError("TOTP is already enrolled; remove it before re-enrolling.")
 
     secret = pyotp.random_base32()
-    encrypted = _encrypt(secret)
+    encrypted = _encrypt(secret, user.user_id)
     if existing is not None:
         existing.secret_encrypted = encrypted
         existing.last_used_step = None
@@ -175,12 +218,15 @@ def confirm_enrolment(user, code: str, *, for_time: float | None = None) -> bool
     row = db.session.get(AuthTotp, user.user_id)
     if row is None or row.confirmed_at is not None:
         return False
-    secret = _decrypt(row.secret_encrypted)
+    legacy = not row.secret_encrypted.startswith(_V2_PREFIX)
+    secret = _decrypt(row.secret_encrypted, user.user_id)
     step = _matched_step(secret, code, valid_window=1, for_time=for_time)
     if step is None:
         return False
     row.confirmed_at = datetime.now(timezone.utc)
     row.last_used_step = step
+    if legacy:
+        row.secret_encrypted = _encrypt(secret, user.user_id)
     return True
 
 
@@ -192,7 +238,8 @@ def verify(user, code: str, *, for_time: float | None = None) -> bool:
     row = db.session.get(AuthTotp, user.user_id)
     if row is None or row.confirmed_at is None:
         return False
-    secret = _decrypt(row.secret_encrypted)
+    legacy = not row.secret_encrypted.startswith(_V2_PREFIX)
+    secret = _decrypt(row.secret_encrypted, user.user_id)
     step = _matched_step(secret, code, valid_window=1, for_time=for_time)
     if step is None:
         return False
@@ -210,6 +257,8 @@ def verify(user, code: str, *, for_time: float | None = None) -> bool:
     if result.rowcount != 1:
         return False
     db.session.expire(row, ["last_used_step"])
+    if legacy:
+        row.secret_encrypted = _encrypt(secret, user.user_id)
     return True
 
 

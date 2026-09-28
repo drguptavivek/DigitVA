@@ -3,6 +3,7 @@ step -- digitva-sn1.1.5. Baseline: docs/policy/authentication-factors.md
 sections 3, 4, 6, 7, 9.
 """
 
+import base64
 import json
 import time
 import uuid
@@ -111,8 +112,103 @@ class TotpServiceTests(TotpTestBase):
         result = totp_service.begin_enrolment(self.user)
         row = db.session.get(AuthTotp, self.user.user_id)
         self.assertNotEqual(row.secret_encrypted, result["secret"])
-        decrypted = totp_service._decrypt(row.secret_encrypted)
+        decrypted = totp_service._decrypt(row.secret_encrypted, self.user.user_id)
         self.assertEqual(decrypted, result["secret"])
+
+    def test_secret_stored_as_v2_aes_gcm(self):
+        result = totp_service.begin_enrolment(self.user)
+        row = db.session.get(AuthTotp, self.user.user_id)
+        self.assertTrue(row.secret_encrypted.startswith("v2:"))
+        self.assertNotIn(result["secret"], row.secret_encrypted)
+
+    def test_encrypt_decrypt_round_trip(self):
+        secret = pyotp.random_base32()
+        encrypted = totp_service._encrypt(secret, self.user.user_id)
+        self.assertEqual(totp_service._decrypt(encrypted, self.user.user_id), secret)
+
+    def test_two_encryptions_of_same_secret_differ(self):
+        secret = pyotp.random_base32()
+        first = totp_service._encrypt(secret, self.user.user_id)
+        second = totp_service._encrypt(secret, self.user.user_id)
+        self.assertNotEqual(first, second)
+
+    def test_decrypt_fails_for_a_different_user(self):
+        secret = pyotp.random_base32()
+        encrypted = totp_service._encrypt(secret, self.user.user_id)
+        other_user = self._make_user(f"totp.other.{uuid.uuid4().hex[:8]}@example.com", PASSWORD)
+        db.session.commit()
+        with self.assertRaises(ValueError):
+            totp_service._decrypt(encrypted, other_user.user_id)
+
+    def test_decrypt_fails_for_tampered_ciphertext(self):
+        secret = pyotp.random_base32()
+        encrypted = totp_service._encrypt(secret, self.user.user_id)
+        raw = bytearray(base64.urlsafe_b64decode(encrypted[len("v2:"):]))
+        raw[-1] ^= 0xFF  # flip a bit inside the GCM tag
+        tampered = "v2:" + base64.urlsafe_b64encode(bytes(raw)).decode("ascii")
+        with self.assertRaises(ValueError):
+            totp_service._decrypt(tampered, self.user.user_id)
+
+    def test_legacy_fernet_secret_decrypts_and_upgrades_on_success(self):
+        secret = pyotp.random_base32()
+        legacy = totp_service._fernet().encrypt(secret.encode("utf-8")).decode("utf-8")
+        self.assertFalse(legacy.startswith("v2:"))
+        db.session.add(AuthTotp(user_id=self.user.user_id, secret_encrypted=legacy))
+        db.session.commit()
+
+        self.assertEqual(totp_service._decrypt(legacy, self.user.user_id), secret)
+
+        code = pyotp.TOTP(secret).now()
+        self.assertTrue(totp_service.confirm_enrolment(self.user, code))
+        db.session.commit()
+        row = db.session.get(AuthTotp, self.user.user_id)
+        self.assertTrue(row.secret_encrypted.startswith("v2:"))
+        self.assertEqual(totp_service._decrypt(row.secret_encrypted, self.user.user_id), secret)
+
+    def test_legacy_fernet_secret_not_upgraded_on_failed_code(self):
+        secret = pyotp.random_base32()
+        legacy = totp_service._fernet().encrypt(secret.encode("utf-8")).decode("utf-8")
+        db.session.add(AuthTotp(user_id=self.user.user_id, secret_encrypted=legacy))
+        db.session.commit()
+
+        self.assertFalse(totp_service.confirm_enrolment(self.user, "000000"))
+        row = db.session.get(AuthTotp, self.user.user_id)
+        self.assertEqual(row.secret_encrypted, legacy)
+
+    def _add_legacy_confirmed_totp(self, secret):
+        legacy = totp_service._fernet().encrypt(secret.encode("utf-8")).decode("utf-8")
+        db.session.add(AuthTotp(
+            user_id=self.user.user_id,
+            secret_encrypted=legacy,
+            confirmed_at=datetime.now(timezone.utc),
+        ))
+        db.session.commit()
+        return legacy
+
+    def test_legacy_fernet_secret_upgraded_on_successful_verify(self):
+        secret = pyotp.random_base32()
+        self._add_legacy_confirmed_totp(secret)
+        now = time.time()
+        code = pyotp.TOTP(secret).at(now)
+
+        self.assertTrue(totp_service.verify(self.user, code, for_time=now))
+        db.session.commit()
+        row = db.session.get(AuthTotp, self.user.user_id)
+        self.assertTrue(row.secret_encrypted.startswith("v2:"))
+        self.assertEqual(totp_service._decrypt(row.secret_encrypted, self.user.user_id), secret)
+
+        # The rewritten value still verifies through the live path.
+        next_code = pyotp.TOTP(secret).at(now + 30)
+        self.assertTrue(totp_service.verify(self.user, next_code, for_time=now + 30))
+        db.session.commit()
+
+    def test_legacy_fernet_secret_not_upgraded_on_failed_verify(self):
+        secret = pyotp.random_base32()
+        legacy = self._add_legacy_confirmed_totp(secret)
+
+        self.assertFalse(totp_service.verify(self.user, "000000", for_time=time.time()))
+        row = db.session.get(AuthTotp, self.user.user_id)
+        self.assertEqual(row.secret_encrypted, legacy)
 
     def test_replay_of_same_code_rejected(self):
         secret = self._enroll_totp(self.user)

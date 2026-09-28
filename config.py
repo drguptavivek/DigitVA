@@ -394,10 +394,11 @@ class Config:
 
     # --- TOTP and recovery codes -----------------------------------------
     # docs/policy/authentication-factors.md section 4. Encrypts TOTP secrets
-    # at rest (Fernet) and keys the recovery-code HMAC; empty here derives a
-    # key from SECRET_KEY for development/test convenience only -- production
-    # must set this explicitly (see create_app). Back it up: losing it makes
-    # every stored TOTP secret unreadable.
+    # at rest (AES-256-GCM via HKDF; legacy values were Fernet) and keys the
+    # recovery-code HMAC; empty here derives a key from SECRET_KEY for
+    # development/test convenience only -- production must set this
+    # explicitly (see create_app). Back it up: losing it makes every stored
+    # TOTP secret unreadable.
     AUTH_FACTOR_ENCRYPTION_KEY = os.environ.get("AUTH_FACTOR_ENCRYPTION_KEY", "")
     # ISO date (YYYY-MM-DD). Unset means no enforcement (section 6). Phase 6
     # builds the mid-session setup redirect this drives; for now it only

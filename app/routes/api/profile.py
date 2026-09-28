@@ -9,6 +9,7 @@ from flask_login import current_user, login_required
 from app import db, limiter
 from app.models import AuthWebauthnCredential
 from app.models.mas_languages import MasLanguages
+from app.services import totp_service
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
     PasskeyVerificationError,
@@ -51,6 +52,29 @@ def _require_reauth():
     if not _reauthenticated_recently():
         return _error("reauth_required", 401)
     return None
+
+
+def _would_leave_privileged_user_without_factor(
+    user, *, removing_totp: bool = False, removing_passkey_id=None
+) -> bool:
+    """docs/policy/authentication-factors.md section 7: a privileged user
+    cannot remove their last sign-in factor once enforcement has started
+    (``AUTH_FACTOR_ENFORCE_FROM`` set and in the past). Before that date the
+    guard is off, by design (enforcement itself is a later phase)."""
+    if not (user.is_admin() or user.is_data_manager()):
+        return False
+    if not totp_service.enforcement_active():
+        return False
+    has_totp = totp_service.has_confirmed_totp(user.user_id) and not removing_totp
+    passkey_query = (
+        sa.select(sa.func.count())
+        .select_from(AuthWebauthnCredential)
+        .where(AuthWebauthnCredential.user_id == user.user_id)
+    )
+    if removing_passkey_id is not None:
+        passkey_query = passkey_query.where(AuthWebauthnCredential.id != removing_passkey_id)
+    has_passkey = bool(db.session.scalar(passkey_query) or 0)
+    return not has_totp and not has_passkey
 
 
 # ---------------------------------------------------------------------------
@@ -278,8 +302,29 @@ def register_passkey():
         event_type="passkey_registered",
         detail={"name": name, "credential_prefix": credential_id_prefix(record.credential_id)},
     )
+
+    # docs/policy/authentication-factors.md section 4: recovery codes are
+    # issued when a user enrols their FIRST factor. This is that moment only
+    # when they hold no confirmed TOTP and have never had a recovery-code
+    # set (has_recovery_codes stays true forever once issued, so a later
+    # passkey addition never re-triggers this).
+    recovery_codes = None
+    user = current_user._get_current_object()
+    if not totp_service.has_confirmed_totp(user.user_id) and not totp_service.has_recovery_codes(user.user_id):
+        recovery_codes = totp_service.generate_recovery_codes(user)
+        record_security_event(
+            user_id=user.user_id,
+            actor_user_id=user.user_id,
+            event_type="recovery_codes_generated",
+        )
+
     db.session.commit()
-    return jsonify({"message": "Passkey added.", "passkey": _serialize_credential(record)})
+    # The "set up a passkey" nudge has done its job for this session.
+    session.pop("passkey_nudge", None)
+    response = {"message": "Passkey added.", "passkey": _serialize_credential(record)}
+    if recovery_codes is not None:
+        response["recovery_codes"] = recovery_codes
+    return jsonify(response)
 
 
 @bp.patch("/passkeys/<uuid:passkey_id>")
@@ -335,6 +380,11 @@ def revoke_passkey(passkey_id):
     if cred is None:
         return _error("Passkey not found.", 404)
 
+    if _would_leave_privileged_user_without_factor(
+        current_user._get_current_object(), removing_passkey_id=cred.id
+    ):
+        return _error("You cannot remove your last sign-in factor.", 409)
+
     prefix = credential_id_prefix(cred.credential_id)
     db.session.delete(cred)
     record_security_event(
@@ -357,3 +407,130 @@ def dismiss_passkey_nudge():
     """Dismiss the "sign on faster" banner for the rest of this session."""
     session.pop("passkey_nudge", None)
     return jsonify({"message": "Dismissed."})
+
+
+# ---------------------------------------------------------------------------
+# TOTP — /api/v1/profile/totp
+# ---------------------------------------------------------------------------
+
+@bp.get("/totp")
+@login_required
+def totp_status():
+    return jsonify({"enrolled": totp_service.has_confirmed_totp(current_user.user_id)})
+
+
+@bp.post("/totp/enroll")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def totp_enroll():
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    try:
+        result = totp_service.begin_enrolment(current_user._get_current_object())
+    except totp_service.TotpEnrolmentError as exc:
+        return _error(str(exc))
+    db.session.commit()
+    return jsonify({
+        "secret": result["secret"],
+        "provisioning_uri": result["provisioning_uri"],
+        "qr_svg": totp_service.provisioning_qr_svg(result["provisioning_uri"]),
+    })
+
+
+@bp.post("/totp/confirm")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def totp_confirm():
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    body = request.get_json(silent=True) or {}
+    code = (body.get("code") or "").strip()
+    if not code:
+        return _error("A code is required.")
+
+    user = current_user._get_current_object()
+    if not totp_service.confirm_enrolment(user, code):
+        db.session.rollback()
+        return _error("Invalid code.")
+
+    record_security_event(
+        user_id=user.user_id, actor_user_id=user.user_id, event_type="totp_enrolled"
+    )
+
+    # docs/policy/authentication-factors.md section 4: recovery codes are
+    # issued when a user enrols their FIRST factor -- here, only when they
+    # hold no passkey and have never had a recovery-code set yet.
+    recovery_codes = None
+    has_passkey = db.session.scalar(
+        sa.select(sa.exists().where(AuthWebauthnCredential.user_id == user.user_id))
+    )
+    if not has_passkey and not totp_service.has_recovery_codes(user.user_id):
+        recovery_codes = totp_service.generate_recovery_codes(user)
+        record_security_event(
+            user_id=user.user_id, actor_user_id=user.user_id, event_type="recovery_codes_generated"
+        )
+
+    db.session.commit()
+    response = {"message": "TOTP enabled."}
+    if recovery_codes is not None:
+        response["recovery_codes"] = recovery_codes
+    return jsonify(response)
+
+
+@bp.delete("/totp")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def totp_remove():
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    user = current_user._get_current_object()
+    if not totp_service.has_confirmed_totp(user.user_id):
+        return _error("TOTP is not enrolled.", 404)
+    if _would_leave_privileged_user_without_factor(user, removing_totp=True):
+        return _error("You cannot remove your last sign-in factor.", 409)
+
+    totp_service.remove(user)
+    record_security_event(
+        user_id=user.user_id, actor_user_id=user.user_id, event_type="totp_removed"
+    )
+    db.session.commit()
+    return jsonify({"message": "TOTP removed."})
+
+
+# ---------------------------------------------------------------------------
+# Recovery codes — /api/v1/profile/recovery-codes
+# ---------------------------------------------------------------------------
+
+@bp.get("/recovery-codes")
+@login_required
+def recovery_codes_status():
+    return jsonify({
+        "remaining": totp_service.remaining_recovery_code_count(current_user.user_id)
+    })
+
+
+@bp.post("/recovery-codes/regenerate")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def recovery_codes_regenerate():
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    user = current_user._get_current_object()
+    codes = totp_service.generate_recovery_codes(user)
+    record_security_event(
+        user_id=user.user_id, actor_user_id=user.user_id, event_type="recovery_codes_generated"
+    )
+    db.session.commit()
+    return jsonify({"recovery_codes": codes})

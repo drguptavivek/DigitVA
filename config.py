@@ -392,6 +392,18 @@ class Config:
     )
     WEBAUTHN_RP_NAME = "DigitVA"
 
+    # --- TOTP and recovery codes -----------------------------------------
+    # docs/policy/authentication-factors.md section 4. Encrypts TOTP secrets
+    # at rest (Fernet) and keys the recovery-code HMAC; empty here derives a
+    # key from SECRET_KEY for development/test convenience only -- production
+    # must set this explicitly (see create_app). Back it up: losing it makes
+    # every stored TOTP secret unreadable.
+    AUTH_FACTOR_ENCRYPTION_KEY = os.environ.get("AUTH_FACTOR_ENCRYPTION_KEY", "")
+    # ISO date (YYYY-MM-DD). Unset means no enforcement (section 6). Phase 6
+    # builds the mid-session setup redirect this drives; for now it only
+    # gates the last-factor removal guard in app/routes/api/profile.py.
+    AUTH_FACTOR_ENFORCE_FROM = os.environ.get("AUTH_FACTOR_ENFORCE_FROM", "").strip()
+
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     ICD11_API_BASE_URL = os.environ.get(
         "ICD11_API_BASE_URL", "http://icd_api_service"

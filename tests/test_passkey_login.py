@@ -389,6 +389,14 @@ class PasskeyProfileTests(PasskeyTestBase):
         self.assertEqual(stored.user_id, self.user.user_id)
         self.assertEqual(stored.name, "My laptop")
 
+    def test_registration_clears_the_passkey_nudge(self):
+        with self.client.session_transaction() as sess:
+            sess["passkey_nudge"] = True
+        resp, _, _ = self._register()
+        self.assertEqual(resp.status_code, 200, resp.data)
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("passkey_nudge", sess)
+
     def test_registration_records_security_event(self):
         self._register()
         event = db.session.scalar(

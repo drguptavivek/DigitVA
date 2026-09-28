@@ -20,6 +20,7 @@ from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
 from werkzeug.middleware.proxy_fix import ProxyFix
+from cryptography.fernet import Fernet
 from config import (
     Config,
     DevelopmentConfig,
@@ -134,6 +135,20 @@ def create_app(config_class=None):
                 "CAPTCHA_HMAC_KEY must be set in production. Add it to your "
                 ".env file or container environment."
             )
+        auth_factor_key = app.config.get("AUTH_FACTOR_ENCRYPTION_KEY")
+        if not auth_factor_key:
+            raise RuntimeError(
+                "AUTH_FACTOR_ENCRYPTION_KEY must be set in production. Add it "
+                "to your .env file or container environment."
+            )
+        try:
+            Fernet(auth_factor_key.encode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError(
+                "AUTH_FACTOR_ENCRYPTION_KEY must be a valid Fernet key (a "
+                "44-character urlsafe-base64 string, e.g. from "
+                "`openssl rand -base64 32 | tr '+/' '-_'`)."
+            ) from exc
 
     # CSRFProtect reads multipart form data in its before_request hook. Bound
     # organization imports before that hook can parse and spool an upload.

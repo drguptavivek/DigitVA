@@ -43,6 +43,7 @@ dependencies = [
     "localspelling==0.94",
     "webauthn>=2.8.0",
     "pyotp>=2.10.0",
+    "segno>=1.6.6",
 ]
 
 [project.optional-dependencies]

@@ -35,3 +35,14 @@ class PasswordStepForm(FlaskForm):
     )
     remember_me = BooleanField("Remember Me")
     submit = SubmitField("Login")
+
+
+class SecondFactorForm(FlaskForm):
+    """Step 3 of login, only for users who must give a second factor (docs/
+    policy/authentication-factors.md section 3): a TOTP code or a recovery
+    code, accepted in either field."""
+
+    code = StringField(
+        "Code:", validators=[DataRequired(message="Code is required.")]
+    )
+    submit = SubmitField("Verify")

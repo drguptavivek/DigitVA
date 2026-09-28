@@ -740,11 +740,56 @@ is step 1 only:
    section. Dismissing it (`POST /api/v1/profile/dismiss-passkey-nudge`)
    clears the session flag, so it does not reappear for the rest of the
    session. A passkey sign-in never sets the flag.
+7. **Second-factor step** (`va_auth.va_login_second_factor`, GET/POST,
+   `/vaauth/valogin/second-factor`). Only reached when
+   `app/services/totp_service.py:needs_second_factor()` says so: the user
+   holds a confirmed TOTP enrolment (any role), or is privileged (active
+   `admin`/`data_manager` grant) and holds any factor (passkey or confirmed
+   TOTP) — docs/policy/authentication-factors.md section 3. The password
+   step, on a correct password for such a user, stores
+   `second_factor_user_id`/`second_factor_failures`/`remember` on the same
+   pre-auth state instead of calling `_complete_login()`, and redirects
+   here; the page is unreachable without that verified-password marker on
+   the live pre-auth state. Accepts a current TOTP code
+   (`totp_service.verify()`, +/-1 step drift, atomic replay protection on
+   `auth_totp.last_used_step`) or an unused recovery code
+   (`totp_service.verify_recovery_code()`, atomic single-use consumption on
+   `auth_recovery_codes.used_at`; logs `recovery_code_used` with the
+   remaining count). A privileged user with only passkeys sees the
+   recovery-code field plus a "Use a passkey instead" link back to the
+   password page. Five failed attempts clear the pre-auth state, log
+   `second_factor_lockout`, and redirect to the email step.
 
-Schema: `auth_webauthn_credentials` (in use — passkeys), `auth_totp`,
-`auth_recovery_codes` (additive, unused until the TOTP phase lands),
-`auth_security_events` (in use: `passkey_registered`, `passkey_renamed`,
-`passkey_revoked`, `counter_regression`) plus `va_users.auth_session_version`.
+**TOTP and recovery codes** (`app/services/totp_service.py`). TOTP secrets
+are Fernet-encrypted at rest under `AUTH_FACTOR_ENCRYPTION_KEY`
+(`config.py`; production requires it set to a valid Fernet key — see
+`create_app`; development/test derive one from `SECRET_KEY`). Recovery
+codes are stored only as HMAC-SHA256 hashes keyed off the same secret under
+a distinct label, shown to the caller exactly once at generation time.
+Recovery codes are issued automatically the moment a user enrols their
+*first* factor — at TOTP confirmation if they hold no passkey yet
+(`POST /api/v1/profile/totp/confirm`), or at first passkey registration if
+they hold no confirmed TOTP and no recovery-code set yet
+(`POST /api/v1/profile/passkeys`) — and returned once in that response
+body. Profile API (`app/routes/api/profile.py`, all reauth-gated like the
+passkey routes): `GET/POST/DELETE /api/v1/profile/totp` (status, start
+enrolment — returns the secret, provisioning URI and an inline SVG QR code
+from `segno` — and removal) plus `POST /api/v1/profile/totp/confirm`, and
+`GET /api/v1/profile/recovery-codes` / `POST .../regenerate` (regenerating
+voids the old set). **Last-factor removal guard**: once
+`AUTH_FACTOR_ENFORCE_FROM` is set and its date has passed
+(`totp_service.enforcement_active()`; unset/future means the guard is off),
+a privileged user cannot remove their last factor — checked in both the
+TOTP-removal route and the existing passkey-revoke route, `409` on
+violation. Enforcement's own mid-session setup redirect (section 6) is a
+later phase; today this config only gates the removal guard.
+
+Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`
+(all in use), `auth_security_events` (`passkey_registered`,
+`passkey_renamed`, `passkey_revoked`, `counter_regression`,
+`totp_enrolled`, `totp_removed`, `recovery_codes_generated`,
+`recovery_code_used`, `second_factor_lockout`) plus
+`va_users.auth_session_version`.
 
 WebAuthn RP ID/origin: `config.py`'s `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`
 default to the host / scheme+host of `MAIL_BASE_URL` (via the same

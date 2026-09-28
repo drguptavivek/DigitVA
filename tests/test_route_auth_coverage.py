@@ -70,6 +70,12 @@ PUBLIC_BY_DESIGN = frozenset({
     # belongs to the pre-auth email's account before anything else.
     "va_auth.va_login_passkey_options",
     "va_auth.va_login_passkey_verify",
+    # Step 3 of login (TOTP or recovery code), only for users who must give a
+    # second factor. Same reasoning as va_login_password: guarded in body by
+    # the pre-auth state, and unreachable there unless the password step
+    # already verified the password and set second_factor_user_id on that
+    # same state -- see docs/policy/authentication-factors.md section 3.
+    "va_auth.va_login_second_factor",
     # JSON GET issuing a signed proof-of-work challenge for the email step.
     # No user or session data; the challenge is meaningless without solving
     # it, and pow_captcha_service.verify_challenge is what a session

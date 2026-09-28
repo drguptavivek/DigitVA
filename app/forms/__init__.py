@@ -1,4 +1,4 @@
-from app.forms.va_login_form import EmailStepForm, PasswordStepForm
+from app.forms.va_login_form import EmailStepForm, PasswordStepForm, SecondFactorForm
 from app.forms.va_coderreview_form import VaCoderReviewForm
 from app.forms.va_datamanagerreview_form import VaDataManagerReviewForm
 from app.forms.va_finassess_form import VaFinalAssessmentForm
@@ -11,6 +11,7 @@ from app.forms.password_reset_form import ForgotPasswordForm, ResetPasswordForm
 __all__ = [
     "EmailStepForm",
     "PasswordStepForm",
+    "SecondFactorForm",
     "VaInitialAssessmentForm",
     "VaCoderReviewForm",
     "VaDataManagerReviewForm",

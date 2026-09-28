@@ -74,3 +74,7 @@ issue-export.jsonl
 .tasks/scripts/
 
 dailybackups/
+
+# WHO ICD-11 download bundles: the unzipped copies next to them are tracked.
+# Sources: docs/kb/icd-11-who-downloads.md
+docs/kb/*.zip

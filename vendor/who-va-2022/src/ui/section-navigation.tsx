@@ -566,7 +566,8 @@ export const navStyles = {
     {
       backgroundColor: "#ffffff",
       bottom: 0,
-      left: 0,
+      // Opens on the same side as the "Sections" toggle (top right).
+      right: 0,
       maxWidth: "85%",
       paddingHorizontal: 16,
       paddingVertical: 10,

@@ -91,7 +91,7 @@
 </style>
 
 <script type="module">
-import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ who_va_bundle_version(config.STATIC_ASSET_VERSION)|urlencode }}";
 
 (function () {
   'use strict';

@@ -4,11 +4,14 @@ Thin HTTP layer over ``app.services.organization_service``; every rule lives
 there. Routes hang off the ``admin`` blueprint (``/admin/api/organization/...``).
 Plan: docs/planning/health-system-organization-model-plan.md
 """
+import io
 import logging
 
 import sqlalchemy as sa
 from flask import current_app, jsonify, render_template, request
 from flask_login import current_user
+from openpyxl import Workbook
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db
 from app.decorators import role_required
@@ -489,6 +492,23 @@ def admin_org_units_template(project_id):
     )
 
 
+@admin.get(f"{_API}/templates/units.xlsx")
+@role_required("admin", "project_pi")
+def admin_org_units_template_xlsx(project_id):
+    if err := _guard(project_id):
+        return err
+    from app.services.organization_service import _UNIT_HEADERS
+    workbook = Workbook()
+    workbook.active.title = "units"
+    workbook.active.append([header for header in _UNIT_HEADERS if header != "path"])
+    output = io.BytesIO()
+    workbook.save(output)
+    return current_app.response_class(
+        output.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="organization_units_template.xlsx"'},
+    )
+
+
 @admin.get(f"{_API}/templates/project-users.csv")
 @role_required("admin", "project_pi")
 def admin_org_users_template(project_id):
@@ -500,18 +520,36 @@ def admin_org_users_template(project_id):
     )
 
 
+@admin.get(f"{_API}/templates/project-users.xlsx")
+@role_required("admin", "project_pi")
+def admin_org_users_template_xlsx(project_id):
+    if err := _guard(project_id):
+        return err
+    return current_app.response_class(
+        user_import.template_xlsx(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="project_users_template.xlsx"'},
+    )
+
+
 @admin.post(f"{_API}/project-users/import")
 @role_required("admin", "project_pi")
 def admin_org_import_users(project_id):
     if err := _guard(project_id):
         return err
-    uploaded = request.files.get("file")
-    if uploaded is None or not uploaded.filename or not uploaded.filename.lower().endswith(".csv"):
-        return _json_error("Upload a project users CSV as 'file'.", 400)
+    actor_user_id = current_user.user_id
+    actor_role = "admin" if current_user.is_admin() else "project_pi"
+    request.max_content_length = 1024 * 1024 + 64 * 1024
+    try:
+        uploaded = request.files.get("file")
+    except RequestEntityTooLarge:
+        return _json_error("The upload exceeds the 1 MB limit.", 413)
+    if uploaded is None or not uploaded.filename or not uploaded.filename.lower().endswith((".csv", ".xlsx")):
+        return _json_error("Upload a project users CSV or XLSX as 'file'.", 400)
     dry_run = request.form.get("dry_run", "1") != "0"
     try:
-        rows = user_import.parse_csv(uploaded.stream)
-        plan = user_import.prepare(project_id, rows, is_admin=current_user.is_admin())
+        rows = user_import.parse_upload(uploaded.stream, uploaded.filename)
+        plan = user_import.prepare(project_id, rows, is_admin=actor_role == "admin")
         preview = [{"row": item["row"], "email": item["email"],
                     "role": item["role"].value,
                     "scope": item["unit"].unit_code if item["unit"] else "whole project",
@@ -519,7 +557,7 @@ def admin_org_import_users(project_id):
         if dry_run:
             return jsonify({"dry_run": True, "rows": preview})
         new_users, changed_grants = user_import.apply(
-            project_id, plan, actor_user_id=current_user.user_id
+            project_id, plan, actor_user_id=actor_user_id
         )
         db.session.commit()
     except user_import.ProjectUserImportError as exc:
@@ -527,16 +565,16 @@ def admin_org_import_users(project_id):
         return _json_error(str(exc), 400)
     except Exception:
         db.session.rollback()
-        log.exception("project users CSV import failed | project=%s", project_id)
+        log.exception("project users import failed | project=%s", project_id)
         return _json_error("The project users import failed.", 500)
 
     from app.logging.va_logger import log_grant_action
     for grant, action in changed_grants:
         log_grant_action(
-            action=action, actor_user_id=current_user.user_id, actor_role="admin" if current_user.is_admin() else "project_pi",
-            target_user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
-            scope_type=grant.scope_type.value, project_id=project_id,
-            org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id,
+            action=action, actor_user_id=actor_user_id, actor_role=actor_role,
+            target_user_id=grant["user_id"], grant_id=grant["grant_id"], role=grant["role"],
+            scope_type=grant["scope_type"], project_id=project_id,
+            org_unit_id=grant["org_unit_id"], cadre_id=grant["cadre_id"],
             request_ip=request.remote_addr,
         )
     invite_warnings = []
@@ -570,7 +608,7 @@ def admin_org_import_users(project_id):
                     log.exception("project users invitation failed | project=%s user_id=%s", project_id, user.user_id)
                     invite_warnings.append(f"Invitation for {user.email} could not be queued; resend from Users.")
     log.info("project users import | project=%s by=%s rows=%s new_users=%s",
-             project_id, current_user.user_id, len(plan), len(new_users))
+             project_id, actor_user_id, len(plan), len(new_users))
     return jsonify({"dry_run": False, "rows": preview,
                     "created_users": len(new_users), "changed_grants": len(changed_grants),
                     "invitations_queued": invitations_queued,
@@ -639,7 +677,11 @@ def admin_org_odk_field_check(project_id):
 def admin_org_import(project_id):
     if err := _guard(project_id):
         return err
-    uploaded = request.files.get("file")
+    request.max_content_length = 5 * 1024 * 1024 + 64 * 1024
+    try:
+        uploaded = request.files.get("file")
+    except RequestEntityTooLarge:
+        return _json_error("The upload exceeds the 5 MB limit.", 413)
     if uploaded is None or not uploaded.filename:
         return _json_error("Upload the organization workbook as 'file'.", 400)
     filename = uploaded.filename.lower()
@@ -651,6 +693,8 @@ def admin_org_import(project_id):
         if filename.endswith(".csv"):
             # One sheet per CSV, in the per-sheet export layout.
             sheets = org.parse_organization_csv(uploaded.stream, (request.form.get("sheet") or "").strip())
+        elif (request.form.get("sheet") or "").strip() == "units":
+            sheets = org.parse_units_upload(uploaded.stream, filename)
         else:
             sheets = org.parse_organization_workbook(uploaded.stream)
         plan = org.import_organization(

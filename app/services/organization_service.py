@@ -37,6 +37,12 @@ from app.models import (
     VaStatuses,
     VaUsers,
 )
+from app.services.tabular_import_service import (
+    TabularImportError,
+    parse_rows,
+    parse_table,
+    validate_xlsx,
+)
 
 log = logging.getLogger(__name__)
 
@@ -180,10 +186,16 @@ def _clean_url(raw: object) -> str | None:
     return value
 
 
-def _to_bool(raw: object) -> bool:
+def _to_bool(raw: object, *, what: str) -> bool:
+    """Parse an import flag; reject values outside the documented boolean forms."""
     if isinstance(raw, bool):
         return raw
-    return str(raw or "").strip().lower() in {"1", "true", "yes", "y", "t"}
+    value = str(raw or "").strip().lower()
+    if value in {"1", "true", "yes", "y", "t"}:
+        return True
+    if value in {"", "0", "false", "no", "n", "f"}:
+        return False
+    raise OrganizationError(f"{what} must be true or false")
 
 
 def _get_project(project_id: str) -> VaProjectMaster:
@@ -1420,6 +1432,16 @@ def export_organization_rows(project_id: str) -> dict[str, list[dict]]:
     }
 
 
+def _spreadsheet_safe(value, column=None):
+    """Keep exported text from becoming a formula when opened in a spreadsheet."""
+    if column in {"latitude", "longitude"} and isinstance(value, str):
+        if re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", value):
+            return value
+    if isinstance(value, str) and value.lstrip()[:1] in {"=", "+", "-", "@"}:
+        return "'" + value
+    return value
+
+
 def export_organization_xlsx(project_id: str) -> bytes:
     rows = export_organization_rows(project_id)
     headers = {
@@ -1437,7 +1459,7 @@ def export_organization_xlsx(project_id: str) -> bytes:
         sheet.title = sheet_name
         sheet.append(list(headers[sheet_name]))
         for row in rows[sheet_name]:
-            sheet.append([row.get(col) for col in headers[sheet_name]])
+            sheet.append([_spreadsheet_safe(row.get(col), col) for col in headers[sheet_name]])
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
@@ -1458,7 +1480,7 @@ def export_organization_csv(project_id: str, sheet: str) -> str:
     writer = csv.DictWriter(buffer, fieldnames=list(headers))
     writer.writeheader()
     for row in rows:
-        writer.writerow({k: ("" if row.get(k) is None else row.get(k)) for k in headers})
+        writer.writerow({k: ("" if row.get(k) is None else _spreadsheet_safe(row.get(k), k)) for k in headers})
     return buffer.getvalue()
 
 
@@ -1491,7 +1513,7 @@ def export_odk_choices_csv(project_id: str) -> str:
     writer = csv.DictWriter(buffer, fieldnames=["list_name", "name", "label", "parent_code"])
     writer.writeheader()
     for row in export_odk_choices_rows(project_id):
-        writer.writerow(row)
+        writer.writerow({key: _spreadsheet_safe(value) for key, value in row.items()})
     return buffer.getvalue()
 
 
@@ -1533,25 +1555,35 @@ class ImportPlan:
 
 def parse_organization_workbook(file_obj) -> dict[str, list[dict]]:
     """Read the export workbook back into rows keyed by sheet; missing sheets are skipped."""
-    workbook = load_workbook(file_obj, read_only=True, data_only=True)
+    raw = file_obj.read(5 * 1024 * 1024 + 1)
+    if len(raw) > 5 * 1024 * 1024:
+        raise OrganizationError("Workbook exceeds the 5 MB limit.")
+    try:
+        validate_xlsx(raw, max_rows=10000, max_columns=max(len(h) for h in
+                      (_LEVEL_HEADERS, _UNIT_HEADERS, _CADRE_HEADERS, _LEVEL_CADRE_HEADERS, _WORKER_HEADERS)))
+        workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=False)
+    except (TabularImportError, ValueError, OSError, KeyError) as exc:
+        raise OrganizationError("The XLSX workbook could not be read.") from exc
     sheets: dict[str, list[dict]] = {}
-    for sheet_name in EXPORT_SHEETS:
-        if sheet_name not in workbook.sheetnames:
-            continue
-        ws = workbook[sheet_name]
-        rows_iter = ws.iter_rows(values_only=True)
-        try:
-            header = [str(h).strip() if h is not None else "" for h in next(rows_iter)]
-        except StopIteration:
-            sheets[sheet_name] = []
-            continue
-        rows = []
-        for raw in rows_iter:
-            if raw is None or all(v is None or str(v).strip() == "" for v in raw):
+    headers = {"levels": _LEVEL_HEADERS, "units": _UNIT_HEADERS,
+               "cadres": _CADRE_HEADERS, "level_cadres": _LEVEL_CADRE_HEADERS,
+               "workers": _WORKER_HEADERS}
+    try:
+        for sheet_name in EXPORT_SHEETS:
+            if sheet_name not in workbook.sheetnames:
                 continue
-            rows.append({header[i]: raw[i] for i in range(min(len(header), len(raw))) if header[i]})
-        sheets[sheet_name] = rows
-    workbook.close()
+            worksheet = workbook[sheet_name]
+            if ((worksheet.max_row or 0) > 20001 or
+                    (worksheet.max_column or 0) > len(headers[sheet_name]) + 16):
+                raise OrganizationError("The XLSX worksheet dimensions exceed the import limit.")
+            sheets[sheet_name] = parse_rows(
+                worksheet.iter_rows(values_only=True), headers[sheet_name],
+                max_rows=10000,
+            )
+    except TabularImportError as exc:
+        raise OrganizationError(str(exc)) from exc
+    finally:
+        workbook.close()
     return sheets
 
 
@@ -1563,18 +1595,24 @@ def parse_organization_csv(file_obj, sheet: str) -> dict[str, list[dict]]:
     """
     if sheet not in EXPORT_SHEETS:
         raise OrganizationError(f"Unknown sheet {sheet!r}; choose one of {', '.join(EXPORT_SHEETS)}.")
-    text = io.TextIOWrapper(file_obj, encoding="utf-8-sig", newline="")
-    reader = csv.DictReader(text)
-    rows = []
-    for raw in reader:
-        row = {
-            (key or "").strip(): (value.strip() if isinstance(value, str) and value.strip() else None)
-            for key, value in raw.items()
-            if key
-        }
-        if any(v is not None for v in row.values()):
-            rows.append(row)
-    return {sheet: rows}
+    headers = {"levels": _LEVEL_HEADERS, "units": _UNIT_HEADERS,
+               "cadres": _CADRE_HEADERS, "level_cadres": _LEVEL_CADRE_HEADERS,
+               "workers": _WORKER_HEADERS}
+    try:
+        return {sheet: parse_table(file_obj, "organization.csv", headers[sheet],
+                                   max_bytes=5 * 1024 * 1024, max_rows=10000)}
+    except TabularImportError as exc:
+        raise OrganizationError(str(exc)) from exc
+
+
+def parse_units_upload(file_obj, filename):
+    """Read the first sheet of a guided units file with bounded validation."""
+    try:
+        rows = parse_table(file_obj, filename, tuple(h for h in _UNIT_HEADERS if h != "path"),
+                           max_bytes=5 * 1024 * 1024, max_rows=10000)
+    except TabularImportError as exc:
+        raise OrganizationError(str(exc)) from exc
+    return {"units": rows}
 
 
 def import_organization(project_id: str, sheets: dict[str, list[dict]], *, dry_run: bool = True, deactivate_missing: bool = False) -> ImportPlan:
@@ -1635,19 +1673,21 @@ def _import_levels(project_id, rows, plan, deactivate_missing):
                     project_id,
                     lv.org_level_id,
                     level_name=row.get("level_name") or lv.level_name,
-                    is_optional=_to_bool(row.get("is_optional")),
-                    is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else lv.is_active,
+                    is_optional=_to_bool(row.get("is_optional"), what="is_optional"),
+                    is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else lv.is_active,
                     **({"depth": row.get("depth")} if row.get("depth") not in (None, "") else {}),
                 )
                 plan.updates["levels"].append(code)
             else:
+                is_active = _to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True
                 existing[code] = create_level(
                     project_id,
                     level_code=code,
                     level_name=row.get("level_name"),
                     depth=row.get("depth"),
-                    is_optional=_to_bool(row.get("is_optional")),
+                    is_optional=_to_bool(row.get("is_optional"), what="is_optional"),
                 )
+                existing[code].is_active = is_active
                 plan.creates["levels"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"levels row {i}: {exc}") from exc
@@ -1673,11 +1713,13 @@ def _import_cadres(project_id, rows, plan, deactivate_missing):
                     project_id,
                     c.cadre_id,
                     cadre_name=row.get("cadre_name") or c.cadre_name,
-                    is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else c.is_active,
+                    is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else c.is_active,
                 )
                 plan.updates["cadres"].append(code)
             else:
+                is_active = _to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True
                 existing[code] = create_cadre(project_id, cadre_code=code, cadre_name=row.get("cadre_name"))
+                existing[code].is_active = is_active
                 plan.creates["cadres"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"cadres row {i}: {exc}") from exc
@@ -1713,9 +1755,9 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
             kwargs = dict(
                 org_level_id=level.org_level_id,
                 cadre_id=cadre.cadre_id,
-                can_fill_va_form=_to_bool(row.get("can_fill_va_form")),
-                can_code_va_form=_to_bool(row.get("can_code_va_form")),
-                is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else True,
+                can_fill_va_form=_to_bool(row.get("can_fill_va_form"), what="can_fill_va_form"),
+                can_code_va_form=_to_bool(row.get("can_code_va_form"), what="can_code_va_form"),
+                is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True,
             )
             if kwargs["is_active"]:
                 upsert_level_cadre(project_id, **kwargs)
@@ -1748,6 +1790,8 @@ def _import_units(project_id, rows, plan, deactivate_missing):
     existing = {u["unit_code"]: u for u in list_units(project_id, include_inactive=True)}
     top_depth = _top_level_depth(project_id)
     seen = set()
+    deactivate_after_create = []
+    explicitly_active = []
     # Parents must exist before children: sort by level depth, keep file order otherwise.
     indexed = []
     for i, row in enumerate(rows, start=2):
@@ -1758,6 +1802,8 @@ def _import_units(project_id, rows, plan, deactivate_missing):
     for _, i, row in indexed:
         try:
             code = normalize_code(row.get("unit_code"), what="Unit code")
+            if code in seen:
+                raise OrganizationError(f"duplicate unit code {code!r}")
             level = levels.get(normalize_level_code(row.get("level_code")))
             if level is None:
                 raise OrganizationError(f"unknown level {row.get('level_code')!r}")
@@ -1769,6 +1815,8 @@ def _import_units(project_id, rows, plan, deactivate_missing):
             # parent, a new one below the top level is created unplaced.
             placement = {"parent_org_unit_id": parent_id} if parent_code else {}
             seen.add(code)
+            active_raw = row.get("is_active")
+            active = _to_bool(active_raw, what="is_active") if active_raw not in (None, "") else None
             fields = dict(
                 unit_name=row.get("unit_name"),
                 address=row.get("address"),
@@ -1779,15 +1827,23 @@ def _import_units(project_id, rows, plan, deactivate_missing):
                 remarks=row.get("remarks"),
             )
             if code in existing:
-                update_unit(
-                    project_id,
-                    existing[code]["org_unit_id"],
+                update_fields = dict(
                     org_level_id=level.org_level_id,
                     allow_unplaced=True,
                     **placement,
-                    is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else existing[code]["is_active"],
                     **fields,
                 )
+                if active is True:
+                    update_fields["is_active"] = True
+                update_unit(
+                    project_id,
+                    existing[code]["org_unit_id"],
+                    **update_fields,
+                )
+                if active is False:
+                    deactivate_after_create.append((i, code, existing[code]["org_unit_id"]))
+                elif active is True:
+                    explicitly_active.append((i, code, existing[code]["org_unit_id"]))
                 plan.updates["units"].append(code)
             else:
                 unit = create_unit(
@@ -1799,9 +1855,31 @@ def _import_units(project_id, rows, plan, deactivate_missing):
                     **fields,
                 )
                 existing[code] = serialize_unit(unit, level=level, parent_code=parent_code or None, top_depth=top_depth)
+                if active is False:
+                    deactivate_after_create.append((i, code, unit.org_unit_id))
+                elif active is True:
+                    explicitly_active.append((i, code, unit.org_unit_id))
                 plan.creates["units"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"units row {i}: {exc}") from exc
+    for i, code, unit_id in deactivate_after_create:
+        try:
+            set_unit_active(project_id, unit_id, False)
+        except OrganizationError as exc:
+            raise OrganizationError(f"units row {i} ({code}): {exc}") from exc
+    if deactivate_after_create and explicitly_active:
+        active_by_id = dict(db.session.execute(
+            sa.select(MasOrgUnit.org_unit_id, MasOrgUnit.is_active).where(
+                MasOrgUnit.org_unit_id.in_([
+                    uuid.UUID(str(unit_id)) for _, _, unit_id in explicitly_active
+                ])
+            )
+        ).all())
+        for i, code, unit_id in explicitly_active:
+            if not active_by_id.get(uuid.UUID(str(unit_id)), False):
+                raise OrganizationError(
+                    f"units row {i} ({code}): an active unit cannot be beneath an inactive unit"
+                )
     if deactivate_missing:
         for code, u in existing.items():
             if code not in seen and u["is_active"]:
@@ -1835,6 +1913,7 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
             if cadre is None:
                 raise OrganizationError(f"unknown cadre {row.get('cadre_code')!r}")
             seen.add(code)
+            is_active = _to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else None
             fields = dict(
                 worker_name=row.get("worker_name"),
                 phone=row.get("phone"),
@@ -1847,7 +1926,7 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
                     existing[code]["worker_id"],
                     org_unit_id=unit_id,
                     cadre_id=cadre.cadre_id,
-                    is_active=_to_bool(row.get("is_active", True)) if row.get("is_active") is not None else existing[code]["is_active"],
+                    is_active=is_active if is_active is not None else existing[code]["is_active"],
                     **fields,
                 )
                 plan.updates["workers"].append(code)
@@ -1859,9 +1938,14 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
                     worker_code=code,
                     **fields,
                 )
+                if is_active is False:
+                    worker.is_active = False
                 if not str(row.get("worker_code") or "").strip():
                     # A repeat of this code-less row later in the file updates it.
-                    existing[code] = {"worker_id": str(worker.worker_id), "is_active": True}
+                    existing[code] = {
+                        "worker_id": str(worker.worker_id),
+                        "is_active": is_active is not False,
+                    }
                 plan.creates["workers"].append(code)
         except OrganizationError as exc:
             raise OrganizationError(f"workers row {i}: {exc}") from exc

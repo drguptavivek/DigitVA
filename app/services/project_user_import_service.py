@@ -1,11 +1,13 @@
-"""Validate and apply project user grants from a bounded CSV upload."""
+"""Validate and apply project user grants from a bounded table upload."""
 
 import csv
 import io
 import re
 import secrets
+from types import SimpleNamespace
 
 import sqlalchemy as sa
+from openpyxl import Workbook
 
 from app import db
 from app.models import (
@@ -21,6 +23,7 @@ from app.models import (
 )
 from app.models.mas_languages import MasLanguages
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
+from app.services.tabular_import_service import TabularImportError, parse_table
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
 MAX_BYTES = 1024 * 1024
@@ -29,7 +32,7 @@ EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
 
 
 class ProjectUserImportError(ValueError):
-    """A CSV or one of its rows cannot be safely imported."""
+    """A table or one of its rows cannot be safely imported."""
 
 
 def template_csv():
@@ -39,34 +42,34 @@ def template_csv():
     return output.getvalue()
 
 
-def parse_csv(stream):
-    """Read a UTF-8 CSV, enforcing the upload and row limits before validation."""
-    raw = stream.read(MAX_BYTES + 1)
-    if len(raw) > MAX_BYTES:
-        raise ProjectUserImportError("CSV exceeds the 1 MB limit.")
+def template_xlsx():
+    """Return the blank first-sheet workbook accepted by this importer."""
+    workbook = Workbook()
+    workbook.active.title = "project_users"
+    workbook.active.append(HEADERS)
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def parse_upload(stream, filename):
+    """Read a bounded CSV or first-sheet XLSX into user rows."""
     try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise ProjectUserImportError("CSV must be UTF-8 encoded.") from exc
-    reader = csv.DictReader(io.StringIO(text, newline=""))
-    if reader.fieldnames != list(HEADERS):
-        raise ProjectUserImportError("CSV headers must be: " + ",".join(HEADERS))
-    rows = []
-    try:
-        for row in reader:
-            if None in row:
-                raise ProjectUserImportError("CSV row has more cells than headers.")
-            if not any((value or "").strip() for value in row.values()):
-                continue
-            rows.append({**{key: (value or "").strip() for key, value in row.items()},
-                         "_line_number": reader.line_num})
-            if len(rows) > MAX_ROWS:
-                raise ProjectUserImportError("CSV exceeds the 1000-row limit.")
-    except csv.Error as exc:
-        raise ProjectUserImportError("CSV could not be read.") from exc
+        rows = parse_table(stream, filename, HEADERS, max_bytes=MAX_BYTES,
+                           max_rows=MAX_ROWS, require_all=True)
+    except TabularImportError as exc:
+        raise ProjectUserImportError(str(exc)) from exc
     if not rows:
-        raise ProjectUserImportError("CSV has no user rows.")
+        raise ProjectUserImportError("The file has no user rows.")
+    for row in rows:
+        for header in HEADERS:
+            row[header] = str(row[header]) if row[header] is not None else ""
     return rows
+
+
+def parse_csv(stream):
+    """Retain the existing CSV API for callers outside the upload route."""
+    return parse_upload(stream, "users.csv")
 
 
 def prepare(project_id, rows, *, is_admin):
@@ -126,6 +129,11 @@ def prepare(project_id, rows, *, is_admin):
             email = row["email"].lower()
             if len(email) > 128 or not EMAIL_RE.fullmatch(email):
                 raise ProjectUserImportError("invalid email")
+            allowed_roles = [role for role in VaAccessRoles
+                             if role != VaAccessRoles.admin and
+                             (is_admin or role != VaAccessRoles.project_pi)]
+            if row["role"] not in {role.value for role in allowed_roles}:
+                raise ProjectUserImportError("role must be one of: " + ", ".join(role.value for role in allowed_roles))
             role = VaAccessRoles(row["role"])
             if role == VaAccessRoles.admin or (role == VaAccessRoles.project_pi and not is_admin):
                 raise ProjectUserImportError("role is not grantable")
@@ -156,6 +164,8 @@ def prepare(project_id, rows, *, is_admin):
                 raise ProjectUserImportError("duplicate email, role and scope")
             seen.add(key)
             user = users.get(email)
+            if not is_admin and (not user or user.user_status != VaStatuses.active):
+                raise ProjectUserImportError("account is unavailable for this project import")
             if user and user.user_status != VaStatuses.active:
                 raise ProjectUserImportError("existing user is inactive")
             languages = [code.strip() for code in row["language_codes"].split(";") if code.strip()]
@@ -178,7 +188,7 @@ def prepare(project_id, rows, *, is_admin):
             plan.append({"row": number, "email": email, "name": row["name"], "phone": row["phone"],
                          "languages": languages, "role": role, "unit": unit, "cadre": cadre,
                          "user": user, "grant": grant,
-                         "action": "create_user" if not user else ("reactivate" if grant and grant.grant_status != VaStatuses.active else "update_cadre" if grant and unit and grant.cadre_id != (cadre.cadre_id if cadre else None) else "retain" if grant else "grant")})
+                         "action": "create_user" if not user else ("reactivate" if grant and grant.grant_status != VaStatuses.active else "update_cadre" if grant and unit and cadre and grant.cadre_id != cadre.cadre_id else "retain" if grant else "grant")})
         except (ValueError, KeyError) as exc:
             errors.append(f"Row {number}: {exc}")
     if errors:
@@ -216,7 +226,15 @@ def apply(project_id, plan, *, actor_user_id):
             changed_grants.append((grant, "grant_created"))
         elif grant.grant_status != VaStatuses.active or item["action"] == "update_cadre":
             grant.grant_status = VaStatuses.active
-            grant.cadre_id = item["cadre"].cadre_id if item["cadre"] else None
+            if item["cadre"] is not None or item["action"] == "reactivate":
+                grant.cadre_id = item["cadre"].cadre_id if item["cadre"] else None
             changed_grants.append((grant, "grant_updated" if item["action"] == "update_cadre" else "grant_reactivated"))
     db.session.flush()
-    return list(new_users.values()), changed_grants
+    # Snapshot values before commit expires ORM state; invitation helpers need
+    # only name, email and ID, and audit logging needs grant scalar fields.
+    invitations = [SimpleNamespace(user_id=user.user_id, email=user.email, name=user.name)
+                   for user in new_users.values()]
+    audit = [(dict(user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
+                   scope_type=grant.scope_type.value, org_unit_id=grant.org_unit_id,
+                   cadre_id=grant.cadre_id), action) for grant, action in changed_grants]
+    return invitations, audit

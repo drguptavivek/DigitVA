@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Organization Model Policy
@@ -111,15 +111,33 @@ and keep working exactly as they did.
 
 ## Project structure mode
 
-### CSV setup
+### Spreadsheet setup
 
-- An organization-mode project offers a blank units CSV template with the
-  existing unit import columns. Administrators and that project's PI may dry
-  run and apply it through the existing organization importer. A blank
-  `parent_code` creates an unplaced unit for later mapping; applying a CSV
-  does not deactivate missing units unless the operator explicitly selects
-  that option.
-- A separate project-users CSV has `email,name,role,org_unit_code,cadre_code,language_codes,phone` columns. `org_unit_code` blank explicitly grants the whole project; a populated code grants that unit and its descendants. `cadre_code` is permitted only with a unit grant and is checked against that level's permissions. `language_codes` is a semicolon-separated list of active language codes, required with `name` for a new account.
+- An organization-mode project offers blank CSV and XLSX units templates with
+  the existing unit import columns. Administrators and that project's PI may
+  dry run and apply either format through the organization importer. A blank
+  `parent_code` creates an unplaced **new** unit for later mapping; for an
+  existing unit it preserves the parent. Missing units are not deactivated
+  unless the operator explicitly selects that option.
+- Separate CSV and XLSX project-users templates have
+  `email,name,role,org_unit_code,cadre_code,language_codes,phone` columns.
+  `org_unit_code` blank explicitly grants the whole project; a populated code
+  grants that unit and its descendants. `cadre_code` is permitted only with a
+  unit grant and is checked against that level's permissions. A blank cadre
+  preserves an existing active grant's cadre. `language_codes` is a
+  semicolon-separated list of active language codes, required with `name` for
+  a new account.
+- Both imports read the first XLSX worksheet. CSV accepts UTF-8 with optional
+  BOM or Windows-1252, comma or semicolon separators (including Excel's
+  `sep=` preamble), spaces and case differences in headers, and trailing
+  empty columns only if every corresponding cell is empty. Unexpected
+  populated columns, malformed quoting, repeated normalized unit codes,
+  invalid active flags, control characters and formula-shaped stored text
+  are rejected during preview and apply. The same validation rules apply to
+  both formats. File streams are capped at 1 MB for users and 5 MB for
+  organization data; multipart requests have a further 64 KB allowance.
+  XLSX files are also checked for at most 100 ZIP entries, 50 MB total
+  uncompressed content, and bounded worksheet dimensions before parsing.
 - An admin may create invite-only accounts and grants. A project PI may grant
   roles to existing active users in their own project only, excluding
   `project_pi` and `admin`. Existing account profiles are never changed.
@@ -244,11 +262,18 @@ project ever has to carry two coding systems at once, that is when to add one.
 
 - Export produces one workbook with sheets `levels`, `units`, `cadres`,
   `level_cadres`, `workers`, or one CSV per sheet, plus the ODK choices CSV.
+  Formula-leading text is escaped in both spreadsheet formats at export time;
+  stored organization values remain unchanged. Escaped exported text is for
+  viewing and is not a lossless import round trip for those cells.
 - Import reads the same layout, matches rows by code, creates or updates,
   and never deletes. Rows absent from a supplied sheet are deactivated only
   when the operator sets `deactivate_missing`.
 - Every import runs as a dry run first. A single invalid row aborts the
   whole import; nothing is written.
+- Boolean import columns accept true/false, 1/0, yes/no, y/n and t/f
+  (case insensitive). Blank `is_active` keeps an existing row's state;
+  explicit false also deactivates newly created levels, cadres and workers.
+  Other values fail with the sheet row and column name.
 - Worker names and phone numbers are personal data: export and import are
   restricted to admins and project PIs of that project and are logged.
 

@@ -315,9 +315,9 @@
       </div>
       <div class="col-md-7">
         <div class="card"><div class="card-body">
-          <h6 class="card-title">Upload units CSV</h6>
-          <p class="small text-muted">Download the <a href="#" id="org-units-template">blank units CSV template</a> and fill <code>unit_code</code>, <code>unit_name</code>, <code>level_code</code> and <code>parent_code</code>. The levels must already exist. A blank parent makes an unplaced unit. Existing units are matched by code; units absent from this file stay active.</p>
-          <input type="file" id="org-units-file" class="form-control form-control-sm mb-2" accept=".csv">
+          <h6 class="card-title">Upload units</h6>
+          <p class="small text-muted">Download the blank units <a href="#" id="org-units-template">CSV</a> or <a href="#" id="org-units-template-xlsx">Excel template</a> and fill <code>unit_code</code>, <code>unit_name</code>, <code>level_code</code> and <code>parent_code</code>. The levels must already exist. A blank parent creates an unplaced new unit; it keeps an existing unit's parent. Units absent from this file stay active.</p>
+          <input type="file" id="org-units-file" class="form-control form-control-sm mb-2" accept=".csv,.xlsx">
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-primary" id="org-units-dry">Preview units</button>
             <button class="btn btn-sm btn-danger" id="org-units-apply" disabled>Apply units</button>
@@ -352,8 +352,8 @@
           <pre id="org-import-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;"></pre>
           <hr>
           <h6>Project users and roles</h6>
-          <p class="small text-muted">Download the <a href="#" id="org-users-template">blank project users CSV template</a>. Enter email and role on every row. Leave <code>org_unit_code</code> blank for access to the <strong>whole project</strong>; enter a unit code to limit access to its subtree. A new account also needs name and active language codes separated by semicolons. Existing account profiles stay unchanged. Project PIs may grant only existing active users and cannot grant project PI.</p>
-          <input type="file" id="org-users-file" class="form-control form-control-sm mb-2" accept=".csv">
+          <p class="small text-muted">Download the blank project users <a href="#" id="org-users-template">CSV</a> or <a href="#" id="org-users-template-xlsx">Excel template</a>. Enter email and role on every row. Leave <code>org_unit_code</code> blank for access to the <strong>whole project</strong>; enter a unit code to limit access to its subtree. A new account also needs name and active language codes separated by semicolons. Existing account profiles stay unchanged. Project PIs may grant only existing active users and cannot grant project PI.</p>
+          <input type="file" id="org-users-file" class="form-control form-control-sm mb-2" accept=".csv,.xlsx">
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-primary" id="org-users-dry">Preview users</button>
             <button class="btn btn-sm btn-danger" id="org-users-apply" disabled>Import users</button>
@@ -1444,7 +1444,9 @@
 
   function renderTransfer() {
     $('org-units-template').href = base() + '/templates/units.csv';
+    $('org-units-template-xlsx').href = base() + '/templates/units.xlsx';
     $('org-users-template').href = base() + '/templates/project-users.csv';
+    $('org-users-template-xlsx').href = base() + '/templates/project-users.xlsx';
     $('org-export-xlsx').href = base() + '/export.xlsx';
     $('org-export-choices').href = base() + '/odk-choices.csv';
     document.querySelectorAll('.org-csv-template').forEach(function (a) { a.href = base() + '/export/' + a.dataset.sheet + '.csv'; });
@@ -1456,11 +1458,11 @@
     $('org-units-apply').disabled = true;
     $('org-units-result').classList.add('d-none');
   }
-  // Preview or apply the selected units CSV in this project. This guided path
+  // Preview or apply the selected units file in this project. This guided path
   // never deactivates missing units, even when advanced import has that option set.
   function runUnitsImport(apply) {
     var file = $('org-units-file').files[0], project = PROJECT_ID;
-    if (!file || !/\.csv$/i.test(file.name)) { alertBox('warning', 'Choose a units CSV file first.'); return; }
+    if (!file || !/\.(csv|xlsx)$/i.test(file.name)) { alertBox('warning', 'Choose a units CSV or Excel file first.'); return; }
     if (apply && (file !== unitsPreviewFile || project !== unitsPreviewProject)) return;
     if (!apply) { unitsPreviewFile = null; unitsPreviewProject = null; }
     $('org-units-apply').disabled = true;
@@ -1537,7 +1539,7 @@
   }
   function runUsersImport(apply) {
     var file = $('org-users-file').files[0], project = PROJECT_ID;
-    if (!file) { alertBox('warning', 'Choose a project users CSV first.'); return; }
+    if (!file) { alertBox('warning', 'Choose a project users CSV or Excel file first.'); return; }
     if (apply && (file !== usersPreviewFile || project !== usersPreviewProject)) return;
     $('org-users-apply').disabled = true;
     var request = ++usersRequest;

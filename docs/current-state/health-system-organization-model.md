@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -86,9 +86,18 @@ update in `app/routes/admin.py` and by `flask org ensure-site`. Rules:
 
 ### People
 
-The Organization panel now offers blank units and project-users CSV templates.
-Units use the existing organization importer and its dry-run preview. The users
-importer (`project_user_import_service`) accepts up to 1 MB and 1,000 rows,
+The Organization panel offers blank units and project-users CSV and XLSX templates.
+The guided flows read the first XLSX worksheet; advanced named-sheet workbook
+import remains available. Excel-saved CSVs may use Windows-1252, a semicolon
+separator and spaced headers. Units use the organization importer and its
+dry-run preview. A blank parent creates an unplaced new unit but preserves an
+existing unit's parent. New units are linked while active, then requested
+inactive subtrees are deactivated after all rows have been created. Both
+workbook paths preflight ZIP size and worksheet dimensions; malformed XML
+returns a file error. Import routes cap multipart requests before parsing.
+CSV and XLSX exports escape formula-leading text while leaving stored values
+unchanged. The users importer (`project_user_import_service`)
+accepts up to 1 MB and 1,000 rows,
 checks every role, account, unit, cadre and language before writing, and commits
 new invite-only accounts and grants together. A blank unit code is shown as
 "whole project" in the preview. Only admins may create accounts; a project PI

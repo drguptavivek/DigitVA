@@ -127,6 +127,27 @@ def create_app(config_class=None):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # CSRFProtect reads multipart form data in its before_request hook. Bound
+    # organization imports before that hook can parse and spool an upload.
+    @app.before_request
+    def _limit_organization_import_upload():
+        if request.method != "POST":
+            return None
+        parts = request.path.split("/")
+        if parts[:4] != ["", "admin", "api", "organization"]:
+            return None
+        if len(parts) == 7 and parts[5:] == ["project-users", "import"]:
+            limit_mb = 1
+        elif len(parts) == 6 and parts[5] == "import":
+            limit_mb = 5
+        else:
+            return None
+        limit = limit_mb * 1024 * 1024 + 64 * 1024
+        request.max_content_length = limit
+        if request.content_length is not None and request.content_length > limit:
+            return jsonify({"error": f"The upload exceeds the {limit_mb} MB limit."}), 413
+        return None
+
     # Fail closed before anything can serve an attachment: an S3 store with a
     # missing key must stop the app, never quietly fall back to local disk.
     validate_attachment_store_config(app.config)

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import sqlalchemy as sa
+from openpyxl import load_workbook
 
 from app import db
 from app.models import (
@@ -74,6 +75,136 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertNotIn(",path,", units.get_data(as_text=True))
         self.assertEqual(users.get_data(as_text=True).strip(),
                          "email,name,role,org_unit_code,cadre_code,language_codes,phone")
+
+    def test_blank_xlsx_templates(self):
+        self._login(str(self.base_admin_id))
+        for suffix, first in (("/templates/units.xlsx", "unit_code"),
+                              ("/templates/project-users.xlsx", "email")):
+            response = self.client.get(self._url(suffix))
+            self.assertEqual(response.status_code, 200)
+            workbook = load_workbook(io.BytesIO(response.data), read_only=True)
+            self.assertEqual(workbook.active.cell(1, 1).value, first)
+            workbook.close()
+
+    def test_excel_csv_and_xlsx_user_import_preview(self):
+        self._login(str(self.base_admin_id))
+        csv_body = ("sep=;\r\n EMAIL ; NAME ; ROLE ; ORG_UNIT_CODE ; CADRE_CODE ; LANGUAGE_CODES ; PHONE ;\r\n"
+                    "excel@example.org;Café;reviewer;;;en;;\r\n").encode("cp1252")
+        response = self.client.post(
+            self._url("/project-users/import"),
+            data={"file": (io.BytesIO(csv_body), "users.csv")},
+            content_type="multipart/form-data", headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["rows"][0]["email"], "excel@example.org")
+
+        template = self.client.get(self._url("/templates/project-users.xlsx"))
+        workbook = load_workbook(io.BytesIO(template.data))
+        workbook.active.append(["xlsx@example.org", "Workbook", "reviewer", "", "", "en", ""])
+        content = io.BytesIO()
+        workbook.save(content)
+        response = self.client.post(
+            self._url("/project-users/import"),
+            data={"file": (io.BytesIO(content.getvalue()), "users.xlsx")},
+            content_type="multipart/form-data", headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["rows"][0]["email"], "xlsx@example.org")
+        with patch("app.services.email_service.is_mail_configured", return_value=False):
+            applied = self.client.post(
+                self._url("/project-users/import"),
+                data={"file": (io.BytesIO(content.getvalue()), "users.xlsx"), "dry_run": "0"},
+                content_type="multipart/form-data", headers=self._csrf_headers(),
+            )
+        self.assertEqual(applied.status_code, 200, applied.get_json())
+        self.assertEqual(applied.get_json()["created_users"], 1)
+        self.assertIsNotNone(db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.email == "xlsx@example.org")
+        ))
+
+    def test_invalid_role_error_lists_grantable_roles(self):
+        self._login(str(self.base_admin_id))
+        response = self._import_users(
+            "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+            "invalid-role@example.org,Name,bogus,,,en,\n"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("role must be one of:", response.get_json()["error"])
+        self.assertNotIn("VaAccessRoles", response.get_json()["error"])
+
+    def test_project_pi_cannot_see_inactive_account_status_or_grant_pi(self):
+        db.session.add(VaUserAccessGrants(
+            user_id=self.base_project_pi_user.user_id,
+            role=VaAccessRoles.project_pi,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT,
+            grant_status=VaStatuses.active,
+        ))
+        inactive = VaUsers(email="inactive-import@example.org", name="Inactive Import",
+                           user_status=VaStatuses.deactive, permission={},
+                           landing_page="coder", pw_reset_t_and_c=False,
+                           email_verified=True, vacode_language=["en"])
+        inactive.set_password("UnusedPassword123!")
+        db.session.add(inactive)
+        db.session.commit()
+        self._login(str(self.base_project_pi_id))
+        header = "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+        unknown = self._import_users(header + "missing-import@example.org,,reviewer,,,,\n")
+        disabled = self._import_users(header + "inactive-import@example.org,,reviewer,,,,\n")
+        self.assertEqual(unknown.status_code, 400)
+        self.assertEqual(disabled.status_code, 400)
+        self.assertEqual(unknown.get_json()["error"].replace("missing-import@example.org", "EMAIL"),
+                         disabled.get_json()["error"].replace("inactive-import@example.org", "EMAIL"))
+        denied = self._import_users(header + "base.coder@test.local,,project_pi,,,,\n")
+        self.assertEqual(denied.status_code, 400)
+        self.assertIn("role must be one of:", denied.get_json()["error"])
+
+    def test_blank_cadre_on_rerun_preserves_existing_grant_cadre(self):
+        self._login(str(self.base_admin_id))
+        org.seed_default_organization(self.PROJECT)
+        levels = {level.level_code: level for level in org.list_levels(self.PROJECT)}
+        district = org.create_unit(self.PROJECT, org_level_id=levels["district"].org_level_id,
+                                   unit_code="D90", unit_name="District 90")
+        chc = org.create_unit(self.PROJECT, org_level_id=levels["chc"].org_level_id,
+                              unit_code="C90", unit_name="CHC 90",
+                              parent_org_unit_id=district.org_unit_id)
+        phc = org.create_unit(self.PROJECT, org_level_id=levels["phc"].org_level_id,
+                              unit_code="P90", unit_name="PHC 90",
+                              parent_org_unit_id=chc.org_unit_id)
+        cadre = next(c for c in org.list_cadres(self.PROJECT) if c.cadre_code == "MO")
+        grant = VaUserAccessGrants(
+            user_id=self.base_coder_id, role=VaAccessRoles.reviewer,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=phc.org_unit_id,
+            cadre_id=cadre.cadre_id, grant_status=VaStatuses.active,
+        )
+        db.session.add(grant)
+        db.session.commit()
+        response = self._import_users(
+            "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+            "base.coder@test.local,,reviewer,P90,,,\n", dry_run="0",
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["changed_grants"], 0)
+        db.session.refresh(grant)
+        self.assertEqual(grant.cadre_id, cadre.cadre_id)
+
+    def test_other_project_pi_cannot_import_or_download_templates(self):
+        self._login(str(self.base_project_pi_id))
+        for suffix in ("/templates/units.csv", "/templates/units.xlsx",
+                       "/templates/project-users.csv", "/templates/project-users.xlsx"):
+            self.assertEqual(self.client.get(self._url(suffix)).status_code, 403)
+        response = self._import_users(
+            "email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
+            "someone@example.org,,reviewer,,,,\n"
+        )
+        self.assertEqual(response.status_code, 403)
+        units = self.client.post(
+            self._url("/import"),
+            data={"file": (io.BytesIO(b"unit_code,unit_name,level_code\nP01,PHC,phc\n"),
+                           "units.csv"), "sheet": "units", "dry_run": "1"},
+            content_type="multipart/form-data", headers=self._csrf_headers(),
+        )
+        self.assertEqual(units.status_code, 403)
 
     def test_invalid_row_leaves_no_account_or_grant(self):
         self._login(str(self.base_admin_id))
@@ -331,6 +462,57 @@ class AdminOrganizationApiTests(BaseTestCase):
         )
         self.assertEqual(rejected.status_code, 400)
 
+    def test_upload_request_limits_return_json_413(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        for suffix, size, filename in (
+            ("/project-users/import", 1024 * 1024 + 64 * 1024, "users.csv"),
+            ("/import", 5 * 1024 * 1024 + 64 * 1024, "units.csv"),
+        ):
+            with self.subTest(suffix=suffix):
+                response = self.client.post(
+                    self._url(suffix),
+                    data={"file": (io.BytesIO(b"x" * (size + 1)), filename)},
+                    content_type="multipart/form-data", headers=headers,
+                )
+                self.assertEqual(response.status_code, 413, response.get_json())
+                self.assertIn("limit", response.get_json()["error"])
+
+    def test_json_unit_text_is_safe_in_csv_and_xlsx_exports(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        district = next(level for level in org.list_levels(self.PROJECT) if level.level_code == "district")
+        created = self.client.post(
+            self._url("/units"),
+            json={"org_level_id": str(district.org_level_id), "unit_code": "D90",
+                  "unit_name": "=HYPERLINK(1)", "latitude": "-12.5"},
+            headers=headers,
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        unit_id = created.get_json()["unit"]["org_unit_id"]
+        updated = self.client.patch(
+            self._url(f"/units/{unit_id}"), json={"remarks": "@SUM(1)"}, headers=headers,
+        )
+        self.assertEqual(updated.status_code, 200, updated.get_json())
+        self.assertEqual(updated.get_json()["unit"]["unit_name"], "=HYPERLINK(1)")
+
+        csv_rows = self.client.get(self._url("/export/units.csv")).get_data(as_text=True)
+        self.assertIn("'=HYPERLINK(1)", csv_rows)
+        self.assertIn("'@SUM(1)", csv_rows)
+        self.assertIn("-12.500000", csv_rows)
+        workbook = load_workbook(io.BytesIO(self.client.get(self._url("/export.xlsx")).data))
+        try:
+            headings = [cell.value for cell in workbook["units"][1]]
+            exported = next(row for row in workbook["units"].iter_rows(min_row=2)
+                            if row[0].value == "D90")
+            self.assertEqual(exported[headings.index("unit_name")].value, "'=HYPERLINK(1)")
+            self.assertEqual(exported[headings.index("unit_name")].data_type, "s")
+            self.assertEqual(exported[headings.index("remarks")].value, "'@SUM(1)")
+            self.assertEqual(exported[headings.index("latitude")].value, "-12.500000")
+        finally:
+            workbook.close()
+
     def _import_csv(self, headers, sheet, text, dry_run):
         return self.client.post(
             self._url("/import"),
@@ -381,6 +563,111 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         unknown_sheet = self._import_csv(headers, "bogus", cadres, dry_run=True)
         self.assertEqual(unknown_sheet.status_code, 400)
+
+    def test_import_rejects_invalid_boolean_rows_without_partial_writes(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        levels = {level.level_code: level for level in org.list_levels(self.PROJECT)}
+        district = org.create_unit(
+            self.PROJECT, org_level_id=levels["district"].org_level_id,
+            unit_code="D90", unit_name="District 90",
+        )
+        org.create_unit(
+            self.PROJECT, org_level_id=levels["chc"].org_level_id,
+            unit_code="C90", unit_name="CHC 90", parent_org_unit_id=district.org_unit_id,
+        )
+        db.session.commit()
+        original_level_cadres = org.list_level_cadres(self.PROJECT)
+        cases = (
+            ("levels", "level_code,level_name,depth,is_optional,is_active\n"
+             "newlevel,New Level,7,false,true\ninvalid,Invalid Level,8,maybe,true\n",
+             "is_optional", "NEWLEVEL"),
+            ("levels", "level_code,level_name,depth,is_optional,is_active\n"
+             "newlevel,New Level,7,false,true\ninvalid,Invalid Level,8,false,maybe\n",
+             "is_active", "NEWLEVEL"),
+            ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,true\nXT,Other,falseish\n",
+             "is_active", "LT"),
+            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
+             "district,MO,true,false,true\ndistrict,SMO,maybe,false,true\n",
+             "can_fill_va_form", None),
+            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
+             "district,MO,true,false,true\ndistrict,SMO,false,maybe,true\n",
+             "can_code_va_form", None),
+            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
+             "district,MO,true,false,true\ndistrict,SMO,false,false,maybe\n",
+             "is_active", None),
+            ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
+             "W90,First,C90,MO,true\nW91,Second,C90,MO,maybe\n",
+             "is_active", "W90"),
+        )
+        for sheet, content, field, created_code in cases:
+            with self.subTest(sheet=sheet, field=field):
+                for dry_run in (True, False):
+                    response = self._import_csv(headers, sheet, content, dry_run=dry_run)
+                    self.assertEqual(response.status_code, 400, response.get_json())
+                    self.assertIn(f"{sheet} row 3: {field} must be true or false",
+                                  response.get_json()["plan"]["errors"][0])
+                if sheet == "levels":
+                    self.assertNotIn(created_code, {level.level_code.upper() for level in
+                                                    org.list_levels(self.PROJECT, include_inactive=True)})
+                elif sheet == "cadres":
+                    self.assertNotIn(created_code, {cadre.cadre_code for cadre in
+                                                    org.list_cadres(self.PROJECT, include_inactive=True)})
+                elif sheet == "level_cadres":
+                    self.assertEqual(org.list_level_cadres(self.PROJECT), original_level_cadres)
+                elif sheet == "workers":
+                    self.assertNotIn(created_code, {worker["worker_code"] for worker in
+                                                    org.list_workers(self.PROJECT, include_inactive=True)})
+
+    def test_new_rows_honor_explicit_false_and_blank_preserves_it(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        levels = {level.level_code: level for level in org.list_levels(self.PROJECT)}
+        district = org.create_unit(
+            self.PROJECT, org_level_id=levels["district"].org_level_id,
+            unit_code="D90", unit_name="District 90",
+        )
+        org.create_unit(
+            self.PROJECT, org_level_id=levels["chc"].org_level_id,
+            unit_code="C90", unit_name="CHC 90", parent_org_unit_id=district.org_unit_id,
+        )
+        db.session.commit()
+        uploads = (
+            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,7,false\n"),
+            ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,false\n"),
+            ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
+             "W90,Worker 90,C90,MO,false\n"),
+        )
+        for sheet, content in uploads:
+            with self.subTest(sheet=sheet):
+                preview = self._import_csv(headers, sheet, content, dry_run=True)
+                self.assertEqual(preview.status_code, 200, preview.get_json())
+                applied = self._import_csv(headers, sheet, content, dry_run=False)
+                self.assertEqual(applied.status_code, 200, applied.get_json())
+        level = next(level for level in org.list_levels(self.PROJECT, include_inactive=True)
+                     if level.level_code == "newlevel")
+        cadre = next(cadre for cadre in org.list_cadres(self.PROJECT, include_inactive=True)
+                     if cadre.cadre_code == "LT")
+        worker = next(worker for worker in org.list_workers(self.PROJECT, include_inactive=True)
+                      if worker["worker_code"] == "W90")
+        self.assertFalse(level.is_active)
+        self.assertFalse(cadre.is_active)
+        self.assertFalse(worker["is_active"])
+        for sheet, content in (
+            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,7,\n"),
+            ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,\n"),
+            ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
+             "W90,Worker 90,C90,MO,\n"),
+        ):
+            response = self._import_csv(headers, sheet, content, dry_run=False)
+            self.assertEqual(response.status_code, 200, response.get_json())
+        db.session.expire_all()
+        self.assertFalse(level.is_active)
+        self.assertFalse(cadre.is_active)
+        self.assertFalse(next(worker for worker in org.list_workers(self.PROJECT, include_inactive=True)
+                              if worker["worker_code"] == "W90")["is_active"])
 
     def test_worker_code_is_optional(self):
         self._login(str(self.base_admin_id))

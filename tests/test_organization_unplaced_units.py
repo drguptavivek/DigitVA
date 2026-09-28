@@ -7,6 +7,8 @@ endpoint ``POST /admin/api/organization/<project_id>/units/place``.
 import io
 from datetime import UTC, datetime
 
+from openpyxl import load_workbook
+
 from app import db
 from app.models import VaProjectMaster, VaStatuses
 from app.services import organization_service as org
@@ -117,6 +119,88 @@ class UnplacedUnitTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("unknown parent unit 'NOPE'", response.get_json()["plan"]["errors"][0])
         self.assertNotIn("P09", self._units())
+
+    def test_guided_units_xlsx_uses_first_sheet(self):
+        template = self.client.get(self._url("/templates/units.xlsx"))
+        self.assertEqual(template.status_code, 200)
+        workbook = load_workbook(io.BytesIO(template.data))
+        workbook.active.append(["P07", "PHC Seven", "phc", ""])
+        workbook.create_sheet("ignored").append(["unknown"])
+        output = io.BytesIO()
+        workbook.save(output)
+        response = self.client.post(
+            self._url("/import"),
+            data={"file": (io.BytesIO(output.getvalue()), "units.xlsx"),
+                  "sheet": "units", "dry_run": "1"},
+            content_type="multipart/form-data", headers=self.headers,
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["plan"]["creates"]["units"], ["P07"])
+        applied = self.client.post(
+            self._url("/import"),
+            data={"file": (io.BytesIO(output.getvalue()), "units.xlsx"),
+                  "sheet": "units", "dry_run": "0"},
+            content_type="multipart/form-data", headers=self.headers,
+        )
+        self.assertEqual(applied.status_code, 200, applied.get_json())
+        self.assertIn("P07", self._units())
+
+    def test_duplicate_unit_code_and_invalid_active_flag_rejected(self):
+        duplicate = self._import_units_csv(
+            "unit_code,unit_name,level_code,parent_code\n"
+            "P10,First,phc,\n p10 ,Second,phc,\n", dry_run=True,
+        )
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertIn("duplicate unit code", duplicate.get_json()["plan"]["errors"][0])
+        self.assertNotIn("P10", self._units())
+        invalid = self._import_units_csv(
+            "unit_code,unit_name,level_code,parent_code,is_active\n"
+            "P11,PHC Eleven,phc,,sometimes\n", dry_run=True,
+        )
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("is_active must be true or false", invalid.get_json()["plan"]["errors"][0])
+
+    def test_new_inactive_parent_and_child_preview_and_apply(self):
+        text = (
+            "unit_code,unit_name,level_code,parent_code,is_active\n"
+            "D09,District Nine,district,,false\n"
+            "C09,CHC Nine,chc,D09,false\n"
+        )
+        preview = self._import_units_csv(text, dry_run=True)
+        self.assertEqual(preview.status_code, 200, preview.get_json())
+        self.assertEqual(preview.get_json()["plan"]["creates"]["units"], ["D09", "C09"])
+        self.assertNotIn("D09", self._units())
+
+        applied = self._import_units_csv(text)
+        self.assertEqual(applied.status_code, 200, applied.get_json())
+        units = self._units()
+        self.assertIn("C09", units)
+        self.assertEqual(units["C09"]["parent_code"], "D09")
+        self.assertFalse(units["D09"]["is_active"])
+        self.assertFalse(units["C09"]["is_active"])
+
+    def test_active_child_under_new_inactive_parent_is_rejected(self):
+        text = (
+            "unit_code,unit_name,level_code,parent_code,is_active\n"
+            "D09,District Nine,district,,false\n"
+            "C09,CHC Nine,chc,D09,true\n"
+        )
+        preview = self._import_units_csv(text, dry_run=True)
+        self.assertEqual(preview.status_code, 400)
+        self.assertIn("active unit cannot be beneath an inactive unit",
+                      preview.get_json()["plan"]["errors"][0])
+        self.assertNotIn("D09", self._units())
+        applied = self._import_units_csv(text, dry_run=False)
+        self.assertEqual(applied.status_code, 400)
+        self.assertNotIn("D09", self._units())
+
+    def test_existing_parent_is_kept_when_import_parent_blank(self):
+        response = self._import_units_csv(
+            "unit_code,unit_name,level_code,parent_code\n"
+            "C01,Renamed CHC,chc,\n"
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(self._units()["C01"]["parent_code"], "D01")
 
     def test_reimport_with_blank_parent_keeps_a_placed_units_parent(self):
         phc = org.create_unit(

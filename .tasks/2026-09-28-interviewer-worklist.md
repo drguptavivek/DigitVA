@@ -96,8 +96,8 @@ Never auto-merge.
 
 ### The list
 
-- Default view: **My cases** (registered or started by me) plus **Available**
-  (registered in my scope, not started by anyone), filtered by state,
+- Default view: **Team cases** in my scope with a "Mine" filter (registered
+  or worked on by me), filtered by state,
   sorted by next visit date then last activity. Tabs: To visit (registered,
   scheduled, not reachable, paused), In progress, Done (submitted, refused).
 - Row: ID, name (or "details pending"), sex, age, date of death, unit,
@@ -121,11 +121,14 @@ flow back to the case.
    supervisor" answer). A case belongs to whoever registered it until an
    interview starts, then to the interviewer who started it; there is no
    assign or reassign action and no `assigned_to_user_id`.
-2. **Visibility:** an interviewer sees the cases they registered or started,
-   plus registered cases in their scope that nobody has started yet (so any
-   interviewer can pick one up by starting it); supervisors see every case in
-   their scope. (This removes today's exposure of other interviewers' started
-   cases.)
+2. **Team cases** (owner, 2026-09-29): once a death is registered, anyone in
+   the team — any interviewer whose scope covers the case — can start,
+   continue or finish its interview; a case is not tied to one interviewer.
+   So every interviewer sees all cases in their scope, and the one active
+   draft per death becomes a shared team draft (today another interviewer
+   gets a 409). Each save records who saved it; the audit trail keeps every
+   interviewer who worked on the case. Concurrency rule still to settle (see
+   open item 7). Supervisors see every case in their scope.
 3. **Supervisors:** medical officers and similar staff at higher-level
    facilities (e.g. PHC, CHC, district hospital) overseeing the interviewers
    in the units below them, and data managers in scope. They view, resolve
@@ -142,6 +145,39 @@ Still open:
    reopenable by a supervisor, audited.)
 6. **Duplicate and cancel:** supervisor only, or also the owning interviewer?
    (Proposed: interviewer may flag, supervisor confirms.)
+7. **Two interviewers on one case at once** (owner, 2026-09-29): **first
+   submission wins, and offline capture is in scope.** No lock: team members
+   may fill the same case independently, including offline on their own
+   devices. The first **complete** submission accepted by the server becomes
+   the case's submission. A submission that is **incomplete** (interview not
+   finished) or a **refusal** (consent Id10013 = no) does not close the case:
+   a later complete submission from any team member wins and becomes the
+   case's submission, and the earlier one is kept as a superseded copy
+   (owner, 2026-09-29). Once a complete submission has won, any later one is
+   not merged and not silently dropped — it is stored as a superseded copy
+   linked to the case, its interviewer is told, and a supervisor can view it.
+   Owner (2026-09-29): status comes from the WHO form's completion outcome.
+   Finding: the WHO 2022 core has no outcome question — only consent Id10013
+   (yes / no) and the closing `noteend` note; the form's own `completion.valid`
+   says whether every required question is answered. Proposed mapping:
+   Id10013 = no -> refused; submitted with `completion.valid` false (a new
+   "Stop interview" action with a reason: respondent unavailable, needs to
+   continue later, refused mid-way) -> incomplete; `completion.valid` true ->
+   complete. If a recorded outcome question is wanted, add one DigitVA
+   extension question at the end (`interview_outcome`: completed / partially
+   completed / refused / respondent unavailable) rather than changing WHO's
+   structure. Still to confirm: and whether an incomplete or refused
+   submission enters coding at all (proposed: no — it stays with the case
+   until superseded or a supervisor closes the case). Implications to
+   design: (a) drafts must be storable on the device for offline work, which
+   reverses today's rule that answers are never kept in the browser
+   (docs/policy/web-intake.md, field-data-collection.md) — so encrypted on
+   device, deleted after upload, bounded, matching the attachment decision in
+   `digitva-ej1`; (b) the server decides "first" by acceptance time, not
+   device time; (c) the list shows "Submitted by <name>" on a case another
+   team member finished while you were offline, and your copy's submit tells
+   you so; (d) a case registered offline needs a client-generated id that the
+   server reconciles (and duplicate checks run on upload).
 
 ## Phases (after decisions; each with tests and a migration where noted)
 

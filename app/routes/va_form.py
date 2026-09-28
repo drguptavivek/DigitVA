@@ -1035,6 +1035,8 @@ def renderpartial(va_sid, va_partial):
         elif (
             project_mode == "masked_doris"
             and va_action == "vareview"
+            # Only an active review renders the editor; a view skips the queries.
+            and va_actiontype in {"vastartreviewing", "varesumereviewing"}
             and category_config
             and category_config.render_mode == "workflow_panel"
         ):

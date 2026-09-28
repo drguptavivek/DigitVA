@@ -26,6 +26,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services.doris_process_proof import ProcessProofCertificateChanged
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     submit_reviewer_final_cod,
@@ -372,7 +373,55 @@ class TestMaskedDorisReviewing(BaseTestCase):
         self.assertIn('data-final-search-code="1A00"', body)
         self.assertNotIn("data-final-use-code", body)
 
+    def test_view_only_panel_skips_the_reviewer_doris_context(self):
+        sid = self._start_review(smartva_icd="A16.9")
+        self._login(self.reviewer_id)
+        with patch(
+            "app.routes.va_form._masked_reviewer_doris_context",
+            return_value=(None, {}),
+        ) as context:
+            active = self.client.get(_PANEL_URL.format(sid=sid))
+            self.assertEqual(active.status_code, 200)
+            self.assertEqual(context.call_count, 1)
+            view = self.client.get(
+                _PANEL_URL.format(sid=sid).replace("varesumereviewing", "vaview")
+            )
+
+        self.assertEqual(view.status_code, 200, view.get_data(as_text=True)[:300])
+        self.assertEqual(context.call_count, 1)
+
     # ---- Step 1 POST ------------------------------------------------------
+
+    @patch("app.services.reviewer_coding_service.generate_process_proof", return_value="fresh-token")
+    @patch("app.services.reviewer_coding_service.process_certificate")
+    @patch("app.services.reviewer_coding_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
+    def test_step1_post_changed_certificate_reprocesses_and_saves_nothing(
+        self, verify, _validate, process, _generate
+    ):
+        sid = self._start_review()
+        verify.side_effect = ProcessProofCertificateChanged("changed")
+        process.return_value = {
+            "certificate_digest": "new-cert",
+            "result_digest": "new-result",
+            "doris": _DORIS,
+            "codedit": _CODEDIT,
+        }
+
+        response = self._post_initial(sid)
+
+        self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+        error = response.get_json()["error"]
+        self.assertEqual(error["code"], "DORIS_CERTIFICATE_CHANGED")
+        self.assertEqual(response.get_json()["processing"]["process_token"], "fresh-token")
+        self.assertEqual(verify.call_args.kwargs["role"], "reviewer")
+        self.assertIsNone(
+            db.session.scalar(
+                db.select(VaReviewerInitialAssessments).where(
+                    VaReviewerInitialAssessments.va_sid == sid
+                )
+            )
+        )
 
     @patch("app.services.reviewer_final_assessment_service.build_icd11_provenance_for_values")
     @patch("app.services.reviewer_coding_service.validate_coding_value_for_submission")

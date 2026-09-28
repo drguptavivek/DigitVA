@@ -13,34 +13,47 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > 8052, e.g. `http://localhost:8052/help/doris-demo`. SADEMO is the DORIS dev
 > project: ICD-11, masked (coder and reviewer both use DORIS in Step 1),
 > Demo/Training, 30-minute retention.
-> Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests/routes tests/services -q -p no:cacheprovider`
-> (1766 tests, all pass; do not run the whole `tests/migrations` directory,
-> it is very slow: run only the migration you touched plus
-> `test_schema_drift.py` and `test_no_app_imports_in_migrations.py`), `node tests/js/doris_result_summary_check.mjs`, and
+> Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
+> (2337 tests, all pass, about 2 min 10 s; do not run the whole
+> `tests/migrations` directory, it is very slow: run only the migration you
+> touched plus `test_schema_drift.py` and
+> `test_no_app_imports_in_migrations.py`). One pytest run per test database
+> at a time: killing `docker compose exec` does not kill pytest inside the
+> container, and a second run on the same database hangs. Also
+> `node tests/js/doris_result_summary_check.mjs`, and
 > `node --input-type=module --check < <file>` on edited JS. Use `bd`; commit
 > in the repo's voice and push. Work the ranked list below.
 
 ## Next, ranked
 
-1. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 false-warning
-   report (GitHub issue 41; text in
-   `docs/kb/doris-picker-who-behaviour-rules.md`, "To report to WHO").
-2. `digitva-ddv.2` (in progress): production DORIS ingress release. Ingress
-   code is done (forwarded headers pass through; Docker DNS re-resolve). Work
-   is on the app VM only; the DMZ reverse proxy stays unchanged. In the
+1. `digitva-ddv.2` (in progress): production DORIS ingress release, on the
+   app VM only; the DMZ reverse proxy stays unchanged. **First** confirm
+   production `.env` has `MAIL_BASE_URL=https://digitva.causeofdeathindia.com`:
+   production now refuses every host but that one (plus localhost for the
+   healthcheck) and will not start without it (`trusted_hosts_for` in
+   `config.py`; dev is exempt via `FLASK_ENV=development`). Then in the
    untracked compose override move port 8051 from `minerva_app_service` to
    `digitva_ingress` (`8051:80`); `.env` gets `COMPOSE_PROFILES=icd11` and
    `DORIS_PUBLIC_COOKIE_SECURE=true`; `docker compose up -d`; then the image
    digest, log-privacy, five-parallel-Process and Secure-cookie checks in the
-   bead. Wiring: `docs/current-state/doris-cod-workflow.md`.
-3. `digitva-y0c` (P1) and `digitva-l38` (P1): the project users/units
-   import (Organization panel, Export / Import) works but is CSV-only and
-   UTF-8-only. The owner wants district and state managers to import files
-   made in Excel: accept .xlsx (openpyxl and the advanced-import reader
-   already exist) and Excel-saved CSVs (`y0c`). `l38` holds the hardening
-   list from review and a browser edge-case run (NUL characters, friendly
-   role errors, formula values, duplicate unit codes, PI account-status
-   leak, cadre cleared on rerun, post-commit N+1, PI tests).
+   bead. Wiring: `docs/current-state/doris-cod-workflow.md`. This deploy also
+   ships the 2026-09-28 login fixes: password-reset links sent before it
+   stop working (one-hour links, now single-use).
+2. `digitva-sn1.1` (P1): passkeys and TOTP. All owner decisions are made and
+   recorded in `.tasks/2026-09-28-passkey-login.md`; next step is the policy
+   baseline in `docs/policy`, then one additive migration and the build.
+   Decisions in short: same second page (passkey or password) for every
+   email; local proof-of-work CAPTCHA, no third-party service; passkey or TOTP
+   mandatory for admins and data managers only, coders may use password
+   alone; 30-day enrolment window, then a forced setup page (no lock-out);
+   any admin resets another user's factors (never their own), audited;
+   break-glass `flask auth reset-factors` emails a single-use magic link into
+   onboarding. WebAuthn RP ID comes from `MAIL_BASE_URL`. Coordinate the
+   email step with per-project SSO (`digitva-roq`,
+   `.tasks/2026-09-26-project-sso-oauth2.md`).
+3. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 false-warning
+   report (GitHub issue 41; text in
+   `docs/kb/doris-picker-who-behaviour-rules.md`, "To report to WHO").
 4. `digitva-fb5` (P1): code-prefix typos are fixed at render time; what is
    left needs a speaker (Odia and Kannada labels carrying another
    question's wording, three unit cases in fr/ml). The KA01 ODK workbook
@@ -62,6 +75,9 @@ ICD-11 value by its first stem through the native `WHO_2022_VA_2026` scheme.
   `flask icd11 policy-import`, not a migration, so another database needs
   the same import until the draft is signed off.
 - `digitva-mdj`: WHO answered #95 only; #94 (Id10304_a relevance) unanswered.
+- `docs/manuscript/DigitVA_Architecture_and_Workflow  -  Repaired.pptx`
+  (untracked) is PowerPoint's auto-repaired copy of the committed deck: keep
+  it as the replacement or delete it.
 
 ## Approved, not started
 
@@ -87,7 +103,8 @@ ICD search, in progress).
 - The dev DB stamp once moved back two revisions with later data present;
   cause unknown (`.tasks/dev-db-stamp-regression-and-infra.md`).
 - Flaky or unexplained: `digitva-ssi` (`test_odk_site_mappings`, POST and GET
-  each ~35 s to within 3 ms), `digitva-3jj` (vendored vitest under load),
+  each ~35 s to within 3 ms; failed once in a full run on 2026-09-28, passed
+  on rerun), `digitva-3jj` (vendored vitest under load),
   `digitva-19l` (351 of 524 vendored vitest tests fail).
 - Test databases created before a model change keep old layouts
   (`create_all` never alters); drop the stale table if tests complain.
@@ -97,6 +114,8 @@ ICD search, in progress).
   mutation-tested; the intake page's JavaScript is inline in a Jinja template
   and untested; about 27 docs last updated in March were never checked
   against the code.
+- WHO ICD-11 zip bundles in `docs/kb` are git-ignored; the unzipped folders
+  are tracked and their sources are in `docs/kb/icd-11-who-downloads.md`.
 - `docs/kb/DORIS/` holds reference copies of WHO's DORIS/CoDEdit pages;
   `scripts/generate_codedit_messages.py` reads
   `who-codedit-report-message-identifiers.md` from there.

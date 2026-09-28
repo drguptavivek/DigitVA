@@ -128,8 +128,8 @@ flow back to the case.
 | Id10057 where the death occurred (country, state, district, village) | org tree path names of the case's unit (e.g. India › Himachal Pradesh › Solan › Kandaghat › village) plus the case address | no |
 | Id10055 usual residence | case address, else the same org path | no |
 | Id10007 respondent name | case informant name | no |
-| Id10061 / Id10062 father's / mother's name | not captured today; optional registration fields if wanted | no |
-| Id10010a / Id10010b interviewer age / sex | not in the user profile today | — |
+| Id10061 / Id10062 father's / mother's name | new optional fields on the registration form (owner, 2026-09-29) | no |
+| Id10010a / Id10010b interviewer age / sex | new user-profile fields (owner, 2026-09-29): year of birth (age computed at interview time, so it never goes stale) and sex | yes |
 
 Rules: prefill applies once, when a draft is created and has no saved answers;
 unlocked prefills are ordinary answers the interviewer can change; the org

@@ -62,12 +62,21 @@
     }
 
     return originalFetch.apply(this, arguments).then(function (response) {
-      if (response.status === 401 && !_sessionExpired) {
-        // Check if this is an API request (not a page navigation)
-        if (isApiRequest) {
+      if (response.status === 401 && !_sessionExpired && isApiRequest) {
+        // A live session asked to confirm the password again (Profile factor
+        // changes, docs/policy/authentication-factors.md section 7) is not
+        // an expired session: leave it to the page's own reauth prompt.
+        return response.clone().json().then(function (body) {
+          if (!(body && body.error === 'reauth_required')) {
+            console.log('[session] 401 response from:', requestUrl);
+            showSessionExpiredModal();
+          }
+          return response;
+        }, function () {
           console.log('[session] 401 response from:', requestUrl);
           showSessionExpiredModal();
-        }
+          return response;
+        });
       }
       return response;
     });

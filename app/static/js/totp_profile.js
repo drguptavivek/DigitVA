@@ -47,6 +47,9 @@
   function needsReauth(status) {
     if (status === 401) {
       reauthWrap.hidden = false;
+      // The prompt sits at the top of its card; bring it to the button's user.
+      reauthWrap.scrollIntoView({ block: "center", behavior: "smooth" });
+      reauthPassword.focus({ preventScroll: true });
       return true;
     }
     return false;

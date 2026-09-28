@@ -669,6 +669,9 @@ What exists today:
   [`config.py`](../../config.py); any other `Host`/`X-Forwarded-Host` gets a 400,
   and a missing `MAIL_BASE_URL` stops the app at startup. Development
   (`FLASK_ENV=development`) and tests accept any host
+- similarly, production requires `CAPTCHA_HMAC_KEY` (signs the login page's
+  proof-of-work challenge, see docs/current-state/workflow-and-permissions.md
+  "Login Flow"); development/test derive a key from `SECRET_KEY` instead
 
 Current implication:
 

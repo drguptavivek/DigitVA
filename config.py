@@ -340,6 +340,19 @@ class Config:
         ),
     )
 
+    # --- Two-step login: local proof-of-work CAPTCHA -------------------
+    # docs/policy/authentication-factors.md section 5. Signs the email-step
+    # challenge; empty here derives a key from SECRET_KEY at first use (dev
+    # convenience only -- production must set this, see create_app).
+    CAPTCHA_HMAC_KEY = os.environ.get("CAPTCHA_HMAC_KEY", "")
+    # Expected work is 2^CAPTCHA_DIFFICULTY SHA-256 hashes. Measured ~122k
+    # awaited crypto.subtle.digest() calls/sec on dev workstation hardware
+    # (node --input-type=module benchmark); a modest phone's SubtleCrypto
+    # loop is assumed roughly 5-8x slower (microtask overhead dominates at
+    # this message size), so ~15-25k hashes/sec there. 2^14 = 16384 lands
+    # at roughly 0.7-1.1s on that estimate. Tests set this low.
+    CAPTCHA_DIFFICULTY = int(os.environ.get("CAPTCHA_DIFFICULTY", "14"))
+
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     ICD11_API_BASE_URL = os.environ.get(
         "ICD11_API_BASE_URL", "http://icd_api_service"
@@ -425,6 +438,9 @@ class TestConfig(Config):
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True
+    # Low enough that a test solves it in microseconds; individual tests that
+    # care about the difficulty check itself override this further.
+    CAPTCHA_DIFFICULTY = 4
 
     CELERY = Config.CELERY.copy()
     CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI

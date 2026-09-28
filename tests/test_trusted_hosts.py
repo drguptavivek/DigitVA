@@ -10,6 +10,11 @@ class _ProductionLikeConfig(TestConfig):
     TESTING = False
     DEBUG = False
     MAIL_BASE_URL = "https://digitva.causeofdeathindia.com"
+    CAPTCHA_HMAC_KEY = "production-captcha-hmac-key-do-not-use-in-tests"
+
+
+class _ProductionLikeConfigMissingCaptchaKey(_ProductionLikeConfig):
+    CAPTCHA_HMAC_KEY = ""
 
 
 class TrustedHostsTests(unittest.TestCase):
@@ -50,6 +55,13 @@ class TrustedHostsTests(unittest.TestCase):
     def test_test_config_accepts_any_host(self):
         app = create_app(TestConfig)
         self.assertIsNone(app.config["TRUSTED_HOSTS"])
+
+    def test_production_requires_captcha_hmac_key(self):
+        """docs/policy/authentication-factors.md section 5: production must
+        sign the login CAPTCHA with its own key, not the SECRET_KEY-derived
+        development fallback."""
+        with self.assertRaises(RuntimeError):
+            create_app(_ProductionLikeConfigMissingCaptchaKey)
 
 
 if __name__ == "__main__":

@@ -129,6 +129,11 @@ def create_app(config_class=None):
     app.config.from_object(config_class)
     if not (app.debug or app.testing):
         app.config["TRUSTED_HOSTS"] = trusted_hosts_for(app.config["MAIL_BASE_URL"])
+        if not app.config.get("CAPTCHA_HMAC_KEY"):
+            raise RuntimeError(
+                "CAPTCHA_HMAC_KEY must be set in production. Add it to your "
+                ".env file or container environment."
+            )
 
     # CSRFProtect reads multipart form data in its before_request hook. Bound
     # organization imports before that hook can parse and spool an upload.
@@ -372,8 +377,12 @@ def create_app(config_class=None):
         current_user_id = session.get("_user_id")
         if not current_user_id:
             return
+        # Flask-Login's session value is VaUsers.get_id(), "<uuid>" or
+        # "<uuid>:<version>" once a session version is set — see
+        # VaUsers.get_id / load_user.
+        raw_uid, _sep, _version = current_user_id.rpartition(":")
         try:
-            current_user_id = uuid.UUID(current_user_id)
+            current_user_id = uuid.UUID(raw_uid or current_user_id)
         except (TypeError, ValueError):
             return
 

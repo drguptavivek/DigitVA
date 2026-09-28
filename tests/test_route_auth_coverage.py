@@ -56,6 +56,17 @@ PUBLIC_BY_DESIGN = frozenset({
     "health.health_check",
     # The login form and its POST. Cannot require a session to create one.
     "va_auth.va_login",
+    # Step 2 of login (password, alongside the later passkey path). Guarded in
+    # body, not by decorator: it requires a live pre-auth session state (set
+    # by the email step) and redirects to va_login without one, and it never
+    # looks the user up until POST -- see docs/policy/authentication-factors.md
+    # section 1.
+    "va_auth.va_login_password",
+    # JSON GET issuing a signed proof-of-work challenge for the email step.
+    # No user or session data; the challenge is meaningless without solving
+    # it, and pow_captcha_service.verify_challenge is what a session
+    # ultimately depends on, not this endpoint.
+    "va_auth.va_login_captcha_challenge",
     # POST-only logout. Unwrapped but not public in effect: the body starts with
     # `if current_user.is_anonymous: return redirect(...)`, so an anonymous POST
     # is a redirect and nothing else. Checks current_user itself.

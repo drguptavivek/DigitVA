@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Workflow And Permissions
@@ -685,6 +685,37 @@ It validates:
 - dashboard access by role
 - coding and review action URLs
 - submission access based on current user's form permissions and workflow state
+
+## Login Flow (two-step, digitva-sn1.1)
+
+Baseline: `docs/policy/authentication-factors.md`. As of 2026-09-28, `/vaauth/valogin`
+is step 1 only:
+
+1. **Email step** (`va_auth.va_login`, GET/POST). The browser solves a local
+   proof-of-work CAPTCHA in a Web Worker
+   (`app/static/js/pow_captcha.js` + `pow_captcha_worker.js`, challenge from
+   `va_auth.va_login_captcha_challenge`, verified server-side by
+   `app/services/pow_captcha_service.py`). On success the server stores a
+   pre-authentication state (`session["preauth"]`: email, issued-at, safe
+   `next`) and redirects to step 2. This step never looks up `VaUsers` and
+   responds identically for a known or unknown email.
+2. **Password step** (`va_auth.va_login_password`, GET/POST, `/vaauth/valogin/password`).
+   Requires a live, unexpired (5-minute) pre-auth state or redirects back to
+   step 1. Runs the existing checks unchanged (password, `user_status`,
+   email-verified, maintenance cutoff, safe `next`) and completes sign-in.
+   A "Use a passkey" path is a later phase (digitva-sn1.1.4+); this page
+   currently shows only the password form.
+3. **Session versioning.** `VaUsers.auth_session_version` (migration
+   `c1d5e9a2f7b4`) lets a password reset, and later a factor reset or the
+   break-glass CLI, invalidate every existing session and remember cookie:
+   `VaUsers.get_id()` returns `"<uuid>:<version>"` once the version is
+   non-zero, bare `"<uuid>"` at version 0 so pre-existing sessions keep
+   working; the `login.user_loader` and every other place that reads
+   `session["_user_id"]` accept both forms.
+
+Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`,
+`auth_security_events` (all additive, unused until the passkey/TOTP phases
+land) plus `va_users.auth_session_version`.
 
 ## Admin Runtime Access
 

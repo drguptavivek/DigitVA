@@ -225,7 +225,9 @@ def _safe_current_user_email() -> str:
             from app import db
             from app.models import VaUsers
 
-            user = db.session.get(VaUsers, uuid.UUID(user_id))
+            # get_id() is "<uuid>" or "<uuid>:<version>" — see VaUsers.get_id.
+            raw_uid = str(user_id).rpartition(":")[0] or str(user_id)
+            user = db.session.get(VaUsers, uuid.UUID(raw_uid))
             if user is not None:
                 return user.email
         except Exception:

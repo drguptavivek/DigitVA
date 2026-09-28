@@ -1,7 +1,7 @@
 """Login redirect safety, inactive-user lockout and single-use reset tokens."""
 
 import uuid
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 
 from flask import g
 
@@ -35,15 +35,7 @@ class VaAuthSecurityTestBase(BaseTestCase):
     def _post_login(self, next_url=None, password=PASSWORD):
         limiter.reset()
         self._fresh_client()
-        path = LOGIN_PATH
-        if next_url is not None:
-            path = f"{LOGIN_PATH}?{urlencode({'next': next_url})}"
-        return self.client.post(
-            path,
-            data={"email": self.user.email, "password": password},
-            headers=self._csrf_headers(),
-            follow_redirects=False,
-        )
+        return self._login_via_form(self.user.email, password, next_url=next_url)
 
     def _landing_url(self):
         with self.app.test_request_context():
@@ -100,12 +92,9 @@ class InactiveUserLoginTests(VaAuthSecurityTestBase):
         db.session.commit()
 
         self._fresh_client()
-        resp = self.client.post(
-            LOGIN_PATH,
-            data={"email": self.user.email, "password": PASSWORD},
-            headers=self._csrf_headers(),
-            follow_redirects=True,
-        )
+        resp = self._post_login()
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(resp.headers["Location"], follow_redirects=True)
 
         self.assertEqual(resp.status_code, 200)
         self.assertIn(INVALID_LOGIN_MESSAGE, resp.data)

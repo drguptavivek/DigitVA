@@ -24,6 +24,8 @@ services:
       - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
+      - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
+      - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
@@ -54,6 +56,8 @@ services:
       - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
+      - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
+      - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - ICD11_API_BASE_URL=http://icd_api_service
       - DORIS_PUBLIC_COOKIE_SECURE=${DORIS_PUBLIC_COOKIE_SECURE:-false}
@@ -96,6 +100,8 @@ services:
       - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
+      - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
+      - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
@@ -125,6 +131,8 @@ services:
       - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
+      - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
+      - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0

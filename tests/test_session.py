@@ -1,11 +1,17 @@
 import uuid
 from datetime import timedelta
 from flask import session, url_for
-from app import db
+from app import db, limiter
 from app.models.va_users import VaUsers
 from tests.base import BaseTestCase
 
 class SessionTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        # The login route is rate limited per IP; another test class in the
+        # same process (e.g. test_rate_limiting.py) may have already spent
+        # part of that budget on 127.0.0.1.
+        limiter.reset()
     def test_session_timeout_config(self):
         """Idle session lifetime is 30 minutes; remember-me lasts 30 days."""
         self.assertEqual(
@@ -42,20 +48,10 @@ class SessionTests(BaseTestCase):
         # Target a page that requires login (or any page we want to return to)
         with self.app.test_request_context():
             next_url = url_for("coding.dashboard")
-            login_url = url_for("va_auth.va_login", next=next_url)
 
         # Attempt to login
-        resp = self.client.post(
-            login_url,
-            data={
-                "email": email,
-                "password": password,
-                "remember_me": "y"
-            },
-            headers=self._csrf_headers(),
-            follow_redirects=False
-        )
-        
+        resp = self._login_via_form(email, password, next_url=next_url, remember=True)
+
         # Should redirect to the next_url
         self.assertEqual(resp.status_code, 302)
         self.assertIn(next_url, resp.location)
@@ -80,22 +76,9 @@ class SessionTests(BaseTestCase):
         db.session.add(user)
         db.session.commit()
 
-        # Get login URL
-        with self.app.test_request_context():
-            login_url = url_for("va_auth.va_login")
-
         # Attempt to login via the route
-        resp = self.client.post(
-            login_url,
-            data={
-                "email": email,
-                "password": password,
-                "remember_me": "y"
-            },
-            headers=self._csrf_headers(),
-            follow_redirects=False
-        )
-        
+        resp = self._login_via_form(email, password, remember=True)
+
         # Should be a redirect to dashboard
         self.assertEqual(resp.status_code, 302)
         

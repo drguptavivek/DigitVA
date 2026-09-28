@@ -1,3 +1,9 @@
+from app.models.auth_factors import (
+    AuthRecoveryCode,
+    AuthSecurityEvent,
+    AuthTotp,
+    AuthWebauthnCredential,
+)
 from app.models.cod_search_telemetry import CodSearchTelemetry
 from app.models.map_icd10_legacy_reporting_alias import MapIcd10LegacyReportingAlias
 from app.models.map_project_odk import MapProjectOdk
@@ -89,6 +95,10 @@ from app.models.va_users import VaUsers
 from app.models.va_web_intake import VaDeathRegister, VaWebIntakeDraft, VaWebIntakeDraftSection
 
 __all__ = [
+    "AuthWebauthnCredential",
+    "AuthTotp",
+    "AuthRecoveryCode",
+    "AuthSecurityEvent",
     "VaStatuses",
     "VaResearchProjects",
     "VaProjectMaster",

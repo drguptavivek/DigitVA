@@ -6,7 +6,7 @@ APP_SERVICE  = minerva_app_service
         prod prod-build prod-rebuild prod-down \
         logs logs-app ps shell \
         migrate db-head test \
-        restart-celery backup-db help
+        restart-celery backup-db ensure-secrets help
 
 .DEFAULT_GOAL := help
 
@@ -40,20 +40,38 @@ help:
 	@echo "  make test            Run pytest"
 	@echo "  make restart-celery  Restart celery worker and beat"
 	@echo ""
+	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP keys to .env (run by dev/prod targets)"
+	@echo ""
 	@echo "Database"
-	@echo "  make backup-db       Dump DB to ~/dailybackups/"
+	@echo "  make backup-db       Dump DB and .env to ~/dailybackups/"
+
+# ---------------------------------------------------------------------------
+# Secrets: append missing login-factor keys to .env; never overwrite existing
+# ones. AUTH_FACTOR_ENCRYPTION_KEY encrypts TOTP secrets: back it up with
+# .env, since a new key makes every enrolled TOTP unreadable.
+# ---------------------------------------------------------------------------
+
+ensure-secrets:
+	@test -f .env || { echo "ensure-secrets: .env not found; copy .env.example first" >&2; exit 1; }
+	@[ -z "$$(tail -c1 .env)" ] || echo >> .env
+	@grep -q '^CAPTCHA_HMAC_KEY=.' .env || { \
+		echo "CAPTCHA_HMAC_KEY=$$(openssl rand -hex 32)" >> .env; \
+		echo "ensure-secrets: generated CAPTCHA_HMAC_KEY in .env"; }
+	@grep -q '^AUTH_FACTOR_ENCRYPTION_KEY=.' .env || { \
+		echo "AUTH_FACTOR_ENCRYPTION_KEY=$$(openssl rand -base64 32 | tr '+/' '-_')" >> .env; \
+		echo "ensure-secrets: generated AUTH_FACTOR_ENCRYPTION_KEY in .env -- back up .env"; }
 
 # ---------------------------------------------------------------------------
 # Dev (uses docker-compose.yml + docker-compose.override.yml)
 # ---------------------------------------------------------------------------
 
-dev:
+dev: ensure-secrets
 	$(COMPOSE) up -d
 
-dev-build:
+dev-build: ensure-secrets
 	$(COMPOSE) build && $(COMPOSE) up -d
 
-dev-rebuild:
+dev-rebuild: ensure-secrets
 	$(COMPOSE) build --no-cache && $(COMPOSE) up -d
 
 dev-down:
@@ -66,13 +84,13 @@ dev-restart:
 # Prod (uses docker-compose.yml only, no override)
 # ---------------------------------------------------------------------------
 
-prod:
+prod: ensure-secrets
 	$(COMPOSE_PROD) up -d
 
-prod-build:
+prod-build: ensure-secrets
 	$(COMPOSE_PROD) build && $(COMPOSE_PROD) up -d
 
-prod-rebuild:
+prod-rebuild: ensure-secrets
 	$(COMPOSE_PROD) build --no-cache && $(COMPOSE_PROD) up -d
 
 prod-down:

@@ -1,11 +1,18 @@
 import os
 import uuid
 from flask import url_for
-from app import db
+from app import db, limiter
 from app.models.va_users import VaUsers
 from tests.base import BaseTestCase
 
 class MediaAccessTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        # The login route is rate limited per IP; another test class in the
+        # same process (e.g. test_rate_limiting.py) may have already spent
+        # part of that budget on 127.0.0.1.
+        limiter.reset()
+
     def test_media_access_requires_login(self):
         """Verify that media files cannot be accessed without logging in."""
         with self.app.test_request_context():
@@ -35,14 +42,7 @@ class MediaAccessTests(BaseTestCase):
         db.session.add(user)
         db.session.commit()
         
-        with self.app.test_request_context():
-            login_url = url_for("va_auth.va_login")
-            
-        self.client.post(
-            login_url,
-            data={"email": email, "password": "password"},
-            headers=self._csrf_headers()
-        )
+        self._login_via_form(email, "password")
 
         # Attempt path traversal
         # We manually construct the path because url_for or the client might normalize '..'

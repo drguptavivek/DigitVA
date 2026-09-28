@@ -40,6 +40,11 @@ docker compose cp "$DB_SERVICE:$CONTAINER_TMP" "$LOCAL_PATH"
 
 echo "==> Cleaning container temp file"
 docker compose exec -T "$DB_SERVICE" rm -f "$CONTAINER_TMP"
+# The dump is useless for TOTP without AUTH_FACTOR_ENCRYPTION_KEY, so keep the
+# .env that matches it. Owner-only: it holds every deployment secret.
+ENV_BACKUP="${OUT_DIR%/}/env_${POSTGRES_DB}_${TS}.env"
+echo "==> Copying .env to host: $ENV_BACKUP"
+(umask 077 && cp "$ENV_FILE" "$ENV_BACKUP")
 
 echo "Done"
-ls -lh "$LOCAL_PATH"
+ls -lh "$LOCAL_PATH" "$ENV_BACKUP"

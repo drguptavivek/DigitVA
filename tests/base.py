@@ -58,6 +58,7 @@ import unittest
 import uuid
 import warnings
 from datetime import datetime, timezone
+from urllib.parse import urlencode, urlparse
 
 # Suppress deprecation warnings from libraries in tests
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -541,3 +542,66 @@ class BaseTestCase(unittest.TestCase):
         serializer = URLSafeTimedSerializer(secret_key, salt="wtf-csrf-token")
         token = serializer.dumps(raw_token)
         return {"X-CSRFToken": token}
+
+    @staticmethod
+    def _solve_pow_captcha(salt: str, difficulty: int) -> str:
+        """Brute-force a proof-of-work solution, mirroring
+        app/static/js/pow_captcha_worker.js. TestConfig.CAPTCHA_DIFFICULTY is
+        low, so this is instant."""
+        import hashlib
+
+        number = 0
+        while True:
+            digest = hashlib.sha256(f"{salt}{number}".encode()).digest()
+            value = int.from_bytes(digest, "big")
+            if difficulty <= 0 or (value >> (256 - difficulty)) == 0:
+                return str(number)
+            number += 1
+
+    def _login_via_form(self, email, password, next_url=None, remember=False):
+        """Drive the real two-step login (email + CAPTCHA, then password),
+        as a browser would. Returns the final response (redirect on success).
+
+        Use this instead of the old single-POST /valogin flow: the email
+        step alone no longer creates a session.
+        """
+        from app.services.pow_captcha_service import issue_challenge
+
+        with self.app.app_context():
+            challenge = issue_challenge()
+        solution = self._solve_pow_captcha(challenge["salt"], challenge["difficulty"])
+
+        email_path = "/vaauth/valogin"
+        if next_url is not None:
+            email_path = f"{email_path}?{urlencode({'next': next_url})}"
+        email_resp = self.client.post(
+            email_path,
+            data={
+                "email": email,
+                "captcha_salt": challenge["salt"],
+                "captcha_difficulty": challenge["difficulty"],
+                "captcha_expires": challenge["expires"],
+                "captcha_signature": challenge["signature"],
+                "captcha_solution": solution,
+            },
+            headers=self._csrf_headers(),
+            follow_redirects=False,
+        )
+        password_path = urlparse(email_resp.headers.get("Location", "")).path
+        if email_resp.status_code != 302 or "/valogin/password" not in password_path:
+            # Not the expected hand-off to step 2 -- e.g. the email step was
+            # itself rate limited by an earlier test in this process. Return
+            # it as-is so the caller's own assertions fail on what actually
+            # happened, instead of this helper blindly POSTing password data
+            # to whatever unrelated page a stray redirect pointed at.
+            return email_resp
+
+        query = urlparse(email_resp.headers["Location"]).query
+        if query:
+            password_path = f"{password_path}?{query}"
+        return self.client.post(
+            password_path,
+            data={"password": password, "remember_me": remember},
+            headers=self._csrf_headers(),
+            follow_redirects=False,
+        )

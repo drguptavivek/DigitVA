@@ -56,12 +56,30 @@ class VaUsers(UserMixin, db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    # Bumped by a factor reset, a password reset and the break-glass CLI to
+    # invalidate every session and remember cookie for this user (docs/policy/
+    # authentication-factors.md section 8). 0 means "no version": get_id()
+    # then returns the bare user_id so sessions issued before this column
+    # existed keep working.
+    auth_session_version: so.Mapped[int] = so.mapped_column(
+        sa.Integer, nullable=False, default=0, server_default="0"
+    )
 
     def __repr__(self):
         return f"VA User -> {self.email} ({self.user_status}): {self.name}"
 
     def get_id(self) -> str:
+        if self.auth_session_version:
+            return f"{self.user_id}:{self.auth_session_version}"
         return str(self.user_id)
+
+    def bump_session_version(self) -> None:
+        """Invalidate every existing session/remember cookie for this user.
+
+        Caller commits. Used by password reset and (in later phases) factor
+        reset and the break-glass CLI.
+        """
+        self.auth_session_version = (self.auth_session_version or 0) + 1
 
     def landing_url(self) -> str:
         """Return the correct post-login URL for this user's landing_page."""
@@ -569,12 +587,23 @@ class VaUsers(UserMixin, db.Model):
 
 @login.user_loader
 def load_user(user_id: str):
+    # get_id() encodes "<uuid>:<version>" once a user's session version is
+    # bumped, bare "<uuid>" otherwise (see VaUsers.get_id). A UUID never
+    # contains a colon, so rpartition is unambiguous either way.
+    raw_uid, sep, raw_version = user_id.rpartition(":")
+    if not sep:
+        raw_uid, raw_version = user_id, "0"
     try:
-        uid = uuid.UUID(user_id)
+        uid = uuid.UUID(raw_uid)
+        version = int(raw_version)
     except (ValueError, TypeError):
         return None
     user = db.session.get(VaUsers, uid)
-    # A deactivated user's existing session or remember cookie stops working.
+    # A deactivated user's existing session or remember cookie stops working,
+    # and so does one whose session version no longer matches (factor reset,
+    # password reset, break-glass CLI).
     if user is None or not user.is_active:
+        return None
+    if (user.auth_session_version or 0) != version:
         return None
     return user

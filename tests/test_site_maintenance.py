@@ -3,12 +3,19 @@ import uuid
 
 import sqlalchemy as sa
 
-from app import db
+from app import db, limiter
 from app.models import VaAccessRoles, VaAccessScopeTypes, VaSiteMaintenance, VaStatuses, VaUserAccessGrants, VaUsers
 from tests.base import BaseTestCase
 
 
 class SiteMaintenanceTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        # The login route is rate limited per IP; another test class in the
+        # same process (e.g. test_rate_limiting.py) may have already spent
+        # part of that budget on 127.0.0.1.
+        limiter.reset()
+
     def _create_user(self, email, password, *, is_admin=False):
         user = VaUsers(
             user_id=uuid.uuid4(),
@@ -100,15 +107,9 @@ class SiteMaintenanceTests(BaseTestCase):
             cutoff_at=now - timedelta(minutes=5),
         )
 
-        response = self.client.post(
-            "/vaauth/valogin",
-            data={
-                "email": user.email,
-                "password": password,
-            },
-            headers=self._csrf_headers(),
-            follow_redirects=True,
-        )
+        response = self._login_via_form(user.email, password)
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(response.headers["Location"], follow_redirects=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Site is under maintenance", response.data)
@@ -129,15 +130,7 @@ class SiteMaintenanceTests(BaseTestCase):
             cutoff_at=now - timedelta(minutes=5),
         )
 
-        response = self.client.post(
-            "/vaauth/valogin",
-            data={
-                "email": admin_user.email,
-                "password": password,
-            },
-            headers=self._csrf_headers(),
-            follow_redirects=False,
-        )
+        response = self._login_via_form(admin_user.email, password)
 
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("/vaauth/valogin", response.location)

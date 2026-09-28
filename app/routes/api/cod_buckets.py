@@ -35,8 +35,10 @@ def _resolved_scope_user():
     """Prefer the explicit session user when computing per-user DM scope."""
     raw_user_id = session.get("_user_id")
     if raw_user_id:
+        # get_id() is "<uuid>" or "<uuid>:<version>" — see VaUsers.get_id.
+        raw_uid = str(raw_user_id).rpartition(":")[0] or str(raw_user_id)
         try:
-            session_user_id = uuid.UUID(str(raw_user_id))
+            session_user_id = uuid.UUID(raw_uid)
         except (TypeError, ValueError):
             session_user_id = None
         if session_user_id is not None:

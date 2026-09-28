@@ -2,7 +2,7 @@
 import React from "react";
 
 import { resolveUiMessages } from "../i18n.js";
-import { localized, localizedRich } from "./localize.js";
+import { localized } from "./localize.js";
 import type { AnswerValue, InstrumentQuestion, SubmissionData } from "../types.js";
 import type { WhoVaPrimitiveSet } from "./create-who-va-form.js";
 import { withWebTheme } from "./web-theme.js";
@@ -17,13 +17,15 @@ export function FooterIcon({
   const { Svg, SvgCircle, SvgPath } = primitives;
   const iconProps = {
     fill: "none",
-    height: 22,
-    stroke: "#183d33",
+    height: 20,
+    // The brand-deep default; a literal because react-native-svg cannot read
+    // a CSS variable the way the themed text primitives can.
+    stroke: "#004687",
     strokeLinecap: "round",
     strokeLinejoin: "round",
     strokeWidth: 2,
     viewBox: "0 0 24 24",
-    width: 22
+    width: 20
   };
   return (
     <Svg {...iconProps} style={formStyles.icon} aria-hidden="true" focusable="false">
@@ -57,6 +59,18 @@ export function interviewerQuestionLabel(value: string): string {
   return value.replace(/^(\([^)]+\))\s*\[([^\]]+)\](.*)$/s, "$1 $2$3");
 }
 
+/**
+ * Splits the WHO code a label opens with, `(Id10010b) Sex of VA interviewer`,
+ * from the question text, so the form can show the code as a small chip
+ * instead of leading every label with it. A label without a code comes back
+ * unchanged with an empty `code`.
+ */
+export function splitQuestionCode(label: string): { code: string; text: string } {
+  const match = /^\(([^)\s]+)\)\s*(.*)$/s.exec(label);
+  if (!match) return { code: "", text: label };
+  return { code: match[1] ?? "", text: match[2] ?? "" };
+}
+
 export function hasAnswer(value: AnswerValue | undefined): value is AnswerValue {
   return value != null && value !== "" && (!Array.isArray(value) || value.length > 0);
 }
@@ -84,76 +98,67 @@ export function previewAnswer(
   return messages.recorded;
 }
 
+/**
+ * True when the viewer asked for reduced motion. Shared with native, where
+ * `window` does not exist, so every browser global is guarded.
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Line heights are explicit throughout: Devanagari, Bengali, Tamil, Kannada
+// and Malayalam carry marks above and below the baseline that a tight default
+// clips, and the form is filled in those scripts.
 export const formStyles = {
   root: withWebTheme({ flex: 1, backgroundColor: "#f6f8f7" }, { backgroundColor: "canvas" }),
   content: withWebTheme(
     { padding: 20, maxWidth: 760, width: "100%", alignSelf: "center" as const },
     { padding: "formPadding", maxWidth: "formMaxWidth" }
   ),
-  progress: withWebTheme({ color: "#47625b", marginBottom: 6, fontSize: 13 }, { color: "muted" }),
+  progress: withWebTheme(
+    { color: "#47625b", marginBottom: 6, fontSize: 13, lineHeight: 18 },
+    { color: "muted" }
+  ),
   sectionSwitcher: {
     alignItems: "center" as const,
-    columnGap: 8,
+    columnGap: 6,
     flexDirection: "row" as const,
     flexWrap: "nowrap" as const,
-    marginBottom: 12,
-    rowGap: 8
+    marginBottom: 16
   },
   sectionSwitcherViewport: {
     flex: 1,
-    maxWidth: 472,
     overflowX: "auto" as const,
     overflowY: "hidden" as const
   },
   sectionSwitcherTrack: {
-    columnGap: 8,
+    columnGap: 6,
     flexDirection: "row" as const,
     flexWrap: "nowrap" as const,
     paddingVertical: 1
   },
+  // A tab is a label over a progress track: the track fills as the section's
+  // required answers come in, so status reads as progress rather than as a
+  // badge floating over the corner.
   sectionButton: withWebTheme(
     {
-      alignItems: "center" as const,
       backgroundColor: "#ffffff",
       borderColor: "#dce6e1",
       borderRadius: 8,
       borderWidth: 1,
-      justifyContent: "center" as const,
-      minHeight: 38,
-      minWidth: 112,
-      position: "relative" as const,
-      width: 112,
-      paddingHorizontal: 12,
-      paddingVertical: 8
+      justifyContent: "space-between" as const,
+      minHeight: 48,
+      minWidth: 128,
+      width: 128,
+      overflow: "hidden" as const
     },
     { backgroundColor: "surface", borderColor: "border" }
   ),
-  sectionButtonStarted: withWebTheme(
-    { backgroundColor: "#f5fbf8", borderColor: "#8fbfaf" },
-    { backgroundColor: "brandSoft", borderColor: "brand" }
-  ),
+  sectionButtonStarted: withWebTheme({ borderColor: "#8fbfaf" }, { borderColor: "controlBorder" }),
   sectionButtonComplete: withWebTheme(
     { backgroundColor: "#edf7f2", borderColor: "#147d64" },
     { backgroundColor: "brandSoft", borderColor: "brand" }
-  ),
-  sectionSliderButton: withWebTheme(
-    {
-      alignItems: "center" as const,
-      backgroundColor: "#ffffff",
-      borderColor: "#dce6e1",
-      borderRadius: 8,
-      borderWidth: 1,
-      justifyContent: "center" as const,
-      minHeight: 38,
-      minWidth: 38,
-      paddingHorizontal: 0,
-      paddingVertical: 0
-    },
-    { backgroundColor: "surface", borderColor: "border" }
-  ),
-  sectionSliderButtonDisabled: withWebTheme(
-    { backgroundColor: "#eef3f0", borderColor: "#dce6e1", opacity: 0.55 },
-    { backgroundColor: "canvas", borderColor: "border" }
   ),
   sectionButtonActive: withWebTheme(
     { backgroundColor: "#12372d", borderColor: "#12372d" },
@@ -163,52 +168,95 @@ export const formStyles = {
     { backgroundColor: "#fff1f0", borderColor: "#d66552" },
     { backgroundColor: "dangerSoft", borderColor: "dangerBorder" }
   ),
+  sectionButtonBody: {
+    alignItems: "center" as const,
+    columnGap: 4,
+    flex: 1,
+    flexDirection: "row" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
   sectionButtonText: withWebTheme(
-    { color: "#183d33", fontSize: 13, fontWeight: "700" as const, textAlign: "center" as const },
+    {
+      color: "#183d33",
+      flexShrink: 1,
+      fontSize: 13,
+      fontWeight: "600" as const,
+      lineHeight: 18,
+      textAlign: "center" as const
+    },
     { color: "ink" }
   ),
+  sectionButtonTextActive: { color: "#ffffff" },
+  sectionButtonTextError: withWebTheme({ color: "#8c3022" }, { color: "dangerStrong" }),
+  sectionStatusGlyph: withWebTheme(
+    { color: "#147d64", fontSize: 13, fontWeight: "700" as const, lineHeight: 18 },
+    { color: "brand" }
+  ),
+  sectionStatusGlyphActive: { color: "#ffffff" },
+  sectionProgressTrack: withWebTheme(
+    { backgroundColor: "#dce6e1", height: 4, width: "100%" },
+    { backgroundColor: "border" }
+  ),
+  sectionProgressTrackActive: { backgroundColor: "rgba(255, 255, 255, 0.3)" },
+  sectionProgressFill: withWebTheme({ backgroundColor: "#147d64", height: 4 }, { backgroundColor: "brand" }),
+  sectionProgressFillStarted: { width: "50%" },
+  sectionProgressFillComplete: { width: "100%" },
+  sectionProgressFillActive: { backgroundColor: "#ffffff" },
+  sectionSliderButton: withWebTheme(
+    {
+      alignItems: "center" as const,
+      backgroundColor: "#ffffff",
+      borderColor: "#dce6e1",
+      borderRadius: 8,
+      borderWidth: 1,
+      justifyContent: "center" as const,
+      minHeight: 44,
+      minWidth: 40,
+      paddingHorizontal: 0,
+      paddingVertical: 0
+    },
+    { backgroundColor: "surface", borderColor: "border" }
+  ),
+  sectionSliderButtonDisabled: withWebTheme(
+    { backgroundColor: "#eef3f0", borderColor: "#dce6e1", opacity: 0.55 },
+    { backgroundColor: "canvas", borderColor: "border" }
+  ),
   sectionSliderButtonText: withWebTheme(
-    { color: "#183d33", fontSize: 18, fontWeight: "700" as const, lineHeight: 20 },
+    { color: "#183d33", fontSize: 18, fontWeight: "700" as const, lineHeight: 22 },
     { color: "ink" }
   ),
   sectionSliderButtonTextDisabled: withWebTheme({ color: "#8ca099" }, { color: "muted" }),
-  sectionButtonTextActive: { color: "#ffffff" },
-  sectionButtonTextError: withWebTheme({ color: "#8c3022" }, { color: "dangerStrong" }),
-  sectionStatusBadge: withWebTheme(
-    {
-      alignItems: "center" as const,
-      backgroundColor: "#147d64",
-      borderRadius: 999,
-      height: 18,
-      justifyContent: "center" as const,
-      position: "absolute" as const,
-      right: 5,
-      top: 4,
-      width: 18
-    },
-    { backgroundColor: "brand" }
-  ),
-  sectionStatusBadgeStarted: withWebTheme({ backgroundColor: "#dbe9e4" }, { backgroundColor: "border" }),
-  sectionStatusBadgeActive: { backgroundColor: "#ffffff" },
-  sectionStatusBadgeText: { color: "#ffffff", fontSize: 12, fontWeight: "700" as const, lineHeight: 14 },
-  sectionStatusBadgeTextStarted: withWebTheme({ color: "#315e52" }, { color: "inkSubtle" }),
-  sectionStatusBadgeTextActive: withWebTheme({ color: "#12372d" }, { color: "brandDeep" }),
   sectionTitle: withWebTheme(
-    { color: "#12372d", fontSize: 24, fontWeight: "700" as const, marginBottom: 18 },
+    { color: "#12372d", fontSize: 22, fontWeight: "700" as const, lineHeight: 30, marginBottom: 12 },
     { color: "brandDeep" }
+  ),
+  // One surface per section; questions are separated by a rule rather than
+  // each carrying its own card, which halves the chrome on a long page.
+  sectionCard: withWebTheme(
+    {
+      backgroundColor: "#ffffff",
+      borderColor: "#dce6e1",
+      borderRadius: 12,
+      borderWidth: 1,
+      overflow: "hidden" as const,
+      paddingHorizontal: 16
+    },
+    { backgroundColor: "surface", borderColor: "border", borderRadius: "cardRadius" }
   ),
   question: withWebTheme(
     {
-      backgroundColor: "#ffffff",
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: "#dce6e1"
+      borderBottomWidth: 1,
+      borderBottomColor: "#e6ede9",
+      paddingVertical: 16
     },
-    { backgroundColor: "surface", borderRadius: "cardRadius", borderColor: "border" }
+    { borderBottomColor: "border" }
   ),
-  questionError: withWebTheme({ borderColor: "#d66552" }, { borderColor: "dangerBorder" }),
+  questionError: withWebTheme(
+    { borderLeftWidth: 3, borderLeftColor: "#d66552", marginLeft: -16, paddingLeft: 13 },
+    { borderLeftColor: "dangerBorder" }
+  ),
   questionHeader: {
     alignItems: "flex-start" as const,
     columnGap: 8,
@@ -216,10 +264,25 @@ export const formStyles = {
     justifyContent: "space-between" as const
   },
   label: withWebTheme(
-    { color: "#142a24", fontSize: 16, fontWeight: "600" as const, marginBottom: 8 },
+    { color: "#142a24", fontSize: 16, fontWeight: "600" as const, lineHeight: 24, marginBottom: 8 },
     { color: "ink" }
   ),
   labelWithStatus: { flex: 1 },
+  // The WHO code, kept beside the label for coders but out of its way.
+  codeChip: withWebTheme(
+    {
+      alignSelf: "flex-start" as const,
+      backgroundColor: "#eef3f0",
+      borderRadius: 4,
+      color: "#536b64",
+      fontSize: 11,
+      lineHeight: 16,
+      marginBottom: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 1
+    },
+    { backgroundColor: "canvas", color: "muted" }
+  ),
   questionStatusBadge: withWebTheme(
     {
       alignItems: "center" as const,
@@ -227,51 +290,77 @@ export const formStyles = {
       borderRadius: 999,
       height: 22,
       justifyContent: "center" as const,
-      marginTop: -1,
+      marginTop: 1,
       width: 22
     },
     { backgroundColor: "brand" }
   ),
-  questionStatusBadgeText: { color: "#ffffff", fontSize: 14, fontWeight: "700" as const, lineHeight: 16 },
+  questionStatusBadgeText: { color: "#ffffff", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
   required: withWebTheme({ color: "#a23a2a" }, { color: "danger" }),
-  hint: withWebTheme({ color: "#536b64", fontSize: 13, marginBottom: 10 }, { color: "muted" }),
-  guidance: withWebTheme({ color: "#315e73", fontSize: 13, marginBottom: 10 }, { color: "guidance" }),
+  hint: withWebTheme({ color: "#536b64", fontSize: 14, lineHeight: 20, marginBottom: 8 }, { color: "muted" }),
+  guidance: withWebTheme(
+    { color: "#315e73", fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    { color: "guidance" }
+  ),
   // The English beside a translation (`show-english`): secondary and muted.
   english: withWebTheme(
-    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, marginBottom: 8 },
+    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, lineHeight: 19, marginBottom: 8 },
     { color: "muted" }
   ),
   note: withWebTheme(
-    { backgroundColor: "#edf5f2", borderLeftWidth: 4, borderLeftColor: "#147d64" },
+    {
+      backgroundColor: "#edf5f2",
+      borderLeftWidth: 3,
+      borderLeftColor: "#147d64",
+      marginLeft: -16,
+      marginRight: -16,
+      paddingLeft: 13,
+      paddingRight: 16
+    },
     { backgroundColor: "brandSoft", borderLeftColor: "brand" }
   ),
-  error: withWebTheme({ color: "#a23a2a", marginTop: 8, fontSize: 13 }, { color: "danger" }),
+  error: withWebTheme({ color: "#a23a2a", marginTop: 8, fontSize: 14, lineHeight: 20 }, { color: "danger" }),
   navigation: {
-    columnGap: 10,
+    columnGap: 8,
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
     alignItems: "center" as const,
-    justifyContent: "center" as const,
-    marginTop: 12,
-    marginBottom: 12,
-    rowGap: 10
+    justifyContent: "flex-end" as const,
+    marginTop: 16,
+    marginBottom: 8,
+    rowGap: 8
   },
-  navButton: { minHeight: 40, minWidth: 68, paddingHorizontal: 12, paddingVertical: 10 },
+  navButton: { minHeight: 44, minWidth: 72, paddingHorizontal: 14, paddingVertical: 10 },
   navIconButton: {
     alignItems: "center" as const,
+    columnGap: 6,
+    flexDirection: "row" as const,
     justifyContent: "center" as const,
-    minHeight: 40,
+    minHeight: 44,
     minWidth: 44,
-    paddingHorizontal: 0,
-    paddingVertical: 0
+    paddingHorizontal: 12,
+    paddingVertical: 10
   },
-  navPrimaryButton: { minHeight: 42, minWidth: 76, paddingHorizontal: 14, paddingVertical: 10 },
-  icon: { height: 22, width: 22 },
+  navPrimaryButton: { minHeight: 44, minWidth: 96, paddingHorizontal: 18, paddingVertical: 10 },
+  icon: { height: 20, width: 20 },
   draftStatus: withWebTheme(
-    { color: "#536b64", fontSize: 12, marginTop: 4, marginBottom: 24 },
+    {
+      color: "#536b64",
+      fontSize: 13,
+      lineHeight: 18,
+      marginTop: 4,
+      marginBottom: 24,
+      textAlign: "right" as const
+    },
     { color: "muted" }
   ),
-  previewIntro: withWebTheme({ color: "#536b64", fontSize: 14, marginBottom: 18 }, { color: "muted" }),
-  previewAnswer: withWebTheme({ color: "#142a24", fontSize: 16 }, { color: "ink" }),
-  previewEmpty: withWebTheme({ color: "#536b64", fontSize: 15, paddingVertical: 16 }, { color: "muted" })
+  previewIntro: withWebTheme(
+    { color: "#536b64", fontSize: 14, lineHeight: 20, marginBottom: 16 },
+    { color: "muted" }
+  ),
+  previewAnswer: withWebTheme({ color: "#142a24", fontSize: 16, lineHeight: 24 }, { color: "ink" }),
+  previewEmpty: withWebTheme(
+    { color: "#536b64", fontSize: 15, lineHeight: 22, paddingVertical: 16 },
+    { color: "muted" }
+  )
 };

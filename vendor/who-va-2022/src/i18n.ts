@@ -210,9 +210,11 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   saving: "Saving…",
   next: "Next",
   complete: "Complete",
-  draftSaved: "Draft saved · {id}",
+  // The draft id is still passed in (`{id}` works in a host template) but the
+  // defaults leave it out: an interviewer has no use for an internal UUID.
+  draftSaved: "Draft saved",
   draftSaveFailed: "Draft could not be saved",
-  draftId: "Draft ID · {id}",
+  draftId: "Draft not saved yet",
   required: "{label} is required",
   invalidType: "{name} must be a valid {dataType} value",
   invalidChoice: "{name} contains a value outside its WHO choice list",

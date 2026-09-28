@@ -20,13 +20,7 @@ import type {
   SubmissionData,
   ValidationIssue
 } from "../types.js";
-import {
-  columnLayout,
-  formatGrouped,
-  hasAppearance,
-  rangeParameters,
-  rangeValues
-} from "./appearance.js";
+import { columnLayout, formatGrouped, hasAppearance, rangeParameters, rangeValues } from "./appearance.js";
 import { dateFormatPlaceholder, formatDisplayDate, parseDisplayDate } from "./date-value.js";
 import { ENGLISH_UI_MESSAGES, type WhoVaUiMessages } from "../i18n.js";
 import {
@@ -185,6 +179,34 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  /**
+   * The radio circle or checkbox square at the start of a choice row. Purely
+   * visual: the row's Pressable carries the role and state, so this is hidden
+   * from assistive technology.
+   */
+  function ChoiceIndicator({ kind, selected }: { kind: "radio" | "checkbox"; selected: boolean }) {
+    const radio = kind === "radio";
+    return (
+      <View
+        aria-hidden="true"
+        style={[
+          questionControlStyles.choiceIndicator,
+          radio ? questionControlStyles.choiceIndicatorRadio : questionControlStyles.choiceIndicatorCheckbox,
+          selected && questionControlStyles.choiceIndicatorSelected,
+          selected && !radio && questionControlStyles.choiceIndicatorCheckboxSelected
+        ]}
+      >
+        {selected ? (
+          radio ? (
+            <View style={questionControlStyles.choiceIndicatorRadioDot} />
+          ) : (
+            <PrimitiveText style={questionControlStyles.choiceIndicatorCheck}>✓</PrimitiveText>
+          )
+        ) : null}
+      </View>
+    );
+  }
+
   function Text({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
     const multiline = hasAppearance(question, "multiline");
     const numbersOnly = hasAppearance(question, "numbers");
@@ -244,11 +266,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         editable={!readOnly}
         readOnly={readOnly || undefined}
         value={
-          value == null
-            ? ""
-            : grouped && !focused
-              ? formatGrouped(value as number, locale)
-              : String(value)
+          value == null ? "" : grouped && !focused ? formatGrouped(value as number, locale) : String(value)
         }
         keyboardType="number-pad"
         onFocus={() => setFocused(true)}
@@ -271,8 +289,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [draft, setDraft] = useState<string>();
     const grouped = hasAppearance(question, "thousands-sep");
     const shown =
-      draft ??
-      (value == null ? "" : grouped ? formatGrouped(value as number, locale) : String(value));
+      draft ?? (value == null ? "" : grouped ? formatGrouped(value as number, locale) : String(value));
     return (
       <TextInput
         accessibilityLabel={questionLabel(question, locale)}
@@ -407,7 +424,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                 setBusy(false);
               }
             }}
-            style={[questionControlStyles.button, questionControlStyles.buttonSecondary, busy && questionControlStyles.buttonDisabled]}
+            style={[
+              questionControlStyles.button,
+              questionControlStyles.buttonSecondary,
+              busy && questionControlStyles.buttonDisabled
+            ]}
           >
             <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
               {messages.scanBarcode}
@@ -542,10 +563,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [latitude, longitude] = current.split(/\s+/);
     return (
       <View>
-        <PrimitiveText
-          testID={`question-${question.name}-value`}
-          style={questionControlStyles.hint}
-        >
+        <PrimitiveText testID={`question-${question.name}-value`} style={questionControlStyles.hint}>
           {current ? `${latitude}, ${longitude}` : ""}
         </PrimitiveText>
         <TextInput
@@ -579,7 +597,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                 setBusy(false);
               }
             }}
-            style={[questionControlStyles.button, questionControlStyles.buttonSecondary, busy && questionControlStyles.buttonDisabled]}
+            style={[
+              questionControlStyles.button,
+              questionControlStyles.buttonSecondary,
+              busy && questionControlStyles.buttonDisabled
+            ]}
           >
             <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
               {current ? messages.updateLocation : messages.getLocation}
@@ -789,9 +811,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  /**
+   * The language picker: a filter box over the option list. The box only
+   * ever holds the filter text; the selection is shown once, as the marked
+   * row in the list. It used to echo the selected label as its value as well,
+   * which put "English (English)" on screen twice.
+   */
   function SearchableSingleChoice({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
-    const selectedChoice = question.choices?.find((choice) => choice.value === value);
     const [query, setQuery] = useState("");
     const searchText = query.trim().toLocaleLowerCase(locale);
     const choices = (question.choices ?? []).filter((choice) => {
@@ -814,7 +841,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           aria-readonly={readOnly || undefined}
           editable={!readOnly}
           readOnly={readOnly || undefined}
-          value={query || (selectedChoice ? languageChoiceLabel(selectedChoice) : "")}
+          value={query}
           placeholder="Search language"
           onChangeText={(text: string) => {
             if (!readOnly) setQuery(text);
@@ -837,6 +864,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                   setQuery("");
                 }}
               >
+                <ChoiceIndicator kind="radio" selected={selected} />
                 <PrimitiveText style={questionControlStyles.choiceText}>
                   {languageChoiceLabel(choice)}
                 </PrimitiveText>
@@ -905,10 +933,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
   function SingleChoice(props: WhoVaQuestionControlProps) {
     const { question, value, locale, issues, onAnswer } = props;
+    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
     if (question.name === "language") return <SearchableSingleChoice {...props} />;
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
-    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
     const cells = choices.map((choice) => {
       const selected = value === choice.value;
       return (
@@ -930,6 +958,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             if (!readOnly) onAnswer(choice.value);
           }}
         >
+          <ChoiceIndicator kind="radio" selected={selected} />
           <PrimitiveText style={questionControlStyles.choiceText}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
@@ -978,6 +1007,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             );
           }}
         >
+          <ChoiceIndicator kind="checkbox" selected={selected} />
           <PrimitiveText style={questionControlStyles.choiceText}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
@@ -1195,8 +1225,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       const picker =
         source === "draw"
           ? services?.captureDrawing
-            ? (q: InstrumentQuestion, d: SubmissionData) =>
-                services.captureDrawing!(q, d, drawMode ?? "draw")
+            ? (q: InstrumentQuestion, d: SubmissionData) => services.captureDrawing!(q, d, drawMode ?? "draw")
             : undefined
           : source === "camera"
             ? services?.captureImage

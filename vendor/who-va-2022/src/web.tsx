@@ -30,6 +30,7 @@ import {
   resolveWebAttachmentUri
 } from "./web-attachments.js";
 import { startWebAudioRecording } from "./web-audio.js";
+import { prefersReducedMotion } from "./ui/form-presentation.js";
 import { applyWebTheme } from "./ui/web-theme.js";
 
 function themedPrimitive(Component: React.ElementType, displayName: string): React.ElementType {
@@ -157,7 +158,7 @@ function WebDateInput({ accessibilityLabel, onChangeText, style, testID, ...prop
 
 function scrollToWebQuestion(questionNode: unknown) {
   if (typeof HTMLElement === "undefined" || !(questionNode instanceof HTMLElement)) return;
-  questionNode.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  questionNode.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
   questionNode
     .querySelector<HTMLElement>(
       'input, textarea, select, button, [role="radio"], [role="checkbox"], [role="button"]'

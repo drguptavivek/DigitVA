@@ -36,8 +36,15 @@ describe("framework-independent web embedding", () => {
 
     expect(element.getData().Id10011).toEqual(expect.any(String));
     expect(element.textContent).not.toContain("Once filled in ODK Collect");
-    expect(element.textContent).toContain("(Id10010) Name of VA interviewer");
-    expect(element.textContent).not.toContain("(Id10010) [Name of VA interviewer]");
+    // The WHO code is a chip beside the label, not the label's first word.
+    expect(element.querySelector('[data-testid="question-code-Id10010"]')?.textContent).toBe("Id10010");
+    expect(element.textContent).toContain("Name of VA interviewer");
+    expect(element.textContent).not.toContain("(Id10010)");
+    element.setAttribute("hide-question-codes", "");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(element.querySelector('[data-testid="question-code-Id10010"]')).toBeNull();
+    element.removeAttribute("hide-question-codes");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     element.setData({ Id10010b: "female" });
     expect(element.getData().Id10010b).toBe("female");
     expect(element.validate().valid).toBe(false);

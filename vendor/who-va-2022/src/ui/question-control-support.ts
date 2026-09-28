@@ -1,6 +1,6 @@
 import { AttachmentProcessingError } from "../attachments.js";
 import { type WhoVaUiMessages } from "../i18n.js";
-import { localized, localizedRich, plainText } from "./localize.js";
+import { localized, plainText } from "./localize.js";
 import type { AnswerValue, AttachmentReference, InstrumentQuestion } from "../types.js";
 import { withWebTheme } from "./web-theme.js";
 
@@ -24,13 +24,20 @@ export const questionControlStyles = {
     { borderColor: "danger", backgroundColor: "dangerSoft" }
   ),
   inputReadOnly: withWebTheme({ opacity: 0.72, backgroundColor: "#eef3f1" }, { backgroundColor: "border" }),
+  // A choice is a row: the radio or checkbox indicator, then the label. The
+  // whole row is the touch target (48px tall at minimum).
   choice: withWebTheme(
     {
+      alignItems: "flex-start" as const,
       borderWidth: 1,
       borderColor: "#9fb4ad",
       borderRadius: 8,
-      padding: 12,
-      marginTop: 7,
+      columnGap: 12,
+      flexDirection: "row" as const,
+      minHeight: 48,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      marginTop: 8,
       backgroundColor: "#ffffff"
     },
     { borderColor: "controlBorder", borderRadius: "controlRadius", backgroundColor: "surface" }
@@ -39,10 +46,36 @@ export const questionControlStyles = {
     { borderColor: "#147d64", backgroundColor: "#e3f4ee" },
     { borderColor: "brand", backgroundColor: "brandSoft" }
   ),
-  choiceText: withWebTheme({ color: "#213b34" }, { color: "inkSubtle" }),
+  choiceText: withWebTheme(
+    { color: "#213b34", flexShrink: 1, fontSize: 16, lineHeight: 24 },
+    { color: "inkSubtle" }
+  ),
+  choiceIndicator: withWebTheme(
+    {
+      alignItems: "center" as const,
+      backgroundColor: "#ffffff",
+      borderColor: "#9fb4ad",
+      borderWidth: 2,
+      flexShrink: 0,
+      height: 22,
+      justifyContent: "center" as const,
+      marginTop: 1,
+      width: 22
+    },
+    { backgroundColor: "surface", borderColor: "controlBorder" }
+  ),
+  choiceIndicatorRadio: { borderRadius: 999 },
+  choiceIndicatorCheckbox: { borderRadius: 4 },
+  choiceIndicatorSelected: withWebTheme({ borderColor: "#147d64" }, { borderColor: "brand" }),
+  choiceIndicatorRadioDot: withWebTheme(
+    { backgroundColor: "#147d64", borderRadius: 999, height: 10, width: 10 },
+    { backgroundColor: "brand" }
+  ),
+  choiceIndicatorCheckboxSelected: withWebTheme({ backgroundColor: "#147d64" }, { backgroundColor: "brand" }),
+  choiceIndicatorCheck: { color: "#ffffff", fontSize: 14, fontWeight: "700" as const, lineHeight: 16 },
   // The English beneath a translated choice label (`show-english`).
   choiceEnglish: withWebTheme(
-    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const },
+    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, lineHeight: 19 },
     { color: "muted" }
   ),
   // Layout appearances: `columns`, `columns-n`, `columns-pack`, `likert`,

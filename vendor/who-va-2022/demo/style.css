@@ -16,9 +16,9 @@
   --who-2022-web-color-ink: #1f2937;
   --who-2022-web-color-ink-subtle: #374151;
   --who-2022-web-color-muted: #667085;
-  --who-2022-web-color-brand: #2563eb;
-  --who-2022-web-color-brand-deep: #1e3a5f;
-  --who-2022-web-color-brand-soft: #eff6ff;
+  --who-2022-web-color-brand: #1b4f9c;
+  --who-2022-web-color-brand-deep: #004687;
+  --who-2022-web-color-brand-soft: #eaf1fa;
   --who-2022-web-color-surface: #ffffff;
   --who-2022-web-color-canvas: #f5f7fa;
   --who-2022-web-color-border: #e2e8f0;
@@ -29,7 +29,7 @@
   --who-2022-web-color-danger-strong: #912018;
   --who-2022-web-color-danger-soft: #fff1f0;
   --who-2022-web-color-image-background: #111827;
-  --who-2022-web-focus-ring: rgb(37 99 235 / 20%);
+  --who-2022-web-focus-ring: rgb(27 79 156 / 25%);
   --who-2022-web-shadow-card: 0 1px 2px rgb(15 23 42 / 6%);
   --who-2022-web-shadow-focus: 0 4px 12px rgb(37 99 235 / 10%);
   --who-2022-web-radius-control: 12px;
@@ -213,26 +213,10 @@ who-va-2022-form [role="checkbox"]:active {
   box-shadow: none;
 }
 
-who-va-2022-form [data-testid^="question-card-"] {
-  border-color: var(--who-2022-web-color-border) !important;
-  border-radius: var(--who-2022-web-radius-card) !important;
-  background-color: var(--who-2022-web-color-surface) !important;
-  box-shadow: var(--who-2022-web-shadow-card);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-who-va-2022-form [data-testid^="question-card-"]:focus-within {
-  border-color: #93b4f5 !important;
-  box-shadow: var(--who-2022-web-shadow-focus);
-}
-
 who-va-2022-form [data-testid="section-switcher"] {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
   flex-wrap: nowrap !important;
   max-width: 100% !important;
 }
@@ -246,16 +230,6 @@ who-va-2022-form [data-testid="section-slider"] {
   -webkit-overflow-scrolling: touch;
 }
 
-who-va-2022-form [data-testid="section-slider"] > div {
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  gap: 8px !important;
-}
-
-who-va-2022-form [data-testid="section-slider-item"] {
-  flex: 0 0 112px !important;
-  width: 112px !important;
-}
 @media (max-width: 680px) {
   .demo-header {
     align-items: flex-start;

@@ -42,7 +42,9 @@ import {
   interviewerQuestionLabel,
   localized,
   localizedRich,
-  previewAnswer
+  prefersReducedMotion,
+  previewAnswer,
+  splitQuestionCode
 } from "./form-presentation.js";
 
 export type { WhoVaPlatformServices } from "./question-controls.js";
@@ -56,6 +58,12 @@ interface WhoVaFormCommonProps {
    * labels, so an interviewer can check the translation against it.
    */
   showEnglish?: boolean;
+  /**
+   * Show each question's WHO code (`Id10010b`) as a small chip beside its
+   * label. On by default: coders read by code, interviewers by text, and the
+   * chip serves both without leading every label with the code.
+   */
+  showQuestionCodes?: boolean;
   platform?: WhoVaPlatformServices;
   draftId?: string;
   draftStore?: WhoVaDraftStore;
@@ -254,7 +262,10 @@ export function createWhoVaForm(
       const scrollView = sectionTrackRef.current as {
         scrollTo?: (options: { animated: boolean; x: number }) => void;
       } | null;
-      scrollView?.scrollTo?.({ x: Math.max(sectionSlider.activeIndex - 1, 0) * 120, animated: true });
+      scrollView?.scrollTo?.({
+        x: Math.max(sectionSlider.activeIndex - 1, 0) * 134,
+        animated: !prefersReducedMotion()
+      });
     }, [sectionSlider.activeIndex]);
 
     return (
@@ -308,37 +319,43 @@ export function createWhoVaForm(
                   isActive && styles.sectionButtonActive
                 ]}
               >
-                {isComplete || isStarted ? (
-                  <View
-                    aria-hidden="true"
-                    style={[
-                      styles.sectionStatusBadge,
-                      isStarted && styles.sectionStatusBadgeStarted,
-                      isActive && styles.sectionStatusBadgeActive
-                    ]}
-                    testID={`section-status-${section.name}`}
-                  >
+                <View style={styles.sectionButtonBody}>
+                  {isComplete ? (
                     <Text
-                      style={[
-                        styles.sectionStatusBadgeText,
-                        isStarted && styles.sectionStatusBadgeTextStarted,
-                        isActive && styles.sectionStatusBadgeTextActive
-                      ]}
+                      aria-hidden="true"
+                      style={[styles.sectionStatusGlyph, isActive && styles.sectionStatusGlyphActive]}
+                      testID={`section-status-${section.name}`}
                     >
-                      {isComplete ? "✓" : "•"}
+                      ✓
                     </Text>
-                  </View>
-                ) : null}
-                <Text
-                  numberOfLines={2}
-                  style={[
-                    styles.sectionButtonText,
-                    hasSectionIssues && !isActive && styles.sectionButtonTextError,
-                    isActive && styles.sectionButtonTextActive
-                  ]}
+                  ) : null}
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.sectionButtonText,
+                      hasSectionIssues && !isActive && styles.sectionButtonTextError,
+                      isActive && styles.sectionButtonTextActive
+                    ]}
+                  >
+                    {sectionLabel}
+                  </Text>
+                </View>
+                <View
+                  aria-hidden="true"
+                  style={[styles.sectionProgressTrack, isActive && styles.sectionProgressTrackActive]}
                 >
-                  {sectionLabel}
-                </Text>
+                  {isComplete || isStarted ? (
+                    <View
+                      style={[
+                        styles.sectionProgressFill,
+                        isStarted && styles.sectionProgressFillStarted,
+                        isComplete && styles.sectionProgressFillComplete,
+                        isActive && styles.sectionProgressFillActive
+                      ]}
+                      {...(isStarted ? { testID: `section-status-${section.name}` } : {})}
+                    />
+                  ) : null}
+                </View>
               </Pressable>
             );
           })}
@@ -371,22 +388,17 @@ export function createWhoVaForm(
       throw new Error("WhoVaForm cannot combine a caller-owned session with initialData");
     }
     const { draftStore, onChange, onDraftController, onDraftError, onDraftSaved, onReady } = props;
+    const showQuestionCodes = props.showQuestionCodes ?? true;
     const instrument = props.resolvedInstrument;
     const locale = props.locale ?? localeFromLanguageName(instrument.defaultLanguage) ?? "en";
     const messages = useMemo(
       () => resolveUiMessages(locale, props.uiTranslations),
       [locale, props.uiTranslations]
     );
-    const saveDraftIcon = svgPrimitives ? (
-      <FooterIcon name="save" primitives={svgPrimitives} />
-    ) : (
-      <Text style={questionControlStyles.buttonTextSecondary}>Save</Text>
-    );
-    const previewIcon = svgPrimitives ? (
-      <FooterIcon name="preview" primitives={svgPrimitives} />
-    ) : (
-      <Text style={questionControlStyles.buttonTextSecondary}>View</Text>
-    );
+    // The icons decorate a visible text label, so a primitive set without SVG
+    // simply shows the label alone.
+    const saveDraftIcon = svgPrimitives ? <FooterIcon name="save" primitives={svgPrimitives} /> : null;
+    const previewIcon = svgPrimitives ? <FooterIcon name="preview" primitives={svgPrimitives} /> : null;
     const [restoredNavigation] = useState(() => {
       const restored = primitives.navigation?.read();
       if (restored?.instrumentId !== instrument.id) return undefined;
@@ -520,7 +532,7 @@ export function createWhoVaForm(
       const scrollView = scrollViewRef.current as {
         scrollTo?: (options: { animated: boolean; y: number }) => void;
       } | null;
-      scrollView?.scrollTo?.({ y: 0, animated: true });
+      scrollView?.scrollTo?.({ y: 0, animated: !prefersReducedMotion() });
     };
 
     const switchSection = (sectionName: string) => {
@@ -609,7 +621,7 @@ export function createWhoVaForm(
         const scrollView = scrollViewRef.current as {
           scrollTo?: (options: { animated: boolean; y: number }) => void;
         } | null;
-        scrollView?.scrollTo?.({ y: Math.max(0, y - 12), animated: true });
+        scrollView?.scrollTo?.({ y: Math.max(0, y - 12), animated: !prefersReducedMotion() });
       };
       if (typeof requestAnimationFrame === "function") requestAnimationFrame(performScroll);
       else setTimeout(performScroll, 0);
@@ -622,23 +634,21 @@ export function createWhoVaForm(
         (issue) => issue.question === question.name && !(draftIssue && issue.code === "required")
       );
       const issues = draftIssue ? [...sessionIssues, draftIssue] : sessionIssues;
-      const label = interviewerQuestionLabel(
-        interpolateSubmissionReferences(
-          localizedRich(question.label, locale, question.name),
-          snapshot.data
+      const { code, text: label } = splitQuestionCode(
+        interviewerQuestionLabel(
+          interpolateSubmissionReferences(localizedRich(question.label, locale, question.name), snapshot.data)
         )
       );
-      const hint = interpolateSubmissionReferences(
-        localizedRich(question.hint, locale, ""),
-        snapshot.data
-      );
+      const hint = interpolateSubmissionReferences(localizedRich(question.hint, locale, ""), snapshot.data);
       const guidance = interpolateSubmissionReferences(
         localizedRich(question.guidance, locale, ""),
         snapshot.data
       );
       const englishLabel = props.showEnglish ? englishAlongside(question.label, locale) : "";
       const labelEnglish = englishLabel
-        ? interviewerQuestionLabel(interpolateSubmissionReferences(englishLabel, snapshot.data))
+        ? splitQuestionCode(
+            interviewerQuestionLabel(interpolateSubmissionReferences(englishLabel, snapshot.data))
+          ).text
         : "";
       const englishHint = props.showEnglish ? englishAlongside(question.hint, locale) : "";
       const hintEnglish = englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : "";
@@ -677,6 +687,11 @@ export function createWhoVaForm(
           ]}
           testID={`question-card-${question.name}`}
         >
+          {code && showQuestionCodes ? (
+            <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
+              {code}
+            </Text>
+          ) : null}
           <View style={styles.questionHeader}>
             <Text style={[styles.label, isQuestionComplete && styles.labelWithStatus]}>
               <RichText source={label} />
@@ -791,22 +806,33 @@ export function createWhoVaForm(
           <Text style={styles.sectionTitle}>{messages.answerPreview}</Text>
           <Text style={styles.previewIntro}>{messages.previewIntro}</Text>
           {answeredQuestions.length ? (
-            answeredQuestions.map((question) => {
-              const value = snapshot.data[question.name];
-              if (!hasAnswer(value)) return null;
-              const label = interviewerQuestionLabel(
-                interpolateSubmissionReferences(
-                  localized(question.label, locale, question.name),
-                  snapshot.data
-                )
-              );
-              return (
-                <View key={question.name} style={styles.question} testID={`preview-answer-${question.name}`}>
-                  <Text style={styles.label}>{label}</Text>
-                  <Text style={styles.previewAnswer}>{previewAnswer(question, value, locale, messages)}</Text>
-                </View>
-              );
-            })
+            <View style={styles.sectionCard}>
+              {answeredQuestions.map((question) => {
+                const value = snapshot.data[question.name];
+                if (!hasAnswer(value)) return null;
+                const { code, text: label } = splitQuestionCode(
+                  interviewerQuestionLabel(
+                    interpolateSubmissionReferences(
+                      localized(question.label, locale, question.name),
+                      snapshot.data
+                    )
+                  )
+                );
+                return (
+                  <View
+                    key={question.name}
+                    style={styles.question}
+                    testID={`preview-answer-${question.name}`}
+                  >
+                    {code && showQuestionCodes ? <Text style={styles.codeChip}>{code}</Text> : null}
+                    <Text style={styles.label}>{label}</Text>
+                    <Text style={styles.previewAnswer}>
+                      {previewAnswer(question, value, locale, messages)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           ) : (
             <Text style={styles.previewEmpty}>{messages.noAnswers}</Text>
           )}
@@ -848,7 +874,7 @@ export function createWhoVaForm(
         <Text style={styles.sectionTitle}>
           {localized(snapshot.currentSection.label, locale, snapshot.currentSection.name)}
         </Text>
-        {snapshot.questions.map(renderQuestion)}
+        <View style={styles.sectionCard}>{snapshot.questions.map(renderQuestion)}</View>
         <View style={styles.navigation}>
           <Pressable
             accessibilityRole="button"
@@ -881,6 +907,9 @@ export function createWhoVaForm(
             accessibilityLabel={draftStatus === "saving" ? messages.saving : messages.saveDraft}
           >
             {saveDraftIcon}
+            <Text style={questionControlStyles.buttonTextSecondary}>
+              {draftStatus === "saving" ? messages.saving : messages.saveDraft}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -903,6 +932,7 @@ export function createWhoVaForm(
             }}
           >
             {previewIcon}
+            <Text style={questionControlStyles.buttonTextSecondary}>{messages.previewAnswers}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"

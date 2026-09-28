@@ -104,15 +104,6 @@
             <label class="form-check-label small" for="project-masked-cod-required-input">Require masked COD workflow</label>
           </div>
         </div>
-        <div class="col-12 col-md-4">
-          <label class="form-label small mb-1">Web Intake (WHO VA form)</label>
-          <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
-            <option value="off">Off (ODK only)</option>
-            <option value="direct">Direct questionnaire entry</option>
-            <option value="death_register">Death register first</option>
-            <option value="both">Both routes</option>
-          </select>
-        </div>
       </div>
       <div class="d-flex flex-wrap align-items-center column-gap-4 row-gap-2 mt-3">
         <div class="form-check form-switch mb-0">
@@ -133,9 +124,31 @@
         </div>
       </div>
 
+      {# Everything below applies only to interviews captured in the browser
+         (Web Intake); tinted so it reads as one section, apart from the
+         ODK and coding settings above. #}
+      <div class="rounded p-3 mt-3 bg-info-subtle border border-info-subtle" id="project-web-capture-block">
+        <div class="fw-semibold mb-1"><i class="fa-solid fa-globe me-1"></i>Web data capture (browser VA form)</div>
+        <div class="small text-body-secondary mb-2">
+          These settings are used only when interviews are entered in the
+          browser. With Web Intake off the project collects through ODK only
+          and the rest of this section is ignored.
+        </div>
+        <div class="row g-2 mb-1">
+          <div class="col-12 col-sm-8 col-lg-6">
+            <label class="form-label small mb-1" for="project-web-intake-mode-input">Web Intake</label>
+            <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
+              <option value="off">Off (ODK only)</option>
+              <option value="direct">Direct questionnaire entry</option>
+              <option value="death_register">Death register first</option>
+              <option value="both">Both routes</option>
+            </select>
+          </div>
+        </div>
+
       {# Web questionnaire and its two extensions — WP1 of
          docs/planning/web-capture-project-configuration-plan.md #}
-      <div class="border rounded p-2 mt-3">
+      <div class="border rounded p-2 mt-3 bg-body">
         <div class="fw-semibold small mb-1">Web form questionnaire</div>
         <div class="text-muted small mb-2">
           Which questionnaire the browser VA form renders for this project, and
@@ -176,7 +189,7 @@
       </div>
 
       {# Tier-2 web form options — docs/policy/va-web-form-options.md #}
-      <div class="border rounded p-2 mt-3">
+      <div class="border rounded p-2 mt-3 bg-body">
         <div class="fw-semibold small mb-1">Web form languages</div>
         <div class="text-muted small mb-2">
           Applies to the browser VA form only. English is always available; tick
@@ -221,17 +234,18 @@
          docs/planning/web-capture-project-configuration-plan.md. Read-only,
          fetched per project when an existing project is opened for editing.
          The rule is docs/policy/web-intake.md, "Ready for web capture". #}
-      <div class="border rounded p-2 mt-3 d-none" id="project-web-intake-readiness">
+      <div class="border rounded p-2 mt-3 bg-body d-none" id="project-web-intake-readiness">
         <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="fw-semibold small">Readiness</div>
+          <div class="fw-semibold small">Web data capture readiness</div>
           <span id="project-web-intake-readiness-summary"></span>
         </div>
         <div class="text-muted small mb-2">
-          What still has to line up before an interviewer can fill this
-          project's questionnaire and have the case reach a coder.
+          What still has to be set up before an interviewer can fill the web
+          questionnaire and the case reaches a coder.
         </div>
         <div id="project-web-intake-readiness-list"></div>
       </div>
+      </div>{# /web data capture block #}
 
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
@@ -635,7 +649,6 @@
   // is opened for editing. Nothing here is rendered into the page server-side
   // — the panel is a JSON client of /admin/api/projects/<id>/web-intake-readiness.
 
-  var READINESS_BADGE = { ok: 'text-bg-success', warn: 'text-bg-warning', fail: 'text-bg-danger' };
 
   function readinessUrl(projectId) {
     return '/admin/api/projects/' + encodeURIComponent(projectId) + '/web-intake-readiness';
@@ -658,7 +671,7 @@
     // loadReadinessBadges).
     var tip = (result.checks || []).filter(function (c) { return c.status !== 'ok'; })
       .map(function (c) {
-        return '<div class="mb-2"><strong>' + (c.status === 'fail' ? '✗ ' : '! ') + esc(c.code) + '</strong>: ' + esc(c.message)
+        return '<div class="mb-2"><strong>' + (c.status === 'fail' ? '✗ ' : '! ') + esc(window.WebCaptureReadiness ? window.WebCaptureReadiness.label(c.code) : c.code) + '</strong>: ' + esc(c.message)
           + (c.fix_hint ? '<div class="text-muted">→ ' + esc(c.fix_hint) + '</div>' : '') + '</div>';
       }).join('');
     return '<span class="badge ' + cls + ' readiness-issues" style="cursor:help;" tabindex="0" data-tip="' + esc(tip) + '">' + counts.total
@@ -696,22 +709,7 @@
   }
 
   function renderReadinessChecks(result) {
-    var checks = result.checks || [];
-    var html = '';
-    for (var i = 0; i < checks.length; i++) {
-      var c = checks[i];
-      var cls = READINESS_BADGE[c.status] || 'text-bg-secondary';
-      html += '<div class="d-flex align-items-start gap-2 py-1 border-top">'
-        + '<span class="badge ' + cls + '" style="min-width:3.2rem;">' + esc(c.status) + '</span>'
-        + '<div class="small">'
-        +   '<div><span class="fw-semibold">' + esc(c.code) + '</span> — ' + esc(c.message) + '</div>'
-        +   (c.fix_hint ? '<div class="text-muted">' + esc(c.fix_hint) + '</div>' : '')
-        + '</div></div>';
-    }
-    readinessListEl.innerHTML = html;
-    readinessSummaryEl.innerHTML = result.ready
-      ? '<span class="badge text-bg-success">Ready for web capture</span>'
-      : '<span class="badge text-bg-danger">Not ready</span>';
+    window.WebCaptureReadiness.render(result, readinessListEl, readinessSummaryEl);
   }
 
   // Guards against a slow response for a project the admin has already

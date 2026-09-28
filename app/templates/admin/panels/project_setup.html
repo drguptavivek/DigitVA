@@ -70,12 +70,14 @@
         <div class="card">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <h6 class="card-title mb-0">Web capture readiness</h6>
+              <h6 class="card-title mb-0">Web data capture readiness</h6>
               <span id="setup-readiness-summary"></span>
             </div>
             <div class="text-muted small mb-2">
-              What still has to line up before an interviewer can fill this
-              project's questionnaire and have the case reach a coder.
+              Only for interviews captured in the browser (Web Intake). What
+              still has to be set up before an interviewer can fill the web
+              questionnaire and the case reaches a coder. ODK-only projects can
+              ignore it.
             </div>
             <div id="setup-readiness-list"><div class="text-muted small py-1">Loading…</div></div>
           </div>
@@ -187,23 +189,14 @@
     web_forms: 'data-collection',
     interviewers: 'people'
   };
-  var BADGE = { ok: 'text-bg-success', warn: 'text-bg-warning', fail: 'text-bg-danger' };
-
   function renderReadiness(result) {
-    var html = (result.checks || []).map(function (c) {
-      var fix = c.status !== 'ok' && FIX_SECTION[c.code];
-      return '<div class="d-flex align-items-start gap-2 py-1 border-top">'
-        + '<span class="badge ' + (BADGE[c.status] || 'text-bg-secondary') + '" style="min-width:3.2rem;">' + esc(c.status) + '</span>'
-        + '<div class="small">'
-        +   '<div><span class="fw-semibold">' + esc(c.code) + '</span> — ' + esc(c.message) + '</div>'
-        +   (c.status !== 'ok' && c.fix_hint ? '<div class="text-muted">' + esc(c.fix_hint) + '</div>' : '')
-        +   (fix ? '<a href="#" data-section="' + esc(fix) + '">Go to ' + esc(SECTION_LABELS[fix]) + '</a>' : '')
-        + '</div></div>';
-    }).join('');
-    document.getElementById('setup-readiness-list').innerHTML = html;
-    document.getElementById('setup-readiness-summary').innerHTML = result.ready
-      ? '<span class="badge text-bg-success">Ready for web capture</span>'
-      : '<span class="badge text-bg-danger">Not ready</span>';
+    window.WebCaptureReadiness.render(result,
+      document.getElementById('setup-readiness-list'),
+      document.getElementById('setup-readiness-summary'),
+      { fixLink: function (code) {
+          var fix = FIX_SECTION[code];
+          return fix ? '<a href="#" data-section="' + esc(fix) + '">Go to ' + esc(SECTION_LABELS[fix]) + '</a>' : '';
+      } });
   }
 
   function readinessError(msg) {

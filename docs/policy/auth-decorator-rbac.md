@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-28
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -259,6 +259,30 @@ When `@role_required()` detects a deactivated user (`user_status != active`):
 
 This ensures admin-deactivated users are locked out immediately on their next
 request, without waiting for the 30-minute cookie expiry.
+
+Since 2026-09-28 the Flask-Login user loader (`load_user` in
+`app/models/va_users.py`) returns no user for a non-active account, so a
+deactivated user's session and remember cookie are anonymous on every route,
+not only on `@role_required()` routes. The decorator's active-status check
+stays as a second guard.
+
+## Login and password-reset rules
+
+- **Only active users sign in.** `VaUsers.is_active` is true only for
+  `user_status == active` (so `pending` users are refused too). The login
+  form refuses a non-active account with the same message as a wrong
+  password, before the email-verified check, so it reveals nothing about the
+  account.
+- **Post-login `next` stays on this site.** `_safe_next_url` in
+  `app/routes/va_auth.py` follows `next` only when it is a path starting with
+  a single `/`, or an absolute http/https URL on the request's own host. It
+  refuses backslashes, whitespace, control characters and anything starting
+  with `//`; everything else lands on the user's home page.
+- **Password reset links work once.** A `password_reset` token carries a
+  fingerprint of the user's stored password hash
+  (`app/services/token_service.py`). Setting a password changes the hash, so
+  the link stops working after its first use, and any earlier link dies when
+  the password changes by other means. Links still expire after one hour.
 
 ---
 

@@ -356,7 +356,7 @@ def create_app(config_class=None):
         from app.models import VaUsers
 
         fresh_user = db.session.get(VaUsers, current_user_id)
-        if fresh_user is None:
+        if fresh_user is None or not fresh_user.is_active:
             return
 
         from app.services.site_maintenance_service import should_block_non_admin_after_cutoff

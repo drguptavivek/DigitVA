@@ -37,7 +37,12 @@ def va_login():
         user = db.session.scalar(
             sa.select(VaUsers).where(VaUsers.email == form.email.data)
         )
-        if user is None or not user.check_password(form.password.data):
+        # Inactive accounts get the wrong-password response: no enumeration.
+        if (
+            user is None
+            or not user.check_password(form.password.data)
+            or not user.is_active
+        ):
             flash(
                 "Invalid email or password. Please, re-check and login again.",
                 "primary",
@@ -59,11 +64,8 @@ def va_login():
         session.permanent = True
         login_user(user, remember=form.remember_me.data)
 
-        next_page = request.args.get('next')
-        if not next_page or urlparse(next_page).netloc != '':
-            next_page = current_user.landing_url()
-
-        return redirect(next_page)
+        next_page = _safe_next_url(request.args.get("next"))
+        return redirect(next_page or current_user.landing_url())
     return render_template(
         "va_frontpages/va_login.html",
         form=form,
@@ -232,6 +234,29 @@ def resend_verification():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _safe_next_url(target):
+    """Return ``target`` if it is a safe post-login redirect, else None.
+
+    Accepts a path starting with exactly one ``/`` (no scheme, no host), or an
+    absolute http(s) URL on this request's host (role_required sends
+    ``next=request.url``). Rejects backslashes, whitespace and control
+    characters anywhere, since browsers normalise ``/\\host`` and ``///host``
+    into off-site URLs.
+    """
+    if not target or "\\" in target:
+        return None
+    if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in target):
+        return None
+    if target.startswith("//"):
+        return None
+    parsed = urlparse(target)
+    if not parsed.scheme and not parsed.netloc:
+        return target if target.startswith("/") else None
+    if parsed.scheme in ("http", "https") and parsed.netloc == request.host:
+        return target
+    return None
+
 
 def _send_password_reset(user):
     """Generate a password-reset token and dispatch the email."""

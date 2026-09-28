@@ -90,6 +90,11 @@ class VaUsers(UserMixin, db.Model):
             return url_for("intake.dashboard")
         return url_for("va_main.va_index")
 
+    @property
+    def is_active(self):
+        """Flask-Login hook: only active users may log in or keep a session."""
+        return self.user_status == VaStatuses.active
+
     def set_password(self, password):
         self.password = generate_password_hash(password)
 
@@ -568,4 +573,8 @@ def load_user(user_id: str):
         uid = uuid.UUID(user_id)
     except (ValueError, TypeError):
         return None
-    return db.session.get(VaUsers, uid)
+    user = db.session.get(VaUsers, uid)
+    # A deactivated user's existing session or remember cookie stops working.
+    if user is None or not user.is_active:
+        return None
+    return user

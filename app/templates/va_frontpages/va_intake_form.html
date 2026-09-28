@@ -4,8 +4,10 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
   <div>
     <h4 class="mb-0 text-primary">WHO VA 2022 questionnaire</h4>
-    <div class="small text-muted">Case id <code id="wv-unique-id">{{ draft.unique_id }}</code> · {{ draft.project_id }} / {{ draft.site_id }}
-      {% if prefill.deceased %}· {{ prefill.deceased.givenNames }} {{ prefill.deceased.surname or '' }}{% endif %}</div>
+    <div class="small text-muted" title="{{ draft.project_id }} / {{ draft.site_id }}">
+      Case id <code id="wv-unique-id">{{ draft.unique_id }}</code> ·
+      {% if names.org_unit_name %}{{ names.org_level_name }} {{ names.org_unit_name }}{% else %}{{ names.project_name }} / {{ names.site_name }}{% endif %}
+    </div>
   </div>
   <div class="d-flex align-items-center gap-2 small">
     <span id="wv-save-state" class="text-muted">Not saved yet</span>
@@ -13,8 +15,20 @@
   </div>
 </div>
 <div id="wv-alert" class="alert d-none small py-2"></div>
-{# Filled in by main() only when the project offers more than one language. #}
-<div id="wv-locale-bar" class="d-none justify-content-end mb-2"></div>
+{# Pinned deceased summary (digitva-wdj): left-aligned, same row as the
+   language selector (right, filled in by main() only for a multi-locale
+   project). Sticky just below the fixed site navbar (44px, z-index 1000 --
+   app/static/css/base.css) while the form is scrolled. #}
+<div id="wv-summary-bar" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 py-1 px-2 bg-white border-bottom"
+     style="position: sticky; top: 45px; z-index: 500;">
+  <div id="wv-deceased-summary" class="small text-muted d-flex flex-wrap gap-3">
+    <span><span id="wv-sum-name">—</span></span>
+    <span>DOD: <span id="wv-sum-dod">—</span></span>
+    <span>Age: <span id="wv-sum-age">—</span></span>
+    <span>Sex: <span id="wv-sum-sex">—</span></span>
+  </div>
+  <div id="wv-locale-bar" class="d-none justify-content-end"></div>
+</div>
 {# The intake_screen extension's welcome note, filled in by main() only when
    the project serves one. #}
 <div id="wv-intake-screen" class="card mb-3 d-none">
@@ -37,6 +51,45 @@ const API = "/intake/api/drafts/" + encodeURIComponent(DRAFT.draft_id);
 let CSRF = "";
 const $ = (id) => document.getElementById(id);
 const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.classList.add("d-none"); return; } el.className = `alert alert-${kind} small py-2`; el.textContent = msg; };
+// Pinned deceased summary (digitva-wdj): name, date of death, age, sex only
+// -- minimal PII, never logged. Seeded from the death-register prefill below,
+// then kept live from the answers the host already hands draftStore.save()
+// on every change (Id10017/Id10018 names, Id10019 sex, Id10023 the
+// calculated date of death; see vendor/who-va-2022's generated instrument).
+// Cheap by construction: reads a handful of keys off an object already in
+// memory, no form re-render, no network request of its own.
+const SUMMARY_SEX_LABELS = { female: "Female", male: "Male", undetermined: "Undetermined" };
+const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatSummaryDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  if (!m) return undefined;
+  const [, y, mo, d] = m;
+  const mi = Number(mo) - 1;
+  return mi >= 0 && mi <= 11 ? `${d}-${SUMMARY_MONTHS[mi]}-${y}` : undefined;
+}
+function updateSummary({ name, dod, age, sex } = {}) {
+  $("wv-sum-name").textContent = name || "—";
+  $("wv-sum-dod").textContent = dod || "—";
+  $("wv-sum-age").textContent = age != null && age !== "" ? String(age) : "—";
+  $("wv-sum-sex").textContent = sex || "—";
+}
+function summaryFromAnswers(data) {
+  if (!data) return {};
+  const name = [data.Id10017, data.Id10018].filter(Boolean).join(" ") || undefined;
+  return {
+    name,
+    dod: formatSummaryDate(data.Id10023),
+    age: data.ageInYears != null ? data.ageInYears : data.age_adult,
+    sex: SUMMARY_SEX_LABELS[data.Id10019],
+  };
+}
+updateSummary({
+  name: [PREFILL.deceased && PREFILL.deceased.givenNames, PREFILL.deceased && PREFILL.deceased.surname].filter(Boolean).join(" ") || undefined,
+  dod: PREFILL.deceased && formatSummaryDate(PREFILL.deceased.dateOfDeath),
+  age: PREFILL.deceased && PREFILL.deceased.ageInYears,
+  sex: PREFILL.deceased && SUMMARY_SEX_LABELS[PREFILL.deceased.sex],
+});
+
 const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   const headers = { "X-CSRFToken": CSRF };
   if (body) headers["Content-Type"] = "application/json";
@@ -164,6 +217,7 @@ const draftStore = {
     return envelope;
   },
   save(draft) {
+    updateSummary(summaryFromAnswers(draft.data));
     pendingDraft = draft;
     const settled = new Promise((resolve, reject) => waiters.push({ resolve, reject }));
     // Moving to another section is a deliberate checkpoint, not typing: write

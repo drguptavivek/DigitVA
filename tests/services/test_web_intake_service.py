@@ -262,6 +262,51 @@ class WebIntakeServiceTests(BaseTestCase):
             )
         self.assertEqual(ctx.exception.status_code, 403)
 
+    def test_list_deaths_for_project_scoped_interviewer_in_tree_project(self):
+        """digitva-nrq regression guard. Before the fix, list_deaths fell
+        back to _require_scope(..., None) whenever the interviewer held no
+        *unit*-scoped grant (bool(entry["org_units"]) is False for a project-
+        or site-scoped grant, which never lists units) -- and in a project
+        with an organization tree that raised 400 "Choose the organization
+        unit", even though a project-scoped grant reaches every unit and
+        listing names no new entry to attribute."""
+        unit = self._org_unit()  # gives WIT01 an organization tree
+        death = self._register_death(org_unit_id=str(unit.org_unit_id))
+
+        rows = intake_svc.list_deaths(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+
+        self.assertIn(death.death_id, [r.death_id for r in rows])
+
+    def test_list_deaths_for_unit_scoped_interviewer_is_limited_to_their_subtree(self):
+        """A unit-scoped grant only ever sees its own subtree's deaths -- a
+        death with no unit at all would also be outside that subtree, so it
+        stays excluded (docs/policy/web-intake.md, "Role" bullet)."""
+        granted_unit = self._org_unit()
+        other_unit = self._org_unit()
+        unit_interviewer = self._get_or_make_user(
+            "web.unit.interviewer.list@test.local", "WebIntake123"
+        )
+        db.session.add(VaUserAccessGrants(
+            user_id=unit_interviewer.user_id,
+            role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=granted_unit.org_unit_id,
+            notes="unit-scoped web intake test grant",
+            grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+        death_in = self._register_death(org_unit_id=str(granted_unit.org_unit_id))
+        death_out = self._register_death(org_unit_id=str(other_unit.org_unit_id))
+
+        ids = [r.death_id for r in intake_svc.list_deaths(
+            unit_interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )]
+
+        self.assertIn(death_in.death_id, ids)
+        self.assertNotIn(death_out.death_id, ids)
+
     def test_get_death_404_for_unknown_id(self):
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
             intake_svc.get_death(self.interviewer, uuid.uuid4())
@@ -307,6 +352,30 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.prefill["deceased"]["sex"], "female")
         self.assertEqual(draft.prefill["answers"]["abha_number"], "12345678901234")
         self.assertEqual(draft.prefill["lockedQuestionNames"], ["abha_number"])
+
+    def test_prefill_never_sends_both_date_and_year_of_death(self):
+        """digitva-dyk: vendor/who-va-2022/src/prefill.ts throws when both
+        deceased.dateOfDeath and deceased.yearOfDeath are present (they are
+        the same evidence, exact vs. year-only). date_of_death is required
+        on every death-register row today, so only dateOfDeath is ever sent;
+        yearOfDeath is reserved for a death whose exact date is unknown."""
+        death = self._register_death()
+        prefill = intake_svc._prefill_from_death(death, self.interviewer)
+        deceased = prefill["deceased"]
+        self.assertEqual(deceased["dateOfDeath"], death.date_of_death.isoformat())
+        self.assertNotIn("yearOfDeath", deceased)
+
+    def test_prefill_never_sends_both_birth_date_and_age_in_years(self):
+        """Same contract, the other pair prefill.ts rejects together."""
+        with_dob = self._register_death(date_of_birth=(date.today() - timedelta(days=365 * 62)).isoformat())
+        deceased = intake_svc._prefill_from_death(with_dob, self.interviewer)["deceased"]
+        self.assertIn("dateOfBirth", deceased)
+        self.assertNotIn("ageInYears", deceased)
+
+        with_age = self._register_death(age_years=62)
+        deceased = intake_svc._prefill_from_death(with_age, self.interviewer)["deceased"]
+        self.assertIn("ageInYears", deceased)
+        self.assertNotIn("dateOfBirth", deceased)
 
     def test_start_draft_prefills_and_locks_area_va_presets_from_org_unit(self):
         from app.services import org_grant_service as og
@@ -368,6 +437,27 @@ class WebIntakeServiceTests(BaseTestCase):
             prefill = intake_svc._prefill_from_death(death, self.interviewer, death.org_unit_id)
 
         self.assertEqual(prefill["answers"]["abha_number"], "12345678901234")
+
+    def test_resolve_draft_display_names_for_a_no_tree_project(self):
+        """digitva-wdj: the intake form header shows names, not codes."""
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+        )
+        names = intake_svc.resolve_draft_display_names(draft)
+        self.assertEqual(names["project_name"], "Web Intake Test")
+        self.assertEqual(names["site_name"], "Web Intake Site")
+        self.assertIsNone(names["org_unit_name"])
+        self.assertIsNone(names["org_level_name"])
+
+    def test_resolve_draft_display_names_includes_the_org_unit_and_its_level(self):
+        unit = self._org_unit()  # a "district"-level unit, see _org_unit()
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            org_unit_id=str(unit.org_unit_id),
+        )
+        names = intake_svc.resolve_draft_display_names(draft)
+        self.assertEqual(names["org_unit_name"], "Test District")
+        self.assertEqual(names["org_level_name"], "District")
 
     def test_start_draft_from_death_returns_the_existing_draft(self):
         death = self._register_death()

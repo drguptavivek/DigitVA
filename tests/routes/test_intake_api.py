@@ -317,6 +317,57 @@ class IntakeApiTests(BaseTestCase):
         # The working language is chosen from what the project serves and
         # remembered per browser, never stored server-side.
         self.assertIn("options.available_locales", body)
+
+    def test_form_page_header_shows_names_with_codes_in_a_tooltip(self):
+        """digitva-wdj: "Case id X · {project_id} / {site_id}" was meaningless
+        to an interviewer; the header now shows the project/site names, and
+        the codes move to a title tooltip instead of disappearing."""
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
+
+        self.assertIn(f'title="{self.PROJECT_ID} / {self.SITE_ID}"', body)
+        self.assertIn("Intake Api Project / Intake Api Site", body)
+
+    def test_form_page_header_shows_org_unit_name_and_level_for_tree_projects(self):
+        org.seed_default_organization(self.PROJECT_ID)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT_ID)}
+        district = org.create_unit(
+            self.PROJECT_ID,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="HDR01",
+            unit_name="Header District",
+        )
+        self._login(self.interviewer_id)
+        draft = self._start_draft(org_unit_id=str(district.org_unit_id))
+        body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
+
+        self.assertIn(f"{levels['district'].level_name} Header District", body)
+
+    def test_form_page_pinned_summary_markup_and_prefill_seed_are_present(self):
+        """The pinned deceased summary (name, date of death, age, sex) is
+        seeded from the death-register prefill on load and kept live from
+        draftStore.save() -- see docs/policy/web-intake.md."""
+        self._login(self.interviewer_id)
+        death = self.client.post(
+            "/intake/api/deaths", json=self._death_payload(deceased_name="Bina Sahu"),
+            headers=self._csrf_headers(),
+        ).get_json()["death"]
+        draft = self._start_draft(death_id=death["death_id"])
+        body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
+
+        self.assertIn('id="wv-summary-bar"', body)
+        self.assertIn('id="wv-sum-name"', body)
+        self.assertIn('id="wv-sum-dod"', body)
+        self.assertIn('id="wv-sum-age"', body)
+        self.assertIn('id="wv-sum-sex"', body)
+        # The seed reads PREFILL.deceased, embedded by the route from the
+        # draft's own prefill (death-register derived).
+        self.assertIn("Bina", body)
+        self.assertIn("givenNames", body)
+        # Updated live on every host draftStore.save() call, not on a timer
+        # or a re-render.
+        self.assertIn("updateSummary(summaryFromAnswers(draft.data));", body)
         self.assertIn('"digitva.intake.locale"', body)
         # Translations are fetched per locale from the serving endpoint and
         # applied client-side to a copy of the pre-built instrument (WP6).

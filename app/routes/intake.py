@@ -67,6 +67,7 @@ def form_page(draft_id):
         "va_frontpages/va_intake_form.html",
         draft=intake_svc.serialize_draft(draft),
         prefill=draft.prefill or {},
+        names=intake_svc.resolve_draft_display_names(draft),
     )
 
 

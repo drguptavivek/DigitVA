@@ -21,6 +21,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaDeathRegister,
@@ -468,13 +469,24 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
 
 
 def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | None = None) -> list[VaDeathRegister]:
-    entry = _require_scope(user, project_id, site_id, None) if not _has_units(user, project_id, site_id) else None
     stmt = sa.select(VaDeathRegister).where(
         VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id
     )
-    if entry is None:
+    # _has_units also raises 403 when the user has no interviewer access to
+    # this project/site at all -- that access check runs whichever branch is
+    # taken below.
+    if _has_units(user, project_id, site_id):
+        # A unit-scoped grant is held to its own subtree(s); a death with no
+        # unit at all is outside every subtree, so it is excluded.
         unit_ids = _scope_unit_ids(user, project_id, site_id)
         stmt = stmt.where(VaDeathRegister.org_unit_id.in_(unit_ids))
+    # Otherwise the grant is project- or site-scoped, which reaches every
+    # unit of the project (docs/policy/organization-model.md) -- no unit
+    # filter applies, whether or not the project has an organization tree.
+    # Previously this branch called _require_scope(..., None), which was
+    # right for "which unit may a NEW entry be attributed to" but wrong here:
+    # in a tree project it raised 400 "Choose the organization unit" merely
+    # for listing, even though such a grant may already see every unit.
     if status:
         stmt = stmt.where(VaDeathRegister.status == status)
     return list(db.session.scalars(stmt.order_by(VaDeathRegister.created_at.desc()).limit(500)).all())
@@ -524,8 +536,11 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         deceased = {
             "givenNames": names[0],
             "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
+            # Only one of dateOfDeath/yearOfDeath may be sent -- prefill.ts
+            # throws on both (WhoVaDeathEvidence). date_of_death is a
+            # required field today, so the exact date is always known here;
+            # yearOfDeath is for a future path that only knows the year.
             "dateOfDeath": death.date_of_death.isoformat(),
-            "yearOfDeath": str(death.date_of_death.year),
         }
         if len(names) > 1:
             deceased["surname"] = names[1]
@@ -987,4 +1002,38 @@ def serialize_draft(draft: VaWebIntakeDraft) -> dict:
         "sections_saved": len(draft.sections),
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
+    }
+
+
+def resolve_draft_display_names(draft: VaWebIntakeDraft) -> dict:
+    """Project, site and (if any) org-unit/level names for the intake form
+    header (digitva-wdj) -- names instead of the bare codes it used to show.
+
+    One query for a single draft: not folded into ``serialize_draft`` because
+    that is also called once per row of ``list_drafts``, where adding a join
+    here would turn into an N+1.
+    """
+    row = db.session.execute(
+        sa.select(
+            VaProjectMaster.project_name,
+            VaSiteMaster.site_name,
+            MasOrgUnit.unit_name,
+            MasOrgLevel.level_name,
+        )
+        .select_from(VaProjectMaster)
+        # Project and site are unrelated tables (each narrowed to one row by
+        # the WHERE below), so the join has no natural ON of its own.
+        .join(VaSiteMaster, sa.true())
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == draft.org_unit_id)
+        .outerjoin(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(VaProjectMaster.project_id == draft.project_id, VaSiteMaster.site_id == draft.site_id)
+    ).one_or_none()
+    if row is None:
+        return {"project_name": draft.project_id, "site_name": draft.site_id, "org_unit_name": None, "org_level_name": None}
+    project_name, site_name, unit_name, level_name = row
+    return {
+        "project_name": project_name,
+        "site_name": site_name,
+        "org_unit_name": unit_name,
+        "org_level_name": level_name,
     }

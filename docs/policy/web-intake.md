@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-29
 ---
 
 # Web Intake Policy
@@ -34,7 +34,12 @@ submission enters the workflow. Plan:
   never resolves to a form. Which project, site and unit a questionnaire may
   actually be filled for is decided separately, by
   `web_intake_service.interviewer_context()` and `_require_scope()`. The role
-  gate never widens scope.
+  gate never widens scope. Listing deaths (`list_deaths`) follows the same
+  reach as entry attribution: a project- or site-scoped interviewer grant
+  sees every death of the project-site, unit or not, because that grant
+  reaches every unit; a unit-scoped grant sees only deaths whose unit falls
+  in its own subtree(s), so an unrouted (NULL-unit) death is invisible to it
+  (`digitva-nrq`, 2026-09-29).
 - **Death register** (`va_death_register`): deceased name, sex, ABHA number
   and ABHA address, date of birth or age, date of death, place, address,
   informant, remarks, unit. Name, phone and ABHA identifiers are personal
@@ -48,6 +53,27 @@ submission enters the workflow. Plan:
   questionnaire section. The page sends only the sections whose answers
   changed. One active draft per registered death; only its author may edit
   it.
+- **Prefill contract** (`web_intake_service._prefill_from_death`): the
+  package's `createWhoVaInitialDataFromPrefill` (`vendor/who-va-2022/src/
+  prefill.ts`) throws if both `deceased.dateOfDeath` and `deceased.
+  yearOfDeath` are given, or both `deceased.dateOfBirth` and `deceased.
+  ageInYears` — each pair is evidence for the same question, one or the
+  other. The server sends `yearOfDeath` only when the exact date is unknown;
+  since `date_of_death` is a required death-register field today, that never
+  happens in practice and only `dateOfDeath` is sent (`digitva-dyk`,
+  2026-09-29). A thrown error previously meant the page silently prefilled
+  nothing at all (the caller in `va_intake_form.html` catches it and moves
+  on) — the fix is at the source, not the catch.
+- **Intake form header** (`digitva-wdj`, 2026-09-29): shows the project and
+  site name, or the org unit name with its level (e.g. "PHC Kandaghat") for
+  an org-structured project, resolved once per page load by
+  `web_intake_service.resolve_draft_display_names()`; the codes stay
+  available in a title tooltip. A pinned bar under the header shows the
+  deceased's name, date of death, age and sex while filling — seeded from
+  the death-register prefill, then refreshed from the answers the host
+  already hands `draftStore.save()` on every change (`Id10017`/`Id10018`
+  names, `Id10019` sex, the calculated `Id10023` date of death and
+  `ageInYears`). Only those four fields; nothing is logged.
 - **Which questionnaire a web form carries** (decided 2026-09-19):
   `va_project_master.web_intake_form_type_id`, a form type that must be
   active, carry a `base_instrument_code`, and have a confirmed PII set

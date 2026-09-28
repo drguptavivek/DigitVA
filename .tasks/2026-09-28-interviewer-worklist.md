@@ -115,6 +115,26 @@ age/DOB, ABHA and the district presets (`digitva-dhc`); name/sex/date of death
 are editable in the form (the form is the record of the interview), and edits
 flow back to the case.
 
+### Prefill map (owner, 2026-09-29: prefill name, age, sex, HIV/malaria, state, district, names)
+
+| WHO question | Source | Locked |
+|---|---|---|
+| Id10010 interviewer name, Id10010c interviewer id | signed-in user (fix `digitva-dyk`) | yes |
+| Id10002 / Id10003 HIV / malaria mortality | district presets (`digitva-dhc`, done) | yes |
+| Id10017 / Id10018 given name, surname; Id10019 sex | case (death register) | no — the form is the record of the interview; edits flow back to the case |
+| Id10021 date of birth, or age_group + age fields | case | no |
+| Id10022 = yes, Id10023_a date of death | case | no |
+| Id10058 where did the deceased die | case `place_of_death`, mapped to WHO choices | no |
+| Id10057 where the death occurred (country, state, district, village) | org tree path names of the case's unit (e.g. India › Himachal Pradesh › Solan › Kandaghat › village) plus the case address | no |
+| Id10055 usual residence | case address, else the same org path | no |
+| Id10007 respondent name | case informant name | no |
+| Id10061 / Id10062 father's / mother's name | not captured today; optional registration fields if wanted | no |
+| Id10010a / Id10010b interviewer age / sex | not in the user profile today | — |
+
+Rules: prefill applies once, when a draft is created and has no saved answers;
+unlocked prefills are ordinary answers the interviewer can change; the org
+codes (`org_<level>_code`) stay server-injected at submission as today.
+
 ## Owner decisions (2026-09-29)
 
 1. **No assignment** (owner, 2026-09-29, superseding an earlier "self +

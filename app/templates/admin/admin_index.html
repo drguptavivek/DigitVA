@@ -442,6 +442,13 @@
   // when their parent panel is swapped out.
   document.body.addEventListener('htmx:beforeSwap', function (evt) {
     if (evt.detail.target.id === 'admin-panel') {
+      // Empty the panel before every swap. htmx "settles" a swap by putting
+      // back, ~20 ms later, the server-rendered class of any element whose id
+      // was also in the old content. Moving between two Project Setup pages
+      // keeps those ids, so the settle re-showed "Loading..." and re-hid the
+      // edit form the new panel's script had already opened (digitva-cba hit
+      // the same race after a save). With no old content there is no settle.
+      if (evt.detail.shouldSwap) evt.detail.target.innerHTML = '';
       // Remove any modals that were moved to body from the old panel
       document.querySelectorAll('body > .modal').forEach(function (modal) {
         // Only remove if it came from an admin panel (has admin-style IDs)

@@ -18,14 +18,26 @@ export type WebThemeToken =
   | "controlRadius"
   | "cardRadius"
   | "formMaxWidth"
-  | "formPadding";
+  | "formPadding"
+  | "overlayPosition"
+  | "stickyPosition"
+  | "entryTransition";
 
 type ThemeableStyle = Record<string, unknown>;
 type WebThemeBindings = Record<string, WebThemeToken>;
 
 const webThemeBindings = new WeakMap<object, WebThemeBindings>();
 
-const webThemeValues: Record<Exclude<WebThemeToken, "formPadding">, string> = {
+/**
+ * True when the viewer asked for reduced motion. Shared with native, where
+ * `window` does not exist, so every browser global is guarded.
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+const webThemeValues: Record<Exclude<WebThemeToken, "formPadding" | "entryTransition">, string> = {
   canvas: "var(--who-2022-web-color-canvas, #f5f7fa)",
   surface: "var(--who-2022-web-color-surface, #ffffff)",
   ink: "var(--who-2022-web-color-ink, #1f2937)",
@@ -44,7 +56,12 @@ const webThemeValues: Record<Exclude<WebThemeToken, "formPadding">, string> = {
   imageBackground: "var(--who-2022-web-color-image-background, #111827)",
   controlRadius: "var(--who-2022-web-radius-control, 8px)",
   cardRadius: "var(--who-2022-web-radius-card, 12px)",
-  formMaxWidth: "var(--who-2022-web-form-max-width, 48rem)"
+  formMaxWidth: "var(--who-2022-web-form-max-width, 64rem)",
+  // Browser-only positioning the native style system has no word for: the
+  // section drawer is fixed to the viewport, the section rail sticks while
+  // a long section scrolls. Native keeps the plain values.
+  overlayPosition: "fixed",
+  stickyPosition: "sticky"
 };
 
 /** Associates shared/native style properties with their semantic web tokens. */
@@ -61,7 +78,11 @@ export function applyWebTheme(style: unknown): unknown {
 
   const themedStyle: ThemeableStyle = { ...(style as ThemeableStyle) };
   for (const [property, token] of Object.entries(bindings)) {
-    if (token === "formPadding") {
+    if (token === "entryTransition") {
+      // A section that has just appeared fades in; no fade under reduced motion.
+      themedStyle.transitionProperty = "opacity";
+      themedStyle.transitionDuration = prefersReducedMotion() ? "0ms" : "400ms";
+    } else if (token === "formPadding") {
       delete themedStyle[property];
       const sharedFallback = "var(--who-2022-web-form-padding, clamp(1rem, 2.5vw, 1.5rem))";
       themedStyle.paddingBlock = `var(--who-2022-web-form-padding-block, ${sharedFallback})`;

@@ -4205,6 +4205,10 @@ export default {
   },
   ui: {
     sectionProgress: "अनुभाग {current} / {total}",
+    sections: "अनुभाग",
+    sectionsDone: "{count} पूरे",
+    moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे",
+    close: "बंद करें",
     back: "वापस",
     saveDraft: "प्रारूप सहेजें",
     saving: "सहेजा जा रहा है…",

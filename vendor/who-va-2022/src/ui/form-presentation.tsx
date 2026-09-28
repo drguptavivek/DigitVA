@@ -11,16 +11,16 @@ export function FooterIcon({
   name,
   primitives
 }: {
-  name: "preview" | "save";
+  name: "next" | "preview" | "save";
   primitives: Required<Pick<WhoVaPrimitiveSet, "Svg" | "SvgCircle" | "SvgPath">>;
 }): React.ReactElement {
   const { Svg, SvgCircle, SvgPath } = primitives;
   const iconProps = {
     fill: "none",
     height: 20,
-    // The brand-deep default; a literal because react-native-svg cannot read
-    // a CSS variable the way the themed text primitives can.
-    stroke: "#004687",
+    // Literals because react-native-svg cannot read a CSS variable the way the
+    // themed text primitives can: brand-deep, or white on the primary button.
+    stroke: name === "next" ? "#ffffff" : "#004687",
     strokeLinecap: "round",
     strokeLinejoin: "round",
     strokeWidth: 2,
@@ -29,7 +29,12 @@ export function FooterIcon({
   };
   return (
     <Svg {...iconProps} style={formStyles.icon} aria-hidden="true" focusable="false">
-      {name === "save" ? (
+      {name === "next" ? (
+        <>
+          <SvgPath d="M5 12h14" />
+          <SvgPath d="m13 6 6 6-6 6" />
+        </>
+      ) : name === "save" ? (
         <>
           <SvgPath d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
           <SvgPath d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
@@ -98,14 +103,7 @@ export function previewAnswer(
   return messages.recorded;
 }
 
-/**
- * True when the viewer asked for reduced motion. Shared with native, where
- * `window` does not exist, so every browser global is guarded.
- */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+export { prefersReducedMotion } from "./web-theme.js";
 
 // Line heights are explicit throughout: Devanagari, Bengali, Tamil, Kannada
 // and Malayalam carry marks above and below the baseline that a tight default
@@ -120,114 +118,10 @@ export const formStyles = {
     { color: "#47625b", marginBottom: 6, fontSize: 13, lineHeight: 18 },
     { color: "muted" }
   ),
-  sectionSwitcher: {
-    alignItems: "center" as const,
-    columnGap: 6,
-    flexDirection: "row" as const,
-    flexWrap: "nowrap" as const,
-    marginBottom: 16
-  },
-  sectionSwitcherViewport: {
-    flex: 1,
-    overflowX: "auto" as const,
-    overflowY: "hidden" as const
-  },
-  sectionSwitcherTrack: {
-    columnGap: 6,
-    flexDirection: "row" as const,
-    flexWrap: "nowrap" as const,
-    paddingVertical: 1
-  },
-  // A tab is a label over a progress track: the track fills as the section's
-  // required answers come in, so status reads as progress rather than as a
-  // badge floating over the corner.
-  sectionButton: withWebTheme(
-    {
-      backgroundColor: "#ffffff",
-      borderColor: "#dce6e1",
-      borderRadius: 8,
-      borderWidth: 1,
-      justifyContent: "space-between" as const,
-      minHeight: 48,
-      minWidth: 128,
-      width: 128,
-      overflow: "hidden" as const
-    },
-    { backgroundColor: "surface", borderColor: "border" }
-  ),
-  sectionButtonStarted: withWebTheme({ borderColor: "#8fbfaf" }, { borderColor: "controlBorder" }),
-  sectionButtonComplete: withWebTheme(
-    { backgroundColor: "#edf7f2", borderColor: "#147d64" },
-    { backgroundColor: "brandSoft", borderColor: "brand" }
-  ),
-  sectionButtonActive: withWebTheme(
-    { backgroundColor: "#12372d", borderColor: "#12372d" },
-    { backgroundColor: "brandDeep", borderColor: "brandDeep" }
-  ),
-  sectionButtonError: withWebTheme(
-    { backgroundColor: "#fff1f0", borderColor: "#d66552" },
-    { backgroundColor: "dangerSoft", borderColor: "dangerBorder" }
-  ),
-  sectionButtonBody: {
-    alignItems: "center" as const,
-    columnGap: 4,
-    flex: 1,
-    flexDirection: "row" as const,
-    justifyContent: "center" as const,
-    paddingHorizontal: 10,
-    paddingVertical: 8
-  },
-  sectionButtonText: withWebTheme(
-    {
-      color: "#183d33",
-      flexShrink: 1,
-      fontSize: 13,
-      fontWeight: "600" as const,
-      lineHeight: 18,
-      textAlign: "center" as const
-    },
-    { color: "ink" }
-  ),
-  sectionButtonTextActive: { color: "#ffffff" },
-  sectionButtonTextError: withWebTheme({ color: "#8c3022" }, { color: "dangerStrong" }),
-  sectionStatusGlyph: withWebTheme(
-    { color: "#147d64", fontSize: 13, fontWeight: "700" as const, lineHeight: 18 },
-    { color: "brand" }
-  ),
-  sectionStatusGlyphActive: { color: "#ffffff" },
-  sectionProgressTrack: withWebTheme(
-    { backgroundColor: "#dce6e1", height: 4, width: "100%" },
-    { backgroundColor: "border" }
-  ),
-  sectionProgressTrackActive: { backgroundColor: "rgba(255, 255, 255, 0.3)" },
-  sectionProgressFill: withWebTheme({ backgroundColor: "#147d64", height: 4 }, { backgroundColor: "brand" }),
-  sectionProgressFillStarted: { width: "50%" },
-  sectionProgressFillComplete: { width: "100%" },
-  sectionProgressFillActive: { backgroundColor: "#ffffff" },
-  sectionSliderButton: withWebTheme(
-    {
-      alignItems: "center" as const,
-      backgroundColor: "#ffffff",
-      borderColor: "#dce6e1",
-      borderRadius: 8,
-      borderWidth: 1,
-      justifyContent: "center" as const,
-      minHeight: 44,
-      minWidth: 40,
-      paddingHorizontal: 0,
-      paddingVertical: 0
-    },
-    { backgroundColor: "surface", borderColor: "border" }
-  ),
-  sectionSliderButtonDisabled: withWebTheme(
-    { backgroundColor: "#eef3f0", borderColor: "#dce6e1", opacity: 0.55 },
-    { backgroundColor: "canvas", borderColor: "border" }
-  ),
-  sectionSliderButtonText: withWebTheme(
-    { color: "#183d33", fontSize: 18, fontWeight: "700" as const, lineHeight: 22 },
-    { color: "ink" }
-  ),
-  sectionSliderButtonTextDisabled: withWebTheme({ color: "#8ca099" }, { color: "muted" }),
+  shell: { flex: 1, position: "relative" as const },
+  // Wide layout: the section rail beside the question column.
+  layoutRow: { alignItems: "flex-start" as const, columnGap: 20, flexDirection: "row" as const },
+  mainColumn: { flex: 1, minWidth: 0 },
   sectionTitle: withWebTheme(
     { color: "#12372d", fontSize: 22, fontWeight: "700" as const, lineHeight: 30, marginBottom: 12 },
     { color: "brandDeep" }
@@ -257,6 +151,11 @@ export const formStyles = {
     { borderLeftWidth: 3, borderLeftColor: "#d66552", marginLeft: -16, paddingLeft: 13 },
     { borderLeftColor: "dangerBorder" }
   ),
+  // Wide forms put the label, code and hint in a left column and the control
+  // in a right one; narrow forms stack them.
+  questionRow: { columnGap: 24, flexDirection: "row" as const },
+  questionLead: { flexBasis: "36%" as const, flexGrow: 0, flexShrink: 0, maxWidth: 300 },
+  questionBody: { flex: 1, minWidth: 0 },
   questionHeader: {
     alignItems: "flex-start" as const,
     columnGap: 8,
@@ -325,7 +224,7 @@ export const formStyles = {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const,
     alignItems: "center" as const,
-    justifyContent: "flex-end" as const,
+    justifyContent: "center" as const,
     marginTop: 16,
     marginBottom: 8,
     rowGap: 8
@@ -341,7 +240,25 @@ export const formStyles = {
     paddingHorizontal: 12,
     paddingVertical: 10
   },
-  navPrimaryButton: { minHeight: 44, minWidth: 96, paddingHorizontal: 18, paddingVertical: 10 },
+  navPrimaryButton: {
+    alignItems: "center" as const,
+    columnGap: 8,
+    flexDirection: "row" as const,
+    justifyContent: "center" as const,
+    minHeight: 44,
+    minWidth: 112,
+    paddingHorizontal: 18,
+    paddingVertical: 10
+  },
+  // Narrow layout: a small secondary row (save, preview) above a full-width
+  // row of Back and Next.
+  navigationNarrow: { marginTop: 16, marginBottom: 8, rowGap: 8 },
+  navRowSecondary: { columnGap: 8, flexDirection: "row" as const, justifyContent: "flex-end" as const },
+  navRowPrimary: { columnGap: 8, flexDirection: "row" as const },
+  navSmallButton: { minHeight: 40, paddingHorizontal: 10, paddingVertical: 8 },
+  navSmallText: { fontSize: 14 },
+  navGrow: { flex: 1 },
+  navGrowPrimary: { flex: 2 },
   icon: { height: 20, width: 20 },
   draftStatus: withWebTheme(
     {

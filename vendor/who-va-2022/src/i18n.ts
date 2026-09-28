@@ -22,6 +22,10 @@ export type InstrumentTranslations = Record<string, InstrumentTranslation>;
 /** JSON-serializable UI strings. Braced names such as {label} are replaced at runtime. */
 export interface WhoVaUiMessageTemplates {
   sectionProgress: string;
+  sections: string;
+  sectionsDone: string;
+  moreSectionsNote: string;
+  close: string;
   back: string;
   saveDraft: string;
   saving: string;
@@ -123,6 +127,10 @@ export interface WhoVaLanguageLoaderOptions {
 
 export interface WhoVaUiMessages {
   sectionProgress: (current: number, total: number) => string;
+  sections: string;
+  sectionsDone: (count: number) => string;
+  moreSectionsNote: string;
+  close: string;
   back: string;
   saveDraft: string;
   saving: string;
@@ -205,6 +213,10 @@ export type WhoVaUiTranslations = Record<string, Partial<WhoVaUiMessageTemplates
 
 export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   sectionProgress: "Section {current} of {total}",
+  sections: "Sections",
+  sectionsDone: "{count} done",
+  moreSectionsNote: "More sections appear as you answer",
+  close: "Close",
   back: "Back",
   saveDraft: "Save draft",
   saving: "Saving…",
@@ -296,6 +308,7 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
   return {
     ...templates,
     sectionProgress: (current, total) => format(templates.sectionProgress, { current, total }),
+    sectionsDone: (count) => format(templates.sectionsDone, { count }),
     draftSaved: (id) => format(templates.draftSaved, { id }),
     draftId: (id) => format(templates.draftId, { id }),
     required: (label) => format(templates.required, { label }),

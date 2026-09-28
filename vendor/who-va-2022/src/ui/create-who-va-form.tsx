@@ -29,6 +29,7 @@ import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } f
 import { WHO_VA_FORM_VERSION } from "../version.js";
 import { englishAlongside } from "./localize.js";
 import { createRichText } from "./rich-text-view.js";
+import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import {
   createWhoVaQuestionControls,
   questionControlStyles,
@@ -109,6 +110,15 @@ export interface WhoVaPrimitiveSet {
 }
 
 type FormView = "form" | "preview";
+type DraftStatus = "idle" | "saving" | "saved" | "error";
+/**
+ * Form-width breakpoints (the form's own width, not the window's). Below
+ * MEDIUM the section rail and the label-left question layout give way to the
+ * horizontal stepper, drawer and stacked labels; below COMPACT the footer
+ * stacks into two rows.
+ */
+const MEDIUM_FORM_WIDTH = 900;
+const COMPACT_FORM_WIDTH = 600;
 type SectionProgressStatus = "empty" | "started" | "complete";
 
 function isAnswerableQuestion(question: InstrumentQuestion): boolean {
@@ -183,6 +193,50 @@ function sectionStatuses({
   );
 }
 
+/**
+ * The visible sections as stepper items. Depth counts the visible ancestors,
+ * so nesting reads as indentation; an ancestor that is not itself a page (it
+ * holds no questions, like the WHO "deceased_CRVS" wrapper) becomes a plain
+ * heading above its first visible child.
+ */
+function sectionNavItems({
+  instrument,
+  issueSectionNames,
+  locale,
+  sectionProgress,
+  snapshot
+}: {
+  instrument: InstrumentDefinition;
+  issueSectionNames: ReadonlySet<string>;
+  locale: string;
+  sectionProgress: ReadonlyMap<string, SectionProgressStatus>;
+  snapshot: SessionSnapshot;
+}): SectionNavItem[] {
+  const byName = new Map(instrument.sections.map((section) => [section.name, section]));
+  const visible = new Set(snapshot.visibleSections.map((section) => section.name));
+  const headed = new Set<string>();
+  return snapshot.visibleSections.map((section, index) => {
+    let depth = 0;
+    let groupLabel: string | undefined;
+    for (let parent = section.parent; parent; parent = byName.get(parent)?.parent) {
+      if (visible.has(parent)) depth += 1;
+      else if (!headed.has(parent) && !groupLabel) {
+        headed.add(parent);
+        const parentSection = byName.get(parent);
+        if (parentSection) groupLabel = localized(parentSection.label, locale, parent);
+      }
+    }
+    return {
+      name: section.name,
+      label: `${index + 1}. ${localized(section.label, locale, section.name)}`,
+      status: issueSectionNames.has(section.name) ? "issues" : (sectionProgress.get(section.name) ?? "empty"),
+      active: section.name === snapshot.currentSection.name,
+      depth,
+      ...(groupLabel ? { groupLabel } : {})
+    };
+  });
+}
+
 export interface WhoVaNavigationState {
   instrumentId: string;
   draftId: string;
@@ -199,22 +253,6 @@ export interface WhoVaNavigationAdapter {
   subscribe(listener: (state: WhoVaNavigationState | undefined) => void): () => void;
 }
 
-function sectionSliderState(snapshot: SessionSnapshot) {
-  const activeIndex = Math.max(
-    0,
-    snapshot.visibleSections.findIndex((section) => section.name === snapshot.currentSection.name)
-  );
-  const sectionCount = snapshot.visibleSections.length;
-
-  return {
-    activeIndex,
-    canGoBack: activeIndex > 0,
-    canGoForward: activeIndex < sectionCount - 1,
-    previousSection: snapshot.visibleSections[activeIndex - 1],
-    nextSection: snapshot.visibleSections[activeIndex + 1]
-  };
-}
-
 export function createWhoVaForm(
   primitives: WhoVaPrimitiveSet,
   loadDefaultInstrument?: () => Promise<InstrumentDefinition>
@@ -229,6 +267,12 @@ export function createWhoVaForm(
     primitives.Svg && primitives.SvgCircle && primitives.SvgPath
       ? { Svg: primitives.Svg, SvgCircle: primitives.SvgCircle, SvgPath: primitives.SvgPath }
       : undefined;
+  const { SectionRail, SectionHeaderBar, SectionDrawer } = createSectionNavigation({
+    View,
+    Text,
+    Pressable,
+    ScrollView
+  });
   const questionControls = createWhoVaQuestionControls({
     View,
     Text,
@@ -240,145 +284,129 @@ export function createWhoVaForm(
     platform: primitives.platform
   });
 
-  function SectionSwitcher({
-    issueSectionNames,
-    locale,
+  // The icons decorate a visible text label, so a primitive set without SVG
+  // simply shows the label alone.
+  const saveDraftIcon = svgPrimitives ? <FooterIcon name="save" primitives={svgPrimitives} /> : null;
+  const previewIcon = svgPrimitives ? <FooterIcon name="preview" primitives={svgPrimitives} /> : null;
+  const nextIcon = svgPrimitives ? <FooterIcon name="next" primitives={svgPrimitives} /> : null;
+
+  /**
+   * Back, Save draft, Preview answers, Next. Back and Next are the
+   * sequential controls; the section rail and drawer are the random-access
+   * ones, so the old "<" ">" arrows beside the tab strip, which duplicated
+   * Back and Next, are gone. Narrow forms stack a small secondary row (save,
+   * preview) above a full-width row of Back and Next.
+   */
+  function FormFooter({
+    canGoBack,
+    canGoForward,
+    canSave,
+    draftStatus,
     messages,
-    sectionProgress,
-    snapshot,
-    switchSection
+    narrow,
+    onBack,
+    onNext,
+    onPreview,
+    onSave
   }: {
-    issueSectionNames: ReadonlySet<string>;
-    locale: string;
+    canGoBack: boolean;
+    canGoForward: boolean;
+    canSave: boolean;
+    draftStatus: DraftStatus;
     messages: ReturnType<typeof resolveUiMessages>;
-    sectionProgress: ReadonlyMap<string, SectionProgressStatus>;
-    snapshot: SessionSnapshot;
-    switchSection: (sectionName: string) => void;
+    narrow: boolean;
+    onBack: () => void;
+    onNext: () => void;
+    onPreview: () => void;
+    onSave: () => void;
   }) {
-    const sectionSlider = sectionSliderState(snapshot);
-    const sectionTrackRef = useRef<unknown>(null);
-
-    useEffect(() => {
-      const scrollView = sectionTrackRef.current as {
-        scrollTo?: (options: { animated: boolean; x: number }) => void;
-      } | null;
-      scrollView?.scrollTo?.({
-        x: Math.max(sectionSlider.activeIndex - 1, 0) * 134,
-        animated: !prefersReducedMotion()
-      });
-    }, [sectionSlider.activeIndex]);
-
+    const saving = draftStatus === "saving";
+    const backButton = (
+      <Pressable
+        accessibilityRole="button"
+        disabled={!canGoBack}
+        style={[
+          questionControlStyles.button,
+          questionControlStyles.buttonSecondary,
+          styles.navButton,
+          narrow && styles.navGrow,
+          !canGoBack && questionControlStyles.buttonDisabled
+        ]}
+        onPress={onBack}
+      >
+        <Text style={questionControlStyles.buttonTextSecondary}>{messages.back}</Text>
+      </Pressable>
+    );
+    const saveButton = (
+      <Pressable
+        accessibilityRole="button"
+        disabled={!canSave || saving}
+        style={[
+          questionControlStyles.button,
+          questionControlStyles.buttonSecondary,
+          styles.navIconButton,
+          narrow && styles.navSmallButton,
+          (!canSave || saving) && questionControlStyles.buttonDisabled
+        ]}
+        onPress={onSave}
+        accessibilityLabel={saving ? messages.saving : messages.saveDraft}
+      >
+        {saveDraftIcon}
+        <Text style={[questionControlStyles.buttonTextSecondary, narrow && styles.navSmallText]}>
+          {saving ? messages.saving : messages.saveDraft}
+        </Text>
+      </Pressable>
+    );
+    const previewButton = (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={messages.previewAnswers}
+        style={[
+          questionControlStyles.button,
+          questionControlStyles.buttonSecondary,
+          styles.navIconButton,
+          narrow && styles.navSmallButton
+        ]}
+        onPress={onPreview}
+      >
+        {previewIcon}
+        <Text style={[questionControlStyles.buttonTextSecondary, narrow && styles.navSmallText]}>
+          {messages.previewAnswers}
+        </Text>
+      </Pressable>
+    );
+    const nextButton = (
+      <Pressable
+        accessibilityRole="button"
+        style={[questionControlStyles.button, styles.navPrimaryButton, narrow && styles.navGrowPrimary]}
+        onPress={onNext}
+      >
+        <Text style={questionControlStyles.buttonText}>
+          {canGoForward ? messages.next : messages.complete}
+        </Text>
+        {nextIcon}
+      </Pressable>
+    );
+    if (!narrow) {
+      return (
+        <View style={styles.navigation}>
+          {backButton}
+          {saveButton}
+          {previewButton}
+          {nextButton}
+        </View>
+      );
+    }
     return (
-      <View testID="section-switcher" style={styles.sectionSwitcher}>
-        <Pressable
-          accessibilityLabel={messages.back}
-          accessibilityRole="button"
-          disabled={!sectionSlider.canGoBack}
-          onPress={() => sectionSlider.previousSection && switchSection(sectionSlider.previousSection.name)}
-          style={[styles.sectionSliderButton, !sectionSlider.canGoBack && styles.sectionSliderButtonDisabled]}
-        >
-          <Text
-            style={[
-              styles.sectionSliderButtonText,
-              !sectionSlider.canGoBack && styles.sectionSliderButtonTextDisabled
-            ]}
-          >
-            {"<"}
-          </Text>
-        </Pressable>
-        <ScrollView
-          ref={sectionTrackRef}
-          testID="section-slider"
-          contentContainerStyle={styles.sectionSwitcherTrack}
-          horizontal
-          keyboardShouldPersistTaps="handled"
-          showsHorizontalScrollIndicator={false}
-          style={styles.sectionSwitcherViewport}
-        >
-          {snapshot.visibleSections.map((section, index) => {
-            const isActive = section.name === snapshot.currentSection.name;
-            const hasSectionIssues = issueSectionNames.has(section.name);
-            const progress = sectionProgress.get(section.name) ?? "empty";
-            const isComplete = progress === "complete";
-            const isStarted = progress === "started";
-            const sectionLabel = `${index + 1}. ${localized(section.label, locale, section.name)}`;
-            return (
-              <Pressable
-                accessibilityLabel={`${sectionLabel}${isComplete ? ", completed" : isStarted ? ", started" : ""}`}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-                testID="section-slider-item"
-                aria-invalid={hasSectionIssues || undefined}
-                key={section.name}
-                onPress={() => switchSection(section.name)}
-                style={[
-                  styles.sectionButton,
-                  isStarted && !hasSectionIssues && styles.sectionButtonStarted,
-                  isComplete && !hasSectionIssues && styles.sectionButtonComplete,
-                  hasSectionIssues && !isActive && styles.sectionButtonError,
-                  isActive && styles.sectionButtonActive
-                ]}
-              >
-                <View style={styles.sectionButtonBody}>
-                  {isComplete ? (
-                    <Text
-                      aria-hidden="true"
-                      style={[styles.sectionStatusGlyph, isActive && styles.sectionStatusGlyphActive]}
-                      testID={`section-status-${section.name}`}
-                    >
-                      ✓
-                    </Text>
-                  ) : null}
-                  <Text
-                    numberOfLines={2}
-                    style={[
-                      styles.sectionButtonText,
-                      hasSectionIssues && !isActive && styles.sectionButtonTextError,
-                      isActive && styles.sectionButtonTextActive
-                    ]}
-                  >
-                    {sectionLabel}
-                  </Text>
-                </View>
-                <View
-                  aria-hidden="true"
-                  style={[styles.sectionProgressTrack, isActive && styles.sectionProgressTrackActive]}
-                >
-                  {isComplete || isStarted ? (
-                    <View
-                      style={[
-                        styles.sectionProgressFill,
-                        isStarted && styles.sectionProgressFillStarted,
-                        isComplete && styles.sectionProgressFillComplete,
-                        isActive && styles.sectionProgressFillActive
-                      ]}
-                      {...(isStarted ? { testID: `section-status-${section.name}` } : {})}
-                    />
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <Pressable
-          accessibilityLabel={messages.next}
-          accessibilityRole="button"
-          disabled={!sectionSlider.canGoForward}
-          onPress={() => sectionSlider.nextSection && switchSection(sectionSlider.nextSection.name)}
-          style={[
-            styles.sectionSliderButton,
-            !sectionSlider.canGoForward && styles.sectionSliderButtonDisabled
-          ]}
-        >
-          <Text
-            style={[
-              styles.sectionSliderButtonText,
-              !sectionSlider.canGoForward && styles.sectionSliderButtonTextDisabled
-            ]}
-          >
-            {">"}
-          </Text>
-        </Pressable>
+      <View style={styles.navigationNarrow}>
+        <View style={styles.navRowSecondary}>
+          {saveButton}
+          {previewButton}
+        </View>
+        <View style={styles.navRowPrimary}>
+          {backButton}
+          {nextButton}
+        </View>
       </View>
     );
   }
@@ -395,10 +423,6 @@ export function createWhoVaForm(
       () => resolveUiMessages(locale, props.uiTranslations),
       [locale, props.uiTranslations]
     );
-    // The icons decorate a visible text label, so a primitive set without SVG
-    // simply shows the label alone.
-    const saveDraftIcon = svgPrimitives ? <FooterIcon name="save" primitives={svgPrimitives} /> : null;
-    const previewIcon = svgPrimitives ? <FooterIcon name="preview" primitives={svgPrimitives} /> : null;
     const [restoredNavigation] = useState(() => {
       const restored = primitives.navigation?.read();
       if (restored?.instrumentId !== instrument.id) return undefined;
@@ -426,7 +450,7 @@ export function createWhoVaForm(
     const [view, setView] = useState<FormView>(restoredNavigation?.view ?? "form");
     const [draftIssues, setDraftIssues] = useState<Record<string, ValidationIssue>>({});
     const [draftId] = useState(() => props.draftId ?? restoredNavigation?.draftId ?? createDraftId());
-    const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+    const [draftStatus, setDraftStatus] = useState<DraftStatus>("idle");
     const autoSaveDraftIntervalMs = props.autoSaveDraftIntervalMs ?? 20_000;
     const draftCreatedAt = useRef(new Date().toISOString());
     const draftSaveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -434,6 +458,14 @@ export function createWhoVaForm(
     const onDraftErrorRef = useRef(onDraftError);
     const onDraftSavedRef = useRef(onDraftSaved);
     const scrollViewRef = useRef<unknown>(null);
+    // The form lays itself out by its own width, not the window's: a rail
+    // beside the questions when there is room, a header bar and drawer when
+    // there is not. Until the first layout the wide layout is assumed.
+    const [shellWidth, setShellWidth] = useState(0);
+    const medium = shellWidth > 0 && shellWidth < MEDIUM_FORM_WIDTH;
+    const compact = shellWidth > 0 && shellWidth < COMPACT_FORM_WIDTH;
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const drawerToggleRef = useRef<unknown>(null);
     const questionRefs = useRef<Record<string, unknown>>({});
     const questionPositions = useRef<Record<string, number>>({});
 
@@ -536,6 +568,7 @@ export function createWhoVaForm(
     };
 
     const switchSection = (sectionName: string) => {
+      setDrawerOpen(false);
       if (sectionName === snapshot.currentSection.name) return;
       const moved = session.goToSection(sectionName);
       if (!moved) return;
@@ -654,6 +687,9 @@ export function createWhoVaForm(
       const hintEnglish = englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : "";
       const hasIssues = issues.length > 0;
       const isQuestionComplete = isAnswerableQuestion(question) && hasAnswer(value) && !hasIssues;
+      // Notes read as prose and keep the full width; everything else goes
+      // label-left when the form is wide enough.
+      const splitLayout = !medium && question.control !== "note";
 
       const control = (
         <questionControls.Control
@@ -682,64 +718,69 @@ export function createWhoVaForm(
           }}
           style={[
             styles.question,
+            splitLayout && styles.questionRow,
             question.control === "note" && styles.note,
             hasIssues && styles.questionError
           ]}
           testID={`question-card-${question.name}`}
         >
-          {code && showQuestionCodes ? (
-            <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
-              {code}
-            </Text>
-          ) : null}
-          <View style={styles.questionHeader}>
-            <Text style={[styles.label, isQuestionComplete && styles.labelWithStatus]}>
-              <RichText source={label} />
-              {question.required && question.control !== "note" ? (
-                <Text style={styles.required}> *</Text>
+          <View style={[splitLayout && styles.questionLead]}>
+            {code && showQuestionCodes ? (
+              <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
+                {code}
+              </Text>
+            ) : null}
+            <View style={styles.questionHeader}>
+              <Text style={[styles.label, isQuestionComplete && styles.labelWithStatus]}>
+                <RichText source={label} />
+                {question.required && question.control !== "note" ? (
+                  <Text style={styles.required}> *</Text>
+                ) : null}
+              </Text>
+              {isQuestionComplete ? (
+                <View
+                  accessibilityLabel="Answered"
+                  style={styles.questionStatusBadge}
+                  testID={`question-status-${question.name}`}
+                >
+                  <Text style={styles.questionStatusBadgeText}>✓</Text>
+                </View>
               ) : null}
-            </Text>
-            {isQuestionComplete ? (
-              <View
-                accessibilityLabel="Answered"
-                style={styles.questionStatusBadge}
-                testID={`question-status-${question.name}`}
-              >
-                <Text style={styles.questionStatusBadgeText}>✓</Text>
-              </View>
+            </View>
+            {labelEnglish ? (
+              <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
+                <RichText source={labelEnglish} />
+              </Text>
+            ) : null}
+            {hint ? (
+              <Text style={styles.hint}>
+                <RichText source={hint} />
+              </Text>
+            ) : null}
+            {hintEnglish ? (
+              <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
+                <RichText source={hintEnglish} />
+              </Text>
+            ) : null}
+            {props.showSourceGuidance && guidance ? (
+              <Text style={styles.guidance}>
+                <RichText source={guidance} />
+              </Text>
             ) : null}
           </View>
-          {labelEnglish ? (
-            <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
-              <RichText source={labelEnglish} />
-            </Text>
-          ) : null}
-          {hint ? (
-            <Text style={styles.hint}>
-              <RichText source={hint} />
-            </Text>
-          ) : null}
-          {hintEnglish ? (
-            <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
-              <RichText source={hintEnglish} />
-            </Text>
-          ) : null}
-          {props.showSourceGuidance && guidance ? (
-            <Text style={styles.guidance}>
-              <RichText source={guidance} />
-            </Text>
-          ) : null}
-          {control}
-          {issues.map((issue) => (
-            <Text
-              key={`${issue.code}-${issue.message}`}
-              style={styles.error}
-              accessibilityLiveRegion="polite"
-              role="alert"
-            >
-              {issue.message}
-            </Text>
-          ))}
+          <View style={[splitLayout && styles.questionBody]}>
+            {control}
+            {issues.map((issue) => (
+              <Text
+                key={`${issue.code}-${issue.message}`}
+                style={styles.error}
+                accessibilityLiveRegion="polite"
+                role="alert"
+              >
+                {splitQuestionCode(issue.message).text}
+              </Text>
+            ))}
+          </View>
         </View>
       );
     };
@@ -793,6 +834,27 @@ export function createWhoVaForm(
       () => sectionStatuses({ draftIssues, instrument, locale, messages, snapshot }),
       [draftIssues, instrument, locale, messages, snapshot]
     );
+    const navItems = useMemo<SectionNavItem[]>(
+      () =>
+        sectionNavItems({
+          instrument,
+          issueSectionNames,
+          locale,
+          sectionProgress,
+          snapshot
+        }),
+      [instrument, issueSectionNames, locale, sectionProgress, snapshot]
+    );
+    // Most of the instrument sits behind consent and the age group: three
+    // pages are visible before consent, fifteen to twenty after, out of some
+    // thirty. While fewer than a third are visible, say that more will come.
+    const moreToCome = useMemo(() => {
+      const runtimeIndex = getInstrumentRuntimeIndex(instrument);
+      const pages = instrument.sections.filter((section) =>
+        (runtimeIndex.questionsBySection.get(section.name) ?? []).some(isAnswerableQuestion)
+      ).length;
+      return snapshot.visibleSections.length * 3 < pages;
+    }, [instrument, snapshot.visibleSections.length]);
 
     if (view === "preview") {
       return (
@@ -852,98 +914,42 @@ export function createWhoVaForm(
       );
     }
 
-    return (
-      <ScrollView
-        key="form"
-        ref={scrollViewRef}
-        style={styles.root}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.progress}>
-          {messages.sectionProgress(snapshot.currentSectionIndex + 1, snapshot.visibleSectionCount)}
-        </Text>
-        <SectionSwitcher
-          issueSectionNames={issueSectionNames}
-          locale={locale}
-          messages={messages}
-          sectionProgress={sectionProgress}
-          snapshot={snapshot}
-          switchSection={switchSection}
-        />
+    const navigation = (
+      <FormFooter
+        canGoBack={snapshot.canGoBack}
+        canGoForward={snapshot.canGoForward}
+        canSave={Boolean(props.draftStore ?? primitives.draftStore)}
+        draftStatus={draftStatus}
+        messages={messages}
+        narrow={compact}
+        onBack={() => {
+          void saveDraft().then(() => {
+            session.previous();
+          });
+        }}
+        onNext={advance}
+        onPreview={() => {
+          void saveDraft().then(() => {
+            primitives.navigation?.push({
+              instrumentId: instrument.id,
+              draftId,
+              currentSection: snapshot.currentSection.name,
+              view: "preview"
+            });
+            setView("preview");
+          });
+        }}
+        onSave={() => void saveDraft()}
+      />
+    );
+
+    const sectionBody = (
+      <>
         <Text style={styles.sectionTitle}>
           {localized(snapshot.currentSection.label, locale, snapshot.currentSection.name)}
         </Text>
         <View style={styles.sectionCard}>{snapshot.questions.map(renderQuestion)}</View>
-        <View style={styles.navigation}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={!snapshot.canGoBack}
-            style={[
-              questionControlStyles.button,
-              questionControlStyles.buttonSecondary,
-              styles.navButton,
-              !snapshot.canGoBack && questionControlStyles.buttonDisabled
-            ]}
-            onPress={() => {
-              void saveDraft().then(() => {
-                session.previous();
-              });
-            }}
-          >
-            <Text style={questionControlStyles.buttonTextSecondary}>{messages.back}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={!(props.draftStore ?? primitives.draftStore) || draftStatus === "saving"}
-            style={[
-              questionControlStyles.button,
-              questionControlStyles.buttonSecondary,
-              styles.navIconButton,
-              (!(props.draftStore ?? primitives.draftStore) || draftStatus === "saving") &&
-                questionControlStyles.buttonDisabled
-            ]}
-            onPress={() => void saveDraft()}
-            accessibilityLabel={draftStatus === "saving" ? messages.saving : messages.saveDraft}
-          >
-            {saveDraftIcon}
-            <Text style={questionControlStyles.buttonTextSecondary}>
-              {draftStatus === "saving" ? messages.saving : messages.saveDraft}
-            </Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={messages.previewAnswers}
-            style={[
-              questionControlStyles.button,
-              questionControlStyles.buttonSecondary,
-              styles.navIconButton
-            ]}
-            onPress={() => {
-              void saveDraft().then(() => {
-                primitives.navigation?.push({
-                  instrumentId: instrument.id,
-                  draftId,
-                  currentSection: snapshot.currentSection.name,
-                  view: "preview"
-                });
-                setView("preview");
-              });
-            }}
-          >
-            {previewIcon}
-            <Text style={questionControlStyles.buttonTextSecondary}>{messages.previewAnswers}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            style={[questionControlStyles.button, styles.navPrimaryButton]}
-            onPress={advance}
-          >
-            <Text style={questionControlStyles.buttonText}>
-              {snapshot.canGoForward ? messages.next : messages.complete}
-            </Text>
-          </Pressable>
-        </View>
+        {navigation}
         <Text style={styles.draftStatus}>
           {draftStatus === "saved"
             ? messages.draftSaved(draftId)
@@ -951,7 +957,64 @@ export function createWhoVaForm(
               ? messages.draftSaveFailed
               : messages.draftId(draftId)}
         </Text>
-      </ScrollView>
+      </>
+    );
+
+    return (
+      <View
+        style={styles.shell}
+        onLayout={(event: { nativeEvent: { layout: { width: number } } }) =>
+          setShellWidth(event.nativeEvent.layout.width)
+        }
+      >
+        <ScrollView
+          key="form"
+          ref={scrollViewRef}
+          style={styles.root}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {medium ? (
+            <>
+              <SectionHeaderBar
+                current={snapshot.currentSectionIndex + 1}
+                items={navItems}
+                messages={messages}
+                moreToCome={moreToCome}
+                onOpen={() => setDrawerOpen(true)}
+                open={drawerOpen}
+                toggleRef={drawerToggleRef}
+                total={snapshot.visibleSectionCount}
+              />
+              {sectionBody}
+            </>
+          ) : (
+            <View style={styles.layoutRow}>
+              <SectionRail
+                items={navItems}
+                messages={messages}
+                moreToCome={moreToCome}
+                onSelect={switchSection}
+              />
+              <View style={styles.mainColumn}>
+                <Text style={styles.progress}>
+                  {messages.sectionProgress(snapshot.currentSectionIndex + 1, snapshot.visibleSectionCount)}
+                </Text>
+                {sectionBody}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+        <SectionDrawer
+          items={navItems}
+          messages={messages}
+          moreToCome={moreToCome}
+          onClose={() => setDrawerOpen(false)}
+          onSelect={switchSection}
+          open={medium && drawerOpen}
+          toggleRef={drawerToggleRef}
+        />
+      </View>
     );
   }
 

@@ -149,3 +149,32 @@ describe("framework-independent web embedding", () => {
     await vi.waitFor(() => expect(savedDraft?.data.Id10010).toBe("Autosaved interviewer"));
   });
 });
+
+describe("section stepper", () => {
+  it("lists every visible section, notes that more will appear, and opens no drawer when wide", async () => {
+    defineWhoVaElement("who-va-stepper-test");
+    const element = document.createElement("who-va-stepper-test") as WhoVaFormElement;
+    document.body.append(element);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // jsdom reports no layout, so the form takes its wide layout: a rail, no drawer toggle.
+    expect(element.querySelector('[data-testid="section-rail"]')).not.toBeNull();
+    expect(element.querySelector('[data-testid="section-drawer-toggle"]')).toBeNull();
+    const items = element.querySelectorAll('[data-testid="section-slider-item"]');
+    expect(items).toHaveLength(3);
+    expect(items[0]?.getAttribute("aria-label")).toBe("1. VA interviewer");
+    expect(element.textContent).toContain("More sections appear as you answer");
+    element.setData({
+      Id10013: "yes",
+      Id10019: "male",
+      Id10020: "yes",
+      Id10021: "1980-01-01",
+      Id10022: "yes",
+      Id10023_a: "2026-07-17"
+    });
+    await vi.waitFor(() =>
+      expect(element.querySelectorAll('[data-testid="section-slider-item"]').length).toBeGreaterThan(10)
+    );
+    expect(element.textContent).not.toContain("More sections appear as you answer");
+    element.remove();
+  });
+});

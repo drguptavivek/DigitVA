@@ -1,7 +1,7 @@
 ---
 title: Web VA questionnaire visual pass (before/after)
 doc_type: design
-status: proposed
+status: approved
 owner: engineering
 last_updated: 2026-09-28
 ---
@@ -87,7 +87,120 @@ accessibility label is kept.
 9. **Demo CSS.** `demo/style.css` no longer re-cards every question or
    forces the old 112 px tab width, so the demo shows what the package draws.
 
-## Vendoring (one-command follow-up, after approval)
+## Round 2: section navigation redesign (`after-v2-*`)
+
+Owner-approved round 1, then asked for a stepper in the style of the
+reference designs, laid out by the form's own width. Round 2 supersedes the
+`after-*` captures above; the `after-*` files are kept as the approved
+round-1 state.
+
+| View | File |
+| --- | --- |
+| First section, fresh form (phone 390 / tablet 820 / desktop 1280) | `after-v2-section1-phone.png`, `after-v2-section1-tablet.png`, `after-v2-section1-desktop.png` |
+| After consent + adult, on section 4 of 15 (statuses, nesting) | `after-v2-progress-phone.png`, `after-v2-progress-tablet.png`, `after-v2-progress-desktop.png` |
+| Phone drawer open | `after-v2-drawer-phone.png` |
+| Validation errors after Next | `after-v2-validation-phone.png`, `after-v2-validation-desktop.png` |
+| Hindi with English alongside | `after-v2-hindi-phone.png`, `after-v2-hindi-desktop.png`, `after-v2-hindi-drawer-phone.png` |
+
+### The section count is not fixed
+
+Measured with the real engine (`createWhoVaSession(...).getSnapshot().visibleSections`,
+script in the session scratchpad; WHO core = `createWhoVa2022Instrument([])`):
+
+| Scenario | Visible sections | Names |
+| --- | --- | --- |
+| (a) fresh form | 3 | Interviewer, presets, respondent_backgr |
+| (b) consent yes + adult male (born 1980) | 15 | + info_on_deceased, narrat, med_hist_final_illness, injuries_accidents, illhistory, illdur, signs_symptoms_final_illness, risk_factors, health_service_utilization, vital_reg_certif, deathcert, consented |
+| (c) consent + adult female, 30 | 18 | (b) + pregnancy_women, group_maternal, deliverytype |
+| (d) consent + child (born 2022) | 15 | (b) minus risk_factors, plus neonatal_childA |
+| (e) consent + neonate (27 days) | 18 | (b) minus med_hist_final_illness/risk_factors, plus stillbirth, neonatal_childC, neonatal_childA, neonatal_childB, mother_deliv |
+| (f) adult male + injury yes | 16 | (b) + injuries_accidents_yes |
+| (g) all DigitVA extensions + adult male | 17 | (b) + digitva_documents, socioeconomic (social autopsy; reachinghealthcare and eventchronology are gated further) |
+
+The WHO core has 30 sections, 4 top-level, nesting to depth 5; 26 carry
+questions (1 to 164, median 7) and are the pages the engine steps through
+(`deceased_CRVS` and `neonatal_child` hold no questions and never page).
+Symptom-gated pages (breathdur, paindur, abdominal_pain) appear mid-interview.
+
+### What the stepper does about it
+
+- Items are keyed by section name, so a section appearing or vanishing does
+  not move the current one; the total is always the current visible count
+  ("Section 4 of 15" means 15 now). While fewer than a third of the
+  instrument's pages are visible (the pre-consent state: 3 of ~32) a muted
+  "More sections appear as you answer" note sits under the list; it goes
+  away once consent and age group have opened the form up. A section that
+  has just appeared fades in over 400 ms, 0 ms under `prefers-reduced-motion`.
+- **Wide (form >= 900 px):** vertical stepper rail beside the questions
+  (`section-rail`, sticky). Circles: empty ring = not started, half-filled
+  ring = in progress, ring + tick = complete, red ring + "!" = has issues,
+  filled brand circle + white dot = current; the line is brand-coloured up
+  to the current step. Names wrap, never truncate. Nested sections are
+  indented under their parent page (Health history > Duration of illness,
+  Signs and symptoms, ...); a parent that is not a page (WHO
+  `deceased_CRVS`, DigitVA `socialautopsy`) becomes a small uppercase
+  heading. Collapsible groups were considered and not built: the list peaks
+  at about 20 items, fits the rail without scrolling, and folding a group
+  would hide the per-section status the stepper exists to show.
+- **Medium and narrow (< 900 px):** horizontal stepper across the top; the
+  current section's name starts under its circle. When the circles would
+  need a pitch under 34 px (phone: more than ~11 sections) it collapses to
+  "N done" - brand line - current circle - grey line - "M remaining" with
+  "Section x of y . name" beneath, rather than shrinking. The whole strip is
+  the drawer toggle (`section-drawer-toggle`, `aria-haspopup="dialog"`);
+  the drawer (`section-drawer`, `role="dialog"`, `aria-modal`) holds the
+  full vertical stepper, traps Tab, closes on Escape and on the scrim,
+  and returns focus to the strip. It appears in place, so there is no
+  motion to reduce. Verified in the rebuilt bundle with Playwright: focus
+  lands on the close button, Shift+Tab wraps to the last item, Escape
+  closes and focus returns to the toggle.
+- **Controls kept and removed.** The "<" ">" arrows and the scrolling tab
+  strip are removed: Back / Next in the footer already step sequentially,
+  and the rail / drawer are the random-access controls, so labelled
+  Previous/Next section buttons up top would have been a second copy of the
+  footer. Footer: Back (secondary), Save draft and Preview answers
+  (secondary, icon + label, smaller on phones), Next with an arrow
+  (primary). On phones (< 600 px) Save/Preview sit on a small row above a
+  full-width Back | Next row.
+- **Validation messages** drop the leading WHO code in the form
+  ("Name of VA interviewer is required"); `onValidation` / `who-va-validation`
+  payloads and `validate()` results keep the engine's full message.
+- **Label-left on wide forms:** label, code chip, hint and English sit in a
+  left column (36 %, max 300 px) with the control on the right, as in the
+  references; notes stay full width. WHO's longer labels wrap to three or
+  four lines in that column (see `after-v2-progress-desktop.png`,
+  Id10487) but the control column gains width for choice lists, so it
+  reads better than stacked; below 900 px everything stacks.
+- **Paging proposal (not implemented, engine-level):** the 1-2 question
+  pages (`consented` with 3, `injuries_accidents` with 2, `paindur` with 3,
+  `deliverytype` with 3, `mother_deliv` with 3) could be merged into their
+  parent page presentationally; the WHO XLSForm groups them for skip logic,
+  not for pacing. That changes `session.next()` and the draft's
+  `currentSection`, so it is for a separate bead.
+- Kept: `section-slider-item` on every rail/drawer item, `section-status-<name>`
+  on the circle once a section is touched (tick "✓", "!" for issues, half
+  ring for started), accessibility labels ", completed" / ", started" /
+  ", has issues". New: `section-rail`, `section-drawer-toggle`,
+  `section-progress`, `section-drawer`, `section-drawer-close`,
+  `section-drawer-scrim`, `section-drawer-overlay`.
+- New UI strings (English, French, Hindi): `sections`, `close`,
+  `sectionsDone`, `moreSectionsNote`.
+- Theme tokens added in `web-theme.ts`: `overlayPosition` (fixed),
+  `stickyPosition` (sticky), `entryTransition` (opacity fade, honours
+  reduced motion). `--who-2022-web-form-max-width` default 48rem -> 64rem
+  to fit the rail; the host page sets none of these variables.
+
+### Vendored bundle
+
+Rebuilt on this branch with `tooling/who-va-2022` (`npm install`, then
+`node build.mjs && node check.mjs`); the tooling lock file is updated in the
+same commit. `check.mjs` reports the same figures as before (524 questions,
+35 sections, ABHA constraints, two relevant image slots at count 2). The
+built file was smoke-tested in Chromium under the tooling's react 18 /
+react-native-web 0.19 pins: sticky rail on desktop, fixed drawer with focus
+trap on phone, stripped validation message, no console errors.
+
+## Vendoring
 
 The DigitVA bundle is built by `tooling/who-va-2022/build.mjs` from
 `vendor/who-va-2022/src` and committed under `app/static/vendor/who-va-2022/`:
@@ -100,10 +213,9 @@ cd tooling/who-va-2022 && npm install && node build.mjs && node check.mjs
   (minified ESM) and `app/static/vendor/who-va-2022/manifest.json`
   (`vendored_version`, `bytes`, `sha256`), both rewritten by `build.mjs`.
 - Commit both files together; `manifest.json` is what pins the artifact.
-- Caveat found while checking: `tooling/who-va-2022/package-lock.json` is
-  behind its `package.json` (vite/esbuild entries missing), so `npm ci`
-  refuses; `npm install` regenerates the lock. Commit the lock change with
-  the bundle or fix it first.
+- `tooling/who-va-2022/package-lock.json` was behind its `package.json`
+  (vite/esbuild entries missing), so `npm ci` refused; `npm install`
+  regenerated it and the lock is committed with the round-2 bundle.
 - The intake page `app/templates/va_frontpages/va_intake_form.html` needs no
   change: the chip is on by default. To hide codes for interviewers, set
   `el.setAttribute("hide-question-codes", "")` where the element is built.

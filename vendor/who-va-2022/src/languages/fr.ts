@@ -4248,6 +4248,10 @@ export default {
   },
   ui: {
     sectionProgress: "Section {current} sur {total}",
+    sections: "Sections",
+    sectionsDone: "{count} terminées",
+    moreSectionsNote: "D’autres sections apparaissent au fil des réponses",
+    close: "Fermer",
     back: "Retour",
     saveDraft: "Enregistrer le brouillon",
     saving: "Enregistrement…",

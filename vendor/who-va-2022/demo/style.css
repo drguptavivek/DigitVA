@@ -34,7 +34,7 @@
   --who-2022-web-shadow-focus: 0 4px 12px rgb(37 99 235 / 10%);
   --who-2022-web-radius-control: 12px;
   --who-2022-web-radius-card: 18px;
-  --who-2022-web-form-max-width: 48rem;
+  --who-2022-web-form-max-width: 64rem;
   --who-2022-web-form-padding: clamp(1rem, 2.5vw, 1.5rem);
   --who-2022-web-form-padding-inline: var(--who-2022-web-form-padding);
   --who-2022-web-form-padding-block: var(--who-2022-web-form-padding);

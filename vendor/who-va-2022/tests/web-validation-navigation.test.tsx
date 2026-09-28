@@ -317,11 +317,13 @@ describe("validation navigation", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("Required name is required"));
     expect(container.textContent).toContain("Identity");
     expect(container.querySelector('[data-testid="question-required_name"]')).not.toBeNull();
-    expect(
-      Array.from(container.querySelectorAll<HTMLElement>('[role="button"]'))
-        .find((button) => button.textContent === "1. Identity")
-        ?.getAttribute("aria-invalid")
-    ).toBe("true");
+    // The section item carries a status glyph ("!") before its label, so it
+    // is found by its accessible name rather than its text.
+    const identity = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find(
+      (button) => button.getAttribute("aria-label") === "1. Identity, has issues"
+    );
+    expect(identity?.getAttribute("aria-invalid")).toBe("true");
+    expect(container.querySelector('[data-testid="section-status-identity"]')?.textContent).toBe("!");
 
     root.unmount();
   });

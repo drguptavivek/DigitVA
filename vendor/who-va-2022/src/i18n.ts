@@ -22,6 +22,11 @@ export type InstrumentTranslations = Record<string, InstrumentTranslation>;
 /** JSON-serializable UI strings. Braced names such as {label} are replaced at runtime. */
 export interface WhoVaUiMessageTemplates {
   sectionProgress: string;
+  sections: string;
+  sectionsDone: string;
+  sectionsRemaining: string;
+  moreSectionsNote: string;
+  close: string;
   back: string;
   saveDraft: string;
   saving: string;
@@ -123,6 +128,11 @@ export interface WhoVaLanguageLoaderOptions {
 
 export interface WhoVaUiMessages {
   sectionProgress: (current: number, total: number) => string;
+  sections: string;
+  sectionsDone: (count: number) => string;
+  sectionsRemaining: (count: number) => string;
+  moreSectionsNote: string;
+  close: string;
   back: string;
   saveDraft: string;
   saving: string;
@@ -205,14 +215,21 @@ export type WhoVaUiTranslations = Record<string, Partial<WhoVaUiMessageTemplates
 
 export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   sectionProgress: "Section {current} of {total}",
+  sections: "Sections",
+  sectionsDone: "{count} done",
+  sectionsRemaining: "{count} left",
+  moreSectionsNote: "More sections appear as you answer",
+  close: "Close",
   back: "Back",
   saveDraft: "Save draft",
   saving: "Saving…",
   next: "Next",
   complete: "Complete",
-  draftSaved: "Draft saved · {id}",
+  // The draft id is still passed in (`{id}` works in a host template) but the
+  // defaults leave it out: an interviewer has no use for an internal UUID.
+  draftSaved: "Draft saved",
   draftSaveFailed: "Draft could not be saved",
-  draftId: "Draft ID · {id}",
+  draftId: "Draft not saved yet",
   required: "{label} is required",
   invalidType: "{name} must be a valid {dataType} value",
   invalidChoice: "{name} contains a value outside its WHO choice list",
@@ -294,6 +311,8 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
   return {
     ...templates,
     sectionProgress: (current, total) => format(templates.sectionProgress, { current, total }),
+    sectionsDone: (count) => format(templates.sectionsDone, { count }),
+    sectionsRemaining: (count) => format(templates.sectionsRemaining, { count }),
     draftSaved: (id) => format(templates.draftSaved, { id }),
     draftId: (id) => format(templates.draftId, { id }),
     required: (label) => format(templates.required, { label }),

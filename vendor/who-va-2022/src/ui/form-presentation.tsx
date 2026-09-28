@@ -2,6 +2,7 @@
 import React from "react";
 
 import { resolveUiMessages } from "../i18n.js";
+import { formatDdMmmYyyy } from "./date-value.js";
 import { localized } from "./localize.js";
 import type { AnswerValue, InstrumentQuestion, SubmissionData } from "../types.js";
 import type { WhoVaPrimitiveSet } from "./create-who-va-form.js";
@@ -76,6 +77,18 @@ export function splitQuestionCode(label: string): { code: string; text: string }
   return { code: match[1] ?? "", text: match[2] ?? "" };
 }
 
+/**
+ * A label the WHO instrument wraps in square brackets is an interviewer
+ * instruction, not a question read to the respondent ("[Enter adult's age in
+ * years:]"). Presentation strips the brackets and marks the row; the stored
+ * label, translations and validation messages are untouched. A translation
+ * without the brackets is shown as an ordinary label.
+ */
+export function instructionLabel(label: string): { instruction: boolean; text: string } {
+  const match = /^\s*\[\s*(.*?)\s*\]\s*$/s.exec(label);
+  return match ? { instruction: true, text: match[1] ?? "" } : { instruction: false, text: label };
+}
+
 export function hasAnswer(value: AnswerValue | undefined): value is AnswerValue {
   return value != null && value !== "" && (!Array.isArray(value) || value.length > 0);
 }
@@ -91,6 +104,8 @@ export function previewAnswer(
     return choice ? localized(choice.label, locale, choiceValue) : choiceValue;
   };
   if (Array.isArray(value)) return value.map(choiceLabel).join(", ");
+  if (typeof value === "string" && question.control === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    return formatDdMmmYyyy(value, locale);
   if (typeof value === "string") return choiceLabel(value);
   if (typeof value === "boolean") return value ? messages.yes : messages.no;
   if (typeof value === "number") return String(value);
@@ -118,7 +133,7 @@ export const formStyles = {
     { color: "#47625b", marginBottom: 6, fontSize: 13, lineHeight: 18 },
     { color: "muted" }
   ),
-  shell: { flex: 1, position: "relative" as const },
+  shell: withWebTheme({ flex: 1, position: "relative" as const }, { scrollMarginTop: "scrollMargin" }),
   // Wide layout: the section rail beside the question column.
   layoutRow: { alignItems: "flex-start" as const, columnGap: 20, flexDirection: "row" as const },
   mainColumn: { flex: 1, minWidth: 0 },
@@ -167,6 +182,28 @@ export const formStyles = {
     { color: "ink" }
   ),
   labelWithStatus: { flex: 1 },
+  // An interviewer instruction: read by the interviewer, not to the respondent.
+  labelInstruction: withWebTheme(
+    { color: "#315e73", fontStyle: "italic" as const, fontWeight: "500" as const },
+    { color: "guidance" }
+  ),
+  instructionTag: withWebTheme(
+    {
+      alignSelf: "flex-start" as const,
+      backgroundColor: "#e6f1f6",
+      borderRadius: 4,
+      color: "#315e73",
+      fontSize: 11,
+      fontWeight: "700" as const,
+      letterSpacing: 0.4,
+      lineHeight: 16,
+      marginBottom: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      textTransform: "uppercase" as const
+    },
+    { backgroundColor: "brandSoft", color: "guidance" }
+  ),
   // The WHO code, kept beside the label for coders but out of its way.
   codeChip: withWebTheme(
     {

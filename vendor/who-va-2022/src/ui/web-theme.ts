@@ -21,7 +21,9 @@ export type WebThemeToken =
   | "formPadding"
   | "overlayPosition"
   | "stickyPosition"
-  | "entryTransition";
+  | "entryTransition"
+  | "stickyRail"
+  | "scrollMargin";
 
 type ThemeableStyle = Record<string, unknown>;
 type WebThemeBindings = Record<string, WebThemeToken>;
@@ -37,7 +39,17 @@ export function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-const webThemeValues: Record<Exclude<WebThemeToken, "formPadding" | "entryTransition">, string> = {
+/**
+ * The height of whatever the host fixes to the top of the page (DigitVA's
+ * navbar is 56px): the section rail sticks below it and a section scrolled to
+ * the top stops beneath it. Hosts set `--who-2022-web-sticky-top`.
+ */
+const STICKY_TOP = "var(--who-2022-web-sticky-top, 64px)";
+
+const webThemeValues: Record<
+  Exclude<WebThemeToken, "formPadding" | "entryTransition" | "stickyRail" | "scrollMargin">,
+  string
+> = {
   canvas: "var(--who-2022-web-color-canvas, #f5f7fa)",
   surface: "var(--who-2022-web-color-surface, #ffffff)",
   ink: "var(--who-2022-web-color-ink, #1f2937)",
@@ -78,7 +90,18 @@ export function applyWebTheme(style: unknown): unknown {
 
   const themedStyle: ThemeableStyle = { ...(style as ThemeableStyle) };
   for (const [property, token] of Object.entries(bindings)) {
-    if (token === "entryTransition") {
+    if (token === "stickyRail") {
+      // Sticks below the host's fixed bar and scrolls on its own when taller
+      // than the viewport, without dragging the page along at its ends.
+      themedStyle.position = "sticky";
+      themedStyle.top = STICKY_TOP;
+      themedStyle.maxHeight = `calc(100vh - ${STICKY_TOP} - 8px)`;
+      themedStyle.overflowY = "auto";
+      themedStyle.overscrollBehavior = "contain";
+      themedStyle.scrollbarWidth = "thin";
+    } else if (token === "scrollMargin") {
+      themedStyle.scrollMarginTop = STICKY_TOP;
+    } else if (token === "entryTransition") {
       // A section that has just appeared fades in; no fade under reduced motion.
       themedStyle.transitionProperty = "opacity";
       themedStyle.transitionDuration = prefersReducedMotion() ? "0ms" : "400ms";

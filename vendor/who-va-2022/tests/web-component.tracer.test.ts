@@ -8,6 +8,7 @@ import {
   type WhoVaFormElement
 } from "../src/web-component.js";
 import type { WhoVaPlatformServices } from "../src/web.js";
+import { whoVa2022Instrument } from "../src/instrument.js";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -175,6 +176,29 @@ describe("section stepper", () => {
       expect(element.querySelectorAll('[data-testid="section-slider-item"]').length).toBeGreaterThan(10)
     );
     expect(element.textContent).not.toContain("More sections appear as you answer");
+    element.remove();
+  });
+});
+
+describe("host-supplied instrument after connect", () => {
+  it("binds the form to the new session so setData reaches what is shown", async () => {
+    defineWhoVaElement("who-va-swap-test");
+    const element = document.createElement("who-va-swap-test") as WhoVaFormElement;
+    document.body.append(element);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    element.instrument = { ...whoVa2022Instrument };
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    element.setData({
+      Id10013: "yes",
+      Id10019: "male",
+      Id10020: "yes",
+      Id10021: "1980-01-01",
+      Id10022: "yes",
+      Id10023_a: "2026-07-17"
+    });
+    await vi.waitFor(() =>
+      expect(element.querySelectorAll('[data-testid="section-slider-item"]').length).toBeGreaterThan(10)
+    );
     element.remove();
   });
 });

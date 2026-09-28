@@ -6,7 +6,7 @@ import { isValidIsoDate } from "../date.js";
 
 type DatePart = "day" | "month" | "year";
 
-function localizedMonthNames(locale: string): string[] {
+export function localizedMonthNames(locale: string): string[] {
   return Array.from({ length: 12 }, (_, month) =>
     new Intl.DateTimeFormat(locale, {
       month: "short",
@@ -47,6 +47,24 @@ export function formatDisplayDate(value: string, locale: string): string {
   const month = Number(match[2]);
   const monthName = localizedMonthNames(locale)[month - 1];
   return monthName ? displayDateParts(match[3] ?? "", monthName, match[1] ?? "", locale) : value;
+}
+
+/**
+ * An ISO date as DD-MMM-YYYY (16-Jul-1986), the one order the form shows
+ * dates in regardless of locale; only the month abbreviation is localized.
+ */
+export function formatDdMmmYyyy(value: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const monthName = localizedMonthNames(locale)[Number(match[2]) - 1];
+  return monthName ? `${match[3]}-${monthName}-${match[1]}` : value;
+}
+
+/** Day, month (1-12) and year as an ISO date, or undefined when they do not make a real date. */
+export function isoFromParts(day: string, month: string, year: string): string | undefined {
+  if (!/^\d{1,2}$/.test(day) || !/^\d{1,2}$/.test(month) || !/^\d{4}$/.test(year)) return undefined;
+  const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isValidIsoDate(iso) ? iso : undefined;
 }
 
 export function parseDisplayDate(value: string, locale: string): string | undefined {

@@ -5,6 +5,7 @@
 import React from "react";
 import {
   Image as WebImage,
+  Modal as WebModal,
   Pressable as WebPressable,
   ScrollView as WebScrollView,
   Text as WebText,
@@ -140,21 +141,80 @@ interface WebDateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   testID?: string;
 }
 
-function WebDateInput({ accessibilityLabel, onChangeText, style, testID, ...props }: WebDateInputProps) {
-  const flattenedStyle = (Array.isArray(style) ? style.flat(Infinity) : [style])
+const WebDateInput = React.forwardRef<HTMLInputElement, WebDateInputProps>(function WebDateInput(
+  { accessibilityLabel, onChangeText, style, testID, ...props },
+  ref
+) {
+  // A plain <input type="date"> keeps the native picker. Its style is the
+  // shared input style run through the theme (so the host's CSS variables
+  // reach it), plus what the browser's own input defaults would otherwise
+  // override: a solid border, inherited font, box sizing and padding.
+  const themed = applyWebTheme(style);
+  const flattenedStyle = (Array.isArray(themed) ? themed.flat(Infinity) : [themed])
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
     .reduce<Record<string, unknown>>((result, entry) => Object.assign(result, entry), {});
+  const { paddingHorizontal, paddingVertical, ...rest } = flattenedStyle;
   return (
     <input
       {...props}
       type="date"
       aria-label={accessibilityLabel}
       data-testid={testID}
-      style={flattenedStyle as React.CSSProperties}
+      style={
+        {
+          borderStyle: "solid",
+          boxSizing: "border-box",
+          font: "inherit",
+          fontSize: 16,
+          lineHeight: "24px",
+          margin: 0,
+          paddingBlock: paddingVertical,
+          paddingInline: paddingHorizontal,
+          ...rest
+        } as React.CSSProperties
+      }
       onChange={(event) => onChangeText(event.currentTarget.value)}
+      ref={ref}
     />
   );
+});
+
+interface WebSelectProps {
+  accessibilityLabel?: string;
+  onValueChange: (value: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  style?: unknown;
+  testID?: string;
+  value: string;
 }
+
+/** A native <select>, themed like the inputs; used for the month of a date. */
+const WebSelect = React.forwardRef<HTMLSelectElement, WebSelectProps>(function WebSelect(
+  { accessibilityLabel, onValueChange, options, style, testID, value },
+  ref
+) {
+  const themed = applyWebTheme(style);
+  const flattenedStyle = (Array.isArray(themed) ? themed.flat(Infinity) : [themed])
+    .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
+    .reduce<Record<string, unknown>>((result, entry) => Object.assign(result, entry), {});
+  return (
+    <select
+      aria-label={accessibilityLabel}
+      data-testid={testID}
+      onChange={(event) => onValueChange(event.currentTarget.value)}
+      ref={ref}
+      style={{ background: "transparent", font: "inherit", ...flattenedStyle } as React.CSSProperties}
+      value={value}
+    >
+      <option value="" />
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+});
 
 function scrollToWebQuestion(questionNode: unknown) {
   if (typeof HTMLElement === "undefined" || !(questionNode instanceof HTMLElement)) return;
@@ -280,9 +340,11 @@ export const WhoVaForm = createWhoVaForm(
     Text,
     TextInput,
     DateInput: WebDateInput,
+    Select: WebSelect,
     Pressable,
     ScrollView,
     Image,
+    Modal: WebModal,
     Svg,
     SvgCircle,
     SvgPath,
@@ -297,6 +359,7 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   Text,
   TextInput,
   DateInput: WebDateInput,
+  Select: WebSelect,
   Pressable,
   Image
 });

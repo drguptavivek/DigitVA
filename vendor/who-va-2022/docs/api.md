@@ -204,3 +204,12 @@ The most commonly used types are:
 - `WhoVaFormProps` and `WhoVaPlatformServices` from the UI entry points
 
 Stored answers use stable WHO question names as keys. Choice answers store coded values, dates use ISO `YYYY-MM-DD`, multi-select answers use string arrays, and attachments use structured reference objects.
+
+### Host page variables
+
+- `--who-2022-web-sticky-top` (default `64px`): the height of whatever the
+  host fixes to the top of the page. The desktop section rail sticks below
+  it, and a section change scrolls the form's top to sit beneath it.
+- Theme variables (`--who-2022-web-color-*`, radii, widths) must be set on
+  `:root`: the section drawer renders through a portal at `document.body`,
+  outside any wrapper the host styles.

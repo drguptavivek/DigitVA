@@ -47,6 +47,7 @@ vi.mock("react-native", () => {
     );
   return {
     Image: primitive("img"),
+    Modal: primitive("div"),
     Pressable: primitive("button"),
     ScrollView: primitive("div"),
     Text: primitive("div"),
@@ -142,7 +143,8 @@ describe("native renderer integration", () => {
       container.querySelector<HTMLButtonElement>('[data-testid="question-interview_date"]')?.click();
     });
     expect(pickDate).toHaveBeenCalledWith(expect.objectContaining({ name: "interview_date" }), {}, undefined);
-    expect(container.textContent).toContain("Jul-18-2026");
+    // Dates display as DD-MMM-YYYY whatever the locale order.
+    expect(container.textContent).toContain("18-Jul-2026");
 
     await act(async () => {
       button(container, "Next")?.click();

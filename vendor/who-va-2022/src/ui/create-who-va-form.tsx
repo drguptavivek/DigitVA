@@ -27,7 +27,7 @@ import {
 } from "../engine/validation.js";
 import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } from "../i18n.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
-import { englishAlongside } from "./localize.js";
+import { englishAlongside, plainText } from "./localize.js";
 import { createRichText } from "./rich-text-view.js";
 import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import {
@@ -39,6 +39,7 @@ import {
   FooterIcon,
   formStyles as styles,
   hasAnswer,
+  instructionLabel,
   interpolateSubmissionReferences,
   interviewerQuestionLabel,
   localized,
@@ -97,9 +98,13 @@ export interface WhoVaPrimitiveSet {
   Text: React.ElementType;
   TextInput: React.ElementType;
   DateInput?: React.ElementType;
+  /** A native select (web); the month of a date falls back to a numeric box without it. */
+  Select?: React.ElementType;
   Pressable: React.ElementType;
   ScrollView: React.ElementType;
   Image?: React.ElementType;
+  /** See SectionNavPrimitives.Modal: hosts the section drawer above the page. */
+  Modal?: React.ElementType;
   Svg?: React.ElementType;
   SvgCircle?: React.ElementType;
   SvgPath?: React.ElementType;
@@ -129,6 +134,7 @@ function sectionStatus({
   draftIssues,
   instrument,
   locale,
+  calculated,
   messages,
   section,
   snapshot
@@ -136,12 +142,12 @@ function sectionStatus({
   draftIssues: Record<string, ValidationIssue>;
   instrument: InstrumentDefinition;
   locale: string;
+  calculated: SubmissionData;
   messages: ReturnType<typeof resolveUiMessages>;
   section: InstrumentSection;
   snapshot: SessionSnapshot;
 }): SectionProgressStatus {
   const runtimeIndex = getInstrumentRuntimeIndex(instrument);
-  const calculated = applyCalculations(instrument, snapshot.data);
   const questions = (runtimeIndex.questionsBySection.get(section.name) ?? []).filter(
     (question) =>
       isAnswerableQuestion(question) && isQuestionRelevantWithCalculatedData(instrument, question, calculated)
@@ -185,10 +191,12 @@ function sectionStatuses({
   messages: ReturnType<typeof resolveUiMessages>;
   snapshot: SessionSnapshot;
 }): ReadonlyMap<string, SectionProgressStatus> {
+  // One calculation pass for all sections, not one per section.
+  const calculated = applyCalculations(instrument, snapshot.data);
   return new Map(
     snapshot.visibleSections.map((section) => [
       section.name,
-      sectionStatus({ draftIssues, instrument, locale, messages, section, snapshot })
+      sectionStatus({ draftIssues, instrument, locale, calculated, messages, section, snapshot })
     ])
   );
 }
@@ -274,7 +282,8 @@ export function createWhoVaForm(
     View,
     Text,
     Pressable,
-    ScrollView
+    ScrollView,
+    Modal: primitives.Modal
   });
   const questionControls = createWhoVaQuestionControls({
     View,
@@ -282,6 +291,7 @@ export function createWhoVaForm(
     RichText,
     TextInput: primitives.TextInput,
     DateInput: primitives.DateInput,
+    Select: primitives.Select,
     Pressable,
     Image: primitives.Image,
     platform: primitives.platform
@@ -413,6 +423,204 @@ export function createWhoVaForm(
       </View>
     );
   }
+
+  interface QuestionRowProps {
+    choiceColumns: number;
+    code: string;
+    data: SubmissionData;
+    guidance: string;
+    hint: string;
+    hintEnglish: string;
+    instruction: boolean;
+    issues: ValidationIssue[];
+    label: string;
+    labelEnglish: string;
+    locale: string;
+    messages: ReturnType<typeof resolveUiMessages>;
+    onAnswer: (value: AnswerValue | undefined) => void;
+    onDraftIssue: (questionName: string, issue: ValidationIssue | undefined) => void;
+    platform: WhoVaPlatformServices | undefined;
+    question: InstrumentQuestion;
+    registerNode: (name: string, node: unknown) => void;
+    registerPosition: (name: string, y: number) => void;
+    showEnglish: boolean | undefined;
+    showQuestionCodes: boolean;
+    splitLayout: boolean;
+    value: AnswerValue | undefined;
+  }
+
+  /**
+   * The message shown under the question itself. It sits beneath the label,
+   * so it never repeats it: a required-empty issue becomes the short
+   * sentence, and any other message loses the leading label the engine put
+   * there. Payloads, summaries and the section list keep the full message.
+   */
+  function inlineIssueMessage(
+    issue: ValidationIssue,
+    label: string,
+    messages: ReturnType<typeof resolveUiMessages>
+  ): string {
+    if (issue.code === "required") return messages.requiredShort;
+    const message = splitQuestionCode(issue.message).text;
+    const plain = plainText(label);
+    if (plain && message.startsWith(plain)) {
+      const rest = message.slice(plain.length).trim();
+      if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1);
+    }
+    return message;
+  }
+
+  /** Controls that hand the whole answer set to a platform service and so must see fresh `data`. */
+  const DATA_DEPENDENT_CONTROLS = new Set(["audio", "barcode", "date", "file", "geopoint", "image"]);
+
+  /**
+   * One question. Memoised so that answering one question re-renders that
+   * row alone rather than the whole section (164 rows on the largest page);
+   * `data` changes on every answer and is compared only for the controls that
+   * read it, and `issues` by content.
+   */
+  const QuestionRow = React.memo(
+    function QuestionRow({
+      choiceColumns,
+      code,
+      data,
+      guidance,
+      hint,
+      hintEnglish,
+      instruction,
+      issues,
+      label,
+      labelEnglish,
+      locale,
+      messages,
+      onAnswer,
+      onDraftIssue,
+      platform,
+      question,
+      registerNode,
+      registerPosition,
+      showEnglish,
+      showQuestionCodes,
+      splitLayout,
+      value
+    }: QuestionRowProps) {
+      const hasIssues = issues.length > 0;
+      const isQuestionComplete = isAnswerableQuestion(question) && hasAnswer(value) && !hasIssues;
+      return (
+        <View
+          ref={(node: unknown) => registerNode(question.name, node)}
+          onLayout={(event: { nativeEvent: { layout: { y: number } } }) =>
+            registerPosition(question.name, event.nativeEvent.layout.y)
+          }
+          style={[
+            styles.question,
+            splitLayout && styles.questionRow,
+            question.control === "note" && styles.note,
+            hasIssues && styles.questionError
+          ]}
+          testID={`question-card-${question.name}`}
+        >
+          <View style={[splitLayout && styles.questionLead]}>
+            {code && showQuestionCodes ? (
+              <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
+                {code}
+              </Text>
+            ) : null}
+            {instruction ? (
+              <Text style={styles.instructionTag} testID={`question-instruction-${question.name}`}>
+                {messages.interviewer}
+              </Text>
+            ) : null}
+            <View style={styles.questionHeader}>
+              <Text
+                style={[
+                  styles.label,
+                  instruction && styles.labelInstruction,
+                  isQuestionComplete && styles.labelWithStatus
+                ]}
+                {...(instruction
+                  ? { "aria-label": `${messages.interviewerInstruction}: ${plainText(label)}` }
+                  : {})}
+              >
+                <RichText source={label} />
+                {question.required && question.control !== "note" ? (
+                  <Text style={styles.required}> *</Text>
+                ) : null}
+              </Text>
+              {isQuestionComplete ? (
+                <View
+                  accessibilityLabel="Answered"
+                  style={styles.questionStatusBadge}
+                  testID={`question-status-${question.name}`}
+                >
+                  <Text style={styles.questionStatusBadgeText}>✓</Text>
+                </View>
+              ) : null}
+            </View>
+            {labelEnglish ? (
+              <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
+                <RichText source={labelEnglish} />
+              </Text>
+            ) : null}
+            {hint ? (
+              <Text style={styles.hint}>
+                <RichText source={hint} />
+              </Text>
+            ) : null}
+            {hintEnglish ? (
+              <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
+                <RichText source={hintEnglish} />
+              </Text>
+            ) : null}
+            {guidance ? (
+              <Text style={styles.guidance}>
+                <RichText source={guidance} />
+              </Text>
+            ) : null}
+          </View>
+          <View style={[splitLayout && styles.questionBody]}>
+            <questionControls.Control
+              question={question}
+              value={value}
+              data={data}
+              locale={locale}
+              showEnglish={showEnglish}
+              messages={messages}
+              issues={issues}
+              platform={platform}
+              onAnswer={onAnswer}
+              onDraftIssue={onDraftIssue}
+              choiceColumns={choiceColumns}
+            />
+            {issues.map((issue) => (
+              <Text
+                key={`${issue.code}-${issue.message}`}
+                style={styles.error}
+                accessibilityLiveRegion="polite"
+                role="alert"
+              >
+                {inlineIssueMessage(issue, label, messages)}
+              </Text>
+            ))}
+          </View>
+        </View>
+      );
+    },
+    (previous, next) => {
+      for (const key of Object.keys(next) as (keyof QuestionRowProps)[]) {
+        if (key === "data") {
+          if (DATA_DEPENDENT_CONTROLS.has(next.question.control) && previous.data !== next.data) return false;
+        } else if (key === "issues") {
+          if (
+            previous.issues.length !== next.issues.length ||
+            previous.issues.some((issue, index) => issue.message !== next.issues[index]?.message)
+          )
+            return false;
+        } else if (previous[key] !== next[key]) return false;
+      }
+      return true;
+    }
+  );
 
   function ReadyForm(props: WhoVaFormProps & { resolvedInstrument: InstrumentDefinition }) {
     if (props.session && props.initialData !== undefined) {
@@ -559,16 +767,48 @@ export function createWhoVaForm(
       [draftId, draftStore, instrument.id, instrument.version, onDraftError, session]
     );
 
-    const answer = (question: InstrumentQuestion, value: AnswerValue | undefined) => {
-      session.setAnswer(question.name, value);
+    // One handler per question, created once: a fresh closure per render
+    // would re-render every memoised row on every answer.
+    const answerHandlers = useRef(new Map<string, (value: AnswerValue | undefined) => void>());
+    const answerHandler = (name: string) => {
+      let handler = answerHandlers.current.get(name);
+      if (!handler) {
+        handler = (value) => session.setAnswer(name, value);
+        answerHandlers.current.set(name, handler);
+      }
+      return handler;
     };
+    const registerQuestionNode = useCallback((name: string, node: unknown) => {
+      if (node == null) delete questionRefs.current[name];
+      else questionRefs.current[name] = node;
+    }, []);
+    const registerQuestionPosition = useCallback((name: string, y: number) => {
+      questionPositions.current[name] = y;
+    }, []);
 
-    const scrollToTop = () => {
+    // Every way of changing section (Next, Back, rail, drawer, history)
+    // lands here: the form scrolls so its top -- stepper and heading -- sits
+    // at the top of the page, below the host's fixed bar, and keyboard focus
+    // moves to the heading. On the web the window scrolls (host pages rely
+    // on that); native scrolls the ScrollView.
+    const shellRef = useRef<unknown>(null);
+    const headingRef = useRef<unknown>(null);
+    const shownSection = useRef(snapshot.currentSection.name);
+    useEffect(() => {
+      if (view !== "form" || shownSection.current === snapshot.currentSection.name) return;
+      shownSection.current = snapshot.currentSection.name;
+      const shell = shellRef.current;
+      const heading = headingRef.current as { focus?: (options: { preventScroll: boolean }) => void } | null;
+      if (typeof HTMLElement !== "undefined" && shell instanceof HTMLElement) {
+        shell.scrollIntoView?.({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+        heading?.focus?.({ preventScroll: true });
+        return;
+      }
       const scrollView = scrollViewRef.current as {
         scrollTo?: (options: { animated: boolean; y: number }) => void;
       } | null;
       scrollView?.scrollTo?.({ y: 0, animated: !prefersReducedMotion() });
-    };
+    }, [snapshot.currentSection.name, view]);
 
     const switchSection = (sectionName: string) => {
       setDrawerOpen(false);
@@ -576,8 +816,6 @@ export function createWhoVaForm(
       const moved = session.goToSection(sectionName);
       if (!moved) return;
       void saveDraft();
-      if (typeof requestAnimationFrame === "function") requestAnimationFrame(scrollToTop);
-      else setTimeout(scrollToTop, 0);
     };
 
     const setQuestionDraftIssue = useCallback((questionName: string, issue: ValidationIssue | undefined) => {
@@ -664,127 +902,56 @@ export function createWhoVaForm(
     };
 
     const renderQuestion = (question: InstrumentQuestion) => {
-      const value = snapshot.data[question.name];
       const draftIssue = draftIssues[question.name];
       const sessionIssues = snapshot.issues.filter(
         (issue) => issue.question === question.name && !(draftIssue && issue.code === "required")
       );
       const issues = draftIssue ? [...sessionIssues, draftIssue] : sessionIssues;
-      const { code, text: label } = splitQuestionCode(
+      const { code, text: rawLabel } = splitQuestionCode(
         interviewerQuestionLabel(
           interpolateSubmissionReferences(localizedRich(question.label, locale, question.name), snapshot.data)
         )
       );
-      const hint = interpolateSubmissionReferences(localizedRich(question.hint, locale, ""), snapshot.data);
-      const guidance = interpolateSubmissionReferences(
-        localizedRich(question.guidance, locale, ""),
-        snapshot.data
-      );
+      const { instruction, text: label } = instructionLabel(rawLabel);
       const englishLabel = props.showEnglish ? englishAlongside(question.label, locale) : "";
       const labelEnglish = englishLabel
-        ? splitQuestionCode(
-            interviewerQuestionLabel(interpolateSubmissionReferences(englishLabel, snapshot.data))
+        ? instructionLabel(
+            splitQuestionCode(
+              interviewerQuestionLabel(interpolateSubmissionReferences(englishLabel, snapshot.data))
+            ).text
           ).text
         : "";
       const englishHint = props.showEnglish ? englishAlongside(question.hint, locale) : "";
-      const hintEnglish = englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : "";
-      const hasIssues = issues.length > 0;
-      const isQuestionComplete = isAnswerableQuestion(question) && hasAnswer(value) && !hasIssues;
-      // Notes read as prose and keep the full width; everything else goes
-      // label-left when the form is wide enough.
-      const splitLayout = !medium && question.control !== "note";
-
-      const control = (
-        <questionControls.Control
-          question={question}
-          value={value}
-          data={snapshot.data}
-          locale={locale}
-          showEnglish={props.showEnglish}
-          messages={messages}
-          issues={issues}
-          platform={props.platform}
-          onAnswer={(next) => answer(question, next)}
-          onDraftIssue={setQuestionDraftIssue}
-        />
-      );
-
       return (
-        <View
+        <QuestionRow
           key={question.name}
-          ref={(node: unknown) => {
-            if (node == null) delete questionRefs.current[question.name];
-            else questionRefs.current[question.name] = node;
-          }}
-          onLayout={(event: { nativeEvent: { layout: { y: number } } }) => {
-            questionPositions.current[question.name] = event.nativeEvent.layout.y;
-          }}
-          style={[
-            styles.question,
-            splitLayout && styles.questionRow,
-            question.control === "note" && styles.note,
-            hasIssues && styles.questionError
-          ]}
-          testID={`question-card-${question.name}`}
-        >
-          <View style={[splitLayout && styles.questionLead]}>
-            {code && showQuestionCodes ? (
-              <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
-                {code}
-              </Text>
-            ) : null}
-            <View style={styles.questionHeader}>
-              <Text style={[styles.label, isQuestionComplete && styles.labelWithStatus]}>
-                <RichText source={label} />
-                {question.required && question.control !== "note" ? (
-                  <Text style={styles.required}> *</Text>
-                ) : null}
-              </Text>
-              {isQuestionComplete ? (
-                <View
-                  accessibilityLabel="Answered"
-                  style={styles.questionStatusBadge}
-                  testID={`question-status-${question.name}`}
-                >
-                  <Text style={styles.questionStatusBadgeText}>✓</Text>
-                </View>
-              ) : null}
-            </View>
-            {labelEnglish ? (
-              <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
-                <RichText source={labelEnglish} />
-              </Text>
-            ) : null}
-            {hint ? (
-              <Text style={styles.hint}>
-                <RichText source={hint} />
-              </Text>
-            ) : null}
-            {hintEnglish ? (
-              <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
-                <RichText source={hintEnglish} />
-              </Text>
-            ) : null}
-            {props.showSourceGuidance && guidance ? (
-              <Text style={styles.guidance}>
-                <RichText source={guidance} />
-              </Text>
-            ) : null}
-          </View>
-          <View style={[splitLayout && styles.questionBody]}>
-            {control}
-            {issues.map((issue) => (
-              <Text
-                key={`${issue.code}-${issue.message}`}
-                style={styles.error}
-                accessibilityLiveRegion="polite"
-                role="alert"
-              >
-                {splitQuestionCode(issue.message).text}
-              </Text>
-            ))}
-          </View>
-        </View>
+          choiceColumns={compact ? 2 : medium ? 3 : 4}
+          code={code}
+          data={snapshot.data}
+          guidance={
+            props.showSourceGuidance
+              ? interpolateSubmissionReferences(localizedRich(question.guidance, locale, ""), snapshot.data)
+              : ""
+          }
+          hint={interpolateSubmissionReferences(localizedRich(question.hint, locale, ""), snapshot.data)}
+          hintEnglish={englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : ""}
+          instruction={instruction}
+          issues={issues}
+          label={label}
+          labelEnglish={labelEnglish}
+          locale={locale}
+          messages={messages}
+          onAnswer={answerHandler(question.name)}
+          onDraftIssue={setQuestionDraftIssue}
+          platform={props.platform}
+          question={question}
+          registerNode={registerQuestionNode}
+          registerPosition={registerQuestionPosition}
+          showEnglish={props.showEnglish}
+          showQuestionCodes={showQuestionCodes}
+          splitLayout={!medium && question.control !== "note"}
+          value={snapshot.data[question.name]}
+        />
       );
     };
 
@@ -818,6 +985,7 @@ export function createWhoVaForm(
       );
     }, [instrument, snapshot.data, view]);
 
+    const previousIssueSections = useRef<ReadonlySet<string>>(new Set());
     const issueSectionNames = useMemo(() => {
       const visibleNames = new Set(snapshot.visibleSections.map((section) => section.name));
       const questionsByName = new Map(instrument.questions.map((question) => [question.name, question]));
@@ -831,12 +999,23 @@ export function createWhoVaForm(
       };
       snapshot.issues.forEach(collect);
       Object.values(draftIssues).forEach(collect);
-      return names;
+      const previous = previousIssueSections.current;
+      const same = previous.size === names.size && [...names].every((name) => previous.has(name));
+      if (!same) previousIssueSections.current = names;
+      return previousIssueSections.current;
     }, [draftIssues, instrument.questions, snapshot.issues, snapshot.visibleSections]);
-    const sectionProgress = useMemo(
-      () => sectionStatuses({ draftIssues, instrument, locale, messages, snapshot }),
-      [draftIssues, instrument, locale, messages, snapshot]
-    );
+    // Section status is recomputed on every answer, but the map only changes
+    // identity when a status actually changes, so the stepper (memoised on
+    // its items) stays out of the render of an ordinary answer.
+    const previousProgress = useRef<ReadonlyMap<string, SectionProgressStatus>>(new Map());
+    const sectionProgress = useMemo(() => {
+      const next = sectionStatuses({ draftIssues, instrument, locale, messages, snapshot });
+      const previous = previousProgress.current;
+      const same =
+        previous.size === next.size && [...next].every(([name, status]) => previous.get(name) === status);
+      if (!same) previousProgress.current = next;
+      return previousProgress.current;
+    }, [draftIssues, instrument, locale, messages, snapshot]);
     const navItems = useMemo<SectionNavItem[]>(
       () =>
         sectionNavItems({
@@ -846,7 +1025,15 @@ export function createWhoVaForm(
           sectionProgress,
           snapshot
         }),
-      [instrument, issueSectionNames, locale, sectionProgress, snapshot]
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only these parts of the snapshot matter
+      [
+        instrument,
+        issueSectionNames,
+        locale,
+        sectionProgress,
+        snapshot.visibleSections,
+        snapshot.currentSection.name
+      ]
     );
     // Most of the instrument sits behind consent and the age group: three
     // pages are visible before consent, fifteen to twenty after, out of some
@@ -948,7 +1135,14 @@ export function createWhoVaForm(
 
     const sectionBody = (
       <>
-        <Text style={styles.sectionTitle}>
+        <Text
+          ref={headingRef}
+          aria-level={2}
+          role="heading"
+          style={styles.sectionTitle}
+          tabIndex={-1}
+          testID="section-heading"
+        >
           {localized(snapshot.currentSection.label, locale, snapshot.currentSection.name)}
         </Text>
         <View style={styles.sectionCard}>{snapshot.questions.map(renderQuestion)}</View>
@@ -965,6 +1159,7 @@ export function createWhoVaForm(
 
     return (
       <View
+        ref={shellRef}
         style={styles.shell}
         onLayout={(event: { nativeEvent: { layout: { width: number } } }) =>
           setShellWidth(event.nativeEvent.layout.width)

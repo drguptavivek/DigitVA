@@ -26,6 +26,17 @@
   </div>
 
   {# Create / edit view: replaces the list while open #}
+  <style>
+    /* The grid's md breakpoints follow the window, but in Project Setup this
+       form sits beside two nav columns, so on a laptop it gets col-md-2
+       fields ~60px wide: labels wrap, inputs misalign, values are cut off.
+       Size the columns by the form's own width instead. */
+    #project-form-container .card-body { container-type: inline-size; }
+    @container (max-width: 720px) {
+      #project-form-container .row > [class*="col-md-"] { flex: 0 0 auto; width: 50%; }
+      #project-form-container .row > .project-name-col { width: 100%; }
+    }
+  </style>
   <div id="project-form-container" class="d-none">
     <button type="button" class="btn btn-sm btn-link px-0 mb-2{{ ' d-none' if locked_project_id }}" id="project-back-btn">
       <i class="fa-solid fa-arrow-left me-1"></i>Back to projects
@@ -33,7 +44,7 @@
     <div class="card mb-4">
     <div class="card-body">
       <h5 class="card-title mb-3" id="project-form-title">Create Project</h5>
-      <div class="row g-2">
+      <div class="row g-2 align-items-end">
         <div class="col-6 col-md-2">
           <label class="form-label small mb-1">Project ID <span class="text-danger">*</span></label>
           <input type="text" class="form-control form-control-sm" id="project-id-input" placeholder="e.g. PRJ001" maxlength="6" style="text-transform: uppercase;">
@@ -42,7 +53,7 @@
           <label class="form-label small mb-1">Code</label>
           <input type="text" class="form-control form-control-sm" id="project-code-input" placeholder="(Optional)" maxlength="6" style="text-transform: uppercase;">
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-4 project-name-col">
           <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
           <input type="text" class="form-control form-control-sm" id="project-name-input" placeholder="e.g. Test Project">
         </div>
@@ -58,7 +69,7 @@
           </select>
         </div>
       </div>
-      <div class="row g-2 mt-1">
+      <div class="row g-2 mt-1 align-items-end">
         <div class="col-12 col-md-4">
           <label class="form-label small mb-1" for="project-structure-mode-input">Structure</label>
           <select class="form-select form-select-sm" id="project-structure-mode-input" title="Sites: Project > Site > Form. Organization: a health-system unit tree, built in the Organization panel.">

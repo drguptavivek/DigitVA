@@ -24,6 +24,7 @@ from config import (
     Config,
     DevelopmentConfig,
     TestConfig,
+    trusted_hosts_for,
     validate_attachment_store_config,
 )
 from celery import Celery, Task
@@ -126,6 +127,8 @@ def create_app(config_class=None):
         config_class = _default_config_class()
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if not (app.debug or app.testing):
+        app.config["TRUSTED_HOSTS"] = trusted_hosts_for(app.config["MAIL_BASE_URL"])
 
     # CSRFProtect reads multipart form data in its before_request hook. Bound
     # organization imports before that hook can parse and spool an upload.

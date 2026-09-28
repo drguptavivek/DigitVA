@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-09-28
 ---
 
 # Runtime And Operations
@@ -663,6 +663,12 @@ What exists today:
 - test config enforces `MAIL_SUPPRESS_SEND=True` so tests do not send real SMTP
 - email link base URL resolves `MAIL_BASE_URL`, then `SERVER_NAME`, then
   `localhost:5000`, and is always given an `https://` scheme if it lacks one
+- in production (`Config`, i.e. neither `DEBUG` nor `TESTING`) `create_app`
+  sets Flask's `TRUSTED_HOSTS` to the `MAIL_BASE_URL` host plus `localhost` and
+  `127.0.0.1` (container healthcheck), via `trusted_hosts_for` in
+  [`config.py`](../../config.py); any other `Host`/`X-Forwarded-Host` gets a 400,
+  and a missing `MAIL_BASE_URL` stops the app at startup. Development
+  (`FLASK_ENV=development`) and tests accept any host
 
 Current implication:
 

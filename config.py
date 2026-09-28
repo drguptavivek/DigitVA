@@ -90,6 +90,21 @@ def _require_env(key: str) -> str:
     return value
 
 
+def trusted_hosts_for(base_url: str) -> list[str]:
+    """Hosts a production app answers: the public host plus the container
+    healthcheck's localhost. Any other Host header gets a 400, so a forged
+    X-Forwarded-Host cannot reach the app."""
+    base_url = (base_url or "").strip()
+    # email_service accepts a bare host here too, so parse that form as well.
+    host = urlparse(base_url if "//" in base_url else "//" + base_url).hostname
+    if not host:
+        raise RuntimeError(
+            "MAIL_BASE_URL must be set to the public URL "
+            "(e.g. https://digitva.causeofdeathindia.com) in production."
+        )
+    return [host, "localhost", "127.0.0.1"]
+
+
 class Config:
     # SECURITY: SECRET_KEY must be set via environment variable in production.
     # The fallback is only for development convenience and should never be used in production.
@@ -271,7 +286,8 @@ class Config:
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
-    # Base URL used for building links in emails (e.g. https://digitva.example.com)
+    # Public base URL: email links, and in production the only trusted host
+    # (see trusted_hosts_for). Development and tests accept any host.
     MAIL_BASE_URL = os.environ.get("MAIL_BASE_URL", "")
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() in (
         "true",

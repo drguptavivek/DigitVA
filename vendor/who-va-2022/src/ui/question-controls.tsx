@@ -21,14 +21,24 @@ import type {
   ValidationIssue
 } from "../types.js";
 import { columnLayout, formatGrouped, hasAppearance, rangeParameters, rangeValues } from "./appearance.js";
-import { dateFormatPlaceholder, formatDisplayDate, parseDisplayDate } from "./date-value.js";
+import {
+  dateFormatPlaceholder,
+  formatDdMmmYyyy,
+  formatDisplayDate,
+  isoFromParts,
+  localizedMonthNames,
+  parseDisplayDate
+} from "./date-value.js";
 import { ENGLISH_UI_MESSAGES, type WhoVaUiMessages } from "../i18n.js";
 import {
+  asciiDigits,
   attachmentDetails,
   attachmentErrorMessage,
   attachmentMimeType,
   attachmentReference,
+  constraintBounds,
   languageChoiceLabel,
+  numericUnit,
   localized,
   localizedRich,
   questionControlStyles,
@@ -104,6 +114,12 @@ export interface WhoVaQuestionControlProps {
   platform?: WhoVaPlatformServices | undefined;
   onAnswer: (value: AnswerValue | undefined) => void;
   onDraftIssue?: ((questionName: string, issue: ValidationIssue | undefined) => void) | undefined;
+  /**
+   * How many columns a short choice list may use where it sits: 2 on a
+   * compact form, 3 on a medium one, 4 on a wide one. Unset, lists stay one
+   * choice per row.
+   */
+  choiceColumns?: number | undefined;
 }
 
 export interface WhoVaQuestionControlPrimitives {
@@ -111,6 +127,8 @@ export interface WhoVaQuestionControlPrimitives {
   Text: React.ElementType;
   TextInput: React.ElementType;
   DateInput?: React.ElementType | undefined;
+  /** A native select (web); see WhoVaPrimitiveSet.Select. */
+  Select?: React.ElementType | undefined;
   Pressable: React.ElementType;
   Image?: React.ElementType | undefined;
   /**
@@ -144,8 +162,29 @@ export function incompleteDateIssue(
       };
 }
 
+/**
+ * The ISO dates a date question's constraint states outright, for the
+ * picker's min/max: `. <= today()` and literal `date('1915-01-01')`. A bound
+ * on another answer is left open, and the engine still validates every value.
+ */
+export function dateBounds(question: InstrumentQuestion): { min?: string; max?: string } {
+  const source = question.constraint?.source ?? "";
+  const bounds: { min?: string; max?: string } = {};
+  const today = new globalThis.Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  for (const match of source.matchAll(
+    /\.\s*(<=|<|>=|>)\s*(today\(\)|date\(date\('(\d{4}-\d{2}-\d{2})'\)\)|date\('(\d{4}-\d{2}-\d{2})'\))/g
+  )) {
+    const [, operator, , nested, literal] = match;
+    const iso = nested ?? literal ?? todayIso;
+    if ((operator === "<=" || operator === "<") && !bounds.max) bounds.max = iso;
+    if ((operator === ">=" || operator === ">") && !bounds.min) bounds.min = iso;
+  }
+  return bounds;
+}
+
 export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrimitives) {
-  const { View, Text: PrimitiveText, TextInput, DateInput, Pressable, Image } = primitives;
+  const { View, Text: PrimitiveText, TextInput, DateInput, Select, Pressable, Image } = primitives;
   const RichText = primitives.RichText;
 
   /**
@@ -241,48 +280,165 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         onChangeText={(text: string) => {
           if (readOnly) return;
           // `numbers` restricts what can be typed but still stores text.
-          const next = numbersOnly ? text.replace(/[^\d.+-]/g, "") : text;
+          const next = numbersOnly ? asciiDigits(text).replace(/[^\d.+-]/g, "") : text;
           onAnswer(next || undefined);
         }}
       />
     );
   }
 
-  function Integer({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+  /**
+   * A numeric box sized to its expected digits, between "-" and "+" buttons
+   * and followed by its unit. The buttons never go below the constraint's
+   * minimum and stop at its maximum; typing is unrestricted, so a special
+   * code such as 99 for "does not wish to disclose" still goes in.
+   */
+  function NumberField({
+    decimal,
+    issues,
+    locale,
+    messages,
+    onBlur,
+    onChangeText,
+    onFocus,
+    onStep,
+    placeholder,
+    question,
+    text,
+    value
+  }: {
+    decimal: boolean;
+    issues: ValidationIssue[];
+    locale: string;
+    messages: WhoVaUiMessages;
+    onBlur?: () => void;
+    onChangeText: (text: string) => void;
+    onFocus?: () => void;
+    onStep: (next: number) => void;
+    placeholder?: string;
+    question: InstrumentQuestion;
+    text: string;
+    value: AnswerValue | undefined;
+  }) {
+    const readOnly = question.readOnly;
+    const { min, max } = constraintBounds(question);
+    const current = typeof value === "number" ? value : undefined;
+    const step = decimal ? 0.1 : 1;
+    const canDecrease =
+      !readOnly && (current === undefined ? min === undefined || false : min === undefined || current > min);
+    const canIncrease = !readOnly && (current === undefined || max === undefined || current < max);
+    const digits = Math.max(3, String(max ?? 999).length) + (decimal ? 2 : 0);
+    const stepTo = (delta: number) => {
+      const base = current ?? (min ?? 0) - (delta > 0 ? delta : 0);
+      let next = Number((base + delta).toFixed(decimal ? 1 : 0));
+      if (min !== undefined && next < min) next = min;
+      if (max !== undefined && delta > 0 && base < max && next > max) next = max;
+      onStep(next);
+    };
+    return (
+      <View style={questionControlStyles.numberRow}>
+        <Pressable
+          accessibilityLabel={messages.decrease}
+          accessibilityRole="button"
+          disabled={!canDecrease}
+          onPress={() => stepTo(-step)}
+          style={[questionControlStyles.stepButton, !canDecrease && questionControlStyles.buttonDisabled]}
+          testID={`question-${question.name}-decrease`}
+        >
+          <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
+            −
+          </PrimitiveText>
+        </Pressable>
+        <TextInput
+          accessibilityLabel={questionLabel(question, locale)}
+          testID={`question-${question.name}`}
+          style={[
+            questionControlStyles.input,
+            questionControlStyles.numberInput,
+            { width: 24 + digits * 12 },
+            issues.length > 0 && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly
+          ]}
+          aria-invalid={issues.length > 0 || undefined}
+          aria-readonly={readOnly || undefined}
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!readOnly}
+          inputMode={decimal ? "decimal" : "numeric"}
+          keyboardType={decimal ? "decimal-pad" : "number-pad"}
+          onBlur={onBlur}
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          placeholder={placeholder}
+          readOnly={readOnly || undefined}
+          spellCheck={false}
+          value={text}
+        />
+        <Pressable
+          accessibilityLabel={messages.increase}
+          accessibilityRole="button"
+          disabled={!canIncrease}
+          onPress={() => stepTo(step)}
+          style={[questionControlStyles.stepButton, !canIncrease && questionControlStyles.buttonDisabled]}
+          testID={`question-${question.name}-increase`}
+        >
+          <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
+            +
+          </PrimitiveText>
+        </Pressable>
+        {numericUnit(question, messages) ? (
+          <PrimitiveText style={questionControlStyles.unit} testID={`question-${question.name}-unit`}>
+            {numericUnit(question, messages)}
+          </PrimitiveText>
+        ) : null}
+      </View>
+    );
+  }
+
+  function Integer({
+    question,
+    value,
+    locale,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
     const grouped = hasAppearance(question, "thousands-sep");
     const [focused, setFocused] = useState(false);
     return (
-      <TextInput
-        accessibilityLabel={questionLabel(question, locale)}
-        testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          issues.length > 0 && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
-        aria-invalid={issues.length > 0 || undefined}
-        aria-readonly={readOnly || undefined}
-        editable={!readOnly}
-        readOnly={readOnly || undefined}
-        value={
-          value == null ? "" : grouped && !focused ? formatGrouped(value as number, locale) : String(value)
-        }
-        keyboardType="number-pad"
-        onFocus={() => setFocused(true)}
+      <NumberField
+        decimal={false}
+        issues={issues}
+        locale={locale}
+        messages={messages}
         onBlur={() => setFocused(false)}
-        onChangeText={(text: string) => {
+        onChangeText={(typed: string) => {
           if (readOnly) return;
-          // Separators are display only, so strip whatever the locale inserted.
-          const raw = grouped ? text.replace(/[^\d-]/g, "") : text;
+          // Digits only, whatever keyboard or separator produced them.
+          const raw = asciiDigits(typed).replace(/[^\d-]/g, "");
           if (raw === "") onAnswer(undefined);
           else if (/^-?\d+$/.test(raw)) onAnswer(Number(raw));
         }}
+        onFocus={() => setFocused(true)}
+        onStep={(next) => onAnswer(next)}
+        question={question}
+        text={
+          value == null ? "" : grouped && !focused ? formatGrouped(value as number, locale) : String(value)
+        }
+        value={value}
       />
     );
   }
 
-  function Decimal({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+  function Decimal({
+    question,
+    value,
+    locale,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
     // Partial input has to survive keystrokes: "1." and "-" are not numbers
     // yet, so they are held as draft text and only committed once parseable.
@@ -291,22 +447,15 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const shown =
       draft ?? (value == null ? "" : grouped ? formatGrouped(value as number, locale) : String(value));
     return (
-      <TextInput
-        accessibilityLabel={questionLabel(question, locale)}
-        testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          issues.length > 0 && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
-        aria-invalid={issues.length > 0 || undefined}
-        aria-readonly={readOnly || undefined}
-        editable={!readOnly}
-        readOnly={readOnly || undefined}
-        value={shown}
-        keyboardType="decimal-pad"
-        onChangeText={(text: string) => {
+      <NumberField
+        decimal
+        issues={issues}
+        locale={locale}
+        messages={messages}
+        onBlur={() => setDraft(undefined)}
+        onChangeText={(typed: string) => {
           if (readOnly) return;
+          const text = asciiDigits(typed);
           if (text === "") {
             setDraft(undefined);
             onAnswer(undefined);
@@ -318,7 +467,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           const parsed = Number(raw);
           if (Number.isFinite(parsed) && /\d/.test(raw)) onAnswer(parsed);
         }}
-        onBlur={() => setDraft(undefined)}
+        onStep={(next) => {
+          setDraft(undefined);
+          onAnswer(next);
+        }}
+        placeholder="0.0"
+        question={question}
+        text={shown}
+        value={value}
       />
     );
   }
@@ -329,11 +485,6 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       <TextInput
         accessibilityLabel={questionLabel(question, locale)}
         testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          issues.length > 0 && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
         aria-invalid={issues.length > 0 || undefined}
         aria-readonly={readOnly || undefined}
         editable={!readOnly}
@@ -341,6 +492,12 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         // Web renders this as <input type="time">; native falls back to a
         // validated text entry in the same canonical HH:MM shape.
         {...({ type: "time", inputMode: "numeric" } as Record<string, unknown>)}
+        style={[
+          questionControlStyles.input,
+          questionControlStyles.timeInput,
+          issues.length > 0 && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
         placeholder="HH:MM"
         value={typeof value === "string" ? value : ""}
         onChangeText={(text: string) => {
@@ -358,16 +515,17 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       <TextInput
         accessibilityLabel={questionLabel(question, locale)}
         testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          issues.length > 0 && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
         aria-invalid={issues.length > 0 || undefined}
         aria-readonly={readOnly || undefined}
         editable={!readOnly}
         readOnly={readOnly || undefined}
         {...({ type: "datetime-local" } as Record<string, unknown>)}
+        style={[
+          questionControlStyles.input,
+          questionControlStyles.dateTimeInput,
+          issues.length > 0 && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
         placeholder="YYYY-MM-DDTHH:MM"
         value={typeof value === "string" ? value : ""}
         onChangeText={(text: string) => {
@@ -632,9 +790,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
     useEffect(() => () => onDraftIssue?.(question.name, undefined), [onDraftIssue, question.name]);
 
-    const updateDraft = (next: string | undefined) => {
+    const updateDraft = (next: string | undefined, issue?: ValidationIssue) => {
       setDraft(next);
-      onDraftIssue?.(question.name, incompleteDateIssue(question, next, locale, messages));
+      onDraftIssue?.(question.name, issue ?? incompleteDateIssue(question, next, locale, messages));
     };
 
     if (hasAppearance(question, "month-year")) {
@@ -709,28 +867,6 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       );
     }
 
-    if (DateInput) {
-      return (
-        <DateInput
-          accessibilityLabel={label}
-          testID={`question-${question.name}`}
-          style={[
-            questionControlStyles.input,
-            hasIssues && questionControlStyles.inputError,
-            readOnly && questionControlStyles.inputReadOnly
-          ]}
-          aria-invalid={hasIssues || undefined}
-          aria-readonly={readOnly || undefined}
-          editable={!readOnly}
-          readOnly={readOnly || undefined}
-          value={value == null ? "" : String(value)}
-          onChangeText={(text: string) => {
-            if (!readOnly) onAnswer(text || undefined);
-          }}
-        />
-      );
-    }
-
     // `no-calendar` asks for a spinner-style picker rather than no picker at
     // all, and the host owns the picker. It receives `question`, so it reads
     // the appearance itself; suppressing pickDate here would remove the picker
@@ -770,53 +906,262 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               ? messages.openingCalendar
               : value == null
                 ? messages.selectDate
-                : formatDisplayDate(String(value), locale)}
+                : formatDdMmmYyyy(String(value), locale)}
           </PrimitiveText>
         </Pressable>
       );
     }
 
     return (
-      <TextInput
-        accessibilityLabel={label}
-        testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          hasIssues && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
-        aria-invalid={hasIssues || undefined}
-        aria-readonly={readOnly || undefined}
-        editable={!readOnly}
-        readOnly={readOnly || undefined}
-        value={draft ?? (value == null ? "" : formatDisplayDate(String(value), locale))}
-        placeholder={dateFormatPlaceholder(locale)}
-        onChangeText={(text: string) => {
-          if (readOnly) return;
-          if (text === "") {
-            updateDraft(undefined);
-            onAnswer(undefined);
-            return;
-          }
-          const parsed = parseDisplayDate(text, locale);
-          if (parsed) {
-            onAnswer(parsed);
-            updateDraft(undefined);
-          } else {
-            updateDraft(text);
-            onAnswer(undefined);
-          }
-        }}
+      <DateParts
+        hasIssues={hasIssues}
+        label={label}
+        locale={locale}
+        messages={messages}
+        onAnswer={onAnswer}
+        onDraftIssue={updateDraft}
+        question={question}
+        readOnly={readOnly}
+        value={typeof value === "string" ? value : undefined}
       />
     );
   }
 
   /**
-   * The language picker: a filter box over the option list. The box only
-   * ever holds the filter text; the selection is shown once, as the marked
-   * row in the list. It used to echo the selected label as its value as well,
-   * which put "English (English)" on screen twice.
+   * A date as DD-MMM-YYYY: day and year boxes with a month select between
+   * them, styled as one field, and a calendar button that opens the native
+   * picker (a hidden <input type="date">). The stored value stays ISO; a
+   * partial entry stores nothing, an impossible date (31-Feb) shows an error
+   * and stores nothing. Without a Select primitive the month is a numeric box.
    */
+  function DateParts({
+    hasIssues,
+    label,
+    locale,
+    messages,
+    onAnswer,
+    onDraftIssue,
+    question,
+    readOnly,
+    value
+  }: {
+    hasIssues: boolean;
+    label: string;
+    locale: string;
+    messages: WhoVaUiMessages;
+    onAnswer: (value: AnswerValue | undefined) => void;
+    onDraftIssue: (draft: string | undefined, issue?: ValidationIssue) => void;
+    question: InstrumentQuestion;
+    readOnly: boolean | undefined;
+    value: string | undefined;
+  }) {
+    const fromValue = (iso: string | undefined) => {
+      const match = iso ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso) : null;
+      return match
+        ? { day: match[3] ?? "", month: match[2] ?? "", year: match[1] ?? "" }
+        : { day: "", month: "", year: "" };
+    };
+    const [parts, setParts] = useState(() => fromValue(value));
+    const [shownFor, setShownFor] = useState(value);
+    // A value set from outside (a draft, the picker) refreshes the parts.
+    if (shownFor !== value) {
+      setShownFor(value);
+      if (value !== undefined || isoFromParts(parts.day, parts.month, parts.year)) setParts(fromValue(value));
+    }
+    const monthRef = useRef<unknown>(null);
+    const yearRef = useRef<unknown>(null);
+    const pickerRef = useRef<unknown>(null);
+    const focus = (node: unknown) => (node as { focus?: () => void } | null)?.focus?.();
+    const months = useMemo(
+      () =>
+        localizedMonthNames(locale).map((name, index) => ({
+          value: String(index + 1).padStart(2, "0"),
+          label: name
+        })),
+      [locale]
+    );
+    const { min, max } = dateBounds(question);
+    const hintId = `question-${question.name}-format`;
+    const labelId = `question-${question.name}-label`;
+
+    const commit = (next: { day: string; month: string; year: string }) => {
+      setParts(next);
+      const complete = next.day && next.month && next.year.length === 4;
+      const iso = isoFromParts(next.day, next.month, next.year);
+      if (iso) {
+        onDraftIssue(undefined);
+        onAnswer(iso);
+        setShownFor(iso);
+      } else {
+        onAnswer(undefined);
+        setShownFor(undefined);
+        onDraftIssue(
+          complete ? "invalid" : undefined,
+          complete
+            ? {
+                question: question.name,
+                code: "type",
+                message: messages.invalidDate("DD-MMM-YYYY", formatDdMmmYyyy("1986-07-16", locale))
+              }
+            : undefined
+        );
+      }
+    };
+    const partStyle = [questionControlStyles.input, questionControlStyles.datePart];
+    return (
+      <View>
+        <View
+          accessibilityRole="none"
+          aria-describedby={hintId}
+          aria-labelledby={labelId}
+          role="group"
+          style={questionControlStyles.dateGroup}
+        >
+          <PrimitiveText nativeID={labelId} style={questionControlStyles.hidden}>
+            {label}
+          </PrimitiveText>
+          <View
+            style={[
+              questionControlStyles.dateField,
+              hasIssues && questionControlStyles.inputError,
+              readOnly && questionControlStyles.inputReadOnly
+            ]}
+          >
+            <TextInput
+              accessibilityLabel={messages.day}
+              aria-describedby={hintId}
+              aria-invalid={hasIssues || undefined}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!readOnly}
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={2}
+              onChangeText={(text: string) => {
+                if (readOnly) return;
+                const day = asciiDigits(text).replace(/\D/g, "").slice(0, 2);
+                commit({ ...parts, day });
+                if (day.length === 2) focus(monthRef.current);
+              }}
+              placeholder="DD"
+              readOnly={readOnly || undefined}
+              style={[...partStyle, questionControlStyles.datePartDay]}
+              testID={`question-${question.name}-day`}
+              value={parts.day}
+            />
+            <PrimitiveText aria-hidden="true" style={questionControlStyles.dateSeparator}>
+              -
+            </PrimitiveText>
+            {Select ? (
+              <Select
+                ref={monthRef}
+                accessibilityLabel={messages.month}
+                onValueChange={(month: string) => {
+                  if (readOnly) return;
+                  commit({ ...parts, month });
+                  if (month) focus(yearRef.current);
+                }}
+                options={months}
+                style={[...partStyle, questionControlStyles.datePartMonth]}
+                testID={`question-${question.name}-month`}
+                value={parts.month}
+              />
+            ) : (
+              <TextInput
+                ref={monthRef}
+                accessibilityLabel={messages.month}
+                editable={!readOnly}
+                inputMode="numeric"
+                keyboardType="number-pad"
+                maxLength={2}
+                onChangeText={(text: string) => {
+                  if (readOnly) return;
+                  const month = asciiDigits(text).replace(/\D/g, "").slice(0, 2);
+                  commit({ ...parts, month });
+                  if (month.length === 2) focus(yearRef.current);
+                }}
+                placeholder="MM"
+                readOnly={readOnly || undefined}
+                style={[...partStyle, questionControlStyles.datePartDay]}
+                testID={`question-${question.name}-month`}
+                value={parts.month}
+              />
+            )}
+            <PrimitiveText aria-hidden="true" style={questionControlStyles.dateSeparator}>
+              -
+            </PrimitiveText>
+            <TextInput
+              ref={yearRef}
+              accessibilityLabel={messages.year}
+              aria-describedby={hintId}
+              aria-invalid={hasIssues || undefined}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!readOnly}
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={4}
+              onChangeText={(text: string) => {
+                if (readOnly) return;
+                commit({ ...parts, year: asciiDigits(text).replace(/\D/g, "").slice(0, 4) });
+              }}
+              placeholder="YYYY"
+              readOnly={readOnly || undefined}
+              style={[...partStyle, questionControlStyles.datePartYear]}
+              testID={`question-${question.name}-year`}
+              value={parts.year}
+            />
+          </View>
+          {DateInput ? (
+            <>
+              <DateInput
+                ref={pickerRef}
+                accessibilityLabel={label}
+                aria-hidden="true"
+                tabIndex={-1}
+                testID={`question-${question.name}`}
+                style={questionControlStyles.hiddenPicker}
+                {...(min ? { min } : {})}
+                {...(max ? { max } : {})}
+                value={value ?? ""}
+                onChangeText={(text: string) => {
+                  if (readOnly) return;
+                  commit(fromValue(text || undefined));
+                }}
+              />
+              <Pressable
+                accessibilityLabel={messages.openCalendar}
+                accessibilityRole="button"
+                disabled={readOnly}
+                onPress={() => {
+                  const picker = pickerRef.current as {
+                    showPicker?: () => void;
+                    focus?: () => void;
+                    click?: () => void;
+                  } | null;
+                  try {
+                    picker?.showPicker?.();
+                  } catch {
+                    picker?.focus?.();
+                  }
+                }}
+                style={[questionControlStyles.stepButton, readOnly && questionControlStyles.buttonDisabled]}
+                testID={`question-${question.name}-calendar`}
+              >
+                <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
+                  📅
+                </PrimitiveText>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+        <PrimitiveText nativeID={hintId} style={questionControlStyles.formatHint} testID={hintId}>
+          {messages.dateFormatHint}
+        </PrimitiveText>
+      </View>
+    );
+  }
+
   function SearchableSingleChoice({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
     const [query, setQuery] = useState("");
@@ -883,8 +1228,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
    * Unknown appearance tokens fall through to the default vertical list, which
    * is what ODK clients do with an appearance they do not implement.
    */
-  function useChoicePresentation(question: InstrumentQuestion, locale: string) {
+  function useChoicePresentation(question: InstrumentQuestion, locale: string, choiceColumns?: number) {
     const [query, setQuery] = useState("");
+    const [width, setWidth] = useState(0);
     const layout = columnLayout(question);
     const likert = hasAppearance(question, "likert");
     const bare = hasAppearance(question, "no-buttons");
@@ -899,9 +1245,42 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       );
     }, [question, locale, query, searchable]);
 
+    // A short list (at most six choices, every label at most 24 characters
+    // in the shown locale) becomes a grid of equal cells: as many columns as
+    // choices when the host allows and each cell keeps 96px, else two, else
+    // one. Row-major, so reading and tab order stay the choice order.
+    const gridCandidate =
+      !layout &&
+      !likert &&
+      !searchable &&
+      (choiceColumns ?? 1) > 1 &&
+      choices.length > 1 &&
+      choices.length <= 6 &&
+      choices.every((choice) => [...localized(choice.label, locale, choice.value)].length <= 24);
+    let columns = 1;
+    if (gridCandidate && width > 0) {
+      // A cell must hold its longest word on one line beside the indicator:
+      // 58px of chrome (padding, indicator, gap) plus ~9px a character.
+      const longestWord = Math.max(
+        ...choices.map((choice) =>
+          Math.max(
+            ...localized(choice.label, locale, choice.value)
+              .split(/\s+/)
+              .map((word) => [...word].length)
+          )
+        )
+      );
+      const minCell = Math.max(96, 58 + 9 * longestWord);
+      columns = Math.min(choices.length, choiceColumns ?? 1);
+      while (columns > 1 && (width - 8 * (columns - 1)) / columns < minCell) columns -= 1;
+    }
+    const grid =
+      columns > 1 ? { columns, cellWidth: Math.floor((width - 8 * (columns - 1)) / columns) } : undefined;
     const inline = Boolean(layout) || likert;
     const cellStyle: Record<string, unknown>[] = [];
-    if (likert) {
+    if (grid) {
+      cellStyle.push(questionControlStyles.choiceCell, { width: grid.cellWidth });
+    } else if (likert) {
       cellStyle.push(questionControlStyles.choiceLikert);
     } else if (layout) {
       cellStyle.push(questionControlStyles.choiceInline);
@@ -928,12 +1307,36 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       />
     ) : null;
 
-    return { choices, cellStyle, inline, searchNode };
+    // The measuring wrapper exists whenever a grid is possible, so the
+    // first layout can decide the column count.
+    const wrap = (cells: React.ReactNode) =>
+      gridCandidate ? (
+        <View
+          onLayout={(event: { nativeEvent: { layout: { width: number } } }) =>
+            setWidth(event.nativeEvent.layout.width)
+          }
+          style={grid ? questionControlStyles.choiceGrid : undefined}
+          testID={`question-${question.name}-choices`}
+          {...(grid ? { "data-columns": grid.columns } : {})}
+        >
+          {cells}
+        </View>
+      ) : inline ? (
+        <View style={questionControlStyles.choiceRow}>{cells}</View>
+      ) : (
+        cells
+      );
+
+    return { choices, cellStyle, inline, searchNode, wrap };
   }
 
   function SingleChoice(props: WhoVaQuestionControlProps) {
     const { question, value, locale, issues, onAnswer } = props;
-    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
+    const { choices, cellStyle, searchNode, wrap } = useChoicePresentation(
+      question,
+      locale,
+      props.choiceColumns
+    );
     if (question.name === "language") return <SearchableSingleChoice {...props} />;
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
@@ -965,11 +1368,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         </Pressable>
       );
     });
-    if (!searchNode && !inline) return cells;
     return (
       <>
         {searchNode}
-        {inline ? <View style={questionControlStyles.choiceRow}>{cells}</View> : cells}
+        {wrap(cells)}
       </>
     );
   }
@@ -980,7 +1382,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
-    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
+    const { choices, cellStyle, searchNode, wrap } = useChoicePresentation(
+      question,
+      locale,
+      props.choiceColumns
+    );
     const cells = choices.map((choice) => {
       const selected = selectedSet.has(choice.value);
       return (
@@ -1014,11 +1420,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         </Pressable>
       );
     });
-    if (!searchNode && !inline) return cells;
     return (
       <>
         {searchNode}
-        {inline ? <View style={questionControlStyles.choiceRow}>{cells}</View> : cells}
+        {wrap(cells)}
       </>
     );
   }
@@ -1102,6 +1507,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           accessibilityState={{ disabled, busy: phase === "starting" || phase === "stopping" }}
           aria-invalid={issues.length > 0 || undefined}
           testID={`question-${question.name}`}
+          aria-describedby={
+            !services.startAudioRecording && !services.captureAudio
+              ? `question-${question.name}-unavailable`
+              : undefined
+          }
           style={[
             questionControlStyles.button,
             issues.length > 0 && questionControlStyles.buttonError,
@@ -1151,6 +1561,15 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         {recordingError ? (
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
             {recordingError}
+          </PrimitiveText>
+        ) : null}
+        {!services.startAudioRecording && !services.captureAudio ? (
+          <PrimitiveText
+            nativeID={`question-${question.name}-unavailable`}
+            style={questionControlStyles.hint}
+            testID={`question-${question.name}-unavailable`}
+          >
+            {messages.audioUnavailable}
           </PrimitiveText>
         ) : null}
       </View>
@@ -1279,6 +1698,15 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             {processingError}
           </PrimitiveText>
         ) : null}
+        {!services?.captureImage && !services?.selectImage && !services?.captureDrawing ? (
+          <PrimitiveText
+            nativeID={`question-${question.name}-unavailable`}
+            style={questionControlStyles.hint}
+            testID={`question-${question.name}-unavailable`}
+          >
+            {messages.imageUnavailable}
+          </PrimitiveText>
+        ) : null}
         <View style={questionControlStyles.actions}>
           {drawMode ? (
             <Pressable
@@ -1307,6 +1735,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           ) : null}
           <Pressable
             accessibilityRole="button"
+            aria-describedby={
+              !services?.captureImage && !services?.selectImage
+                ? `question-${question.name}-unavailable`
+                : undefined
+            }
             aria-invalid={issues.length > 0 || undefined}
             disabled={readOnly || !services?.captureImage || busy != null || Boolean(drawMode)}
             style={[
@@ -1435,9 +1868,19 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         {attachment.name ? (
           <PrimitiveText style={questionControlStyles.attachmentName}>{attachment.name}</PrimitiveText>
         ) : null}
+        {!services?.selectFile ? (
+          <PrimitiveText
+            nativeID={`question-${question.name}-unavailable`}
+            style={questionControlStyles.hint}
+            testID={`question-${question.name}-unavailable`}
+          >
+            {messages.fileUnavailable}
+          </PrimitiveText>
+        ) : null}
         <View style={questionControlStyles.actions}>
           <Pressable
             accessibilityRole="button"
+            aria-describedby={!services?.selectFile ? `question-${question.name}-unavailable` : undefined}
             testID={`question-${question.name}`}
             aria-invalid={issues.length > 0 || undefined}
             disabled={readOnly || !services?.selectFile || busy}

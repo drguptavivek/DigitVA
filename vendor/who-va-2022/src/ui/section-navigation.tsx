@@ -45,6 +45,14 @@ interface SectionNavPrimitives {
   Text: React.ElementType;
   Pressable: React.ElementType;
   ScrollView: React.ElementType;
+  /**
+   * Hosts the drawer above the page. react-native-web's Modal portals its
+   * children to document.body, which is the only way out of the form's own
+   * stacking context: every react-native-web View is `position: relative;
+   * z-index: 0`, so a z-index inside the form can never rise above a host
+   * element such as a fixed navbar. Without it the drawer renders inline.
+   */
+  Modal?: React.ElementType | undefined;
 }
 
 const STATUS_SUFFIX: Record<SectionNavStatus, string> = {
@@ -54,9 +62,21 @@ const STATUS_SUFFIX: Record<SectionNavStatus, string> = {
   issues: ", has issues"
 };
 
-/** Circle diameter and the shortest circle-to-circle pitch that still reads as a line. */
+/**
+ * Circle diameter, the gap either side of a connecting line and the shortest
+ * line that still reads as one: a circle needs DIAMETER + 2 * GAP + MIN_LINE
+ * of row width after the first. The strip has no padding, so the measured
+ * row width is the available width.
+ */
 const STEP_DIAMETER = 20;
-const STEP_MIN_PITCH = 34;
+const STEP_GAP = 6;
+const STEP_MIN_LINE = 12;
+
+/** True when `count` circles joined by lines fit in `width` without shrinking. */
+export function stepperFits(width: number, count: number): boolean {
+  if (count <= 1) return true;
+  return STEP_DIAMETER + (count - 1) * (STEP_DIAMETER + 2 * STEP_GAP + STEP_MIN_LINE) <= width;
+}
 const MAX_INDENT = 2;
 const INDENT = 16;
 
@@ -66,6 +86,16 @@ function focusableWithin(node: unknown): HTMLElement[] {
   return Array.from(
     node.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])')
   );
+}
+
+/** Scroll `box` just enough to show `item`, touching nothing outside the box. */
+function keepInView(box: unknown, item: unknown): void {
+  if (typeof HTMLElement === "undefined" || !(box instanceof HTMLElement) || !(item instanceof HTMLElement))
+    return;
+  const top = item.offsetTop - box.offsetTop;
+  const bottom = top + item.offsetHeight;
+  if (top < box.scrollTop) box.scrollTo({ top: top - 8 });
+  else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight + 8 });
 }
 
 function sectionTitle(item: SectionNavItem): string {
@@ -97,7 +127,7 @@ function useJustAdded(items: readonly SectionNavItem[]): ReadonlySet<string> {
   return new Set(pending);
 }
 
-export function createSectionNavigation({ View, Text, Pressable, ScrollView }: SectionNavPrimitives) {
+export function createSectionNavigation({ View, Text, Pressable, ScrollView, Modal }: SectionNavPrimitives) {
   /**
    * One stepper circle. The status node (`section-status-<name>`) exists only
    * once a section has been touched, so an untouched section has none.
@@ -141,11 +171,19 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
   /** The vertical stepper: every visible section, named, tappable. Used by the rail and the drawer. */
   function VerticalStepper({
     items,
-    onSelect
+    onSelect,
+    scrollBox
   }: {
     items: readonly SectionNavItem[];
     onSelect: (name: string) => void;
+    /** The rail's own scroll box, kept scrolled to the current item without moving the page. */
+    scrollBox?: React.MutableRefObject<unknown> | undefined;
   }) {
+    const activeRef = useRef<unknown>(null);
+    const activeName = items.find((item) => item.active)?.name;
+    useEffect(() => {
+      keepInView(scrollBox?.current, activeRef.current);
+    }, [activeName, scrollBox]);
     const activeIndex = Math.max(
       0,
       items.findIndex((item) => item.active)
@@ -166,6 +204,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
               accessibilityState={{ selected: item.active }}
               aria-invalid={item.status === "issues" || undefined}
               testID="section-slider-item"
+              {...(item.active ? { ref: activeRef } : {})}
               onPress={() => onSelect(item.name)}
               style={[
                 navStyles.step,
@@ -211,14 +250,16 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
     moreToCome: boolean;
     onSelect: (name: string) => void;
   }) {
+    const railRef = useRef<unknown>(null);
     return (
       <View
+        ref={railRef}
         accessibilityRole="navigation"
         aria-label={messages.sections}
         style={navStyles.rail}
         testID="section-rail"
       >
-        <VerticalStepper items={items} onSelect={onSelect} />
+        <VerticalStepper items={items} onSelect={onSelect} scrollBox={railRef} />
         {moreToCome ? <Text style={navStyles.moreNote}>{messages.moreSectionsNote}</Text> : null}
       </View>
     );
@@ -255,8 +296,9 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
       items.findIndex((item) => item.active)
     );
     const active = items[activeIndex];
-    const capacity = width > 0 ? Math.floor((width - STEP_DIAMETER) / STEP_MIN_PITCH) + 1 : items.length;
-    const collapsed = items.length > capacity;
+    // Until the first layout, only a short list is drawn in full: a long one
+    // must never flash its overflow.
+    const collapsed = width > 0 ? !stepperFits(width, items.length) : items.length > 8;
     const done = items.filter((item) => item.status === "complete").length;
     const position = messages.sectionProgress(current, total);
     const title = active ? sectionTitle(active) : "";
@@ -306,8 +348,8 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
         </View>
         <View style={navStyles.headerRow}>
           <View style={[navStyles.headerLead, { marginLeft: labelOffset }]}>
-            <Text numberOfLines={2} style={navStyles.headerText}>
-              {collapsed ? `${position} · ${title}` : title}
+            <Text numberOfLines={1} style={navStyles.headerText}>
+              {position}
             </Text>
             {moreToCome ? <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text> : null}
           </View>
@@ -379,7 +421,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
       }
     };
 
-    return (
+    const overlay = (
       <View style={navStyles.overlay} testID="section-drawer-overlay">
         <Pressable
           accessibilityLabel={messages.close}
@@ -426,9 +468,21 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView }: S
         </View>
       </View>
     );
+    if (!Modal) return overlay;
+    return (
+      <Modal animationType="none" onRequestClose={onClose} transparent visible>
+        {overlay}
+      </Modal>
+    );
   }
 
-  return { SectionRail, SectionHeaderBar, SectionDrawer };
+  // Memoised: their props only change when a section's status, the current
+  // section or the visible list changes, not on every answer.
+  return {
+    SectionRail: React.memo(SectionRail),
+    SectionHeaderBar: React.memo(SectionHeaderBar),
+    SectionDrawer: React.memo(SectionDrawer)
+  };
 }
 
 export const navStyles = {
@@ -476,8 +530,8 @@ export const navStyles = {
   ),
   // Vertical stepper (rail and drawer)
   rail: withWebTheme(
-    { alignSelf: "flex-start" as const, paddingTop: 4, position: "relative" as const, top: 8, width: 236 },
-    { position: "stickyPosition" }
+    { alignSelf: "flex-start" as const, paddingTop: 4, position: "relative" as const, width: 236 },
+    { position: "stickyRail" }
   ),
   groupLabel: withWebTheme(
     {
@@ -524,7 +578,13 @@ export const navStyles = {
   ),
   // Horizontal stepper (header)
   header: { marginBottom: 16, rowGap: 8 },
-  strip: { alignItems: "center" as const, columnGap: 6, flexDirection: "row" as const, width: "100%" },
+  strip: {
+    alignItems: "center" as const,
+    columnGap: STEP_GAP,
+    flexDirection: "row" as const,
+    overflow: "hidden" as const,
+    width: "100%"
+  },
   stripLine: withWebTheme(
     { backgroundColor: "#dce6e1", flexBasis: 0, flexGrow: 1, height: 2, minWidth: 12 },
     { backgroundColor: "border" }

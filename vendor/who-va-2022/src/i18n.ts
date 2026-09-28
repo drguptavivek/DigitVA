@@ -25,6 +25,26 @@ export interface WhoVaUiMessageTemplates {
   sections: string;
   sectionsDone: string;
   sectionsRemaining: string;
+  decrease: string;
+  increase: string;
+  unitDays: string;
+  unitMonths: string;
+  unitYears: string;
+  unitHours: string;
+  unitMinutes: string;
+  unitWeeks: string;
+  unitGrams: string;
+  interviewer: string;
+  interviewerInstruction: string;
+  dateFormatHint: string;
+  requiredShort: string;
+  day: string;
+  month: string;
+  year: string;
+  openCalendar: string;
+  audioUnavailable: string;
+  imageUnavailable: string;
+  fileUnavailable: string;
   moreSectionsNote: string;
   close: string;
   back: string;
@@ -131,6 +151,26 @@ export interface WhoVaUiMessages {
   sections: string;
   sectionsDone: (count: number) => string;
   sectionsRemaining: (count: number) => string;
+  decrease: string;
+  increase: string;
+  unitDays: string;
+  unitMonths: string;
+  unitYears: string;
+  unitHours: string;
+  unitMinutes: string;
+  unitWeeks: string;
+  unitGrams: string;
+  interviewer: string;
+  interviewerInstruction: string;
+  dateFormatHint: string;
+  requiredShort: string;
+  day: string;
+  month: string;
+  year: string;
+  openCalendar: string;
+  audioUnavailable: string;
+  imageUnavailable: string;
+  fileUnavailable: string;
   moreSectionsNote: string;
   close: string;
   back: string;
@@ -218,6 +258,29 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   sections: "Sections",
   sectionsDone: "{count} done",
   sectionsRemaining: "{count} left",
+  decrease: "Decrease",
+  increase: "Increase",
+  unitDays: "days",
+  unitMonths: "months",
+  unitYears: "years",
+  unitHours: "hours",
+  unitMinutes: "minutes",
+  unitWeeks: "weeks",
+  unitGrams: "grammes",
+  interviewer: "Interviewer",
+  interviewerInstruction: "Interviewer instruction",
+  dateFormatHint: "DD-MMM-YYYY, for example 16-Jul-1986",
+  requiredShort: "This question is required.",
+  day: "Day",
+  month: "Month",
+  year: "Year",
+  openCalendar: "Open calendar",
+  audioUnavailable:
+    "Recording isn't available here yet — capture it in the ODK app or note it in the narrative.",
+  imageUnavailable:
+    "Photos can't be attached here yet — capture them in the ODK app or note them in the narrative.",
+  fileUnavailable:
+    "Files can't be attached here yet — attach them in the ODK app or note them in the narrative.",
   moreSectionsNote: "More sections appear as you answer",
   close: "Close",
   back: "Back",

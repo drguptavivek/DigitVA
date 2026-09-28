@@ -46,6 +46,12 @@ export class WhoVaFormElement extends HTMLElement {
   private configuredPlatform: WhoVaPlatformServices | undefined;
   private configuredLockedQuestionNames: readonly string[] = [];
   private renderVersion = 0;
+  /**
+   * Bumped whenever a new session is created: the form keeps the session it
+   * mounted with, so a new one needs a new mount, else `setData()` would
+   * write to a session the page is not showing.
+   */
+  private sessionVersion = 0;
 
   constructor() {
     super();
@@ -182,6 +188,7 @@ export class WhoVaFormElement extends HTMLElement {
       // carry across, which is the only safe reading of a contract change.
       this.sessionBase = base;
       this.session = createWhoVaSession(base);
+      this.sessionVersion += 1;
       this.session.setLockedQuestionNames(this.configuredLockedQuestionNames);
     } else {
       this.session.setInstrument(language.instrument);
@@ -191,7 +198,7 @@ export class WhoVaFormElement extends HTMLElement {
     this.root ??= createRoot(this);
     this.root.render(
       <WhoVaForm
-        key={this.getDraftId()}
+        key={`${this.getDraftId()}:${this.sessionVersion}`}
         instrument={language.instrument}
         session={this.session}
         draftId={this.getDraftId()}

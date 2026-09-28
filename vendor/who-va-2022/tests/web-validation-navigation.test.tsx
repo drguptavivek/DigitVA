@@ -253,10 +253,9 @@ describe("validation navigation", () => {
     expect(
       container.querySelector('[data-testid="question-required_file"]')?.getAttribute("aria-invalid")
     ).toBe("true");
-    expect(container.textContent).toContain("Required choice is required");
-    expect(container.textContent).toContain("Required symptoms is required");
-    expect(container.textContent).toContain("Required confirmation is required");
-    expect(container.textContent).toContain("Required file is required");
+    // Inline, under the question, the message does not restate the label.
+    expect(container.textContent).not.toContain("Required choice is required");
+    expect(container.textContent.match(/This question is required\./g)?.length).toBeGreaterThanOrEqual(4);
 
     root.unmount();
   });
@@ -314,7 +313,7 @@ describe("validation navigation", () => {
       complete?.click();
     });
 
-    await vi.waitFor(() => expect(container.textContent).toContain("Required name is required"));
+    await vi.waitFor(() => expect(container.textContent).toContain("This question is required."));
     expect(container.textContent).toContain("Identity");
     expect(container.querySelector('[data-testid="question-required_name"]')).not.toBeNull();
     // The section item carries a status glyph ("!") before its label, so it

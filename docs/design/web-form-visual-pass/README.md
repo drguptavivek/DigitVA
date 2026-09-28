@@ -3,7 +3,7 @@ title: Web VA questionnaire visual pass (before/after)
 doc_type: design
 status: proposed
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-29
 ---
 
 # Web VA questionnaire visual pass
@@ -214,6 +214,207 @@ built file was smoke-tested in Chromium under the tooling's react 18 /
 react-native-web 0.19 pins: sticky rail on desktop, fixed drawer with focus
 trap on phone, stripped validation message, no console errors.
 
+## Round 3: field controls, drawer above the host, performance (`after-v3-*`)
+
+Owner requests after the round-2 merge (`409459d`, main `1df15ec`). All
+captures are of the **built bundle** on a static host page carrying a
+fixed 56 px navbar with `z-index: 1000` (the DigitVA case), at phone 390,
+tablet 820 and desktop 1280, plus 375 for the drawer bug; the Hindi ones
+use the package demo with the bundled Hindi draft.
+
+| Change | Files |
+| --- | --- |
+| Drawer above the host navbar (phone 375 / 390 / tablet 820) | `after-v3-drawer-under-navbar-{phone375,phone,tablet}.png` |
+| Rail at desktop, and at a short 1280x720 viewport with 17 sections | `after-v3-rail-desktop.png`, `after-v3-rail-short-viewport-1280x720-desktop.png` |
+| Header shows only "Section x of y" | `after-v3-section1-header-{phone,tablet,desktop}.png` |
+| Horizontal stepper with 17 sections (collapsed on phone, full on tablet) | `after-v3-stepper-17-sections-{phone,tablet}.png` |
+| Next scrolls the new section's top under the navbar | `after-v3-next-scrolls-to-top-{phone,tablet,desktop}.png` |
+| Number field: 99 typed, then "-" pressed; unit "years" | `after-v3-number-99-*`, `after-v3-number-step-*`, `after-v3-number-unit-years-*`, `after-v3-hindi-number-*` |
+| Choice grid: 3 options (Id10020, Id10022), 4 options (Id10487), long labels stay single-column (Id10058) | `after-v3-grid-3-options-*`, `after-v3-grid-3-options-b-*`, `after-v3-grid-4-options-*`, `after-v3-grid-long-labels-single-column-*`, `after-v3-hindi-grid-3-options-*` |
+| Interviewer instructions (age_group, age_adult) | `after-v3-instruction-age-group-*`, `after-v3-instruction-age-adult-*` |
+| Date as DD-MMM-YYYY, and an impossible date | `after-v3-date-*`, `after-v3-date-invalid-*`, `after-v3-hindi-date-*` |
+
+### What changed
+
+1. **Drawer above the host.** Every react-native-web `View` is
+   `position: relative; z-index: 0`, so nothing inside the form could rise
+   above DigitVA's fixed navbar. The drawer now renders through
+   react-native's `Modal` (a new optional `Modal` primitive; web passes
+   react-native-web's, which portals to `document.body`; native passes
+   React Native's), `transparent`, `animationType="none"`. Focus trap,
+   Escape, scrim, focus return, `aria-modal` and the testIDs are unchanged;
+   the panel still opens from the right. Theme variables must be on `:root`
+   (the demo's are, DigitVA sets none): a portal is outside any wrapper.
+2. **Rail scrolls on its own.** `position: sticky; top:
+   var(--who-2022-web-sticky-top, 64px); max-height: calc(100vh - top - 8px);
+   overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin`
+   (`stickyRail` theme token). The current item is kept in view inside the
+   rail only (`scrollTo` on the rail, never the page). The questions keep
+   scrolling with the window. Hosts set `--who-2022-web-sticky-top` to their
+   fixed bar's height.
+3. **Header strip** shows only "Section x of y"; the section name stays in
+   the strip's accessible name ("Sections: Section 4 of 15 · Information on
+   the Deceased"). The strip now measures its own width and collapses to
+   "N done - line - current - line - M left" whenever
+   `20 + (n-1) * (20 + 2*6 + 12)` px would exceed it (`stepperFits`, tested
+   at 788 / 568 px with 17 and 30 sections), so it never overflows; before
+   the first layout a list longer than 8 is drawn collapsed. The row is
+   `overflow: hidden` as a belt.
+4. **Section change scrolls to the top** of the form (`scrollIntoView` on
+   the form shell, `block: "start"`, `behavior: "auto"` under reduced
+   motion; `scroll-margin-top` = the sticky-top variable so the stepper and
+   heading land below the navbar) and moves focus to the section heading
+   (`role="heading"`, `aria-level=2`, `tabIndex=-1`, `section-heading`).
+   Applies to Next, Back, rail, drawer and history alike, since it keys off
+   the current section, not the control that changed it. Window scroll on
+   the web; the ScrollView on native.
+5. **Number fields** (`NumberField` around Integer and Decimal): a box sized
+   to the constraint's digit count between "-" and "+" (44 px, `Decrease` /
+   `Increase`, `question-<name>-decrease/-increase`), `inputMode`
+   numeric/decimal, autocorrect/capitalize/spellcheck off, Indic digits
+   (Devanagari through Malayalam) normalised to ASCII on input
+   (`asciiDigits`; the stored value stays the engine's number), non-digits
+   stripped for integers. "-" never goes below the constraint's literal
+   minimum, "+" stops at its literal maximum, typing is never blocked, so
+   "99 if you do not wish to disclose" still goes in; a bound on another
+   answer (`${ageInDaysNeonate}`) leaves the button open. Decimal boxes show
+   "0.0". Units come from the English label/hint only when exactly one unit
+   word occurs (`numericUnit`: days, months, years, hours, minutes, weeks,
+   grammes; localized), so "How many (months/years)" gets none and "Age of
+   VA interviewer" gets none. There is no decimal question in the WHO core
+   or the DigitVA layers, so the decimal placeholder is covered by tests only.
+6. **Choice grid.** A single or multiple choice list with at most six
+   options, every label at most 24 code points in the shown locale, no
+   explicit column appearance and no search becomes a row-major grid of
+   equal-width cells: as many columns as options up to the form's cap
+   (2 compact, 3 medium, 4 wide, passed as `choiceColumns`), reduced while
+   a cell would be under 96 px; the last odd cell keeps the same width,
+   left-aligned. The wrapper measures its own width once (`onLayout`).
+   Indicators, roles, order and testIDs are unchanged.
+7. **Interviewer instructions.** A label wrapped in `[...]` in the shown
+   locale (7 WHO questions) loses its brackets, gets a small "Interviewer"
+   tag and an italic, guidance-coloured style, and its accessible name is
+   "Interviewer instruction: ..." (`instructionLabel`, tested with
+   whitespace, Hindi and a translation without brackets). Data, translations
+   and payloads untouched.
+8. **Dates as DD-MMM-YYYY.** Day box, month select (localized short names
+   via `Intl`, a numeric box without a `Select` primitive), year box in one
+   field, auto-advancing, plus a calendar button that opens the native
+   picker through a hidden `<input type="date">` (`showPicker()`), which
+   also carries the constraint's `min`/`max` (`dateBounds`: `today()` and
+   literal dates). The stored value is still ISO `YYYY-MM-DD`; a partial
+   entry stores nothing and shows nothing; an impossible date (31-Feb)
+   stores nothing and shows "Enter the date as DD-MMM-YYYY, for example
+   16-Jul-1986". `role="group"` labelled by the question, each part named
+   Day / Month / Year, the format hint under the field always visible and
+   linked with `aria-describedby`. Preview and the native `pickDate` button
+   show DD-MMM-YYYY too (`formatDdMmmYyyy`). Time and datetime boxes are
+   sized compactly; there is no datetime question in the instrument, so the
+   three-part pattern was not extended to them.
+9. **Inline messages** never restate the label: a required-empty issue
+   shows "This question is required." and any other message loses the
+   leading label the engine puts there (`inlineIssueMessage`). Payloads
+   (`onValidation`, `who-va-validation`, `validate()`), the section list and
+   the summary keep the full message.
+10. **Attachment controls without a host service** (DigitVA passes none
+    yet) keep their disabled button and add a muted note under it
+    ("Recording isn't available here yet — capture it in the ODK app or
+    note it in the narrative.", image and file equivalents, en/hi/fr),
+    linked with `aria-describedby`; no note once the service exists.
+11. **Date input styling.** The web date input now runs through the theme
+    (control-border, radius, 12 px padding, 44 px, ink, surface) and is
+    12 rem wide, not the column.
+
+New UI strings (en/hi/fr): `requiredShort`, `day`, `month`, `year`,
+`openCalendar`, `dateFormatHint`, `decrease`, `increase`, `unit*`,
+`interviewer`, `interviewerInstruction`, `audioUnavailable`,
+`imageUnavailable`, `fileUnavailable`. New theme tokens: `stickyRail`,
+`scrollMargin`; new CSS variable `--who-2022-web-sticky-top`.
+
+### Performance on low-end devices
+
+Measured with Playwright + CDP on the **built bundle** (production, minified)
+on the static host page, Chromium, 390 px mobile viewport,
+`Emulation.setCPUThrottlingRate(4)`, garbage collected before each reading
+(`Performance.getMetrics`). Taps: 20 alternating radio taps, tap-to-painted
+(two animation frames). Section change: drawer item click to the drawer
+closed, all 17 sections in order, twice. Script in the session scratchpad;
+numbers are one run each, so treat +-10 % as noise.
+
+| Measure | Before round 3 (`07df3a2` bundle) | After round 3 |
+| --- | --- | --- |
+| Bundle (minified, uncompressed) | 939 KB | 958 KB |
+| Load to first render | 263 ms | 278 ms |
+| Script execution at load (parse+compile+run) | 150 ms | 160 ms |
+| JS heap, section 1 | 5.3 MB | 5.5 MB |
+| DOM nodes, section 1 | 166 | 174 |
+| Tap to paint, section 1 (p50 / p95) | 16 / 26 ms | 16 / 18 ms |
+| JS heap, 164-question section | 11.1 MB | 10.8 MB |
+| DOM nodes, 164-question section | 1283 | 1329 |
+| **Tap to paint, 164-question section (p50 / p95)** | **65 / 81 ms** | **18 / 26 ms** |
+| Section change via drawer, 17 sections (p50 / p95) | 85 / 152 ms | 91 / 173 ms |
+| JS heap after all 17 sections, pass 1 / pass 2 | 7.2 / 7.3 MB | 7.2 / 7 MB |
+| DOM nodes / listeners after pass 2 | 573 / 308 | 449 / 284 |
+
+Budgets: tap-to-paint p95 on the largest section 26 ms
+(< 100 ms met, from 81 ms); heap flat across two passes
+over every section (7.2 -> 7 MB, listeners
+285 -> 284: no leak from the drawer portal,
+the rail or the fade timers); only the current section's questions are in
+the DOM. The bundle grew 19 KB
+(2.0 %) for the new controls and strings; nothing in it is
+lazy-loadable (no other locale is bundled, month names come from `Intl`), so
+that budget is not met and is reported as such. Section change is within
+noise of before (the drawer now mounts through a portal).
+
+What cost, and what was done (all presentation, no engine or validation
+change, no behaviour change):
+
+- **Every answer re-rendered every question row** (164 on the largest
+  page): `renderQuestion` built fresh JSX and a fresh `onAnswer` closure per
+  row per render. Rows are now `QuestionRow`, memoised with a comparator
+  that ignores the whole-answer `data` prop except for the six controls
+  that hand it to a platform service, compares issues by message, and gets
+  one stable `onAnswer` per question. This is the tap-time win.
+- **Section status recomputed the calculated fields once per section** on
+  every answer (`applyCalculations` x 17); it is computed once per pass.
+  The status map and the issue-section set keep their identity while their
+  contents are unchanged, and the rail, header strip and drawer are
+  `React.memo`, so an ordinary answer does not re-render the stepper.
+- Only the current section's questions are in the DOM (the engine's
+  `snapshot.questions`); the node count on the 164-question page is that
+  page, and it drops back after leaving it.
+- The bundle carries the English instrument once and no other locale
+  (`hi`/`fr` are not in the bundle; DigitVA serves translations from its
+  API); the Hindi month names come from `Intl` at runtime, no tables.
+- Attachments already live in IndexedDB and are shown through object URLs
+  that are revoked on release; nothing is held as a data URL.
+- Drafts are handed to the store as the live data object; DigitVA's page
+  debounces the PATCH. No serialisation happens in the form on change.
+- The entry fade on newly visible sections is a single opacity transition
+  on those rows only, `0ms` under reduced motion.
+
+Remaining recommendations (not done, engine or host territory):
+
+- `sectionStatuses` still validates every answered question of every
+  visible section per answer (cheap, ~1 ms unthrottled, but it scales with
+  answers); an incremental per-section cache keyed on that section's
+  answers would remove it.
+- The 164-question page could be windowed (render only rows near the
+  viewport) if a target device still shows tap p95 above 100 ms; this
+  changes `scrollToIssue` and focus handling, so it is a separate piece.
+- The bundle (957 KB, 190 KB gzipped) is dominated by react-native-web +
+  React; a react-dom-only renderer would roughly halve parse time but is a
+  rewrite of `ui/`.
+
+### Round-3 vendoring
+
+Rebuilt on this branch with `tooling/who-va-2022` (`node build.mjs && node
+check.mjs`); manifest updated. Verified in Chromium under the tooling pins
+(react 18 / react-native-web 0.19) through the static host page: drawer
+above a `z-index: 1000` navbar, sticky rail, number/date controls, grid,
+no console errors.
+
 ## Vendoring
 
 The DigitVA bundle is built by `tooling/who-va-2022/build.mjs` from
@@ -246,3 +447,12 @@ cd tooling/who-va-2022 && npm install && node build.mjs && node check.mjs
 - Two pre-existing lint errors (`complexity` on `Date` and `ImagePicker` in
   `question-controls.tsx`) and the 351 pre-existing
   `tests/question-by-question.test.ts` failures (bead `digitva-19l`) remain.
+- A host-supplied instrument (`el.instrument = ...`, which is how DigitVA
+  applies its translations) renders the form with English UI strings: the
+  web component only loads a language's UI strings for the built-in
+  instrument, and the built-in loader knows English alone. The "Sections",
+  "Save draft", date-format and required-message strings therefore show in
+  English on a Hindi DigitVA form. Fix belongs in `web-component.tsx`
+  (accept `uiTranslations` from the host) and the intake page; not done here.
+- There is no decimal or datetime question in the instrument; the decimal
+  placeholder and the compact datetime box are covered by tests only.

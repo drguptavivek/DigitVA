@@ -186,7 +186,14 @@ Still open:
    complete. If a recorded outcome question is wanted, add one DigitVA
    extension question at the end (`interview_outcome`: completed / partially
    completed / refused / respondent unavailable) rather than changing WHO's
-   structure. Still to confirm: and whether an incomplete or refused
+   structure. **Decided (owner, 2026-09-29): add that one DigitVA question at
+   the end, auto-filled** — `refused` when Id10013 (consent) = no, and
+   `completed` when the form reports every required question answered
+   (`completion.valid`); otherwise the interviewer picks partially completed
+   or respondent unavailable. The case status follows this answer
+   (refused / incomplete / complete) for the first-complete-submission rule.
+   It lives in `digitva-extension.ts` under `digitva_core` (always on), after
+   WHO's closing note, so WHO's own structure is untouched. Still to confirm: and whether an incomplete or refused
    submission enters coding at all (proposed: no — it stays with the case
    until superseded or a supervisor closes the case). Implications to
    design: (a) drafts must be storable on the device for offline work, which

@@ -3,6 +3,10 @@ services:
     environment:
       - FLASK_DEBUG=1
       - FLASK_ENV=development
+      # Dev .env may carry the production MAIL_BASE_URL; passkeys on dev must
+      # use the browser's actual origin or navigator.credentials refuses them.
+      - WEBAUTHN_RP_ID=localhost
+      - WEBAUTHN_ORIGIN=http://localhost:8051
     ports:
       - "8051:5000"
     entrypoint: []

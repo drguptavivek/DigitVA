@@ -27,6 +27,7 @@
   var _editingId = null;
   var _searchTimeout = null;
   var CURRENT_USER_ID = window._adminState && window._adminState.user ? window._adminState.user.user_id : null;
+  var CURRENT_USER_IS_ADMIN = !!(window._adminState && window._adminState.user && window._adminState.user.is_admin);
   var AVAILABLE_LANGUAGES = JSON.parse(panel.dataset.languages || '[]');
 
   function loadUsers() {
@@ -86,6 +87,13 @@
           + '<i class="fa-solid fa-envelope"></i></button>';
       }
 
+      var resetFactorsBtn = '';
+      if (!isSelf && CURRENT_USER_IS_ADMIN) {
+        resetFactorsBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-danger user-reset-factors-btn" '
+          + ' data-id="' + esc(u.user_id) + '" data-email="' + esc(u.email) + '" title="Reset sign-in factors">'
+          + '<i class="fa-solid fa-key"></i></button>';
+      }
+
       var adminBadge = isAdmin ? ' <span class="badge text-bg-warning small">Admin</span>' : '';
       var verifyBadge = u.email_verified
         ? '<span class="badge text-bg-success">Verified</span>'
@@ -104,7 +112,7 @@
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
         + '<td class="align-middle py-2">' + verifyBadge + '</td>'
-        + '<td class="align-middle py-2 text-end">' + verifyBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + verifyBtn + ' ' + resetFactorsBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -155,6 +163,14 @@
     for (var j = 0; j < toggleBtns.length; j++) {
       toggleBtns[j].addEventListener('click', function () {
         promptToggle(this.getAttribute('data-id'), this.getAttribute('data-email'), this.getAttribute('data-active') === '1');
+      });
+    }
+
+    // Bind reset-factors buttons
+    var resetFactorsBtns = wrap.querySelectorAll('.user-reset-factors-btn');
+    for (var k = 0; k < resetFactorsBtns.length; k++) {
+      resetFactorsBtns[k].addEventListener('click', function () {
+        promptResetFactors(this.getAttribute('data-id'), this.getAttribute('data-email'));
       });
     }
   }
@@ -212,6 +228,48 @@
       });
       renderTable();
     }).catch(function () { btn.disabled = false; });
+  });
+
+  // ── reset sign-in factors modal ─────────────────────────────────────────────
+
+  var _pendingResetFactorsId = null;
+  var _resetFactorsModal = null;
+
+  function promptResetFactors(userId, email) {
+    document.getElementById('user-reset-factors-modal-body').innerHTML =
+      'Reset sign-in factors for <strong>' + esc(email) + '</strong>?';
+    document.getElementById('user-reset-factors-reason').value = '';
+    document.getElementById('user-reset-factors-error').textContent = '';
+    _pendingResetFactorsId = userId;
+    if (!_resetFactorsModal) _resetFactorsModal = new bootstrap.Modal(document.getElementById('user-reset-factors-modal'));
+    _resetFactorsModal.show();
+  }
+
+  document.getElementById('user-reset-factors-confirm-btn').addEventListener('click', function () {
+    if (!_pendingResetFactorsId) return;
+    var reasonEl = document.getElementById('user-reset-factors-reason');
+    var errEl2 = document.getElementById('user-reset-factors-error');
+    var reason = reasonEl.value.trim();
+    if (!reason) { errEl2.textContent = 'A reason is required.'; return; }
+
+    var userId = _pendingResetFactorsId;
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/users/' + encodeURIComponent(userId) + '/reset-factors', 'POST', { reason: reason })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) {
+          errEl2.textContent = res.data.error || 'Failed.';
+          return;
+        }
+        _pendingResetFactorsId = null;
+        _resetFactorsModal.hide();
+        loadUsers();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        errEl2.textContent = 'Network error.';
+      });
   });
 
   // ── form handling ─────────────────────────────────────────────────────────

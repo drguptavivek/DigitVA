@@ -781,14 +781,51 @@ voids the old set). **Last-factor removal guard**: once
 (`totp_service.enforcement_active()`; unset/future means the guard is off),
 a privileged user cannot remove their last factor — checked in both the
 TOTP-removal route and the existing passkey-revoke route, `409` on
-violation. Enforcement's own mid-session setup redirect (section 6) is a
-later phase; today this config only gates the removal guard.
+violation.
+
+**8. Enrolment enforcement, admin reset and the break-glass CLI**
+(docs/policy/authentication-factors.md section 6, 8). Before
+`AUTH_FACTOR_ENFORCE_FROM`, a privileged user (admin or `data_manager`) with
+no factor sees a banner naming the deadline on every page
+(`app/__init__.py:_factor_enrollment_banner_context`, rendered in
+`va_base.html`); unset means no banner at all. On or after that date,
+`app/__init__.py`'s `enforce_factor_setup` before-request hook redirects
+every request from such a user to `profile.view#passkeys-card`, except the
+Profile page itself, the whole `api_v1.profile_api` blueprint, `va_auth.*`
+(login/auth/logout/recovery), static files and the health check; an API/admin
+path gets `403 {"error": "factor_setup_required"}` instead. No lock-out — a
+password sign-in still works. The "has a factor" answer is cached in
+`session["factor_setup_needed"]` and popped by the four routes that change a
+user's factor set (`register_passkey`, `revoke_passkey`, `totp_confirm`,
+`totp_remove`), so it costs no query once satisfied.
+
+**Admin reset** (`POST /admin/api/users/<id>/reset-factors`, `role_required("admin")`,
+refused for yourself, requires a non-empty `reason`) and the **break-glass
+CLI** (`flask auth reset-factors EMAIL --reason=...`) both call
+`totp_service.reset_factors()`: delete the user's passkeys/TOTP/recovery
+codes, `bump_session_version()` (ends every session and remember cookie),
+and record a `factor_reset` security event (`actor_user_id` set for the
+admin path, `NULL` for the CLI; `detail={"reason": ..., "via": "admin"|"cli"}`).
+The admin path emails the user with no link (`send_factor_reset_email`,
+async via Celery); the CLI additionally generates a `factor_reset` token
+(`token_service`, 1 hour, fingerprinted on the password hash *and*
+`auth_session_version` together, so either a password change or any other
+reset invalidates it) and emails a single-use magic link **synchronously**
+(`send_factor_reset_link_email` — the CLI's contract is "print the link only
+if sending failed", which a queued Celery task cannot report). The link lands
+on `va_auth.factor_reset` (public by design, `PUBLIC_BY_DESIGN` in
+`tests/test_route_auth_coverage.py`): the existing `ResetPasswordForm`/
+password-breach-check flow, then `email_verified = True`,
+`bump_session_version()`, `_complete_login()`, and
+`session["factor_setup_forced"] = True` so the redirect guard holds a
+privileged user on the factor-setup page even if `AUTH_FACTOR_ENFORCE_FROM`
+is unset, until they enrol.
 
 Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`
 (all in use), `auth_security_events` (`passkey_registered`,
 `passkey_renamed`, `passkey_revoked`, `counter_regression`,
 `totp_enrolled`, `totp_removed`, `recovery_codes_generated`,
-`recovery_code_used`, `second_factor_lockout`) plus
+`recovery_code_used`, `second_factor_lockout`, `factor_reset`) plus
 `va_users.auth_session_version`.
 
 WebAuthn RP ID/origin: `config.py`'s `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`

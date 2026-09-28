@@ -54,13 +54,21 @@ def _require_reauth():
     return None
 
 
+def _invalidate_factor_setup_cache() -> None:
+    """Drop the enrolment-enforcement guard's cached "has a factor" answer
+    (app.create_app's ``enforce_factor_setup``) so the next request
+    recomputes it -- called whenever this session's own factor set changes."""
+    session.pop("factor_setup_needed", None)
+
+
 def _would_leave_privileged_user_without_factor(
     user, *, removing_totp: bool = False, removing_passkey_id=None
 ) -> bool:
     """docs/policy/authentication-factors.md section 7: a privileged user
     cannot remove their last sign-in factor once enforcement has started
     (``AUTH_FACTOR_ENFORCE_FROM`` set and in the past). Before that date the
-    guard is off, by design (enforcement itself is a later phase)."""
+    guard is off, by design -- see totp_service.enforcement_active() and the
+    section 6 redirect guard in app.create_app."""
     if not (user.is_admin() or user.is_data_manager()):
         return False
     if not totp_service.enforcement_active():
@@ -321,6 +329,7 @@ def register_passkey():
     db.session.commit()
     # The "set up a passkey" nudge has done its job for this session.
     session.pop("passkey_nudge", None)
+    _invalidate_factor_setup_cache()
     response = {"message": "Passkey added.", "passkey": _serialize_credential(record)}
     if recovery_codes is not None:
         response["recovery_codes"] = recovery_codes
@@ -394,6 +403,7 @@ def revoke_passkey(passkey_id):
         detail={"name": cred.name, "credential_prefix": prefix},
     )
     db.session.commit()
+    _invalidate_factor_setup_cache()
     return jsonify({"message": "Passkey revoked."})
 
 
@@ -477,6 +487,7 @@ def totp_confirm():
         )
 
     db.session.commit()
+    _invalidate_factor_setup_cache()
     response = {"message": "TOTP enabled."}
     if recovery_codes is not None:
         response["recovery_codes"] = recovery_codes
@@ -503,6 +514,7 @@ def totp_remove():
         user_id=user.user_id, actor_user_id=user.user_id, event_type="totp_removed"
     )
     db.session.commit()
+    _invalidate_factor_setup_cache()
     return jsonify({"message": "TOTP removed."})
 
 

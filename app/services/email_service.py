@@ -132,6 +132,48 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> bo
     return True
 
 
+def send_factor_reset_email(user) -> bool:
+    """Notify a user that an admin reset their sign-in factors. Async via
+    Celery like the other account emails; carries no secrets or link, since
+    the user can sign in with their existing password and enrol again."""
+    if not _should_attempt_email_delivery(user.email):
+        return False
+
+    _dispatch_email.delay(
+        to=user.email,
+        subject="Your DigitVA sign-in factors were reset",
+        template_name="emails/factor_reset",
+        context={"name": user.name, "reset_url": None},
+    )
+    return True
+
+
+def factor_reset_link_url(token: str) -> str:
+    """The full, scheme-qualified break-glass sign-in link for ``token``."""
+    return f"{_email_link_base_url()}/vaauth/factor-reset/{token}"
+
+
+def send_factor_reset_link_email(user, token: str) -> None:
+    """Break-glass CLI only: send the single-use magic link *synchronously*,
+    never through Celery. The CLI's contract is to print the link if and only
+    if delivery failed, and a queued Celery task returns before delivery is
+    attempted -- it cannot tell the caller that. Raises on any failure
+    (unconfigured mail, suppressed recipient, SMTP error); the caller decides
+    what to print.
+    """
+    if not is_mail_configured():
+        raise RuntimeError("Mail is not configured (MAIL_SERVER unset).")
+    if not _should_attempt_email_delivery(user.email):
+        raise RuntimeError("Email delivery is disabled, or this recipient is suppressed.")
+
+    _actually_send_email(
+        to=user.email,
+        subject="Reset your DigitVA sign-in",
+        template_name="emails/factor_reset",
+        context={"name": user.name, "reset_url": factor_reset_link_url(token)},
+    )
+
+
 def send_verification_email(user, token: str) -> bool:
     """Dispatch an email-verification email via Celery."""
     verify_url = f"{_email_link_base_url()}/vaauth/verify-email/{token}"

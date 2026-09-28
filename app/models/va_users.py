@@ -76,8 +76,8 @@ class VaUsers(UserMixin, db.Model):
     def bump_session_version(self) -> None:
         """Invalidate every existing session/remember cookie for this user.
 
-        Caller commits. Used by password reset and (in later phases) factor
-        reset and the break-glass CLI.
+        Caller commits. Used by password reset, an admin factor reset and
+        the break-glass CLI (see app.services.totp_service.reset_factors).
         """
         self.auth_session_version = (self.auth_session_version or 0) + 1
 

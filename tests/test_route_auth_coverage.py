@@ -94,6 +94,10 @@ PUBLIC_BY_DESIGN = frozenset({
     "va_auth.reset_password",
     "va_auth.resend_verification",
     "va_auth.verify_email",
+    # Break-glass CLI's magic link (docs/policy/authentication-factors.md
+    # section 8): reachable only with a valid, single-use, one-hour token
+    # (token_service, purpose "factor_reset"), by definition with no session.
+    "va_auth.factor_reset",
     # The public home page (/, /index, /vaindex). The system has a dedicated
     # login page; the landing page is what an anonymous visitor lands on and
     # renders no user data.

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-20
+last_updated: 2026-09-28
 ---
 
 # CLI Reference
@@ -41,6 +41,20 @@ Detailed policy: [`docs/policy/user-management-cli.md`](../policy/user-managemen
 | `users set-status --email=... --status=active\|deactive` | Activate or deactivate a user. |
 
 Additional `users create` options: `--landing-page` (default: `coder`), `--timezone` (default: `Asia/Kolkata`), `--language` (repeatable), `--email-verified/--email-unverified`.
+
+---
+
+## `auth` — Break-glass sign-in recovery
+
+Detailed policy: [`docs/policy/authentication-factors.md`](../policy/authentication-factors.md) section 8.
+
+| Command | Description |
+|---------|-------------|
+| `auth reset-factors EMAIL --reason="..."` | Clear a user's passkeys, TOTP and recovery codes; end every session; email them a single-use, one-hour sign-in link. Prints the link only if the email could not be sent. |
+
+Run from a shell in the app container (shell access is the safeguard — no
+further check). Never creates a user or changes a role; never prints an
+existing secret. Requires `--reason`; exits non-zero for an unknown email.
 
 ---
 

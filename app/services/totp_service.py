@@ -30,6 +30,7 @@ from flask import current_app
 
 from app import db
 from app.models import AuthRecoveryCode, AuthTotp, AuthWebauthnCredential
+from app.services.security_event_service import record_security_event
 
 RECOVERY_CODE_COUNT = 10
 # RFC 4648 base32 alphabet -- no ambiguous 0/1/8/9 to transcribe by hand.
@@ -87,6 +88,17 @@ def has_confirmed_totp(user_id) -> bool:
         sa.select(sa.exists().where(
             AuthTotp.user_id == user_id, AuthTotp.confirmed_at.is_not(None)
         ))
+    ))
+
+
+def has_any_factor(user_id) -> bool:
+    """Whether the user holds a confirmed TOTP enrolment or any passkey --
+    the enrolment-enforcement guard's "has a factor" question (docs/policy/
+    authentication-factors.md section 6)."""
+    if has_confirmed_totp(user_id):
+        return True
+    return bool(db.session.scalar(
+        sa.select(sa.exists().where(AuthWebauthnCredential.user_id == user_id))
     ))
 
 
@@ -280,14 +292,48 @@ def verify_recovery_code(user, code: str) -> bool:
 # Enrolment enforcement window (section 6)
 # ---------------------------------------------------------------------------
 
+def enforcement_date() -> date | None:
+    """``AUTH_FACTOR_ENFORCE_FROM`` parsed, or None if unset/unparsable.
+    Unset means the rollout has not been announced -- no banner, no guard."""
+    raw = (current_app.config.get("AUTH_FACTOR_ENFORCE_FROM") or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
 def enforcement_active() -> bool:
     """Whether ``AUTH_FACTOR_ENFORCE_FROM`` is set and its date has passed.
     Unset (the default) means no enforcement."""
-    raw = (current_app.config.get("AUTH_FACTOR_ENFORCE_FROM") or "").strip()
-    if not raw:
+    deadline = enforcement_date()
+    if deadline is None:
         return False
-    try:
-        enforce_from = date.fromisoformat(raw)
-    except ValueError:
-        return False
-    return datetime.now(timezone.utc).date() >= enforce_from
+    return datetime.now(timezone.utc).date() >= deadline
+
+
+# ---------------------------------------------------------------------------
+# Admin reset and break-glass CLI (section 8)
+# ---------------------------------------------------------------------------
+
+def reset_factors(user, *, actor_user_id, reason: str, via: str) -> None:
+    """Clear every sign-in factor for ``user``: passkeys, TOTP and recovery
+    codes, bump their session version (ends every session and remember
+    cookie), and record the audit event. Used by both the admin "Reset
+    sign-in factors" action and the break-glass CLI -- ``via`` distinguishes
+    them ("admin" / "cli") in the event detail. Caller commits."""
+    db.session.execute(
+        sa.delete(AuthWebauthnCredential).where(AuthWebauthnCredential.user_id == user.user_id)
+    )
+    db.session.execute(sa.delete(AuthTotp).where(AuthTotp.user_id == user.user_id))
+    db.session.execute(
+        sa.delete(AuthRecoveryCode).where(AuthRecoveryCode.user_id == user.user_id)
+    )
+    user.bump_session_version()
+    record_security_event(
+        user_id=user.user_id,
+        actor_user_id=actor_user_id,
+        event_type="factor_reset",
+        detail={"reason": (reason or "")[:500], "via": via},
+    )

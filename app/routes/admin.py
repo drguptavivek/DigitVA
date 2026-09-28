@@ -2335,6 +2335,50 @@ def admin_toggle_user_admin(target_user_id):
     })
 
 
+@admin.post("/api/users/<uuid:target_user_id>/reset-factors")
+@role_required("admin")
+def admin_reset_user_factors(target_user_id):
+    """docs/policy/authentication-factors.md section 8: clear a user's
+    passkeys, TOTP and recovery codes, end every one of their sessions, log
+    the action and email them. Admin-only, refused for yourself, idempotent
+    (resetting a user with no factors still bumps their session version and
+    is recorded)."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+    if target_user.user_id == current_user.user_id:
+        return _json_error("You cannot reset your own sign-in factors.", 400)
+
+    payload = request.get_json(silent=True) or {}
+    reason = (payload.get("reason") or "").strip()
+    if not reason:
+        return _json_error("A reason is required.", 400)
+
+    from app.services import totp_service
+    from app.services.email_service import send_factor_reset_email
+
+    totp_service.reset_factors(
+        target_user, actor_user_id=current_user.user_id, reason=reason, via="admin"
+    )
+    db.session.commit()
+    # The reset itself already happened and committed; a broker/SMTP hiccup
+    # sending the notice is non-critical and must not turn into a 500 that
+    # implies the reset failed (same posture as admin_create_user's sends).
+    try:
+        email_sent = send_factor_reset_email(target_user)
+    except Exception:
+        email_sent = False
+
+    return jsonify({
+        "message": "Sign-in factors reset.",
+        "user_id": str(target_user.user_id),
+        "email_sent": email_sent,
+    })
+
+
 @admin.get("/api/access-grants")
 @role_required("admin", "project_pi")
 def admin_access_grants():

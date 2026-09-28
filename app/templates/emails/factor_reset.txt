@@ -1,0 +1,20 @@
+Hello {{ name }},
+
+Your DigitVA sign-in factors (passkeys and/or authenticator app) were reset
+by the administration team. Every existing sign-in session has ended.
+
+{% if reset_url %}
+Use this link to sign in and set a new password:
+{{ reset_url }}
+
+This link expires in 1 hour and can only be used once.
+{% else %}
+You can still sign in with your existing password. You will be asked to set
+up a new passkey or authenticator app.
+{% endif %}
+
+If you did not expect this, please contact the admin team.
+
+Thank You
+DigitVA Team
+AIIMS, New Delhi

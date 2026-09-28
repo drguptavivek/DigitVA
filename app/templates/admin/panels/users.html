@@ -86,6 +86,32 @@
     </div>
   </div>
 
+  {# Reset sign-in factors modal #}
+  <div class="modal fade" id="user-reset-factors-modal" tabindex="-1" aria-labelledby="user-reset-factors-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="user-reset-factors-modal-label">
+            <i class="fa-solid fa-key text-danger me-2"></i>Reset sign-in factors
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3">
+          <p id="user-reset-factors-modal-body" class="mb-2"></p>
+          <p class="text-danger small">This removes every passkey and authenticator app, ends all of this
+            user's sessions, and emails them. This cannot be undone.</p>
+          <label class="form-label small mb-1">Reason <span class="text-danger">*</span></label>
+          <textarea class="form-control form-control-sm" id="user-reset-factors-reason" rows="2" placeholder="Why is this reset needed?"></textarea>
+          <div class="text-danger small mt-2" id="user-reset-factors-error"></div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="user-reset-factors-confirm-btn">Reset factors</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# Toggle confirmation modal #}
   <div class="modal fade" id="user-toggle-modal" tabindex="-1" aria-labelledby="user-toggle-modal-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">

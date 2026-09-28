@@ -1,0 +1,48 @@
+{% extends "emails/email_base.html" %}
+
+{% block email_title %}Your DigitVA sign-in factors were reset{% endblock %}
+
+{% block email_body %}
+<p style="margin: 0 0 16px 0; color: #212529; font-size: 16px;">
+  Hello {{ name }},
+</p>
+
+<p style="margin: 0 0 24px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  Your DigitVA sign-in factors (passkeys and/or authenticator app) were reset
+  by the administration team. Every existing sign-in session has ended.
+</p>
+
+{% if reset_url %}
+<p style="margin: 0 0 24px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  Use the link below to sign in and set a new password:
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto 24px auto;">
+  <tr>
+    <td style="background-color: #0d6efd; border-radius: 6px;">
+      <a href="{{ reset_url }}" target="_blank" style="display: inline-block; padding: 14px 32px; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 6px;">
+        Sign In
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin: 0 0 24px 0; color: #6c757d; font-size: 13px; line-height: 1.5;">
+  If the button above doesn't work, copy and paste this link into your browser:<br>
+  <a href="{{ reset_url }}" style="color: #0d6efd; word-break: break-all;">{{ reset_url }}</a>
+</p>
+
+<p style="margin: 0 0 8px 0; color: #6c757d; font-size: 13px; line-height: 1.5;">
+  This link expires in <strong>1 hour</strong> and can only be used once.
+</p>
+{% else %}
+<p style="margin: 0 0 8px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  You can still sign in with your existing password. You will be asked to set
+  up a new passkey or authenticator app.
+</p>
+{% endif %}
+
+<p style="margin: 16px 0 0 0; color: #6c757d; font-size: 13px; line-height: 1.5;">
+  If you did not expect this, please contact the admin team.
+</p>
+{% endblock %}

@@ -572,6 +572,85 @@ def reset_password(token):
 
 
 # ---------------------------------------------------------------------------
+# Break-glass factor reset (docs/policy/authentication-factors.md section 8)
+# ---------------------------------------------------------------------------
+
+@va_auth.route("/factor-reset/<token>", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
+def factor_reset(token):
+    """Land the break-glass CLI's single-use magic link: set a new password
+    (same policy checks as ``reset_password``), then sign the user straight
+    in and send them to the Profile factor-setup section. Public by design --
+    reachable only with a valid, unexpired, single-use token; see
+    ``PUBLIC_BY_DESIGN`` in tests/test_route_auth_coverage.py.
+    """
+    if current_user.is_authenticated:
+        return redirect(current_user.landing_url())
+
+    from app.services.token_service import validate_token
+
+    user_id = validate_token(token, "factor_reset")
+    if not user_id:
+        return render_template(
+            "va_frontpages/va_reset_password.html",
+            form=ResetPasswordForm(),
+            token=token,
+            token_valid=False,
+        )
+
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        # Re-validate: a long-open tab could submit after expiry, or after a
+        # later reset/password-change invalidated this same token.
+        user_id = validate_token(token, "factor_reset")
+        if not user_id:
+            flash("This link is invalid or has expired.", "danger")
+            return redirect(url_for("va_auth.va_login"))
+        try:
+            uid = uuid.UUID(user_id)
+        except (ValueError, TypeError):
+            flash("Invalid reset link.", "danger")
+            return redirect(url_for("va_auth.va_login"))
+
+        user = db.session.get(VaUsers, uid)
+        # login_user() below refuses an inactive user silently -- check here
+        # so the failure path is the same generic message, not a crash on
+        # current_user.landing_url() for an anonymous session.
+        if user is None or not user.is_active:
+            flash("This link is invalid or has expired.", "danger")
+            return redirect(url_for("va_auth.va_login"))
+
+        user.set_password(form.new_password.data)
+        if not user.email_verified:
+            user.email_verified = True
+        # docs/policy/authentication-factors.md section 8: using the link
+        # (like a password reset) ends every other existing session and
+        # remember cookie, and invalidates this and any other outstanding
+        # factor-reset token (token_service fingerprints the new version).
+        user.bump_session_version()
+        # The magic link plus a freshly-set password is proof enough to sign
+        # the user in immediately, same as the onboarding reset flow.
+        _complete_login(user, remember=False, nudge_if_no_passkey=False)
+        # Set after _complete_login: it calls session.clear() first.
+        session["factor_setup_forced"] = True
+        db.session.commit()
+
+        flash(
+            "Your password has been set. Please add a passkey or authenticator app.",
+            "success",
+        )
+        return redirect(url_for("profile.view") + "#passkeys-card")
+
+    return render_template(
+        "va_frontpages/va_reset_password.html",
+        form=form,
+        token=token,
+        token_valid=True,
+        action_url=url_for("va_auth.factor_reset", token=token),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Email Verification
 # ---------------------------------------------------------------------------
 

@@ -2,9 +2,9 @@
 
 Baseline: docs/policy/authentication-factors.md. Additive tables for
 passkeys (WebAuthn), TOTP enrolment, recovery codes and a security-event
-audit trail. Verification, enrolment enforcement, admin reset and the
-break-glass CLI are later phases (digitva-sn1.1.4+); this module only
-carries the schema they will use.
+audit trail, used by the login flow, enrolment enforcement, the admin
+"Reset sign-in factors" action and the break-glass CLI
+(``flask auth reset-factors``).
 """
 
 import uuid

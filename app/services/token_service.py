@@ -5,7 +5,10 @@ and validate tamper-proof, expiring tokens. No database table needed.
 
 Password-reset tokens are single-use: they carry a fingerprint of the user's
 stored password hash, so setting a new password invalidates every reset token
-issued before it.
+issued before it. Factor-reset tokens (the break-glass CLI's magic link,
+docs/policy/authentication-factors.md section 8) are single-use the same way,
+but fingerprint the password hash *and* ``auth_session_version`` together, so
+either setting a new password or any other factor reset invalidates them.
 """
 
 from __future__ import annotations
@@ -24,6 +27,10 @@ TOKEN_PURPOSES = {
     "email_verify": {
         "salt": "digitva-email-verify",
         "max_age": 86400,      # 24 hours
+    },
+    "factor_reset": {
+        "salt": "digitva-factor-reset",
+        "max_age": 3600,       # 1 hour
     },
 }
 
@@ -49,6 +56,23 @@ def _password_fingerprint(user) -> str:
     return hashlib.sha256((user.password or "").encode()).hexdigest()[:16]
 
 
+def _factor_reset_fingerprint(user) -> str:
+    """Digest of the password hash *and* the session version, so a
+    factor-reset token is invalidated by either a password change (which
+    bumps the version too) or any other factor reset."""
+    raw = f"{user.password or ''}:{user.auth_session_version or 0}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+# Purposes whose token carries a fingerprint tying it to current user state,
+# so using it once (or any other event that changes that state) invalidates
+# every other outstanding token for the same purpose.
+_FINGERPRINT_FNS = {
+    "password_reset": _password_fingerprint,
+    "factor_reset": _factor_reset_fingerprint,
+}
+
+
 def generate_token(user_id, purpose: str) -> str:
     """Generate a URL-safe timed token for the given user and purpose.
 
@@ -66,11 +90,12 @@ def generate_token(user_id, purpose: str) -> str:
     if purpose not in TOKEN_PURPOSES:
         raise ValueError(f"Unknown token purpose: {purpose}")
     payload = {"user_id": str(user_id), "purpose": purpose}
-    if purpose == "password_reset":
+    fingerprint_fn = _FINGERPRINT_FNS.get(purpose)
+    if fingerprint_fn is not None:
         user = _load_user(user_id)
         if user is None:
-            raise ValueError("Unknown user for password_reset token")
-        payload["fp"] = _password_fingerprint(user)
+            raise ValueError(f"Unknown user for {purpose} token")
+        payload["fp"] = fingerprint_fn(user)
     return _serializer().dumps(payload, salt=TOKEN_PURPOSES[purpose]["salt"])
 
 
@@ -102,12 +127,13 @@ def validate_token(token: str, purpose: str) -> str | None:
     if not isinstance(data, dict) or data.get("purpose") != purpose:
         return None
 
-    if purpose == "password_reset":
+    fingerprint_fn = _FINGERPRINT_FNS.get(purpose)
+    if fingerprint_fn is not None:
         user = _load_user(data.get("user_id"))
         fp = data.get("fp")
         if user is None or not isinstance(fp, str):
             return None
-        if not hmac.compare_digest(fp, _password_fingerprint(user)):
+        if not hmac.compare_digest(fp, fingerprint_fn(user)):
             return None
 
     return data.get("user_id")

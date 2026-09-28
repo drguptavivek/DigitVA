@@ -1,6 +1,6 @@
 # Two-step login and passkeys
 
-- Status: All owner decisions made 2026-09-28; next step is the policy baseline in `docs/policy`
+- Status: Policy baseline written (`docs/policy/authentication-factors.md`); build in phases `digitva-sn1.1.2`-`.6`
 - Priority: P1
 - Created: 2026-09-28
 - Bead: `digitva-sn1.1` (child of `digitva-sn1`)

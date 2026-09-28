@@ -6,6 +6,7 @@ Plan: docs/planning/health-system-organization-model-plan.md
 """
 import io
 import logging
+import uuid
 
 import sqlalchemy as sa
 from flask import current_app, jsonify, render_template, request
@@ -16,6 +17,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from app import db
 from app.decorators import role_required
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
+from app.services import org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
 
@@ -306,6 +308,71 @@ def admin_org_clear_unit_coding_gate(project_id, org_unit_id):
         db.session.rollback()
         return _json_error(str(exc), 400)
     _commit_and_log("unit-coding-gate-clear", project_id, f"unit={org_unit_id} cleared={cleared}")
+    return jsonify({"cleared": cleared})
+
+
+# ---------------------------------------------------------------------------
+# Per-unit VA question presets (Id10002/Id10003)
+#
+# A unit's own row sets the HIV/AIDS and malaria mortality area presets for
+# its subtree; a unit with no row (or a null field) inherits its nearest
+# ancestor's value. See docs/policy/web-intake.md ("Area VA presets") and
+# app.services.org_grant_service.resolve_unit_va_presets.
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/units/<org_unit_id>/va-presets")
+@role_required("admin", "project_pi")
+def admin_org_get_unit_va_presets(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        presets = org.get_unit_va_presets(project_id, org_unit_id)
+        unit_id = uuid.UUID(str(org_unit_id))
+        inherited = org_grant_service.resolve_unit_va_presets([unit_id]).get(unit_id, {})
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify({
+        "va_presets": org.serialize_unit_va_presets(presets),
+        "inherited": {
+            field: {"value": entry["value"], "source_unit_name": entry["source_unit_name"]}
+            for field, entry in inherited.items()
+        },
+    })
+
+
+@admin.put(f"{_API}/units/<org_unit_id>/va-presets")
+@role_required("admin", "project_pi")
+def admin_org_set_unit_va_presets(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    p = _payload()
+    try:
+        presets = org.set_unit_va_presets(
+            project_id,
+            org_unit_id,
+            hiv_mortality=p.get("hiv_mortality"),
+            malaria_mortality=p.get("malaria_mortality"),
+            actor_id=getattr(current_user, "user_id", None),
+        )
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-va-presets-set", project_id, f"unit={org_unit_id}")
+    return jsonify({"va_presets": org.serialize_unit_va_presets(presets)})
+
+
+@admin.delete(f"{_API}/units/<org_unit_id>/va-presets")
+@role_required("admin", "project_pi")
+def admin_org_clear_unit_va_presets(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        cleared = org.clear_unit_va_presets(project_id, org_unit_id)
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-va-presets-clear", project_id, f"unit={org_unit_id} cleared={cleared}")
     return jsonify({"cleared": cleared})
 
 

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Web Intake Policy
@@ -78,6 +78,52 @@ submission enters the workflow. Plan:
   (`Site`, `unique_id`, `survey_state`, `survey_district`,
   `org_<level>_code`, submitter metadata) are injected by the server at
   submission, never typed by the interviewer.
+
+## Area VA presets
+
+Decided 2026-09-28 (`digitva-dhc`). Two WHO questions are interviewer
+instructions about the area, not facts about the individual death, and a
+project may want them answered the same way for every interview in a
+district rather than asked each time:
+
+- `Id10002` — is this a high HIV/AIDS mortality area?
+- `Id10003` — is this a high malaria mortality area?
+
+Both take the WHO choices `high`, `low` or `veryl` (very low). Each may be
+set on any node of the project's organization tree
+([Organization Model Policy](organization-model.md)), in
+`map_org_unit_va_presets` (one row per unit that sets a value; see
+`app.models.mas_organization.MapOrgUnitVaPresets`, the precedent is
+`map_org_unit_coding_gate`). A unit with no row, or a null field, does not
+set that preset — it inherits its nearest ancestor's value, independently
+per field, resolved in one ltree query
+(`app.services.org_grant_service.resolve_unit_va_presets`).
+
+When a web intake draft is started with an organization unit
+(`web_intake_service.start_draft` → `_prefill_from_death`), the resolved
+values are merged into `prefill["answers"]` and their question names into
+`prefill["lockedQuestionNames"]`, before the death-register answers are
+applied — a death-register answer always wins on a key collision, though
+today neither preset is ever set from the death register. A unit (and every
+ancestor) with no configured value leaves the question asked as normal,
+exactly as before this feature existed. Existing drafts are not rewritten
+when a preset is added or changed after they were started.
+
+Editable in the Organization admin panel's unit editor ("VA presets"),
+`PUT/DELETE /admin/api/organization/<project_id>/units/<org_unit_id>/va-presets`,
+same `admin`/`project_pi` permission and audit log entry as the per-unit
+coding gate.
+
+`Id10004` (season) stays asked every time (owner decision, not a preset —
+season is not a district-level constant the way HIV/malaria prevalence is).
+ODK-collected forms are unaffected: this is a web-intake prefill only, never
+a form definition change. SmartVA classification keeps using the per-form
+`form_smartvahiv`/`form_smartvamalaria` flags
+([SmartVA Generation Policy](smartva-generation-policy.md), "Per-Form
+Execution Options") — those flags and the resolved area presets can diverge
+(e.g. a form flagged `form_smartvahiv=True` in a district whose unit preset
+is `low`), and whether to align them is an open owner decision, not resolved
+here.
 
 ## Submission
 

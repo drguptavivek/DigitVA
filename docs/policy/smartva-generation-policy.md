@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-28
 ---
 
 # SmartVA Generation Policy
@@ -250,6 +250,13 @@ Current configurable options:
 - `form_smartvahce`
 - `form_smartvafreetext`
 - `form_smartvacountry`
+
+`form_smartvahiv`/`form_smartvamalaria` are independent of the web intake
+area presets on the organization tree ([Web Intake Policy](web-intake.md),
+"Area VA presets") that prefill and lock `Id10002`/`Id10003` for the
+interviewer. The two can diverge (a form flagged `form_smartvahiv=True`
+serving a unit whose resolved preset is `low`, or the reverse); whether to
+align them is an open owner decision, not resolved by `digitva-dhc`.
 
 Operational baseline:
 

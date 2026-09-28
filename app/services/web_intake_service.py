@@ -511,9 +511,14 @@ def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
 # ---------------------------------------------------------------------------
 
 
-def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers) -> dict:
+def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None) -> dict:
     prefill: dict = {"interviewer": {"name": user.name, "id": str(user.user_id)}}
     answers: dict = {}
+    if org_unit_id is not None:
+        # Area presets (Id10002/Id10003) from the organization tree, per
+        # docs/policy/web-intake.md ("Area VA presets"). Merged before the
+        # death-register answers below so a death-register value always wins.
+        answers.update(org_grant_service.resolve_va_presets(org_unit_id))
     if death is not None:
         names = death.deceased_name.strip().split(" ", 1)
         deceased = {
@@ -568,10 +573,11 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
         _, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
     now = _utcnow().isoformat()
+    resolved_org_unit_id = uuid.UUID(str(org_unit_id)) if org_unit_id else None
     draft = VaWebIntakeDraft(
         project_id=project_id,
         site_id=site_id,
-        org_unit_id=uuid.UUID(str(org_unit_id)) if org_unit_id else None,
+        org_unit_id=resolved_org_unit_id,
         death_id=death.death_id if death else None,
         form_id=form.form_id,
         user_id=user.user_id,
@@ -585,7 +591,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             "locale": DEFAULT_LOCALE,
             "translation_version": 0,
         },
-        prefill=_prefill_from_death(death, user),
+        prefill=_prefill_from_death(death, user, resolved_org_unit_id),
     )
     db.session.add(draft)
     if death is not None:

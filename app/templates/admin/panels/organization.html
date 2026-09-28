@@ -178,6 +178,49 @@
     </div>
   </div>
 
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-unit-presets-canvas" aria-labelledby="org-unit-presets-form-title" style="--bs-offcanvas-width:460px;">
+    <div class="offcanvas-header border-bottom">
+      <h6 class="offcanvas-title mb-0" id="org-unit-presets-form-title">VA presets</h6>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <p class="text-muted small mb-3">
+        District-level answers for Id10002 (HIV/AIDS mortality area) and Id10003
+        (malaria mortality area). Left "Not set", a unit inherits its nearest
+        ancestor's value; with neither, the interviewer is asked as usual.
+      </p>
+      <div id="oup-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
+      <input type="hidden" id="oup-unit-id">
+      <div class="row g-2">
+        <div class="col-12">
+          <label class="form-label small mb-1" for="oup-hiv">Id10002 — HIV/AIDS mortality area</label>
+          <select id="oup-hiv" class="form-select form-select-sm">
+            <option value="">Not set</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+            <option value="veryl">Very low</option>
+          </select>
+          <div class="form-text" id="oup-hiv-inherited"></div>
+        </div>
+        <div class="col-12">
+          <label class="form-label small mb-1" for="oup-malaria">Id10003 — malaria mortality area</label>
+          <select id="oup-malaria" class="form-select form-select-sm">
+            <option value="">Not set</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+            <option value="veryl">Very low</option>
+          </select>
+          <div class="form-text" id="oup-malaria-inherited"></div>
+        </div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-sm btn-success" id="oup-save-btn"><i class="fa-solid fa-check me-1"></i>Save presets</button>
+        <button class="btn btn-sm btn-outline-danger" id="oup-clear-btn"><i class="fa-solid fa-trash me-1"></i>Clear both</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   {# ---- Levels ---- #}
   <div class="org-tab" data-org-pane="levels">
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -670,6 +713,7 @@
       + '<button type="button" class="btn btn-sm btn-link" data-act="worker" data-id="' + id + '" title="Add worker here"' + (u.is_active ? '' : ' disabled') + '><i class="fa-solid fa-user-plus"></i></button>'
       + '<button type="button" class="btn btn-sm btn-link" data-act="edit" data-id="' + id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
       + '<button type="button" class="btn btn-sm btn-link" data-act="gate" data-id="' + id + '" title="Coding gate"><i class="fa-solid fa-gauge"></i></button>'
+      + '<button type="button" class="btn btn-sm btn-link" data-act="presets" data-id="' + id + '" title="VA presets"><i class="fa-solid fa-virus"></i></button>'
       + '<button type="button" class="btn btn-sm btn-link ' + (u.is_active ? 'text-danger' : 'text-success') + '" data-act="toggle" data-id="' + id + '" title="' + (u.is_active ? 'Deactivate (with subtree)' : 'Activate') + '"><i class="fa-solid ' + (u.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
       + '</span>';
   }
@@ -902,6 +946,7 @@
     if (b.dataset.act === 'edit') openUnitForm(u, null);
     else if (b.dataset.act === 'child') openUnitForm(null, u);
     else if (b.dataset.act === 'gate') openUnitGateForm(u);
+    else if (b.dataset.act === 'presets') openUnitPresetsForm(u);
     else if (b.dataset.act === 'worker') openWorkerForm(null, u);
     else if (b.dataset.act === 'toggle') {
       var on = !u.is_active;
@@ -953,6 +998,54 @@
       api(base() + '/units/' + id + '/coding-gate', 'DELETE').then(function (res) {
         if (!res.ok) { canvasFail('oug-alert', res); return; }
         alertBox('success', 'Coding gate cleared.'); unitCanvas('org-unit-gate-canvas').hide();
+      });
+    });
+  });
+
+  // ── unit VA presets (Id10002/Id10003) ───────────────────────────────────
+  var VA_PRESET_LABELS = { high: 'High', low: 'Low', veryl: 'Very low' };
+  function openUnitPresetsForm(u) {
+    if (!u) return;
+    $('org-unit-presets-form-title').textContent = 'VA presets — ' + u.unit_code + ' (' + u.unit_name + ')';
+    $('oup-unit-id').value = u.org_unit_id;
+    $('oup-hiv').value = ''; $('oup-malaria').value = '';
+    $('oup-hiv-inherited').textContent = ''; $('oup-malaria-inherited').textContent = '';
+    show('oup-alert', false);
+    unitCanvas('org-unit-presets-canvas').show();
+    api(base() + '/units/' + u.org_unit_id + '/va-presets').then(function (res) {
+      if (!res.ok) { canvasFail('oup-alert', res); return; }
+      var p = res.data.va_presets;
+      if (p) {
+        $('oup-hiv').value = p.hiv_mortality || '';
+        $('oup-malaria').value = p.malaria_mortality || '';
+      }
+      var inherited = res.data.inherited || {};
+      if (!p || !p.hiv_mortality) {
+        var hiv = inherited.hiv_mortality;
+        $('oup-hiv-inherited').textContent = hiv ? ('Inherited from ' + hiv.source_unit_name + ': ' + (VA_PRESET_LABELS[hiv.value] || hiv.value)) : '';
+      }
+      if (!p || !p.malaria_mortality) {
+        var malaria = inherited.malaria_mortality;
+        $('oup-malaria-inherited').textContent = malaria ? ('Inherited from ' + malaria.source_unit_name + ': ' + (VA_PRESET_LABELS[malaria.value] || malaria.value)) : '';
+      }
+    });
+  }
+  $('oup-save-btn').addEventListener('click', function () {
+    var id = val('oup-unit-id');
+    if (!id) return;
+    var body = { hiv_mortality: val('oup-hiv') || null, malaria_mortality: val('oup-malaria') || null };
+    api(base() + '/units/' + id + '/va-presets', 'PUT', body).then(function (res) {
+      if (!res.ok) { canvasFail('oup-alert', res); return; }
+      alertBox('success', 'VA presets saved.'); unitCanvas('org-unit-presets-canvas').hide();
+    });
+  });
+  $('oup-clear-btn').addEventListener('click', function () {
+    var id = val('oup-unit-id');
+    if (!id) return;
+    askConfirm('Clear this unit\'s own VA presets? It will then inherit its nearest ancestor\'s values, if any.', function () {
+      api(base() + '/units/' + id + '/va-presets', 'DELETE').then(function (res) {
+        if (!res.ok) { canvasFail('oup-alert', res); return; }
+        alertBox('success', 'VA presets cleared.'); unitCanvas('org-unit-presets-canvas').hide();
       });
     });
   });

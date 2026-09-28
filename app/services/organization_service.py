@@ -26,6 +26,7 @@ from app import db
 from app.models import (
     MapOrgLevelCadre,
     MapOrgUnitCodingGate,
+    MapOrgUnitVaPresets,
     MasCadre,
     MasOrgLevel,
     MasOrgUnit,
@@ -1041,6 +1042,80 @@ def set_unit_coding_gate(
     gate.daily_coder_limit = limit
     db.session.flush()
     return gate
+
+
+VA_PRESET_VALUES = ("high", "low", "veryl")
+
+
+def serialize_unit_va_presets(presets: MapOrgUnitVaPresets | None) -> dict | None:
+    if presets is None:
+        return None
+    return {
+        "org_unit_id": str(presets.org_unit_id),
+        "hiv_mortality": presets.hiv_mortality,
+        "malaria_mortality": presets.malaria_mortality,
+        "updated_at": presets.updated_at.isoformat() if presets.updated_at else None,
+    }
+
+
+def get_unit_va_presets(project_id: str, org_unit_id: object) -> MapOrgUnitVaPresets | None:
+    """Return this unit's own VA presets row, or None -- absence means inherited.
+
+    This is the unit's own row only, not the resolved (nearest-ancestor)
+    value that actually prefills a draft -- see
+    ``app.services.org_grant_service.resolve_unit_va_presets`` for that.
+    """
+    unit = _get_unit(project_id, org_unit_id)
+    return db.session.get(MapOrgUnitVaPresets, unit.org_unit_id)
+
+
+def _validate_va_preset_value(raw: object, *, what: str) -> str | None:
+    if raw is None or raw == "":
+        return None
+    value = str(raw)
+    if value not in VA_PRESET_VALUES:
+        raise OrganizationError(f"{what} must be one of {', '.join(VA_PRESET_VALUES)}, or empty (not set).")
+    return value
+
+
+def set_unit_va_presets(
+    project_id: str,
+    org_unit_id: object,
+    *,
+    hiv_mortality: object,
+    malaria_mortality: object,
+    actor_id=None,
+) -> MapOrgUnitVaPresets:
+    """Create or update this unit's own HIV/malaria mortality presets.
+
+    Either field left empty/None clears that preset on this unit -- it then
+    inherits its nearest ancestor's value, if any, same as a unit that never
+    set one.
+    """
+    unit = _get_unit(project_id, org_unit_id)
+    hiv = _validate_va_preset_value(hiv_mortality, what="hiv_mortality")
+    malaria = _validate_va_preset_value(malaria_mortality, what="malaria_mortality")
+
+    presets = db.session.get(MapOrgUnitVaPresets, unit.org_unit_id)
+    if presets is None:
+        presets = MapOrgUnitVaPresets(org_unit_id=unit.org_unit_id)
+        db.session.add(presets)
+    presets.hiv_mortality = hiv
+    presets.malaria_mortality = malaria
+    presets.updated_by_user_id = actor_id
+    db.session.flush()
+    return presets
+
+
+def clear_unit_va_presets(project_id: str, org_unit_id: object) -> bool:
+    """Delete this unit's own VA presets row, if any. Returns whether one existed."""
+    unit = _get_unit(project_id, org_unit_id)
+    presets = db.session.get(MapOrgUnitVaPresets, unit.org_unit_id)
+    if presets is None:
+        return False
+    db.session.delete(presets)
+    db.session.flush()
+    return True
 
 
 def clear_unit_coding_gate(project_id: str, org_unit_id: object) -> bool:

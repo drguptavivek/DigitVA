@@ -424,6 +424,95 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(blocked.status_code, 400)
         self.assertIn("first", blocked.get_json()["error"])
 
+    def _seed_one_unit(self, headers):
+        self.client.post(self._url("/seed-template"), json={}, headers=headers)
+        level = self.client.get(self._url("/levels")).get_json()["levels"][0]
+        created = self.client.post(
+            self._url("/units"),
+            json={"org_level_id": level["org_level_id"], "unit_code": "D01", "unit_name": "District One"},
+            headers=headers,
+        )
+        return created.get_json()["unit"]["org_unit_id"]
+
+    def test_va_presets_set_get_and_clear_round_trip(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        unit_id = self._seed_one_unit(headers)
+
+        empty = self.client.get(self._url(f"/units/{unit_id}/va-presets"))
+        self.assertEqual(empty.status_code, 200)
+        self.assertIsNone(empty.get_json()["va_presets"])
+        self.assertEqual(empty.get_json()["inherited"], {})
+
+        saved = self.client.put(
+            self._url(f"/units/{unit_id}/va-presets"),
+            json={"hiv_mortality": "high", "malaria_mortality": "low"},
+            headers=headers,
+        )
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(saved.get_json()["va_presets"]["hiv_mortality"], "high")
+        self.assertEqual(saved.get_json()["va_presets"]["malaria_mortality"], "low")
+
+        fetched = self.client.get(self._url(f"/units/{unit_id}/va-presets")).get_json()
+        self.assertEqual(fetched["va_presets"]["hiv_mortality"], "high")
+
+        cleared = self.client.delete(self._url(f"/units/{unit_id}/va-presets"), headers=headers)
+        self.assertEqual(cleared.status_code, 200)
+        self.assertTrue(cleared.get_json()["cleared"])
+        self.assertIsNone(self.client.get(self._url(f"/units/{unit_id}/va-presets")).get_json()["va_presets"])
+
+    def test_va_presets_reports_inherited_value_and_source_unit(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        parent_id = self._seed_one_unit(headers)
+        self.client.put(
+            self._url(f"/units/{parent_id}/va-presets"), json={"hiv_mortality": "veryl"}, headers=headers,
+        )
+        levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
+        child = self.client.post(
+            self._url("/units"),
+            json={
+                "org_level_id": levels["chc"]["org_level_id"], "parent_org_unit_id": parent_id,
+                "unit_code": "C01", "unit_name": "Child CHC",
+            },
+            headers=headers,
+        ).get_json()["unit"]
+
+        result = self.client.get(self._url(f"/units/{child['org_unit_id']}/va-presets")).get_json()
+
+        self.assertIsNone(result["va_presets"])
+        self.assertEqual(result["inherited"]["hiv_mortality"]["value"], "veryl")
+        self.assertEqual(result["inherited"]["hiv_mortality"]["source_unit_name"], "District One")
+
+    def test_va_presets_rejects_bad_value(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        unit_id = self._seed_one_unit(headers)
+
+        bad = self.client.put(
+            self._url(f"/units/{unit_id}/va-presets"), json={"hiv_mortality": "bogus"}, headers=headers,
+        )
+
+        self.assertEqual(bad.status_code, 400)
+        self.assertIsNone(org.get_unit_va_presets(self.PROJECT, unit_id))
+
+    def test_va_presets_requires_csrf_token(self):
+        self._login(str(self.base_admin_id))
+        unit_id = self._seed_one_unit(self._csrf_headers())
+
+        no_token = self.client.put(self._url(f"/units/{unit_id}/va-presets"), json={"hiv_mortality": "high"})
+
+        self.assertEqual(no_token.status_code, 400)
+        self.assertIn("CSRF", no_token.get_json()["error"])
+        self.assertIsNone(org.get_unit_va_presets(self.PROJECT, unit_id))
+
+    def test_va_presets_forbidden_for_coder(self):
+        self._login(str(self.base_coder_id))
+
+        response = self.client.get(self._url("/units/00000000-0000-0000-0000-000000000000/va-presets"))
+
+        self.assertIn(response.status_code, (302, 403))
+
     def test_export_and_import_endpoints(self):
         self._login(str(self.base_admin_id))
         headers = self._csrf_headers()

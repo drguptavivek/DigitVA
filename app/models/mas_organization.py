@@ -201,6 +201,47 @@ class MapOrgUnitCodingGate(db.Model):
         return f"<MapOrgUnitCodingGate unit={self.org_unit_id} enabled={self.coding_enabled}>"
 
 
+class MapOrgUnitVaPresets(db.Model):
+    """Area presets for Id10002 (HIV/AIDS mortality) and Id10003 (malaria
+    mortality), fixed for a district rather than asked per interview.
+
+    One row per unit that sets a preset (``org_unit_id`` unique via the
+    primary key). A unit with **no row, or a null field, does not set that
+    preset** -- it is inherited from the nearest ancestor that does (resolved
+    with a single ltree containment query per field, see
+    ``app.services.org_grant_service.resolve_va_presets``). A unit with
+    neither its own value nor an inherited one leaves the question asked as
+    today. See docs/policy/web-intake.md ("Area VA presets").
+    """
+
+    __tablename__ = "map_org_unit_va_presets"
+    __table_args__ = (
+        # The naming convention (app/__init__.py) already prefixes this with
+        # "ck_%(table_name)s_"; pass only the discriminator (digitva-dhc).
+        sa.CheckConstraint("hiv_mortality IN ('high', 'low', 'veryl')", name="hiv_mortality"),
+        sa.CheckConstraint("malaria_mortality IN ('high', 'low', 'veryl')", name="malaria_mortality"),
+    )
+
+    org_unit_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_unit.org_unit_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    hiv_mortality: so.Mapped[str | None] = so.mapped_column(sa.String(8), nullable=True)
+    malaria_mortality: so.Mapped[str | None] = so.mapped_column(sa.String(8), nullable=True)
+    updated_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+    updated_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
+    )
+
+    unit: so.Mapped["MasOrgUnit"] = so.relationship("MasOrgUnit")
+
+    def __repr__(self) -> str:
+        return f"<MapOrgUnitVaPresets unit={self.org_unit_id} hiv={self.hiv_mortality} malaria={self.malaria_mortality}>"
+
+
 class MasCadre(db.Model):
     """A workforce cadre within a project (SMO, MO, CHO, MPW, ANM, ASHA, ...)."""
 

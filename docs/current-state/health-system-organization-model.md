@@ -381,6 +381,14 @@ implemented.
    `org_<level_code>_code` fields, and missing ones are logged and written to
    the run's progress log. It is advisory — it never blocks a sync, and a
    Central failure on the field list is ignored.
+8. **Area VA presets (2026-09-28, `digitva-dhc`).** Implemented: a unit may
+   set `Id10002` (HIV/AIDS mortality) and/or `Id10003` (malaria mortality) as
+   `high`/`low`/`veryl` in `map_org_unit_va_presets`, inherited
+   independently per field by the nearest ancestor with a value (one ltree
+   query, `org_grant_service.resolve_unit_va_presets`, same shape as the
+   coding-gate resolution above). A web intake draft prefills and locks
+   whichever field resolves; no configured value leaves the question asked.
+   See [Web Intake Policy](../policy/web-intake.md#area-va-presets).
 
 ### Still open
 
@@ -472,7 +480,7 @@ and disabled, with a note, without overwriting the remembered choice.
 |---|---|
 | Tree, cadres, workers, export/import, unit label lookup for submission exports | `app/services/organization_service.py` |
 | Organization tree and web form options JSON API | `app/routes/api/organization.py` |
-| Unit-scoped grants, coding scope rule | `app/services/org_grant_service.py` |
+| Unit-scoped grants, coding scope rule, coding gate and VA preset resolution | `app/services/org_grant_service.py` |
 | Submission routing, ODK field preflight | `app/services/org_unit_routing_service.py` |
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |
 | List filtering and the allocation gate | `app/services/coder_workflow_service.py` |

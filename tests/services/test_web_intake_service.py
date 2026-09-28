@@ -308,6 +308,67 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.prefill["answers"]["abha_number"], "12345678901234")
         self.assertEqual(draft.prefill["lockedQuestionNames"], ["abha_number"])
 
+    def test_start_draft_prefills_and_locks_area_va_presets_from_org_unit(self):
+        from app.services import org_grant_service as og
+        from app.services import organization_service as org
+
+        unit = self._org_unit()
+        org.set_unit_va_presets(self.PROJECT_ID, unit.org_unit_id, hiv_mortality="high", malaria_mortality="low")
+        db.session.commit()
+        death = self._register_death(org_unit_id=str(unit.org_unit_id))
+
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+
+        self.assertEqual(draft.prefill["answers"]["Id10002"], "high")
+        self.assertEqual(draft.prefill["answers"]["Id10003"], "low")
+        self.assertIn("Id10002", draft.prefill["lockedQuestionNames"])
+        self.assertIn("Id10003", draft.prefill["lockedQuestionNames"])
+
+    def test_start_draft_direct_also_prefills_area_va_presets(self):
+        from app.services import organization_service as org
+
+        unit = self._org_unit()
+        org.set_unit_va_presets(self.PROJECT_ID, unit.org_unit_id, hiv_mortality="veryl", malaria_mortality=None)
+        db.session.commit()
+
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, org_unit_id=str(unit.org_unit_id),
+        )
+
+        self.assertEqual(draft.prefill["answers"]["Id10002"], "veryl")
+        self.assertNotIn("Id10003", draft.prefill["answers"])
+
+    def test_start_draft_without_a_preset_leaves_the_question_asked(self):
+        unit = self._org_unit()
+        death = self._register_death(org_unit_id=str(unit.org_unit_id))
+
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+
+        self.assertNotIn("Id10002", draft.prefill["answers"])
+        self.assertNotIn("Id10003", draft.prefill["answers"])
+
+    def test_death_register_answer_wins_over_a_colliding_area_preset(self):
+        """Design guarantee: a death-register answer is never overwritten by
+        an area preset. No real question name collides today, so this drives
+        _prefill_from_death directly with a mocked resolver to prove the
+        merge order, rather than asserting on a scenario that cannot occur
+        through the public API yet."""
+        from unittest.mock import patch
+
+        unit = self._org_unit()
+        death = self._register_death(org_unit_id=str(unit.org_unit_id), abha_number="12345678901234")
+        with patch(
+            "app.services.web_intake_service.org_grant_service.resolve_va_presets",
+            return_value={"abha_number": "should-not-win"},
+        ):
+            prefill = intake_svc._prefill_from_death(death, self.interviewer, death.org_unit_id)
+
+        self.assertEqual(prefill["answers"]["abha_number"], "12345678901234")
+
     def test_start_draft_from_death_returns_the_existing_draft(self):
         death = self._register_death()
         first = intake_svc.start_draft(

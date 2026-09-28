@@ -23,6 +23,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MapOrgUnitCodingGate,
+    MapOrgUnitVaPresets,
     MasCadre,
     MasOrgUnit,
     VaAccessRoles,
@@ -584,3 +585,86 @@ def resolve_unit_coding_gates(
         # each group, so the first row seen per target is its nearest gate.
         resolved.setdefault(target_unit_id, gate)
     return resolved
+
+
+# Model column -> WHO 2022 questionnaire field name each preset fills.
+VA_PRESET_QUESTION_NAMES = {
+    "hiv_mortality": "Id10002",
+    "malaria_mortality": "Id10003",
+}
+
+
+def resolve_unit_va_presets(unit_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, dict[str, dict]]:
+    """Nearest ancestor value for each VA preset field, independently, per unit.
+
+    ``hiv_mortality`` and ``malaria_mortality`` are resolved separately: a
+    unit can inherit one from its parent and the other from a grandparent
+    (or set neither). Resolved with one ltree containment query across all
+    requested units, never a per-row walk up the tree -- same shape as
+    ``resolve_unit_coding_gates``.
+
+    Returns ``{unit_id: {"hiv_mortality": {"value": ..., "source_unit_id":
+    ..., "source_unit_name": ...}, "malaria_mortality": {...}}}``. A field
+    absent from a unit's dict has no value at all, on that unit or any
+    ancestor -- callers must treat that as "not preset", never as a default.
+    """
+    unit_id_set = set(unit_ids)
+    if not unit_id_set:
+        return {}
+
+    target = sa.orm.aliased(MasOrgUnit, name="preset_target_unit")
+    ancestor = sa.orm.aliased(MasOrgUnit, name="preset_ancestor_unit")
+    rows = db.session.execute(
+        sa.select(
+            target.org_unit_id,
+            ancestor.org_unit_id,
+            ancestor.unit_name,
+            MapOrgUnitVaPresets.hiv_mortality,
+            MapOrgUnitVaPresets.malaria_mortality,
+        )
+        .select_from(target)
+        .join(
+            ancestor,
+            sa.and_(
+                ancestor.project_id == target.project_id,
+                sa.text("preset_target_unit.path <@ preset_ancestor_unit.path"),
+            ),
+        )
+        .join(MapOrgUnitVaPresets, MapOrgUnitVaPresets.org_unit_id == ancestor.org_unit_id)
+        .where(target.org_unit_id.in_(unit_id_set))
+        .order_by(target.org_unit_id, sa.func.nlevel(ancestor.path).desc())
+    ).all()
+
+    resolved: dict[uuid.UUID, dict[str, dict]] = {}
+    for target_unit_id, source_unit_id, source_unit_name, hiv, malaria in rows:
+        fields = resolved.setdefault(target_unit_id, {})
+        # Rows are grouped by target and ordered deepest-ancestor-first, so
+        # the first non-null value seen per field is its nearest preset --
+        # independently for each field, since one ancestor may set hiv only.
+        if hiv is not None and "hiv_mortality" not in fields:
+            fields["hiv_mortality"] = {
+                "value": hiv,
+                "source_unit_id": source_unit_id,
+                "source_unit_name": source_unit_name,
+            }
+        if malaria is not None and "malaria_mortality" not in fields:
+            fields["malaria_mortality"] = {
+                "value": malaria,
+                "source_unit_id": source_unit_id,
+                "source_unit_name": source_unit_name,
+            }
+    return resolved
+
+
+def resolve_va_presets(org_unit_id: uuid.UUID) -> dict[str, str]:
+    """Resolved Id10002/Id10003 answers for one unit, keyed by field name.
+
+    Convenience wrapper over ``resolve_unit_va_presets`` for the one-unit case
+    (web intake prefill). Only keys that resolve are present; no configured
+    value on the unit or any ancestor means the question stays asked.
+    """
+    fields = resolve_unit_va_presets([org_unit_id]).get(org_unit_id, {})
+    return {
+        VA_PRESET_QUESTION_NAMES[column]: entry["value"]
+        for column, entry in fields.items()
+    }

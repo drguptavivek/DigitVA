@@ -26,6 +26,7 @@ from app.models.mas_odk_connections import MasOdkConnections
 from app.models.mas_organization import (
     MapOrgLevelCadre,
     MapOrgUnitCodingGate,
+    MapOrgUnitVaPresets,
     MasCadre,
     MasOrgLevel,
     MasOrgUnit,
@@ -173,6 +174,7 @@ __all__ = [
     "MasCadre",
     "MapOrgLevelCadre",
     "MapOrgUnitCodingGate",
+    "MapOrgUnitVaPresets",
     "MasOrgUnitWorker",
     "VaDeathRegister",
     "VaWebIntakeDraft",

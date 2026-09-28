@@ -62,6 +62,14 @@ PUBLIC_BY_DESIGN = frozenset({
     # looks the user up until POST -- see docs/policy/authentication-factors.md
     # section 1.
     "va_auth.va_login_password",
+    # Passkey sign-in options + verify, step 2's other path. Same reasoning
+    # as va_login_password: guarded in body by the live pre-auth session
+    # state, not by a decorator. The options response carries no
+    # allowCredentials and nothing derived from the pre-auth email, so it is
+    # identical for every account (section 1); verify checks the credential
+    # belongs to the pre-auth email's account before anything else.
+    "va_auth.va_login_passkey_options",
+    "va_auth.va_login_passkey_verify",
     # JSON GET issuing a signed proof-of-work challenge for the email step.
     # No user or session data; the challenge is meaningless without solving
     # it, and pow_captcha_service.verify_challenge is what a session

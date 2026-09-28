@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app import db, limiter
-from app.models import VaUsers
+from app.models import AuthWebauthnCredential, VaUsers
 from app.forms import EmailStepForm, PasswordStepForm, ForgotPasswordForm, ResetPasswordForm
 import sqlalchemy as sa
 import uuid
@@ -11,10 +11,18 @@ from urllib.parse import urlparse
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
+from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.site_maintenance_service import (
     get_active_site_maintenance,
     serialize_site_maintenance,
     should_block_non_admin_after_cutoff,
+)
+from app.services.webauthn_service import (
+    PasskeyVerificationError,
+    base64url_to_bytes,
+    build_authentication_options,
+    clear_authentication_challenge,
+    verify_authentication,
 )
 
 va_auth = Blueprint("va_auth", __name__)
@@ -57,6 +65,40 @@ def _set_preauth(email: str, next_url: str | None) -> None:
 
 def _clear_preauth() -> None:
     session.pop("preauth", None)
+
+
+def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool) -> None:
+    """Finish sign-in exactly once, shared by the password and passkey
+    paths: drop every session key issued before authentication (the pre-auth
+    state included), give the authenticated session a new ID, and record the
+    reauthentication timestamp that Profile's passkey-management routes
+    require to be fresh (docs/policy/authentication-factors.md section 7 --
+    the 10-minute window itself is enforced in app/routes/api/profile.py).
+
+    ``nudge_if_no_passkey`` flags the post-login passkey banner (section 2):
+    the password path passes True, the passkey path False (a passkey
+    sign-in needs no nudge to use a passkey).
+
+    Caller is responsible for every check that must pass first (active,
+    verified email, maintenance) and for the redirect afterwards.
+    """
+    has_passkey = db.session.scalar(
+        sa.select(
+            sa.exists().where(AuthWebauthnCredential.user_id == user.user_id)
+        )
+    )
+    _clear_preauth()
+    clear_authentication_challenge()
+    # Session fixation: drop everything issued before authentication, then
+    # give the authenticated session a new ID. regenerate() no-ops on an
+    # empty session, so it must run after login_user has populated it.
+    session.clear()
+    session.permanent = True
+    login_user(user, remember=remember)
+    session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
+    if nudge_if_no_passkey and not has_passkey:
+        session["passkey_nudge"] = True
+    current_app.session_interface.regenerate(session)
 
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
@@ -128,8 +170,7 @@ def va_login_captcha_challenge():
 def va_login_password():
     """Step 2: the same page (a passkey button plus password) for every
     email, known or unknown -- see docs/policy/authentication-factors.md
-    section 1. Passkey verification is a later phase (digitva-sn1.1.4+); this
-    page shows only the password path for now.
+    section 1. Passkey verification runs through the JSON routes below.
     """
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
@@ -173,15 +214,7 @@ def va_login_password():
             )
             return redirect(_password_step_url(next_url))
 
-        _clear_preauth()
-        # Session fixation: drop everything issued before authentication
-        # (the pre-auth state above included), then give the authenticated
-        # session a new ID. regenerate() no-ops on an empty session, so it
-        # must run after login_user has populated it.
-        session.clear()
-        session.permanent = True
-        login_user(user, remember=form.remember_me.data)
-        current_app.session_interface.regenerate(session)
+        _complete_login(user, remember=form.remember_me.data, nudge_if_no_passkey=True)
 
         return redirect(next_url or current_user.landing_url())
     return render_template(
@@ -196,6 +229,128 @@ def _password_step_url(next_url):
     if next_url:
         return url_for("va_auth.va_login_password", next=next_url)
     return url_for("va_auth.va_login_password")
+
+
+@va_auth.route("/valogin/passkey/options", methods=["POST"])
+@limiter.limit("10 per minute")
+@limiter.limit("20 per hour", key_func=_preauth_email_key_func)
+def va_login_passkey_options():
+    """Discoverable-credential options for the passkey sign-in button.
+
+    No ``allowCredentials`` and nothing derived from the pre-auth email --
+    the response is identical for every email, known or not (section 1).
+    Still requires a live pre-auth state, so this is unreachable without
+    having passed the CAPTCHA-gated email step first.
+    """
+    if _preauth_state() is None:
+        return jsonify({"error": "Please sign in again."}), 400
+    return jsonify(build_authentication_options())
+
+
+@va_auth.route("/valogin/passkey/verify", methods=["POST"])
+@limiter.limit("10 per minute")
+@limiter.limit("20 per hour", key_func=_preauth_email_key_func)
+def va_login_passkey_verify():
+    """Verify a passkey assertion and complete sign-in.
+
+    The credential must belong to the account named by the pre-auth email
+    (never the credential's own claim) -- an assertion for a real credential
+    of a *different* account, or for no account at all, gets the same
+    generic message as a wrong password (docs/policy/authentication-factors.md
+    section 2).
+    """
+    preauth = _preauth_state()
+    if preauth is None:
+        clear_authentication_challenge()
+        return jsonify({"error": "Please sign in again."}), 400
+
+    body = request.get_json(silent=True) or {}
+    credential = body.get("credential")
+    if not isinstance(credential, dict):
+        clear_authentication_challenge()
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    try:
+        raw_id = base64url_to_bytes(credential.get("rawId") or credential.get("id") or "")
+    except Exception:
+        clear_authentication_challenge()
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    preauth_user = db.session.scalar(
+        sa.select(VaUsers).where(VaUsers.email == preauth["email"])
+    )
+    stored = db.session.scalar(
+        sa.select(AuthWebauthnCredential).where(
+            AuthWebauthnCredential.credential_id == raw_id
+        )
+    )
+    # The credential must belong to the pre-auth email's own account -- a
+    # real credential of a different account (or of no account) is refused
+    # with the same generic message, never distinguished.
+    if (
+        preauth_user is None
+        or stored is None
+        or stored.user_id != preauth_user.user_id
+        or not preauth_user.is_active
+    ):
+        clear_authentication_challenge()
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    user = preauth_user
+
+    try:
+        verified = verify_authentication(
+            credential, credential_public_key=stored.public_key
+        )
+    except PasskeyVerificationError:
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    # Signature-counter policy (section 2): 0/0 is fine (synced passkeys);
+    # only a non-zero stored counter the new value fails to exceed is a
+    # possible clone.
+    if stored.sign_count > 0 and verified.new_sign_count <= stored.sign_count:
+        record_security_event(
+            user_id=user.user_id,
+            event_type="counter_regression",
+            detail={"credential_prefix": credential_id_prefix(stored.credential_id)},
+        )
+        db.session.commit()
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    if not user.email_verified:
+        return jsonify(
+            {"error": "Please verify your email address before logging in."}
+        ), 400
+
+    if not user.is_admin() and should_block_non_admin_after_cutoff():
+        return jsonify(
+            {"error": "Site is under maintenance. Only admin login is allowed right now."}
+        ), 400
+
+    next_url = preauth.get("next")
+
+    # Atomic counter update: only succeeds if sign_count still matches what
+    # was just checked, so a concurrent use of the same credential cannot
+    # both apply their counter bump.
+    result = db.session.execute(
+        sa.update(AuthWebauthnCredential)
+        .where(
+            AuthWebauthnCredential.id == stored.id,
+            AuthWebauthnCredential.sign_count == stored.sign_count,
+        )
+        .values(
+            sign_count=verified.new_sign_count,
+            last_used_at=datetime.now(timezone.utc),
+        )
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
+
+    _complete_login(user, remember=False, nudge_if_no_passkey=False)
+    db.session.commit()
+
+    return jsonify({"redirect": next_url or current_user.landing_url()})
 
 
 @va_auth.route("/valogout", methods=["POST"])

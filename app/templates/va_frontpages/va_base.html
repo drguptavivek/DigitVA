@@ -49,6 +49,22 @@
 
   <body>
     {% include "va_intermediate_partials/va_navbar.html" %}
+    {% if current_user.is_authenticated and session.get('passkey_nudge') %}
+      <div id="passkey-nudge-banner" class="alert alert-info alert-dismissible fade show mb-0 text-center" role="alert">
+        Sign on faster using passkeys next time.
+        <a href="{{ url_for('profile.view') }}#passkeys-card" class="alert-link">Set one up</a>.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" id="passkey-nudge-dismiss"></button>
+      </div>
+      <script>
+        document.getElementById("passkey-nudge-dismiss").addEventListener("click", function () {
+          fetch("{{ url_for('api_v1.profile_api.dismiss_passkey_nudge') }}", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-CSRFToken": "{{ csrf_token() }}" },
+          });
+        }, { once: true });
+      </script>
+    {% endif %}
     <main id="main-content" class="container py-4">
       {% block content %}{% endblock %}
     </main>

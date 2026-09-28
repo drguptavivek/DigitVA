@@ -1,18 +1,56 @@
 """User profile JSON API — /api/v1/profile/"""
 
+from datetime import datetime, timedelta, timezone
+
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from flask_login import current_user, login_required
 
 from app import db, limiter
+from app.models import AuthWebauthnCredential
 from app.models.mas_languages import MasLanguages
+from app.services.security_event_service import credential_id_prefix, record_security_event
+from app.services.webauthn_service import (
+    PasskeyVerificationError,
+    build_registration_options,
+    clear_registration_challenge,
+    verify_registration,
+)
 from app.utils.password_policy import password_error_message
 
 bp = Blueprint("profile_api", __name__)
 
+# docs/policy/authentication-factors.md section 7: registering, renaming or
+# revoking a passkey needs a sign-in or reauthentication within this window.
+REAUTH_TTL = timedelta(minutes=10)
+
 
 def _error(message: str, status_code: int = 400):
     return jsonify({"error": message}), status_code
+
+
+def _rate_limit_key():
+    """Per-account limiter key for passkey management: the signed-in user,
+    not an attacker-controlled field."""
+    return current_user.get_id() if current_user.is_authenticated else ""
+
+
+def _reauthenticated_recently() -> bool:
+    raw = session.get("auth_verified_at")
+    if not raw:
+        return False
+    try:
+        verified_at = datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return False
+    return datetime.now(timezone.utc) - verified_at <= REAUTH_TTL
+
+
+def _require_reauth():
+    """Return an error response if reauthentication has expired, else None."""
+    if not _reauthenticated_recently():
+        return _error("reauth_required", 401)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -129,3 +167,193 @@ def update_timezone():
     current_user.timezone = timezone
     db.session.commit()
     return jsonify({"message": "Timezone updated successfully.", "timezone": timezone})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/profile/reauth  — refresh the reauthentication window
+# ---------------------------------------------------------------------------
+
+@bp.post("/reauth")
+@login_required
+@limiter.limit("5 per minute", key_func=_rate_limit_key)
+def reauth():
+    """Re-verify the current user's password to refresh the 10-minute
+    reauthentication window that passkey registration/rename/revoke need
+    (docs/policy/authentication-factors.md section 7)."""
+    body = request.get_json(silent=True) or {}
+    password = body.get("password", "")
+    if not password or not current_user.check_password(password):
+        return _error("Incorrect password.", 403)
+    session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
+    return jsonify({"message": "Reauthenticated."})
+
+
+# ---------------------------------------------------------------------------
+# Passkeys — /api/v1/profile/passkeys
+# ---------------------------------------------------------------------------
+
+def _serialize_credential(cred: AuthWebauthnCredential) -> dict:
+    return {
+        "id": str(cred.id),
+        "name": cred.name,
+        "created_at": cred.created_at.isoformat() if cred.created_at else None,
+        "last_used_at": cred.last_used_at.isoformat() if cred.last_used_at else None,
+        "backed_up": bool(cred.backed_up),
+    }
+
+
+@bp.get("/passkeys")
+@login_required
+def list_passkeys():
+    creds = db.session.scalars(
+        sa.select(AuthWebauthnCredential)
+        .where(AuthWebauthnCredential.user_id == current_user.user_id)
+        .order_by(AuthWebauthnCredential.created_at)
+    ).all()
+    return jsonify({"passkeys": [_serialize_credential(c) for c in creds]})
+
+
+@bp.post("/passkeys/options")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def passkey_registration_options():
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+    existing = db.session.scalars(
+        sa.select(AuthWebauthnCredential.credential_id).where(
+            AuthWebauthnCredential.user_id == current_user.user_id
+        )
+    ).all()
+    options = build_registration_options(
+        current_user._get_current_object(), existing_credential_ids=list(existing)
+    )
+    return jsonify(options)
+
+
+@bp.post("/passkeys")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def register_passkey():
+    """Verify a registration response and store the new passkey."""
+    reauth_error = _require_reauth()
+    if reauth_error:
+        clear_registration_challenge()
+        return reauth_error
+
+    body = request.get_json(silent=True) or {}
+    credential = body.get("credential")
+    name = (body.get("name") or "").strip()[:64] or "Passkey"
+    if not isinstance(credential, dict):
+        clear_registration_challenge()
+        return _error("Invalid passkey response.")
+
+    try:
+        verified = verify_registration(credential)
+    except PasskeyVerificationError as exc:
+        return _error(f"Could not verify the passkey: {exc}")
+
+    record = AuthWebauthnCredential(
+        user_id=current_user.user_id,
+        credential_id=verified.credential_id,
+        public_key=verified.credential_public_key,
+        sign_count=verified.sign_count,
+        backup_eligible=verified.credential_device_type == "multi_device",
+        backed_up=verified.credential_backed_up,
+        transports=(credential.get("response") or {}).get("transports"),
+        name=name,
+    )
+    db.session.add(record)
+    try:
+        db.session.flush()
+    except sa.exc.IntegrityError:
+        db.session.rollback()
+        return _error("This passkey is already registered.")
+
+    record_security_event(
+        user_id=current_user.user_id,
+        actor_user_id=current_user.user_id,
+        event_type="passkey_registered",
+        detail={"name": name, "credential_prefix": credential_id_prefix(record.credential_id)},
+    )
+    db.session.commit()
+    return jsonify({"message": "Passkey added.", "passkey": _serialize_credential(record)})
+
+
+@bp.patch("/passkeys/<uuid:passkey_id>")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def rename_passkey(passkey_id):
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    cred = db.session.scalar(
+        sa.select(AuthWebauthnCredential).where(
+            AuthWebauthnCredential.id == passkey_id,
+            AuthWebauthnCredential.user_id == current_user.user_id,
+        )
+    )
+    if cred is None:
+        return _error("Passkey not found.", 404)
+
+    body = request.get_json(silent=True) or {}
+    name = (body.get("name") or "").strip()[:64]
+    if not name:
+        return _error("A name is required.")
+
+    old_prefix = credential_id_prefix(cred.credential_id)
+    cred.name = name
+    record_security_event(
+        user_id=current_user.user_id,
+        actor_user_id=current_user.user_id,
+        event_type="passkey_renamed",
+        detail={"name": name, "credential_prefix": old_prefix},
+    )
+    db.session.commit()
+    return jsonify({"message": "Passkey renamed.", "passkey": _serialize_credential(cred)})
+
+
+@bp.delete("/passkeys/<uuid:passkey_id>")
+@login_required
+@limiter.limit("10 per minute", key_func=_rate_limit_key)
+@limiter.limit("20 per hour", key_func=_rate_limit_key)
+def revoke_passkey(passkey_id):
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+
+    cred = db.session.scalar(
+        sa.select(AuthWebauthnCredential).where(
+            AuthWebauthnCredential.id == passkey_id,
+            AuthWebauthnCredential.user_id == current_user.user_id,
+        )
+    )
+    if cred is None:
+        return _error("Passkey not found.", 404)
+
+    prefix = credential_id_prefix(cred.credential_id)
+    db.session.delete(cred)
+    record_security_event(
+        user_id=current_user.user_id,
+        actor_user_id=current_user.user_id,
+        event_type="passkey_revoked",
+        detail={"name": cred.name, "credential_prefix": prefix},
+    )
+    db.session.commit()
+    return jsonify({"message": "Passkey revoked."})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/profile/dismiss-passkey-nudge  — dismiss the post-login banner
+# ---------------------------------------------------------------------------
+
+@bp.post("/dismiss-passkey-nudge")
+@login_required
+def dismiss_passkey_nudge():
+    """Dismiss the "sign on faster" banner for the rest of this session."""
+    session.pop("passkey_nudge", None)
+    return jsonify({"message": "Dismissed."})

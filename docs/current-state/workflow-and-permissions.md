@@ -703,19 +703,55 @@ is step 1 only:
    Requires a live, unexpired (5-minute) pre-auth state or redirects back to
    step 1. Runs the existing checks unchanged (password, `user_status`,
    email-verified, maintenance cutoff, safe `next`) and completes sign-in.
-   A "Use a passkey" path is a later phase (digitva-sn1.1.4+); this page
-   currently shows only the password form.
-3. **Session versioning.** `VaUsers.auth_session_version` (migration
+   The same page shows a "Use a passkey" button above the password form for
+   every email, known or not (`app/static/js/webauthn_login.js`); the
+   button hides itself when `window.PublicKeyCredential` is missing, and a
+   cancelled or failed ceremony shows a neutral message and leaves the
+   password form usable.
+3. **Passkey path** (`va_auth.va_login_passkey_options` /
+   `va_auth.va_login_passkey_verify`, POST-only JSON, both under
+   `/vaauth/valogin/passkey/`). Also requires a live pre-auth state.
+   `..._options` returns discoverable-credential authentication options
+   (no `allowCredentials`, nothing derived from the pre-auth email) built
+   by `app/services/webauthn_service.py`, so the response is byte-identical
+   for a known or unknown email. `..._verify` looks the asserted credential
+   up by its ID, refuses unless it belongs to the pre-auth email's own
+   account, applies the signature-counter policy itself (counter 0/0 is
+   fine; a non-zero stored counter the new value fails to exceed is refused
+   and logged as `counter_regression`), atomically bumps the stored
+   `sign_count`, and completes sign-in through the same shared
+   `_complete_login()` helper the password path uses.
+4. **Session versioning.** `VaUsers.auth_session_version` (migration
    `c1d5e9a2f7b4`) lets a password reset, and later a factor reset or the
    break-glass CLI, invalidate every existing session and remember cookie:
    `VaUsers.get_id()` returns `"<uuid>:<version>"` once the version is
    non-zero, bare `"<uuid>"` at version 0 so pre-existing sessions keep
    working; the `login.user_loader` and every other place that reads
    `session["_user_id"]` accept both forms.
+5. **Reauthentication window.** `_complete_login()` stamps
+   `session["auth_verified_at"]` on every successful sign-in (password or
+   passkey). Registering, renaming or revoking a passkey in Profile
+   (`/api/v1/profile/passkeys*`) needs that timestamp to be under 10 minutes
+   old, else the route returns `401 {"error": "reauth_required"}` and the
+   page prompts for the password again (`POST /api/v1/profile/reauth`).
+6. **Post-login nudge.** A password sign-in by a user with no registered
+   passkey sets `session["passkey_nudge"]`; `va_base.html` then renders a
+   dismissible banner on the next page linking to the Profile passkey
+   section. Dismissing it (`POST /api/v1/profile/dismiss-passkey-nudge`)
+   clears the session flag, so it does not reappear for the rest of the
+   session. A passkey sign-in never sets the flag.
 
-Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`,
-`auth_security_events` (all additive, unused until the passkey/TOTP phases
-land) plus `va_users.auth_session_version`.
+Schema: `auth_webauthn_credentials` (in use — passkeys), `auth_totp`,
+`auth_recovery_codes` (additive, unused until the TOTP phase lands),
+`auth_security_events` (in use: `passkey_registered`, `passkey_renamed`,
+`passkey_revoked`, `counter_regression`) plus `va_users.auth_session_version`.
+
+WebAuthn RP ID/origin: `config.py`'s `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`
+default to the host / scheme+host of `MAIL_BASE_URL` (via the same
+`_parse_public_url` helper `trusted_hosts_for` uses), overridable by
+environment variable for development; with no `MAIL_BASE_URL` at all they
+fall back to `localhost` / `http://localhost:8051`, which WebAuthn allows
+over plain HTTP.
 
 ## Admin Runtime Access
 

@@ -90,19 +90,45 @@ def _require_env(key: str) -> str:
     return value
 
 
+def _parse_public_url(base_url: str):
+    """Parse ``MAIL_BASE_URL`` (or any bare-host/full-URL string) once.
+
+    ``email_service`` and ``trusted_hosts_for`` accept a bare host too, so a
+    scheme is added before parsing when one is missing. Shared by
+    ``trusted_hosts_for`` and the WebAuthn RP ID/origin defaults below so
+    there is exactly one URL parser for this string.
+    """
+    base_url = (base_url or "").strip()
+    return urlparse(base_url if "//" in base_url else "//" + base_url)
+
+
 def trusted_hosts_for(base_url: str) -> list[str]:
     """Hosts a production app answers: the public host plus the container
     healthcheck's localhost. Any other Host header gets a 400, so a forged
     X-Forwarded-Host cannot reach the app."""
-    base_url = (base_url or "").strip()
-    # email_service accepts a bare host here too, so parse that form as well.
-    host = urlparse(base_url if "//" in base_url else "//" + base_url).hostname
+    host = _parse_public_url(base_url).hostname
     if not host:
         raise RuntimeError(
             "MAIL_BASE_URL must be set to the public URL "
             "(e.g. https://digitva.causeofdeathindia.com) in production."
         )
     return [host, "localhost", "127.0.0.1"]
+
+
+def _webauthn_rp_id_default(base_url: str) -> str:
+    """RP ID default: the host of MAIL_BASE_URL, else localhost for dev."""
+    return _parse_public_url(base_url).hostname or "localhost"
+
+
+def _webauthn_origin_default(base_url: str) -> str:
+    """Origin default: scheme + host[:port] of MAIL_BASE_URL, else the local
+    dev server. WebAuthn allows an http origin only for localhost."""
+    parsed = _parse_public_url(base_url)
+    if not parsed.hostname:
+        return "http://localhost:8051"
+    scheme = parsed.scheme or "https"
+    netloc = parsed.netloc or parsed.hostname
+    return f"{scheme}://{netloc}"
 
 
 class Config:
@@ -352,6 +378,19 @@ class Config:
     # this message size), so ~15-25k hashes/sec there. 2^14 = 16384 lands
     # at roughly 0.7-1.1s on that estimate. Tests set this low.
     CAPTCHA_DIFFICULTY = int(os.environ.get("CAPTCHA_DIFFICULTY", "14"))
+
+    # --- Passkeys (WebAuthn) --------------------------------------------
+    # docs/policy/authentication-factors.md section 2. RP ID/origin default
+    # to the host/scheme+host of MAIL_BASE_URL; env overrides are for
+    # development only -- production must not change the RP ID once a
+    # passkey has been registered against it.
+    WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "").strip() or _webauthn_rp_id_default(
+        os.environ.get("MAIL_BASE_URL", "")
+    )
+    WEBAUTHN_ORIGIN = os.environ.get("WEBAUTHN_ORIGIN", "").strip() or _webauthn_origin_default(
+        os.environ.get("MAIL_BASE_URL", "")
+    )
+    WEBAUTHN_RP_NAME = "DigitVA"
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     ICD11_API_BASE_URL = os.environ.get(

@@ -312,7 +312,7 @@ class TestIcd10BrowserApi(BaseTestCase):
         self.assertEqual(payload["sex_selectable"], ["both", "female", "male"])
         self.assertEqual(
             payload["age_group_selectable"],
-            ["all", "neonate", "infant", "child", "adult"],
+            ["all", "neonate", "infant", "neonate_infant", "child", "adult"],
         )
 
     def test_data_manager_can_export_curated_policy_json(self):

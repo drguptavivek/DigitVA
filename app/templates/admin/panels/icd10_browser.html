@@ -45,6 +45,7 @@
           <option value="adult">Adult</option>
           <option value="child">Child</option>
           <option value="infant">Infant</option>
+          <option value="neonate_infant">Neonate or infant</option>
           <option value="neonate">Neonate</option>
         </select>
       </div>
@@ -937,7 +938,7 @@
         ? ({both: 'Both', female: 'Female', male: 'Male'}[node.sex_selectable] || 'Not restricted')
         : '—';
       panel.querySelector('#icd10-browser-detail-age').textContent = isCode
-        ? ({all: 'All ages', adult: 'Adult', child: 'Child', infant: 'Infant', neonate: 'Neonate'}[node.age_group_selectable] || 'Not restricted')
+        ? ({all: 'All ages', adult: 'Adult', child: 'Child', infant: 'Infant', neonate_infant: 'Neonate or infant', neonate: 'Neonate'}[node.age_group_selectable] || 'Not restricted')
         : '—';
       panel.querySelector('#icd10-browser-detail-policy').textContent = isCode
         ? (node.policy_status === 'reviewed' ? 'Reviewed' : 'Unreviewed')

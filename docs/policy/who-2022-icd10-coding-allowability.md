@@ -3,7 +3,7 @@ title: WHO 2022 ICD-10 Coding Allowability Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-29
 ---
 
 # WHO 2022 ICD-10 Coding Allowability Policy
@@ -39,6 +39,7 @@ ICD coding age allowability supports:
 - `all`
 - `neonate`
 - `infant`
+- `neonate_infant`
 - `child`
 - `adult`
 
@@ -51,7 +52,11 @@ Submission age classification is:
 
 Policy matching is exact-or-all. A code marked `all` is available to every age
 group. A code marked `infant` is available only to submissions classified as
-`infant`.
+`infant`. `neonate_infant` (owner, 2026-09-29) is the one non-exact value: a
+code marked `neonate_infant` is available to submissions classified as
+`neonate` or `infant`, and to no other group. No ICD-10 row uses it; the
+ICD-10 policy data is unchanged (P00-P96 stay `neonate`). The value is
+accepted here so ICD-10 and ICD-11 share one vocabulary.
 
 ## Allowability Rules
 

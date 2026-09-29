@@ -9,6 +9,7 @@ from app import db
 from app.models import MasIcd1020192, VaSubmissions
 from app.services.icd10_2019_2_service import (
     _coding_age_group_for_submission,
+    _validate_policy_update,
     get_icd10_2019_2_policy_options,
     import_icd10_2019_2_from_csv,
     import_icd10_2019_2_policy_json,
@@ -391,6 +392,16 @@ class TestIcd1020192Service(BaseTestCase):
         self.assertEqual(result.updated_items, 1)
         refreshed = db.session.get(MasIcd1020192, "R95")
         self.assertEqual(refreshed.age_group_selectable, "infant")
+
+    def test_neonate_infant_is_an_allowed_age_group_and_unknown_values_are_rejected(self):
+        self.assertIn("neonate_infant", get_icd10_2019_2_policy_options()["age_group_selectable"])
+        kwargs = dict(is_coding_selectable=True, sex_selectable="both", restriction_note=None)
+        self.assertEqual(
+            _validate_policy_update(age_group_selectable="neonate_infant", **kwargs).age_group_selectable,
+            "neonate_infant",
+        )
+        with self.assertRaises(ValueError):
+            _validate_policy_update(age_group_selectable="neonate_or_infant", **kwargs)
 
     def test_coding_age_group_uses_who_2022_infant_boundary(self):
         cases = [

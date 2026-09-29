@@ -3,7 +3,7 @@
 Policy: docs/policy/who-2022-icd11-coding-allowability.md. A small synthetic
 catalogue pins each rule with a code whose answer is known: every category is
 selectable unless its chapter/code is one of rule 3's exclusions (S/V/Q/X
-chapters, non-RA01 emergency codes, KD3B/KD3B.Z) -- a category no annex range
+chapters, emergency codes outside RA01-RA03, KD3B/KD3B.Z) -- a category no annex range
 or decision 5a covers is still selectable, just without a VA cause bucket.
 ICD-10 restrictions carry over only when every ICD-10 source agrees (never
 from the blanket O/P/Q chapter rules; chapter 20 is all ages, owner
@@ -23,6 +23,7 @@ from app.services.cod_bucket_icd11_generator import load_catalogue
 from app.services.icd11_mms_service import import_icd11_mms_policy_json
 from app.services.icd11_policy_draft_service import (
     FLAG_CONFLICT,
+    FLAG_RULE_OVERRIDES_ICD10,
     draft_icd11_policy,
     load_category_rows,
     load_icd10_to_icd11,
@@ -57,9 +58,38 @@ CATALOGUE = (
     ("MH11.0", "MH11", "21", False),
     ("MH11.Z", "MH11", "21", True),
     ("QA00", None, "24", False),
+    ("KA00", None, "19", False),
+    ("KA00.0", "KA00", "19", False),
+    ("GA00", None, "16", False),
+    ("GA00.0", "GA00", "16", False),
+    ("GA6Z", None, "16", True),
+    ("GA80", None, "16", False),
+    ("GA91", None, "16", False),
+    ("GB00", None, "16", False),
+    ("GB0Z", None, "16", True),
+    ("GB20", None, "16", False),
+    ("GC05", None, "16", False),
+    ("GC40", None, "16", False),
+    ("GC51", None, "16", False),
+    ("GC70", None, "16", False),
+    ("GC71", None, "16", False),
+    ("GC73", None, "16", False),
+    ("GC77", None, "16", False),
+    ("GC78", None, "16", False),
+    ("GC79", None, "16", False),
+    ("GC7C", None, "16", False),
+    ("LB30", None, "20", False),
+    ("LB40", None, "20", False),
+    ("LB4Z", None, "20", True),
+    ("LB50", None, "20", False),
+    ("LB5Z", None, "20", True),
+    ("LB60", None, "20", False),
+    ("RA00", None, "25", False),
     ("RA01", None, "25", False),
     ("RA01.0", "RA01", "25", False),
     ("RA02", None, "25", False),
+    ("RA03", None, "25", False),
+    ("RA04", None, "25", False),
     ("SA00", None, "26", False),
     ("VD00", None, "V", False),
     ("XA0001", None, "X", False),
@@ -173,9 +203,41 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
             self.assertIn(code, self.decisions)
             self.assertFalse(self.decisions[code]["selectable"], code)
             self.assertEqual(self.decisions[code]["rule"], "excluded_chapter")
-        self.assertFalse(self.decisions["RA02"]["selectable"])
-        self.assertEqual(self.decisions["RA02"]["rule"], "excluded_emergency")
+        for code in ("RA00", "RA04"):
+            self.assertFalse(self.decisions[code]["selectable"], code)
+            self.assertEqual(self.decisions[code]["rule"], "excluded_emergency")
         self.assertTrue(self.decisions["RA01.0"]["selectable"])
+
+    def test_ra02_and_ra03_are_selectable_for_both_sexes_and_all_ages(self):
+        # Owner, 2026-09-29: post COVID-19 condition and MIS-C.
+        for code in ("RA02", "RA03"):
+            decision = self.decisions[code]
+            self.assertTrue(decision["selectable"], code)
+            self.assertEqual((decision["sex"], decision["age"]), ("both", "all"), code)
+
+    def test_chapter_19_is_both_sexes_neonate_infant(self):
+        for code in ("KA00", "KA00.0"):
+            decision = self.decisions[code]
+            self.assertEqual((decision["sex"], decision["age"]), ("both", "neonate_infant"), code)
+            self.assertEqual(decision["restriction_source"], "chapter 19")
+
+    def test_genital_block_sex_rules(self):
+        female = ("GA00", "GA00.0", "GA6Z", "GC40", "GC51", "GC70", "GC71", "GC73",
+                  "GC77", "GC78", "GC7C", "LB40", "LB4Z")
+        male = ("GA80", "GA91", "GB00", "GB0Z", "LB50", "LB5Z")
+        for code in female:
+            self.assertEqual((self.decisions[code]["sex"], self.decisions[code]["age"]),
+                             ("female", "all"), code)
+            self.assertEqual(self.decisions[code]["restriction_source"], "block", code)
+        for code in male:
+            self.assertEqual((self.decisions[code]["sex"], self.decisions[code]["age"]),
+                             ("male", "all"), code)
+
+    def test_breast_urinary_and_unlisted_codes_stay_both_sexes(self):
+        for code in ("GB20", "GC05", "GC79", "LB30", "LB60"):
+            self.assertTrue(self.decisions[code]["selectable"], code)
+            self.assertEqual((self.decisions[code]["sex"], self.decisions[code]["age"]),
+                             ("both", "all"), code)
 
     def test_decision_5a_codes_are_selectable_with_descendants(self):
         for code in ("5A20", "5A20.0", "RA01"):
@@ -183,12 +245,16 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
             self.assertEqual(self.decisions[code]["rule"], "decision_5a")
 
     def test_one_to_one_icd10_restriction_is_carried(self):
-        tetanus = self.decisions["1C15"]
-        self.assertEqual((tetanus["sex"], tetanus["age"]), ("both", "neonate"))
-        self.assertEqual(tetanus["restriction_rule"], "icd10 A33")
-        # Every child of MH11 carries R95's infant rule, so MH11 does too.
+        # A carry with no override: every child of MH11 carries R95's infant rule.
         for code in ("MH11.0", "MH11.Z", "MH11"):
             self.assertEqual(self.decisions[code]["age"], "infant", code)
+
+    def test_tetanus_is_an_owner_override_of_the_icd10_neonate_carry(self):
+        # Owner, 2026-09-29: ICD-10 A33 stays neonate, ICD-11 1C15 widens.
+        tetanus = self.decisions["1C15"]
+        self.assertEqual((tetanus["sex"], tetanus["age"]), ("both", "neonate_infant"))
+        self.assertEqual(tetanus["restriction_source"], "block")
+        self.assertIn(f"{FLAG_RULE_OVERRIDES_ICD10}:both/neonate", tetanus["flags"])
 
     def test_blanket_o_p_q_restrictions_are_never_carried(self):
         # Q61.2 (neonate by the ICD-10 Q chapter rule) outside chapters 18-20,
@@ -219,7 +285,7 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
         self.assertEqual(payload["row_count"], len(payload["items"]))
         self.assertTrue(all("policy_status" not in item for item in payload["items"]))
         notes = {item["code"]: item["restriction_note"] for item in payload["items"]}
-        self.assertEqual(notes["1C15"], "Draft: icd10 A33")
+        self.assertEqual(notes["1C15"], "Draft: 1C15, tetanus (owner override of ICD-10 A33)")
         self.assertIsNone(notes["1G40"])
 
 
@@ -285,14 +351,14 @@ class Icd11PolicyDraftImportTests(BaseTestCase):
         self.assertEqual(result.skipped_items, [])
         self.assertEqual(result.updated_items, payload["row_count"])
         policy = self._policy()
-        self.assertEqual(policy["1C15"], (True, "both", "neonate"))
+        self.assertEqual(policy["1C15"], (True, "both", "neonate_infant"))
         self.assertEqual(policy["JA00"], (True, "female", "adult"))
         self.assertEqual(policy["LA00"], (True, "both", "all"))
         self.assertEqual(policy["1G41.Z"], (True, "both", "all"))
         # not_in_annex is now selectable too (digitva-ddv.6), just both/all.
         self.assertEqual(policy["1H00"], (True, "both", "all"))
         # Unlisted categories, chapter X included, stay/become not selectable.
-        for code in ("XA0001", "QA00", "RA02"):
+        for code in ("XA0001", "QA00", "RA04"):
             self.assertEqual(policy[code], (False, None, None), code)
         selectable = {code for code, values in policy.items() if values[0]}
         self.assertEqual(selectable, {item["code"] for item in payload["items"]})

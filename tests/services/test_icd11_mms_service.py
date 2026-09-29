@@ -269,6 +269,36 @@ class Icd11MmsServiceTestCase(BaseTestCase):
         self.assertEqual(search_icd11_mms("1_00", release="2026-01"), [])
         self.assertEqual(search_icd11_mms("%%%", release="2026-01"), [])
 
+    def test_import_accepts_neonate_infant_and_skips_unknown_age_group(self):
+        path = _write_export(_BASE_ROWS)
+        try:
+            import_icd11_mms_from_export(export_path=path, release="2026-01")
+        finally:
+            path.unlink()
+
+        def payload(age):
+            return {
+                "items": [
+                    {
+                        "linearization_uri": "lin:cat2",
+                        "is_coding_selectable": True,
+                        "sex_selectable": "both",
+                        "age_group_selectable": age,
+                    }
+                ]
+            }
+
+        accepted = import_icd11_mms_policy_json(payload("neonate_infant"), release="2026-01")
+        self.assertEqual(accepted.updated_items, 1)
+        cat2 = db.session.scalar(
+            sa.select(MasIcd11Mms).where(MasIcd11Mms.linearization_uri == "lin:cat2")
+        )
+        self.assertEqual(cat2.age_group_selectable, "neonate_infant")
+
+        rejected = import_icd11_mms_policy_json(payload("neonate_or_infant"), release="2026-01")
+        self.assertEqual(rejected.updated_items, 0)
+        self.assertEqual(len(rejected.skipped_items), 1)
+
     def test_policy_export_and_import_round_trip(self):
         path = _write_export(_BASE_ROWS)
         try:

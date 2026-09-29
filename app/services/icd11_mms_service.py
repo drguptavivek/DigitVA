@@ -53,7 +53,9 @@ DEFAULT_ICD11_MMS_CSV_PATH = Path("resource/icd11_mms_2026_01_hierarchy.csv")
 SOURCE_VERSION = "ICD-11-MMS-2026-01"
 
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
-AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
+AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "neonate_infant", "child", "adult")
+# `neonate_infant` matches a neonate or an infant submission (owner, 2026-09-29).
+_NEONATE_INFANT_GROUPS = ("neonate", "infant")
 # Same values the ICD-10 catalog carries; informational only (coding search
 # reads is_coding_selectable/sex/age, never policy_status).
 POLICY_STATUS_OPTIONS = ("unreviewed", "reviewed")
@@ -670,7 +672,7 @@ def _validate_policy_update(
         raise ValueError("sex_selectable must be one of both, female, male, or null.")
     if age_group_selectable not in (*AGE_GROUP_SELECTABLE_OPTIONS, None):
         raise ValueError(
-            "age_group_selectable must be one of all, neonate, infant, child, adult, or null."
+            "age_group_selectable must be one of all, neonate, infant, neonate_infant, child, adult, or null."
         )
     if restriction_note is not None and not isinstance(restriction_note, str):
         raise ValueError("restriction_note must be a string or null.")
@@ -1003,6 +1005,11 @@ def _coding_policy_clause(*, age_group: str | None, sex: str | None):
             sa.or_(
                 MasIcd11Mms.age_group_selectable == "all",
                 MasIcd11Mms.age_group_selectable == age_group,
+                *(
+                    (MasIcd11Mms.age_group_selectable == "neonate_infant",)
+                    if age_group in _NEONATE_INFANT_GROUPS
+                    else ()
+                ),
             ),
         )
     if sex:

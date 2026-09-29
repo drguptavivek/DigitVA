@@ -1,22 +1,29 @@
 ---
 title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
-status: draft
+status: approved
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
 
-**Status: draft, owner review pending.** On 2026-09-24, with the owner's
-approval, the draft was imported into the **dev database only** (through
-`flask icd11 policy-import`; no row marked `reviewed`) so the owner can review
-it in the admin ICD-11 browser. No migration reads it, and no other database
-has it. Owner decision 18 (2026-09-25) and rule 4 (2026-09-27, `digitva-ddv.6`)
-were applied the same dev-only way: regenerate the artifact with
-`flask icd11 policy-draft`, then re-run `flask icd11 policy-import` (183 rows
-changed for rule 4, all additions, none of the 16,202 previously selectable
-rows' sex/age moved).
+**Status: approved, signed off by the owner on 2026-09-29.** Migration
+`a7c3e9f1b5d2` (`digitva-dus.3`) ships it to every database, production
+included, from a frozen copy of the draft artifact,
+`resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json` (16,387
+selectable items; a test keeps it byte-equal to the docs artifact). Until then
+only the dev database had it, imported through `flask icd11 policy-import`.
+The migration applies to `mas_icd11_mms` release `2026-01` only, and writes
+each row only while it is still never reviewed (all five policy fields NULL,
+`policy_status` `unreviewed`), so an admin edit or a row already imported on
+dev survives and a rerun is a no-op. Unlike the importer it also sets
+`policy_status = 'reviewed'` on the rows it writes (ICD-10 precedent). It
+downgrades a row back to never reviewed only while it still holds the migrated
+values. **Any change to the policy after this point needs a new migration**;
+regenerating the artifact and re-importing does not reach other databases.
+Earlier dev-only changes (owner decision 18, 2026-09-25; rule 4, 2026-09-27,
+`digitva-ddv.6`) are included in the frozen file.
 
 ## Purpose
 
@@ -27,8 +34,8 @@ restrictions. It is the ICD-11 counterpart of
 and resolves decision D3 of
 `docs/planning/icd11-coding-screen-integration-plan.md`.
 
-Until a policy is imported, every ICD-11 category is
-`is_coding_selectable = NULL`, so ICD-11 coding is impossible.
+Before migration `a7c3e9f1b5d2` (and on a database it has not reached), every
+ICD-11 category is `is_coding_selectable = NULL`, so ICD-11 coding is impossible.
 
 Selectability is independent of COD bucket mappings (owner decision
 2026-09-21). Like the ICD-10 policy, it is drafted from WHO's annex (owner
@@ -71,7 +78,9 @@ from (`Draft: ...`).
 3. **Never selectable**, whatever rules 1-2 say: chapter 24 (Q, factors
    influencing health status), chapter 26 (S, traditional medicine), chapter
    V (functioning) and chapter X (extension codes); every chapter 25 (RA)
-   emergency code outside the `RA01` family; and, since owner decision 18
+   emergency code outside the `RA01`, `RA02` (post COVID-19 condition) and
+   `RA03` (MIS-C) families (owner, 2026-09-29; `RA00` and `RA04`-`RA26` stay
+   excluded, `RA02` and `RA03` are both sexes, all ages); and, since owner decision 18
    (2026-09-25, `digitva-g2n`, `docs/policy/icd10-to-icd11-transition.md`
    section 6), `KD3B` and `KD3B.Z` (time of fetal death not specified). Every
    ICD-11 stillbirth must land in Fresh (`KD3B.1` intrapartum) or Macerated
@@ -109,14 +118,18 @@ selects far more ICD-11 categories than ICD-10 rows (see the artifact README).
 
 ## Sex and age
 
-Allowed values and matching are the ICD-10 policy's (`both | female | male`;
-`all | neonate | infant | child | adult`, exact-or-all). Default: both sexes,
+Allowed values are `both | female | male` and
+`all | neonate | infant | neonate_infant | child | adult`. Matching is
+exact-or-all, except that `neonate_infant` (owner, 2026-09-29) matches a
+submission whose coding age group is `neonate` or `infant`, and no other.
+The ICD-10 policy takes the same value and matching. Default: both sexes,
 all ages. For a selectable category, the first rule that applies wins:
 
 1. **Chapter rules**, the ICD-10 policy's blanket chapter rules on the
    equivalent ICD-11 chapters:
    - chapter 18 (`JA`-`JB`, pregnancy): female, adult, as ICD-10 `O00`-`O99`
-   - chapter 19 (`KA`-`KD`, perinatal): neonate, as ICD-10 `P00`-`P96`
+   - chapter 19 (`KA`-`KD`, perinatal): both sexes, `neonate_infant`
+     (owner, 2026-09-29; ICD-10 `P00`-`P96` stay `neonate`)
 
    Chapter 20 (`LA`-`LD`, developmental anomalies) has **no chapter rule: all
    ages** (owner, 2026-09-24), although ICD-10 makes `Q00`-`Q99`
@@ -125,8 +138,20 @@ all ages. For a selectable category, the first rule that applies wins:
 2. **Block rules**, the ICD-10 policy's sex-specific neoplasm ranges on their
    ICD-11 blocks, with descendants: `2C70`-`2C7Z` female (`C51`-`C58`),
    `2C80`-`2C8Z` male (`C60`-`C63`), `2F31`-`2F33` female (`D26`-`D28`),
-   `2F34` male (`D29`). WHO's map sends `C53` to `2C77.Z` only, so without
+   `2F34` male (`D29`), and `1C15` (tetanus, with descendants) both sexes,
+   `neonate_infant` (owner override, 2026-09-29: ICD-10 `A33` stays
+   `neonate`; flagged `rule_overrides_icd10`). WHO's map sends `C53` to `2C77.Z` only, so without
    these the parent `2C77` and its specific children would stay both sexes.
+   Genital-organ blocks (owner, 2026-09-29), all ages, with descendants:
+   female `GA00`-`GA6Z` (female genital tract), `GC40`-`GC4Z` (pelvic organ
+   prolapse, female pelvic floor), `GC51` (female genital mutilation),
+   `GC70`, `GC71`, `GC73`, `GC77`, `GC78`, `GC7C` (postprocedural female
+   codes) and `LB40`-`LB4Z` (female genital anomalies); male `GA80`-`GA91`
+   (penis, scrotum, prostate), `GB00`-`GB0Z` (male genital organs) and
+   `LB50`-`LB5Z` (male genital anomalies). Breast (`GB20`-`GB2Y`,
+   `LB60`-`LB6Z`, `GC79`, `GC7A`), urinary tract and kidney (`GB4x`-`GC2Z`,
+   `LB30`-`LB3Z`) and everything else stay both sexes. Chapter 20 still has
+   no age rule.
 3. **ICD-10 carry-over.** WHO's `10To11MapToOneCategory` (2025-01; targets
    translated to 2026-01 through the `MovedTo` rows of the 2026-01 change
    list, as the bucket generator does) gives each ICD-10 code one ICD-11
@@ -138,8 +163,7 @@ all ages. For a selectable category, the first rule that applies wins:
    condition, so they must not follow a code into any ICD-11 chapter (e.g.
    `GB81` autosomal dominant polycystic kidney disease stays both/all despite
    `Q61.2`). Chapters 18 and 19 get their restriction from rule 1 instead.
-   Genuine code-level carries stay, such as `A33` to `1C15` (neonate) and
-   `R95` to `MH11.x` (infant).
+   Genuine code-level carries stay, such as `R95` to `MH11.x` (infant).
    A category takes the restriction when every ICD-10 code mapped to it
    agrees. When they disagree it stays both/all and is flagged
    `icd10_conflict`; when its only restricted sources reach it through a
@@ -159,12 +183,8 @@ rows has one.
 
 ## Review
 
-The owner reviews the draft in the admin ICD-11 browser
-(`/admin/panels/icd11-browser`, dev database) or through the review CSV,
-starting with the flagged rows. To take it back out of dev before sign-off,
-set the five policy fields of release `2026-01` back to their pre-import
-values (every category was `is_coding_selectable`, `sex_selectable`,
-`age_group_selectable`, `restriction_note` = NULL, `policy_status` =
-`unreviewed`; the import did not touch `policy_status`). Applying it to
-deployments is a separate step: a data migration that reads the frozen JSON,
-after the owner signs off.
+The owner reviewed the draft in the admin ICD-11 browser
+(`/admin/panels/icd11-browser`) and the review CSV, and signed it off on
+2026-09-29. Deployment is migration `a7c3e9f1b5d2` (see the status above);
+later edits go through the admin browser per row or through a new migration
+for a policy-wide change.

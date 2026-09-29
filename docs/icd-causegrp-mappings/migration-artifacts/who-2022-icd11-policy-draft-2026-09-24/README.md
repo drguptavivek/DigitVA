@@ -1,20 +1,20 @@
 ---
 title: WHO 2022 ICD-11 coding-selectability policy draft (2026-01)
 doc_type: migration-artifact
-status: draft
+status: approved
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # WHO 2022 ICD-11 coding-selectability policy draft (2026-01)
 
-Written by `flask icd11 policy-draft` (`app/services/icd11_policy_draft_service.py`). Rules: `docs/policy/who-2022-icd11-coding-allowability.md` (draft, owner review pending). Nothing here has been imported into any database and no migration reads this folder.
+Written by `flask icd11 policy-draft` (`app/services/icd11_policy_draft_service.py`). Rules: `docs/policy/who-2022-icd11-coding-allowability.md` (approved 2026-09-29). No migration reads this folder: migration `a7c3e9f1b5d2` ships a frozen byte-equal copy, `resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`, and a test keeps the two equal. Regenerating the draft after sign-off needs a new migration.
 
 Sources: annex ICD-11 ranges `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv`; catalogue `mas_icd11_mms` release `2026-01`; ICD-10 restrictions `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/who_2022_icd10_2019_2_policy_reviewed.json`; ICD-10 to ICD-11 map `docs/icd-causegrp-mappings/migration-artifacts/icd11-icd10-mapping-tables-2025-01-base-2026-09-16/10To11MapToOneCategory.txt` (2025-01 codes translated to 2026-01 through the `MovedTo` rows of `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-changes-2026-01-vs-2025-01-2026-09-16/changes_MMS_2026-01_2025-01-main.xlsx`).
 
 Owner decisions of 2026-09-24 applied: chapter 20 (LA-LD) is all ages (no neonate chapter rule), and ICD-10 O/P/Q restrictions (blanket chapter rules) are never carried to any ICD-11 code; chapters 18 and 19 take their chapter rules instead.
 
-Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time of fetal death not specified) are not selectable, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum). This is dev-only: applying it to a database is a separate `flask icd11 policy-import` step, not a migration.
+Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time of fetal death not specified) are not selectable, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum). It is part of the signed-off, migrated policy.
 
 ## Files
 
@@ -24,7 +24,7 @@ Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time o
 ## Totals
 
 - Active categories: 35664
-- Selectable: 16385 (residual 4861, with children 2382)
+- Selectable: 16387 (residual 4861, with children 2382)
 
 ## Categories per rule
 
@@ -34,8 +34,8 @@ Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time o
 | `decision_18_not_selectable` | 2 |
 | `decision_5a` | 48 |
 | `excluded_chapter` | 19260 |
-| `excluded_emergency` | 17 |
-| `not_in_annex` | 183 |
+| `excluded_emergency` | 15 |
+| `not_in_annex` | 185 |
 
 ## Selectable per chapter
 
@@ -65,7 +65,7 @@ Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time o
 | 22 | 1982 | 1982 |
 | 23 | 909 | 909 |
 | 24 | 851 | 0 |
-| 25 | 20 | 3 |
+| 25 | 20 | 5 |
 | 26 | 1120 | 0 |
 | V | 130 | 0 |
 | X | 17159 | 0 |
@@ -75,18 +75,18 @@ Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time o
 | Sex | Age | Categories |
 |---|---|---:|
 | both | infant | 4 |
-| both | neonate | 624 |
+| both | neonate_infant | 624 |
 | female | adult | 522 |
-| female | all | 80 |
-| male | all | 20 |
+| female | all | 430 |
+| male | all | 115 |
 
 | Source of the restriction | Categories |
 |---|---:|
-| block | 99 |
+| block | 545 |
 | chapter 18 | 522 |
 | chapter 19 | 623 |
 | children | 1 |
-| icd10 | 5 |
+| icd10 | 4 |
 
 ## Review flags (chapter X excluded)
 
@@ -94,6 +94,7 @@ Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` (time o
 |---|---:|
 | `children_differ` | 1 |
 | `past_written_end` | 12 |
+| `rule_overrides_icd10` | 1 |
 
 ## Not selectable (rule 3 exclusions outside the excluded chapters)
 
@@ -103,8 +104,6 @@ The never-selectable chapters (`excluded_chapter`: Q, S, V, X) are counted in 'S
 - `KD3B.Z` Unspecified time of fetal death, cause not specified (decision_18_not_selectable)
 - `RA00` Conditions of uncertain aetiology and emergency use (excluded_emergency)
 - `RA00.0` Vaping related disorder (excluded_emergency)
-- `RA02` Post COVID-19 condition (excluded_emergency)
-- `RA03` Multisystem inflammatory syndrome associated with COVID-19 (excluded_emergency)
 - `RA04` International emergency code 05 (excluded_emergency)
 - `RA05` International emergency code 06 (excluded_emergency)
 - `RA06` International emergency code 07 (excluded_emergency)

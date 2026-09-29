@@ -3,7 +3,7 @@
 Policy: docs/policy/who-2022-icd11-coding-allowability.md (draft, owner
 review pending). Every active category is selectable unless its chapter is
 never selectable (rule 3): chapters Q, S, V, X; chapter 25 (RA) emergency
-codes outside the RA01 family; KD3B/KD3B.Z. A category no annex ICD-11 range
+codes outside the RA01, RA02 and RA03 families; KD3B/KD3B.Z. A category no annex ICD-11 range
 (or owner decision 5a) covers is still selectable but carries no VA cause
 bucket. Sex and age restrictions come from the reviewed ICD-10 policy through
 WHO's 10To11MapToOneCategory table, then from the chapter rules the ICD-10
@@ -68,15 +68,18 @@ DECISION_5A_RANGES = (
 # Chapters never selectable: factors influencing health status (Q),
 # traditional medicine (S), functioning (V), extension codes (X).
 EXCLUDED_CHAPTERS = {"24": "Q", "26": "S", "V": "V", "X": "X"}
-# Chapter 25 (RA emergency codes) is selectable only for the RA01 family.
+# Chapter 25 (RA emergency codes) is selectable only for the RA01 (owner
+# decision 5a), RA02 (post COVID-19 condition) and RA03 (MIS-C) families
+# (owner, 2026-09-29).
 EMERGENCY_CHAPTER = "25"
-EMERGENCY_ALLOWED_STEM = "RA01"
+EMERGENCY_ALLOWED_STEMS = ("RA01", "RA02", "RA03")
 # The ICD-10 policy restricts whole chapters: O00-O99 female adult,
 # P00-P96 neonate, on their ICD-11 chapters. Chapter 20 (LA-LD) is all ages
 # although ICD-10 makes Q00-Q99 neonate (owner, 2026-09-24).
 CHAPTER_RESTRICTIONS = {
     "18": ("female", "adult", "chapter 18 (JA-JB), as ICD-10 O00-O99"),
-    "19": ("both", "neonate", "chapter 19 (KA-KD), as ICD-10 P00-P96"),
+    # `neonate_infant` matches neonate and infant submissions (owner, 2026-09-29).
+    "19": ("both", "neonate_infant", "chapter 19 (KA-KD), neonates and infants"),
 }
 # The ICD-10 policy's named sex-specific neoplasm ranges, on their ICD-11
 # blocks: C51-C58, C60-C63, D26-D28, D29 (D25 maps one-to-one to 2E86.0).
@@ -85,6 +88,22 @@ BLOCK_RESTRICTIONS = (
     ("2C80", "2C8Z", "male", "all", "block 2C80-2C8Z, as ICD-10 C60-C63"),
     ("2F31", "2F33", "female", "all", "2F31-2F33, as ICD-10 D26-D28"),
     ("2F34", "2F34", "male", "all", "2F34, as ICD-10 D29"),
+    # Owner decision 2026-09-29: genital-organ blocks. Breast, urinary tract
+    # and kidney blocks stay both sexes.
+    # Owner override 2026-09-29: tetanus is neonate_infant although ICD-10 A33
+    # stays neonate. Flagged rule_overrides_icd10 by the usual override logic.
+    ("1C15", "1C15", "both", "neonate_infant", "1C15, tetanus (owner override of ICD-10 A33)"),
+    ("GA00", "GA6Z", "female", "all", "block GA00-GA6Z, female genital tract"),
+    ("GC40", "GC4Z", "female", "all", "block GC40-GC4Z, pelvic organ prolapse / female pelvic floor"),
+    ("GC51", "GC51", "female", "all", "GC51, female genital mutilation"),
+    ("GC70", "GC71", "female", "all", "GC70-GC71, postprocedural female codes"),
+    ("GC73", "GC73", "female", "all", "GC73, postprocedural female codes"),
+    ("GC77", "GC78", "female", "all", "GC77-GC78, postprocedural female codes"),
+    ("GC7C", "GC7C", "female", "all", "GC7C, postprocedural female codes"),
+    ("LB40", "LB4Z", "female", "all", "block LB40-LB4Z, female genital anomalies"),
+    ("GA80", "GA91", "male", "all", "block GA80-GA91, penis, scrotum and prostate"),
+    ("GB00", "GB0Z", "male", "all", "block GB00-GB0Z, male genital organs"),
+    ("LB50", "LB5Z", "male", "all", "block LB50-LB5Z, male genital anomalies"),
 )
 # ICD-10 chapters whose restriction is a blanket chapter rule, not a
 # judgement about the code: never carried to ICD-11 (owner, 2026-09-24).
@@ -307,7 +326,7 @@ def draft_icd11_policy(
             rule = RULE_DECISION_18
         elif chapter in EXCLUDED_CHAPTERS:
             rule = RULE_EXCLUDED_CHAPTER
-        elif chapter == EMERGENCY_CHAPTER and code.split(".")[0] != EMERGENCY_ALLOWED_STEM:
+        elif chapter == EMERGENCY_CHAPTER and code.split(".")[0] not in EMERGENCY_ALLOWED_STEMS:
             rule = RULE_EXCLUDED_EMERGENCY
         decision = {
             "code": code,

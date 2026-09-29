@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # Current Data Model
@@ -550,9 +550,10 @@ docs/planning/icd11-coding-screen-integration-plan.md):
 - `map_project_site_odk.icd_classification` is deprecated (kept for rollback;
   not read, written or shown). Migration `33dea3ea3303` moved its values up to
   the project: one value -> that value, both values -> `selectable`
-- the ICD-11 per-code allowability policy (phase 5 of the plan) is not
-  curated yet: every seeded `mas_icd11_mms` row is unselectable, so ICD-11
-  coding search returns nothing until it is
+- the ICD-11 per-code allowability policy is signed off (2026-09-29) and
+  shipped by migration `a7c3e9f1b5d2`: release `2026-01` rows still never
+  reviewed take the frozen policy (`resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`)
+  and are marked `reviewed`; see `docs/policy/who-2022-icd11-coding-allowability.md`
 
 ### `mas_va_cause_definitions`
 

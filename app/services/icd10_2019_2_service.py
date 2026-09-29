@@ -40,7 +40,9 @@ DEFAULT_ICD10_2019_2_CSV_PATH = Path(
 )
 SOURCE_VERSION = "ICD-10-2019"
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
-AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
+AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "neonate_infant", "child", "adult")
+# `neonate_infant` matches a neonate or an infant submission (owner, 2026-09-29).
+_NEONATE_INFANT_GROUPS = ("neonate", "infant")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
@@ -166,6 +168,11 @@ def _coding_policy_clause(model, *, age_group: str | None, sex: str | None):
             sa.or_(
                 model.age_group_selectable == "all",
                 model.age_group_selectable == age_group,
+                *(
+                    (model.age_group_selectable == "neonate_infant",)
+                    if age_group in _NEONATE_INFANT_GROUPS
+                    else ()
+                ),
             ),
         )
     if sex:
@@ -382,7 +389,7 @@ def _validate_policy_update(
         raise ValueError("sex_selectable must be one of both, female, male, or null.")
     if age_group_selectable not in (*AGE_GROUP_SELECTABLE_OPTIONS, None):
         raise ValueError(
-            "age_group_selectable must be one of all, neonate, infant, child, adult, or null."
+            "age_group_selectable must be one of all, neonate, infant, neonate_infant, child, adult, or null."
         )
     if restriction_note is not None and not isinstance(restriction_note, str):
         raise ValueError("restriction_note must be a string or null.")

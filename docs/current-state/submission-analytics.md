@@ -194,8 +194,8 @@ The materialized view is intended for:
 
 ### Area dashboard
 
-`GET /area/` (page) and `GET /api/v1/area/projects` and
-`/api/v1/area/summary?project=&unit=&site=` (JSON) show collection and coding
+`GET /area/` (page) and `GET /api/v1/area/projects`,
+`/api/v1/area/summary?project=&unit=&site=` and `/api/v1/area/staff` (JSON) show collection and coding
 counts for the part of a project a user holds a grant for
 (`docs/policy/area-dashboard.md`, bead `digitva-stc`). Code:
 `app/services/area_dashboard_service.py`, `app/routes/area.py`,
@@ -248,6 +248,26 @@ counts for the part of a project a user holds a grant for
   Coder: `/coding/` on the pending count. Interviewer (without data
   manager): `/intake/` on the submitted count. URLs carry project, site and
   workflow codes only.
+- Staff view (`GET /api/v1/area/staff?project=&unit=&site=`,
+  `area_dashboard_service.area_staff`, bead `digitva-stc.2`): live, not from
+  the MV. Area: a selected unit's subtree (ltree `<@`), a selected sites-mode
+  site, or the whole project at its root for a project-wide scope; a root
+  that is not project-wide, and anything outside scope, is a 404 by the same
+  rules as the summary. Interviewers: one query over `va_death_register`
+  (registered = `registered_by` on `source = 'register'` cases, started =
+  `started_by_user_id`), one over `va_web_intake_drafts` by owner
+  (submitted, in progress), one over `map_case_contact_attempts` by
+  `by_user_id` in the last 30 days. Coders: one query over
+  `va_submission_workflow_events`, the actor of `coder_finalized` (coded)
+  and `coder_not_codeable` in the last 7 and 30 days, the attribution
+  `dm_coder_daily_statistics` uses; retired submissions and inactive
+  project-sites left out. Confirmed duplicates are excluded everywhere
+  (case status, and `not_confirmed_duplicate_condition` on the va_sid).
+  Each query returns at most 500 staff rows (`truncated` when cut). When
+  `should_redact_pii` hides staff identity the queries do not run and the
+  response is `staff_identity_redacted: true` with no rows. The page loads
+  it lazily from a "By staff" button under the table, shown at a selected
+  unit or a project-wide root.
 
 Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.

@@ -10,9 +10,11 @@ over all of the user's roles:
 * a project with no tree (sites mode): every active site for an admin, PI or
   project-scoped grant, else the user's granted sites.
 
-Counts only: no case lists, no subject data, no staff names. Each level is
-one query per section (units, snapshot counts, live drafts), with subtree
-rollups on ltree containment. A unit or site outside scope is reported as
+Counts only: no case lists and no subject data. Staff names appear only in
+the optional per-staff view (``area_staff``), and only for a viewer
+``should_redact_pii`` lets see staff identity. Each level is one query per
+section (units, snapshot counts, live drafts), with subtree rollups on ltree
+containment. A unit or site outside scope is reported as
 not found, never as forbidden, so its existence does not leak.
 
 Policy: docs/policy/area-dashboard.md.
@@ -22,23 +24,35 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapCaseContactAttempt,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaDeathRegister,
+    VaForms,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
+    VaSubmissions,
+    VaSubmissionWorkflowEvent,
     VaSyncRun,
     VaUserAccessGrants,
+    VaUsers,
     VaWebIntakeDraft,
 )
 from app.services import org_grant_service
+from app.services.duplicate_exclusion import (
+    DUPLICATE_CASE_STATUS,
+    not_confirmed_duplicate_condition,
+)
+from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.sitepi_reporting_service import get_project_workflow_kpis
 from app.services.submission_analytics_mv import (
     AREA_BREAKDOWN_KEYS,
@@ -46,7 +60,10 @@ from app.services.submission_analytics_mv import (
     get_area_unrouted_stats_from_mv,
     get_dm_org_unit_stats_from_mv,
 )
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
+    TRANSITION_CODER_FINALIZED,
+    TRANSITION_CODER_NOT_CODEABLE,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
@@ -636,4 +653,253 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     if scope.project_wide:
         rows.append(_unrouted_row(scope))
     result["rows"] = rows
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Staff breakdown
+# ---------------------------------------------------------------------------
+
+#: Most rows one staff query returns; one more sets ``truncated``.
+STAFF_ROW_LIMIT = 500
+CONTACT_WINDOW_DAYS = 30
+
+
+def _staff_area(scope: AreaScope, unit_id, site_id: str | None):
+    """The area the staff view counts, as ``in_area(project_col, site_col, unit_col)``.
+
+    The same area as the summary at that level, so the per-staff numbers
+    cover exactly the rows above them: a selected unit's whole subtree
+    (inactive descendants included, as the unit rollup counts them), a
+    selected site of a sites-mode project, or the whole project at its root
+    for a project-wide scope (unrouted cases included). A root that is not
+    project-wide has no single area and, like anything outside scope,
+    raises AreaNotFound.
+    """
+    project_id = scope.project_id
+    if (scope.has_tree and site_id) or (not scope.has_tree and unit_id):
+        raise AreaNotFound()
+
+    if unit_id:
+        unit = _selected_unit(scope, unit_id)
+        subtree = sa.select(MasOrgUnit.org_unit_id).where(
+            MasOrgUnit.project_id == project_id, MasOrgUnit.path.op("<@")(unit.path)
+        )
+
+        def in_area(project_col, site_col, unit_col):
+            return sa.and_(project_col == project_id, unit_col.in_(subtree))
+
+        return in_area
+
+    if site_id:
+        in_scope = scope.site_ids is None or site_id in scope.site_ids
+        if not in_scope or not db.session.scalar(
+            sa.select(
+                sa.exists().where(
+                    VaProjectSites.project_id == project_id,
+                    VaProjectSites.site_id == site_id,
+                    VaProjectSites.project_site_status == VaStatuses.active,
+                )
+            )
+        ):
+            raise AreaNotFound()
+
+        def in_area(project_col, site_col, unit_col):
+            return sa.and_(project_col == project_id, site_col == site_id)
+
+        return in_area
+
+    if not scope.project_wide:
+        raise AreaNotFound()
+
+    def in_area(project_col, site_col, unit_col):
+        return project_col == project_id
+
+    return in_area
+
+
+def _case_not_duplicate(case=VaDeathRegister):
+    """*case* (outer-joined or not) is not a confirmed duplicate."""
+    return sa.or_(case.status.is_(None), case.status != DUPLICATE_CASE_STATUS)
+
+
+def _interviewer_rows(in_area) -> tuple[list[dict], bool]:
+    """Per-interviewer web intake counts in the area: one grouped query per table.
+
+    Cases registered (``registered_by`` on register-first cases) and
+    interviews started (``started_by_user_id``) come from the case register,
+    submitted and in-progress interviews from the drafts' owner, contact
+    attempts in the last 30 days from who logged them. Confirmed duplicate
+    cases count nowhere.
+    """
+    case_area = in_area(
+        VaDeathRegister.project_id, VaDeathRegister.site_id, VaDeathRegister.org_unit_id
+    )
+    case_where = [case_area, VaDeathRegister.status != DUPLICATE_CASE_STATUS]
+    attributions = sa.union_all(
+        sa.select(
+            VaDeathRegister.registered_by.label("user_id"), sa.literal("registered").label("kind")
+        ).where(*case_where, VaDeathRegister.source == "register"),
+        sa.select(
+            VaDeathRegister.started_by_user_id.label("user_id"), sa.literal("started").label("kind")
+        ).where(*case_where, VaDeathRegister.started_by_user_id.is_not(None)),
+    ).subquery("case_attributions")
+    counted = sa.func.count()
+    cases = (
+        sa.select(
+            attributions.c.user_id,
+            VaUsers.name,
+            counted.filter(attributions.c.kind == "registered").label("cases_registered"),
+            counted.filter(attributions.c.kind == "started").label("interviews_started"),
+        )
+        .join(VaUsers, VaUsers.user_id == attributions.c.user_id)
+        .group_by(attributions.c.user_id, VaUsers.name)
+    )
+
+    # Aliased so the duplicate predicate's own register subquery is not
+    # auto-correlated to this join.
+    draft_case = sa.orm.aliased(VaDeathRegister, name="draft_case")
+    drafts = (
+        sa.select(
+            VaWebIntakeDraft.user_id,
+            VaUsers.name,
+            counted.filter(VaWebIntakeDraft.status == "submitted").label("submitted"),
+            counted.filter(VaWebIntakeDraft.status == DRAFT_STATUS_IN_PROGRESS).label(
+                "in_progress"
+            ),
+        )
+        .join(VaUsers, VaUsers.user_id == VaWebIntakeDraft.user_id)
+        .outerjoin(draft_case, draft_case.death_id == VaWebIntakeDraft.death_id)
+        .where(
+            in_area(
+                VaWebIntakeDraft.project_id, VaWebIntakeDraft.site_id, VaWebIntakeDraft.org_unit_id
+            ),
+            VaWebIntakeDraft.status.in_(("submitted", DRAFT_STATUS_IN_PROGRESS)),
+            _case_not_duplicate(draft_case),
+            # An in-progress draft has no va_sid yet; the case status covers it.
+            not_confirmed_duplicate_condition(VaWebIntakeDraft.va_sid),
+        )
+        .group_by(VaWebIntakeDraft.user_id, VaUsers.name)
+    )
+
+    since = datetime.now(UTC) - timedelta(days=CONTACT_WINDOW_DAYS)
+    attempts = (
+        sa.select(
+            MapCaseContactAttempt.by_user_id,
+            VaUsers.name,
+            counted.label("contact_attempts_30_days"),
+        )
+        .join(VaDeathRegister, VaDeathRegister.death_id == MapCaseContactAttempt.death_id)
+        .join(VaUsers, VaUsers.user_id == MapCaseContactAttempt.by_user_id)
+        .where(case_area, _case_not_duplicate(), MapCaseContactAttempt.attempted_at >= since)
+        .group_by(MapCaseContactAttempt.by_user_id, VaUsers.name)
+    )
+
+    keys = (
+        "cases_registered", "interviews_started", "submitted", "in_progress",
+        "contact_attempts_30_days",
+    )
+    by_user: dict = {}
+    truncated = False
+    for stmt in (cases, drafts, attempts):
+        result = db.session.execute(
+            stmt.order_by(counted.desc(), VaUsers.name).limit(STAFF_ROW_LIMIT + 1)
+        ).all()
+        truncated = truncated or len(result) > STAFF_ROW_LIMIT
+        for record in result[:STAFF_ROW_LIMIT]:
+            row = by_user.setdefault(
+                record[0], {"name": record.name or "Unknown", **dict.fromkeys(keys, 0)}
+            )
+            row.update({key: value for key, value in record._mapping.items() if key in keys})
+    return _sorted_staff(by_user.values(), keys), truncated
+
+
+def _coder_rows(in_area) -> tuple[list[dict], bool]:
+    """Per-coder first-pass outcomes in the area over the last 7 and 30 days.
+
+    The attribution ``dm_coder_daily_statistics`` uses: the actor of a
+    ``coder_finalized`` (coded) or ``coder_not_codeable`` workflow event.
+    Retired submissions, inactive project-sites and confirmed duplicates are
+    left out, as in the coding columns of the table.
+    """
+    now = datetime.now(UTC)
+    event = VaSubmissionWorkflowEvent
+    coded = event.transition_id == TRANSITION_CODER_FINALIZED
+    not_codeable = event.transition_id == TRANSITION_CODER_NOT_CODEABLE
+    last_7 = event.event_created_at >= now - timedelta(days=7)
+    counted = sa.func.count()
+    stmt = (
+        sa.select(
+            event.actor_user_id,
+            VaUsers.name,
+            counted.filter(coded, last_7).label("coded_7_days"),
+            counted.filter(coded).label("coded_30_days"),
+            counted.filter(not_codeable, last_7).label("not_codeable_7_days"),
+            counted.filter(not_codeable).label("not_codeable_30_days"),
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == event.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            ),
+        )
+        .join(VaUsers, VaUsers.user_id == event.actor_user_id)
+        .where(
+            event.transition_id.in_((TRANSITION_CODER_FINALIZED, TRANSITION_CODER_NOT_CODEABLE)),
+            event.event_created_at >= now - timedelta(days=30),
+            in_area(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id),
+            submission_is_in_odk(VaSubmissions),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+        )
+        .group_by(event.actor_user_id, VaUsers.name)
+        .order_by(counted.desc(), VaUsers.name)
+        .limit(STAFF_ROW_LIMIT + 1)
+    )
+    keys = ("coded_7_days", "coded_30_days", "not_codeable_7_days", "not_codeable_30_days")
+    result = db.session.execute(stmt).all()
+    rows = [
+        {"name": record.name or "Unknown", **{key: getattr(record, key) for key in keys}}
+        for record in result[:STAFF_ROW_LIMIT]
+    ]
+    return _sorted_staff(rows, keys), len(result) > STAFF_ROW_LIMIT
+
+
+def _sorted_staff(rows, keys) -> list[dict]:
+    return sorted(rows, key=lambda row: (-sum(row[key] for key in keys), row["name"].lower()))
+
+
+def area_staff(user, project_id: str, unit_id=None, site_id: str | None = None) -> dict:
+    """Per-interviewer and per-coder counts for one area of the dashboard.
+
+    The area is the selected unit's subtree or sites-mode site, or the whole
+    project at its root for a project-wide scope (``_staff_area``). Every row
+    names a person, so a viewer ``should_redact_pii`` hides staff identity
+    from gets no rows and ``staff_identity_redacted``, not pseudonyms: a
+    "Coder 1" with its own throughput still singles out one person, which is
+    why ``dm_coder_daily_statistics`` does the same (docs/policy/area-dashboard.md,
+    "Staff identity"). The staff queries do not run for such a viewer.
+
+    Raises AreaNotFound for a project, unit or site outside the user's area,
+    before the identity decision, so a redacted viewer learns no more.
+    """
+    scope = resolve_area_scope(user, project_id)
+    if scope is None:
+        raise AreaNotFound()
+    in_area = _staff_area(scope, unit_id, site_id)
+    result = {
+        "project_id": scope.project_id,
+        "staff_identity_redacted": should_redact_pii(user),
+        "interviewers": [],
+        "coders": [],
+        "truncated": False,
+    }
+    if result["staff_identity_redacted"]:
+        return result
+    result["interviewers"], interviewers_truncated = _interviewer_rows(in_area)
+    result["coders"], coders_truncated = _coder_rows(in_area)
+    result["truncated"] = interviewers_truncated or coders_truncated
     return result

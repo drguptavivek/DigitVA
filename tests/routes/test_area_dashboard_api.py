@@ -7,11 +7,12 @@ routes would 405 and trip the IP ban. Policy: docs/policy/area-dashboard.md.
 from urllib.parse import parse_qs, urlsplit
 
 from app.services import area_dashboard_service as area
-from tests.services.test_area_dashboard_service import AreaDashboardFixture
+from tests.services.test_area_dashboard_service import AreaDashboardFixture, AreaStaffFixture
 
 PAGE = "/area/"
 PROJECTS = "/api/v1/area/projects"
 SUMMARY = "/api/v1/area/summary"
+STAFF = "/api/v1/area/staff"
 
 
 class AreaDashboardRouteTests(AreaDashboardFixture):
@@ -106,3 +107,40 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
     def test_unauthenticated_is_refused(self):
         response = self.client.get(SUMMARY, query_string={"project": self.TREE})
         self.assertIn(response.status_code, (302, 401))
+
+
+class AreaStaffRouteTests(AreaStaffFixture):
+    def _as(self, user):
+        self._login(str(user.user_id))
+
+    def test_coder_gets_named_staff_and_collaborator_gets_none(self):
+        params = {"project": self.TREE, "unit": str(self.chc_a.org_unit_id)}
+        self._as(self.unit_user)
+        shown = self.client.get(STAFF, query_string=params)
+        self.assertEqual(shown.status_code, 200)
+        names = [row["name"] for row in shown.get_json()["interviewers"]]
+        self.assertIn(self.interviewer.name, names)
+
+        self._as(self.collaborator)
+        hidden = self.client.get(STAFF, query_string=params)
+        self.assertEqual(hidden.status_code, 200)
+        body = hidden.get_json()
+        self.assertTrue(body["staff_identity_redacted"])
+        self.assertEqual((body["interviewers"], body["coders"]), ([], []))
+        self.assertNotIn(self.interviewer.name.encode(), hidden.data)
+
+    def test_same_not_found_rules_as_summary(self):
+        self._as(self.unit_user)
+        self.assertEqual(self.client.get(STAFF).status_code, 400)
+        for params in (
+            {"project": self.TREE, "unit": str(self.chc_b.org_unit_id)},
+            {"project": self.TREE, "unit": "garbage"},
+            {"project": self.TREE, "unit": "x" * 65},
+            {"project": self.SITES},
+            {"project": "NOPE01"},
+        ):
+            self.assertEqual(self.client.get(STAFF, query_string=params).status_code, 404, params)
+
+    def test_page_carries_the_staff_endpoint(self):
+        self._as(self.unit_user)
+        self.assertIn(STAFF.encode(), self.client.get(PAGE).data)

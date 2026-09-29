@@ -5,7 +5,8 @@
 {% block content %}
 <div class="content-section mb-4" id="area-dashboard"
      data-projects-url="{{ url_for('api_v1.area_api.projects') }}"
-     data-summary-url="{{ url_for('api_v1.area_api.summary') }}">
+     data-summary-url="{{ url_for('api_v1.area_api.summary') }}"
+     data-staff-url="{{ url_for('api_v1.area_api.staff') }}">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
       <h4 class="content-section-title mb-0">
@@ -76,6 +77,22 @@
     "In progress" come from the hourly snapshot; "In progress" (open web
     interviews) is live.
   </p>
+
+  <div id="area-staff-block" class="mt-3 d-none">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="area-staff-toggle"
+            aria-expanded="false" aria-controls="area-staff">
+      <i class="fas fa-users"></i> By staff
+    </button>
+    <div id="area-staff" class="mt-2 d-none">
+      <p class="text-muted small mb-2" id="area-staff-status"></p>
+      <div id="area-staff-tables"></div>
+      <p class="text-muted small mb-0">
+        Live, for this area as a whole. Confirmed duplicate cases are left out.
+        Contact attempts cover the last 30 days; coding counts the coder's
+        first-pass outcome in the last 7 and 30 days.
+      </p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -91,6 +108,25 @@ document.addEventListener("DOMContentLoaded", function () {
     "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other"
   ];
   var BORDERED = { total_submissions: true, awaiting_coding: true };
+  var staffBlock = document.getElementById("area-staff-block");
+  var staffToggle = document.getElementById("area-staff-toggle");
+  var staffBox = document.getElementById("area-staff");
+  var staffStatus = document.getElementById("area-staff-status");
+  var staffTables = document.getElementById("area-staff-tables");
+  var staffParams = null;
+  var staffLoaded = false;
+  var STAFF_SECTIONS = [
+    ["interviewers", "Interviewers", [
+      ["cases_registered", "Registered"], ["interviews_started", "Started"],
+      ["submitted", "Submitted"], ["in_progress", "In progress"],
+      ["contact_attempts_30_days", "Contact attempts (30 days)"]
+    ]],
+    ["coders", "Coders", [
+      ["coded_7_days", "Coded (7 days)"], ["coded_30_days", "Coded (30 days)"],
+      ["not_codeable_7_days", "Not codeable (7 days)"],
+      ["not_codeable_30_days", "Not codeable (30 days)"]
+    ]]
+  ];
   var CARD_TILES = [
     ["total_submissions", "Submitted", function (c) { return c.total_submissions; }],
     ["total_coded", "Final cause of death", function (c) { return c.total_coded; }, true],
@@ -262,6 +298,81 @@ document.addEventListener("DOMContentLoaded", function () {
       "In progress: live, as of " + freshness.live_at_display;
   }
 
+  function staffTable(title, columns, rows) {
+    var wrap = el("div", "table-responsive mb-2");
+    var table = el("table", "table table-sm align-middle mb-0");
+    var head = el("tr", "small");
+    head.appendChild(el("th", null, title));
+    columns.forEach(function (column) { head.appendChild(el("th", "text-end", column[1])); });
+    var thead = el("thead");
+    thead.appendChild(head);
+    table.appendChild(thead);
+    var body = el("tbody");
+    if (!rows.length) {
+      var emptyRow = el("tr");
+      var emptyCell = el("td", "text-muted small", "None in this area.");
+      emptyCell.colSpan = columns.length + 1;
+      emptyRow.appendChild(emptyCell);
+      body.appendChild(emptyRow);
+    }
+    rows.forEach(function (row) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, row.name));
+      columns.forEach(function (column) {
+        tr.appendChild(el("td", "text-end", String(row[column[0]] || 0)));
+      });
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function renderStaff(data) {
+    staffTables.replaceChildren();
+    if (data.staff_identity_redacted) {
+      staffStatus.textContent = "Your role does not include staff identity, so the per-staff view is not shown.";
+      return;
+    }
+    staffStatus.textContent = data.truncated ? "Showing the most active staff only." : "";
+    STAFF_SECTIONS.forEach(function (section) {
+      staffTables.appendChild(staffTable(section[1], section[2], data[section[0]] || []));
+    });
+  }
+
+  function loadStaff() {
+    if (staffLoaded || !staffParams) return;
+    staffLoaded = true;
+    staffStatus.textContent = "Loading...";
+    getJson(root.dataset.staffUrl + "?" + staffParams.toString())
+      .then(renderStaff)
+      .catch(function () {
+        staffLoaded = false;
+        staffStatus.textContent = "Could not load the per-staff counts. Try again shortly.";
+      });
+  }
+
+  staffToggle.addEventListener("click", function () {
+    var open = staffBox.classList.contains("d-none");
+    staffBox.classList.toggle("d-none", !open);
+    staffToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) loadStaff();
+  });
+
+  // A new level resets the staff view; it loads again only when opened.
+  function resetStaff(data) {
+    staffLoaded = false;
+    staffTables.replaceChildren();
+    staffStatus.textContent = "";
+    staffParams = null;
+    if (data && (data.unit || data.project_wide)) {
+      staffParams = new URLSearchParams({ project: data.project_id });
+      if (data.unit) staffParams.set("unit", data.unit.org_unit_id);
+    }
+    staffBlock.classList.toggle("d-none", !staffParams);
+    if (staffParams && !staffBox.classList.contains("d-none")) loadStaff();
+  }
+
   function navigate(state, push) {
     writeState(state, push);
     showError("");
@@ -273,11 +384,13 @@ document.addEventListener("DOMContentLoaded", function () {
         renderCard(data.project_card);
         renderRows(data);
         renderFreshness(data.freshness);
+        resetStaff(data);
       })
       .catch(function (error) {
         rowsBody.replaceChildren();
         totalFoot.replaceChildren();
         renderCard(null);
+        resetStaff(null);
         showError(error.message === "not_found"
           ? "That area is not available to you."
           : "Could not load the area counts. Try again shortly.");

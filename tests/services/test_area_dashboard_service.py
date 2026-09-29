@@ -10,6 +10,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapCaseContactAttempt,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
@@ -22,6 +23,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
     VaSubmissionWorkflow,
+    VaSubmissionWorkflowEvent,
     VaUserAccessGrants,
     VaWebIntakeDraft,
 )
@@ -35,6 +37,7 @@ from app.services.submission_analytics_mv import (
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
 )
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
     ALL_WORKFLOW_STATES,
     CODING_BUCKETS,
@@ -644,3 +647,165 @@ class AreaProjectCardTests(AreaDashboardFixture):
         site_pi_rows = self._by_key(area.area_summary(self.sites_mode_site_user, self.SITES))
         self.assertIn(self.SITE_ONE, site_pi_rows)
         self.assertEqual(site_pi_rows[self.SITE_ONE]["links"], {})
+
+
+class AreaStaffFixture(AreaDashboardFixture):
+    """Cases, contact attempts and coder events on top of the area fixture.
+
+    Interviewer (the fixture's) works PHC A1: one live case, one confirmed
+    duplicate, and the fixture's PHC A1 drafts. A second interviewer works
+    CHC B. Coder A finalized CHC A's submission and marked one PHC A1
+    submission not codeable; coder B finalized CHC B's. No test methods, so
+    the route tests can import it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(UTC)
+        cls.interviewer_b = cls._get_or_make_user("area.interviewer.b@test.local", "AreaUser123")
+        cls.coder_a = cls._get_or_make_user("area.coder.a@test.local", "AreaUser123")
+        cls.coder_b = cls._get_or_make_user("area.coder.b@test.local", "AreaUser123")
+        cls.collaborator = cls._get_or_make_user("area.collab@test.local", "AreaUser123")
+        cls._grant(cls.collaborator, VaAccessRoles.collaborator, VaAccessScopeTypes.org_unit,
+                   org_unit_id=cls.district_1.org_unit_id)
+
+        case_a = cls._case(990101, cls.phc_a1, cls.interviewer, "in_progress", started=True)
+        duplicate = cls._case(990102, cls.phc_a1, cls.interviewer, "duplicate", started=True)
+        case_b = cls._case(990103, cls.chc_b, cls.interviewer_b, "registered")
+        # An open draft on the duplicate case: not "in progress" for anyone.
+        db.session.add(VaWebIntakeDraft(
+            project_id=cls.TREE, site_id=cls.TREE_SITE, form_id=cls.TREE_FORM,
+            org_unit_id=cls.phc_a1.org_unit_id, death_id=duplicate.death_id,
+            user_id=cls.interviewer.user_id, unique_id="area-staff-dup-draft", status="draft",
+        ))
+        for case, user, days_ago in (
+            (case_a, cls.interviewer, 1),
+            (case_a, cls.interviewer, 40),  # outside the 30-day window
+            (duplicate, cls.interviewer, 1),
+            (case_b, cls.interviewer_b, 2),
+        ):
+            db.session.add(MapCaseContactAttempt(
+                death_id=case.death_id, attempted_at=now - timedelta(days=days_ago),
+                outcome="no_answer", by_user_id=user.user_id,
+            ))
+        for sid, transition, user, days_ago in (
+            ("uuid:area-ca1", "coder_finalized", cls.coder_a, 2),
+            ("uuid:area-pa2", "coder_not_codeable", cls.coder_a, 10),
+            ("uuid:area-cb1", "coder_finalized", cls.coder_b, 1),
+        ):
+            db.session.add(VaSubmissionWorkflowEvent(
+                va_sid=sid, transition_id=transition, current_state="test",
+                actor_user_id=user.user_id, event_created_at=now - timedelta(days=days_ago),
+            ))
+        db.session.commit()
+
+    @classmethod
+    def _case(cls, number, unit, user, status, started=False):
+        case = VaDeathRegister(
+            project_id=cls.TREE, site_id=cls.TREE_SITE, org_unit_id=unit.org_unit_id,
+            death_number=number, unique_id=f"AREA-STAFF-{number}", deceased_name="Test Case",
+            deceased_sex="female", date_of_death=datetime.now(UTC).date(),
+            registered_by=user.user_id, source="register", status=status,
+            started_by_user_id=user.user_id if started else None,
+        )
+        db.session.add(case)
+        db.session.flush()
+        return case
+
+    @staticmethod
+    def _by_name(rows):
+        return {row["name"]: row for row in rows}
+
+
+class AreaStaffTests(AreaStaffFixture):
+    def _staff(self, user, unit=None, **kwargs):
+        return area.area_staff(
+            user, kwargs.pop("project", self.TREE),
+            unit_id=str(unit.org_unit_id) if unit else None, **kwargs,
+        )
+
+    def test_unit_counts_its_subtree_and_names_staff_for_a_coder(self):
+        staff = self._staff(self.unit_user, self.chc_a)
+        self.assertFalse(staff["staff_identity_redacted"])
+        interviewers = self._by_name(staff["interviewers"])
+        self.assertIn(self.interviewer.name, interviewers)
+        self.assertEqual(interviewers[self.interviewer.name], {
+            "name": self.interviewer.name,
+            # The duplicate case (and its open draft) counts nowhere.
+            "cases_registered": 1, "interviews_started": 1,
+            "submitted": 1, "in_progress": 1, "contact_attempts_30_days": 1,
+        })
+        self.assertNotIn(self.interviewer_b.name, interviewers)
+        coders = self._by_name(staff["coders"])
+        self.assertIn(self.coder_a.name, coders)
+        self.assertEqual(
+            (coders[self.coder_a.name]["coded_7_days"], coders[self.coder_a.name]["coded_30_days"],
+             coders[self.coder_a.name]["not_codeable_7_days"],
+             coders[self.coder_a.name]["not_codeable_30_days"]),
+            (1, 1, 0, 1),
+        )
+        self.assertNotIn(self.coder_b.name, coders)
+
+    def test_another_unit_counts_only_its_own_staff(self):
+        staff = self._staff(self.project_user, self.chc_b)
+        interviewers = self._by_name(staff["interviewers"])
+        self.assertIn(self.interviewer_b.name, interviewers)
+        self.assertEqual(interviewers[self.interviewer_b.name]["cases_registered"], 1)
+        self.assertEqual(interviewers[self.interviewer_b.name]["contact_attempts_30_days"], 1)
+        self.assertNotIn(self.interviewer.name, interviewers)
+        coders = self._by_name(staff["coders"])
+        self.assertEqual(set(coders), {self.coder_b.name})
+
+    def test_project_wide_root_counts_the_whole_project_once(self):
+        staff = self._staff(self.project_user)
+        interviewers = self._by_name(staff["interviewers"])
+        self.assertEqual(set(interviewers), {self.interviewer.name, self.interviewer_b.name})
+        # PHC A1 and the unrouted draft; the sites-mode project's draft is not here.
+        self.assertEqual(interviewers[self.interviewer.name]["in_progress"], 2)
+        self.assertEqual(set(self._by_name(staff["coders"])), {self.coder_a.name, self.coder_b.name})
+
+    def test_plain_collaborator_gets_no_staff_identity(self):
+        shown = self._staff(self.unit_user, self.chc_a)
+        self.assertIn(self.interviewer.name, self._by_name(shown["interviewers"]))
+        self.assertTrue(should_redact_pii(self.collaborator))
+        hidden = self._staff(self.collaborator, self.chc_a)
+        self.assertTrue(hidden["staff_identity_redacted"])
+        self.assertEqual((hidden["interviewers"], hidden["coders"]), ([], []))
+
+    def test_a_confirmed_duplicate_leaves_the_coder_counts(self):
+        def coded():
+            coders = self._by_name(self._staff(self.unit_user, self.chc_a)["coders"])
+            return coders[self.coder_a.name]["coded_30_days"]
+
+        self.assertEqual(coded(), 1)
+        case = VaDeathRegister(
+            project_id=self.TREE, site_id=self.TREE_SITE, death_number=990109,
+            unique_id="AREA-STAFF-DUP", deceased_name="Test Case", deceased_sex="female",
+            date_of_death=datetime.now(UTC).date(), registered_by=self.interviewer.user_id,
+            status="duplicate", va_sid="uuid:area-ca1",
+        )
+        db.session.add(case)
+        db.session.commit()
+        try:
+            self.assertEqual(coded(), 0)
+        finally:
+            db.session.delete(case)
+            db.session.commit()
+
+    def test_outside_scope_or_without_one_area_is_not_found(self):
+        self.assertTrue(self._staff(self.unit_user, self.phc_a1)["interviewers"])
+        for call in (
+            lambda: self._staff(self.unit_user, self.chc_b),
+            lambda: self._staff(self.unit_user),  # root of a unit scope: no single area
+            lambda: self._staff(self.project_user, site_id=self.TREE_SITE),
+            lambda: self._staff(self.no_grant_user, self.chc_a),
+            lambda: self._staff(self.sites_mode_site_user, project=self.SITES, site_id=self.SITE_TWO),
+            # A redacted viewer is refused out of scope too, not told "redacted".
+            lambda: self._staff(self.collaborator, self.district_2),
+        ):
+            with self.assertRaises(area.AreaNotFound):
+                call()
+        self.assertFalse(self._staff(
+            self.sites_mode_site_user, project=self.SITES, site_id=self.SITE_ONE
+        )["staff_identity_redacted"])

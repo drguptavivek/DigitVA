@@ -47,7 +47,8 @@ code or open a case there.
 
 ## What it shows
 
-Counts only. No case lists, no subject data, no names on the first slice.
+Counts only. No case lists and no subject data; staff names only in the
+per-staff view below, to viewers allowed staff identity.
 A count links to the screen the user's role already has for that work, only
 when the user holds that role on the project and that screen admits them
 (`digitva-stc.3`):
@@ -116,10 +117,33 @@ lower bound); live counts say so. The two are labelled separately.
 
 ## Staff identity
 
-A per-interviewer or per-coder breakdown is a later slice. When it comes it
-is shown only to roles that may see staff identity, decided through
-`should_redact_pii`, never a per-screen role test; plain `collaborator` sees
-no names (`access-control-model.md`).
+An optional "By staff" view under the table breaks the same area down per
+person (`digitva-stc.2`). It is offered at a selected unit or site, and at
+the project root for a project-wide scope; a unit-scoped user's root is
+several areas, so it has none. The area is exactly the rows': the selected
+subtree counted once, or the whole project including unrouted cases.
+Confirmed duplicate cases count nowhere.
+
+- **Interviewers**: cases registered (register-first cases, by who
+  registered them), interviews started (by who opened the first interview
+  on the case), interviews submitted and in progress (by the draft's
+  owner), and contact attempts logged in the last 30 days.
+- **Coders**: submissions coded and marked not codeable at first pass, in
+  the last 7 and 30 days, by the coder who did it (the same attribution as
+  the data manager's coder daily statistics). Retired submissions and
+  inactive project-sites are left out, as in the coding columns.
+
+Who sees names is decided only by `should_redact_pii`, never a per-screen
+role test (`access-control-model.md`). A viewer it redacts, such as a plain
+`collaborator`, gets no per-staff rows and a line saying so: not
+pseudonyms. "Coder 1" with its own throughput still singles out one person
+to anyone who knows the team, which is why the data manager's coder daily
+statistics also drop the rows rather than rename them. The decision is the
+helper's, per user: a user whose other active grant (on any active project)
+unlocks personal data sees names here too, as on every other screen.
+
+Counts are live and capped at 500 people per list; a longer list says it is
+cut. No per-person case lists.
 
 ## Performance
 

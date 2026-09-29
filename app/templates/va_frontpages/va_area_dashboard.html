@@ -1,0 +1,265 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | Area Dashboard{% endblock %}
+
+{% block content %}
+<div class="content-section mb-4" id="area-dashboard"
+     data-projects-url="{{ url_for('api_v1.area_api.projects') }}"
+     data-summary-url="{{ url_for('api_v1.area_api.summary') }}">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h4 class="content-section-title mb-0">
+        <i class="fas fa-chart-column"></i>
+        Area Dashboard
+      </h4>
+      <p class="text-muted small mb-0 mt-1">
+        Collection and coding progress in the part of each project you hold a grant for.
+      </p>
+    </div>
+    <div>
+      <label for="area-project" class="form-label small mb-1">Project</label>
+      <select id="area-project" class="form-select form-select-sm" style="min-width: 16rem;"></select>
+    </div>
+  </div>
+
+  <div id="area-empty" class="alert alert-secondary small py-2 d-none">
+    You do not hold a grant on any active project, so there is no area to show.
+  </div>
+  <div id="area-error" class="alert alert-warning small py-2 d-none"></div>
+
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb small mb-2" id="area-breadcrumb"></ol>
+  </nav>
+
+  <div class="small text-muted mb-2 d-none" id="area-freshness">
+    <span id="area-snapshot-label"></span>
+    <span class="mx-2">|</span>
+    <span id="area-live-label"></span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" id="area-table">
+      <thead>
+        <tr>
+          <th rowspan="2">Area</th>
+          <th colspan="4" class="text-center border-start">Collection</th>
+          <th colspan="6" class="text-center border-start">Coding</th>
+        </tr>
+        <tr class="small">
+          <th class="text-end border-start" title="Snapshot">Submitted</th>
+          <th class="text-end" title="Snapshot">Last 7 days</th>
+          <th class="text-end" title="Snapshot">Last 30 days</th>
+          <th class="text-end" title="Live">In progress</th>
+          <th class="text-end border-start">Awaiting coding</th>
+          <th class="text-end">In coding</th>
+          <th class="text-end">In review</th>
+          <th class="text-end">Coded</th>
+          <th class="text-end">Not codeable</th>
+          <th class="text-end">Other</th>
+        </tr>
+      </thead>
+      <tbody id="area-rows"></tbody>
+      <tfoot id="area-total" class="fw-semibold"></tfoot>
+    </table>
+  </div>
+  <p class="text-muted small mb-0">
+    Each row counts its whole area once. Collection counts except
+    "In progress" come from the hourly snapshot; "In progress" (open web
+    interviews) is live.
+  </p>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var root = document.getElementById("area-dashboard");
+  var projectSelect = document.getElementById("area-project");
+  var rowsBody = document.getElementById("area-rows");
+  var totalFoot = document.getElementById("area-total");
+  var crumbs = document.getElementById("area-breadcrumb");
+  var errorBox = document.getElementById("area-error");
+  var COLUMNS = [
+    "total_submissions", "last_7_days", "last_30_days", "drafts_in_progress",
+    "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other"
+  ];
+  var BORDERED = { total_submissions: true, awaiting_coding: true };
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  function readState() {
+    var params = new URLSearchParams(window.location.search);
+    return { project: params.get("project") || "", unit: params.get("unit") || "" };
+  }
+
+  function writeState(state, push) {
+    var params = new URLSearchParams();
+    if (state.project) params.set("project", state.project);
+    if (state.unit) params.set("unit", state.unit);
+    var url = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    if (push) window.history.pushState(state, "", url);
+    else window.history.replaceState(state, "", url);
+  }
+
+  function getJson(url) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status === 404 ? "not_found" : "failed");
+        return response.json();
+      });
+  }
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.toggle("d-none", !message);
+  }
+
+  function countCell(value, key) {
+    return el("td", "text-end" + (BORDERED[key] ? " border-start" : ""), String(value || 0));
+  }
+
+  function renderBreadcrumb(data) {
+    crumbs.replaceChildren();
+    var top = el("li", "breadcrumb-item");
+    if (data.unit) {
+      var link = el("a", null, data.project_name);
+      link.href = "#";
+      link.addEventListener("click", function (event) {
+        event.preventDefault();
+        navigate({ project: data.project_id, unit: "" }, true);
+      });
+      top.appendChild(link);
+    } else {
+      top.textContent = data.project_name;
+      top.classList.add("active");
+    }
+    crumbs.appendChild(top);
+    (data.breadcrumb || []).forEach(function (crumb, index, all) {
+      var item = el("li", "breadcrumb-item");
+      var label = crumb.name + " (" + crumb.code + ")";
+      if (index === all.length - 1) {
+        item.textContent = label;
+        item.classList.add("active");
+      } else {
+        var link = el("a", null, label);
+        link.href = "#";
+        link.addEventListener("click", function (event) {
+          event.preventDefault();
+          navigate({ project: data.project_id, unit: crumb.org_unit_id }, true);
+        });
+        item.appendChild(link);
+      }
+      crumbs.appendChild(item);
+    });
+  }
+
+  function renderRows(data) {
+    rowsBody.replaceChildren();
+    totalFoot.replaceChildren();
+    var totals = {};
+    if (!data.rows.length) {
+      var empty = el("tr");
+      var cell = el("td", "text-muted small", "Nothing below this level.");
+      cell.colSpan = COLUMNS.length + 1;
+      empty.appendChild(cell);
+      rowsBody.appendChild(empty);
+      return;
+    }
+    data.rows.forEach(function (row) {
+      var tr = el("tr");
+      var nameCell = el("td");
+      if (row.kind === "unit" && row.has_children) {
+        var link = el("a", null, row.name);
+        link.href = "#";
+        link.addEventListener("click", function (event) {
+          event.preventDefault();
+          navigate({ project: data.project_id, unit: row.key }, true);
+        });
+        nameCell.appendChild(link);
+      } else {
+        nameCell.appendChild(el("span", row.kind === "unrouted" ? "fst-italic" : null, row.name));
+      }
+      if (row.code) nameCell.appendChild(el("span", "text-muted small ms-1", row.code));
+      tr.appendChild(nameCell);
+      COLUMNS.forEach(function (key) {
+        totals[key] = (totals[key] || 0) + (row.counts[key] || 0);
+        tr.appendChild(countCell(row.counts[key], key));
+      });
+      rowsBody.appendChild(tr);
+    });
+    var totalRow = el("tr");
+    totalRow.appendChild(el("td", null, "Total"));
+    COLUMNS.forEach(function (key) { totalRow.appendChild(countCell(totals[key], key)); });
+    totalFoot.appendChild(totalRow);
+  }
+
+  function renderFreshness(freshness) {
+    document.getElementById("area-freshness").classList.remove("d-none");
+    document.getElementById("area-snapshot-label").textContent =
+      freshness.snapshot_refreshed_display
+        ? "Snapshot counts as of " + freshness.snapshot_refreshed_display + " (refreshed hourly)"
+        : "Snapshot counts: refresh time not recorded yet (refreshed hourly)";
+    document.getElementById("area-live-label").textContent =
+      "In progress: live, as of " + freshness.live_at_display;
+  }
+
+  function navigate(state, push) {
+    writeState(state, push);
+    showError("");
+    var params = new URLSearchParams({ project: state.project });
+    if (state.unit) params.set("unit", state.unit);
+    getJson(root.dataset.summaryUrl + "?" + params.toString())
+      .then(function (data) {
+        renderBreadcrumb(data);
+        renderRows(data);
+        renderFreshness(data.freshness);
+      })
+      .catch(function (error) {
+        rowsBody.replaceChildren();
+        totalFoot.replaceChildren();
+        showError(error.message === "not_found"
+          ? "That area is not available to you."
+          : "Could not load the area counts. Try again shortly.");
+      });
+  }
+
+  window.addEventListener("popstate", function () {
+    var state = readState();
+    if (state.project) {
+      projectSelect.value = state.project;
+      navigate(state, false);
+    }
+  });
+
+  projectSelect.addEventListener("change", function () {
+    navigate({ project: projectSelect.value, unit: "" }, true);
+  });
+
+  getJson(root.dataset.projectsUrl)
+    .then(function (data) {
+      if (!data.projects.length) {
+        document.getElementById("area-empty").classList.remove("d-none");
+        document.getElementById("area-table").classList.add("d-none");
+        projectSelect.disabled = true;
+        return;
+      }
+      data.projects.forEach(function (project) {
+        var option = el("option", null, project.project_name + " (" + project.project_id + ")");
+        option.value = project.project_id;
+        projectSelect.appendChild(option);
+      });
+      var state = readState();
+      var known = data.projects.some(function (p) { return p.project_id === state.project; });
+      if (!known) state = { project: data.projects[0].project_id, unit: "" };
+      projectSelect.value = state.project;
+      navigate(state, false);
+    })
+    .catch(function () {
+      showError("Could not load your projects. Try again shortly.");
+    });
+});
+</script>
+{% endblock %}

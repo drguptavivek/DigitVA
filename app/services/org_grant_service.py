@@ -427,6 +427,38 @@ def project_wide_grant_exists(
     return bool(db.session.scalar(site_scope))
 
 
+def reachable_unit_ids(
+    user, project_id: str, roles: frozenset[VaAccessRoles] = ROLES_ALLOWING_ORG_UNIT
+) -> set[uuid.UUID] | None:
+    """Unit ids of *project_id* that *user*'s grants in *roles* reach, for viewing.
+
+    ``None`` means the whole tree: an admin, a PI of the project, or anyone
+    holding a project- or site-scoped grant there in *roles*. Otherwise the
+    union of the user's unit-grant subtrees in *roles*, kept to this project
+    (a user may hold grants in several). An empty set reaches nothing.
+
+    Shared by the organization API's read-only unit picker and the area
+    dashboard (``area_dashboard_service``), so the tree a user may browse and
+    the tree whose counts they see cannot disagree. Web intake deliberately
+    keeps its own interviewer-only, grant-only variant
+    (``web_intake_service._reachable_unit_ids``): intake has no admin bypass.
+    """
+    if user.is_admin() or user.can_manage_project(project_id):
+        return None
+    if project_wide_grant_exists(user.user_id, project_id, roles):
+        return None
+    reachable = scope_unit_ids_for_roles(user.user_id, roles)
+    if not reachable:
+        return set()
+    in_project = db.session.scalars(
+        sa.select(MasOrgUnit.org_unit_id).where(
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.org_unit_id.in_(sorted(reachable)),
+        )
+    ).all()
+    return set(in_project)
+
+
 def projects_with_org_tree(project_ids: set[str] | None = None) -> set[str]:
     """Projects that have at least one active organization level."""
     from app.models import MasOrgLevel

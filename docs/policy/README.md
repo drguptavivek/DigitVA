@@ -46,6 +46,7 @@ Current policy docs:
 - [User Management CLI Policy](user-management-cli.md)
 - [VA Form Project Configuration Policy](va-form-project-configuration.md) — extensions a project enables, narration languages vs display translations, geography codes
 - [Web Intake Policy](web-intake.md) — WHO VA 2022 questionnaire filled in DigitVA, death register, interviewer role
+- [Area Dashboard Policy](area-dashboard.md) — every granted user sees collection and coding progress for their subtree
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 - [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)
 - [ICD-10 to ICD-11 Transition for VA Cause Buckets](icd10-to-icd11-transition.md)

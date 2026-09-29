@@ -36,7 +36,7 @@ from app.models import (
     VaStatuses,
 )
 from app.services import organization_service as org
-from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, scope_unit_ids_for_roles
+from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, reachable_unit_ids
 from app.services.instrument_translation_service import active_locale_versions
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
@@ -50,21 +50,6 @@ bp = Blueprint("organization_api", __name__)
 
 def _error(message: str, status_code: int = 400):
     return jsonify({"error": message}), status_code
-
-
-def _project_wide_grant_exists(project_id: str, roles: frozenset) -> bool:
-    """A project- or site-scoped grant in *roles* reaches the project's whole tree.
-
-    Delegates to ``org_grant_service.project_wide_grant_exists``, which is
-    the single definition of this rule and documents exactly what it promises
-    about inactive grants, inactive project-sites, and admin bypass. The web
-    intake service's scope check calls the same function, so the picker an
-    interviewer sees and the check their submission is held to cannot
-    disagree.
-    """
-    from app.services import org_grant_service as grants
-
-    return grants.project_wide_grant_exists(current_user.user_id, project_id, roles)
 
 
 def _parse_role(raw: str | None) -> "VaAccessRoles | None":
@@ -92,25 +77,8 @@ def _reachable_unit_ids(project_id: str, role: "VaAccessRoles | None") -> set | 
     leaks in. Left ``None``, every role that may hold an org_unit grant is
     unioned, for read-only browsing.
     """
-    if current_user.is_admin() or current_user.can_manage_project(project_id):
-        return None
-
     roles = frozenset({role}) if role is not None else ROLES_ALLOWING_ORG_UNIT
-    if _project_wide_grant_exists(project_id, roles):
-        return None
-
-    reachable = scope_unit_ids_for_roles(current_user.user_id, roles)
-    if not reachable:
-        return set()
-
-    # Keep only this project's units — a user may hold grants in several.
-    in_project = db.session.scalars(
-        sa.select(MasOrgUnit.org_unit_id).where(
-            MasOrgUnit.project_id == project_id,
-            MasOrgUnit.org_unit_id.in_(sorted(reachable)),
-        )
-    ).all()
-    return set(in_project)
+    return reachable_unit_ids(current_user, project_id, roles)
 
 
 def _tree_version(project_id: str) -> str | None:

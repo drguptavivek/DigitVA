@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-09-30
 ---
 
 # Submission Analytics Materialized Views
@@ -191,6 +191,44 @@ The materialized view is intended for:
 - dashboard analytics APIs
 - future project/site trend visualizations
 - SmartVA versus human-COD comparison analysis
+
+### Area dashboard
+
+`GET /area/` (page) and `GET /api/v1/area/projects` and
+`/api/v1/area/summary?project=&unit=&site=` (JSON) show collection and coding
+counts for the part of a project a user holds a grant for
+(`docs/policy/area-dashboard.md`, bead `digitva-stc`). Code:
+`app/services/area_dashboard_service.py`, `app/routes/area.py`,
+`app/routes/api/area.py`.
+
+- Gated by `login_required`: any active grant of any role opens an area; no
+  grant gives an empty project list. The navbar link shows for any user with
+  an active grant (`VaUsers.has_any_active_grant`).
+- Scope is viewing scope, a union over all roles, per project. A project with
+  an active organization level is a tree project and uses
+  `org_grant_service.reachable_unit_ids` (whole tree for admin, the project's
+  PI, or any project- or site-scoped grant; otherwise unit-grant subtrees),
+  shared with the organization API's unit picker. A project with no tree is
+  shown per site: all active sites for admin, PI or a project grant, else the
+  granted sites. A project, unit or site outside scope is a 404.
+- Rows are the grant roots (or the project's top-level units when the scope
+  is project-wide, plus an "Unrouted" row), or the direct children of a
+  selected unit. Each row is its whole subtree, counted once, from
+  `get_dm_org_unit_stats_from_mv(unit_ids=..., include_breakdown=True)`:
+  one ltree-containment query giving total, last 7 and 30 days and one
+  `count(*) FILTER` per coding bucket. Sites-mode rows use
+  `get_area_site_stats_from_mv`, the unrouted row
+  `get_area_unrouted_stats_from_mv`. Retired (missing in ODK) submissions
+  and inactive project-sites are excluded, as on the data-manager dashboard.
+- Coding buckets come from `workflow.definition.WORKFLOW_CODING_BUCKETS`
+  (`coding_bucket()`); the SQL CASE is built from the same dict, and a NULL
+  or unknown state counts as `other`.
+- "In progress" is live: open web-intake drafts (`va_web_intake_drafts.status
+  = 'draft'`) per subtree or site.
+- Freshness: the snapshot label is the `finished_at` of the latest successful
+  `analytics_mv` run in `va_sync_runs`. Ad-hoc refreshes from the data
+  manager and analytics screens are not recorded there, so the label is a
+  lower bound. Both labels are formatted in the user's timezone.
 
 Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.

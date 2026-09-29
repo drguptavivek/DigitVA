@@ -214,6 +214,21 @@ class VaUsers(UserMixin, db.Model):
         ))
         return bool(db.session.scalar(stmt))
 
+    def has_any_active_grant(self) -> bool:
+        """Whether the user holds any active grant, of any role or scope.
+
+        Gates the area dashboard's navbar link. Deliberately loose: a grant on
+        a closed project still shows the link, and the page then shows an
+        empty area rather than an error (docs/policy/area-dashboard.md).
+        """
+        from app.models import VaStatuses, VaUserAccessGrants
+
+        stmt = sa.select(sa.exists().where(
+            VaUserAccessGrants.user_id == self.user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        ))
+        return bool(db.session.scalar(stmt))
+
     def has_demo_training_access(self) -> bool:
         from app.services.demo_project_service import get_demo_training_project_ids
 

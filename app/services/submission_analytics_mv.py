@@ -25,15 +25,21 @@ follows the same rule.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+
 import sqlalchemy as sa
 
 from app import db
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
+    CODING_BUCKET_OTHER,
+    CODING_BUCKETS,
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_BUCKETS,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
@@ -1573,6 +1579,8 @@ def get_dm_org_unit_stats_from_mv(
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    unit_ids: Iterable | None = None,
+    include_breakdown: bool = False,
 ) -> list[dict]:
     """Return per-organization-unit submission counts for one project's tree.
 
@@ -1587,21 +1595,17 @@ def get_dm_org_unit_stats_from_mv(
     units to group by, and its site-grouped stats
     (``get_dm_project_site_stats_from_mv``) are untouched by this function
     existing. Policy: docs/policy/organization-model.md.
+
+    ``unit_ids`` limits the rows to those candidate units (still each with
+    its whole subtree); ``None`` returns every active unit, as the data
+    manager dashboard always had. ``include_breakdown`` adds the area
+    dashboard's columns to each row, from the same query: submissions in
+    the last 7 and 30 days and one count per coding bucket
+    (``area_breakdown_columns``). docs/policy/area-dashboard.md.
     """
     from app.models.mas_organization import MasOrgUnit
 
-    core = sa.table(
-        CORE_MV_NAME,
-        sa.column("va_sid"),
-        sa.column("project_id"),
-        sa.column("site_id"),
-        sa.column("submission_date"),
-        sa.column("workflow_state"),
-        sa.column("odk_review_state"),
-        sa.column("odk_sync_issue_code"),
-        sa.column("odk_missing"),
-        sa.column("org_unit_path"),
-    )
+    core = _core_table_with_org_unit()
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME,
         sa.column("va_sid"),
@@ -1629,36 +1633,150 @@ def get_dm_org_unit_stats_from_mv(
 
     joined = core.join(demo, core.c.va_sid == demo.c.va_sid)
     scoped_submissions = (
-        sa.select(core.c.org_unit_path)
+        sa.select(
+            core.c.org_unit_path,
+            core.c.va_sid,
+            core.c.submission_at,
+            core.c.workflow_state,
+        )
         .select_from(joined)
         .where(sa.and_(*conditions))
         .where(core.c.org_unit_path.isnot(None))
         .subquery("scoped_submissions")
     )
 
+    count_columns = (
+        area_breakdown_columns(scoped_submissions)
+        if include_breakdown
+        else [sa.func.count(scoped_submissions.c.org_unit_path).label("total_submissions")]
+    )
+    unit_filters = [MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True)]
+    if unit_ids is not None:
+        unit_filters.append(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)))
+
     rows = db.session.execute(
         sa.select(
             MasOrgUnit.org_unit_id,
             MasOrgUnit.unit_code,
             MasOrgUnit.unit_name,
-            sa.func.count(scoped_submissions.c.org_unit_path).label("total_submissions"),
+            *count_columns,
         )
         .select_from(MasOrgUnit)
         .outerjoin(
             scoped_submissions,
             scoped_submissions.c.org_unit_path.op("<@")(MasOrgUnit.path),
         )
-        .where(MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True))
+        .where(*unit_filters)
         .group_by(MasOrgUnit.org_unit_id, MasOrgUnit.unit_code, MasOrgUnit.unit_name)
         .order_by(MasOrgUnit.unit_code)
-    ).all()
+    ).mappings().all()
 
+    result = []
+    for row in rows:
+        item = {
+            "org_unit_id": str(row["org_unit_id"]),
+            "org_unit_code": row["unit_code"],
+            "org_unit_name": row["unit_name"],
+            "total_submissions": row["total_submissions"] or 0,
+        }
+        if include_breakdown:
+            item.update(_breakdown_values(row))
+        result.append(item)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Area dashboard (docs/policy/area-dashboard.md)
+# ---------------------------------------------------------------------------
+
+AREA_BREAKDOWN_KEYS = ("last_7_days", "last_30_days", *CODING_BUCKETS)
+
+
+def area_breakdown_columns(source) -> list:
+    """Labelled aggregate columns over *source* (va_sid, submission_at, workflow_state).
+
+    Total, last 7 and 30 days, and one ``count(*) FILTER`` per coding bucket.
+    The bucket CASE is built from ``WORKFLOW_CODING_BUCKETS`` itself, so the
+    SQL and ``coding_bucket()`` cannot drift; a NULL or unknown state falls
+    to the ELSE and counts as ``other``. Counting ``va_sid`` keeps an
+    outer-joined unit with no submissions at zero.
+    """
+    now = datetime.now(UTC)
+    counted = sa.func.count(source.c.va_sid)
+    bucket = sa.case(
+        WORKFLOW_CODING_BUCKETS, value=source.c.workflow_state, else_=CODING_BUCKET_OTHER
+    )
+    return [
+        counted.label("total_submissions"),
+        counted.filter(source.c.submission_at >= now - timedelta(days=7)).label("last_7_days"),
+        counted.filter(source.c.submission_at >= now - timedelta(days=30)).label("last_30_days"),
+        *(counted.filter(bucket == name).label(name) for name in CODING_BUCKETS),
+    ]
+
+
+def _breakdown_values(row) -> dict:
+    return {key: row[key] or 0 for key in AREA_BREAKDOWN_KEYS}
+
+
+def _core_table_with_org_unit():
+    return sa.table(
+        CORE_MV_NAME,
+        sa.column("va_sid"),
+        sa.column("project_id"),
+        sa.column("site_id"),
+        sa.column("submission_at"),
+        sa.column("submission_date"),
+        sa.column("workflow_state"),
+        sa.column("odk_review_state"),
+        sa.column("odk_sync_issue_code"),
+        sa.column("odk_missing"),
+        sa.column("org_unit_path"),
+    )
+
+
+def get_area_site_stats_from_mv(
+    *, project_ids: list[str], project_site_pairs, site: str = ""
+) -> list[dict]:
+    """Area-dashboard counts per site, for a project with no organization tree.
+
+    Scope is the same (project ids, project-site pairs) shape the data
+    manager dashboard uses, so retired submissions and inactive project-sites
+    are excluded exactly as there. One grouped query.
+    """
+    core = _core_table_with_org_unit()
+    conditions = build_dm_mv_filter_conditions(
+        core, None, project_ids=project_ids, project_site_pairs=project_site_pairs, site=site
+    )
+    rows = db.session.execute(
+        sa.select(core.c.project_id, core.c.site_id, *area_breakdown_columns(core))
+        .where(*conditions)
+        .group_by(core.c.project_id, core.c.site_id)
+    ).mappings().all()
     return [
         {
-            "org_unit_id": str(row.org_unit_id),
-            "org_unit_code": row.unit_code,
-            "org_unit_name": row.unit_name,
-            "total_submissions": row.total_submissions or 0,
+            "project_id": row["project_id"],
+            "site_id": row["site_id"],
+            "total_submissions": row["total_submissions"] or 0,
+            **_breakdown_values(row),
         }
         for row in rows
     ]
+
+
+def get_area_unrouted_stats_from_mv(*, project_id: str) -> dict:
+    """Area-dashboard counts for a tree project's submissions with no unit.
+
+    Postgres cannot FULL JOIN on ``<@``, so the unrouted row cannot come out
+    of the unit rollup; it is this one extra aggregate over the whole
+    project, which callers run only for a project-wide scope.
+    """
+    core = _core_table_with_org_unit()
+    conditions = build_dm_mv_filter_conditions(
+        core, None, project_ids=[project_id], project_site_pairs=[]
+    )
+    row = db.session.execute(
+        sa.select(*area_breakdown_columns(core))
+        .where(*conditions)
+        .where(core.c.org_unit_path.is_(None))
+    ).mappings().one()
+    return {"total_submissions": row["total_submissions"] or 0, **_breakdown_values(row)}

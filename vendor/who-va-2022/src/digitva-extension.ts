@@ -1036,7 +1036,9 @@ export interface DorisSupportBlock {
  * section path (and throws when the anchor is missing), so each added
  * question sits in its anchor's section and inherits that section's
  * relevance, except the surgery questions, which sit one level up (see
- * below).
+ * below). Each question's `ageGroup` is WHO's code (the ODK `agegroup`
+ * cell), matching its anchor: `base()`'s ALL unless set here (N for hours
+ * survived, N_C for the birth-weight check, pregnancy weeks and mother's age).
  */
 export function createDorisSupportExtension(
   startOrder: number,
@@ -1127,6 +1129,7 @@ export function createDorisSupportExtension(
             dataType: "boolean",
             control: "confirm",
             required: true,
+            ageGroup: "N_C",
             relevant: expression("${Id10366} < 500 or ${Id10366} > 6000"),
             validation: { required: true, dataType: "boolean", constraintMessage: {} }
           }
@@ -1161,6 +1164,7 @@ export function createDorisSupportExtension(
           coded(0, 23),
           "Enter 0 to 23 hours",
           {
+            ageGroup: "N",
             relevant: expression(
               "selected(${isNeonatal}, '1') and selected(${Id10020}, 'yes') and selected(${Id10022}, 'yes') and ${ageInDays} = 0 and not(selected(${Id10114}, 'yes'))"
             )
@@ -1190,7 +1194,7 @@ export function createDorisSupportExtension(
           "integer",
           coded(8, 48),
           "Enter 8 to 48 weeks",
-          { relevant: expression(UNDER_ONE_YEAR) }
+          { ageGroup: "N_C", relevant: expression(UNDER_ONE_YEAR) }
         )
       ],
       whoChanges: {},
@@ -1210,7 +1214,7 @@ export function createDorisSupportExtension(
           "integer",
           coded(10, 60),
           "Enter 10 to 60 years",
-          { relevant: expression(UNDER_ONE_YEAR) }
+          { ageGroup: "N_C", relevant: expression(UNDER_ONE_YEAR) }
         )
       ],
       whoChanges: {},

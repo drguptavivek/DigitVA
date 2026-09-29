@@ -110,6 +110,59 @@ class OdkDorisRowsTests(unittest.TestCase):
             with self.subTest(f"{row['list_name']}/{row['name']}"):
                 self.assertEqual(self.labels[f"{row['list_name']}/{row['name']}"], row[self.script.LABEL])
 
+    def test_added_rows_carry_order_and_agegroup_and_who_orders_are_unchanged(self):
+        header = self.sheets["survey"][0]
+        rows = [dict(zip(header, row)) for row in self.sheets["survey"][1:]]
+        nd01 = openpyxl.load_workbook(self.script.ND01, read_only=True)
+        _, nd01_rows = self.script._rows(nd01["survey"])
+        nd01_orders = sorted(row["order"] for row in nd01_rows if isinstance(row.get("order"), int))
+        added = {row["name"] for row in self.added}
+        self.assertIn("dob_precision", added)
+        by_name = {row["name"]: row for row in rows}
+        new_orders = [row["order"] for row in rows if row["name"] in added]
+        self.assertEqual(len(new_orders), 19)
+        self.assertEqual(len(set(new_orders)), 19)
+        for row in rows:
+            with self.subTest(row["name"]):
+                if row["name"] not in added:
+                    self.assertEqual(row["order"], self.script._row_named(nd01_rows, row["name"])["order"])
+                    continue
+                self.assertIsInstance(row["order"], str)
+                self.assertTrue(row["agegroup"])
+        # Each block's rows sort, in insertion order, between the ND01 order
+        # they follow and the next ND01 order.
+        for block in self.blocks:
+            if not block["survey"]:
+                continue
+            with self.subTest(block["id"]):
+                anchor = self.script._anchor_order(block, nd01_rows)
+                following = min(order for order in nd01_orders if order > anchor)
+                orders = [float(by_name[entry["name"]]["order"]) for entry in block["survey"]]
+                self.assertEqual(orders, sorted(orders))
+                self.assertTrue(all(anchor < order < following for order in orders))
+        self.assertEqual(by_name["dob_year"]["order"], "30.3")
+        self.assertEqual(by_name["Id10366_confirm"]["order"], "418.1")
+        self.assertEqual(by_name["doris_surgery_performed"]["order"], "479.1")
+        expected = {
+            "Id10366_confirm": "N_C",
+            "doris_hours_survived": "N",
+            "doris_pregnancy_weeks": "N_C",
+            "doris_mother_age": "N_C",
+        }
+        # The cell is the extension's ageGroup (carried in the generated rows).
+        for entry in self.added:
+            with self.subTest(f"agegroup {entry['name']}"):
+                self.assertEqual(by_name[entry["name"]]["agegroup"], entry["agegroup"])
+                self.assertEqual(entry["agegroup"], expected.get(entry["name"], "ALL"))
+
+    def test_more_than_nine_rows_after_one_anchor_get_two_digit_suffixes(self):
+        block = {"id": "X", "odk": {"after": "Id10021"}, "change": [],
+                 "survey": [{"name": f"q{n}"} for n in range(10)]}
+        nd01 = openpyxl.load_workbook(self.script.ND01, read_only=True)
+        _, nd01_rows = self.script._rows(nd01["survey"])
+        orders = self.script._new_orders([block], nd01_rows)
+        self.assertEqual((orders["q0"], orders["q9"]), ("30.01", "30.10"))
+
     def test_a7_goes_after_the_group_end_and_the_order_is_bottom_up(self):
         self.assertIn("after the `end group` of `health_service_utilization`", self.markdown)
         self.assertIn("bottom-up (A8, A7, A4, A2, A5, A10, A9, A6, A3, A1)", self.markdown)

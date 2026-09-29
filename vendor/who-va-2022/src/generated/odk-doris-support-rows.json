@@ -27,6 +27,7 @@
       "status": "agreed for deployment",
       "survey": [
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -38,6 +39,7 @@
           "type": "select_one dob_precision"
         },
         {
+          "agegroup": "ALL",
           "appearance": "month-year",
           "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
           "constraint_message": "Cannot be in the future or after the death",
@@ -49,6 +51,7 @@
           "type": "date"
         },
         {
+          "agegroup": "ALL",
           "appearance": "year",
           "constraint": ". <= today() and . >= date('1900-01-01')",
           "constraint_message": "Cannot be in the future",
@@ -81,6 +84,7 @@
       "status": "agreed for deployment",
       "survey": [
         {
+          "agegroup": "N_C",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -105,6 +109,7 @@
       "status": "agreed for deployment",
       "survey": [
         {
+          "agegroup": "N",
           "appearance": "",
           "constraint": "(. >= 0 and . <= 23) or . = 88 or . = 99",
           "constraint_message": "Enter 0 to 23 hours",
@@ -128,6 +133,7 @@
       "status": "proposed",
       "survey": [
         {
+          "agegroup": "N_C",
           "appearance": "",
           "constraint": "(. >= 8 and . <= 48) or . = 88 or . = 99",
           "constraint_message": "Enter 8 to 48 weeks",
@@ -151,6 +157,7 @@
       "status": "proposed",
       "survey": [
         {
+          "agegroup": "N_C",
           "appearance": "",
           "constraint": "(. >= 10 and . <= 60) or . = 88 or . = 99",
           "constraint_message": "Enter 10 to 60 years",
@@ -261,6 +268,7 @@
       "status": "proposed",
       "survey": [
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -272,6 +280,7 @@
           "type": "select_one injury_date_known"
         },
         {
+          "agegroup": "ALL",
           "appearance": "no-calendar",
           "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
           "constraint_message": "Cannot be after the death",
@@ -283,6 +292,7 @@
           "type": "date"
         },
         {
+          "agegroup": "ALL",
           "appearance": "month-year",
           "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
           "constraint_message": "Cannot be after the death",
@@ -294,6 +304,7 @@
           "type": "date"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -305,6 +316,7 @@
           "type": "select_one injury_place"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -370,6 +382,7 @@
       "status": "proposed",
       "survey": [
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -381,6 +394,7 @@
           "type": "select_one YES_NO_DK_REF"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": ". >= 0 or . = 88 or . = 99",
           "constraint_message": "Enter a number, 88 if refused or 99 if not known",
@@ -392,6 +406,7 @@
           "type": "integer"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -403,6 +418,7 @@
           "type": "select_one time_unit"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -414,6 +430,7 @@
           "type": "text"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -438,6 +455,7 @@
       "status": "proposed",
       "survey": [
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",
@@ -449,6 +467,7 @@
           "type": "select_one YES_NO_DK_REF"
         },
         {
+          "agegroup": "ALL",
           "appearance": "",
           "constraint": "",
           "constraint_message": "",

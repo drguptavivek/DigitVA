@@ -14,7 +14,10 @@ Columns and row numbers come from the ND01 workbook
 (docs/kb/WHO_VA_2022_Docs/ND01_ICMRVA_WHOVA2022.xlsx): the ``survey`` and
 ``choices`` sheets use ND01's own header, in ND01's order, so a block pastes
 straight in; a changed WHO row is ND01's row with only the changed cells
-replaced. A choice list ND01 already has is not repeated. Fails if an
+replaced. A choice list ND01 already has is not repeated. An added row's
+``agegroup`` is its question's ``ageGroup``; its ``order`` is text, the
+order of the ND01 row it follows plus ``.1``, ``.2``... (``.01`` when more
+than nine rows share that order), so WHO's orders stay unchanged. Fails if an
 anchor or a changed row is missing from ND01, or if ND01 has a list of the
 same name with other values.
 
@@ -95,6 +98,30 @@ def _anchor_row(block: dict, rows: list[dict]) -> int:
     return max(_row_named(rows, change["name"])["_row"] for change in block["change"])
 
 
+def _anchor_order(block: dict, rows: list[dict]):
+    """The ``order`` of a block's anchor row, or of the nearest ND01 row above it that has one."""
+    anchor = _anchor_row(block, rows)
+    for values in reversed(rows):
+        if values["_row"] <= anchor and values.get("order") not in (None, ""):
+            return values["order"]
+    raise SystemExit(f"{block['id']}: no ND01 row at or above row {anchor} has an order")
+
+
+def _new_orders(blocks: list[dict], rows: list[dict]) -> dict[str, str]:
+    """Each added row's ``order``: its anchor's order plus a suffix in insertion order."""
+    by_base: dict[str, list[str]] = {}
+    for block in blocks:
+        if block["survey"]:
+            base = str(_anchor_order(block, rows))
+            by_base.setdefault(base, []).extend(entry["name"] for entry in block["survey"])
+    orders = {}
+    for base, names in by_base.items():
+        width = 2 if len(names) > 9 else 1
+        for number, name in enumerate(names, start=1):
+            orders[name] = f"{base}.{number:0{width}d}"
+    return orders
+
+
 def _position(block: dict, rows: list[dict]) -> str:
     odk = block["odk"]
     if "afterGroupEnd" in odk:
@@ -120,7 +147,7 @@ def render(blocks: list[dict], nd01) -> tuple[str, dict[str, list[list]]]:
     """The Markdown text and each sheet's rows (header first) for ``blocks``."""
     survey_header, survey_rows = _rows(nd01["survey"])
     choices_header, choice_rows = _rows(nd01["choices"])
-    for column in ("type", "name", LABEL, HINT, "required", "appearance", "constraint", "constraint_message", "relevant"):
+    for column in ("order", "agegroup", "type", "name", LABEL, HINT, "required", "appearance", "constraint", "constraint_message", "relevant"):
         if column not in survey_header:
             raise SystemExit(f"ND01 survey has no column {column}")
     nd01_lists: dict[str, list[str]] = {}
@@ -128,6 +155,7 @@ def render(blocks: list[dict], nd01) -> tuple[str, dict[str, list[list]]]:
         if values.get("list_name"):
             nd01_lists.setdefault(values["list_name"], []).append(str(values.get("name")))
 
+    orders = _new_orders(blocks, survey_rows)
     survey = [survey_header]
     choices = [choices_header]
     notes = [["block", "status", "survey rows", "choices rows", "what to do in ND01"]]
@@ -146,6 +174,7 @@ def render(blocks: list[dict], nd01) -> tuple[str, dict[str, list[list]]]:
             steps.append(f"add {', '.join(f'`{name}`' for name in added)} {_position(block, survey_rows)}")
             for entry in block["survey"]:
                 row = {COLUMN.get(key, key): value for key, value in entry.items()}
+                row["order"] = orders[entry["name"]]
                 survey.append([row.get(key) or None for key in survey_header])
                 md_rows.append(row)
         last = len(survey)
@@ -164,7 +193,8 @@ def render(blocks: list[dict], nd01) -> tuple[str, dict[str, list[list]]]:
     order_note = (
         "ND01 row numbers are those of the unmodified workbook: apply the blocks bottom-up "
         f"({bottom_up}) so the numbers stay valid. Add the choices at the end of the choices "
-        "sheet. Hindi and other label columns follow each workbook's languages. Bump "
+        "sheet. An added row's order is its ND01 anchor's order plus .1, .2... (text, so WHO's "
+        "orders stay unchanged). Hindi and other label columns follow each workbook's languages. Bump "
         "settings.version before deploying."
     )
     notes.append([])
@@ -193,7 +223,7 @@ def _cell(column: str, value) -> str:
     return f"`{text}`" if column in ("relevant", "constraint") else text.replace("|", "\\|")
 
 
-MD_COLUMNS = ("type", "name", LABEL, "relevant", "constraint", "constraint_message", "required", "appearance")
+MD_COLUMNS = ("order", "agegroup", "type", "name", LABEL, "relevant", "constraint", "constraint_message", "required", "appearance")
 
 
 def _markdown(blocks, order_note: str) -> str:

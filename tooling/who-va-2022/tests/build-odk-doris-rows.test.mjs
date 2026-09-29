@@ -40,6 +40,7 @@ test("a question becomes one XLSForm row, expressions passed through as written"
     sourceType: "date",
     control: "date",
     label: { en: "On what date?" },
+    ageGroup: "ALL",
     hint: {},
     required: false,
     appearance: "no-calendar",
@@ -50,6 +51,7 @@ test("a question becomes one XLSForm row, expressions passed through as written"
   assert.deepEqual(row, {
     type: "date",
     name: "doris_injury_date",
+    agegroup: "ALL",
     label: "On what date?",
     hint: "",
     required: "",
@@ -88,6 +90,19 @@ test("the extension's own text questions are XLSForm text; anything else unmappe
   );
 });
 
+test("a question without an age group is refused", () => {
+  assert.throws(
+    () =>
+      surveyRow({
+        name: "q",
+        sourceType: "integer",
+        control: "integer",
+        label: { en: "q" },
+      }),
+    /no ageGroup/,
+  );
+});
+
 test("a WHO change becomes the XLSForm cells it replaces", () => {
   assert.deepEqual(changedCells({ required: true }), { required: "yes" });
   assert.deepEqual(
@@ -107,6 +122,7 @@ test("a block with questions but no ND01 position is refused; a shared list is e
     label: { en: name },
     listName: "YES_NO_DK_REF",
     choices: [{ value: "yes", label: { en: "Yes" } }],
+    ageGroup: "ALL",
   });
   assert.throws(
     () =>
@@ -151,7 +167,21 @@ test("the committed rows carry all of Annex A from the extension", () => {
     doc.blocks.map((block) => block.id),
     ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"],
   );
-  assert.equal(doc.blocks.flatMap((block) => block.survey).length, 19);
+  const added = doc.blocks.flatMap((block) => block.survey);
+  assert.equal(added.length, 19);
+  assert.deepEqual(
+    Object.fromEntries(
+      added
+        .filter((row) => row.agegroup !== "ALL")
+        .map((row) => [row.name, row.agegroup]),
+    ),
+    {
+      Id10366_confirm: "N_C",
+      doris_hours_survived: "N",
+      doris_pregnancy_weeks: "N_C",
+      doris_mother_age: "N_C",
+    },
+  );
   const a7 = doc.blocks.find((block) => block.id === "A7");
   assert.equal(a7.odk.afterGroupEnd, "health_service_utilization");
   assert.deepEqual(

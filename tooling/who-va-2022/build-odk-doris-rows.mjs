@@ -69,11 +69,17 @@ export function xlsformType(question) {
   return "text";
 }
 
-/** One survey row, in XLSForm column names (English label and hint). */
+/**
+ * One survey row, in XLSForm column names (English label and hint). The
+ * `agegroup` cell is the question's WHO `ageGroup`; `order` is added from
+ * ND01 by build_odk_doris_rows.py.
+ */
 export function surveyRow(question) {
+  if (!question.ageGroup) throw new Error(`${question.name}: no ageGroup`);
   return {
     type: xlsformType(question),
     name: question.name,
+    agegroup: question.ageGroup,
     label: question.label?.en ?? "",
     hint: question.hint?.en ?? "",
     required: question.required ? "yes" : "",

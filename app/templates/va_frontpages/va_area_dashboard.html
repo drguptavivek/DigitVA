@@ -31,6 +31,15 @@
     <ol class="breadcrumb small mb-2" id="area-breadcrumb"></ol>
   </nav>
 
+  <div id="area-card" class="mb-3 d-none">
+    <h6 class="mb-2">Project overview <span class="text-muted small fw-normal">(live, whole project)</span></h6>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-2" id="area-card-tiles"></div>
+    <p class="text-muted small mb-0 mt-2">
+      Coded and not codeable here follow the final cause-of-death authority,
+      so they can differ from the coding columns below.
+    </p>
+  </div>
+
   <div class="small text-muted mb-2 d-none" id="area-freshness">
     <span id="area-snapshot-label"></span>
     <span class="mx-2">|</span>
@@ -82,6 +91,17 @@ document.addEventListener("DOMContentLoaded", function () {
     "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other"
   ];
   var BORDERED = { total_submissions: true, awaiting_coding: true };
+  var CARD_TILES = [
+    ["total_submissions", "Submitted", function (c) { return c.total_submissions; }],
+    ["total_coded", "Final cause of death", function (c) { return c.total_coded; }, true],
+    ["total_not_codeable", "Not codeable", function (c) { return c.total_not_codeable; }, true],
+    ["pending_or_active", "Awaiting or in coding", function (c) { return c.current_state_kpis.pending_or_active; }],
+    ["reviewer_eligible", "Coded, open to review", function (c) { return c.current_state_kpis.reviewer_eligible; }],
+    ["reviewer_finalized", "Reviewer finalized", function (c) { return c.current_state_kpis.reviewer_finalized; }],
+    ["upstream_changed", "Changed in ODK after coding", function (c) { return c.current_state_kpis.upstream_changed; }],
+    ["coder_authority", "Final by coder", function (c) { return c.authority_kpis.coder_authority; }],
+    ["reviewer_authority", "Final by reviewer", function (c) { return c.authority_kpis.reviewer_authority; }]
+  ];
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -117,8 +137,44 @@ document.addEventListener("DOMContentLoaded", function () {
     errorBox.classList.toggle("d-none", !message);
   }
 
-  function countCell(value, key) {
-    return el("td", "text-end" + (BORDERED[key] ? " border-start" : ""), String(value || 0));
+  // Links are same-origin paths built by the server (url_for); anything else is dropped.
+  function linkOrText(url, text) {
+    if (typeof url !== "string" || url.charAt(0) !== "/" || url.charAt(1) === "/") {
+      return document.createTextNode(text);
+    }
+    var link = el("a", null, text);
+    link.href = url;
+    return link;
+  }
+
+  function countCell(value, key, url) {
+    var cell = el("td", "text-end" + (BORDERED[key] ? " border-start" : ""));
+    cell.appendChild(linkOrText(url, String(value || 0)));
+    return cell;
+  }
+
+  function renderCard(card) {
+    var box = document.getElementById("area-card");
+    var tiles = document.getElementById("area-card-tiles");
+    tiles.replaceChildren();
+    box.classList.toggle("d-none", !card);
+    if (!card) return;
+    var links = card.links || {};
+    CARD_TILES.forEach(function (tile) {
+      var value = tile[2](card) || 0;
+      var body = el("div", "border rounded p-2 h-100");
+      var number = el("div", "fs-5 fw-semibold");
+      number.appendChild(linkOrText(links[tile[0]], String(value)));
+      if (tile[3] && card.total_submissions) {
+        number.appendChild(el("span", "text-muted small fw-normal ms-1",
+          "(" + Math.round(100 * value / card.total_submissions) + "%)"));
+      }
+      body.appendChild(number);
+      body.appendChild(el("div", "text-muted small", tile[1]));
+      var col = el("div", "col");
+      col.appendChild(body);
+      tiles.appendChild(col);
+    });
   }
 
   function renderBreadcrumb(data) {
@@ -186,7 +242,7 @@ document.addEventListener("DOMContentLoaded", function () {
       tr.appendChild(nameCell);
       COLUMNS.forEach(function (key) {
         totals[key] = (totals[key] || 0) + (row.counts[key] || 0);
-        tr.appendChild(countCell(row.counts[key], key));
+        tr.appendChild(countCell(row.counts[key], key, (row.links || {})[key]));
       });
       rowsBody.appendChild(tr);
     });
@@ -214,12 +270,14 @@ document.addEventListener("DOMContentLoaded", function () {
     getJson(root.dataset.summaryUrl + "?" + params.toString())
       .then(function (data) {
         renderBreadcrumb(data);
+        renderCard(data.project_card);
         renderRows(data);
         renderFreshness(data.freshness);
       })
       .catch(function (error) {
         rowsBody.replaceChildren();
         totalFoot.replaceChildren();
+        renderCard(null);
         showError(error.message === "not_found"
           ? "That area is not available to you."
           : "Could not load the area counts. Try again shortly.");

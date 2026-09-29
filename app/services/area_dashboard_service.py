@@ -28,6 +28,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MasOrgUnit,
+    VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
     VaProjectSites,
@@ -38,11 +39,17 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services import org_grant_service
+from app.services.sitepi_reporting_service import get_project_workflow_kpis
 from app.services.submission_analytics_mv import (
     AREA_BREAKDOWN_KEYS,
     get_area_site_stats_from_mv,
     get_area_unrouted_stats_from_mv,
     get_dm_org_unit_stats_from_mv,
+)
+from app.services.workflow.definition import (
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
 )
 
 DRAFT_STATUS_IN_PROGRESS = "draft"
@@ -75,39 +82,56 @@ class AreaScope:
 # ---------------------------------------------------------------------------
 
 
+def _granted_project_rows(user):
+    """Subquery of (project_id, role) for each active non-global grant of *user*.
+
+    Unit grants carry no project_id, so the project comes from the grant, its
+    project-site or its unit, whichever the scope has.
+    """
+    grant_project = sa.func.coalesce(
+        VaUserAccessGrants.project_id, VaProjectSites.project_id, MasOrgUnit.project_id
+    )
+    return (
+        sa.select(grant_project.label("project_id"), VaUserAccessGrants.role)
+        .select_from(VaUserAccessGrants)
+        .outerjoin(
+            VaProjectSites,
+            VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
+        )
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .where(
+            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.scope_type != VaAccessScopeTypes.global_scope,
+        )
+        .subquery()
+    )
+
+
 def candidate_projects(user) -> list[tuple[str, str]]:
     """(project_id, project_name) of every active project the user holds any grant on.
 
-    One query. Unit grants carry no project_id, so the project comes from the
-    grant, its project-site or its unit, whichever the scope has. Admins get
-    every active project.
+    One query. Admins get every active project.
     """
     active = VaProjectMaster.project_status == VaStatuses.active
     if user.is_admin():
         stmt = sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name).where(active)
     else:
-        grant_project = sa.func.coalesce(
-            VaUserAccessGrants.project_id, VaProjectSites.project_id, MasOrgUnit.project_id
-        )
-        granted = (
-            sa.select(grant_project.label("project_id"))
-            .select_from(VaUserAccessGrants)
-            .outerjoin(
-                VaProjectSites,
-                VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
-            )
-            .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
-            .where(
-                VaUserAccessGrants.user_id == user.user_id,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                VaUserAccessGrants.scope_type != VaAccessScopeTypes.global_scope,
-            )
-            .subquery()
-        )
+        granted = _granted_project_rows(user)
         stmt = sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name).where(
             active, VaProjectMaster.project_id.in_(sa.select(granted.c.project_id))
         )
     return [tuple(row) for row in db.session.execute(stmt.order_by(VaProjectMaster.project_id))]
+
+
+def _project_roles(user, project_id: str) -> set[VaAccessRoles]:
+    """Roles the user holds on *project_id* through any active grant, in one query."""
+    granted = _granted_project_rows(user)
+    return set(
+        db.session.scalars(
+            sa.select(granted.c.role).where(granted.c.project_id == project_id).distinct()
+        )
+    )
 
 
 def _sites_mode_site_ids(user, project_id: str) -> frozenset | None:
@@ -364,8 +388,12 @@ def _unrouted_row(scope: AreaScope) -> dict:
     }
 
 
-def _site_rows(scope: AreaScope, site_id: str | None) -> list[dict]:
-    """Per-site rows for a sites-mode project: every in-scope active site."""
+def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[dict]:
+    """Per-site rows for a sites-mode project: every in-scope active site.
+
+    With *dm_links*, each row's submitted count links to the data manager
+    dashboard filtered to that project and site.
+    """
     where = [
         VaProjectSites.project_id == scope.project_id,
         VaProjectSites.project_site_status == VaStatuses.active,
@@ -402,9 +430,96 @@ def _site_rows(scope: AreaScope, site_id: str | None) -> list[dict]:
             "name": row.site_name,
             "has_children": False,
             "counts": _counts(stats.get(row.site_id), drafts.get(row.site_id, 0)),
+            "links": (
+                {"total_submissions": _dm_link(project=scope.project_id, site=row.site_id)}
+                if dm_links
+                else {}
+            ),
         }
         for row in sites
     ]
+
+
+# ---------------------------------------------------------------------------
+# Project card and links
+# ---------------------------------------------------------------------------
+
+SCREEN_DATA_MANAGEMENT = "data_management.dashboard"
+SCREEN_CODING = "coding.dashboard"
+SCREEN_INTAKE = "intake.dashboard"
+
+# Every filter the data manager page reads from its URL
+# (loadStateFromUrl in app/static/js/data_manager_dashboard.js). A link sends
+# them all, blank unless set, because the page overlays URL values on the
+# filters it saved in the browser; a stale saved filter would otherwise make
+# the landing count disagree with the count that was clicked.
+DM_URL_FILTERS = (
+    "search", "project", "site", "date_from", "date_to", "odk_status",
+    "smartva", "age_group", "gender", "odk_sync", "workflow",
+)
+
+# Card counts that equal one data manager workflow filter exactly. The DM
+# groups (pending_coding, coded) do not match the card's pending or coded
+# definitions, so those counts get no data manager link.
+_DM_WORKFLOW_FILTERS = {
+    "reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
+    "reviewer_finalized": WORKFLOW_REVIEWER_FINALIZED,
+    "upstream_changed": WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+}
+
+
+def _dm_link(**filters) -> dict:
+    return {
+        "endpoint": SCREEN_DATA_MANAGEMENT,
+        "params": {key: filters.get(key, "") for key in DM_URL_FILTERS},
+    }
+
+
+def link_screens(user, project_id: str) -> set[str]:
+    """Screens a count on *project_id* may link to for this user.
+
+    A screen is offered only when the user holds the role that does that
+    work on this project, and passes the target route's own role gate, so a
+    link never leads to a 403: data managers (and admin) the data manager
+    dashboard, coders the coding dashboard, interviewers web intake. The
+    target screens still enforce their own scope on every request.
+    """
+    roles = _project_roles(user, project_id)
+    screens = set()
+    if user.is_admin() or (VaAccessRoles.data_manager in roles and user.is_data_manager()):
+        screens.add(SCREEN_DATA_MANAGEMENT)
+    if VaAccessRoles.coder in roles and user.is_coder():
+        screens.add(SCREEN_CODING)
+    if VaAccessRoles.interviewer in roles and user.is_interviewer():
+        screens.add(SCREEN_INTAKE)
+    return screens
+
+
+def project_card(scope: AreaScope, screens: set[str]) -> dict:
+    """The project-wide operational card: the Site PI KPIs over the whole project.
+
+    Counts only. The coder names and per-submission rows the Site PI page
+    also shows never reach it. ``links`` maps a count key to
+    ``{"endpoint", "params"}`` for the caller to turn into a URL.
+    """
+    kpis = get_project_workflow_kpis(scope.project_id)
+    links = {}
+    if SCREEN_DATA_MANAGEMENT in screens:
+        links["total_submissions"] = _dm_link(project=scope.project_id)
+        for key, state in _DM_WORKFLOW_FILTERS.items():
+            links[key] = _dm_link(project=scope.project_id, workflow=state)
+    elif SCREEN_INTAKE in screens:
+        links["total_submissions"] = {"endpoint": SCREEN_INTAKE, "params": {}}
+    if SCREEN_CODING in screens:
+        links["pending_or_active"] = {"endpoint": SCREEN_CODING, "params": {}}
+    return {
+        "total_submissions": kpis["total_submissions"],
+        "total_coded": kpis["total_coded"],
+        "total_not_codeable": kpis["total_not_codeable"],
+        "current_state_kpis": kpis["current_state_kpis"],
+        "authority_kpis": kpis["authority_kpis"],
+        "links": links,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -468,6 +583,9 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     is the row's whole subtree, counted once. Sites-mode project: one row per
     in-scope site (just *site_id* when given).
 
+    At the project root (no unit, no site) a project-wide scope also gets
+    ``project_card``; it is None otherwise.
+
     Raises AreaNotFound for a project, unit or site outside the user's area.
     """
     scope = resolve_area_scope(user, project_id)
@@ -480,12 +598,19 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
         "project_wide": scope.project_wide,
         "unit": None,
         "breadcrumb": [],
+        "project_card": None,
     }
+    at_root = not unit_id and not site_id
+    screens = link_screens(user, project_id) if at_root or not scope.has_tree else set()
+    if at_root and scope.project_wide:
+        result["project_card"] = project_card(scope, screens)
 
     if not scope.has_tree:
         if unit_id:
             raise AreaNotFound()
-        result["rows"] = _site_rows(scope, site_id or None)
+        result["rows"] = _site_rows(
+            scope, site_id or None, dm_links=SCREEN_DATA_MANAGEMENT in screens
+        )
         return result
 
     if site_id:

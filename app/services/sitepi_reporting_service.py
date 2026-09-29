@@ -48,8 +48,13 @@ _PENDING_STATES = (
 _IN_ODK_SQL = in_odk_sql("s")
 
 
-def get_sitepi_dashboard_data(site_id: str) -> dict:
-    """Return workflow-aware reporting for a Site PI site."""
+def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
+    """Workflow and final-COD authority counts over the forms *scope_sql* selects.
+
+    *scope_sql* is a fixed predicate on ``va_forms f`` written by a caller in
+    this module, never user input; its values travel in *scope_params*. One
+    query. Counts only, no staff or subject identity.
+    """
     kpi_sql = sa.text(
         f"""
         WITH site_submissions AS (
@@ -59,7 +64,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-            WHERE f.site_id = :site_id
+            WHERE {scope_sql}
               AND {_IN_ODK_SQL}
         ),
         authority AS (
@@ -131,7 +136,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
         kpi_sql,
         {
             **IN_ODK_BIND,
-            "site_id": site_id,
+            **scope_params,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "workflow_reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
             "workflow_reviewer_finalized": WORKFLOW_REVIEWER_FINALIZED,
@@ -148,6 +153,55 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             "transition_reviewer_finalized": TRANSITION_REVIEWER_FINALIZED,
         },
     ).mappings().one()
+
+    return {
+        "total_submissions": kpi_row["total_submissions"] or 0,
+        "total_coded": kpi_row["total_authoritative_coded"] or 0,
+        "total_not_codeable": kpi_row["total_not_codeable"] or 0,
+        "current_state_kpis": {
+            "pending_or_active": kpi_row["pending_or_active_submissions"] or 0,
+            "reviewer_eligible": kpi_row["reviewer_eligible_submissions"] or 0,
+            "reviewer_finalized": kpi_row["reviewer_finalized_submissions"] or 0,
+            "post_coder_complete": kpi_row["post_coder_complete_submissions"] or 0,
+            "upstream_changed": kpi_row["upstream_changed_submissions"] or 0,
+        },
+        "authority_kpis": {
+            "coder_authority": kpi_row["coder_authority_submissions"] or 0,
+            "reviewer_authority": kpi_row["reviewer_authority_submissions"] or 0,
+        },
+        "cycle_kpis": {
+            "admin_resets": kpi_row["admin_reset_events"] or 0,
+            "upstream_changes": kpi_row["upstream_change_events"] or 0,
+            "upstream_accepts": kpi_row["upstream_change_accept_events"] or 0,
+            "recode_started": kpi_row["recode_started_events"] or 0,
+            "recode_finalized": kpi_row["recode_finalized_events"] or 0,
+            "reviewer_started": kpi_row["reviewer_started_events"] or 0,
+            "reviewer_finalized": kpi_row["reviewer_finalized_events"] or 0,
+        },
+    }
+
+
+def get_project_workflow_kpis(project_id: str) -> dict:
+    """The Site PI KPIs over a whole project's active project-sites, in one query.
+
+    Used by the area dashboard's project card. Inactive project-sites are
+    left out, as on the data manager dashboard.
+    """
+    return _workflow_kpis(
+        """f.project_id = :project_id
+              AND EXISTS (
+                  SELECT 1 FROM va_project_sites ps
+                  WHERE ps.project_id = f.project_id
+                    AND ps.site_id = f.site_id
+                    AND ps.project_site_status = :project_site_active
+              )""",
+        {"project_id": project_id, "project_site_active": VaStatuses.active.value},
+    )
+
+
+def get_sitepi_dashboard_data(site_id: str) -> dict:
+    """Return workflow-aware reporting for a Site PI site."""
+    kpis = _workflow_kpis("f.site_id = :site_id", {"site_id": site_id})
 
     coder_kpi_sql = sa.text(
         f"""
@@ -287,29 +341,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     ).mappings().all()
 
     return {
-        "total_submissions": kpi_row["total_submissions"] or 0,
-        "total_coded": kpi_row["total_authoritative_coded"] or 0,
-        "total_not_codeable": kpi_row["total_not_codeable"] or 0,
-        "current_state_kpis": {
-            "pending_or_active": kpi_row["pending_or_active_submissions"] or 0,
-            "reviewer_eligible": kpi_row["reviewer_eligible_submissions"] or 0,
-            "reviewer_finalized": kpi_row["reviewer_finalized_submissions"] or 0,
-            "post_coder_complete": kpi_row["post_coder_complete_submissions"] or 0,
-            "upstream_changed": kpi_row["upstream_changed_submissions"] or 0,
-        },
-        "authority_kpis": {
-            "coder_authority": kpi_row["coder_authority_submissions"] or 0,
-            "reviewer_authority": kpi_row["reviewer_authority_submissions"] or 0,
-        },
-        "cycle_kpis": {
-            "admin_resets": kpi_row["admin_reset_events"] or 0,
-            "upstream_changes": kpi_row["upstream_change_events"] or 0,
-            "upstream_accepts": kpi_row["upstream_change_accept_events"] or 0,
-            "recode_started": kpi_row["recode_started_events"] or 0,
-            "recode_finalized": kpi_row["recode_finalized_events"] or 0,
-            "reviewer_started": kpi_row["reviewer_started_events"] or 0,
-            "reviewer_finalized": kpi_row["reviewer_finalized_events"] or 0,
-        },
+        **kpis,
         "coder_kpis": list(coder_rows),
         "submission_rows": list(submission_rows),
     }

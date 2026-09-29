@@ -506,3 +506,110 @@ class AreaSummaryTests(AreaDashboardFixture):
         self.assertNotIn(self.SITE_TWO, rows)
         with self.assertRaises(area.AreaNotFound):
             area.area_summary(self.sites_mode_site_user, self.SITES, site_id=self.SITE_TWO)
+
+
+class AreaProjectCardTests(AreaDashboardFixture):
+    """Project card at the root of a project-wide scope, and count links.
+
+    Card numbers are the Site PI KPIs (sitepi_reporting_service): a
+    submission with no workflow row counts as pending there, and coded means
+    a final-COD authority row, of which this fixture has none.
+    """
+
+    def _screen_endpoints(self, links):
+        return {key: link["endpoint"] for key, link in links.items()}
+
+    def test_project_wide_root_card_matches_fixture_and_reconciles(self):
+        summary = area.area_summary(self.project_user, self.TREE)
+        card = summary["project_card"]
+        self.assertIsNotNone(card)
+        self.assertEqual(card["total_submissions"], 7)
+        self.assertEqual(card["current_state_kpis"]["pending_or_active"], 4)
+        self.assertEqual(card["total_not_codeable"], 1)
+        self.assertEqual(card["total_coded"], 0)
+        self.assertEqual(card["authority_kpis"], {"coder_authority": 0, "reviewer_authority": 0})
+        self.assertEqual(
+            sum(row["counts"]["total_submissions"] for row in summary["rows"]),
+            card["total_submissions"],
+        )
+        self.assertNotIn("coder_kpis", card)
+        self.assertNotIn("submission_rows", card)
+
+    def test_sites_mode_project_card(self):
+        card = area.area_summary(self.base_admin_user, self.SITES)["project_card"]
+        self.assertIsNotNone(card)
+        self.assertEqual(card["total_submissions"], 3)
+        self.assertEqual(card["current_state_kpis"]["reviewer_finalized"], 1)
+        self.assertEqual(card["current_state_kpis"]["pending_or_active"], 1)
+        # consent_refused is not "not codeable" in the Site PI KPIs.
+        self.assertEqual(card["total_not_codeable"], 0)
+
+    def test_no_card_for_unit_scope_or_below_the_root(self):
+        self.assertIsNotNone(area.area_summary(self.project_user, self.TREE)["project_card"])
+        unit_root = area.area_summary(self.unit_user, self.TREE)
+        self.assertTrue(unit_root["rows"])
+        self.assertIsNone(unit_root["project_card"])
+        drilled = area.area_summary(
+            self.project_user, self.TREE, unit_id=str(self.district_1.org_unit_id)
+        )
+        self.assertTrue(drilled["rows"])
+        self.assertIsNone(drilled["project_card"])
+        one_site = area.area_summary(self.base_admin_user, self.SITES, site_id=self.SITE_ONE)
+        self.assertTrue(one_site["rows"])
+        self.assertIsNone(one_site["project_card"])
+        site_scoped = area.area_summary(self.sites_mode_site_user, self.SITES)
+        self.assertTrue(site_scoped["rows"])
+        self.assertIsNone(site_scoped["project_card"])
+
+    def test_data_manager_gets_data_manager_links_only(self):
+        links = area.area_summary(self.project_user, self.TREE)["project_card"]["links"]
+        self.assertEqual(
+            self._screen_endpoints(links),
+            {
+                key: area.SCREEN_DATA_MANAGEMENT
+                for key in ("total_submissions", "reviewer_eligible",
+                            "reviewer_finalized", "upstream_changed")
+            },
+        )
+        self.assertEqual(links["total_submissions"]["params"]["project"], self.TREE)
+        self.assertEqual(links["total_submissions"]["params"]["workflow"], "")
+        self.assertEqual(links["reviewer_eligible"]["params"]["workflow"], "reviewer_eligible")
+        self.assertEqual(set(links["reviewer_eligible"]["params"]), set(area.DM_URL_FILTERS))
+
+    def test_reviewer_site_grant_gets_card_without_links(self):
+        card = area.area_summary(self.site_user, self.TREE)["project_card"]
+        self.assertIsNotNone(card)
+        self.assertEqual(card["links"], {})
+
+    def test_project_coder_gets_coding_link(self):
+        user = self._get_or_make_user("area.card.coder@test.local", "AreaUser123")
+        self._grant(user, VaAccessRoles.coder, VaAccessScopeTypes.project, project_id=self.TREE)
+        links = area.area_summary(user, self.TREE)["project_card"]["links"]
+        self.assertEqual(self._screen_endpoints(links), {"pending_or_active": area.SCREEN_CODING})
+
+    def test_project_interviewer_gets_intake_link(self):
+        user = self._get_or_make_user("area.card.intake@test.local", "AreaUser123")
+        self._grant(user, VaAccessRoles.interviewer, VaAccessScopeTypes.project,
+                    project_id=self.TREE)
+        links = area.area_summary(user, self.TREE)["project_card"]["links"]
+        self.assertEqual(self._screen_endpoints(links), {"total_submissions": area.SCREEN_INTAKE})
+
+    def test_role_on_another_project_gives_no_link(self):
+        """Coder on the sites project, data manager on the tree: no coding link on the tree."""
+        user = self._get_or_make_user("area.card.cross@test.local", "AreaUser123")
+        self._grant(user, VaAccessRoles.data_manager, VaAccessScopeTypes.project,
+                    project_id=self.TREE)
+        self._grant(user, VaAccessRoles.coder, VaAccessScopeTypes.project, project_id=self.SITES)
+        self.assertIn(area.SCREEN_CODING, area.link_screens(user, self.SITES))
+        links = area.area_summary(user, self.TREE)["project_card"]["links"]
+        self.assertIn("total_submissions", links)
+        self.assertNotIn("pending_or_active", links)
+
+    def test_sites_mode_rows_link_to_site_filter_for_data_managers_only(self):
+        rows = self._by_key(area.area_summary(self.base_admin_user, self.SITES))
+        link = rows[self.SITE_ONE]["links"]["total_submissions"]
+        self.assertEqual(link["endpoint"], area.SCREEN_DATA_MANAGEMENT)
+        self.assertEqual((link["params"]["project"], link["params"]["site"]), (self.SITES, self.SITE_ONE))
+        site_pi_rows = self._by_key(area.area_summary(self.sites_mode_site_user, self.SITES))
+        self.assertIn(self.SITE_ONE, site_pi_rows)
+        self.assertEqual(site_pi_rows[self.SITE_ONE]["links"], {})

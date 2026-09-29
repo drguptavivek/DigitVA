@@ -48,8 +48,23 @@ code or open a case there.
 ## What it shows
 
 Counts only. No case lists, no subject data, no names on the first slice.
-Links from a count to the screen the user's role already has for that work
-come later (`digitva-stc.3`).
+A count links to the screen the user's role already has for that work, only
+when the user holds that role on the project and that screen admits them
+(`digitva-stc.3`):
+
+- data manager (and admin): the data manager dashboard, filtered to the
+  project, and to the site or workflow state where the count is exactly
+  that filter;
+- coder: the coding dashboard, from the awaiting-or-in-coding count;
+- interviewer: web intake, from the submitted count.
+
+No link otherwise. Links carry project, site and workflow codes only, never
+subject or staff data. Collaborators also reach the data manager dashboard
+but get no link yet (open owner decision). The link test is the role on the
+project, not that role's reach: a data manager on one site of a project the
+user sees whole through another role gets a link whose landing page shows
+only their site. The target screen enforces its own scope, so this can
+show a smaller number, never more data.
 
 Retired submissions and inactive project-sites are left out, as on the data
 manager dashboard.
@@ -76,6 +91,24 @@ outcomes (started, incomplete, refused) join this page when those exist.
 **Unrouted submissions** (no org unit) fall outside every subtree, so child
 rows do not sum to the project total. Users with a project-wide scope see an
 "Unrouted" row at the project root so the totals reconcile.
+
+### Project cards
+
+At the project root, a user whose scope is project-wide (admin, project PI,
+a project grant, or a site grant on an organization project, and a project
+grant on a sites-mode project) also sees the project's operational card: the
+Site PI KPIs computed once over the whole project's active sites
+(`sitepi_reporting_service.get_project_workflow_kpis`). It shows submitted,
+coded (a final cause of death holds authority, `final-cod-authority.md`),
+not codeable, awaiting or in coding, coded and open to review, reviewer
+finalized, changed in ODK after coding, and final COD by coder and by
+reviewer; coded and not codeable also as a share of submitted. The card is
+live. Its definitions are the Site PI's, so its coded and not codeable
+differ from the table's coding buckets (the table counts coder-finalized as
+coded and consent refused as not codeable; the card uses authority rows and
+the two not-codeable states). No staff or subject identity. No coding
+turnaround yet: the data holds no cheap submission-to-final-COD pair on this
+path. Unit-scoped users see no card.
 
 **Freshness.** Snapshot counts carry the finish time of the last recorded
 snapshot refresh (hourly; an ad-hoc refresh records no run, so the time is a

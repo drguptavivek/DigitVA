@@ -4,12 +4,13 @@ Read-only GETs, so no CSRF surface. Gated by ``login_required`` rather than a
 role list on purpose: any grant of any role opens an area, and a user with no
 grant gets an empty project list, not an error (docs/policy/area-dashboard.md).
 A project, unit or site outside the user's area is a 404, never a 403, so its
-existence does not leak. Counts only: no case lists, subject data or names.
+existence does not leak. Counts only: no case lists, subject data or names;
+links go only to screens the user's role already has.
 """
 
 from datetime import UTC, datetime
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
 
 from app import limiter
@@ -26,6 +27,12 @@ def _param(name: str) -> str:
 
 def _display_time(value) -> str | None:
     return current_app.jinja_env.filters["user_timezone"](value, "%Y-%m-%d %H:%M") or None
+
+
+def _link_urls(links: dict) -> dict:
+    """Count key -> URL. Endpoints come from the service's fixed screen list;
+    params are project, site and workflow codes only, never subject data."""
+    return {key: url_for(link["endpoint"], **link["params"]) for key, link in links.items()}
 
 
 @bp.get("/projects")
@@ -50,6 +57,12 @@ def summary():
         )
     except area.AreaNotFound:
         return jsonify({"error": "Not found."}), 404
+
+    if result["project_card"]:
+        result["project_card"]["links"] = _link_urls(result["project_card"]["links"])
+    for row in result["rows"]:
+        if row.get("links"):
+            row["links"] = _link_urls(row["links"])
 
     refreshed_at = area.snapshot_refreshed_at()
     result["freshness"] = {

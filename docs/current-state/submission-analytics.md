@@ -229,6 +229,25 @@ counts for the part of a project a user holds a grant for
   `analytics_mv` run in `va_sync_runs`. Ad-hoc refreshes from the data
   manager and analytics screens are not recorded there, so the label is a
   lower bound. Both labels are formatted in the user's timezone.
+- Project card (`project_card` in the summary, null otherwise): only at the
+  project root (no unit, no site) for a project-wide scope. Live, not from
+  the MV: `sitepi_reporting_service.get_project_workflow_kpis`, the Site PI
+  KPI query run once over the project's active project-sites (totals, final
+  COD authority coded, not codeable, workflow-state and authority counts;
+  the Site PI page's coder names and per-submission rows are not passed on).
+  Its coded and not-codeable follow the Site PI definitions, so they differ
+  from the table's coding buckets. No turnaround figure: the only
+  submission-to-final-COD pair is in the COD snapshot MV, which is not
+  guaranteed to exist and is not on this path.
+- Links (`links` on the card and on sites-mode rows, count key -> URL):
+  `area_dashboard_service.link_screens` offers a screen only when the user
+  holds that role on the project (one grant query) and passes the target
+  route's own role gate. Data manager or admin: `/data-management/` with
+  every URL filter it reads, blank unless set (project; site on site rows;
+  `workflow` only for the three card counts equal to one workflow state).
+  Coder: `/coding/` on the pending count. Interviewer (without data
+  manager): `/intake/` on the submitted count. URLs carry project, site and
+  workflow codes only.
 
 Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.

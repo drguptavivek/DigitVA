@@ -4,6 +4,9 @@ Routes: app/routes/area.py, app/routes/api/area.py. Fixture and scope rules:
 tests/services/test_area_dashboard_service.py. GET only: posting to these
 routes would 405 and trip the IP ban. Policy: docs/policy/area-dashboard.md.
 """
+from urllib.parse import parse_qs, urlsplit
+
+from app.services import area_dashboard_service as area
 from tests.services.test_area_dashboard_service import AreaDashboardFixture
 
 PAGE = "/area/"
@@ -66,6 +69,35 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
             {"project": "NOPE01"},
         ):
             self.assertEqual(self.client.get(SUMMARY, query_string=params).status_code, 404, params)
+
+    def test_project_card_links_are_data_manager_urls_without_pii(self):
+        self._as(self.project_user)
+        body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
+        card = body["project_card"]
+        self.assertIsNotNone(card)
+        self.assertEqual(card["total_submissions"], 7)
+        url = urlsplit(card["links"]["reviewer_eligible"])
+        self.assertEqual(url.path, "/data-management/")
+        query = parse_qs(url.query, keep_blank_values=True)
+        self.assertTrue(set(query) <= set(area.DM_URL_FILTERS))
+        self.assertEqual(query["project"], [self.TREE])
+        self.assertEqual(query["workflow"], ["reviewer_eligible"])
+        self.assertNotIn("pending_or_active", card["links"])
+
+    def test_unit_scoped_user_gets_no_card(self):
+        self._as(self.interviewer)
+        body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
+        self.assertTrue(body["rows"])
+        self.assertIsNone(body["project_card"])
+
+    def test_sites_mode_row_links_carry_site_filter(self):
+        self._as(self.base_admin_user)
+        body = self.client.get(SUMMARY, query_string={"project": self.SITES}).get_json()
+        self.assertIsNotNone(body["project_card"])
+        rows = {row["key"]: row for row in body["rows"]}
+        query = parse_qs(urlsplit(rows[self.SITE_TWO]["links"]["total_submissions"]).query,
+                         keep_blank_values=True)
+        self.assertEqual((query["project"], query["site"]), ([self.SITES], [self.SITE_TWO]))
 
     def test_project_is_required(self):
         self._as(self.unit_user)

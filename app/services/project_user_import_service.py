@@ -22,7 +22,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_languages import MasLanguages
-from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
+from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
@@ -141,8 +141,8 @@ def prepare(project_id, rows, *, is_admin):
             unit = units.get(unit_code) if unit_code else None
             if unit_code and (unit is None or not unit.is_active):
                 raise ProjectUserImportError("unit code is unknown or inactive")
-            if not unit and role == VaAccessRoles.site_pi:
-                raise ProjectUserImportError("site_pi requires an organization unit")
+            if not unit and role in (VaAccessRoles.site_pi, VaAccessRoles.interview_supervisor):
+                raise ProjectUserImportError(f"{role.value} requires an organization unit")
             cadre_code = row["cadre_code"].upper()
             if cadre_code and not unit:
                 raise ProjectUserImportError("cadre requires an organization unit")
@@ -157,8 +157,12 @@ def prepare(project_id, rows, *, is_admin):
                 permission = permissions.get((unit.org_level_id, cadre.cadre_id)) if cadre else None
                 if cadre and (permission is None or not permission.is_active):
                     raise ProjectUserImportError("cadre is not active at this unit's level")
-                if role == VaAccessRoles.coder and (permission is None or not permission.can_code_va_form):
-                    raise ProjectUserImportError("coder needs a cadre permitted to code at this unit's level")
+                if role in CADRE_FLAG_BY_ROLE:
+                    flag, permits = CADRE_FLAG_BY_ROLE[role]
+                    if permission is None or not getattr(permission, flag):
+                        raise ProjectUserImportError(
+                            f"{role.value} needs a cadre permitted to {permits} at this unit's level"
+                        )
             key = (email, role, unit_code)
             if key in seen:
                 raise ProjectUserImportError("duplicate email, role and scope")

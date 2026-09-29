@@ -10,21 +10,37 @@ who may make it, then writes one ``map_case_transitions`` audit row. Flags
 
 Scope is the caller's job: ``team`` transitions trust that the caller already
 confirmed the actor may reach the case (``web_intake_service.get_death``).
+Supervisor-only moves check scope here, through ``is_interview_supervisor_for``
+(digitva-vzk.5).
 This module only decides *which kind* of actor a transition needs.
 """
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.orm import aliased
 
 from app import db
-from app.models import MapCaseTransition, VaDeathRegister, VaUsers
+from app.models import (
+    MapCaseTransition,
+    MasOrgUnit,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaDeathRegister,
+    VaStatuses,
+    VaSubmissionWorkflow,
+    VaUserAccessGrants,
+    VaUsers,
+)
 from app.models.va_web_intake import CASE_FLAGS
+from app.services.org_grant_service import active_project_condition
+from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
 
 __all__ = [
     "WebIntakeError",
     "TRANSITIONS",
     "TERMINAL_STATES",
     "is_interview_supervisor_for",
+    "supervised_case_condition",
     "identity_complete",
     "lock_case",
     "open_case",
@@ -101,16 +117,109 @@ _FLAGGABLE = {
 _REASON_MAX = 200
 
 
-def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
-    """Whether *user* supervises interviews over *case*. Always False for now.
+_SUPERVISING_ROLES = (VaAccessRoles.interview_supervisor, VaAccessRoles.data_manager)
 
-    Fails closed until the ``interview_supervisor`` grant role exists (bead
-    digitva-vzk.5; decision 15 in .tasks/2026-09-28-interviewer-worklist.md):
-    an org-unit grant covering the case's unit subtree, or a ``data_manager``
-    grant in scope, bounded by grant status and closed-project dormancy. Every
-    supervisor-only action in this module asks this one predicate.
+
+def _case_scope_condition(user: VaUsers, roles: tuple[VaAccessRoles, ...]):
+    """SQL condition on ``VaDeathRegister``: the case lies inside *roles*' reach.
+
+    A unit grant of any of *roles* reaches its unit's subtree (same ltree join
+    as ``org_grant_service.scope_unit_ids``, correlated on the case's unit and
+    project); a ``data_manager`` project or project-site grant reaches that
+    whole project or project-site. Active grants, units and projects only
+    (closed-project dormancy via ``active_project_condition``).
     """
-    return False
+    granted = aliased(MasOrgUnit, name="sup_granted_unit")
+    covered = aliased(MasOrgUnit, name="sup_covered_unit")
+    conditions = [
+        sa.exists(
+            sa.select(1)
+            .select_from(VaUserAccessGrants)
+            .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
+            .join(
+                covered,
+                sa.and_(
+                    covered.project_id == granted.project_id,
+                    sa.text("sup_covered_unit.path <@ sup_granted_unit.path"),
+                ),
+            )
+            .where(
+                VaUserAccessGrants.user_id == user.user_id,
+                VaUserAccessGrants.role.in_(roles),
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                granted.is_active.is_(True),
+                covered.is_active.is_(True),
+                active_project_condition(granted.project_id),
+                covered.org_unit_id == VaDeathRegister.org_unit_id,
+                covered.project_id == VaDeathRegister.project_id,
+            )
+        )
+    ]
+    if VaAccessRoles.data_manager in roles:
+        projects = sorted(user.get_data_manager_projects())
+        pairs = sorted(user.get_data_manager_project_sites())
+        if projects:
+            conditions.append(VaDeathRegister.project_id.in_(projects))
+        if pairs:
+            conditions.append(sa.tuple_(VaDeathRegister.project_id, VaDeathRegister.site_id).in_(pairs))
+    return sa.or_(*conditions)
+
+
+def supervised_case_condition(user: VaUsers):
+    """SQL condition on ``VaDeathRegister``: the cases *user* supervises.
+
+    Decisions 15-17 (.tasks/2026-09-28-interviewer-worklist.md): an
+    ``interview_supervisor`` unit grant reaches its unit's subtree on its own
+    (no interviewer grant needed); a ``data_manager`` grant supervises through
+    its own scope. No other role confers supervision. The listing and
+    ``is_interview_supervisor_for`` share this one condition.
+    """
+    return _case_scope_condition(user, _SUPERVISING_ROLES)
+
+
+def _case_matches(case: VaDeathRegister, condition) -> bool:
+    if case.death_id is None:
+        return False
+    return db.session.scalar(
+        sa.select(VaDeathRegister.death_id)
+        .where(VaDeathRegister.death_id == case.death_id, condition)
+        .limit(1)
+    ) is not None
+
+
+def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
+    """Whether *user* supervises interviews over *case* (``supervised_case_condition``).
+
+    Every supervisor-only action in this module asks this one predicate.
+    """
+    return _case_matches(case, supervised_case_condition(user))
+
+
+def _data_manager_covers(user: VaUsers, case: VaDeathRegister) -> bool:
+    return _case_matches(case, _case_scope_condition(user, (VaAccessRoles.data_manager,)))
+
+
+def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
+    """Confirming a duplicate whose submission is already coded (decisions 10, 14).
+
+    "Coded" is the area dashboard's coded bucket (a final COD exists). A
+    submitted case whose workflow row cannot be found counts as coded: the
+    rule fails closed.
+    """
+    if to_state != "duplicate" or case.status != "submitted":
+        return False
+    state = None
+    if case.va_sid:
+        state = db.session.scalar(
+            sa.select(VaSubmissionWorkflow.workflow_state).where(VaSubmissionWorkflow.va_sid == case.va_sid)
+        )
+    return state is None or coding_bucket(state) == CODING_BUCKET_CODED
+
+
+def _may_confirm(actor: VaUsers, case: VaDeathRegister, to_state: str) -> bool:
+    """The data-manager rule on top of supervision; the caller checked supervision."""
+    return not _needs_data_manager(case, to_state) or _data_manager_covers(actor, case)
 
 
 def identity_complete(case: VaDeathRegister) -> bool:
@@ -205,6 +314,11 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     if kind is None:
         raise WebIntakeError(f"A case cannot move from {from_state} to {to_state}.", 409)
     _require_actor(kind, actor, case)
+    if not _may_confirm(actor, case, to_state):
+        raise WebIntakeError(
+            "This case is already coded: only a supervisor who is also its data manager "
+            "may confirm it as a duplicate.", 403
+        )
     if from_state == "draft_identity" and to_state != "cancelled" and not identity_complete(case):
         raise WebIntakeError(
             "Record the name, date of death and sex of the deceased first.", 409
@@ -251,7 +365,10 @@ def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str |
     _audit(case, actor=actor, action=f"flag_{kind}", from_state=case.status,
            to_state=case.status, reason=reason)
     db.session.flush()
-    if is_interview_supervisor_for(actor, case):
+    # A supervisor's own flag is confirmed at once, unless the data-manager
+    # rule stops them: then it waits like an interviewer's flag.
+    target = "duplicate" if kind == "duplicate" else "cancelled"
+    if is_interview_supervisor_for(actor, case) and _may_confirm(actor, case, target):
         resolve_flag(case, actor=actor, confirm=True, reason=reason)
     return case
 

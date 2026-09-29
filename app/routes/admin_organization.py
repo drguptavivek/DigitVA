@@ -441,6 +441,10 @@ def admin_org_upsert_level_cadre(project_id):
             cadre_id=p.get("cadre_id"),
             can_fill_va_form=bool(p.get("can_fill_va_form", False)),
             can_code_va_form=bool(p.get("can_code_va_form", False)),
+            # Absent keeps the current value (clients that predate the flag).
+            can_supervise_interviews=(
+                None if p.get("can_supervise_interviews") is None else bool(p["can_supervise_interviews"])
+            ),
             is_active=bool(p.get("is_active", True)),
         )
         serialized = org.serialize_level_cadre(row, level=row.level, cadre=row.cadre)

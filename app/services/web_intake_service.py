@@ -1143,7 +1143,8 @@ def _worklist_scope(user: VaUsers):
         return None
     return sa.and_(
         sa.or_(*conditions),
-        # "Details pending" only for its starter (supervisors: digitva-vzk.5).
+        # "Details pending" only for its starter; supervisors see it in
+        # list_supervised_cases.
         sa.or_(
             VaDeathRegister.status != "draft_identity",
             VaDeathRegister.started_by_user_id == user.user_id,
@@ -1223,6 +1224,68 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
 
 
 # ---------------------------------------------------------------------------
+# Supervisor view (digitva-vzk.5)
+# ---------------------------------------------------------------------------
+
+
+def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
+    """A case *user* supervises, else 404: an id is not proof the case exists."""
+    try:
+        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
+    except ValueError:
+        death = None
+    if death is None or not cases.is_interview_supervisor_for(user, death):
+        raise WebIntakeError("Case not found.", 404)
+    return death
+
+
+def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
+                          cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+    """Every case in the supervisor's scope, "details pending" included.
+
+    Returns ``{"cases": [(case, unit_name, registered_by_name,
+    started_by_name), ...], "counts": {state: n}, "next_cursor": ...}``;
+    *flagged* keeps cases with a flag waiting for a supervisor. ``counts``
+    ignore *states* and *flagged*. Keyset-paged like ``list_worklist``.
+    """
+    for state in states or []:
+        if state not in CASE_STATES:
+            raise WebIntakeError(f"Unknown state {state!r}.")
+    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
+    scope = cases.supervised_case_condition(user)
+    counts = dict(
+        db.session.execute(
+            sa.select(VaDeathRegister.status, sa.func.count()).where(scope).group_by(VaDeathRegister.status)
+        ).all()
+    )
+    filters = [scope]
+    if states:
+        filters.append(VaDeathRegister.status.in_(states))
+    if flagged:
+        filters.append(VaDeathRegister.pending_flag.is_not(None))
+    if cursor:
+        at, death_id = _decode_cursor(cursor)
+        filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
+    registrant = aliased(VaUsers)
+    starter = aliased(VaUsers)
+    rows = db.session.execute(
+        sa.select(VaDeathRegister, MasOrgUnit.unit_name, registrant.name, starter.name)
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
+        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
+        .outerjoin(starter, starter.user_id == VaDeathRegister.started_by_user_id)
+        .where(*filters)
+        .order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
+        .limit(limit + 1)
+    ).all()
+    page = [tuple(row) for row in rows[:limit]]
+    next_cursor = None
+    if len(rows) > limit:
+        last = page[-1][0]
+        next_cursor = _encode_cursor(last.updated_at, last.death_id)
+    return {"cases": page, "counts": counts, "next_cursor": next_cursor}
+
+
+# ---------------------------------------------------------------------------
 # Serializers
 # ---------------------------------------------------------------------------
 
@@ -1280,6 +1343,18 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
+
+
+def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
+                             registered_by_name: str | None, started_by_name: str | None) -> dict:
+    """A worklist row plus who registered and started the case (staff identity,
+    decision 13). Subject details stay as the worklist row has them."""
+    row = serialize_worklist_row(user, death, unit_name, None)
+    row.pop("my_draft_id")
+    row["registered_by_name"] = registered_by_name
+    row["started_by_name"] = started_by_name
+    row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None
+    return row
 
 
 def serialize_draft(draft: VaWebIntakeDraft) -> dict:

@@ -275,7 +275,8 @@ rows here keep the Project > Site > Form model.
 ### `map_org_level_cadre`
 
 - which cadres exist at a level: `org_level_id`, `cadre_id`,
-  `can_fill_va_form`, `can_code_va_form`, `is_active`; unique on (level, cadre)
+  `can_fill_va_form`, `can_code_va_form`, `can_supervise_interviews`
+  (migration `d7f3b1a9c5e2`), `is_active`; unique on (level, cadre)
 
 ### `mas_org_unit_worker`
 
@@ -294,7 +295,8 @@ rows here keep the Project > Site > Form model.
 - the grant covers the unit's whole subtree (`path <@ grant unit path`)
 - check constraints: the scope shape, the role/scope pairs (`site_pi`,
   `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager` may use
-  `org_unit`), and `cadre_id` only on unit grants
+  `org_unit`; `interview_supervisor` may use **only** `org_unit`), and
+  `cadre_id` only on unit grants
 - partial unique index `uq_va_user_access_grants_org_unit` on
   (`user_id`, `role`, `org_unit_id`); lookup index on
   (`org_unit_id`, `role`, `grant_status`)

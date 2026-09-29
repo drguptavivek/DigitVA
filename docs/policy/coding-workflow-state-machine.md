@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-30
 ---
 
 # Coding Workflow State Machine Policy
@@ -30,6 +30,13 @@ Workflow state and allocation state are separate concerns.
 
 The system must not infer workflow completion only from allocation presence or
 absence.
+
+A web intake case confirmed as a duplicate (`va_death_register.status =
+duplicate`) is a case-level mark, not a workflow state: the submission's
+workflow state is untouched, and confirming one whose coding is finalized needs
+a supervisor holding a `data_manager` grant ([Web Intake Policy](web-intake.md),
+"Duplicate on a submitted case"). The shared predicate that excludes such
+submissions from coding readers is not built yet.
 
 ## Core Workflow Tracks
 

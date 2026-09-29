@@ -31,6 +31,9 @@ class VaAccessRoles(enum.Enum):
     reviewer = "reviewer"
     data_manager = "data_manager"
     interviewer = "interviewer"
+    # Org-unit scope only; supervises interviews in the unit's subtree. See
+    # docs/policy/access-control-model.md, "interview_supervisor".
+    interview_supervisor = "interview_supervisor"
 
 
 class VaAccessScopeTypes(enum.Enum):

@@ -388,7 +388,7 @@
             <label class="form-label small mb-1" for="org-import-sheet">This CSV holds</label>
             <select id="org-import-sheet" class="form-select form-select-sm">
               <option value="cadres">cadres: cadre_code, cadre_name</option>
-              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form</option>
+              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews</option>
               <option value="units">units</option>
               <option value="workers">workers: worker_name, unit_code, cadre_code, phone, user_email, remarks (worker_code optional)</option>
               <option value="levels">levels</option>
@@ -1143,7 +1143,7 @@
     api(base() + '/cadres' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', { cadre_code: val('oc-code'), cadre_name: val('oc-name') }).then(function (res) { if (!res.ok) { fail(res); return; } show('org-cadre-form', false); loadAll(); });
   });
   // One row per level listing only the cadres that exist there (an active
-  // map_org_level_cadre row), each with its Fill / Code permissions. Adding a
+  // map_org_level_cadre row), each with its Fill / Code / Supervise permissions. Adding a
   // cadre creates the row; removing it deactivates the row, never deletes.
   function renderPermGrid() {
     var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
@@ -1159,6 +1159,7 @@
           + '<code title="' + esc(c.cadre_name) + '">' + esc(c.cadre_code) + '</code>'
           + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '>Fill VA</label>'
           + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
+          + '<label class="mb-0" title="May hold an interview supervisor grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '>Supervise interviews</label>'
           + '<button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from this level"><i class="fa-solid fa-xmark"></i></button>'
           + '</span>';
       }).join('');
@@ -1170,24 +1171,25 @@
         + (chips || '<span class="text-muted me-2">No cadres at this level.</span>') + add + '</td></tr>';
     }).join('');
     $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><tbody>' + body + '</tbody></table>';
-    function save(l, c, fill, code, active) {
-      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, is_active: active })
+    function save(l, c, fill, code, supervise, active) {
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, is_active: active })
         .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
     }
     document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
       var l = box.dataset.l, c = box.dataset.c;
       var fill = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="fill"]').checked;
       var code = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="code"]').checked;
-      save(l, c, fill, code, true);
+      var supervise = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="supervise"]').checked;
+      save(l, c, fill, code, supervise, true);
     }); });
     document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
-      if (sel.value) save(sel.dataset.l, sel.value, false, false, true);
+      if (sel.value) save(sel.dataset.l, sel.value, false, false, false, true);
     }); });
     document.querySelectorAll('.perm-remove').forEach(function (btn) { btn.addEventListener('click', function () {
       var lc = lookup[btn.dataset.l + '|' + btn.dataset.c];
       var cadre = findBy(cadres, 'cadre_id', btn.dataset.c), level = findBy(levels, 'org_level_id', btn.dataset.l);
       askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; removal only succeeds once no active ' + cadre.cadre_code + ' worker remains at this level.', function () {
-        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, false);
+        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, false);
       });
     }); });
   }
@@ -1339,7 +1341,7 @@
     }
     var lc = u ? STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0] : null;
     hint.textContent = lc
-      ? 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + '.'
+      ? 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + '.'
       : 'This cadre is not placed at this unit\'s level; saving may be refused.';
   }
 

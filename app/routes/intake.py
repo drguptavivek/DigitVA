@@ -288,3 +288,116 @@ def api_submit_draft(draft_id):
         ), 201
 
     return _handle(run)
+
+
+# ---------------------------------------------------------------------------
+# Supervisor API (digitva-vzk.5). Kept at the end of the module on purpose.
+#
+# An interview_supervisor unit grant or a data_manager grant opens the gate;
+# which cases the caller supervises is decided per case by
+# case_transition_service.is_interview_supervisor_for, and a case outside
+# that reach reads as 404. POSTs are CSRF-checked by the global CSRFProtect.
+# ---------------------------------------------------------------------------
+
+from app.services import case_transition_service as case_svc  # noqa: E402
+
+
+def _reason(p):
+    return p.get("reason") if isinstance(p.get("reason"), str) else None
+
+
+@intake.get("/api/supervision/cases")
+@role_required("interview_supervisor", "data_manager")
+def api_supervised_cases():
+    """All cases in the caller's supervisor scope, with who registered and
+    started each. Query: ``state``, ``flagged``, ``limit``, ``cursor``."""
+    flagged_raw = (request.args.get("flagged") or "").lower()
+    if flagged_raw not in _TRUE + _FALSE:
+        return _json_error("flagged must be true or false.", 400)
+    states = [s for s in (request.args.get("state") or "").split(",") if s]
+    try:
+        limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
+    except ValueError:
+        return _json_error("limit must be a whole number.", 400)
+
+    def run():
+        result = intake_svc.list_supervised_cases(
+            current_user,
+            states=states,
+            flagged=flagged_raw in _TRUE,
+            cursor=request.args.get("cursor") or None,
+            limit=limit,
+        )
+        return jsonify(
+            {
+                "cases": [intake_svc.serialize_supervised_row(current_user, *row) for row in result["cases"]],
+                "counts": result["counts"],
+                "next_cursor": result["next_cursor"],
+            }
+        )
+
+    return _handle(run)
+
+
+@intake.post("/api/supervision/cases/<death_id>/resolve-flag")
+@role_required("interview_supervisor", "data_manager")
+def api_supervisor_resolve_flag(death_id):
+    """Confirm or reject the case's pending flag. Body: ``confirm`` (bool), ``reason``."""
+    p = _payload()
+    if not isinstance(p.get("confirm"), bool):
+        return _json_error("confirm must be true or false.", 400)
+
+    def run():
+        death = intake_svc.get_supervised_case(current_user, death_id)
+        case_svc.resolve_flag(death, actor=current_user, confirm=p["confirm"], reason=_reason(p))
+        db.session.commit()
+        return jsonify({"death": _supervisor_ack(death)})
+
+    return _handle(run)
+
+
+@intake.post("/api/supervision/cases/<death_id>/cancel")
+@role_required("interview_supervisor", "data_manager")
+def api_supervisor_cancel(death_id):
+    """Cancel a case outright (registered, scheduled, in progress or paused). Body: ``reason``."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.get_supervised_case(current_user, death_id)
+        reason = _reason(p)
+        if not (reason or "").strip():
+            raise intake_svc.WebIntakeError("Give a reason for cancelling.")
+        case_svc.transition(death, "cancelled", actor=current_user, action="supervisor_cancel", reason=reason)
+        db.session.commit()
+        return jsonify({"death": _supervisor_ack(death)})
+
+    return _handle(run)
+
+
+@intake.post("/api/supervision/cases/<death_id>/reopen")
+@role_required("interview_supervisor", "data_manager")
+def api_supervisor_reopen(death_id):
+    """Reopen a submitted, duplicate or cancelled case to its earlier state. Body: ``reason``."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.get_supervised_case(current_user, death_id)
+        case_svc.reopen(death, actor=current_user, reason=_reason(p))
+        db.session.commit()
+        return jsonify({"death": _supervisor_ack(death)})
+
+    return _handle(run)
+
+
+def _supervisor_ack(death):
+    """What a supervisor action returns: the case's new state, no identifiers.
+
+    The supervisor list already shows the case; echoing serialize_death here
+    would hand back informant phone, address and ABHA the client never needs.
+    """
+    return {
+        "death_id": str(death.death_id),
+        "unique_id": death.unique_id,
+        "status": death.status,
+        "pending_flag": death.pending_flag,
+    }

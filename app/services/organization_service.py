@@ -403,6 +403,7 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
         "cadre_code": cadre.cadre_code,
         "can_fill_va_form": row.can_fill_va_form,
         "can_code_va_form": row.can_code_va_form,
+        "can_supervise_interviews": row.can_supervise_interviews,
         "is_active": row.is_active,
     }
 
@@ -1226,8 +1227,14 @@ def upsert_level_cadre(
     cadre_id: object,
     can_fill_va_form: bool,
     can_code_va_form: bool,
+    can_supervise_interviews: bool | None = None,
     is_active: bool = True,
 ) -> MapOrgLevelCadre:
+    """Create or update one level x cadre row.
+
+    ``can_supervise_interviews`` of ``None`` keeps the row's current value (false
+    on a new row), so callers and workbooks that predate the flag cannot clear it.
+    """
     level = _get_level(project_id, org_level_id)
     cadre = _get_cadre(project_id, cadre_id)
     row = db.session.scalar(
@@ -1241,6 +1248,8 @@ def upsert_level_cadre(
         db.session.add(row)
     row.can_fill_va_form = bool(can_fill_va_form)
     row.can_code_va_form = bool(can_code_va_form)
+    if can_supervise_interviews is not None:
+        row.can_supervise_interviews = bool(can_supervise_interviews)
     if not is_active:
         active_workers = db.session.scalar(
             sa.select(sa.func.count())
@@ -1484,7 +1493,9 @@ _UNIT_HEADERS = (
     "latitude", "longitude", "google_maps_url", "remarks", "is_active",
 )
 _CADRE_HEADERS = ("cadre_code", "cadre_name", "is_active")
-_LEVEL_CADRE_HEADERS = ("level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "is_active")
+_LEVEL_CADRE_HEADERS = (
+    "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews", "is_active",
+)
 _WORKER_HEADERS = (
     "worker_code", "worker_name", "unit_code", "cadre_code", "phone", "user_email", "remarks", "is_active",
 )
@@ -1832,6 +1843,11 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                 cadre_id=cadre.cadre_id,
                 can_fill_va_form=_to_bool(row.get("can_fill_va_form"), what="can_fill_va_form"),
                 can_code_va_form=_to_bool(row.get("can_code_va_form"), what="can_code_va_form"),
+                # Blank or absent (an older workbook) keeps the current value.
+                can_supervise_interviews=(
+                    None if row.get("can_supervise_interviews") in (None, "")
+                    else _to_bool(row["can_supervise_interviews"], what="can_supervise_interviews")
+                ),
                 is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True,
             )
             if kwargs["is_active"]:
@@ -1851,6 +1867,7 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                         cadre_id=lc["cadre_id"],
                         can_fill_va_form=lc["can_fill_va_form"],
                         can_code_va_form=lc["can_code_va_form"],
+                        can_supervise_interviews=lc["can_supervise_interviews"],
                         is_active=False,
                     ),
                 ))

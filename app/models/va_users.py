@@ -147,6 +147,17 @@ class VaUsers(UserMixin, db.Model):
     def get_interviewer_va_forms(self):
         return self._get_granted_va_forms("interviewer")
 
+    def is_interview_supervisor(self):
+        """Holds a live ``interview_supervisor`` grant (unit scope only).
+
+        Opens the role gate only: which cases the user supervises is
+        ``case_transition_service.is_interview_supervisor_for``.
+        """
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import granted_units
+
+        return bool(granted_units(self.user_id, VaAccessRoles.interview_supervisor))
+
     def is_coding_tester(self, va_form=None):
         tester_forms = self.get_coding_tester_va_forms()
         if va_form:

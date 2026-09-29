@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-30
 ---
 
 # Workflow And Permissions
@@ -650,6 +650,11 @@ For example:
   coding and reviewing action in `va_validate_permissions`)
 - projects with no organization tree are unaffected: the filter excludes
   nothing for them, so the form-and-site model is unchanged
+- web intake supervision: `interview_supervisor` (unit grants only) and
+  `data_manager` grants supervise the cases in their scope through one
+  predicate, `case_transition_service.is_interview_supervisor_for` /
+  `supervised_case_condition`; the role gate is `VaUsers.is_interview_supervisor()`
+  (`role_required("interview_supervisor")`), the API `/intake/api/supervision/`
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)
 

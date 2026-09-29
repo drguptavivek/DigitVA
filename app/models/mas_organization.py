@@ -308,6 +308,10 @@ class MapOrgLevelCadre(db.Model):
     can_code_va_form: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
+    # Decision 12: a cadre at this level may hold an interview_supervisor grant.
+    can_supervise_interviews: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=True, server_default=sa.true()
     )

@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-30
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -122,8 +122,10 @@ Two distinct populations, deliberately not conflated:
 
 A grant may carry a `cadre_id`. It is **descriptive** — nothing at runtime
 reads it — but it is validated on write against the level × cadre grid: the
-cadre must exist at that unit's level, and a `coder` grant requires a cadre
-with `can_code_va_form` there. The keycard analogy in the policy doc: the role
+cadre must exist at that unit's level, a `coder` grant requires a cadre
+with `can_code_va_form` there, and an `interview_supervisor` grant (unit scope
+only) one with `can_supervise_interviews`
+(`org_grant_service.CADRE_FLAG_BY_ROLE`, also used by the project user import). The keycard analogy in the policy doc: the role
 is the kind of card, the scope is the doors it opens, the cadre is the job
 title printed on the front, checked when the card is issued and never re-read
 by the door.

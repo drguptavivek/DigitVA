@@ -360,12 +360,16 @@ a place for names, phone numbers or addresses).
   redaction anywhere else.
 - **Audit (item 14).** Every supervisor action's audit row names the grant and
   the cadre relied on.
-- **Docs to amend when built** (not edited now; they stand until then): Access
-  Control Model, Role To Scope Rules and the `role_scope` check constraint (a
-  migration) gain the new role; the grants panel and grant import gain the
-  option; Organization Model gains one sentence that `interview_supervisor`
-  joins `coder` as a role whose grant needs a cadre check. Coding Workflow
-  State Machine is amended as noted under "Duplicate on a submitted case".
+- **Built (digitva-vzk.5, 2026-09-30):** the role, its unit-only `role_scope`
+  CHECK and the grid flag (migration `d7f3b1a9c5e2`); the write-time check in
+  the admin grants API, the grants panel and the project user import; the one
+  predicate `case_transition_service.is_interview_supervisor_for` (unit-grant
+  subtree of `interview_supervisor` or `data_manager`, plus `data_manager`
+  project and site grants); the supervisor API under
+  `/intake/api/supervision/` (list, resolve flag, cancel, reopen). **Not built
+  yet:** audit rows naming the grant and cadre (the audit row names the actor
+  only), the shared duplicate-exclusion predicate and allocation revocation,
+  and the supervisor UI.
 - Authorization stays explicit: project, project-site, form and unit grants
   are not interchangeable, and no supervisory reach is inferred from another
   grant. Supervisor power is bounded by grant scope, grant status and

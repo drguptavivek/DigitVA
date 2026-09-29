@@ -2657,6 +2657,18 @@ def admin_toggle_access_grant(grant_id):
     new_status = (
         VaStatuses.deactive if grant.grant_status == VaStatuses.active else VaStatuses.active
     )
+    if new_status == VaStatuses.active and grant.scope_type == VaAccessScopeTypes.org_unit:
+        # Re-activating is a write: the cadre flag may have been turned off
+        # since the grant was created, so check it as the create path does.
+        from app.services.org_grant_service import validate_org_unit_grant
+        from app.services.organization_service import OrganizationError
+
+        try:
+            validate_org_unit_grant(
+                role=grant.role, org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id
+            )
+        except OrganizationError as exc:
+            return _json_error(str(exc), 400)
     grant.grant_status = new_status
     db.session.commit()
 

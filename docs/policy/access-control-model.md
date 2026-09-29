@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-30
 ---
 
 # Access Control Model
@@ -423,11 +423,15 @@ The system must not infer broader access from missing values or partial keys.
 - `coder` uses `project`, `project_site` or `org_unit`
 - `coding_tester` uses `project`, `project_site` or `org_unit`
 - `reviewer` uses `project`, `project_site` or `org_unit`
+- `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
+  it supervises web intake cases in the unit's subtree, as do `data_manager`
+  grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors")
 
 A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
 nothing at runtime consults it, but it is validated on write: the cadre must
-be defined at the unit's level, and a `coder` grant requires a cadre that may
-code at that level. Cadre rules live in
+be defined at the unit's level, a `coder` grant requires a cadre that may
+code at that level, and an `interview_supervisor` grant a cadre that may
+supervise interviews there. Cadre rules live in
 [Organization Model Policy](organization-model.md).
 
 ## Closed Projects

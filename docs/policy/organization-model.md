@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-30
 ---
 
 # Organization Model Policy
@@ -98,7 +98,8 @@ and keep working exactly as they did.
   are optional.
 - **Cadres** (`mas_cadre`) are defined per project. The level × cadre grid
   (`map_org_level_cadre`) records which cadres exist at a level and whether
-  that cadre `can_fill_va_form` and `can_code_va_form`.
+  that cadre `can_fill_va_form`, `can_code_va_form` and
+  `can_supervise_interviews`.
 - **Workers** (`mas_org_unit_worker`) are people attached to a unit with a
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.
@@ -386,7 +387,9 @@ The rule and the shared predicate that implements it live in
   - the cadre must belong to the unit's project and be active;
   - the cadre must be defined at the unit's level in the level × cadre grid;
   - a `coder` grant **must** name a cadre, and that cadre must have
-    `can_code_va_form` at that level.
+    `can_code_va_form` at that level;
+  - an `interview_supervisor` grant (unit scope only) likewise **must** name a
+    cadre with `can_supervise_interviews` at that level.
 - A cadre may only be set on a unit-scoped grant (database constraint).
 - One active grant per user × role × unit (partial unique index).
 - Deactivating a unit removes it, and everything beneath it, from every

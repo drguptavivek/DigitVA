@@ -3,8 +3,9 @@
 A grant with ``scope_type = 'org_unit'`` points at one node of a project's
 organization tree (``mas_org_unit``) and covers that node's own subtree. The
 cadre on the grant is descriptive, but it is validated when the grant is
-created: the cadre must be defined at the unit's level, and a ``coder`` grant
-requires a cadre that may code at that level.
+created: the cadre must be defined at the unit's level, a ``coder`` grant
+requires a cadre that may code at that level, and an ``interview_supervisor``
+grant (unit scope only) a cadre that may supervise interviews there.
 
 Runtime coding and reviewer enforcement is phase 4; this module only resolves
 grants to unit id sets so those surfaces have one place to ask.
@@ -49,12 +50,22 @@ ROLES_ALLOWING_ORG_UNIT = frozenset(
         VaAccessRoles.reviewer,
         VaAccessRoles.data_manager,
         VaAccessRoles.interviewer,
+        VaAccessRoles.interview_supervisor,
     }
 )
 
 # Roles whose cadre must be permitted to code at the unit's level. The cadre is
 # mandatory for these roles for that reason.
 ROLES_REQUIRING_CODING_CADRE = frozenset({VaAccessRoles.coder})
+
+# Role -> (level x cadre flag its cadre must carry, what the flag permits).
+# A grant of one of these roles on a unit requires a cadre with that flag at the
+# unit's level (decision 12 of .tasks/2026-09-28-interviewer-worklist.md for
+# interview_supervisor). Checked when the grant is written, never at runtime.
+CADRE_FLAG_BY_ROLE = {
+    VaAccessRoles.coder: ("can_code_va_form", "code VA forms"),
+    VaAccessRoles.interview_supervisor: ("can_supervise_interviews", "supervise interviews"),
+}
 
 
 def _as_uuid(raw: object, *, what: str) -> uuid.UUID:
@@ -100,10 +111,11 @@ def validate_org_unit_grant(
         if not cadre.is_active:
             raise OrganizationError(f"Cadre {cadre.cadre_code!r} is inactive.")
 
-    if role in ROLES_REQUIRING_CODING_CADRE:
+    if role in CADRE_FLAG_BY_ROLE:
+        flag, permits = CADRE_FLAG_BY_ROLE[role]
         if cadre is None:
             raise OrganizationError(
-                f"A {role.value} grant on a unit requires a cadre that may code "
+                f"A {role.value} grant on a unit requires a cadre that may {permits} "
                 "at that unit's level."
             )
         permission = get_level_cadre_permission(unit.org_level_id, cadre.cadre_id)
@@ -112,9 +124,9 @@ def validate_org_unit_grant(
                 f"Cadre {cadre.cadre_code!r} is not defined at level "
                 f"{unit.level.level_code!r}; add it in the level permissions grid first."
             )
-        if not permission.can_code_va_form:
+        if not getattr(permission, flag):
             raise OrganizationError(
-                f"Cadre {cadre.cadre_code!r} may not code VA forms at level "
+                f"Cadre {cadre.cadre_code!r} may not {permits} at level "
                 f"{unit.level.level_code!r}."
             )
     elif cadre is not None:

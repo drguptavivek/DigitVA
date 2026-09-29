@@ -157,3 +157,35 @@ unique ids), and `client_draft_id` on `va_web_intake_drafts`. Additive.
 - Android package id (proposed `org.digitva.collect`) and app name.
 - Who may create enrolment codes: admin only, or also project PIs.
 - PIN length and wipe threshold (6 digits and 5 attempts proposed).
+
+## API contract (phase 1; the app is built against this)
+
+All under `/api/v1/device`, JSON, no cookies, CSRF-exempt. Errors are
+`{"error": "<message>", "code": "<machine_code>"}` with 400/401/403/404/409/422/429.
+`Authorization: Bearer <access_token>` on everything after sign-in.
+
+- `POST /enroll` `{code, device_name, platform: "android", app_version}` ->
+  201 `{device_id, device_secret, project: {project_id, name}, server_time}`.
+  Code single-use by default; expired/used/unknown -> 404 `enrolment_invalid`.
+- `POST /sessions` `{device_id, device_secret, email, password, otp?}` ->
+  201 `{access_token, access_expires_at, refresh_token, refresh_expires_at,
+  user: {user_id, name, email}}`; 401 `second_factor_required` when the
+  account has factors and `otp` (TOTP or recovery code) is missing/wrong;
+  403 `no_interviewer_grant`; 403 `device_revoked`; 429 when limited.
+- `POST /sessions/refresh` `{refresh_token}` -> 200 same token shape, old
+  refresh token dead; reuse of a dead one -> 401 `session_revoked` and the
+  whole session is revoked; grant withdrawn -> 401 `session_revoked`.
+- `DELETE /sessions/current` -> 204 (sign-out; the app wipes that store).
+- `GET /bootstrap` -> 200 the intake bootstrap for this interviewer and the
+  enrolled project (same shape as `/intake/api/bootstrap`, scoped to the
+  device's project), plus `instrument_version`.
+- `POST /submissions` `{client_draft_id (uuid), site_id, org_unit_id?,
+  death_id?, draft: <WhoVaDraft envelope>}` -> 201 `{va_sid|null, case:
+  {death_id, unique_id, status}, outcome}`; resend of the same
+  `client_draft_id` -> 200 with the same body; case already submitted by a
+  teammate -> 201 stored as a superseded copy (`superseded: true`).
+- `POST /outstanding` `{count, unique_ids: [..]}` -> 204 (also accepted as
+  optional fields on `/sessions/refresh`).
+- Admin: `POST /admin/api/projects/<id>/device-enrolments` `{expires_in_minutes?,
+  max_uses?}` -> 201 `{code, qr_payload, expires_at}` (code shown once);
+  `GET /admin/api/projects/<id>/devices`; `POST /admin/api/devices/<id>/revoke`.

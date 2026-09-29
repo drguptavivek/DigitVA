@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-30
 ---
 
 # Field Data Collection Policy
@@ -90,6 +90,33 @@ Requirements, all of which must hold before the app collects real data:
   retention ceiling, this is the only way anyone can tell what a lost phone was
   holding; without it, unsent interviews are invisible to the organization
   until they arrive.
+
+### Path B design (proposed 2026-09-30, pending owner confirmation)
+
+Built to `.tasks/2026-09-30-android-collection-app.md` (epic
+`digitva-kmk`). The parts that are policy:
+
+- **Enrolment by one-time QR.** An admin creates an enrolment code for one
+  project (default single use, one hour); the QR holds only the server URL,
+  the project id and that code. The app accepts a server host only from an
+  allowlist compiled into the build (release: the production host), so a
+  forged QR cannot send an interviewer's password elsewhere. The device
+  secret it receives is used only to open interviewer sessions.
+- **Interviewer sign-in** uses the account's password and, when the account
+  has factors, a TOTP or recovery code
+  ([Authentication Factors](authentication-factors.md)); a device session
+  requires an active `interviewer` grant in the enrolled project, checked
+  again at every refresh.
+- **Tokens**: opaque, stored hashed; access 15 minutes; refresh rotated on
+  every use, reuse revokes the session. Proposed C1: refresh lifetime 30
+  days, sliding. Expiry never loses data (the store is keyed by the PIN).
+- **Store key**: a random per-store secret in the Android Keystore joined
+  with the interviewer's PIN, fed to SQLCipher's key derivation; biometric
+  unlock releases the PIN part from a Keystore entry that requires a strong
+  biometric. PIN at least 6 digits; 5 wrong PINs in a row wipe that store.
+- **Idempotent upload**: each interview carries a client draft id; a resend
+  returns the first result. An interview for a case a teammate already
+  submitted is kept as a superseded copy, never left on the phone.
 
 ### Accepted risk: no retention ceiling
 

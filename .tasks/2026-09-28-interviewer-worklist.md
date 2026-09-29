@@ -1,6 +1,6 @@
 # Interviewer worklist and interview state machine
 
-- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration); phase 5 visits, contact attempts, pause, phones and address built (2026-09-30, `digitva-vzk.9`, migration `e5b2c8d4a1f7`)
+- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration); phase 5 visits, contact attempts, pause, phones and address built (2026-09-30, `digitva-vzk.9`, migration `e5b2c8d4a1f7`); phase 7 supervisor view and audit grant built (2026-09-30, `digitva-vzk.8`, migration `a8d4f1c7e3b9`)
 - Priority: P2
 - Created: 2026-09-28
 - Bead: `digitva-vzk` (epic)
@@ -364,6 +364,12 @@ Decided 2026-09-30 (owner):
    phase 5". `not_reachable -> refused` added to the transition table the
    same day.
 6. Duplicate check and supervisor resolution.
-7. Supervisor view (read-only across scope).
+7. Supervisor view (read-only across scope). **Built 2026-09-30**
+   (`digitva-vzk.8`, migration `a8d4f1c7e3b9`): `/intake/supervision` over
+   `GET /intake/api/supervision/cases` (flags to resolve, all cases), resolve
+   flag, cancel, reopen and a direct duplicate mark
+   (`POST /intake/api/supervision/cases/<id>/duplicate`); audit rows name the
+   narrowest grant and its cadre (decision 15). Rules in
+   docs/policy/web-intake.md, "Supervisors".
 
 Policy baseline in `docs/policy/web-intake.md` before phase 2.

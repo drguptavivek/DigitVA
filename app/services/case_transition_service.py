@@ -11,7 +11,8 @@ who may make it, then writes one ``map_case_transitions`` audit row. Flags
 Scope is the caller's job: ``team`` transitions trust that the caller already
 confirmed the actor may reach the case (``web_intake_service.get_death``).
 Supervisor-only moves check scope here, through ``is_interview_supervisor_for``
-(digitva-vzk.5).
+(digitva-vzk.5), and their audit rows name the grant and cadre relied on
+(``supervising_grant``, decision 15; digitva-vzk.8).
 This module only decides *which kind* of actor a transition needs.
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
+    VaProjectSites,
     VaStatuses,
     VaSubmissionWorkflow,
     VaUserAccessGrants,
@@ -41,6 +43,7 @@ __all__ = [
     "TERMINAL_STATES",
     "is_interview_supervisor_for",
     "supervised_case_condition",
+    "supervising_grant",
     "identity_complete",
     "lock_case",
     "open_case",
@@ -121,50 +124,83 @@ _REASON_MAX = 200
 _SUPERVISING_ROLES = (VaAccessRoles.interview_supervisor, VaAccessRoles.data_manager)
 
 
-def _case_scope_condition(user: VaUsers, roles: tuple[VaAccessRoles, ...]):
-    """SQL condition on ``VaDeathRegister``: the case lies inside *roles*' reach.
+def _covering_grants(user: VaUsers, roles: tuple[VaAccessRoles, ...]) -> list[sa.Select]:
+    """The one source of supervisory reach: *user*'s grants of *roles* that
+    cover the ``VaDeathRegister`` row the selects are correlated with.
 
-    A unit grant of any of *roles* reaches its unit's subtree (same ltree join
-    as ``org_grant_service.scope_unit_ids``, correlated on the case's unit and
-    project); a ``data_manager`` project or project-site grant reaches that
-    whole project or project-site. Active grants, units and projects only
-    (closed-project dormancy via ``active_project_condition``).
+    Each select yields ``(grant_id, cadre_id, depth, role_rank)``. A unit
+    grant reaches its unit's subtree (same ltree join as
+    ``org_grant_service.scope_unit_ids``, on the case's unit and project);
+    ``depth`` is its unit's depth, so the deepest unit is the narrowest. A
+    ``data_manager`` project-site grant (depth 0) or project grant (depth -1)
+    reaches that whole project-site or project. Active grants, units, project
+    sites and projects only (closed-project dormancy via
+    ``active_project_condition``). ``supervised_case_condition`` asks
+    whether any select has a row; ``_grant_for`` picks one.
     """
     granted = aliased(MasOrgUnit, name="sup_granted_unit")
     covered = aliased(MasOrgUnit, name="sup_covered_unit")
-    conditions = [
-        sa.exists(
-            sa.select(1)
-            .select_from(VaUserAccessGrants)
-            .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
-            .join(
-                covered,
-                sa.and_(
-                    covered.project_id == granted.project_id,
-                    sa.text("sup_covered_unit.path <@ sup_granted_unit.path"),
-                ),
-            )
-            .where(
-                VaUserAccessGrants.user_id == user.user_id,
-                VaUserAccessGrants.role.in_(roles),
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                granted.is_active.is_(True),
-                covered.is_active.is_(True),
-                active_project_condition(granted.project_id),
-                covered.org_unit_id == VaDeathRegister.org_unit_id,
-                covered.project_id == VaDeathRegister.project_id,
-            )
+    role_rank = sa.case((VaUserAccessGrants.role == VaAccessRoles.interview_supervisor, 0), else_=1)
+    live = (
+        VaUserAccessGrants.user_id == user.user_id,
+        VaUserAccessGrants.grant_status == VaStatuses.active,
+    )
+    selects = [
+        sa.select(
+            VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
+            sa.func.nlevel(granted.path).label("depth"), role_rank.label("role_rank"),
+        )
+        .select_from(VaUserAccessGrants)
+        .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .join(
+            covered,
+            sa.and_(
+                covered.project_id == granted.project_id,
+                sa.text("sup_covered_unit.path <@ sup_granted_unit.path"),
+            ),
+        )
+        .where(
+            *live,
+            VaUserAccessGrants.role.in_(roles),
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            granted.is_active.is_(True),
+            covered.is_active.is_(True),
+            active_project_condition(granted.project_id),
+            covered.org_unit_id == VaDeathRegister.org_unit_id,
+            covered.project_id == VaDeathRegister.project_id,
         )
     ]
     if VaAccessRoles.data_manager in roles:
-        projects = sorted(user.get_data_manager_projects())
-        pairs = sorted(user.get_data_manager_project_sites())
-        if projects:
-            conditions.append(VaDeathRegister.project_id.in_(projects))
-        if pairs:
-            conditions.append(sa.tuple_(VaDeathRegister.project_id, VaDeathRegister.site_id).in_(pairs))
-    return sa.or_(*conditions)
+        data_manager = (*live, VaUserAccessGrants.role == VaAccessRoles.data_manager)
+        selects.append(
+            sa.select(
+                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
+                sa.literal_column("0").label("depth"), role_rank.label("role_rank"),
+            )
+            .select_from(VaUserAccessGrants)
+            .join(VaProjectSites, VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id)
+            .where(
+                *data_manager,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaProjectSites.project_site_status == VaStatuses.active,
+                active_project_condition(VaProjectSites.project_id),
+                VaProjectSites.project_id == VaDeathRegister.project_id,
+                VaProjectSites.site_id == VaDeathRegister.site_id,
+            )
+        )
+        selects.append(
+            sa.select(
+                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
+                sa.literal_column("-1").label("depth"), role_rank.label("role_rank"),
+            )
+            .where(
+                *data_manager,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                active_project_condition(VaUserAccessGrants.project_id),
+                VaUserAccessGrants.project_id == VaDeathRegister.project_id,
+            )
+        )
+    return selects
 
 
 def supervised_case_condition(user: VaUsers):
@@ -173,20 +209,37 @@ def supervised_case_condition(user: VaUsers):
     Decisions 15-17 (.tasks/2026-09-28-interviewer-worklist.md): an
     ``interview_supervisor`` unit grant reaches its unit's subtree on its own
     (no interviewer grant needed); a ``data_manager`` grant supervises through
-    its own scope. No other role confers supervision. The listing and
-    ``is_interview_supervisor_for`` share this one condition.
+    its own scope. No other role confers supervision. The listing,
+    ``is_interview_supervisor_for`` and ``supervising_grant`` share
+    ``_covering_grants``.
     """
-    return _case_scope_condition(user, _SUPERVISING_ROLES)
+    return sa.or_(*(select.exists() for select in _covering_grants(user, _SUPERVISING_ROLES)))
 
 
-def _case_matches(case: VaDeathRegister, condition) -> bool:
+def _grant_for(user: VaUsers, case: VaDeathRegister, roles: tuple[VaAccessRoles, ...]):
+    """The narrowest of *user*'s *roles* grants covering *case*, or None.
+
+    Returns a row ``(grant_id, cadre_id)``. Narrowest: the unit grant at the
+    deepest unit, then a project-site grant, then a project grant; at equal
+    depth ``interview_supervisor`` before ``data_manager``, then the lowest
+    grant id, so the choice is deterministic.
+    """
     if case.death_id is None:
-        return False
-    return db.session.scalar(
-        sa.select(VaDeathRegister.death_id)
-        .where(VaDeathRegister.death_id == case.death_id, condition)
+        return None
+    covering = sa.union_all(
+        *(select.where(VaDeathRegister.death_id == case.death_id) for select in _covering_grants(user, roles))
+    ).subquery()
+    return db.session.execute(
+        sa.select(covering.c.grant_id, covering.c.cadre_id)
+        .order_by(covering.c.depth.desc(), covering.c.role_rank, covering.c.grant_id)
         .limit(1)
-    ) is not None
+    ).first()
+
+
+def supervising_grant(user: VaUsers, case: VaDeathRegister):
+    """The grant *user* supervises *case* through, as ``(grant_id, cadre_id)``,
+    or None. What a supervisor action's audit row names (decision 15)."""
+    return _grant_for(user, case, _SUPERVISING_ROLES)
 
 
 def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
@@ -194,11 +247,7 @@ def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
 
     Every supervisor-only action in this module asks this one predicate.
     """
-    return _case_matches(case, supervised_case_condition(user))
-
-
-def _data_manager_covers(user: VaUsers, case: VaDeathRegister) -> bool:
-    return _case_matches(case, _case_scope_condition(user, (VaAccessRoles.data_manager,)))
+    return supervising_grant(user, case) is not None
 
 
 def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
@@ -218,9 +267,10 @@ def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
     return state is None or coding_bucket(state) == CODING_BUCKET_CODED
 
 
-def _may_confirm(actor: VaUsers, case: VaDeathRegister, to_state: str) -> bool:
-    """The data-manager rule on top of supervision; the caller checked supervision."""
-    return not _needs_data_manager(case, to_state) or _data_manager_covers(actor, case)
+def _data_manager_grant(actor: VaUsers, case: VaDeathRegister):
+    """The actor's narrowest ``data_manager`` grant over *case*, or None: what
+    confirming an already coded duplicate relies on (decisions 10, 14)."""
+    return _grant_for(actor, case, (VaAccessRoles.data_manager,))
 
 
 def identity_complete(case: VaDeathRegister) -> bool:
@@ -257,7 +307,9 @@ def _clean_reason(reason: str | None) -> str | None:
 
 
 def _audit(case: VaDeathRegister, *, actor: VaUsers, action: str, from_state: str | None,
-           to_state: str, reason: str | None) -> None:
+           to_state: str, reason: str | None, grant=None) -> None:
+    """One audit row; *grant* (``(grant_id, cadre_id)``) is the supervisor
+    grant relied on, None for a team, starter or registrant move."""
     db.session.add(
         MapCaseTransition(
             death_id=case.death_id,
@@ -266,19 +318,24 @@ def _audit(case: VaDeathRegister, *, actor: VaUsers, action: str, from_state: st
             to_state=to_state,
             reason=reason,
             actor_user_id=actor.user_id,
+            authorizing_grant_id=grant.grant_id if grant else None,
+            authorizing_cadre_id=grant.cadre_id if grant else None,
         )
     )
 
 
-def _require_actor(kind: str, actor: VaUsers, case: VaDeathRegister) -> None:
+def _require_actor(kind: str, actor: VaUsers, case: VaDeathRegister):
+    """Refuse (403) an actor who may not make a *kind* move; return the
+    supervisor grant relied on, or None when no supervision was needed."""
     if kind == TEAM:
-        return
+        return None
     if kind == STARTER and case.started_by_user_id == actor.user_id:
-        return
+        return None
     if kind == REGISTRANT and case.registered_by == actor.user_id:
-        return
-    if is_interview_supervisor_for(actor, case):
-        return
+        return None
+    grant = supervising_grant(actor, case)
+    if grant is not None:
+        return grant
     if kind == SUPERVISOR:
         raise WebIntakeError("Only an interview supervisor may do that.", 403)
     raise WebIntakeError("Only the person who started or registered this case may do that.", 403)
@@ -314,12 +371,14 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     kind = TRANSITIONS.get((from_state, to_state))
     if kind is None:
         raise WebIntakeError(f"A case cannot move from {from_state} to {to_state}.", 409)
-    _require_actor(kind, actor, case)
-    if not _may_confirm(actor, case, to_state):
-        raise WebIntakeError(
-            "This case is already coded: only a supervisor who is also its data manager "
-            "may confirm it as a duplicate.", 403
-        )
+    grant = _require_actor(kind, actor, case)
+    if _needs_data_manager(case, to_state):
+        grant = _data_manager_grant(actor, case)
+        if grant is None:
+            raise WebIntakeError(
+                "This case is already coded: only a supervisor who is also its data manager "
+                "may confirm it as a duplicate.", 403
+            )
     if from_state == "draft_identity" and to_state != "cancelled" and not identity_complete(case):
         raise WebIntakeError(
             "Record the name, date of death and sex of the deceased first.", 409
@@ -347,7 +406,8 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
                 "so the duplicate cannot be confirmed yet. Ask a data manager to repair it.",
                 409,
             ) from exc
-    _audit(case, actor=actor, action=action, from_state=from_state, to_state=to_state, reason=reason)
+    _audit(case, actor=actor, action=action, from_state=from_state, to_state=to_state, reason=reason,
+           grant=grant)
     db.session.flush()
     return case
 
@@ -382,13 +442,18 @@ def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str |
     else:
         case.duplicate_of_death_id = None
     case.pending_flag = kind
+    # The flag row names the supervisor grant when the actor supervises the
+    # case, else NULL (a team member's flag).
+    grant = supervising_grant(actor, case)
     _audit(case, actor=actor, action=f"flag_{kind}", from_state=case.status,
-           to_state=case.status, reason=reason)
+           to_state=case.status, reason=reason, grant=grant)
     db.session.flush()
     # A supervisor's own flag is confirmed at once, unless the data-manager
     # rule stops them: then it waits like an interviewer's flag.
     target = "duplicate" if kind == "duplicate" else "cancelled"
-    if is_interview_supervisor_for(actor, case) and _may_confirm(actor, case, target):
+    if grant is not None and (
+        not _needs_data_manager(case, target) or _data_manager_grant(actor, case) is not None
+    ):
         resolve_flag(case, actor=actor, confirm=True, reason=reason)
     return case
 
@@ -396,7 +461,8 @@ def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str |
 def resolve_flag(case: VaDeathRegister, *, actor: VaUsers, confirm: bool,
                  reason: str | None = None) -> VaDeathRegister:
     """A supervisor confirms (state -> duplicate / cancelled) or rejects a flag."""
-    if not is_interview_supervisor_for(actor, case):
+    grant = supervising_grant(actor, case)
+    if grant is None:
         raise WebIntakeError("Only an interview supervisor may do that.", 403)
     lock_case(case)
     kind = case.pending_flag
@@ -410,7 +476,7 @@ def resolve_flag(case: VaDeathRegister, *, actor: VaUsers, confirm: bool,
     if kind == "duplicate":
         case.duplicate_of_death_id = None
     _audit(case, actor=actor, action=f"reject_{kind}", from_state=case.status,
-           to_state=case.status, reason=reason)
+           to_state=case.status, reason=reason, grant=grant)
     db.session.flush()
     return case
 
@@ -428,7 +494,8 @@ def reopen(case: VaDeathRegister, *, actor: VaUsers, reason: str | None = None) 
     lock_case(case)
     if case.status not in TERMINAL_STATES:
         raise WebIntakeError("Only a submitted, duplicate or cancelled case can be reopened.", 409)
-    if not is_interview_supervisor_for(actor, case):
+    grant = supervising_grant(actor, case)
+    if grant is None:
         raise WebIntakeError("Only an interview supervisor may do that.", 403)
     reason = _clean_reason(reason)
     if not reason:
@@ -450,7 +517,8 @@ def reopen(case: VaDeathRegister, *, actor: VaUsers, reason: str | None = None) 
     if from_state == "duplicate":
         case.duplicate_of_death_id = None
     case.status = previous
-    _audit(case, actor=actor, action="reopen", from_state=from_state, to_state=previous, reason=reason)
+    _audit(case, actor=actor, action="reopen", from_state=from_state, to_state=previous, reason=reason,
+           grant=grant)
     db.session.flush()
     return case
 

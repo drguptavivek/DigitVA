@@ -10,6 +10,8 @@ docs/policy/web-intake.md, "Supervisors". Covers:
     plain interviewer; confirming a coded submission as a duplicate needs a
     data_manager grant
   - the supervisor API: listing, 404 outside scope, CSRF
+  - audit rows naming the grant and cadre relied on, the narrowest-grant
+    choice, the supervision page and the direct duplicate mark (digitva-vzk.8)
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -18,6 +20,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapCaseTransition,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
@@ -126,6 +129,18 @@ class InterviewSupervisorTests(BaseTestCase):
         # A coder at P1 supervises nothing (decision 15).
         grant(cls.cody, VaAccessRoles.coder, scope_type=VaAccessScopeTypes.org_unit,
               org_unit_id=cls.p1.org_unit_id, cadre_id=cls.cadres["MO"].cadre_id)
+        # Vera holds three covering grants of different width (narrowest-grant
+        # choice, digitva-vzk.8); Olga manages only the other project.
+        cls.vera = cls._get_or_make_user("sup.vera@test.local", "Supervise123")
+        cls.olga = cls._get_or_make_user("sup.olga@test.local", "Supervise123")
+        grant(cls.vera, VaAccessRoles.data_manager,
+              scope_type=VaAccessScopeTypes.project, project_id=cls.PROJECT_ID)
+        grant(cls.vera, VaAccessRoles.data_manager,
+              scope_type=VaAccessScopeTypes.org_unit, org_unit_id=cls.c1.org_unit_id)
+        grant(cls.vera, VaAccessRoles.interview_supervisor, scope_type=VaAccessScopeTypes.org_unit,
+              org_unit_id=cls.p1.org_unit_id, cadre_id=cls.cadres["MO"].cadre_id)
+        grant(cls.olga, VaAccessRoles.data_manager,
+              scope_type=VaAccessScopeTypes.project, project_id=cls.OTHER_PROJECT_ID)
         db.session.commit()
 
     # ── helpers ────────────────────────────────────────────────────────────
@@ -505,3 +520,149 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(body["unique_id"], case.unique_id)
         for key in ("deceased_name", "informant_phone", "address", "abha_number"):
             self.assertNotIn(key, body)
+
+    # ── audit grant and cadre, supervision page (digitva-vzk.8) ────────────
+
+    def _grant_id(self, user, role, **scope):
+        return db.session.scalar(sa.select(VaUserAccessGrants.grant_id).filter_by(
+            user_id=user.user_id, role=role, **scope))
+
+    def _audit_rows(self, case):
+        return {
+            row.action: row
+            for row in db.session.scalars(
+                sa.select(MapCaseTransition).where(MapCaseTransition.death_id == case.death_id)
+            )
+        }
+
+    def test_supervisor_audit_rows_name_the_grant_and_cadre_and_team_moves_do_not(self):
+        sam_grant = self._grant_id(self.sam, VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id)
+        mo = self.cadres["MO"].cadre_id
+        started = self._register()
+        cases.transition(started, "in_progress", actor=self.ian, action="interview_started")
+        cases.transition(started, "cancelled", actor=self.sam, action="supervisor_cancel", reason="error")
+        cases.reopen(started, actor=self.sam, reason="real death")
+        rows = self._audit_rows(started)
+        for action in ("supervisor_cancel", "reopen"):
+            self.assertIn(action, rows)
+            self.assertEqual((rows[action].authorizing_grant_id, rows[action].authorizing_cadre_id), (sam_grant, mo))
+        self.assertIn("interview_started", rows)
+        self.assertIsNone(rows["interview_started"].authorizing_grant_id)
+        self.assertIsNone(rows["created"].authorizing_cadre_id)
+
+        rejected = self._register()
+        cases.flag_case(rejected, actor=self.ian, kind="cancel", reason="registered in error")
+        cases.resolve_flag(rejected, actor=self.sam, confirm=False, reason="not an error")
+        rows = self._audit_rows(rejected)
+        self.assertEqual(rows["reject_cancel"].authorizing_grant_id, sam_grant)
+        self.assertIn("flag_cancel", rows)
+        self.assertIsNone(rows["flag_cancel"].authorizing_grant_id)
+
+        kept, duplicate = self._register(), self._register()
+        cases.flag_case(duplicate, actor=self.sam, kind="duplicate", duplicate_of=kept)
+        rows = self._audit_rows(duplicate)
+        self.assertEqual(db.session.get(VaDeathRegister, duplicate.death_id).status, "duplicate")
+        self.assertEqual(rows["flag_duplicate"].authorizing_grant_id, sam_grant)
+        self.assertEqual(rows["confirm_duplicate"].authorizing_grant_id, sam_grant)
+
+        # The registrant cancelling their own case needs no supervision.
+        own = self._register()
+        cases.transition(own, "cancelled", actor=self.ian, action="registrant_cancel", reason="error")
+        rows = self._audit_rows(own)
+        self.assertIn("registrant_cancel", rows)
+        self.assertIsNone(rows["registrant_cancel"].authorizing_grant_id)
+        self.assertIsNone(rows["registrant_cancel"].authorizing_cadre_id)
+
+    def test_the_narrowest_covering_grant_is_the_one_relied_on(self):
+        supervisor = self._grant_id(self.vera, VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id)
+        unit_dm = self._grant_id(self.vera, VaAccessRoles.data_manager, org_unit_id=self.c1.org_unit_id)
+        project_dm = self._grant_id(self.vera, VaAccessRoles.data_manager, project_id=self.PROJECT_ID)
+        in_s1, in_c1, in_c2 = self._register(), self._register(unit=self.c1), self._register(unit=self.c2)
+        self.assertEqual(tuple(cases.supervising_grant(self.vera, in_s1)), (supervisor, self.cadres["MO"].cadre_id))
+        self.assertEqual(tuple(cases.supervising_grant(self.vera, in_c1)), (unit_dm, None))
+        self.assertEqual(tuple(cases.supervising_grant(self.vera, in_c2)), (project_dm, None))
+        self.assertIsNone(cases.supervising_grant(self.sam, in_c2))
+
+    def test_confirming_a_coded_duplicate_names_the_data_manager_grant(self):
+        unit_dm = self._grant_id(self.vera, VaAccessRoles.data_manager, org_unit_id=self.c1.org_unit_id)
+        kept = self._register()
+        coded = self._submitted_with_workflow("coder_finalized")
+        cases.flag_case(coded, actor=self.ian, kind="duplicate", duplicate_of=kept)
+        cases.resolve_flag(coded, actor=self.vera, confirm=True)
+        row = self._audit_rows(coded)["confirm_duplicate"]
+        # Vera's P1 supervisor grant is narrower, but the rule needs a data_manager grant.
+        self.assertEqual((row.authorizing_grant_id, row.authorizing_cadre_id), (unit_dm, None))
+
+    def test_the_supervision_page_opens_for_supervisors_and_data_managers_only(self):
+        for user in (self.sam, self.dana):
+            self._login(str(user.user_id))
+            response = self.client.get("/intake/supervision")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"intake_supervision.js", response.data)
+            self.assertIn(b'href="/intake/supervision"', response.data)
+        self._login(str(self.ian.user_id))
+        self.assertEqual(self.client.get("/intake/supervision").status_code, 403)
+        self.assertNotIn(b'href="/intake/supervision"', self.client.get("/intake/").data)
+
+    def test_a_data_manager_with_nothing_to_supervise_gets_an_empty_list(self):
+        self._register()
+        db.session.commit()
+        self._login(str(self.dana.user_id))
+        self.assertTrue(self.client.get("/intake/api/supervision/cases").get_json()["cases"])
+        self._login(str(self.olga.user_id))
+        response = self.client.get("/intake/api/supervision/cases")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"cases": [], "counts": {}, "next_cursor": None})
+
+    def test_supervised_rows_carry_no_informant_phone(self):
+        self._register(informant_phone="9876543210")
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        row = self.client.get("/intake/api/supervision/cases").get_json()["cases"][0]
+        self.assertIn("registered_by_name", row)
+        for key in ("informant_phone_masked", "informant_phone_2_masked", "informant_phone", "address"):
+            self.assertNotIn(key, row)
+
+    def test_a_supervisor_marks_a_duplicate_directly(self):
+        kept, duplicate = self._register(), self._register()
+        sibling = self._register(unit=self.c2)
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        url = f"/intake/api/supervision/cases/{duplicate.death_id}/duplicate"
+        body = {"duplicate_of": str(kept.death_id), "reason": "same death"}
+
+        self.assertEqual(self.client.post(url, json=body).status_code, 400)  # no CSRF token
+        response = self.client.post(url, json={"duplicate_of": str(sibling.death_id)}, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(
+            f"/intake/api/supervision/cases/{sibling.death_id}/duplicate",
+            json={"duplicate_of": str(kept.death_id)}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.client.post(url, json={}, headers=self._csrf_headers()).status_code, 400)
+        self.assertEqual(db.session.get(VaDeathRegister, duplicate.death_id).status, "registered")
+
+        response = self.client.post(url, json=body, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["death"]["status"], "duplicate")
+        stored = db.session.get(VaDeathRegister, duplicate.death_id)
+        db.session.refresh(stored)
+        self.assertEqual(stored.duplicate_of_death_id, kept.death_id)
+        rows = self._audit_rows(stored)
+        self.assertEqual(
+            rows["confirm_duplicate"].authorizing_grant_id,
+            self._grant_id(self.sam, VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id),
+        )
+
+    def test_a_direct_duplicate_mark_on_a_coded_case_waits_for_a_data_manager(self):
+        kept = self._register()
+        coded = self._submitted_with_workflow("coder_finalized")
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        response = self.client.post(
+            f"/intake/api/supervision/cases/{coded.death_id}/duplicate",
+            json={"duplicate_of": str(kept.death_id)}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["death"]["pending_flag"], "duplicate")
+        self.assertEqual(response.get_json()["death"]["status"], "submitted")

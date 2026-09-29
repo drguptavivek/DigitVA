@@ -150,8 +150,8 @@ class MapCaseTransition(db.Model):
     """Audit row for one case state change or flag (actor, from, to, reason).
 
     ``reason`` is a short code or a user-typed reason and must hold no
-    personal data (names, phone numbers, addresses). Nothing enforces that
-    yet: the user-facing warning arrives with the phase 4 worklist UI.
+    personal data (names, phone numbers, addresses); the worklist and
+    supervisor pages warn so, nothing enforces it.
     """
 
     __tablename__ = "map_case_transitions"
@@ -173,6 +173,19 @@ class MapCaseTransition(db.Model):
     reason: so.Mapped[str | None] = so.mapped_column(sa.String(200), nullable=True)
     actor_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
+    )
+    # The grant and its cadre a supervisor action relied on (decision 15);
+    # NULL for team, starter and registrant moves. Names are explicit: the
+    # convention's would pass Postgres' 63-character limit.
+    authorizing_grant_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_user_access_grants.grant_id", name="fk_map_case_transitions_authorizing_grant"),
+        nullable=True,
+    )
+    authorizing_cadre_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_cadre.cadre_id", name="fk_map_case_transitions_authorizing_cadre"),
+        nullable=True,
     )
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow

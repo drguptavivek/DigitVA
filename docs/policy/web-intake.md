@@ -367,12 +367,37 @@ a place for names, phone numbers or addresses).
   predicate `case_transition_service.is_interview_supervisor_for` (unit-grant
   subtree of `interview_supervisor` or `data_manager`, plus `data_manager`
   project and site grants); the supervisor API under
-  `/intake/api/supervision/` (list, resolve flag, cancel, reopen). **Not built
-  yet:** audit rows naming the grant and cadre (the audit row names the actor
-  only) and the supervisor UI. Confirming a duplicate excludes its submission
+  `/intake/api/supervision/` (list, resolve flag, cancel, reopen). Confirming a duplicate excludes its submission
   from every coding reader through `app/services/duplicate_exclusion.py` and
   revokes any active coding or reviewing allocation (`digitva-vzk.7`; see
   coding-workflow-state-machine.md, "Confirmed Duplicate Cases").
+- **Built (digitva-vzk.8, 2026-09-30, migration `a8d4f1c7e3b9`):**
+  - **Audit grant and cadre.** Every supervisor action's audit row (resolve
+    flag, supervisor cancel, reopen, confirm or mark duplicate, and a flag
+    raised by someone who supervises the case) stores
+    `authorizing_grant_id` and `authorizing_cadre_id` (the grant's cadre;
+    NULL for a data_manager grant, which has none). Team, starter and
+    registrant moves leave both NULL. The grant comes from the same
+    predicate that decides supervision
+    (`case_transition_service.supervising_grant`): the **narrowest** covering
+    grant, i.e. the unit grant at the deepest unit, then a data_manager
+    project-site grant, then a project grant; at equal depth
+    `interview_supervisor` before `data_manager`, then the lowest grant id.
+    Confirming an already coded duplicate names the actor's narrowest
+    `data_manager` grant, the one that rule relies on.
+  - **Supervisor page** `/intake/supervision` (an `interview_supervisor` or
+    `data_manager` grant; navbar link "Supervision"): tabs **Flags to
+    resolve** and **All cases** (state filter), rows showing who registered
+    and who started each case, no informant phone or address (the
+    supervision list API drops the masked phones too). Actions: confirm or
+    reject a flag, mark duplicate, cancel and reopen, each with a reason
+    under the warning "no names, phone numbers or addresses".
+  - **Direct duplicate mark** `POST /intake/api/supervision/cases/<id>/duplicate`
+    (`duplicate_of`, `reason`): a supervisor without an interviewer grant
+    marks a case as a duplicate of another supervised case of the same
+    project; both cases outside the caller's supervision read as 404. It is
+    confirmed at once unless the data-manager rule holds it as a pending
+    flag.
 - Authorization stays explicit: project, project-site, form and unit grants
   are not interchangeable, and no supervisory reach is inferred from another
   grant. Supervisor power is bounded by grant scope, grant status and
@@ -538,7 +563,8 @@ the interview). `org_<level>_code` stays server-injected at submission.
   project's `web_intake_mode` allows (`death_register`: register only;
   `direct`: start only; `both`: both; `off`: neither).
 - Supervisors get an **All in my scope** view showing who registered and who
-  started each case. There is no reassignment.
+  started each case (built: `/intake/supervision`, see "Supervisors"). There
+  is no reassignment.
 
 ### Offline capture
 

@@ -56,6 +56,13 @@ def new_death_page():
     return render_template("va_frontpages/va_intake_death.html")
 
 
+@intake.get("/supervision")
+@role_required("interview_supervisor", "data_manager")
+def supervision_page():
+    """The supervisor list over ``/api/supervision/cases`` (digitva-vzk.8)."""
+    return render_template("va_frontpages/va_intake_supervision.html")
+
+
 @intake.get("/form/<draft_id>")
 @role_required("interviewer")
 def form_page(draft_id):
@@ -422,7 +429,8 @@ def api_supervisor_resolve_flag(death_id):
 @intake.post("/api/supervision/cases/<death_id>/cancel")
 @role_required("interview_supervisor", "data_manager")
 def api_supervisor_cancel(death_id):
-    """Cancel a case outright (registered, scheduled, in progress or paused). Body: ``reason``."""
+    """Cancel a case outright (details pending, registered, scheduled, in progress or
+    paused). Body: ``reason``."""
     p = _payload()
 
     def run():
@@ -446,6 +454,26 @@ def api_supervisor_reopen(death_id):
     def run():
         death = intake_svc.get_supervised_case(current_user, death_id)
         case_svc.reopen(death, actor=current_user, reason=_reason(p))
+        db.session.commit()
+        return jsonify({"death": _supervisor_ack(death)})
+
+    return _handle(run)
+
+
+@intake.post("/api/supervision/cases/<death_id>/duplicate")
+@role_required("interview_supervisor", "data_manager")
+def api_supervisor_mark_duplicate(death_id):
+    """Mark a case as a duplicate of another supervised case of the same
+    project; confirmed at once unless the data-manager rule holds it as a
+    pending flag. Needs no interviewer grant. Body: ``duplicate_of``, ``reason``."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.get_supervised_case(current_user, death_id)
+        if not p.get("duplicate_of"):
+            raise intake_svc.WebIntakeError("Name the case this one duplicates.")
+        kept = intake_svc.get_supervised_case(current_user, p["duplicate_of"])
+        case_svc.flag_case(death, actor=current_user, kind="duplicate", reason=_reason(p), duplicate_of=kept)
         db.session.commit()
         return jsonify({"death": _supervisor_ack(death)})
 

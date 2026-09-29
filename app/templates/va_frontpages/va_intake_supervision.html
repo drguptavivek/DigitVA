@@ -1,0 +1,24 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}DigitVA | Interview supervision{% endblock %}
+{% block content %}
+<h2 class="text-primary mb-2" style="font-size: 24px; font-weight: 600;">Interview supervision</h2>
+<p class="text-muted small">Cases in your supervision scope: resolve flags, mark duplicates, cancel and reopen. You never assign cases.</p>
+<div id="sup-alert" class="alert d-none small py-2" role="alert"></div>
+
+<section id="sup-list" data-user-tz="{{ current_user.timezone or 'Asia/Kolkata' }}" data-csrf="{{ csrf_token() }}" aria-label="Supervised cases">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <ul class="nav nav-pills nav-fill flex-grow-1 small" id="sup-tabs" role="tablist">
+      <li class="nav-item" role="presentation"><button type="button" class="nav-link px-2 py-1" data-tab="flags" role="tab">Flags to resolve</button></li>
+      <li class="nav-item" role="presentation"><button type="button" class="nav-link px-2 py-1" data-tab="all" role="tab">All cases</button></li>
+    </ul>
+    <div class="d-none" id="sup-state-wrap">
+      <label class="visually-hidden" for="sup-state">State</label>
+      <select id="sup-state" class="form-select form-select-sm"></select>
+    </div>
+  </div>
+  <ul class="list-group mb-2" id="sup-rows" aria-live="polite"></ul>
+  <p class="text-muted small d-none" id="sup-empty">No cases here.</p>
+  <button type="button" class="btn btn-sm btn-outline-secondary w-100 d-none" id="sup-load-more">Load more</button>
+</section>
+<script src="{{ url_for('static', filename='js/intake/intake_supervision.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+{% endblock %}

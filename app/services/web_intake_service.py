@@ -1538,9 +1538,11 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                              registered_by_name: str | None, started_by_name: str | None) -> dict:
     """A worklist row plus who registered and started the case (staff identity,
-    decision 13). Subject details stay as the worklist row has them."""
+    decision 13), without the informant's phones: the supervisor list does not
+    contact families."""
     row = serialize_worklist_row(user, death, unit_name, None)
-    row.pop("my_draft_id")
+    for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked"):
+        row.pop(key)
     row["registered_by_name"] = registered_by_name
     row["started_by_name"] = started_by_name
     row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None

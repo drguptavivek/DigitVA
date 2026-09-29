@@ -506,7 +506,11 @@ One audit row per case creation, state change or flag: `death_id`, `action`
 (short code: `created`, `interview_started`, `identity_captured`,
 `submitted`, `draft_discarded`, `flag_duplicate`, ...), `from_state` (NULL on
 creation), `to_state`, `reason` (at most 200 characters, no personal data),
-`actor_user_id`, `created_at`. Indexed on `(death_id, created_at)` and
+`actor_user_id`, `authorizing_grant_id` and `authorizing_cadre_id` (the
+supervisor grant and its cadre a supervisor action relied on; NULL for team,
+starter and registrant moves and for rows before migration `a8d4f1c7e3b9`;
+foreign keys to `va_user_access_grants` and `mas_cadre`, not indexed),
+`created_at`. Indexed on `(death_id, created_at)` and
 `(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
 (cases a user registered, started or acted on).
 

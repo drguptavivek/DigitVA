@@ -39,6 +39,15 @@
     </li>
   {% endif %}
 
+  {% if current_user.is_authenticated and (current_user.is_interview_supervisor() or current_user.is_data_manager()) %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('intake.supervision_page') }}">
+        <i class="fa-solid fa-user-shield me-1"></i>
+        Supervision
+      </a>
+    </li>
+  {% endif %}
+
   {% if current_user.is_authenticated and current_user.can_access_coding_dashboard() %}
     <li class="nav-item">
       <a class="nav-link" href="{{ url_for('coding.dashboard') }}">

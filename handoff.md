@@ -20,8 +20,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > (2494 pass, about 2.5 min; run only touched migration tests plus
 > `test_schema_drift.py` and `test_no_app_imports_in_migrations.py`).
 > One pytest run per test database at a time. Web form package:
-> `cd vendor/who-va-2022 && npx vitest run` (351 known failures, all in
-> `question-by-question.test.ts`, `digitva-19l`); rebuild the served bundle
+> `cd vendor/who-va-2022 && npx vitest run` (779 pass); rebuild the served bundle
 > with `cd tooling/who-va-2022 && node build.mjs && node check.mjs` (updates
 > `manifest.json`; the page versions the bundle URL by its sha). Use `bd`;
 > commit in the repo's voice and push.
@@ -104,6 +103,10 @@ step is where it hooks in), `digitva-sn1` (passkeys/TOTP, build done),
 (semantic ICD search).
 
 ## Caveats still true
+
+- Dev has a `test.coder.nc01@gmail.com` account (password as in `AGENTS.md`)
+  created for the DORIS browser check; its SADEMO coder grant is set to
+  `deactive`. The other four test coders are not in this dev database.
 
 - Web form: speed is the priority; round-3 measures (4x CPU throttle) are in
   `docs/design/web-form-visual-pass/README.md` (tap on the 164-question

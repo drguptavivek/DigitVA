@@ -873,11 +873,15 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None) -> VaWebIntakeDraft:
+def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, own_copy: bool = False) -> VaWebIntakeDraft:
     """Open (or return the caller's own) draft for a case, or start directly.
 
     A direct start creates its case at once (``source = direct``,
     ``draft_identity``); the draft's answers fill the identity in.
+
+    ``own_copy`` (device uploads) always opens a new draft, ignoring any
+    active draft on the case: a device copy is that interviewer's own
+    attempt, never merged into the team's server draft (web-intake.md).
     """
     mode = get_web_intake_mode(project_id)
     death = get_death(user, death_id) if death_id else None
@@ -898,7 +902,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
                 VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft"
             )
         )
-        if existing is not None:
+        if existing is not None and not own_copy:
             if existing.user_id != user.user_id:
                 raise WebIntakeError("Another interviewer already has a draft for this death.", 409)
             _begin_interview(death, user)
@@ -1129,7 +1133,7 @@ def _is_attachment_reference(value: object) -> bool:
     return False
 
 
-def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime) -> tuple[dict, dict]:
+def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web") -> tuple[dict, dict]:
     """Return (payload, attachment_references) shaped like a synced ODK record.
 
     Attachment answers are lifted out of the payload (phase 2 uploads them
@@ -1184,7 +1188,7 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["updatedAt"] = submitted_iso
     payload["SubmitterName"] = user.name
     payload["SubmitterID"] = str(user.user_id)
-    payload["DeviceID"] = "digitva-web"
+    payload["DeviceID"] = f"digitva-{intake_source}"
     payload["FormVersion"] = str(meta.get("instrumentVersion") or meta.get("formVersion") or "2022")
     payload["ReviewState"] = None
     payload["instanceName"] = f"{draft.unique_id}_WHOVA2022"
@@ -1195,7 +1199,7 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["today"] = submitted_at.date().isoformat()
     payload["AttachmentsExpected"] = len(references)
     payload["AttachmentsPresent"] = 0
-    payload["intake_source"] = "web"
+    payload["intake_source"] = intake_source
     # What the respondent was shown: the working language and the exact
     # translation version behind it, so the screen is reconstructible.
     payload["intake_locale"] = meta.get("locale") or DEFAULT_LOCALE
@@ -1283,7 +1287,7 @@ def _interview_outcome(data: dict, completion: dict) -> str:
     )
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) -> VaSubmissions:
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
@@ -1321,7 +1325,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     # Final submit only (never a draft save): remove answers to questions
     # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
     stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
-    payload, references = build_web_payload(draft, stripped_data, user, submitted_at=submitted_at)
+    payload, references = build_web_payload(draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source)
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
     va_sid = fields["va_sid"]
@@ -1398,7 +1402,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     draft.submitted_at = submitted_at
     draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
-    draft.meta = {**(draft.meta or {}), "attachmentReferences": references}
+    draft.meta = {**(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome}
     if death is not None:
         action = "submitted" if outcome == "completed" else f"submitted_{outcome}"
         cases.transition(death, OUTCOME_CASE_STATES[outcome], actor=user, action=action)
@@ -1409,6 +1413,125 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     db.session.flush()
     log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | outcome=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, outcome, len(references))
     return submission
+
+
+# ---------------------------------------------------------------------------
+# Device uploads (Path B, .tasks/2026-09-30-android-collection-app.md)
+# ---------------------------------------------------------------------------
+
+#: The one section a device upload's answers are stored under: the app sends
+#: the whole envelope at once, not section-wise saves.
+DEVICE_SECTION = "device"
+#: Case states a device upload is kept for as a superseded copy instead of
+#: submitted: a teammate's complete submission won, or a supervisor closed
+#: the case. Never refused, so nothing is left stuck on the phone.
+_SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
+_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt")
+
+
+def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
+    """The draft an earlier upload of *client_draft_id* created, if any.
+    Another interviewer's id is a 409, never their result."""
+    draft = db.session.scalar(
+        sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == client_draft_id)
+    )
+    if draft is not None and draft.user_id != user.user_id:
+        raise WebIntakeError("That client_draft_id is already in use.", 409)
+    return draft
+
+
+def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, meta: dict, completion: dict) -> VaWebIntakeDraft:
+    """Keep a device interview for a closed case as a ``superseded`` draft
+    linked to the case: answers stored, no submission, no routing, and the
+    case (its identity included) left exactly as it is."""
+    if death.site_id != site_id:
+        raise WebIntakeError("Death entry belongs to another project or site.")
+    try:
+        outcome = _interview_outcome(data, completion)
+    except WebIntakeError:
+        outcome = None
+    form = ensure_web_runtime_form(death.project_id, death.site_id)
+    now = _utcnow()
+    draft = VaWebIntakeDraft(
+        project_id=death.project_id,
+        site_id=death.site_id,
+        org_unit_id=death.org_unit_id,
+        death_id=death.death_id,
+        form_id=form.form_id,
+        user_id=user.user_id,
+        unique_id=death.unique_id,
+        meta={"instrumentId": INSTRUMENT_ID, "locale": DEFAULT_LOCALE, "translation_version": 0,
+              **meta, "interviewOutcome": outcome},
+        prefill={},
+        status="superseded",
+        client_draft_id=client_draft_id,
+        submitted_at=now,
+        client_valid=completion.get("valid") is True,
+    )
+    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=data))
+    db.session.add(draft)
+    db.session.flush()
+    log.info("device interview kept as superseded copy | unique_id=%s | case_status=%s | by=%s", death.unique_id, death.status, user.user_id)
+    return draft
+
+
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, completion: dict, device_id: uuid.UUID) -> VaWebIntakeDraft:
+    """Store and submit one completed device interview; returns its draft.
+
+    The same path as a web submit: ``start_draft`` (scope, case, prefill) in
+    *project_id* only, the answers saved through ``save_draft_sections``,
+    then ``submit_draft`` with ``intake_source = device``. A case already
+    closed is kept as a superseded copy instead (``_store_superseded_copy``).
+    *completion* is ``{valid, issues}`` from the app's form engine; without
+    ``valid: true`` the upload needs an incomplete ``interview_outcome``
+    pick, exactly as on the web. Idempotency is the caller's
+    (``find_device_upload`` first; ``client_draft_id`` is unique).
+    """
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("data"), dict):
+        raise WebIntakeError("draft.data must be an object of answers.")
+    data = envelope["data"]
+    meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
+    meta["deviceId"] = str(device_id)
+    completion = {
+        "valid": completion.get("valid") is True,
+        "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
+        "data": data,
+    }
+    if death_id:
+        death = cases.lock_case(get_death(user, death_id))
+        if death.project_id != project_id:
+            raise WebIntakeError("Death entry not found.", 404)
+        if death.status in _SUPERSEDED_CASE_STATES:
+            return _store_superseded_copy(
+                user, death, client_draft_id=client_draft_id, site_id=site_id,
+                data=data, meta=meta, completion=completion,
+            )
+    draft = start_draft(
+        user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
+        death_id=death_id, own_copy=True,
+    )
+    draft.client_draft_id = client_draft_id
+    draft.meta = {**(draft.meta or {}), "deviceId": meta.pop("deviceId")}
+    save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
+    submit_draft(draft, user, completion=completion, intake_source="device")
+    return draft
+
+
+def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
+    """The contract's upload result, rebuilt from the stored draft so a
+    resend gets the same ``va_sid``, case and outcome as the first upload;
+    ``case.status`` is the case's current state."""
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    return {
+        "va_sid": draft.va_sid,
+        "case": {
+            "death_id": str(death.death_id) if death else None,
+            "unique_id": draft.unique_id,
+            "status": death.status if death else None,
+        },
+        "outcome": (draft.meta or {}).get("interviewOutcome"),
+        "superseded": draft.status == "superseded",
+    }
 
 
 # ---------------------------------------------------------------------------

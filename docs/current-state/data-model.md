@@ -529,6 +529,15 @@ One row per attempt to reach a case's family: `attempt_id`, `death_id` (FK
 worklist's "mine" filter. Written by `web_intake_service.log_contact_attempt`;
 a state change the attempt causes is also audited in `map_case_transitions`.
 
+### Device uploads and device sessions
+
+Migration `d7a3c9e1f5b2` (digitva-kmk.1): `va_web_intake_drafts.client_draft_id`
+(the Android app's draft UUID, unique where not null) and a draft status
+`superseded` (a device upload for a closed case, kept, never submitted);
+`auth_device_enrolment_codes`, `auth_devices` and `auth_device_sessions`
+hold hashed enrolment codes, device secrets and tokens. See
+[Device Collection API](device-collection-api.md).
+
 ## ICD Reference Master Table
 
 ### `mas_icd10_2019_2`

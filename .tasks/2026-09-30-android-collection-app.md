@@ -1,6 +1,6 @@
 # Android collection app (Path B)
 
-Status: design draft, 2026-09-30, revised after design review the same day. Owner asked (2026-09-30) for an Android app
+Status: design draft, 2026-09-30, revised after design review the same day. Phase 1 (server) built 2026-09-30 (`digitva-kmk.1`, `docs/current-state/device-collection-api.md`), with the contract additions listed there; the upload needs `completion.valid` from the app. Owner asked (2026-09-30) for an Android app
 for data collection with QR-code device provisioning, biometric lock with an
 app-PIN fallback, encryption, server URL set from the QR, and a multilingual
 UI, **after** the web form and dashboard work lands. Policy it must satisfy:

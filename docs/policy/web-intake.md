@@ -872,7 +872,9 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   supervisor powers and views, the `interview_outcome` question and its
   first-complete-submission rule are built; team drafts, telling the
   interviewer of a superseded copy, a web "Stop interview" submit and offline
-  capture are **not implemented**. Offline capture is native-app work under Path B of
+  capture are **not implemented**. The server side of a device upload,
+  including storing a late device interview as a superseded copy, is built
+  (`digitva-kmk.1`, [Device Collection API](../current-state/device-collection-api.md)). Offline capture is native-app work under Path B of
   [Field Data Collection Policy](field-data-collection.md) (no amendment
   needed), not a web-page feature; it has open design items 6 and 18 there.
   ("Unit-scoped listing refinements" was struck on 2026-09-19: there was

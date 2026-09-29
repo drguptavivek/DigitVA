@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "DigitVA Collect",
+    "slug": "digitva-collect",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": [
+      "android"
+    ],
+    "scheme": "digitvacollect",
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan the enrolment QR code shown by your DigitVA administrator.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "android": {
+      "package": "org.digitva.collect",
+      "permissions": [
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "allowBackup": false
+    }
+  }
+}

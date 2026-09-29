@@ -663,3 +663,32 @@ def load_user(user_id: str):
     if (user.auth_session_version or 0) != version:
         return None
     return user
+
+
+@login.request_loader
+def load_user_from_device_token(request):
+    """``Authorization: Bearer <access token>`` for the device API only.
+
+    Scoped to ``/api/v1/device/`` so a stolen device token can never drive
+    the browser UI or any other API. Resolves only a live, unrevoked session
+    on an unrevoked device (``device_auth_service.resolve_access_token``) and
+    stamps it on ``g.device_session``; the device blueprint requires that
+    stamp, so a cookie session cannot stand in for it there. Flask-Login
+    tries the session cookie first, so on these paths a cookie simply leaves
+    the stamp unset and the call is refused.
+    """
+    from flask import g
+
+    from app.services.device_auth_service import DEVICE_API_PREFIX, resolve_access_token
+
+    if not request.path.startswith(DEVICE_API_PREFIX):
+        return None
+    scheme, _sep, token = request.headers.get("Authorization", "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        return None
+    resolved = resolve_access_token(token)
+    if resolved is None:
+        return None
+    g.device_session, user = resolved
+    return user

@@ -153,6 +153,16 @@ PUBLIC_BY_DESIGN = frozenset({
     "help.icd11_codes_browser_csv",
     "help.icd11_codes_browser_node",
     "help.icd11_codes_browser_search",
+    # Device API (Path B, .tasks/2026-09-30-android-collection-app.md): the
+    # three calls that create a device session and so cannot require one.
+    # Enrol is gated in body by a one-time, expiring, hashed enrolment code
+    # (404 for anything else); sessions by the device secret plus password
+    # and any second factor; refresh by a live refresh token, with reuse
+    # revoking the session. All rate-limited. Every other device route is
+    # behind the blueprint's bearer-session check and a role/login guard.
+    "api_v1.device.enroll",
+    "api_v1.device.open_session",
+    "api_v1.device.refresh_session",
 })
 
 _ALLOWED = PUBLIC_BY_DESIGN

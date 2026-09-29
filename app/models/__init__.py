@@ -1,3 +1,8 @@
+from app.models.auth_devices import (
+    AuthDevice,
+    AuthDeviceEnrolmentCode,
+    AuthDeviceSession,
+)
 from app.models.auth_factors import (
     AuthRecoveryCode,
     AuthSecurityEvent,
@@ -102,6 +107,9 @@ from app.models.va_web_intake import (
 )
 
 __all__ = [
+    "AuthDevice",
+    "AuthDeviceEnrolmentCode",
+    "AuthDeviceSession",
     "AuthWebauthnCredential",
     "AuthTotp",
     "AuthRecoveryCode",

@@ -118,6 +118,17 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   returns the first result. An interview for a case a teammate already
   submitted is kept as a superseded copy, never left on the phone.
 
+**Built, server side** (`digitva-kmk.1`, 2026-09-30): enrolment codes and
+QR, device enrolment, interviewer sessions with the second factor and the
+grant check, hashed opaque tokens with rotation and reuse revocation,
+device revoke, bootstrap, idempotent upload with the superseded-copy path,
+and the outstanding-work report
+([Device Collection API](../current-state/device-collection-api.md)). The
+refresh lifetime is the proposed 30 days (C1) behind
+`DEVICE_REFRESH_TTL_DAYS`, and enrolment codes are admin-only; both stay
+owner decisions. The app itself, and so every on-device rule above, is not
+built.
+
 ### Accepted risk: no retention ceiling
 
 Decision C3 permits an interview to remain on a device indefinitely until it

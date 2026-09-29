@@ -500,6 +500,10 @@ def create_app(config_class=None):
     def enforce_factor_setup():
         if request.path.startswith("/static") or request.path == "/health":
             return None
+        # The device API is bearer-only and must never write a session
+        # (cookie); its sign-in already asked for any factor the user holds.
+        if request.path.startswith("/api/v1/device/"):
+            return None
         if not current_user.is_authenticated:
             return None
 

@@ -635,6 +635,13 @@ def project_form_options(project_id: str):
     if reachable is not None and not reachable:
         return _error("You do not have access to that project.", 403)
 
+    return jsonify(form_options_payload(project))
+
+
+def form_options_payload(project: VaProjectMaster) -> dict:
+    """The form-options body for *project*; the caller decides access. Also
+    served inside the device bootstrap (app/routes/api/device.py)."""
+    project_id = project.project_id
     active = _active_languages()
     form_types = _project_form_types(project)
     default_form_type = next((ft for ft in form_types if ft["is_default"]), None)
@@ -651,7 +658,7 @@ def project_form_options(project_id: str):
         else FALLBACK_INSTRUMENT_CODE
     )
 
-    return jsonify({
+    return {
         "project_id": project_id,
         "config_version": _config_version(project_id),
         "enabled_extensions": _enabled_extensions(
@@ -668,4 +675,4 @@ def project_form_options(project_id: str):
         "translation_versions": translation_versions,
         "narration_languages": narration_languages,
         "show_guidance": project.web_intake_show_guidance,
-    })
+    }

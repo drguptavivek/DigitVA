@@ -1,0 +1,84 @@
+# DigitVA Collect (Android)
+
+Offline WHO VA 2022 collection app for Path B of
+`docs/policy/field-data-collection.md`. Design and API contract:
+`.tasks/2026-09-30-android-collection-app.md` (epic `digitva-kmk`).
+
+> **Debug builds must not collect real interviews.** Phase 2a stores drafts
+> in plain, unencrypted SQLite and has no PIN or biometric lock; a debug APK
+> is signed with a well-known key. Point it at a non-production DigitVA only.
+> Encryption, PIN and lock arrive in phase 2b.
+
+## What it does (phase 2a)
+
+- **Enrol**: scan the one-time QR from the project's Setup home, Devices
+  (or paste its JSON in a debug build). The server must be on the allowlist
+  compiled into `src/enrolment.ts`: release builds accept
+  `https://digitva.causeofdeathindia.com` only; debug builds also accept
+  `http://10.0.2.2:8051` (emulator to host) and `http://localhost:8051`
+  (device with `adb reverse tcp:8051 tcp:8051`).
+- **Interviewers**: several may sign in on one phone. The home screen shows
+  display names only. Tokens live in SecureStore per interviewer; the access
+  token refreshes with rotation, one refresh in flight per interviewer.
+- **Drafts**: each interviewer has their own SQLite file (`iv_<sha256>.db`),
+  opened in `src/interviewerDb.ts`; the form writes through a `draftStore`
+  over it (`src/drafts.ts`). Attachments are disabled.
+- **Send**: completed interviews go to `POST /api/v1/device/submissions`
+  with `client_draft_id` = the draft UUID; the local copy is deleted when the
+  server answers 201 or 200 (push and purge). The remaining count is then
+  reported to `/outstanding`.
+- **Sign out** warns about unsent interviews, then deletes that
+  interviewer's database and tokens. A `401 session_revoked` does the same
+  without asking. Nobody else's data is touched.
+- UI strings in `src/strings/{en,hi}.json`; `hi` needs native-speaker review.
+
+## Setup
+
+```sh
+cd mobile/digitva-collect
+npm run vendor:build   # builds vendor/who-va-2022/dist and installs a copy of it
+npm install
+```
+
+The WHO VA package is installed from `file:../../vendor/who-va-2022` as a
+packed copy (`.npmrc` `install-links=true`), so Metro never sees the vendor's
+own `react-native`. After changing or rebuilding the vendor package, run
+`npm run vendor:build` again.
+
+## Run against the dev server
+
+1. Start DigitVA (`docker compose up -d` at the repo root; it serves
+   `http://localhost:8051`).
+2. As an admin, open the project's Setup home, **Devices**, and create an
+   enrolment code. For the emulator the QR's server must be
+   `http://10.0.2.2:8051`; if the page shows another host, copy the JSON and
+   change `server` before pasting it into the app.
+3. `npm run android` (or build the APK below, install it, and `npx expo start`
+   with `adb reverse tcp:8081 tcp:8081`). A debug APK loads its JavaScript from
+   Metro; it does not run without it.
+4. Sign in with an interviewer account (see `AGENTS.md` for test accounts).
+
+## Build the debug APK
+
+```sh
+npx expo prebuild --platform android
+cd android
+ANDROID_HOME=~/Library/Android/sdk ./gradlew assembleDebug -PreactNativeArchitectures=x86_64,arm64-v8a
+# -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`android/` is generated and not committed. The Android package id
+(`org.digitva.collect`, owner decision pending) lives only in `app.json`.
+
+## Checks
+
+```sh
+npx tsc --noEmit
+npx jest
+```
+
+## Phase 2b changes
+
+- `src/interviewerDb.ts`: open with SQLCipher, keyed from the per-store
+  secret joined with the PIN; nothing else changes.
+- PIN and biometric unlock, auto-lock, `FLAG_SECURE`, wipe after failed PINs.

@@ -233,6 +233,12 @@ class VaWebIntakeDraft(db.Model):
         sa.Index("ix_va_web_intake_drafts_user_status", "user_id", "status"),
         sa.Index("ix_va_web_intake_drafts_project", "project_id"),
         sa.Index("ix_va_web_intake_drafts_death", "death_id"),
+        sa.Index(
+            "uq_va_web_intake_drafts_client_draft_id",
+            "client_draft_id",
+            unique=True,
+            postgresql_where=sa.text("client_draft_id IS NOT NULL"),
+        ),
     )
 
     draft_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -264,11 +270,19 @@ class VaWebIntakeDraft(db.Model):
     # Prefill the page applies on first load (deceased, interviewer, location).
     prefill: so.Mapped[dict] = so.mapped_column(JSONB, nullable=False, default=dict)
     current_section: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
+    # draft | submitted | discarded | superseded. ``superseded`` is a device
+    # upload for a case already closed (a teammate's complete submission won):
+    # kept with its answers, never submitted or routed to coding.
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="draft", server_default="draft"
     )
     va_sid: so.Mapped[str | None] = so.mapped_column(
         sa.String(64), sa.ForeignKey("va_submissions.va_sid"), nullable=True
+    )
+    # The device app's own draft UUID (Path B upload idempotency key); NULL
+    # for a web draft. Unique where present.
+    client_draft_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), nullable=True
     )
     client_valid: so.Mapped[bool | None] = so.mapped_column(sa.Boolean, nullable=True)
     client_issue_count: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)

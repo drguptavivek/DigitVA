@@ -1,0 +1,47 @@
+{
+  "name": "digitva-collect",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "vendor:build": "npm --prefix ../../vendor/who-va-2022 run build && npm install ../../vendor/who-va-2022",
+    "start": "expo start",
+    "android": "expo run:android",
+    "prebuild": "expo prebuild --platform android",
+    "build:debug": "expo prebuild --platform android && cd android && ./gradlew assembleDebug",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo"
+  },
+  "dependencies": {
+    "@drguptavivek/who-2022-va": "file:../../vendor/who-va-2022",
+    "@expo/metro-runtime": "~57.0.16",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "expo": "^57.0.7",
+    "expo-camera": "~57.0.6",
+    "expo-constants": "^57.0.6",
+    "expo-crypto": "~57.0.3",
+    "expo-linking": "^57.0.3",
+    "expo-localization": "~57.0.2",
+    "expo-router": "~57.0.7",
+    "expo-secure-store": "~57.0.3",
+    "expo-sqlite": "~57.0.1",
+    "expo-status-bar": "^57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "^0.86.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/jest": "29.5.14",
+    "@types/node": "^24.19.0",
+    "@types/react": "~19.2.4",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.5",
+    "typescript": "~6.0.3"
+  }
+}

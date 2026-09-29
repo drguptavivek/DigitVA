@@ -138,6 +138,30 @@
         {% include "admin/panels/access_grants.html" %}
         <hr class="my-4">
         {% include "admin/panels/project_pi.html" %}
+        {% if current_user.is_admin() %}
+        <hr class="my-4">
+        {# Devices (Path B collection app): enrolment QR, enrolled devices, revoke.
+           JSON API in app/routes/admin_devices.py; admin only. #}
+        <div class="card" id="setup-devices">
+          <div class="card-body small">
+            <h6 class="card-title">Devices</h6>
+            <p class="text-muted mb-2">Enrol a phone for the collection app: create a code, then scan
+              the QR in the app. The code is shown once and only here.</p>
+            <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+              <label class="form-label mb-0">Expires in (minutes)
+                <input type="number" class="form-control form-control-sm" id="device-code-minutes" value="60" min="5" max="10080">
+              </label>
+              <label class="form-label mb-0">Uses
+                <input type="number" class="form-control form-control-sm" id="device-code-uses" value="1" min="1" max="200">
+              </label>
+              <button type="button" class="btn btn-sm btn-primary" id="device-code-create">
+                <i class="fa-solid fa-qrcode me-1"></i>Create enrolment code</button>
+            </div>
+            <div id="device-code-result" class="mb-3"></div>
+            <div id="device-list"><div class="text-muted py-1">Loading…</div></div>
+          </div>
+        </div>
+        {% endif %}
       </section>
       {# Sync & activity. Data Sync is app-wide (one run covers every project,
          with a global schedule and maintenance switch), so it is linked, not
@@ -279,6 +303,73 @@
       renderReadiness(res.data);
     })
     .catch(function () { readinessError('Network error.'); });
+
+  // ── devices (admin only; absent for project PIs) ──────────────────────────
+
+  var deviceCard = document.getElementById('setup-devices');
+  if (deviceCard) {
+    var deviceBase = '/admin/api/projects/' + encodeURIComponent(projectId);
+    var deviceHeaders = function () {
+      return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' };
+    };
+    var fmt = function (iso) { return iso ? new Date(iso).toLocaleString() : '—'; };
+
+    var loadDevices = function () {
+      var list = document.getElementById('device-list');
+      fetch(deviceBase + '/devices')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var rows = (data.devices || []).map(function (d) {
+            var who = (d.sessions || []).map(function (s) {
+              return esc(s.user_name) + (s.outstanding_count ? ' (' + esc(s.outstanding_count) + ' unsent)' : '');
+            }).join(', ');
+            var action = d.revoked_at
+              ? '<span class="badge text-bg-secondary">Revoked</span>'
+              : '<button type="button" class="btn btn-sm btn-outline-danger" data-revoke-device="' + esc(d.device_id) + '">Revoke</button>';
+            return '<tr><td>' + esc(d.name) + '<div class="text-muted">' + esc(d.app_version) + '</div></td>' +
+              '<td>' + esc(fmt(d.enrolled_at)) + '</td><td>' + esc(fmt(d.last_seen_at)) + '</td>' +
+              '<td>' + (who || '<span class="text-muted">—</span>') + '</td><td>' + action + '</td></tr>';
+          }).join('');
+          list.innerHTML = rows
+            ? '<table class="table table-sm align-middle mb-0"><thead><tr><th>Device</th><th>Enrolled</th>' +
+              '<th>Last seen</th><th>Signed in</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+            : '<div class="text-muted py-1">No devices enrolled.</div>';
+        })
+        .catch(function () { list.innerHTML = '<div class="text-danger py-1">Could not load devices.</div>'; });
+    };
+
+    document.getElementById('device-code-create').addEventListener('click', function () {
+      var out = document.getElementById('device-code-result');
+      fetch(deviceBase + '/device-enrolments', {
+        method: 'POST',
+        headers: deviceHeaders(),
+        body: JSON.stringify({
+          expires_in_minutes: parseInt(document.getElementById('device-code-minutes').value, 10),
+          max_uses: parseInt(document.getElementById('device-code-uses').value, 10)
+        })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { out.innerHTML = '<div class="text-danger">' + esc(res.data.error || 'Could not create a code.') + '</div>'; return; }
+          // qr_svg is rendered server-side by segno from the payload; it holds no user input.
+          out.innerHTML = '<div class="d-flex flex-wrap gap-3 align-items-start"><div class="border p-2 bg-white">' +
+            res.data.qr_svg + '</div><div><div>Expires ' + esc(fmt(res.data.expires_at)) + ', ' +
+            esc(res.data.max_uses) + ' use(s).</div><div class="text-muted">Code: <code>' + esc(res.data.code) +
+            '</code></div></div></div>';
+        })
+        .catch(function () { out.innerHTML = '<div class="text-danger">Network error.</div>'; });
+    });
+
+    document.getElementById('device-list').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-revoke-device]');
+      if (!btn || !window.confirm('Revoke this device? Everyone signed in on it is signed out.')) return;
+      fetch('/admin/api/devices/' + encodeURIComponent(btn.getAttribute('data-revoke-device')) + '/revoke', {
+        method: 'POST', headers: deviceHeaders(), body: '{}'
+      }).then(loadDevices, loadDevices);
+    });
+
+    loadDevices();
+  }
 
   showSection(new URLSearchParams(window.location.search).get('section'));
 }());

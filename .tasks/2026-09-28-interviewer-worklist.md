@@ -1,6 +1,6 @@
 # Interviewer worklist and interview state machine
 
-- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); implementation not started
+- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`)
 - Priority: P2
 - Created: 2026-09-28
 - Bead: `digitva-vzk` (epic)
@@ -340,8 +340,16 @@ Decided 2026-09-30 (owner):
 
 1. Fix `digitva-dyk` (prefill) and `digitva-nrq` (death list 400).
 2. Case model: nullable identity, `source`, `started_by_user_id`, new states,
-   transition service with audit; migration.
+   transition service with audit; migration. **Built 2026-09-30**
+   (`digitva-vzk.4`): `app/services/case_transition_service.py`,
+   `map_case_transitions`; pre-identity state `draft_identity`; supervisor
+   moves fail closed until `digitva-vzk.5`. Details in docs/policy/web-intake.md,
+   "Built in phases 2 and 3".
 3. Direct start creates the case; draft saves fill identity; one worklist API.
+   **Built 2026-09-30** (`digitva-vzk.4`): `GET /intake/api/cases`, flags at
+   `POST /intake/api/cases/<death_id>/flags`. Drafts stay owner-only (team
+   drafts not yet built). Open: a death whose date is unknown (year only)
+   cannot reach the minimum identity.
 4. Worklist UI (my cases, tabs, actions); register form gains structured
    address and validated phone.
 5. Appointments, contact attempts, pause with reason; migration.

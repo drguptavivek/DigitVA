@@ -18,7 +18,17 @@ from sqlalchemy.dialects.postgresql import JSONB
 from app import db
 
 WEB_INTAKE_MODES = ("off", "direct", "death_register", "both")
-DEATH_REGISTER_STATUSES = ("registered", "va_in_progress", "va_submitted", "cancelled")
+#: Case states (docs/policy/web-intake.md, "States and transitions").
+#: ``draft_identity`` is a direct start whose form has not yet captured the
+#: minimum identity (name, date of death, sex). Only
+#: ``app.services.case_transition_service`` writes ``status``.
+CASE_STATES = (
+    "draft_identity", "registered", "scheduled", "in_progress", "paused",
+    "not_reachable", "refused", "submitted", "duplicate", "cancelled",
+)
+DEATH_REGISTER_STATUSES = CASE_STATES
+CASE_SOURCES = ("register", "direct")
+CASE_FLAGS = ("duplicate", "cancel")
 WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded")
 DEATH_SEX_VALUES = ("male", "female", "undetermined", "unknown")
 
@@ -31,13 +41,29 @@ def _utcnow() -> datetime:
 
 
 class VaDeathRegister(db.Model):
-    """A death notified to the health system before or without its VA."""
+    """The case: one death, registered first or started directly as a VA.
+
+    Identity (name, sex, date of death) is empty only while ``status`` is
+    ``draft_identity`` (a direct start) or on a cancelled abandoned start.
+    """
 
     __tablename__ = "va_death_register"
     __table_args__ = (
         sa.UniqueConstraint("unique_id", name="uq_va_death_register_unique_id"),
         sa.Index("ix_va_death_register_project_status", "project_id", "status"),
         sa.Index("ix_va_death_register_org_unit", "org_unit_id"),
+        sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
+        # The naming convention prefixes "ck_<table>_"; pass the discriminator.
+        sa.CheckConstraint(
+            "status IN (" + ", ".join(f"'{s}'" for s in CASE_STATES) + ")", name="status"
+        ),
+        sa.CheckConstraint("source IN ('register', 'direct')", name="source"),
+        sa.CheckConstraint(
+            "status IN ('draft_identity', 'cancelled') OR "
+            "(deceased_name IS NOT NULL AND date_of_death IS NOT NULL AND deceased_sex IS NOT NULL)",
+            name="identity",
+        ),
+        sa.CheckConstraint("pending_flag IN ('duplicate', 'cancel')", name="pending_flag"),
     )
 
     death_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -54,14 +80,14 @@ class VaDeathRegister(db.Model):
     )
     death_number: so.Mapped[int] = so.mapped_column(sa.BigInteger, nullable=False)
     unique_id: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
-    deceased_name: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
-    deceased_sex: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    deceased_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    deceased_sex: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     # Ayushman Bharat Health Account identifiers of the deceased (PII).
     abha_number: so.Mapped[str | None] = so.mapped_column(sa.String(17), nullable=True)
     abha_address: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
     date_of_birth: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
     age_years: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
-    date_of_death: so.Mapped[date] = so.mapped_column(sa.Date, nullable=False)
+    date_of_death: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
     place_of_death: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     informant_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
@@ -76,6 +102,20 @@ class VaDeathRegister(db.Model):
     registered_by: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )
+    # register: the register form; direct: a questionnaire started directly.
+    source: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="register", server_default="register"
+    )
+    # Who opened the first interview on this case (no assignment exists).
+    started_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
+    )
+    # An interviewer's duplicate or cancel flag, waiting for a supervisor.
+    pending_flag: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    # The kept case this one is (flagged or confirmed as) a duplicate of.
+    duplicate_of_death_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_death_register.death_id"), nullable=True
+    )
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
@@ -85,6 +125,39 @@ class VaDeathRegister(db.Model):
 
     def __repr__(self) -> str:
         return f"<VaDeathRegister {self.unique_id} {self.status}>"
+
+
+class MapCaseTransition(db.Model):
+    """Audit row for one case state change or flag (actor, from, to, reason).
+
+    ``reason`` is a short code or a user-typed reason and must hold no
+    personal data (names, phone numbers, addresses). Nothing enforces that
+    yet: the user-facing warning arrives with the phase 4 worklist UI.
+    """
+
+    __tablename__ = "map_case_transitions"
+    __table_args__ = (
+        sa.Index("ix_map_case_transitions_death_created", "death_id", "created_at"),
+        sa.Index("ix_map_case_transitions_actor", "actor_user_id", "death_id"),
+    )
+
+    transition_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    death_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_death_register.death_id"), nullable=False
+    )
+    action: so.Mapped[str] = so.mapped_column(sa.String(32), nullable=False)
+    # NULL on the row that created the case.
+    from_state: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    to_state: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    reason: so.Mapped[str | None] = so.mapped_column(sa.String(200), nullable=True)
+    actor_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
+    )
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
 
 
 class VaWebIntakeDraft(db.Model):

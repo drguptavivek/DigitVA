@@ -14,13 +14,15 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytz
 import sqlalchemy as sa
+from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
+    MapCaseTransition,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -37,24 +39,27 @@ from app.models import (
     VaWebIntakeDraftSection,
 )
 from app.models.va_web_intake import (
+    CASE_STATES,
     DEATH_NUMBER_SEQUENCE,
     DEATH_SEX_VALUES,
     WEB_INTAKE_MODES,
 )
+from app.services import case_transition_service as cases
 from app.services import org_grant_service
-from app.services import organization_service as org
-from app.services.runtime_form_sync_service import ensure_web_runtime_form
-from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services import org_unit_routing_service as org_routing
+from app.services import organization_service as org
+from app.services.case_transition_service import WebIntakeError
+from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import ensure_active_payload_version
-from app.services.web_form_relevance_service import (
-    derive_validation_errors,
-    strip_irrelevant_answers,
-)
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     build_submission_projection,
     consent_is_valid,
     normalize_consent,
+)
+from app.services.web_form_instruments import DEFAULT_LOCALE
+from app.services.web_form_relevance_service import (
+    derive_validation_errors,
+    strip_irrelevant_answers,
 )
 from app.services.workflow.transitions import (
     mark_attachment_sync_completed,
@@ -76,6 +81,8 @@ __all__ = [
     "register_death",
     "list_deaths",
     "get_death",
+    "flag_death",
+    "list_worklist",
     "start_draft",
     "list_drafts",
     "get_draft",
@@ -86,6 +93,7 @@ __all__ = [
     "build_web_payload",
     "serialize_death",
     "serialize_draft",
+    "serialize_worklist_row",
 ]
 
 INSTRUMENT_ID = "va_who_2022"
@@ -142,11 +150,6 @@ def resolve_intake_note(project: VaProjectMaster) -> str:
     return note.strip()
 
 
-
-class WebIntakeError(ValueError):
-    def __init__(self, message: str, status_code: int = 400):
-        super().__init__(message)
-        self.status_code = status_code
 
 
 def _utcnow() -> datetime:
@@ -461,16 +464,28 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         informant_phone=_clean(fields.get("informant_phone"), what="Informant phone", max_len=32),
         remarks=_clean(fields.get("remarks"), what="Remarks"),
         registered_by=user.user_id,
+        source="register",
     )
-    db.session.add(death)
-    db.session.flush()
+    cases.open_case(death, actor=user)
     log.info("web intake death registered | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, unique_id, user.user_id)
     return death
 
 
+#: Status filter values the register list accepted before the case states
+#: (digitva-vzk.4), mapped forward so an old bookmark or client keeps working.
+_LEGACY_STATUS = {"va_in_progress": "in_progress", "va_submitted": "submitted"}
+
+
 def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | None = None) -> list[VaDeathRegister]:
+    """Registered deaths (``source = register``) of one project-site in scope.
+
+    Direct starts are cases too, but they are listed by ``list_worklist``;
+    this list stays what it was, the death register.
+    """
     stmt = sa.select(VaDeathRegister).where(
-        VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id
+        VaDeathRegister.project_id == project_id,
+        VaDeathRegister.site_id == site_id,
+        VaDeathRegister.source == "register",
     )
     # _has_units also raises 403 when the user has no interviewer access to
     # this project/site at all -- that access check runs whichever branch is
@@ -488,7 +503,7 @@ def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | N
     # in a tree project it raised 400 "Choose the organization unit" merely
     # for listing, even though such a grant may already see every unit.
     if status:
-        stmt = stmt.where(VaDeathRegister.status == status)
+        stmt = stmt.where(VaDeathRegister.status == _LEGACY_STATUS.get(status, status))
     return list(db.session.scalars(stmt.order_by(VaDeathRegister.created_at.desc()).limit(500)).all())
 
 
@@ -514,8 +529,31 @@ def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
         death = None
     if death is None:
         raise WebIntakeError("Death entry not found.", 404)
-    _require_scope(user, death.project_id, death.site_id, death.org_unit_id)
+    try:
+        _require_scope(user, death.project_id, death.site_id, death.org_unit_id)
+    except WebIntakeError as exc:
+        # Out of scope reads as not found: an id is not proof the case exists.
+        if exc.status_code == 403:
+            raise WebIntakeError("Death entry not found.", 404) from None
+        raise
+    # "Details pending" is its starter's (and supervisors') only (owner,
+    # 2026-09-30, item 11); for anyone else it does not exist.
+    if (
+        death.status == "draft_identity"
+        and death.started_by_user_id != user.user_id
+        and not cases.is_interview_supervisor_for(user, death)
+    ):
+        raise WebIntakeError("Death entry not found.", 404)
     return death
+
+
+def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None = None,
+               duplicate_of: object | None = None) -> VaDeathRegister:
+    """Flag a case in scope as a possible duplicate of another case in scope, or
+    for cancellation. A supervisor confirms or rejects it later."""
+    death = get_death(user, death_id)
+    target = get_death(user, duplicate_of) if kind == "duplicate" and duplicate_of else None
+    return cases.flag_case(death, actor=user, kind=kind, reason=reason, duplicate_of=target)
 
 
 # ---------------------------------------------------------------------------
@@ -531,15 +569,15 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         # docs/policy/web-intake.md ("Area VA presets"). Merged before the
         # death-register answers below so a death-register value always wins.
         answers.update(org_grant_service.resolve_va_presets(org_unit_id))
-    if death is not None:
+    if death is not None and cases.identity_complete(death):
         names = death.deceased_name.strip().split(" ", 1)
         deceased = {
             "givenNames": names[0],
             "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
             # Only one of dateOfDeath/yearOfDeath may be sent -- prefill.ts
-            # throws on both (WhoVaDeathEvidence). date_of_death is a
-            # required field today, so the exact date is always known here;
-            # yearOfDeath is for a future path that only knows the year.
+            # throws on both (WhoVaDeathEvidence). A case with its identity
+            # always has the exact date; yearOfDeath is for a future path
+            # that only knows the year.
             "dateOfDeath": death.date_of_death.isoformat(),
         }
         if len(names) > 1:
@@ -558,16 +596,40 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     return prefill
 
 
+#: Case states from which starting (or resuming) an interview moves the case
+#: to ``in_progress``; ``refused`` included, since a refusal blocks nothing.
+_STARTABLE_STATES = frozenset({"registered", "scheduled", "paused", "not_reachable", "refused"})
+
+
+def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
+    """Move a case whose interview (re)starts to ``in_progress``, audited."""
+    if death.started_by_user_id is None:
+        death.started_by_user_id = user.user_id
+    if death.status in _STARTABLE_STATES:
+        action = "interview_restarted" if death.status == "refused" else "interview_started"
+        cases.transition(death, "in_progress", actor=user, action=action)
+
+
 def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None) -> VaWebIntakeDraft:
+    """Open (or return the caller's own) draft for a case, or start directly.
+
+    A direct start creates its case at once (``source = direct``,
+    ``draft_identity``); the draft's answers fill the identity in.
+    """
     mode = get_web_intake_mode(project_id)
     death = get_death(user, death_id) if death_id else None
     if death is not None:
-        if not _mode_allows(mode, death_register=True):
+        if not _mode_allows(mode, death_register=death.source == "register"):
             raise WebIntakeError("This project does not use the death register.", 403)
         if death.project_id != project_id or death.site_id != site_id:
             raise WebIntakeError("Death entry belongs to another project or site.")
-        if death.status == "va_submitted":
+        # Serialises starts on one case: the second waits here, then sees the
+        # first one's active draft below instead of opening another.
+        death = cases.lock_case(death)
+        if death.status == "submitted":
             raise WebIntakeError("A questionnaire has already been submitted for this death.", 409)
+        if death.status in ("duplicate", "cancelled"):
+            raise WebIntakeError("This case is closed.", 409)
         existing = db.session.scalar(
             sa.select(VaWebIntakeDraft).where(
                 VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft"
@@ -576,27 +638,42 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         if existing is not None:
             if existing.user_id != user.user_id:
                 raise WebIntakeError("Another interviewer already has a draft for this death.", 409)
+            _begin_interview(death, user)
             return existing
         org_unit_id = death.org_unit_id
     elif not _mode_allows(mode, death_register=False):
         raise WebIntakeError("This project requires a death register entry before the questionnaire.", 403)
     _require_scope(user, project_id, site_id, org_unit_id)
     form = ensure_web_runtime_form(project_id, site_id)
-    if death is not None:
-        unique_id = death.unique_id
-    else:
-        unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
-        _, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
-    now = _utcnow().isoformat()
     resolved_org_unit_id = uuid.UUID(str(org_unit_id)) if org_unit_id else None
+    prefill = _prefill_from_death(death, user, resolved_org_unit_id)
+    if death is not None:
+        _begin_interview(death, user)
+    else:
+        unit = db.session.get(MasOrgUnit, resolved_org_unit_id) if resolved_org_unit_id else None
+        number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
+        death = cases.open_case(
+            VaDeathRegister(
+                project_id=project_id,
+                site_id=site_id,
+                org_unit_id=resolved_org_unit_id,
+                death_number=number,
+                unique_id=unique_id,
+                source="direct",
+                registered_by=user.user_id,
+                started_by_user_id=user.user_id,
+            ),
+            actor=user,
+        )
+    now = _utcnow().isoformat()
     draft = VaWebIntakeDraft(
         project_id=project_id,
         site_id=site_id,
         org_unit_id=resolved_org_unit_id,
-        death_id=death.death_id if death else None,
+        death_id=death.death_id,
         form_id=form.form_id,
         user_id=user.user_id,
-        unique_id=unique_id,
+        unique_id=death.unique_id,
         # The base locale until the page tells us otherwise; a locale switch
         # PATCHes both keys and build_web_payload copies them to the payload.
         meta={
@@ -606,13 +683,11 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             "locale": DEFAULT_LOCALE,
             "translation_version": 0,
         },
-        prefill=_prefill_from_death(death, user, resolved_org_unit_id),
+        prefill=prefill,
     )
     db.session.add(draft)
-    if death is not None:
-        death.status = "va_in_progress"
     db.session.flush()
-    log.info("web intake draft started | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, unique_id, user.user_id)
+    log.info("web intake draft started | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, death.unique_id, user.user_id)
     return draft
 
 
@@ -677,8 +752,53 @@ def _clean_locale_meta(meta: dict) -> dict:
     return out
 
 
-def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None) -> int:
-    """Upsert the given sections' answers; returns the number of sections written."""
+def _identity_from_answers(data: dict) -> dict:
+    """Name, sex and date of death from WHO answers, only those validly given.
+
+    ``Id10017``/``Id10018`` given names and surname, ``Id10019`` sex,
+    ``Id10023`` the calculated date of death (else the ``Id10023_a``/``_b``
+    answer it is calculated from). A malformed or future date is ignored:
+    the form validates it, this only mirrors it onto the case.
+    """
+    out: dict = {}
+    name = " ".join(
+        part for part in (str(data.get(k) or "").strip() for k in ("Id10017", "Id10018")) if part
+    )
+    if name:
+        out["deceased_name"] = name
+    sex = data.get("Id10019")
+    if sex in DEATH_SEX_VALUES:
+        out["deceased_sex"] = sex
+    raw = data.get("Id10023")
+    if not raw and data.get("Id10022") == "yes":
+        raw = data.get("Id10023_a") if data.get("Id10020") == "yes" else data.get("Id10023_b")
+    try:
+        parsed = date.fromisoformat(str(raw)[:10]) if raw else None
+    except ValueError:
+        parsed = None
+    if parsed is not None and parsed <= date.today():
+        out["date_of_death"] = parsed
+    return out
+
+
+def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> None:
+    """Copy the form's identity answers onto the case (the form is the record
+    of the interview); a direct start leaves ``draft_identity`` once complete.
+    An empty answer never blanks a value the case already holds."""
+    for field, value in _identity_from_answers(data).items():
+        setattr(death, field, value)
+    if death.status == "draft_identity" and cases.identity_complete(death):
+        cases.transition(death, "in_progress", actor=actor, action="identity_captured")
+
+
+def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
+    """Upsert the given sections' answers; returns the number of sections written.
+
+    The draft's case takes its identity from the merged answers of every saved
+    section (a save sends only the sections that changed). *actor* is the
+    saver, recorded when a direct start leaves ``draft_identity``; it defaults
+    to the draft's owner, the only user who may save it.
+    """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
     # Validated before anything is written, so a bad locale cannot leave the
@@ -709,16 +829,27 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
             raise WebIntakeError("Invalid current section.")
         draft.current_section = str(current_section)
     draft.updated_at = _utcnow()
+    if written and draft.death_id:
+        death = db.session.get(VaDeathRegister, draft.death_id)
+        merged: dict = {}
+        for row in draft.sections:
+            merged.update(row.data or {})
+        _sync_case_identity(death, merged, actor or db.session.get(VaUsers, draft.user_id))
+        death.updated_at = draft.updated_at  # the worklist sorts by last activity
     db.session.flush()
     return written
 
 
-def discard_draft(draft: VaWebIntakeDraft) -> None:
+def discard_draft(draft: VaWebIntakeDraft, actor: VaUsers | None = None) -> None:
+    """Discard a draft. Its case waits for a new interview (``registered``);
+    a direct start discarded before it had an identity is cancelled."""
     draft.status = "discarded"
-    if draft.death_id:
-        death = db.session.get(VaDeathRegister, draft.death_id)
-        if death is not None and death.status == "va_in_progress":
-            death.status = "registered"
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    actor = actor or db.session.get(VaUsers, draft.user_id)
+    if death is not None and death.status == "in_progress":
+        cases.transition(death, "registered", actor=actor, action="draft_discarded")
+    elif death is not None and death.status == "draft_identity":
+        cases.transition(death, "cancelled", actor=actor, action="draft_discarded")
     db.session.flush()
 
 
@@ -777,8 +908,9 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["narr_language"] = payload.get("narr_language") or "english"
     payload["language"] = payload.get("language") or payload["narr_language"]
     if death is not None:
-        payload.setdefault("abha_number", death.abha_number)
-        payload.setdefault("abha_address", death.abha_address)
+        if death.source == "register":
+            payload.setdefault("abha_number", death.abha_number)
+            payload.setdefault("abha_address", death.abha_address)
         payload["death_register_id"] = str(death.death_id)
 
     # ODK-shaped metadata so the shared projection and payload-version code
@@ -861,6 +993,16 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     if not consent:
         raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
     _require_live_org_unit(draft)
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if death is not None:
+        _sync_case_identity(death, data, user)
+        if death.status == "draft_identity":
+            raise WebIntakeError(
+                "Record the name, date of death and sex of the deceased before submitting.", 422
+            )
+        _begin_interview(death, user)
+        if death.status not in ("in_progress", "paused"):
+            raise WebIntakeError("This case is closed.", 409)
 
     submitted_at = _utcnow()
     expression_now = _expression_now(user, submitted_at)
@@ -947,14 +1089,137 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     draft.client_valid = True
     draft.client_issue_count = len(completion.get("issues") or [])
     draft.meta = {**(draft.meta or {}), "attachmentReferences": references}
-    if draft.death_id:
-        death = db.session.get(VaDeathRegister, draft.death_id)
-        if death is not None:
-            death.status = "va_submitted"
-            death.va_sid = va_sid
+    if death is not None:
+        cases.transition(death, "submitted", actor=user, action="submitted")
+        death.va_sid = va_sid
     db.session.flush()
     log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, len(references))
     return submission
+
+
+# ---------------------------------------------------------------------------
+# Worklist
+# ---------------------------------------------------------------------------
+
+WORKLIST_PAGE_DEFAULT = 50
+WORKLIST_PAGE_MAX = 200
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _encode_cursor(updated_at: datetime, death_id: uuid.UUID) -> str:
+    micros = (updated_at - _EPOCH) // timedelta(microseconds=1)
+    return f"{micros}_{death_id}"
+
+
+def _decode_cursor(raw: str) -> tuple[datetime, uuid.UUID]:
+    try:
+        micros, death_id = raw.split("_", 1)
+        return _EPOCH + timedelta(microseconds=int(micros)), uuid.UUID(death_id)
+    except (ValueError, OverflowError):
+        raise WebIntakeError("Invalid cursor.") from None
+
+
+def _worklist_scope(user: VaUsers):
+    """SQL condition for the cases this interviewer's grants reach, or None.
+
+    The same reach as ``list_deaths``, across every project-site of
+    ``interviewer_context``: a project- or site-scoped grant sees the whole
+    project-site, a unit-scoped grant its units' subtrees only (a case with no
+    unit is outside every subtree).
+    """
+    conditions = []
+    unit_ids = None
+    for entry in interviewer_context(user):
+        pair = sa.and_(
+            VaDeathRegister.project_id == entry["project_id"],
+            VaDeathRegister.site_id == entry["site_id"],
+        )
+        if entry["org_units"]:
+            if unit_ids is None:
+                unit_ids = sorted(org_grant_service.scope_unit_ids(user.user_id, VaAccessRoles.interviewer))
+            pair = sa.and_(pair, VaDeathRegister.org_unit_id.in_(unit_ids))
+        conditions.append(pair)
+    if not conditions:
+        return None
+    return sa.and_(
+        sa.or_(*conditions),
+        # "Details pending" only for its starter (supervisors: digitva-vzk.5).
+        sa.or_(
+            VaDeathRegister.status != "draft_identity",
+            VaDeathRegister.started_by_user_id == user.user_id,
+        ),
+    )
+
+
+def _mine_condition(user: VaUsers):
+    """Registered, started or otherwise worked on (any audited action) by *user*."""
+    return sa.or_(
+        VaDeathRegister.registered_by == user.user_id,
+        VaDeathRegister.started_by_user_id == user.user_id,
+        sa.exists().where(
+            MapCaseTransition.death_id == VaDeathRegister.death_id,
+            MapCaseTransition.actor_user_id == user.user_id,
+        ),
+    )
+
+
+def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
+                  cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+    """Team cases in the interviewer's scope, newest activity first.
+
+    Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
+    {state: n}, "next_cursor": str | None}``. ``counts`` cover the scope and
+    the *mine* filter but not *states*, so tabs can show their totals. Sorted
+    by last activity; the plan's "next visit first" waits for phase 5, which
+    adds visit dates. Keyset-paged on (updated_at, death_id).
+    """
+    for state in states or []:
+        if state not in CASE_STATES:
+            raise WebIntakeError(f"Unknown state {state!r}.")
+    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
+    scope = _worklist_scope(user)
+    if scope is None:
+        return {"cases": [], "counts": {}, "next_cursor": None}
+    base = [scope]
+    if mine:
+        base.append(_mine_condition(user))
+
+    counts = dict(
+        db.session.execute(
+            sa.select(VaDeathRegister.status, sa.func.count())
+            .where(*base)
+            .group_by(VaDeathRegister.status)
+        ).all()
+    )
+
+    filters = list(base)
+    if states:
+        filters.append(VaDeathRegister.status.in_(states))
+    if cursor:
+        at, death_id = _decode_cursor(cursor)
+        filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
+    my_draft = aliased(VaWebIntakeDraft)
+    rows = db.session.execute(
+        sa.select(VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id)
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
+        .outerjoin(
+            my_draft,
+            sa.and_(
+                my_draft.death_id == VaDeathRegister.death_id,
+                my_draft.status == "draft",
+                my_draft.user_id == user.user_id,
+            ),
+        )
+        .where(*filters)
+        .order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
+        .limit(limit + 1)
+    ).all()
+    page = [tuple(row) for row in rows[:limit]]
+    next_cursor = None
+    if len(rows) > limit:
+        last = page[-1][0]
+        next_cursor = _encode_cursor(last.updated_at, last.death_id)
+    return {"cases": page, "counts": counts, "next_cursor": next_cursor}
 
 
 # ---------------------------------------------------------------------------
@@ -975,15 +1240,45 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "abha_address": death.abha_address,
         "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
         "age_years": death.age_years,
-        "date_of_death": death.date_of_death.isoformat(),
+        "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
         "place_of_death": death.place_of_death,
         "address": death.address,
         "informant_name": death.informant_name,
         "informant_phone": death.informant_phone,
         "remarks": death.remarks,
         "status": death.status,
+        "source": death.source,
+        "pending_flag": death.pending_flag,
         "va_sid": death.va_sid,
         "created_at": death.created_at.isoformat(),
+    }
+
+
+def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
+                           my_draft_id: uuid.UUID | None) -> dict:
+    """One worklist row. No informant name, phone or address: the list shows
+    who died, not how to reach the family (phones are masked in phase 4)."""
+    return {
+        "death_id": str(death.death_id),
+        "unique_id": death.unique_id,
+        "project_id": death.project_id,
+        "site_id": death.site_id,
+        "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
+        "unit_name": unit_name,
+        "source": death.source,
+        "state": death.status,
+        "details_pending": death.status == "draft_identity",
+        "deceased_name": death.deceased_name,
+        "deceased_sex": death.deceased_sex,
+        "age_years": death.age_years,
+        "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
+        "pending_flag": death.pending_flag,
+        "registered_by_me": death.registered_by == user.user_id,
+        "started_by_me": death.started_by_user_id == user.user_id,
+        "my_draft_id": str(my_draft_id) if my_draft_id else None,
+        "va_sid": death.va_sid,
+        "created_at": death.created_at.isoformat(),
+        "updated_at": death.updated_at.isoformat(),
     }
 
 

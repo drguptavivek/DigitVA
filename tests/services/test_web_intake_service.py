@@ -152,7 +152,11 @@ class WebIntakeServiceTests(BaseTestCase):
     def _completion(self, **extra):
         data = {
             "Id10013": "yes",
+            # The minimum identity a direct start needs before it may submit.
+            "Id10017": "Asha",
+            "Id10018": "Devi",
             "Id10019": "female",
+            "Id10023": (date.today() - timedelta(days=10)).isoformat(),
             "finalAgeInYears": "62",
             "narr_language": "english",
         }
@@ -322,7 +326,10 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(form.form_source, "web")
         self.assertEqual((form.project_id, form.site_id), (self.PROJECT_ID, self.SITE_ID))
         self.assertNotEqual(form.form_id, self.ODK_FORM_ID)
-        self.assertIsNone(draft.death_id)
+        # A direct start creates its case at once, identity still pending.
+        case = db.session.get(VaDeathRegister, draft.death_id)
+        self.assertEqual((case.source, case.status), ("direct", "draft_identity"))
+        self.assertEqual(case.unique_id, draft.unique_id)
         self.assertEqual(draft.status, "draft")
         self.assertTrue(draft.unique_id.startswith(f"{self.SITE_ID}-"))
 
@@ -346,7 +353,7 @@ class WebIntakeServiceTests(BaseTestCase):
         )
         self.assertEqual(draft.unique_id, death.unique_id)
         self.assertEqual(draft.death_id, death.death_id)
-        self.assertEqual(death.status, "va_in_progress")
+        self.assertEqual(death.status, "in_progress")
         self.assertEqual(draft.prefill["deceased"]["givenNames"], "Asha")
         self.assertEqual(draft.prefill["deceased"]["surname"], "Devi")
         self.assertEqual(draft.prefill["deceased"]["sex"], "female")
@@ -581,7 +588,7 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.va_sid, submission.va_sid)
         self.assertTrue(draft.client_valid)
         self.assertIsNotNone(draft.submitted_at)
-        self.assertEqual(death.status, "va_submitted")
+        self.assertEqual(death.status, "submitted")
         self.assertEqual(death.va_sid, submission.va_sid)
 
         version = db.session.scalar(

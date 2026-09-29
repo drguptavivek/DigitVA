@@ -373,8 +373,9 @@
       if (!deaths.length) { wrap.innerHTML = '<p class="text-muted">No deaths registered yet.</p>'; return; }
       wrap.innerHTML = '<table class="table table-sm align-middle"><thead><tr><th>ID</th><th>Deceased</th><th>Died</th><th>Status</th><th></th></tr></thead><tbody>'
         + deaths.map(function (d) {
-          var action = d.status === 'va_submitted' ? '<span class="badge text-bg-success">Submitted</span>'
-            : '<button class="btn btn-sm btn-outline-primary intake-start-va" data-id="' + esc(d.death_id) + '">' + (d.status === 'va_in_progress' ? 'Resume VA' : 'Start VA') + '</button>';
+          var action = d.status === 'submitted' ? '<span class="badge text-bg-success">Submitted</span>'
+            : (d.status === 'duplicate' || d.status === 'cancelled') ? '<span class="badge text-bg-secondary">Closed</span>'
+            : '<button class="btn btn-sm btn-outline-primary intake-start-va" data-id="' + esc(d.death_id) + '">' + (d.status === 'in_progress' ? 'Resume VA' : 'Start VA') + '</button>';
           return '<tr><td><code>' + esc(d.unique_id) + '</code></td><td>' + esc(d.deceased_name) + ' (' + esc(d.deceased_sex) + ')</td><td>' + esc(d.date_of_death) + '</td><td>' + esc(d.status) + '</td><td class="text-end">' + action + '</td></tr>';
         }).join('') + '</tbody></table>';
       document.querySelectorAll('.intake-start-va').forEach(function (b) { b.addEventListener('click', function () { startDraft({ death_id: b.dataset.id }); }); });

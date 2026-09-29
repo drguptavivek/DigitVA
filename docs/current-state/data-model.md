@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-09-30
 ---
 
 # Current Data Model
@@ -450,6 +450,49 @@ silently shadowing the other — the two namespaces are disjoint today.
 the draft's start and every locale switch, and `build_web_payload` copies them
 into the payload as `intake_locale` and `intake_translation_version`, so what
 the respondent was shown stays reconstructible.
+
+## Web Intake Cases
+
+Policy: `docs/policy/web-intake.md`, "Case worklist and interview states";
+migration `c4e8a2f6b9d3` (digitva-vzk.4, worklist phases 2 and 3).
+
+### `va_death_register` (the case)
+
+One row per death, for both web intake routes: `source = 'register'` (the
+register form) or `'direct'` (a questionnaire started directly, which creates
+its case at once). `status` is the case state, written only by
+`app/services/case_transition_service.py`:
+
+`draft_identity`, `registered`, `scheduled`, `in_progress`, `paused`,
+`not_reachable`, `refused`, `submitted`, `duplicate`, `cancelled`.
+
+- `deceased_name`, `deceased_sex`, `date_of_death` are nullable; CHECK
+  `ck_va_death_register_identity` requires all three unless the state is
+  `draft_identity` or `cancelled`. A direct start's draft saves fill them from
+  `Id10017`/`Id10018`, `Id10019` and `Id10023` (else `Id10023_a`/`_b`); form
+  edits on a registered case flow back the same way.
+- `started_by_user_id` (FK `va_users`): who opened the first interview. The
+  migration backfilled it from each case's earliest draft.
+- `pending_flag` (`duplicate` | `cancel`) and `duplicate_of_death_id` (self
+  FK): an interviewer's flag waiting for a supervisor.
+- The migration mapped the old statuses forward: `va_in_progress` ->
+  `in_progress`, `va_submitted` -> `submitted`; `registered` and `cancelled`
+  kept their names. Its downgrade maps back (`scheduled` -> `registered`;
+  `paused`, `not_reachable`, `refused` -> `va_in_progress`; `duplicate` ->
+  `cancelled`) and refuses while any case has no identity.
+- Index `ix_va_death_register_updated (updated_at, death_id)` serves the
+  worklist's keyset paging (`GET /intake/api/cases`). A draft save bumps the
+  case's `updated_at` (last activity).
+
+### `map_case_transitions`
+
+One audit row per case creation, state change or flag: `death_id`, `action`
+(short code: `created`, `interview_started`, `identity_captured`,
+`submitted`, `draft_discarded`, `flag_duplicate`, ...), `from_state` (NULL on
+creation), `to_state`, `reason` (at most 200 characters, no personal data),
+`actor_user_id`, `created_at`. Indexed on `(death_id, created_at)` and
+`(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
+(cases a user registered, started or acted on).
 
 ## ICD Reference Master Table
 

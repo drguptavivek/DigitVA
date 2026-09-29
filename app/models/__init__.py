@@ -93,7 +93,12 @@ from app.models.va_sync_runs import VaSyncRun
 from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.va_usernotes import VaUsernotes
 from app.models.va_users import VaUsers
-from app.models.va_web_intake import VaDeathRegister, VaWebIntakeDraft, VaWebIntakeDraftSection
+from app.models.va_web_intake import (
+    MapCaseTransition,
+    VaDeathRegister,
+    VaWebIntakeDraft,
+    VaWebIntakeDraftSection,
+)
 
 __all__ = [
     "AuthWebauthnCredential",
@@ -177,6 +182,7 @@ __all__ = [
     "MapOrgUnitVaPresets",
     "MasOrgUnitWorker",
     "VaDeathRegister",
+    "MapCaseTransition",
     "VaWebIntakeDraft",
     "VaWebIntakeDraftSection",
 ]

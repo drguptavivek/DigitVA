@@ -129,6 +129,66 @@ def api_register_death():
     return _handle(run)
 
 
+_TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
+
+
+@intake.get("/api/cases")
+@role_required("interviewer")
+def api_worklist():
+    """Team cases in the caller's interviewer scope (the worklist).
+
+    Query: ``mine`` (true/false), ``state`` (comma-separated case states),
+    ``limit`` (clamped to 1..200), ``cursor`` (from ``next_cursor``).
+    """
+    mine_raw = (request.args.get("mine") or "").lower()
+    if mine_raw not in _TRUE + _FALSE:
+        return _json_error("mine must be true or false.", 400)
+    states = [s for s in (request.args.get("state") or "").split(",") if s]
+    try:
+        limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
+    except ValueError:
+        return _json_error("limit must be a whole number.", 400)
+
+    def run():
+        result = intake_svc.list_worklist(
+            current_user,
+            mine=mine_raw in _TRUE,
+            states=states,
+            cursor=request.args.get("cursor") or None,
+            limit=limit,
+        )
+        return jsonify(
+            {
+                "cases": [intake_svc.serialize_worklist_row(current_user, *row) for row in result["cases"]],
+                "counts": result["counts"],
+                "next_cursor": result["next_cursor"],
+            }
+        )
+
+    return _handle(run)
+
+
+@intake.post("/api/cases/<death_id>/flags")
+@role_required("interviewer")
+def api_flag_case(death_id):
+    """Flag a case as a possible duplicate or for cancellation (a supervisor
+    confirms or rejects it). Body: ``kind``, ``reason``, ``duplicate_of``."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.flag_death(
+            current_user,
+            death_id,
+            kind=str(p.get("kind") or ""),
+            reason=p.get("reason") if isinstance(p.get("reason"), str) else None,
+            duplicate_of=p.get("duplicate_of") or None,
+        )
+        db.session.commit()
+        return jsonify({"death": intake_svc.serialize_death(death)})
+
+    return _handle(run)
+
+
 @intake.get("/api/drafts")
 @role_required("interviewer")
 def api_list_drafts():
@@ -183,6 +243,7 @@ def api_save_draft(draft_id):
             sections=p.get("sections") or {},
             meta=p.get("meta") or None,
             current_section=p.get("current_section"),
+            actor=current_user,
         )
         db.session.commit()
         return jsonify({"saved_sections": written, "draft": intake_svc.serialize_draft(draft)})
@@ -195,7 +256,7 @@ def api_save_draft(draft_id):
 def api_discard_draft(draft_id):
     def run():
         draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
-        intake_svc.discard_draft(draft)
+        intake_svc.discard_draft(draft, current_user)
         db.session.commit()
         return jsonify({"draft": intake_svc.serialize_draft(draft)})
 

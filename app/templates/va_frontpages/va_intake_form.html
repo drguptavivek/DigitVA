@@ -70,7 +70,8 @@ function formatSummaryDate(iso) {
 function updateSummary({ name, dod, age, sex } = {}) {
   $("wv-sum-name").textContent = name || "—";
   $("wv-sum-dod").textContent = dod || "—";
-  $("wv-sum-age").textContent = age != null && age !== "" ? String(age) : "—";
+  // The form's calculated age is NaN until the dates are answered.
+  $("wv-sum-age").textContent = age != null && age !== "" && !Number.isNaN(age) ? String(age) : "—";
   $("wv-sum-sex").textContent = sex || "—";
 }
 function summaryFromAnswers(data) {

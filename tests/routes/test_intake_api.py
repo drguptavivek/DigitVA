@@ -238,7 +238,11 @@ class IntakeApiTests(BaseTestCase):
                     "issues": [],
                     "data": {
                         "Id10013": "yes",
+                        "Id10017": "Bina",
+                        "Id10018": "Sahu",
                         "Id10019": "female",
+                        # The calculated date of death (Id10023_a / _b).
+                        "Id10023": (date.today() - timedelta(days=5)).isoformat(),
                         "finalAgeInYears": "71",
                         "narr_language": "english",
                     },
@@ -251,7 +255,7 @@ class IntakeApiTests(BaseTestCase):
         self.assertIsNotNone(db.session.get(VaSubmissions, va_sid))
         self.assertEqual(submitted.get_json()["draft"]["status"], "submitted")
         self.assertEqual(
-            db.session.get(VaDeathRegister, death["death_id"]).status, "va_submitted"
+            db.session.get(VaDeathRegister, death["death_id"]).status, "submitted"
         )
         # A submission whose answers don't disagree with the server's own
         # relevant/constraint re-derivation carries no validation_err entries.
@@ -273,7 +277,11 @@ class IntakeApiTests(BaseTestCase):
                     "issues": [],
                     "data": {
                         "Id10013": "yes",
+                        "Id10017": "Bina",
+                        "Id10018": "Sahu",
                         "Id10019": "female",
+                        # The calculated date of death (Id10023_a / _b).
+                        "Id10023": (date.today() - timedelta(days=5)).isoformat(),
                         "finalAgeInYears": "71",
                         "narr_language": "english",
                         # Id10021 (date of birth) is relevant once Id10020 is

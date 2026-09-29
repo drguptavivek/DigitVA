@@ -59,9 +59,9 @@ submission enters the workflow. Plan:
   yearOfDeath` are given, or both `deceased.dateOfBirth` and `deceased.
   ageInYears` — each pair is evidence for the same question, one or the
   other. The server sends `yearOfDeath` only when the exact date is unknown;
-  since `date_of_death` is a required death-register field today, that never
-  happens in practice and only `dateOfDeath` is sent (`digitva-dyk`,
-  2026-09-29). A thrown error previously meant the page silently prefilled
+  a case prefills only once it has its identity, which includes the exact
+  date, so that never happens in practice and only `dateOfDeath` is sent
+  (`digitva-dyk`, 2026-09-29). A thrown error previously meant the page silently prefilled
   nothing at all (the caller in `va_intake_form.html` catches it and moves
   on) — the fix is at the source, not the catch.
 - **Intake form header** (`digitva-wdj`, 2026-09-29): shows the project and
@@ -234,16 +234,17 @@ stops an interview, so it never makes a project unready.
 The assessment is read-only. It never creates a site, a web form or a grant,
 and a project PI may run it only for the projects they manage.
 
-## Case worklist and interview states (baseline 2026-09-29, not yet implemented)
+## Case worklist and interview states (baseline 2026-09-29; phases 2 and 3 built 2026-09-30)
 
 Decided by the owner on 2026-09-29 unless a line says otherwise; the
 decisions of 2026-09-30 are marked as such. Plan and
 phasing: `.tasks/2026-09-28-interviewer-worklist.md` (bead `digitva-vzk`).
 This section is a rule baseline; table and column design stays in the plan.
-Nothing here is built yet, and until each phase lands the "Baseline" bullets
-above (own drafts only, one author per draft, 409 for a second interviewer)
-remain the running behaviour. Where this section and those bullets disagree,
-this section is the target and replaces them when phase 2 to 3 lands.
+Phases 2 and 3 (the case model, the transition service, direct start creates
+the case, the worklist API) are built; see "Built in phases 2 and 3" at the end
+of this section for the details they fixed. The rest is not built yet, and the
+"Baseline" bullets above (own drafts only, one author per draft, 409 for a
+second interviewer) remain the running behaviour until team drafts land.
 
 ### The case
 
@@ -613,21 +614,63 @@ Recorded above; removed from the open list.
   of C3; the server-side outstanding-work report is the control. Item 5, wipe:
   on logout and on revocation, for that interviewer's store only.
 
+### Built in phases 2 and 3 (digitva-vzk.4, 2026-09-30)
+
+Details the baseline left open, fixed by the implementation
+(`app/services/case_transition_service.py`, migration `c4e8a2f6b9d3`):
+
+- **The pre-identity state is `draft_identity`.** Sex is nullable too, not
+  only name and date of death, because a direct start has none of the three
+  (decision 4). A database CHECK requires all three outside `draft_identity`
+  and `cancelled`. Identity comes from `Id10017`/`Id10018` (name), `Id10019`
+  (sex: `male`, `female`, `undetermined`) and `Id10023` (else `Id10023_a` or
+  `Id10023_b`, following its calculation); an empty or invalid answer never
+  blanks what the case holds.
+- **Three transitions the table did not list:** `draft_identity ->
+  in_progress` when the form captures the identity (by its starter);
+  `draft_identity -> cancelled` when the starter discards a draft that never
+  had an identity; `in_progress -> registered` when a draft is discarded (the
+  existing discard behaviour). A direct start discarded after its identity was
+  captured goes to `registered` and stays a team case, rather than being
+  cancelled.
+- **Who may make each move** is a column of the transition table: any team
+  member in scope; the starter; the registrant (`registered`/`scheduled` ->
+  `cancelled`, decision 12 of 2026-09-30); or a supervisor (`-> duplicate`,
+  `in_progress`/`paused` -> `cancelled`, confirming or rejecting a flag,
+  reopen). Supervisor moves ask one predicate,
+  `is_interview_supervisor_for`, which **fails closed** until the
+  `interview_supervisor` role exists (`digitva-vzk.5`). A reopen returns the
+  case to the state recorded before it became terminal.
+- **Flags:** a case carries at most one pending flag (`duplicate` naming the
+  kept case in the same project, or `cancel` with a reason);
+  `POST /intake/api/cases/<death_id>/flags`.
+- **Submission rule unchanged** (valid form and `Id10013`) until the
+  `interview_outcome` question is built; a submission moves its case to
+  `submitted`. A direct start whose answers lack the minimum identity is
+  refused at submit (422).
+- **Lists:** `GET /intake/api/deaths` stays the death register
+  (`source = register` only) and still accepts the old status names
+  `va_in_progress` and `va_submitted` as filters. The worklist is
+  `GET /intake/api/cases` (`mine`, `state`, `limit` up to 200, `cursor`), sorted
+  by last activity until phase 5 adds visit dates; its rows carry no informant
+  name, phone or address.
+
 ### Open design items (questions for the owner)
 
-None. Every design question in this baseline is decided; the last two (item 6,
-device draft after a superseding submission, and item 18, device store versus
-the shared server draft) were decided on 2026-09-30 in "Offline capture". New
-questions found while building go here.
+- **Date of death unknown** (found building phase 3). A direct start whose
+  respondent knows only the year of death (`Id10022` = no, `Id10024`) never
+  gets a date of death, so it cannot leave `draft_identity` and cannot be
+  submitted. Should the minimum identity accept a year of death, and how
+  should the case store it?
 
 ## Not yet implemented
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native
-  app. The case worklist, the interview state machine, team cases and
-  supervisor views, duplicate and cancel flags, contact attempts, the
+  app. Of "Case worklist and interview states" above, the case state machine,
+  flags and the worklist API are built (phases 2 and 3); the worklist page,
+  team drafts, supervisor powers and views, contact attempts, the
   `interview_outcome` question, first-complete-submission and offline capture
-  are baselined in "Case worklist and interview states" above and **not
-  implemented**. Offline capture is native-app work under Path B of
+  are **not implemented**. Offline capture is native-app work under Path B of
   [Field Data Collection Policy](field-data-collection.md) (no amendment
   needed), not a web-page feature; it has open design items 6 and 18 there.
   ("Unit-scoped listing refinements" was struck on 2026-09-19: there was

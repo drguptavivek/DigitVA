@@ -256,9 +256,11 @@ area presets on the organization tree ([Web Intake Policy](web-intake.md),
 "Area VA presets") that prefill and lock `Id10002`/`Id10003` for the
 interviewer. The two can diverge (a form flagged `form_smartvahiv=True`
 serving a unit whose resolved preset is `low`, or the reverse). Owner
-decision (2026-09-29): they are not aligned; SmartVA keeps the per-form
-flags. How SmartVA's own questionnaire and settings treat HIV and malaria is
-to be checked (`digitva-cts`).
+decision (2026-09-29): align with WHO VA behaviour, where the questionnaire's
+Id10002 (HIV/AIDS mortality) and Id10003 (malaria mortality) answers carry
+this per case. SmartVA's HIV and malaria options are to come from each
+case's answers instead of the per-form flags; until `digitva-cts` lands the
+per-form flags still apply and per-submission Id10002/Id10003 are ignored.
 
 Operational baseline:
 

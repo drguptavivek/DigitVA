@@ -165,6 +165,16 @@ FLAG_SECURE covers every screen. Checked on the emulator (encrypted file,
 lock, PIN counter, wipe); biometric enforcement needs a real device. Builds
 stay debug-only and must not collect real interviews until C4 is settled.
 
+**Built, phase 3 offline cases** (`digitva-kmk.4`, 2026-09-30): the
+interviewer's worklist cases waiting for a visit (and their own in-progress
+ones) are downloaded into their encrypted store with each case's prefill,
+and replaced on every refresh, so a case the server no longer lists leaves
+the phone: no history is kept. Phones stay masked on the device. Deaths
+registered, contact attempts logged and visit dates set offline are queued
+with client ids, sent registrations first, and deleted on acknowledgement;
+pending registrations are part of the outstanding-work report.
+Attachments are not built yet.
+
 ### Accepted risk: no retention ceiling
 
 Decision C3 permits an interview to remain on a device indefinitely until it

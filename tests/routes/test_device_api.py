@@ -11,6 +11,9 @@ bounds, the absolute session cap, device-bound refresh, retired-token reuse
 (``refresh_reused``, never ``session_revoked``) and the lost-response grace
 window, the second-factor lockout and refusal audit, device units and
 translations, outstanding draft ids, and the enrolment QR URL check.
+Offline cases (bead digitva-kmk.4): the case download (scope, states,
+masking, prefill, paging), idempotent offline registration, attempts and
+visits, registration before upload, and outstanding registration ids.
 """
 import hashlib
 import json
@@ -675,12 +678,217 @@ class DeviceApiTests(BaseTestCase):
         # The winning case's identity is untouched by the copy.
         self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).deceased_name, "Bina Sahu")
 
+    # ── offline cases (digitva-kmk.4) ───────────────────────────────────────
+
+    def _web_case(self, user=None, project_id=None, site_id=None, **fields):
+        death = intake_svc.register_death(
+            user or self.interviewer, project_id=project_id or self.PROJECT_ID, site_id=site_id or self.SITE_ID,
+            deceased_name=fields.pop("deceased_name", "Kamla Devi"), deceased_sex="female",
+            date_of_death=(date.today() - timedelta(days=4)).isoformat(), age_years=64, **fields,
+        )
+        db.session.commit()
+        return death
+
+    def _register(self, tokens, client_death_id=None, **fields):
+        body = {
+            "client_death_id": str(client_death_id or uuid.uuid4()), "site_id": self.SITE_ID,
+            "deceased_name": "Ram Lal Verma", "deceased_sex": "male",
+            "date_of_death": (date.today() - timedelta(days=2)).isoformat(), "age_years": "58",
+            "informant_name": "Sita Verma", "informant_phone": "+91 98765-43210",
+            **fields,
+        }
+        return self.client.post(f"{API}/deaths", json=body, headers=self._bearer(tokens))
+
+    def _cases(self, tokens, **params):
+        response = self.client.get(f"{API}/cases", query_string=params, headers=self._bearer(tokens))
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return response
+
+    def _attempt(self, tokens, death_id, client_attempt_id=None, **body):
+        return self.client.post(f"{API}/cases/{death_id}/attempts", json={
+            "client_attempt_id": str(client_attempt_id or uuid.uuid4()), "outcome": "no_answer", **body,
+        }, headers=self._bearer(tokens))
+
+    def test_cases_lists_waiting_and_own_in_progress_cases_of_the_device_project_only(self):
+        _device, tokens = self._session()
+        waiting = self._web_case(informant_phone="9876543210", informant_name="Mohan Das")
+        refused = self._web_case(deceased_name="Refused Case")
+        intake_svc.log_contact_attempt(self.interviewer, refused.death_id, outcome="refused")
+        mine = self._web_case(deceased_name="Mine Started")
+        intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=mine.death_id)
+        theirs = self._web_case(user=self.teammate, deceased_name="Teammate Started")
+        intake_svc.start_draft(self.teammate, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=theirs.death_id)
+        other_project = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
+        db.session.commit()
+
+        response = self._cases(tokens)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        rows = {row["death_id"]: row for row in response.get_json()["cases"]}
+        self.assertIn(str(waiting.death_id), rows)
+        self.assertIn(str(refused.death_id), rows)
+        self.assertIn(str(mine.death_id), rows)
+        self.assertNotIn(str(theirs.death_id), rows)
+        self.assertNotIn(str(other_project.death_id), rows)
+
+        row = rows[str(waiting.death_id)]
+        self.assertEqual(row["state"], "registered")
+        self.assertEqual(row["informant_phone_masked"], "******3210")
+        self.assertNotIn("9876543210", response.get_data(as_text=True))
+        prefill = row["prefill"]
+        self.assertEqual(set(prefill), {"interviewer", "deceased", "answers", "lockedQuestionNames"})
+        self.assertEqual(prefill["deceased"]["givenNames"], "Kamla")
+        self.assertEqual(prefill["deceased"]["surname"], "Devi")
+        self.assertEqual(prefill["answers"]["Id10007"], "Mohan Das")
+        self.assertEqual(prefill["interviewer"]["id"], str(self.interviewer.user_id))
+        # The same prefill the web form gets for this case.
+        self.assertEqual(prefill, intake_svc._prefill_from_death(waiting, self.interviewer, waiting.org_unit_id))
+
+    def test_cases_page_with_a_cursor_and_refuse_a_bad_limit(self):
+        _device, tokens = self._session()
+        first, second = self._web_case(deceased_name="Page One"), self._web_case(deceased_name="Page Two")
+        seen, cursor = [], None
+        while True:
+            body = self._cases(tokens, limit=1, **({"cursor": cursor} if cursor else {})).get_json()
+            self.assertLessEqual(len(body["cases"]), 1)
+            seen += [row["death_id"] for row in body["cases"]]
+            cursor = body["next_cursor"]
+            if not cursor:
+                break
+        self.assertIn(str(first.death_id), seen)
+        self.assertIn(str(second.death_id), seen)
+        self.assertEqual(len(seen), len(set(seen)))
+        bad = self.client.get(f"{API}/cases?limit=x", headers=self._bearer(tokens))
+        self.assertEqual((bad.status_code, bad.get_json()["code"]), (400, "invalid_request"))
+        self.assertEqual(self.client.get(f"{API}/cases").status_code, 401)
+
+    def test_offline_registration_is_idempotent_on_client_death_id(self):
+        _device, tokens = self._session()
+        client_death_id = uuid.uuid4()
+        created = self._register(tokens, client_death_id)
+        self.assertEqual(created.status_code, 201, created.get_json())
+        case = created.get_json()["case"]
+        self.assertEqual(case["state"], "registered")
+        self.assertEqual(case["informant_phone_masked"], "******3210")
+        self.assertNotIn("9876543210", created.get_data(as_text=True))
+        self.assertEqual(case["prefill"]["deceased"]["givenNames"], "Ram")
+        death = db.session.get(VaDeathRegister, uuid.UUID(case["death_id"]))
+        self.assertEqual((death.client_death_id, death.informant_phone), (client_death_id, "9876543210"))
+
+        again = self._register(tokens, client_death_id, deceased_name="Changed On Resend")
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.get_json()["case"]["death_id"], case["death_id"])
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister).where(
+            VaDeathRegister.client_death_id == client_death_id)), 1)
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(case["death_id"])).deceased_name, "Ram Lal Verma")
+
+        _device2, teammate_tokens = self._session(email="device.teammate@test.local")
+        taken = self._register(teammate_tokens, client_death_id)
+        self.assertEqual((taken.status_code, taken.get_json()["code"]), (409, "conflict"))
+        self.assertNotIn("case", taken.get_json())
+
+    def test_offline_registration_refusals(self):
+        _device, tokens = self._session()
+        before = db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister))
+        for fields, expected in (
+            ({"informant_phone": "12345"}, (422, "invalid_registration")),
+            ({"deceased_name": ""}, (422, "invalid_registration")),
+            ({"date_of_death": "2999-01-01"}, (422, "invalid_registration")),
+            ({"deceased_name": ["x"]}, (422, "invalid_registration")),
+            ({"client_death_id": "not-a-uuid"}, (400, "invalid_request")),
+            ({"site_id": ""}, (400, "invalid_request")),
+            ({"site_id": self.OTHER_SITE_ID}, (403, "forbidden")),
+        ):
+            response = self._register(tokens, **fields)
+            self.assertEqual((response.status_code, response.get_json()["code"]), expected, fields)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister)), before)
+
+    def test_a_death_registered_offline_then_interviewed_offline_uploads_in_order(self):
+        _device, tokens = self._session()
+        client_death_id = uuid.uuid4()
+        case = self._register(tokens, client_death_id).get_json()["case"]
+        uploaded = self._upload(tokens, death_id=case["death_id"])
+        self.assertEqual(uploaded.status_code, 201, uploaded.get_json())
+        body = uploaded.get_json()
+        self.assertEqual(body["case"]["death_id"], case["death_id"])
+        self.assertEqual(body["case"]["status"], "submitted")
+        self.assertIsNotNone(body["va_sid"])
+        # A late resend of the registration still answers with the same case.
+        again = self._register(tokens, client_death_id)
+        self.assertEqual((again.status_code, again.get_json()["case"]["state"]), (200, "submitted"))
+        # And the case leaves the download.
+        self.assertNotIn(case["death_id"], [row["death_id"] for row in self._cases(tokens).get_json()["cases"]])
+
+    def test_offline_attempt_is_idempotent_on_client_attempt_id(self):
+        from app.models import MapCaseContactAttempt
+
+        _device, tokens = self._session()
+        death = self._web_case()
+        client_attempt_id = uuid.uuid4()
+        logged = self._attempt(tokens, death.death_id, client_attempt_id)
+        self.assertEqual(logged.status_code, 201, logged.get_json())
+        self.assertEqual(logged.get_json()["case"]["status"], "not_reachable")
+        resent = self._attempt(tokens, death.death_id, client_attempt_id)
+        self.assertEqual(resent.status_code, 200)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(MapCaseContactAttempt).where(
+            MapCaseContactAttempt.client_attempt_id == client_attempt_id)), 1)
+        # The case has since moved on: a resend still acknowledges, logs nothing.
+        intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id)
+        db.session.commit()
+        self.assertEqual(self._attempt(tokens, death.death_id, client_attempt_id).status_code, 200)
+        self.assertEqual(self._attempt(tokens, death.death_id).status_code, 409)
+        # The same id on another case, or by another interviewer, is a conflict.
+        other = self._web_case(deceased_name="Other Case")
+        self.assertEqual(self._attempt(tokens, other.death_id, client_attempt_id).status_code, 409)
+        _device2, teammate_tokens = self._session(email="device.teammate@test.local")
+        self.assertEqual(self._attempt(teammate_tokens, death.death_id, client_attempt_id).status_code, 409)
+
+    def test_offline_attempt_and_visit_refusals(self):
+        _device, tokens = self._session()
+        death = self._web_case()
+        other_project = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
+        for death_id in (other_project.death_id, uuid.uuid4(), "not-a-uuid"):
+            self.assertEqual(self._attempt(tokens, death_id).status_code, 404, death_id)
+            visit = self.client.post(f"{API}/cases/{death_id}/visit", json={"next_visit_at": None},
+                                     headers=self._bearer(tokens))
+            self.assertEqual(visit.status_code, 404, death_id)
+        bad = self._attempt(tokens, death.death_id, outcome="gossip")
+        self.assertEqual((bad.status_code, bad.get_json()["code"]), (422, "invalid_attempt"))
+        self.assertEqual(self._attempt(tokens, death.death_id, client_attempt_id="x").status_code, 400)
+        late = self.client.post(f"{API}/cases/{death.death_id}/visit", json={"next_visit_at": "2020-01-01T09:00:00+00:00"},
+                                headers=self._bearer(tokens))
+        self.assertEqual((late.status_code, late.get_json()["code"]), (422, "invalid_visit"))
+
+    def test_offline_visit_schedules_the_case_and_a_resend_sets_the_same_date(self):
+        _device, tokens = self._session()
+        death = self._web_case()
+        when = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0).isoformat()
+        for _ in range(2):
+            response = self.client.post(f"{API}/cases/{death.death_id}/visit", json={"next_visit_at": when},
+                                        headers=self._bearer(tokens))
+            self.assertEqual(response.status_code, 200, response.get_json())
+            self.assertEqual(response.get_json()["case"]["status"], "scheduled")
+            self.assertEqual(response.get_json()["case"]["next_visit_at"], when)
+
+    def test_outstanding_report_records_pending_registrations(self):
+        _device, tokens = self._session()
+        pending = str(uuid.uuid4())
+        response = self.client.post(f"{API}/outstanding", json={
+            "count": 0, "unique_ids": [], "client_draft_ids": [], "client_death_ids": [pending.upper()],
+        }, headers=self._bearer(tokens))
+        self.assertEqual(response.status_code, 204)
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(row.outstanding_client_death_ids, [pending])
+        bad = self.client.post(f"{API}/outstanding", json={"count": 0, "client_death_ids": ["x"]},
+                               headers=self._bearer(tokens))
+        self.assertEqual(bad.status_code, 400)
+
     # ── size limits ────────────────────────────────────────────────────────
 
     def test_oversized_bodies_are_refused_with_413(self):
         device, tokens = self._session()
         big = "x" * (17 * 1024)
-        report = "x" * (129 * 1024)
+        report = "x" * (257 * 1024)
         for response in (
             self._sign_in(device, password=big),
             self.client.post(f"{API}/enroll", json={"code": big}),

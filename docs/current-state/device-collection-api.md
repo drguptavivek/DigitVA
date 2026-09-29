@@ -9,7 +9,7 @@ last_updated: 2026-09-30
 # Device Collection API (Path B server side)
 
 Server side of the Android collection app (beads `digitva-kmk.1`, hardened
-in `digitva-kmk.6`). Policy:
+in `digitva-kmk.6`, offline cases in `digitva-kmk.4`). Policy:
 [Field Data Collection](../policy/field-data-collection.md) (Path B). Design
 and the API contract the app is built against:
 `.tasks/2026-09-30-android-collection-app.md`.
@@ -25,7 +25,10 @@ and the API contract the app is built against:
 - `app/models/va_users.py::load_user_from_device_token`: the Flask-Login
   `request_loader`.
 - `app/services/web_intake_service.py`: `submit_device_interview`,
-  `find_device_upload`, `serialize_device_upload`.
+  `find_device_upload`, `serialize_device_upload`; offline cases:
+  `device_case_filters`, `device_case_rows` / `device_case`,
+  `get_device_case`, `find_device_registration`, `find_device_attempt`,
+  `serialize_case_ack`.
 - UI: **Devices** card in the Setup home People section
   (`admin/panels/project_setup.html`), admin only.
 
@@ -44,6 +47,12 @@ newest first; GIN `jsonb_path_ops` index for the `@>` reuse lookup),
 `refreshed_at` (last rotation) and `outstanding_client_draft_ids` (JSONB);
 and `ix_auth_security_events_user_type_time` on `auth_security_events`
 `(user_id, event_type, occurred_at)` for the lockout count.
+
+Migration `f2c6a8d4b1e9` (`digitva-kmk.4`) adds `va_death_register.client_death_id`
+(`uq_va_death_register_client_death_id`) and
+`map_case_contact_attempts.client_attempt_id`
+(`uq_map_case_contact_attempts_client_attempt_id`), both UUIDs unique where
+not null, and `auth_device_sessions.outstanding_client_death_ids` (JSONB).
 
 Every code, secret and token is `secrets.token_urlsafe(32)` and stored only
 as its SHA-256 hex digest (a slow hash adds nothing for 256-bit random
@@ -109,7 +118,10 @@ As the contract, with these additions (all additive):
 | `POST /submissions` | Accepts an optional `completion: {valid, issues}` beside `draft`; see below. |
 | `GET /units` | `units_payload` from `app/routes/api/organization.py` over `org_grant_service.reachable_unit_ids(user, project, {interviewer})`: the web picker's body. 403 when nothing is reachable. |
 | `GET /instruments/<code>/translations/<locale>` | `translations_response` from `app/routes/api/instruments.py`, only for `served_instrument_locales(project)` (the default form type's instrument, `available_locales`); else 404 `not_found`. |
-| `POST /outstanding` | Stores count, sorted unique ids and sorted, normalised `client_draft_ids` (UUIDs) on the session; the admin device list shows both. |
+| `POST /outstanding` | Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
+| `GET /cases` | Offline cases, below. 120/min. |
+| `POST /deaths` | Offline registration, below. |
+| `POST /cases/<death_id>/attempts`, `/visit` | Offline attempts and visits, below. |
 | Admin `POST .../device-enrolments` | Also returns `qr_svg` (segno) and `max_uses`; `Cache-Control: no-store`. The QR server URL is `DEVICE_PUBLIC_URL` (default: scheme and host of `MAIL_BASE_URL`; set `http://10.0.2.2:8051` for an emulator). Outside debug/testing a plain-http URL other than localhost, 127.0.0.1 or 10.0.2.2 refuses the code (503, logged); checked when a code is issued, not at startup, so a bad value cannot stop the server. |
 | CLI `flask devices create-enrolment-code --project <id> --actor <admin email> [--minutes N] [--uses N]` | `app/commands/devices.py`: same `create_enrolment_code` service, bounds and `device_enrolment_code_created` event; the named active global admin is the recorded actor (`created_by` is not null). Prints the QR payload JSON only. For the emulator run it with `-e DEVICE_PUBLIC_URL=http://10.0.2.2:8051`. |
 
@@ -118,7 +130,7 @@ Every error body is `{"error", "code"}`; the role gate's 401/403 bodies carry
 
 Body caps (`_body_limit` in the device blueprint, applied before the first
 read, including the rate limiter's key functions, which read the body in an
-app-level hook): 2 MB for `/submissions`, 128 KB for `/outstanding` and
+app-level hook): 2 MB for `/submissions`, 256 KB for `/outstanding` and
 `/sessions/refresh`, 16 KB otherwise; over it -> 413 `payload_too_large`.
 
 The app wipes an interviewer's store only on `session_revoked`. A refresh
@@ -155,9 +167,49 @@ one section named `device`; then `submit_draft` with `intake_source =
   serialized is 422 before anything is stored, on the superseded path too
   (`_check_device_answers`).
 
+## Offline cases (`digitva-kmk.4`)
+
+- **Download.** `GET /cases` is `list_worklist` with `extra_filters` =
+  `device_case_filters`: the device's project, states `registered`,
+  `scheduled`, `not_reachable`, `paused`, `refused` (`DEVICE_CASE_STATES`),
+  or `in_progress` started by the caller. Same scope as the web worklist
+  (unit grants their subtrees; "details pending" never listed), same
+  keyset paging, `limit` clamped to 1..200. Rows are
+  `serialize_worklist_row` plus `prefill` from `_prefill_from_death`, the
+  object the web form page receives for the case; `device_case_rows`
+  resolves the page's unit presets and org path names in three queries
+  (`_unit_prefill_parts`), whatever the page size. `Cache-Control:
+  no-store`.
+- **Data minimisation.** Phones are masked in the row (`******1234`) and
+  never in the prefill: the app needs no full number offline, though the web
+  case page shows it. The prefill does carry the informant's and parents'
+  names, the address and ABHA, because they are the questionnaire's
+  prefilled answers; on the phone they live only in the interviewer's
+  SQLCipher store and are dropped when the case leaves the list.
+- **Registration.** `POST /deaths` looks up `client_death_id` first (the
+  registrant's own -> 200 with the case, current state; another user's ->
+  409; out of scope now -> 404), then `register_death(...,
+  client_death_id=...)`. A concurrent resend that loses the unique index is
+  answered 200 the same way. `register_death`'s content refusals (400) are
+  answered 422 `invalid_registration`; a list or object in a field is 422 too.
+- **Attempts.** `find_device_attempt` first (same user and case -> 200, even
+  after the case has moved on; otherwise 409), then `log_contact_attempt(...,
+  client_attempt_id=...)`; 422 `invalid_attempt` for a bad outcome or date.
+- **Visits.** `set_visit` stores no row, so no client id: a resend sets the
+  same date again. 422 `invalid_visit` for a bad date.
+- A case outside the caller's scope or the device's project is 404
+  (`get_device_case`) on attempts and visits.
+- Ordering: a case registered offline gets its `death_id` from `/deaths`;
+  the app sends registrations, then attempts and visits, then interviews
+  (with `death_id`), so `/submissions` always names a case that exists.
+- Known gap: an attempt's `attempted_at` (and the case's `last_contact_at`)
+  is the sync time, not when it happened offline.
+
 ## Not built
 
 - Admin UI for per-session revocation (device revoke ends all its sessions).
-- Offline worklist download and attachments (phase 3).
+- Attachments (phase 3, deferred).
+- The admin Devices card shows the unsent count only, not the registration
+  ids (they are in the JSON).
 - A supervisor view of superseded copies and telling the interviewer in the
   web list.

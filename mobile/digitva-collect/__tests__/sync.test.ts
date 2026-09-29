@@ -66,6 +66,10 @@ function mockServer(handler: (call: Call) => Response) {
   }) as typeof fetch;
 }
 
+/** Every sync ends with the case download; an empty list unless a test says otherwise. */
+const withCases = (handler: (call: Call) => Response) => (call: Call) =>
+  call.url.includes("/api/v1/device/cases?") ? json(200, { cases: [], next_cursor: null }) : handler(call);
+
 const issue = [{ question: "Id10120", code: "required" as const, message: "Required" }];
 
 beforeEach(() => {
@@ -92,7 +96,7 @@ describe("syncInterviewer", () => {
     await markCompleted(db, ids.partial, { valid: false, issues: issue });
     await markCompleted(db, ids.invalid, { valid: false, issues: issue });
 
-    mockServer((call) => (call.url.endsWith("/submissions") ? json(201, { va_sid: "x" }) : json(204, null)));
+    mockServer(withCases((call) => (call.url.endsWith("/submissions") ? json(201, { va_sid: "x" }) : json(204, null))));
     const result = await syncInterviewer(USER, db);
 
     const uploads = calls.filter((c) => c.url.endsWith("/submissions")).map((c) => c.body as Record<string, unknown>);
@@ -101,7 +105,7 @@ describe("syncInterviewer", () => {
     expect(uploads[1]).toMatchObject({ completion: { valid: false, issues: issue } });
     expect(result).toEqual({ sent: 2, failed: 0, remaining: 2 });
     const report = calls.find((c) => c.url.endsWith("/outstanding"))!.body;
-    expect(report).toEqual({ count: 2, unique_ids: [], client_draft_ids: [ids.invalid, ids.open] });
+    expect(report).toEqual({ count: 2, unique_ids: [], client_draft_ids: [ids.invalid, ids.open], client_death_ids: [] });
   });
 
   it("keeps a draft the server refuses and moves on", async () => {
@@ -110,7 +114,7 @@ describe("syncInterviewer", () => {
     const store = createDraftStore(db, { siteId: "S1" });
     await store.save(envelope(ids.valid, {}));
     await markCompleted(db, ids.valid, { valid: true, issues: [] });
-    mockServer((call) => (call.url.endsWith("/submissions") ? json(409, { code: "conflict" }) : json(204, null)));
+    mockServer(withCases((call) => (call.url.endsWith("/submissions") ? json(409, { code: "conflict" }) : json(204, null))));
     expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 1, remaining: 1 });
     expect((await getDraftRow(db, ids.valid))?.completed).toBe(1);
   });
@@ -121,7 +125,9 @@ describe("syncInterviewer", () => {
     const store = createDraftStore(db, { siteId: "S1" });
     await store.save(envelope(ids.valid, { Id10013: "no" }));
     await markCompleted(db, ids.valid, { valid: true, issues: [] });
-    mockServer((call) => (call.url.endsWith("/submissions") ? json(422, { code: "invalid_interview" }) : json(204, null)));
+    mockServer(
+      withCases((call) => (call.url.endsWith("/submissions") ? json(422, { code: "invalid_interview" }) : json(204, null)))
+    );
     expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 1, remaining: 1 });
     expect((await getDraftRow(db, ids.valid))?.completed).toBe(0);
     expect((await store.load!(ids.valid))?.data).toEqual({ Id10013: "no" });

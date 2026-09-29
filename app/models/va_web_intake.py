@@ -53,6 +53,8 @@ class VaDeathRegister(db.Model):
     __table_args__ = (
         sa.UniqueConstraint("unique_id", name="uq_va_death_register_unique_id"),
         sa.Index("ix_va_death_register_project_status", "project_id", "status"),
+        # The possible-duplicate check windows candidates by date of death.
+        sa.Index("ix_va_death_register_project_dod", "project_id", "date_of_death"),
         sa.Index("ix_va_death_register_org_unit", "org_unit_id"),
         sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
         # The worklist sorts by next visit, then last activity.
@@ -74,6 +76,12 @@ class VaDeathRegister(db.Model):
             name="identity",
         ),
         sa.CheckConstraint("pending_flag IN ('duplicate', 'cancel')", name="pending_flag"),
+        sa.Index(
+            "uq_va_death_register_client_death_id",
+            "client_death_id",
+            unique=True,
+            postgresql_where=sa.text("client_death_id IS NOT NULL"),
+        ),
     )
 
     death_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -138,6 +146,9 @@ class VaDeathRegister(db.Model):
     # Appointment or follow-up date, and the latest contact attempt.
     next_visit_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     last_contact_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    # The device app's UUID for a death registered offline (Path B
+    # idempotency key); NULL for a web registration. Unique where present.
+    client_death_id: so.Mapped[uuid.UUID | None] = so.mapped_column(sa.Uuid(as_uuid=True), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
@@ -206,6 +217,12 @@ class MapCaseContactAttempt(db.Model):
         sa.CheckConstraint(
             "outcome IN (" + ", ".join(f"'{o}'" for o in CONTACT_OUTCOMES) + ")", name="outcome"
         ),
+        sa.Index(
+            "uq_map_case_contact_attempts_client_attempt_id",
+            "client_attempt_id",
+            unique=True,
+            postgresql_where=sa.text("client_attempt_id IS NOT NULL"),
+        ),
     )
 
     attempt_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -220,6 +237,9 @@ class MapCaseContactAttempt(db.Model):
     by_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )
+    # The device app's UUID for an attempt logged offline (idempotency key);
+    # NULL for a web attempt. Unique where present.
+    client_attempt_id: so.Mapped[uuid.UUID | None] = so.mapped_column(sa.Uuid(as_uuid=True), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )

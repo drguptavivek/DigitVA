@@ -1,7 +1,9 @@
 /**
- * One interviewer's in-flight interviews, "New interview" (site/unit from the
- * cached bootstrap), send completed interviews, lock, and sign out. Reached
- * only while the interviewer's store is unlocked.
+ * One interviewer's in-flight work: the cases downloaded for offline visits,
+ * deaths registered on this phone and not yet sent, and interviews on this
+ * phone. "New interview" (site/unit from the cached bootstrap), "Register a
+ * death", sync (send everything, then refresh the case list), lock, and
+ * sign out. Reached only while the interviewer's store is unlocked.
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -10,11 +12,20 @@ import { Alert, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../src/AppState";
 import { SessionRevokedError, SignInRequiredError, signOut } from "../src/auth";
+import { listActions, listCases, listRegistrations, type CaseRow, type Registration } from "../src/cases";
 import { getMeta, listDrafts, type Db, type DraftRow } from "../src/drafts";
 import { t } from "../src/i18n";
 import { isUnlocked, openInterviewerDb } from "../src/interviewerDb";
-import { refreshBootstrap, syncInterviewer, targetsFrom, type Bootstrap, type Units } from "../src/sync";
-import { Button, errorText, Row, Screen, styles } from "../src/ui";
+import {
+  refreshBootstrap,
+  refreshCases,
+  registersDeaths,
+  syncInterviewer,
+  targetsFrom,
+  type Bootstrap,
+  type Units
+} from "../src/sync";
+import { Button, errorText, Row, Screen, stateLabel, styles } from "../src/ui";
 
 export default function Worklist() {
   const router = useRouter();
@@ -23,11 +34,27 @@ export default function Worklist() {
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [queued, setQueued] = useState(0);
   const [bootstrap, setBootstrap] = useState<Bootstrap | undefined>();
   const [units, setUnits] = useState<Units | null | undefined>();
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  const loadLocal = useCallback(async (handle: Db) => {
+    const [d, c, r, a] = await Promise.all([
+      listDrafts(handle),
+      listCases(handle),
+      listRegistrations(handle),
+      listActions(handle)
+    ]);
+    setDrafts(d);
+    setCases(c);
+    setRegistrations(r);
+    setQueued(a.length);
+  }, []);
 
   const handleError = useCallback(
     async (error: unknown) => {
@@ -52,7 +79,7 @@ export default function Worklist() {
         const handle = await openInterviewerDb(account.user_id).catch(() => undefined);
         if (!active || !handle) return;
         setDb(handle);
-        setDrafts(await listDrafts(handle));
+        await loadLocal(handle);
         const cached = await getMeta<Bootstrap>(handle, "bootstrap");
         const cachedUnits = await getMeta<Units | null>(handle, "units");
         if (!active) return;
@@ -72,7 +99,7 @@ export default function Worklist() {
       return () => {
         active = false;
       };
-    }, [account, handleError])
+    }, [account, handleError, loadLocal])
   );
 
   if (!account) return <Redirect href="/" />;
@@ -88,6 +115,8 @@ export default function Worklist() {
       const fresh = await refreshBootstrap(account.user_id, db);
       setBootstrap(fresh.bootstrap);
       setUnits(fresh.units ?? null);
+      await refreshCases(account.user_id, db);
+      await loadLocal(db);
     } catch (error) {
       await handleError(error);
     } finally {
@@ -102,10 +131,10 @@ export default function Worklist() {
     try {
       const result = await syncInterviewer(account.user_id, db);
       setMessage(t("syncResult", { ...result }));
-      setDrafts(await listDrafts(db));
     } catch (error) {
       await handleError(error);
     } finally {
+      await loadLocal(db).catch(() => undefined);
       setBusy(false);
     }
   }
@@ -117,11 +146,12 @@ export default function Worklist() {
       await reload();
       router.replace("/");
     };
-    if (drafts.length === 0) {
+    const unsent = drafts.length + registrations.length + queued;
+    if (unsent === 0) {
       void doSignOut();
       return;
     }
-    Alert.alert(t("signOut"), t("signOutUnsent", { count: drafts.length }), [
+    Alert.alert(t("signOut"), t("signOutUnsent", { count: unsent }), [
       { text: t("cancel"), style: "cancel" },
       { text: t("signOutConfirm"), style: "destructive", onPress: () => void doSignOut() }
     ]);
@@ -157,8 +187,57 @@ export default function Worklist() {
           <Button kind="secondary" label={t("cancel")} onPress={() => setPicking(false)} />
         </View>
       ) : (
-        <Button label={t("newInterview")} disabled={!db} onPress={() => setPicking(true)} />
+        <Row>
+          <Button label={t("newInterview")} disabled={!db} onPress={() => setPicking(true)} />
+          <Button
+            kind="secondary"
+            label={t("registerDeath")}
+            disabled={!db || !registersDeaths(bootstrap)}
+            onPress={() => router.push({ pathname: "/register", params: { userId: account.user_id } })}
+          />
+        </Row>
       )}
+      <Text style={styles.text} accessibilityRole="header">
+        {t("casesTitle")}
+      </Text>
+      {cases.length === 0 ? <Text style={styles.muted}>{t("noCases")}</Text> : null}
+      {cases.map((row) => (
+        <Pressable
+          key={row.death_id}
+          accessibilityRole="button"
+          style={styles.card}
+          onPress={() => router.push({ pathname: "/case", params: { userId: account.user_id, deathId: row.death_id } })}
+        >
+          <Text style={styles.text}>{row.deceased_name ?? row.unique_id}</Text>
+          <Text style={styles.muted}>
+            {row.unique_id} · {stateLabel(row.state)}
+            {row.next_visit_at ? ` · ${t("nextVisit", { date: new Date(row.next_visit_at).toLocaleDateString() })}` : ""}
+          </Text>
+        </Pressable>
+      ))}
+      {registrations.length > 0 ? (
+        <Text style={styles.text} accessibilityRole="header">
+          {t("registrationsTitle")}
+        </Text>
+      ) : null}
+      {registrations.map((reg) => (
+        <Pressable
+          key={reg.client_death_id}
+          accessibilityRole="button"
+          style={styles.card}
+          onPress={() =>
+            router.push({ pathname: "/case", params: { userId: account.user_id, clientDeathId: reg.client_death_id } })
+          }
+        >
+          <Text style={styles.text}>{reg.fields.deceased_name}</Text>
+          <Text style={reg.state === "needs_edit" ? styles.error : styles.muted}>
+            {reg.state === "needs_edit" ? t("needsEdit") : t("pendingSend")}
+          </Text>
+        </Pressable>
+      ))}
+      <Text style={styles.text} accessibilityRole="header">
+        {t("interviewsTitle")}
+      </Text>
       {drafts.length === 0 ? <Text style={styles.muted}>{t("noDrafts")}</Text> : null}
       {drafts.map((draft) => (
         <Pressable
@@ -172,7 +251,7 @@ export default function Worklist() {
         >
           <Text style={styles.text}>{draft.completed ? t("draftReady") : t("draftInProgress")}</Text>
           <Text style={styles.muted}>
-            {new Date(draft.updated_at).toLocaleString()} · {draft.id.slice(0, 8)}
+            {new Date(draft.updated_at).toLocaleString()} · {draft.unique_id ?? draft.id.slice(0, 8)}
           </Text>
         </Pressable>
       ))}

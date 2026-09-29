@@ -1,20 +1,44 @@
 /**
- * Push and purge for one interviewer: upload each completed draft the form
- * engine let through, delete it once the server acknowledges it (201 new,
- * 200 resend of the same client_draft_id), then report what is still on the
- * phone to /outstanding. Also the per-interviewer reference data the device
- * API serves (bootstrap, organization units, form translations), cached in
- * that interviewer's own database and wiped with it.
+ * Push and purge for one interviewer, in dependency order:
  *
- * Logs carry draft ids and error codes only, never answers or names.
+ * 1. deaths registered offline (POST /deaths, idempotent on client_death_id);
+ *    each acknowledgement rebinds the drafts and actions waiting on it;
+ * 2. queued contact attempts and visit dates (idempotent on client_attempt_id;
+ *    a visit is idempotent by value);
+ * 3. completed interviews (POST /submissions, idempotent on client_draft_id),
+ *    with their case's death_id, so a case registered and interviewed offline
+ *    arrives registration first;
+ * 4. the outstanding-work report (what is still on the phone);
+ * 5. the case download (GET /cases, every page), replacing the stored cases.
+ *
+ * Each item is deleted once the server acknowledges it. A 422 reopens it for
+ * editing (a draft goes back to in progress; a registration or action is
+ * marked needs_edit); a 404/409 on an action also marks it needs_edit, since
+ * it can no longer apply and would be refused on every sync. Also the
+ * per-interviewer reference data the device API serves (bootstrap,
+ * organization units, form translations), cached in that interviewer's own
+ * database and wiped with it.
+ *
+ * Logs carry client ids and error codes only, never answers or names.
  */
 import { ApiError, DEVICE_API } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import {
+  acknowledgeRegistration,
+  deleteAction,
+  listActions,
+  listRegistrations,
+  replaceCases,
+  setActionState,
+  setRegistrationState,
+  type CaseRow
+} from "./cases";
 import {
   completedDrafts,
   countDrafts,
   deleteDraft,
   draftIds,
+  draftUniqueIds,
   getMeta,
   reopenDraft,
   setMeta,
@@ -33,6 +57,10 @@ export interface SyncResult {
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
 export const INCOMPLETE_OUTCOMES = ["partially_completed", "respondent_unavailable"] as const;
 
+/** The case download: pages of the server's maximum, at most this many (5000 cases). */
+export const CASE_PAGE_SIZE = 200;
+export const CASE_PAGES_MAX = 25;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Whether the server will take this interview: the form said valid, or the interviewer recorded an incomplete outcome. */
@@ -42,11 +70,63 @@ export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, 
   return typeof outcome === "string" && (INCOMPLETE_OUTCOMES as readonly string[]).includes(outcome);
 }
 
+/** Session and network failures stop the run with everything kept; anything but an API refusal is rethrown. */
+function refusal(error: unknown): ApiError {
+  if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
+  if (!(error instanceof ApiError)) throw error;
+  return error;
+}
+
 export async function syncInterviewer(userId: string, db: Db): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
+
+  for (const reg of await listRegistrations(db)) {
+    if (reg.state !== "pending") continue;
+    try {
+      const { body } = await authedRequest<{ case: CaseRow }>(userId, `${DEVICE_API}/deaths`, {
+        method: "POST",
+        body: {
+          client_death_id: reg.client_death_id,
+          site_id: reg.site_id,
+          ...(reg.org_unit_id ? { org_unit_id: reg.org_unit_id } : {}),
+          ...reg.fields
+        }
+      });
+      await acknowledgeRegistration(db, reg.client_death_id, body.case);
+      sent += 1;
+    } catch (error) {
+      const refused = refusal(error);
+      console.warn(`registration refused id=${reg.client_death_id} status=${refused.status} code=${refused.code ?? "-"}`);
+      if (refused.status === 422) await setRegistrationState(db, reg.client_death_id, "needs_edit");
+      failed += 1;
+    }
+  }
+
+  for (const action of await listActions(db)) {
+    if (action.state !== "pending" || !action.death_id) continue; // waits for its registration
+    const path = `${DEVICE_API}/cases/${encodeURIComponent(action.death_id)}/${action.kind === "attempt" ? "attempts" : "visit"}`;
+    try {
+      await authedRequest(userId, path, {
+        method: "POST",
+        body:
+          action.kind === "attempt"
+            ? { client_attempt_id: action.client_id, ...action.body }
+            : { next_visit_at: action.body.next_visit_at ?? null }
+      });
+      await deleteAction(db, action.client_id);
+      sent += 1;
+    } catch (error) {
+      const refused = refusal(error);
+      console.warn(`case action refused id=${action.client_id} status=${refused.status} code=${refused.code ?? "-"}`);
+      if ([404, 409, 422].includes(refused.status)) await setActionState(db, action.client_id, "needs_edit");
+      failed += 1;
+    }
+  }
+
   for (const item of await completedDrafts(db)) {
     if (!isUploadable(item.draft.data, item.completion)) continue; // stays on the phone, counted as remaining
+    if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
     try {
       await authedRequest(userId, `${DEVICE_API}/submissions`, {
         method: "POST",
@@ -54,6 +134,7 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
           client_draft_id: item.id,
           site_id: item.site_id,
           ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
+          ...(item.death_id ? { death_id: item.death_id } : {}),
           draft: item.draft,
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] }
         }
@@ -61,25 +142,50 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
       await deleteDraft(db, item.id);
       sent += 1;
     } catch (error) {
-      // Revocation already wiped the store; sign-in and network errors stop
-      // the run with the rest kept. A per-draft refusal (409/413/422) keeps
-      // that draft and moves on; a 422 (the interview as it stands) also
-      // reopens it for editing.
-      if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
-      if (!(error instanceof ApiError)) throw error;
-      console.warn(`submission refused draft=${item.id} status=${error.status} code=${error.code ?? "-"}`);
-      if (error.status === 422) await reopenDraft(db, item.id);
+      // A per-draft refusal (409/413/422) keeps that draft and moves on; a
+      // 422 (the interview as it stands) also reopens it for editing.
+      const refused = refusal(error);
+      console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
+      if (refused.status === 422) await reopenDraft(db, item.id);
       failed += 1;
     }
   }
+
   const remaining = await countDrafts(db);
-  const ids = (await draftIds(db)).filter((id) => UUID.test(id));
-  // unique_ids are case ids; phase 2a drafts are new interviews with no case yet.
   await authedRequest(userId, `${DEVICE_API}/outstanding`, {
     method: "POST",
-    body: { count: remaining, unique_ids: [], client_draft_ids: ids }
+    body: {
+      count: remaining,
+      unique_ids: await draftUniqueIds(db),
+      client_draft_ids: (await draftIds(db)).filter((id) => UUID.test(id)),
+      client_death_ids: (await listRegistrations(db)).map((reg) => reg.client_death_id)
+    }
   });
+  await refreshCases(userId, db);
   return { sent, failed, remaining };
+}
+
+/**
+ * GET every page of /cases and make the stored cases exactly that list, so
+ * a case the server no longer offers (submitted, closed, out of scope, or
+ * started by a teammate) leaves the phone. A failure part way leaves the
+ * stored cases as they were.
+ */
+export async function refreshCases(userId: string, db: Db): Promise<CaseRow[]> {
+  const rows: CaseRow[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < CASE_PAGES_MAX; page += 1) {
+    const query: string = `?limit=${CASE_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const { body } = await authedRequest<{ cases: CaseRow[]; next_cursor: string | null }>(
+      userId,
+      `${DEVICE_API}/cases${query}`
+    );
+    rows.push(...body.cases);
+    cursor = body.next_cursor;
+    if (!cursor) break;
+  }
+  await replaceCases(db, rows);
+  return rows;
 }
 
 /**
@@ -156,6 +262,13 @@ export function targetsFrom(bootstrap: Bootstrap | undefined, units: Units | nul
   });
 }
 
+/** Whether a site's project mode takes death registrations (web_intake_service._mode_allows). */
+export function registersDeaths(bootstrap: Bootstrap | undefined, siteId?: string): boolean {
+  return (bootstrap?.context ?? []).some(
+    (entry) => (!siteId || entry.site_id === siteId) && ["death_register", "both"].includes(entry.web_intake_mode ?? "")
+  );
+}
+
 /**
  * The fields this app reads. `form_options` is the project's form-options
  * body (the same one the web form reads from /api/v1/organization/<p>/form-options).
@@ -167,6 +280,8 @@ export interface Bootstrap {
     project_name?: string;
     site_id: string;
     site_name?: string;
+    /** off, direct, death_register or both (web_intake_service.WEB_INTAKE_MODES). */
+    web_intake_mode?: string;
   }>;
   instrument_version?: string;
   form_options?: {

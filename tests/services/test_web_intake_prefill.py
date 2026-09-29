@@ -122,6 +122,36 @@ class WebIntakePrefillTests(BaseTestCase):
 
     # ── registered case: every row of the map ─────────────────────────────
 
+    def test_device_case_rows_batch_prefill_matches_the_web_form(self):
+        """The device download resolves presets and org paths for a whole
+        page at once (digitva-kmk.4); each case's prefill must still be the
+        one the web form gets, inherited presets included."""
+        from app.models.mas_organization import MapOrgUnitVaPresets
+
+        root_id = self.unit.parent_org_unit_id
+        db.session.add_all([
+            MapOrgUnitVaPresets(org_unit_id=root_id, hiv_mortality="high"),
+            MapOrgUnitVaPresets(org_unit_id=self.unit.org_unit_id, malaria_mortality="low"),
+        ])
+        db.session.flush()
+        first, second = self._register(), self._register(deceased_name="Asha Devi", deceased_sex="female")
+        root_case = intake_svc.register_death(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, org_unit_id=str(root_id),
+            deceased_name="Root Case", deceased_sex="male",
+            date_of_death=(date.today() - timedelta(days=3)).isoformat(),
+        )
+        rows = intake_svc.device_case_rows(
+            self.interviewer, [(first, "Solan", None), (second, "Solan", None), (root_case, "Himachal Pradesh", None)]
+        )
+        for death, row in zip((first, second, root_case), rows, strict=True):
+            self.assertEqual(row["prefill"], intake_svc._prefill_from_death(death, self.interviewer, death.org_unit_id))
+        prefill = rows[0]["prefill"]
+        self.assertEqual((prefill["answers"]["Id10002"], prefill["answers"]["Id10003"]), ("high", "low"))
+        self.assertTrue({"Id10002", "Id10003"} <= set(prefill["lockedQuestionNames"]))
+        self.assertTrue(prefill["answers"]["Id10057"].startswith("Himachal Pradesh, Solan"))
+        self.assertEqual(rows[2]["prefill"]["answers"]["Id10002"], "high")
+        self.assertNotIn("Id10003", rows[2]["prefill"]["answers"])
+
     def test_registered_case_prefills_every_map_row(self):
         prefill = self._start(self._register()).prefill
         deceased, answers = prefill["deceased"], prefill["answers"]

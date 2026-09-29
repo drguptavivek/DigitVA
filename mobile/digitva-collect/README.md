@@ -58,6 +58,18 @@ Offline WHO VA 2022 collection app for Path B of
   progress with its answers, so the interviewer can correct it; other
   refusals keep it ready for the next send.
   The remaining count and draft ids are then reported to `/outstanding`.
+- **Offline cases** (phase 3, `src/cases.ts`, `app/case.tsx`,
+  `app/register.tsx`): **Send and refresh** runs, in order, offline
+  registrations (`POST /deaths`, `client_death_id`), queued contact attempts
+  and visit dates (`client_attempt_id`), interviews (with the case's
+  `death_id`), the outstanding report (draft ids, case ids, pending
+  registration ids), then downloads every page of `GET /cases` and replaces
+  the stored cases (a case no longer listed is dropped; drafts keep their own
+  case binding and prefill). **Start interview** on a case opens a draft
+  prefilled from the case (as the web form) and bound to it; an interview on
+  a registration not yet sent waits for it. A 422 marks a registration or
+  attempt "Not accepted" for editing or discarding; a 404/409 on an attempt
+  does the same.
 - **Sign out** warns about unsent interviews, then deletes that
   interviewer's database, store secret, PIN counter, biometric entry and tokens. A `401 session_revoked` does the same
   without asking. Any other refused refresh (`refresh_reused`,

@@ -242,7 +242,7 @@ stops an interview, so it never makes a project unready.
 The assessment is read-only. It never creates a site, a web form or a grant,
 and a project PI may run it only for the projects they manage.
 
-## Case worklist and interview states (baseline 2026-09-29; phases 2 to 5 built 2026-09-30)
+## Case worklist and interview states (baseline 2026-09-29; phases 2 to 7 built 2026-09-30)
 
 Decided by the owner on 2026-09-29 unless a line says otherwise; the
 decisions of 2026-09-30 are marked as such. Plan and
@@ -430,7 +430,8 @@ a place for names, phone numbers or addresses).
   date of death within 3 days, same sex, similar normalised name, same or
   neighbouring unit. A match shows "Possible duplicate of <case id>" to the
   interviewer before submit. It is a hint; only a supervisor resolves it. The
-  hint shows the case id, never the other case's identity.
+  hint shows the case id, never the other case's identity. Rules as built:
+  "Built in phase 6" below.
 
 ### One submission per case: first complete wins
 
@@ -855,6 +856,50 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   never enter the submission payload (`build_web_payload` copies only the ABHA
   fields and the case id) or an export.
 
+### Built in phase 6 (digitva-vzk.11, 2026-09-30)
+
+No migration. `app/services/web_intake_service.py`
+(`_possible_duplicate_rows`, `possible_duplicates`); computed on read, never
+stored, so a case gets the check whichever route (web, device upload) gave it
+its name and date of death.
+
+- **Match:** another case of the same project, not the case itself, not
+  `cancelled` and not a confirmed `duplicate` (neither can be named as the
+  kept case), with a name and a date of death, where
+  - the dates of death are at most 3 days apart (inclusive);
+  - the sex is the same, or either is missing, `unknown` or `undetermined`;
+  - the normalised names have a pg_trgm `similarity()` of at least 0.5.
+    Normalised: lowercase, punctuation to spaces, the titles late, lt, mr,
+    mrs, ms, miss, smt, shrimati, shri, sri, dr, master, baby, kumari and km
+    dropped as whole words, spaces collapsed;
+  - the units are neighbours: the same unit, the parent, a child, or a
+    sibling (same parent), or either case has no unit. A grandparent or
+    cousin is not a neighbour, nor are two top-level units.
+  The case being checked must itself have a name and a date of death, not be
+  closed and carry no pending flag (it is already with a supervisor);
+  otherwise it gets no hint.
+- **Scope:** candidates are limited to the caller's worklist reach
+  (`_worklist_scope`), so the hint never names a case the caller cannot open;
+  a match outside it is not shown to that caller.
+- **Case API:** `GET /intake/api/cases/<death_id>/possible-duplicates`
+  (interviewer; the case through `get_death`, out of scope reads as 404):
+  up to 50, most similar first, each with `death_id`, `unique_id`,
+  `unit_name`, `state` and `score`. No name, sex, date, phone or address.
+- **Form page:** checked on open, after a save that touched the identity
+  answers (`Id10017`, `Id10018`, `Id10019`, `Id10023`, `Id10023_a`,
+  `Id10023_b`) and just before submit. A warning banner "Possible duplicate
+  of <ID>" with a **Flag as duplicate of <ID>** button per case (the existing
+  flag endpoint; a supervisor confirms or rejects). It never blocks submit and
+  nothing is merged.
+- **Worklist:** each row carries `possible_duplicates` (up to three
+  `death_id`/`unique_id` pairs) from ONE query for the whole page; the row
+  shows a "Possible duplicate of <ID>" badge unless a flag is already
+  pending, and **Flag duplicate** offers those cases first, preselected.
+- **Index:** the candidate side filters on project and a date window; the
+  existing `ix_va_death_register_project_status` serves the project. For large
+  registers, `(project_id, date_of_death)` is the index to add (not added in
+  this phase).
+
 ### Open design items (questions for the owner)
 
 - **Date of death unknown** (found building phase 3). A direct start whose
@@ -868,7 +913,8 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native
   app. Of "Case worklist and interview states" above, the case state machine,
   flags and the worklist API (phases 2 and 3), the worklist page (phase 4) and
-  visits, contact attempts and pause (phase 5) are built; team drafts,
+  visits, contact attempts and pause (phase 5) and the possible-duplicate
+  check (phase 6) are built; team drafts,
   supervisor powers and views, the `interview_outcome` question and its
   first-complete-submission rule are built; team drafts, telling the
   interviewer of a superseded copy, a web "Stop interview" submit and offline

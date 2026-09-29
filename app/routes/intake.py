@@ -165,13 +165,32 @@ def api_worklist():
             cursor=request.args.get("cursor") or None,
             limit=limit,
         )
+        possible = result["possible_duplicates"]
+        cases = []
+        for row in result["cases"]:
+            serialized = intake_svc.serialize_worklist_row(current_user, *row)
+            serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
+            cases.append(serialized)
         return jsonify(
             {
-                "cases": [intake_svc.serialize_worklist_row(current_user, *row) for row in result["cases"]],
+                "cases": cases,
                 "counts": result["counts"],
                 "next_cursor": result["next_cursor"],
             }
         )
+
+    return _handle(run)
+
+
+@intake.get("/api/cases/<death_id>/possible-duplicates")
+@role_required("interviewer")
+def api_possible_duplicates(death_id):
+    """Cases in the caller's reach that may be the same death (a warning;
+    never blocks submit, never merges). Out-of-scope ids read as 404."""
+
+    def run():
+        death = intake_svc.get_death(current_user, death_id)
+        return jsonify({"possible_duplicates": intake_svc.possible_duplicates(current_user, death)})
 
     return _handle(run)
 

@@ -1,6 +1,6 @@
 # Android collection app (Path B)
 
-Status: design draft, 2026-09-30, revised after design review the same day. Phase 1 (server) built 2026-09-30 (`digitva-kmk.1`, `docs/current-state/device-collection-api.md`), with the contract additions listed there; the upload needs `completion.valid` from the app. Hardened the same day (`digitva-kmk.6`): body caps, absolute session cap, device-bound refresh, reuse codes separate from revocation, second-factor lockout, device units and translations; the contract below is current. Owner asked (2026-09-30) for an Android app
+Status: design draft, 2026-09-30, revised after design review the same day. Phase 1 (server) built 2026-09-30 (`digitva-kmk.1`, `docs/current-state/device-collection-api.md`), with the contract additions listed there; the upload needs `completion.valid` from the app. Hardened the same day (`digitva-kmk.6`): body caps, absolute session cap, device-bound refresh, reuse codes separate from revocation, second-factor lockout, device units and translations; the contract below is current. Phase 3 offline cases built the same day (`digitva-kmk.4`, migration `f2c6a8d4b1e9`: case download with prefill, idempotent offline registration, attempts and visits, ordered sync); attachments deferred. Owner asked (2026-09-30) for an Android app
 for data collection with QR-code device provisioning, biometric lock with an
 app-PIN fallback, encryption, server URL set from the QR, and a multilingual
 UI, **after** the web form and dashboard work lands. Policy it must satisfy:
@@ -119,8 +119,14 @@ handoff.
   case with 409, so this path is new server work.
 - Every sync also reports the device's count and unique ids of unsent
   interviews (policy: outstanding work visible server-side).
-- Worklist cases (after `digitva-vzk` phase 3): downloaded for offline visits,
-  registrations made offline are uploaded with an idempotency key.
+- Worklist cases (built, `digitva-kmk.4`): downloaded for offline visits with
+  each case's prefill, into the interviewer's encrypted store, replaced on
+  every refresh (a case the server stops listing leaves the phone);
+  registrations, contact attempts and visit dates made offline are queued
+  with client UUIDs and uploaded idempotently. Sync order: registrations ->
+  attempts/visits -> submissions -> outstanding report -> case download. A
+  registration's acknowledgement rebinds the drafts and attempts waiting on
+  it (by `client_death_id`) to the server `death_id` before it is purged.
 
 ## Multilingual UI
 
@@ -139,6 +145,10 @@ unique ids), and `client_draft_id` on `va_web_intake_drafts`. Additive.
 `digitva-kmk.6` (migration `e4b8d2f6a1c7`) adds `retired_refresh_hashes`
 (GIN), `refreshed_at` and `outstanding_client_draft_ids` to the sessions,
 and a `(user_id, event_type, occurred_at)` index on `auth_security_events`.
+`digitva-kmk.4` (migration `f2c6a8d4b1e9`) adds `client_death_id` to
+`va_death_register` and `client_attempt_id` to `map_case_contact_attempts`
+(each unique where not null) and `outstanding_client_death_ids` to the
+sessions.
 
 ## Phases
 
@@ -153,7 +163,8 @@ and a `(user_id, event_type, occurred_at)` index on `auth_security_events`.
 2b. App security: SQLCipher per interviewer, PIN, biometric, auto-lock,
    FLAG_SECURE, wipe on sign-out/revoke/failed PINs. Real-device biometric
    check (emulators do not enforce it). No real data before 2b.
-3. Offline worklist cases, attachments as BLOBs (gate before release).
+3. Offline worklist cases (built, `digitva-kmk.4`); attachments as BLOBs
+   (gate before release, not built).
 4. Release: signing and distribution (C4), real-device checks.
 
 ## Open owner decisions
@@ -171,8 +182,9 @@ All under `/api/v1/device`, JSON, no cookies, CSRF-exempt. Errors are
 `{"error": "<message>", "code": "<machine_code>"}` with
 400/401/403/404/409/413/422/429 (the role gate's 401/403 carry `error` only).
 `Authorization: Bearer <access_token>` on everything after sign-in. Request
-bodies are capped: 2 MB for `/submissions`, 128 KB for `/outstanding` and
-`/sessions/refresh` (they carry the outstanding report), 16 KB for the rest;
+bodies are capped: 2 MB for `/submissions`, 256 KB for `/outstanding` and
+`/sessions/refresh` (they carry the outstanding report; 128 KB until
+`digitva-kmk.4` added registration ids), 16 KB for the rest;
 over the cap -> 413 `payload_too_large`.
 
 - `POST /enroll` `{code, device_name, platform: "android", app_version}` ->
@@ -221,9 +233,45 @@ over the cap -> 413 `payload_too_large`.
   `draft.data.interview_outcome` must be `partially_completed` or
   `respondent_unavailable` (else 422). `draft.data` nested deeper than 6 or
   over 1 MB serialized -> 422 `invalid_interview`, nothing stored.
-- `POST /outstanding` `{count, unique_ids: [..], client_draft_ids: [uuid..]}`
-  -> 204 (also accepted as optional fields on `/sessions/refresh`); at most
-  1000 of each.
+- `POST /outstanding` `{count, unique_ids: [..], client_draft_ids: [uuid..],
+  client_death_ids: [uuid..]}` -> 204 (also accepted as optional fields on
+  `/sessions/refresh`); at most 1000 of each. `unique_ids` are the case ids
+  of interviews on downloaded cases; `client_death_ids` the registrations
+  still on the phone.
+- `GET /cases?cursor=&limit=` (`digitva-kmk.4`) -> 200 `{cases: [...],
+  next_cursor}`, `Cache-Control: no-store`: the device project's cases in the
+  interviewer's worklist scope in states `registered`, `scheduled`,
+  `not_reachable`, `paused`, `refused`, plus their own `in_progress` ones
+  (started by them). Each row is the web worklist row (phones masked as
+  `******1234`, no informant name or address) plus `prefill`: exactly what
+  the web form page gets for that case (`interviewer`, `deceased`, `answers`
+  including informant and parents' names, address and ABHA,
+  `lockedQuestionNames`), never a phone. Keyset-paged, `limit` 1..200
+  (default 50); bad `limit` -> 400. The app reads every page and replaces its
+  stored cases.
+- `POST /deaths` `{client_death_id (uuid), site_id, org_unit_id?, deceased_name,
+  deceased_sex, date_of_death, date_of_birth?, age_years?, abha_number?,
+  abha_address?, place_of_death?, address?, address_house_street?,
+  address_village_ward?, address_landmark?, informant_name?, informant_phone?,
+  informant_phone_2?, father_name?, mother_name?, remarks?}` -> 201 `{case:
+  <a /cases row>}`; resend of the same `client_death_id` -> 200 with the same
+  case (current state; the resent fields are ignored); another user's id ->
+  409 `conflict`. Content refusals (the register form's rules) -> 422
+  `invalid_registration` (the app reopens it for editing); site or unit out of
+  scope, or a project mode without the death register -> 403.
+- `POST /cases/<death_id>/attempts` `{client_attempt_id (uuid), outcome,
+  next_visit_at?}` -> 201 `{case: {death_id, unique_id, status,
+  next_visit_at, last_contact_at}}`; resend -> 200, nothing logged again (even
+  after the case moved on); the id reused on another case or by another user
+  -> 409. Bad outcome or date -> 422 `invalid_attempt`; case not waiting for
+  a visit -> 409; outside scope or the device project -> 404.
+- `POST /cases/<death_id>/visit` `{next_visit_at | null}` -> 200 `{case}` as
+  above. Idempotent by value (no client id stored). Bad date (outside
+  yesterday..a year ahead) -> 422 `invalid_visit`; not waiting -> 409;
+  outside scope -> 404.
+- `/submissions` with `death_id` of a case registered offline works once
+  `/deaths` has answered; the app sends registrations first and holds an
+  interview bound to an unacknowledged registration.
 - Admin: `POST /admin/api/projects/<id>/device-enrolments` `{expires_in_minutes?,
   max_uses?}` -> 201 `{code, qr_payload, qr_svg, expires_at, max_uses}` (code
   shown once); 503 when `DEVICE_PUBLIC_URL` is plain http outside

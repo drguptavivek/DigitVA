@@ -456,7 +456,8 @@ def mask_phone(phone: str | None) -> str | None:
     return "******" + (digits[-4:] if len(digits) >= 4 else "")
 
 
-def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, **fields) -> VaDeathRegister:
+def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
+                   client_death_id: uuid.UUID | None = None, **fields) -> VaDeathRegister:
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
         raise WebIntakeError("This project does not use the death register.", 403)
@@ -506,6 +507,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         remarks=_clean(fields.get("remarks"), what="Remarks"),
         registered_by=user.user_id,
         source="register",
+        client_death_id=client_death_id,
     )
     cases.open_case(death, actor=user)
     log.info("web intake death registered | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, unique_id, user.user_id)
@@ -653,7 +655,8 @@ def set_visit(user: VaUsers, death_id: object, *, next_visit_at: object | None) 
 
 
 def log_contact_attempt(user: VaUsers, death_id: object, *, outcome: str,
-                        next_visit_at: object | None = None) -> VaDeathRegister:
+                        next_visit_at: object | None = None,
+                        client_attempt_id: uuid.UUID | None = None) -> VaDeathRegister:
     """Record one contact attempt and move the case by its outcome.
 
     - ``refused``: the case becomes ``refused``; its visit date is cleared (a
@@ -673,7 +676,7 @@ def log_contact_attempt(user: VaUsers, death_id: object, *, outcome: str,
     now = _utcnow()
     db.session.add(MapCaseContactAttempt(
         death_id=death.death_id, attempted_at=now, outcome=outcome,
-        next_visit_at=visit_at, by_user_id=user.user_id,
+        next_visit_at=visit_at, by_user_id=user.user_id, client_attempt_id=client_attempt_id,
     ))
     death.last_contact_at = now
     if outcome == "refused":
@@ -776,7 +779,8 @@ def _case_address(death: VaDeathRegister) -> str:
     return ", ".join(part.strip() for part in parts if part and part.strip())
 
 
-def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None) -> dict:
+def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None,
+                        unit_parts: tuple[dict, list[str]] | None = None) -> dict:
     """The draft's prefill, per the map in docs/policy/web-intake.md.
 
     ``deceased`` and ``interviewer`` go through the package's
@@ -784,7 +788,9 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
     identity, area presets, ABHA). Everything else is an ordinary editable
     answer. Name split: the first word is the given name (Id10017), the rest
-    the surname (Id10018).
+    the surname (Id10018). ``unit_parts`` is the unit's ``(presets, org path
+    names)`` already resolved for a batch (``device_case_rows``); without it
+    both are queried here.
     """
     interviewer: dict = {"name": user.name, "id": str(user.user_id), "age": _interviewer_age(user, _utcnow())}
     locked = {"Id10010a", "Id10010c"}
@@ -799,10 +805,10 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         # Area presets (Id10002/Id10003) from the organization tree, per
         # docs/policy/web-intake.md ("Area VA presets"). Merged before the
         # death-register answers below so a death-register value always wins.
-        presets = org_grant_service.resolve_va_presets(org_unit_id)
+        presets = unit_parts[0] if unit_parts else org_grant_service.resolve_va_presets(org_unit_id)
         answers.update(presets)
         locked.update(presets)
-    org_path = ", ".join(_org_path_names(org_unit_id))
+    org_path = ", ".join(unit_parts[1] if unit_parts else _org_path_names(org_unit_id))
     address = _case_address(death) if death is not None else ""
     # Id10057 in prefill.ts's location format: "path; address".
     place = "; ".join(part for part in (org_path, address) if part)
@@ -1556,6 +1562,143 @@ def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Device cases (Path B phase 3, digitva-kmk.4)
+# ---------------------------------------------------------------------------
+
+#: Case states a device downloads for offline visits: waiting for a visit, or
+#: refused (a refusal blocks nothing; any team member may restart it). An
+#: ``in_progress`` case is downloaded only by the interviewer who started it.
+DEVICE_CASE_STATES = ("registered", "scheduled", "not_reachable", "paused", "refused")
+
+
+def device_case_filters(user: VaUsers, project_id: str) -> list:
+    """``list_worklist`` extra filters for the device's case download: the
+    device's project, in ``DEVICE_CASE_STATES`` or the caller's own
+    ``in_progress`` cases."""
+    return [
+        VaDeathRegister.project_id == project_id,
+        sa.or_(
+            VaDeathRegister.status.in_(DEVICE_CASE_STATES),
+            sa.and_(
+                VaDeathRegister.status == "in_progress",
+                VaDeathRegister.started_by_user_id == user.user_id,
+            ),
+        ),
+    ]
+
+
+def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict, list[str]]]:
+    """``{unit_id: (Id10002/Id10003 presets, org path names root first)}``
+    for ``_prefill_from_death``'s ``unit_parts``, in three queries for any
+    number of units (units, presets, one name lookup per project)."""
+    if not unit_ids:
+        return {}
+    units = db.session.scalars(
+        sa.select(MasOrgUnit).where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)))
+    ).all()
+    presets = org_grant_service.resolve_unit_va_presets(sorted(unit_ids))
+    codes_by_project: dict[str, set[str]] = {}
+    for unit in units:
+        codes_by_project.setdefault(unit.project_id, set()).update(str(unit.path).split("."))
+    names = {
+        project_id: {row["unit_code"]: row["unit_name"] for row in org.list_units_by_codes(project_id, codes)}
+        for project_id, codes in codes_by_project.items()
+    }
+    parts = {}
+    for unit in units:
+        unit_names = names[unit.project_id]
+        parts[unit.org_unit_id] = (
+            {
+                org_grant_service.VA_PRESET_QUESTION_NAMES[column]: entry["value"]
+                for column, entry in presets.get(unit.org_unit_id, {}).items()
+            },
+            [unit_names[code] for code in str(unit.path).split(".") if code in unit_names],
+        )
+    return parts
+
+
+def device_case_rows(user: VaUsers, rows: list[tuple]) -> list[dict]:
+    """Worklist rows ``(case, unit_name, my_draft_id)`` serialized for the
+    device: ``serialize_worklist_row`` (phones masked, no informant name or
+    address in the row) plus ``prefill``, what the web form page gets for the
+    same case, so an interview started offline opens prefilled. The prefill
+    carries the informant's and parents' names, the address and ABHA (the
+    questionnaire's own answers) and never a phone number."""
+    parts = _unit_prefill_parts({row[0].org_unit_id for row in rows if row[0].org_unit_id})
+    serialized = []
+    for death, unit_name, my_draft_id in rows:
+        row = serialize_worklist_row(user, death, unit_name, my_draft_id)
+        unit_parts = parts.get(death.org_unit_id, ({}, [])) if death.org_unit_id else None
+        row["prefill"] = _prefill_from_death(death, user, death.org_unit_id, unit_parts)
+        serialized.append(row)
+    return serialized
+
+
+def device_case(user: VaUsers, death: VaDeathRegister) -> dict:
+    """One case in the ``/device/cases`` row shape (a registration's reply)."""
+    unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
+    my_draft_id = db.session.scalar(
+        sa.select(VaWebIntakeDraft.draft_id).where(
+            VaWebIntakeDraft.death_id == death.death_id,
+            VaWebIntakeDraft.status == "draft",
+            VaWebIntakeDraft.user_id == user.user_id,
+        ).limit(1)
+    )
+    return device_case_rows(user, [(death, unit.unit_name if unit else None, my_draft_id)])[0]
+
+
+def get_device_case(user: VaUsers, project_id: str, death_id: object) -> VaDeathRegister:
+    """A case in the caller's scope and the device's project, else 404."""
+    death = get_death(user, death_id)
+    if death.project_id != project_id:
+        raise WebIntakeError("Death entry not found.", 404)
+    return death
+
+
+def find_device_registration(user: VaUsers, project_id: str, client_death_id: uuid.UUID) -> VaDeathRegister | None:
+    """The case an earlier offline registration with *client_death_id*
+    created, if any. Another user's id is a 409; a case since moved out of
+    the caller's scope or the device's project is a 404."""
+    death = db.session.scalar(
+        sa.select(VaDeathRegister).where(VaDeathRegister.client_death_id == client_death_id)
+    )
+    if death is None:
+        return None
+    if death.registered_by != user.user_id:
+        raise WebIntakeError("That client_death_id is already in use.", 409)
+    return get_device_case(user, project_id, death.death_id)
+
+
+def find_device_attempt(user: VaUsers, project_id: str, death_id: object,
+                        client_attempt_id: uuid.UUID) -> VaDeathRegister | None:
+    """The case of an earlier attempt logged with *client_attempt_id*, if
+    any. The id reused by another user or on another case is a 409."""
+    attempt = db.session.scalar(
+        sa.select(MapCaseContactAttempt).where(MapCaseContactAttempt.client_attempt_id == client_attempt_id)
+    )
+    if attempt is None:
+        return None
+    try:
+        same_case = attempt.death_id == uuid.UUID(str(death_id))
+    except ValueError:
+        same_case = False
+    if attempt.by_user_id != user.user_id or not same_case:
+        raise WebIntakeError("That client_attempt_id is already in use.", 409)
+    return get_device_case(user, project_id, attempt.death_id)
+
+
+def serialize_case_ack(death: VaDeathRegister) -> dict:
+    """A visit's or attempt's reply: the case's new state and dates only."""
+    return {
+        "death_id": str(death.death_id),
+        "unique_id": death.unique_id,
+        "status": death.status,
+        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
+        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Worklist
 # ---------------------------------------------------------------------------
 
@@ -1656,14 +1799,19 @@ def _mine_condition(user: VaUsers):
 
 
 def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
-                  cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+                  cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
+                  extra_filters: list | None = None) -> dict:
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
-    {state: n}, "next_cursor": str | None}``. ``counts`` cover the scope and
+    {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
+    [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
+    duplicates (up to three a case) from one query. ``counts`` cover the scope and
     the *mine* filter but not *states*, so tabs can show their totals. Sorted
     by next visit (overdue first, undated last), then last activity newest
     first. Keyset-paged on (next_visit_at, updated_at, death_id).
+    ``extra_filters`` (SQL conditions) narrow the scope further, counts
+    included: the device case download (``device_case_filters``).
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -1671,8 +1819,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
     scope = _worklist_scope(user)
     if scope is None:
-        return {"cases": [], "counts": {}, "next_cursor": None}
-    base = [scope]
+        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}}
+    base = [scope, *(extra_filters or [])]
     if mine:
         base.append(_mine_condition(user))
 
@@ -1711,7 +1859,141 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     ).all()
     page = [tuple(row) for row in rows[:limit]]
     next_cursor = _encode_worklist_cursor(page[-1][0]) if len(rows) > limit else None
-    return {"cases": page, "counts": counts, "next_cursor": next_cursor}
+    duplicates = _possible_duplicate_rows([row[0].death_id for row in page], scope, per_case=3)
+    possible = {}
+    for row in duplicates:
+        possible.setdefault(row.subject_id, []).append(
+            {"death_id": str(row.death_id), "unique_id": row.unique_id}
+        )
+    return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible}
+
+
+# ---------------------------------------------------------------------------
+# Possible-duplicate check (phase 6, digitva-vzk.11)
+# ---------------------------------------------------------------------------
+
+#: Dates of death this many days apart or less may be the same death.
+DUPLICATE_DAYS = 3
+#: pg_trgm ``similarity()`` of the normalised names at or above this matches.
+DUPLICATE_NAME_SIMILARITY = 0.5
+#: Most candidates the case API returns.
+DUPLICATE_CANDIDATES_MAX = 50
+_UNKNOWN_SEX = ("undetermined", "unknown")
+#: Honorifics dropped before comparing names ("Late Smt. Kamla Devi").
+_NAME_TITLES_RE = r"\m(late|lt|mr|mrs|ms|miss|smt|shrimati|shri|sri|dr|master|baby|kumari|km)\M"
+
+
+def _normalised_name(column):
+    """SQL: lowercase, punctuation to spaces, titles dropped, spaces collapsed."""
+    text = sa.func.regexp_replace(sa.func.lower(column), r"[[:punct:]]+", " ", "g")
+    text = sa.func.regexp_replace(text, _NAME_TITLES_RE, " ", "g")
+    return sa.func.btrim(sa.func.regexp_replace(text, r"\s+", " ", "g"))
+
+
+def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: int) -> list:
+    """Other cases that may be the same death as each subject, in ONE query.
+
+    A candidate is in the subject's project, not the subject, not cancelled
+    and not itself a confirmed duplicate (neither can be named as the kept
+    case), inside *scope* (the caller's worklist reach, so no name leaves it),
+    with a date of death within ``DUPLICATE_DAYS``, the same sex unless either
+    is unknown, a normalised-name ``similarity()`` of at least
+    ``DUPLICATE_NAME_SIMILARITY``, and a neighbouring unit: the same unit, its
+    parent, a child, or a sibling (same parent), or either case has no unit.
+    Two top-level units are not neighbours. Subjects without a name or date of
+    death, already closed, or with a flag waiting for a supervisor get none. At most *per_case* candidates per
+    subject, most similar first. Rows: ``subject_id``, ``death_id``,
+    ``unique_id``, ``status``, ``unit_name``, ``score``.
+    """
+    if not subject_ids or scope is None:
+        return []
+    subject = aliased(VaDeathRegister)
+    subject_unit = aliased(MasOrgUnit)
+    unit = aliased(MasOrgUnit)
+    closed = ("cancelled", "duplicate")
+    days = sa.literal_column(str(DUPLICATE_DAYS), sa.Integer)  # a constant, never input
+    score = sa.func.similarity(
+        _normalised_name(subject.deceased_name), _normalised_name(VaDeathRegister.deceased_name)
+    )
+    ranked = (
+        sa.select(
+            subject.death_id.label("subject_id"),
+            VaDeathRegister.death_id,
+            VaDeathRegister.unique_id,
+            VaDeathRegister.status,
+            unit.unit_name,
+            score.label("score"),
+            sa.func.row_number()
+            .over(partition_by=subject.death_id, order_by=(score.desc(), VaDeathRegister.death_id))
+            .label("rank"),
+        )
+        .select_from(subject)
+        .join(
+            VaDeathRegister,
+            sa.and_(
+                VaDeathRegister.project_id == subject.project_id,
+                VaDeathRegister.death_id != subject.death_id,
+                VaDeathRegister.date_of_death.between(
+                    subject.date_of_death - days, subject.date_of_death + days
+                ),
+                VaDeathRegister.status.not_in(closed),
+                VaDeathRegister.deceased_name.is_not(None),
+            ),
+        )
+        .outerjoin(subject_unit, subject_unit.org_unit_id == subject.org_unit_id)
+        .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
+        .where(
+            subject.death_id.in_(subject_ids),
+            subject.status.not_in(closed),
+            subject.pending_flag.is_(None),
+            subject.deceased_name.is_not(None),
+            subject.date_of_death.is_not(None),
+            sa.or_(
+                subject.deceased_sex.is_(None),
+                subject.deceased_sex.in_(_UNKNOWN_SEX),
+                VaDeathRegister.deceased_sex.is_(None),
+                VaDeathRegister.deceased_sex.in_(_UNKNOWN_SEX),
+                VaDeathRegister.deceased_sex == subject.deceased_sex,
+            ),
+            sa.or_(
+                subject.org_unit_id.is_(None),
+                VaDeathRegister.org_unit_id.is_(None),
+                VaDeathRegister.org_unit_id == subject.org_unit_id,
+                VaDeathRegister.org_unit_id == subject_unit.parent_org_unit_id,
+                unit.parent_org_unit_id == subject.org_unit_id,
+                unit.parent_org_unit_id == subject_unit.parent_org_unit_id,
+            ),
+            score >= DUPLICATE_NAME_SIMILARITY,
+            scope,
+        )
+        .subquery()
+    )
+    return db.session.execute(
+        sa.select(ranked).where(ranked.c.rank <= per_case).order_by(ranked.c.subject_id, ranked.c.rank)
+    ).all()
+
+
+def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
+    """Cases in *user*'s worklist reach that may be the same death as *case*.
+
+    A warning for the interviewer, never a block and never a merge: flagging
+    stays a person's decision (decisions 6 and 14). The caller has already
+    checked *user* may see *case* (``get_death``). Rules in
+    ``_possible_duplicate_rows``. The hint names the other case by its id,
+    unit and state only, never its identity (docs/policy/web-intake.md,
+    "Duplicate and cancel flags").
+    """
+    rows = _possible_duplicate_rows([case.death_id], _worklist_scope(user), per_case=DUPLICATE_CANDIDATES_MAX)
+    return [
+        {
+            "death_id": str(row.death_id),
+            "unique_id": row.unique_id,
+            "unit_name": row.unit_name,
+            "state": row.status,
+            "score": round(float(row.score), 2),
+        }
+        for row in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

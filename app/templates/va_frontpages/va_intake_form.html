@@ -15,6 +15,8 @@
   </div>
 </div>
 <div id="wv-alert" class="alert d-none small py-2"></div>
+{# Possible duplicates (phase 6, digitva-vzk.11): a warning, never a block. #}
+<div id="wv-duplicates" class="alert alert-warning d-none small py-2"></div>
 {# Pinned deceased summary (digitva-wdj): left-aligned, same row as the
    language selector (right, filled in by main() only for a multi-locale
    project). Sticky just below the fixed site navbar (44px, z-index 1000 --
@@ -45,6 +47,7 @@
 import * as WhoVa from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ who_va_bundle_version(config.STATIC_ASSET_VERSION)|urlencode }}";
 import { applyTranslations } from "{{ url_for('static', filename='js/intake/translations.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 import { summaryFromAnswers, summaryFromPrefill } from "{{ url_for('static', filename='js/intake/summary.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { renderPossibleDuplicates, touchesIdentity } from "{{ url_for('static', filename='js/intake/duplicates.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 
 const DRAFT = {{ draft | tojson }};
 const PREFILL = {{ prefill | tojson }};
@@ -170,10 +173,30 @@ async function writeDraft(draft) {
   if (!res.ok) throw new Error(res.data.error || "Save failed.");
   for (const [name, answers] of Object.entries(changed)) lastSaved[name] = JSON.stringify(answers);
   lastSavedSection = draft.currentSection;
+  if (!unloading && touchesIdentity(changed, sectionOf)) checkDuplicates().catch(() => {});
   const count = Object.keys(changed).length;
   $("wv-save-state").textContent = count
     ? `Saved ${new Date().toLocaleTimeString()} (${count} section${count === 1 ? "" : "s"})`
     : `Saved ${new Date().toLocaleTimeString()}`;
+}
+
+// Possible duplicates of this case, re-checked on open, after a save that
+// touched the identity answers and before submit. Never blocks anything: a
+// failed check just leaves the banner as it was.
+async function checkDuplicates() {
+  if (!DRAFT.death_id) return;
+  const res = await api("/intake/api/cases/" + encodeURIComponent(DRAFT.death_id) + "/possible-duplicates");
+  if (res.ok) renderPossibleDuplicates($("wv-duplicates"), res.data.possible_duplicates || [], flagDuplicate);
+}
+
+async function flagDuplicate(candidate, button) {
+  button.disabled = true;
+  const res = await api("/intake/api/cases/" + encodeURIComponent(DRAFT.death_id) + "/flags", "POST",
+    { kind: "duplicate", duplicate_of: candidate.death_id });
+  if (!res.ok) { button.disabled = false; alertBox("danger", res.data.error || "Could not flag the case."); return; }
+  // The case now waits for a supervisor; the API gives a flagged case no hints.
+  renderPossibleDuplicates($("wv-duplicates"), [], flagDuplicate);
+  alertBox("success", `Flagged as a possible duplicate of ${candidate.unique_id}. A supervisor will confirm or reject it.`);
 }
 
 function flushDraft() {
@@ -413,11 +436,13 @@ async function main() {
     if (!result.valid) { alertBox("warning", `The questionnaire has ${result.issues?.length || 0} unresolved issue(s).`); return; }
     alertBox("info", "Submitting…");
     try { await flushDraft(); } catch (err) { /* surfaced by who-va-draft-error */ }
+    await checkDuplicates().catch(() => {});  // refreshed before submit; never gates it
     const res = await api(API + "/submit", "POST", { completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
     alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
     setTimeout(() => { window.location.href = "/intake/"; }, 1500);
   });
+  checkDuplicates().catch(() => {});
   const host = $("wv-host");
   host.innerHTML = "";
   host.appendChild(el);

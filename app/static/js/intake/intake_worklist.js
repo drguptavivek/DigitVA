@@ -493,6 +493,12 @@
     if (row.pending_flag) {
       meta.appendChild(document.createTextNode(' '));
       meta.appendChild(el('span', 'badge text-bg-warning', row.pending_flag === 'duplicate' ? 'Duplicate flag pending' : 'Cancel flag pending'));
+    } else if ((row.possible_duplicates || []).length) {
+      // Phase 6 (digitva-vzk.11): a hint from the page's one batched check;
+      // "Flag duplicate" offers these cases first. Never merges anything.
+      meta.appendChild(document.createTextNode(' '));
+      meta.appendChild(el('span', 'badge text-bg-warning', 'Possible duplicate of '
+        + row.possible_duplicates.map(function (d) { return d.unique_id; }).join(', ')));
     }
     item.appendChild(meta);
 
@@ -685,11 +691,16 @@
     api('/intake/api/cases?limit=200').then(function (res) {
       picker.replaceChildren();
       if (!res.ok) { picker.add(new Option(res.data.error || 'Could not load cases.', '')); return; }
+      var suggested = row.possible_duplicates || [];
+      var suggestedIds = suggested.map(function (d) { return d.death_id; });
       var options = (res.data.cases || []).filter(function (c) {
         return c.death_id !== row.death_id && c.project_id === row.project_id
-          && ['duplicate', 'cancelled', 'draft_identity'].indexOf(c.state) === -1;
+          && ['duplicate', 'cancelled', 'draft_identity'].indexOf(c.state) === -1
+          && suggestedIds.indexOf(c.death_id) === -1;
       });
-      picker.add(new Option(options.length ? 'Choose the case it duplicates' : 'No other case in scope', ''));
+      picker.add(new Option(options.length || suggested.length ? 'Choose the case it duplicates' : 'No other case in scope', ''));
+      suggested.forEach(function (d) { picker.add(new Option(d.unique_id + ' — possible duplicate', d.death_id)); });
+      if (suggested.length) picker.value = suggested[0].death_id;
       options.forEach(function (c) {
         picker.add(new Option([c.unique_id, c.deceased_name || '—', c.date_of_death || '—'].join(' — '), c.death_id));
       });

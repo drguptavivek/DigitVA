@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./auth";
-import { t } from "./i18n";
+import { t, type StringKey } from "./i18n";
 
 export function Screen({ title, children, scroll = true }: { title: string; children: ReactNode; scroll?: boolean }) {
   const body = scroll ? <ScrollView contentContainerStyle={styles.body}>{children}</ScrollView> : children;
@@ -91,4 +91,11 @@ export function errorText(error: unknown): string {
   }
   if (error instanceof TypeError) return t("errNetwork");
   return t("errGeneric");
+}
+
+/** A case state's UI label (the states a device holds), else the state code itself. */
+export function stateLabel(state: string): string {
+  const key = `state_${state}` as StringKey;
+  const label = t(key);
+  return label === key ? state : label;
 }

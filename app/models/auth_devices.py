@@ -129,6 +129,8 @@ class AuthDeviceSession(db.Model):
     outstanding_count: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     outstanding_unique_ids: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
     outstanding_client_draft_ids: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
+    # Registrations made offline and not yet uploaded (the app's client_death_ids).
+    outstanding_client_death_ids: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
     outstanding_reported_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )

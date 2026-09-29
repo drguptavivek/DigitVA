@@ -5,6 +5,12 @@
  * questionnaire the form reports invalid can be finished only when the
  * interviewer recorded the outcome as partially completed or respondent
  * unavailable, which the server accepts (web-intake.md, interview outcome).
+ *
+ * An interview on a case (`deathId`, a downloaded case) or on a death
+ * registered on this phone (`clientDeathId`) is bound to it on its first
+ * save and opens with that case's prefill and locked questions, as the web
+ * form does; later opens take both from the draft itself, so a case pruned
+ * from the list meanwhile changes nothing.
  */
 import {
   createWhoVa2022Instrument,
@@ -17,26 +23,34 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
 
 import { useAppState } from "../src/AppState";
-import { createDraftStore, getDraftRow, getMeta, markCompleted, type Db } from "../src/drafts";
+import { resolveDraftHost, type DraftHost } from "../src/cases";
+import { createDraftStore, getMeta, markCompleted, type Db } from "../src/drafts";
 import { t } from "../src/i18n";
 import { isUnlocked, openInterviewerDb } from "../src/interviewerDb";
 import { platformServices } from "../src/platform";
+import { initialDataFromPrefill } from "../src/prefill";
 import { isUploadable, translationsFor, type Bootstrap } from "../src/sync";
 import { applyTranslations } from "../src/translations";
 import { Button, Row, Screen, styles } from "../src/ui";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-interface Loaded {
+interface Loaded extends DraftHost {
   db: Db;
-  siteId: string;
-  orgUnitId?: string;
   bootstrap: Bootstrap | undefined;
 }
 
+
 export default function Form() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ userId: string; draftId: string; siteId?: string; orgUnitId?: string }>();
+  const params = useLocalSearchParams<{
+    userId: string;
+    draftId: string;
+    siteId?: string;
+    orgUnitId?: string;
+    deathId?: string;
+    clientDeathId?: string;
+  }>();
   const { accounts, activity, onBeforeLock } = useAppState();
   const account = accounts.find((a) => a.user_id === params.userId);
   const draftId = UUID.test(params.draftId ?? "") ? params.draftId : undefined;
@@ -53,24 +67,23 @@ export default function Form() {
     void (async () => {
       const db = await openInterviewerDb(account.user_id).catch(() => undefined);
       if (!db) return;
-      const [row, bootstrap] = await Promise.all([getDraftRow(db, draftId), getMeta<Bootstrap>(db, "bootstrap")]);
+      const [host, bootstrap] = await Promise.all([
+        resolveDraftHost(db, draftId, params),
+        getMeta<Bootstrap>(db, "bootstrap")
+      ]);
       if (!active) return;
-      if (row?.completed) {
+      if (!host || host === "completed") {
         router.back();
         return;
       }
-      const siteId = row?.site_id ?? params.siteId;
-      if (!siteId) {
-        router.back();
-        return;
-      }
-      setLoaded({ db, siteId, orgUnitId: row?.org_unit_id ?? params.orgUnitId, bootstrap });
+      setLoaded({ db, bootstrap, ...host });
       setLocale(bootstrap?.form_options?.default_locale ?? "en");
     })();
     return () => {
       active = false;
     };
-  }, [account, draftId, params.siteId, params.orgUnitId, router]);
+    // params is a new object each render; its fields are the dependencies.
+  }, [account, draftId, params.siteId, params.orgUnitId, params.deathId, params.clientDeathId, router]);
 
   const baseInstrument = useMemo(
     () => (loaded ? createWhoVa2022Instrument(loaded.bootstrap?.form_options?.enabled_extensions ?? []) : undefined),
@@ -108,7 +121,11 @@ export default function Form() {
   // Autosaves count as activity, so typing a long answer never trips the idle lock.
   const draftStore = useMemo(() => {
     if (!loaded) return undefined;
-    const store = createDraftStore(loaded.db, { siteId: loaded.siteId, orgUnitId: loaded.orgUnitId });
+    const store = createDraftStore(loaded.db, {
+      siteId: loaded.siteId,
+      orgUnitId: loaded.orgUnitId,
+      binding: loaded.binding
+    });
     return {
       ...store,
       save: (draft: Parameters<typeof store.save>[0]) => {
@@ -117,6 +134,9 @@ export default function Form() {
       }
     };
   }, [loaded, activity]);
+
+  // A stored draft replaces these on mount (the form's restore), so they only fill a new one.
+  const initialData = useMemo(() => initialDataFromPrefill(loaded?.prefill), [loaded]);
 
   if (!account || !draftId) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
@@ -188,6 +208,8 @@ export default function Form() {
         showEnglish={locale !== "en"}
         draftId={draftId}
         draftStore={draftStore}
+        {...(initialData ? { initialData } : {})}
+        {...(loaded.prefill?.lockedQuestionNames ? { lockedQuestionNames: loaded.prefill.lockedQuestionNames } : {})}
         platform={platformServices}
         autoSaveDraftOnChange
         onDraftController={(next) => {

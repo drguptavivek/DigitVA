@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # DORIS COD Workflow Policy
@@ -109,6 +109,58 @@ independent WHO codeinfo validation works. A whole WHO API outage blocks
 ICD-11 final-code provenance validation and final save. Coder and reviewer
 assessments remain separate; the reviewer may start from the coder's saved
 certificate but never changes it.
+
+## Prefill from the interview (`digitva-hln`, approved 2026-09-29, built)
+
+A new DORIS certificate starts with the non-cause fields the interview
+already answers, so the coder checks rather than re-types them. Causes,
+intervals, `PregnancyContribute` and `PerinatalDescription` are never
+prefilled.
+
+- Every prefilled value is a suggestion: editable, marked with its source
+  question ("from interview, Id10312"), and recorded in the saved envelope
+  with whether the coder changed it.
+- Only what the interview states. Don't know / refused give DORIS `9` only
+  where DORIS has that code and the question was asked; unasked or blank
+  questions leave the field empty (a blank optional answer is not "no").
+- Interview facts, not SmartVA output, so masked Step 1 shows them too.
+- One function serves web and ODK cases from the active payload version.
+  Extra questions (extension `doris_support_whova_2022`) fill the gaps the
+  WHO questions leave; names and rules are Annex A of
+  `docs/kb/DORIS/who-va-2022-doris-consistency-proposal.md`, for the web
+  form and the ODK rows alike (`docs/kb/WHO_VA_2022_Docs/odk-doris-support-rows.md`).
+  The partial birth date, `doris_hours_survived` and the birth-weight check
+  are agreed for the ODK workbooks; the others are proposed there, and ODK
+  cases without them use the WHO fallbacks. Integer answers 88 (refused)
+  and 99 (don't know) prefill nothing, except as noted for surgery.
+- Numbers may arrive as strings or floats (`"9.0"`, `2000.0`); flags as
+  `"1"` or `1`. Dates take the calendar date as recorded (no time zone
+  shift); a year-only death (Id10024) is sent as `YYYY`.
+
+| DORIS field | Source, in order | Rule |
+|---|---|---|
+| `Sex` | Id10019 | male 1, female 2, undetermined 9 |
+| `DateBirth` | Id10021 when Id10020 = yes; else `dob_month_year` -> `YYYY-MM`, `dob_year` -> `YYYY` | as recorded; 1 January at age >= 50 -> `YYYY` (year-only answers keyed as 1 January) |
+| `DateDeath` | Id10023 when Id10022 = yes; else Id10024 year | |
+| `EstimatedAge` | `age_neonate_*`, `age_child_*`, `age_adult` | ISO duration, only when a date is missing |
+| `Stillborn` | Id10104, Id10109 or Id10110 = yes -> 0; else Id10114 | neonates; yes 1, no 0, dk/ref 9 |
+| `DeathWithin24h` | `age_neonate_hours` < 24; else `doris_hours_survived` (asked when birth and death dates are the same day) | hours survived, not a flag |
+| `MultiplePregnancy` | Id10354 | under one year |
+| `BirthWeight` | Id10366 | grammes, 100-9999 only: below 100 (blank 0, or kilogrammes such as 2 or 3 in older answers) -> empty; health card only. The forms reject values under 100 and ask an acknowledgement outside 500-6000 g |
+| `PregnancyWeeks` | `doris_pregnancy_weeks` (8-48); else floor(Id10367 months x 4.345) | weeks or months 88, 99 skipped, months 0 skipped; converted value marked |
+| `AgeMother` | `doris_mother_age` (10-60) | 88, 99 -> empty |
+| `WasPregnant` | Id10305, 10312, 10313, 10314, 10306, 10334, 10308 any yes -> 1; Id10310 confirmed -> 0; asked answers all dk/ref -> 9 | women only; nothing asked -> empty |
+| `TimeFromPregnancy` | Id10305 or Id10312 -> 0; Id10314, 10306 or 10334 -> 1; Id10308 -> 2; Id10313 yes, timing dk/ref -> 9 | band 3 never prefilled |
+| `MannerOfDeath` | Id10077 no -> 0; `doris_injury_legal_war` legal 4 / war 5; Id10095 force of nature -> 1; Id10098 -> 1; Id10099 -> 2; Id10100 -> 3; no yes: all no -> 6, any dk/ref -> 9 | 7 stays the coder's |
+| `DescriptionExternalCause` | injury-type answers Id10079..Id10097 as text | |
+| `DateOfExternalCauseOrPoisoning` | `doris_injury_date_known` full -> `doris_injury_date`; month_year -> `doris_injury_month_year` as `YYYY-MM` | unknown -> empty |
+| `PlaceOfOccuranceExternalCause` | `doris_injury_place` | 9 = unknown |
+| `Surgery\WasPerformed` | `doris_surgery_performed` no -> 0, dk/ref -> 9; yes with `doris_surgery_when` + unit <= 28 days -> 1, longer -> 0, `doris_surgery_when` 88/99 -> 9; else Id10340 = yes with a pregnancy event -> 1; else Id10426 (1 month, accepted for 4 weeks) | Id10340 alone is ignored (asked of every post-menopausal woman); neonates without the direct answer stay empty |
+| `Surgery\Reason` | "`doris_surgery_type` for `doris_surgery_reason`"; "Hysterectomy" from Id10340 with a pregnancy event | `Surgery\Date` is never prefilled: only time elapsed is asked |
+| `Autopsy\WasRequested`, `Autopsy\Findings` | `doris_autopsy_requested`, `doris_autopsy_findings` | |
+
+Working notes and the question-by-question evidence:
+`docs/kb/DORIS/who-va-2022-to-doris.md`.
 
 ## Public Help proof
 

@@ -9,7 +9,17 @@ describe("shared WHO date control", () => {
       whoVa2022Instrument.questions
         .filter((question) => question.control === "date")
         .map((question) => question.name)
-    ).toEqual(["Id10021", "Id10023_a", "Id10023_b", "Id10024", "Id10071"]);
+    ).toEqual([
+      "Id10021",
+      "dob_month_year",
+      "dob_year",
+      "Id10023_a",
+      "Id10023_b",
+      "Id10024",
+      "doris_injury_date",
+      "doris_injury_month_year",
+      "Id10071"
+    ]);
     expect(whoVa2022Instrument.questions.find((question) => question.name === "Id10024")?.appearance).toBe(
       "year"
     );

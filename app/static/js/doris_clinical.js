@@ -16,6 +16,32 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
   function hidden(editor, selector, value) { var node = query(editor, selector); if (node) node.value = value || ''; }
   function finalInput(editor) { return document.getElementById(editor.dataset.finalCodInput); }
   function numberOrNull(element) { return element.value === '' ? null : Number(element.value); }
+  // Maternal questions apply to women and to a recorded undetermined sex,
+  // as the interview's own pregnancy section does.
+  function maternalSex(sex) { return sex === '2' || sex === '9'; }
+  // Certificate sections the editor carries beyond Part I/II, fetal and
+  // maternal: [DORIS field, control selector, 'number' | 'text'].
+  var EXTRA_SECTIONS = [
+    {name: 'MannerOfDeath', fields: [['MannerOfDeath', '[data-doris-manner-of-death]', 'number'], ['DateOfExternalCauseOrPoisoning', '[data-doris-external-date]', 'text'], ['DescriptionExternalCause', '[data-doris-external-description]', 'text'], ['PlaceOfOccuranceExternalCause', '[data-doris-external-place]', 'number']]},
+    {name: 'Surgery', fields: [['WasPerformed', '[data-doris-surgery-performed]', 'number'], ['Date', '[data-doris-surgery-date]', 'text'], ['Reason', '[data-doris-surgery-reason]', 'text']]},
+    {name: 'Autopsy', fields: [['WasRequested', '[data-doris-autopsy-requested]', 'number'], ['Findings', '[data-doris-autopsy-findings]', 'number']]}
+  ];
+  // "from interview (Id10019)" beside each field the interview prefilled.
+  // The map comes from the server (doris_prefill_from_payload); text only.
+  function showPrefillMarkers(editor) {
+    var prefill;
+    try { prefill = JSON.parse((editor.querySelector('[data-doris-prefill]') || {}).textContent || '{}'); } catch (_error) { prefill = null; }
+    if (!prefill || typeof prefill !== 'object' || Array.isArray(prefill)) return;
+    editor.querySelectorAll('[data-doris-field]').forEach(function (host) {
+      var entry = prefill[host.dataset.dorisField];
+      if (!entry || !Array.isArray(entry.sources) || !entry.sources.length) return;
+      var marker = document.createElement('span');
+      marker.className = 'badge text-bg-light border fw-normal ms-1';
+      marker.dataset.dorisPrefillMarker = host.dataset.dorisField;
+      marker.textContent = 'from interview (' + entry.sources.join(', ') + (typeof entry.note === 'string' && entry.note ? '; ' + entry.note : '') + ')';
+      (host.querySelector('label') || host).appendChild(marker);
+    });
+  }
 
   // Logical picker path -> the editor's own dataset URL attribute.
   var TRANSPORT_ENDPOINTS = {
@@ -241,14 +267,22 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     function certificate() {
       var result = {ICDVersion: 'ICD11', ICDMinorVersion: '2026-01', Part1: state.lines.filter(function (line) { return line.conditions.length; }).map(serializeLine)};
       var sex = query(editor, '[data-doris-sex]').value; var age = ageControl.read().value;
-      if (sex || age) { result.AdministrativeData = {}; if (sex) result.AdministrativeData.Sex = Number(sex); if (age) result.AdministrativeData.EstimatedAge = age; }
+      var admin = {}; if (sex) admin.Sex = Number(sex); if (age) admin.EstimatedAge = age;
+      putText(admin, 'DateBirth', '[data-doris-date-birth]'); putText(admin, 'DateDeath', '[data-doris-date-death]');
+      if (Object.keys(admin).length) result.AdministrativeData = admin;
       var other = serializeLine(state.part2); if (other.Conditions.length) result.Part2 = other;
       var fetal = {};
       [['Stillborn','[data-doris-stillborn]'],['MultiplePregnancy','[data-doris-multiple]'],['DeathWithin24h','[data-doris-within24]'],['BirthWeight','[data-doris-birth-weight]'],['PregnancyWeeks','[data-doris-pregnancy-weeks]'],['AgeMother','[data-doris-mother-age]']].forEach(function(entry){var value=numberOrNull(query(editor,entry[1]));if(value!==null)fetal[entry[0]]=value;});
       var perinatal=text(query(editor,'[data-doris-perinatal]').value);if(perinatal)fetal.PerinatalDescription=perinatal;if(Object.keys(fetal).length)result.FetalOrInfantDeath=fetal;
-      if (sex === '2') { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant!==9){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
+      if (maternalSex(sex)) { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant!==9){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
+      EXTRA_SECTIONS.forEach(function (section) {
+        var values = {};
+        section.fields.forEach(function (field) { if (field[2] === 'number') { var value = numberOrNull(query(editor, field[1])); if (value !== null) values[field[0]] = value; } else putText(values, field[0], field[1]); });
+        if (Object.keys(values).length) result[section.name] = values;
+      });
       return result;
     }
+    function putText(target, key, selector) { var value = text(query(editor, selector).value); if (value) target[key] = value; }
     function part1Gap() {
       var firstBlank = -1;
       for (var index = 0; index < state.lines.length; index += 1) {
@@ -319,9 +353,12 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
     var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); var ageControl = mountInterval(query(editor, '[data-doris-age-control]'), admin.EstimatedAge || '');
     var fetal=initial.FetalOrInfantDeath||{};[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
+    query(editor, '[data-doris-date-birth]').value = admin.DateBirth || ''; query(editor, '[data-doris-date-death]').value = admin.DateDeath || '';
+    EXTRA_SECTIONS.forEach(function (section) { var saved = initial[section.name] || {}; section.fields.forEach(function (field) { query(editor, field[1]).value = saved[field[0]] == null ? '' : String(saved[field[0]]); }); });
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
-    function conditionals(){var sexValue=query(editor,'[data-doris-sex]').value;query(editor,'[data-doris-maternal]').hidden=sexValue!=='2';var pregnant=query(editor,'[data-doris-pregnant]').value;editor.querySelectorAll('[data-doris-maternal-followup]').forEach(function(node){node.hidden=pregnant===''||pregnant==='9';});}conditionals();
-    editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select').forEach(function(field){field.addEventListener('input',function(){conditionals();invalidate();});});
+    function conditionals(){var sexValue=query(editor,'[data-doris-sex]').value;query(editor,'[data-doris-maternal]').hidden=!maternalSex(sexValue);var pregnant=query(editor,'[data-doris-pregnant]').value;editor.querySelectorAll('[data-doris-maternal-followup]').forEach(function(node){node.hidden=pregnant===''||pregnant==='9';});}conditionals();
+    showPrefillMarkers(editor);
+    editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select,[data-doris-extra]').forEach(function(field){field.addEventListener('input',function(){conditionals();invalidate();});});
     query(editor, '[data-doris-sex]').addEventListener('change', function () { conditionals(); invalidate(); }); ageControl.value.addEventListener('input', function () { invalidate(); }); ageControl.unit.addEventListener('change', function () { invalidate(); });
     query(editor, '[data-doris-add-line]').addEventListener('click', function () { if (state.lines.length < MAX_LINES) { state.lines.push(makeLine({Conditions: []}, false)); renderOrder(); invalidate('Line added. Process again.'); } });
     query(editor, '[data-doris-process]').addEventListener('click', process);

@@ -875,6 +875,18 @@ class WebFormTypeAndExtensionOptionsTests(BaseTestCase):
         db.session.commit()
         self.assertNotIn("medical_records", self._payload()["enabled_extensions"])
 
+    def test_doris_support_is_on_whatever_the_cod_entry_mode(self):
+        # Every web form asks the DORIS support questions (digitva-hln).
+        self.project.icd_classification = "icd11"
+        self.project.cod_entry_mode = "doris"
+        db.session.commit()
+        self.assertIn("doris_support_whova_2022", self._payload()["enabled_extensions"])
+
+        self.project.icd_classification = "icd10"
+        self.project.cod_entry_mode = "simple"
+        db.session.commit()
+        self.assertIn("doris_support_whova_2022", self._payload()["enabled_extensions"])
+
 
 class WebFormTypeAdminValidationTests(BaseTestCase):
     """A project may only be configured with a usable, confirmed form type."""

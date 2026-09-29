@@ -3,7 +3,9 @@
  *
  * These are the interviewer-answered fields DigitVA's ODK form carries beyond
  * the WHO questionnaire: narration language, the narrative image, medical and
- * death document images. (The WHO instrument already has `comment`.) Field names and relevance
+ * death document images, ABHA identifiers, the social autopsy, and the DORIS
+ * prefill support questions (`createDorisSupportExtension`, spliced in by
+ * src/instrument.ts). (The WHO instrument already has `comment`.) Field names and relevance
  * mirror the ODK form so the stored payload is identical in shape to a synced
  * ODK submission (see docs/planning/who-va-2022-web-intake-plan.md, §3).
  *
@@ -25,19 +27,20 @@ export const DIGITVA_DEATH_IMAGE_SLOTS = 5;
 
 /**
  * Extension names a project's `enabled_extensions` can carry. `digitva_core`,
- * `social_autopsy`, `intake_screen` and `geography` gate content outside this
- * file (the always-present WHO base and the client's own screens); the other
- * four gate the question groups this module emits.
+ * `intake_screen` and `geography` gate content outside this file (the
+ * always-present WHO base and the client's own screens); the others gate the
+ * question groups this module emits.
  */
 export const DIGITVA_LAYER_EXTENSIONS = [
   "narration_language",
   "abha",
   "death_summary",
   "medical_records",
-  "social_autopsy"
+  "social_autopsy",
+  "doris_support_whova_2022"
 ] as const;
 export type DigitVaLayerExtension = (typeof DIGITVA_LAYER_EXTENSIONS)[number];
-/** All eight names DigitVA recognises in `enabled_extensions` (see docs/policy/va-form-project-configuration.md). */
+/** All nine names DigitVA recognises in `enabled_extensions` (see docs/policy/va-form-project-configuration.md). */
 export const ALL_DIGITVA_EXTENSIONS = [
   "digitva_core",
   "social_autopsy",
@@ -46,7 +49,8 @@ export const ALL_DIGITVA_EXTENSIONS = [
   "narration_language",
   "death_summary",
   "medical_records",
-  "abha"
+  "abha",
+  "doris_support_whova_2022"
 ] as const;
 
 /**
@@ -857,4 +861,561 @@ export function createDigitVaExtension(
 
   const sections: InstrumentSection[] = [...documentSections, ...socialAutopsySections];
   return { sections, deceasedQuestions, narrativeQuestions, documentQuestions, socialAutopsyQuestions };
+}
+
+/**
+ * `doris_support_whova_2022`: optional questions that fill the DORIS death
+ * certificate fields the WHO questionnaire leaves open (a partial birth
+ * date, hours survived by a same-day newborn, weeks of pregnancy, mother's
+ * age, injury date/place, legal intervention or war, surgery, autopsy), plus
+ * three changes to WHO questions: Id10366's grams check (with the
+ * `Id10366_confirm` acknowledgement), Id10308 required, and Id10340 asked
+ * only after a pregnancy event.
+ *
+ * Names, labels, choices, relevance, constraints and placement are Annex A
+ * (A1-A10) of docs/kb/DORIS/who-va-2022-doris-consistency-proposal.md, the
+ * same rows the ODK workbooks get (docs/kb/WHO_VA_2022_Docs/
+ * odk-doris-support-rows.md, generated from these blocks by
+ * tooling/who-va-2022/build-odk-doris-rows.mjs), so web and ODK payloads
+ * share one shape. The
+ * mapping they feed is docs/policy/doris-cod-workflow.md, "Prefill from the
+ * interview" (bead digitva-hln). Every added question is optional except the
+ * acknowledgement; integers take the form's 88 = refused, 99 = don't know.
+ * Relevance only uses the functions the server port
+ * (app/services/xform_expression_evaluator.py) evaluates.
+ */
+export const DORIS_SUPPORT_EXTENSION = "doris_support_whova_2022";
+
+/** WHO's own `YES_NO_DK_REF` list, values and labels verbatim. */
+const WHO_YES_NO_DK_REF: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "dk", label: "Doesn't know" },
+  { value: "ref", label: "Refused to answer" }
+];
+
+const DOB_PRECISION: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "month_year", label: "Month and year known" },
+  { value: "year", label: "Only the year known" },
+  { value: "neither", label: "Neither known" }
+];
+
+const INJURY_DATE_KNOWN: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "full", label: "Full date" },
+  { value: "month_year", label: "Month and year" },
+  { value: "unknown", label: "Not known" }
+];
+
+/** The certificate's ICD place categories (DORIS `PlaceOfOccuranceExternalCause` 0-9). */
+const INJURY_PLACE: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "0", label: "At home" },
+  { value: "1", label: "Residential institution" },
+  { value: "2", label: "School, other institution, public administration area" },
+  { value: "3", label: "Sports and athletics area" },
+  { value: "4", label: "Street and highway" },
+  { value: "5", label: "Trade and service area" },
+  { value: "6", label: "Industrial and construction area" },
+  { value: "7", label: "Farm" },
+  { value: "8", label: "Other place" },
+  { value: "9", label: "Unknown" }
+];
+
+const LEGAL_WAR: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "legal", label: "Police or legal action" },
+  { value: "war", label: "War" },
+  { value: "neither", label: "Neither" },
+  { value: "dk", label: "Doesn't know" }
+];
+
+const TIME_UNIT: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "days", label: "Days" },
+  { value: "weeks", label: "Weeks" },
+  { value: "months", label: "Months" },
+  { value: "years", label: "Years" }
+];
+
+const UNDER_ONE_YEAR =
+  "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)";
+/** Not in the future and not after the recorded death date (A1, A6). */
+const NOT_AFTER_DEATH = ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})";
+export const DORIS_BIRTH_WEIGHT_CONSTRAINT = ". >= 100 and . <= 9999";
+/** A10: Id10340 (hysterectomy) only after a recorded pregnancy event. */
+export const DORIS_ID10340_RELEVANT =
+  "(selected(${Id10312}, 'yes') or selected(${Id10313}, 'yes') or selected(${Id10334}, 'yes') or selected(${Id10308}, 'yes')) and not(selected(${Id10077_a}, 'less'))";
+
+function selectOne(
+  name: string,
+  order: number,
+  sectionPath: string[],
+  label: string,
+  listName: string,
+  choiceList: ReadonlyArray<{ value: string; label: string }>,
+  overrides: Partial<InstrumentQuestion> = {}
+): InstrumentQuestion {
+  return base(name, order, sectionPath, label, {
+    sourceType: `select_one ${listName}`,
+    control: "singleChoice",
+    listName,
+    choices: choices(choiceList),
+    validation: {
+      required: false,
+      dataType: "string",
+      constraintMessage: {},
+      choiceValues: choiceList.map((item) => item.value)
+    },
+    ...overrides
+  });
+}
+
+/** An optional question checked by `constraintSource`, e.g. a bounded integer or a date. */
+function checked(
+  name: string,
+  order: number,
+  sectionPath: string[],
+  label: string,
+  kind: "integer" | "date",
+  constraintSource: string,
+  constraintMessage: string,
+  overrides: Partial<InstrumentQuestion> = {}
+): InstrumentQuestion {
+  const dataType = kind === "integer" ? "number" : "date";
+  return base(name, order, sectionPath, label, {
+    sourceType: kind,
+    dataType,
+    control: kind,
+    constraint: expression(constraintSource),
+    constraintMessage: { en: constraintMessage },
+    validation: {
+      required: false,
+      dataType,
+      constraint: expression(constraintSource),
+      constraintMessage: { en: constraintMessage }
+    },
+    ...overrides
+  });
+}
+
+/** An integer in `low..high`, or the form's 88 (refused) / 99 (don't know). */
+function coded(low: number, high: number): string {
+  return `(. >= ${low} and . <= ${high}) or . = 88 or . = 99`;
+}
+
+/**
+ * A change `doris_support_whova_2022` makes to a WHO question, as the
+ * XLSForm cells it sets (`constraintMessage` is English).
+ */
+export interface DorisWhoChange {
+  relevant?: string;
+  constraint?: string;
+  constraintMessage?: string;
+  required?: boolean;
+}
+
+/**
+ * One Annex A item: the questions it adds after the web question `after`,
+ * the WHO questions it changes, and what only the ODK rows need
+ * (tooling/who-va-2022/build-odk-doris-rows.mjs): its deployment status, the
+ * ND01 workbook row the added rows follow (a row name, or the `end group` of
+ * a named group) and a note for whoever edits the workbook.
+ */
+export interface DorisSupportBlock {
+  id: string;
+  title: string;
+  status: "agreed for deployment" | "proposed";
+  after?: string;
+  questions: InstrumentQuestion[];
+  whoChanges: Record<string, DorisWhoChange>;
+  odk: { after?: string; afterGroupEnd?: string; note?: string };
+}
+
+/**
+ * The DORIS support blocks (A1-A10), and from them the questions keyed by
+ * the question each follows and the changes to WHO questions (Id10366,
+ * Id10308, Id10340). The blocks are the one definition: the web form and the
+ * ODK rows are both read from them. `sectionPathOf` returns an anchor's
+ * section path (and throws when the anchor is missing), so each added
+ * question sits in its anchor's section and inherits that section's
+ * relevance, except the surgery questions, which sit one level up (see
+ * below).
+ */
+export function createDorisSupportExtension(
+  startOrder: number,
+  sectionPathOf: (anchor: string) => string[]
+): {
+  blocks: DorisSupportBlock[];
+  after: Record<string, InstrumentQuestion[]>;
+  overrides: Record<string, (question: InstrumentQuestion) => InstrumentQuestion>;
+} {
+  let order = startOrder;
+  const next = () => ++order;
+  const yes = (name: string) => `selected(\${${name}}, 'yes')`;
+
+  const dobPath = sectionPathOf("Id10021");
+  const stillbirthPath = sectionPathOf("Id10114");
+  const injuryPath = sectionPathOf("Id10077_b");
+  const motherPath = sectionPathOf("Id10354");
+  const weeksPath = sectionPathOf("Id10367");
+  const weightPath = sectionPathOf("Id10366");
+  // A7: after the health_service_utilization group, in its parent
+  // (illhistory), whose relevance is empty. That group itself is skipped for
+  // stillbirths *and* injury deaths within 7 days; surgery is asked of every
+  // death except stillbirths.
+  const surgeryPath = sectionPathOf("Id10446").slice(0, -1);
+  const autopsyPath = sectionPathOf("custom_medical_certificate_upload");
+
+  const blocks: DorisSupportBlock[] = [
+    {
+      id: "A1",
+      title: "Partial date of birth",
+      status: "agreed for deployment",
+      after: "Id10021",
+      questions: [
+        selectOne(
+          "dob_precision",
+          next(),
+          dobPath,
+          "Is the month and year, or only the year, of birth known?",
+          "dob_precision",
+          DOB_PRECISION,
+          { relevant: expression("selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')") }
+        ),
+        checked(
+          "dob_month_year",
+          next(),
+          dobPath,
+          "In which month and year was the deceased born?",
+          "date",
+          NOT_AFTER_DEATH,
+          "Cannot be in the future or after the death",
+          { appearance: "month-year", relevant: expression("selected(${dob_precision}, 'month_year')") }
+        ),
+        checked(
+          "dob_year",
+          next(),
+          dobPath,
+          "In which year was the deceased born?",
+          "date",
+          ". <= today() and . >= date('1900-01-01')",
+          "Cannot be in the future",
+          { appearance: "year", relevant: expression("selected(${dob_precision}, 'year')") }
+        )
+      ],
+      whoChanges: {},
+      odk: {
+        after: "Id10021",
+        note:
+          "Id10020/Id10021 keep WHO's meaning (full date only) and the WHO age questions still run, " +
+          "so ageInDays and the age groups are unchanged. ODK stores dob_month_year as YYYY-MM-01 and " +
+          "dob_year as YYYY-01-01. Id10023 is calculated later in the form; while it is empty the death " +
+          "check is skipped. Interviewer guidance for Id10020: answer YES only when day, month and year " +
+          "are all known; never enter the 1st or 1 January for an unknown day or month."
+      }
+    },
+    {
+      id: "A2",
+      title: "Birth weight check",
+      status: "agreed for deployment",
+      after: "Id10366",
+      questions: [
+        base(
+          "Id10366_confirm",
+          next(),
+          weightPath,
+          "A birth weight of ${Id10366} g is unusual. Check the card and confirm the weight is in grammes.",
+          {
+            sourceType: "acknowledge",
+            dataType: "boolean",
+            control: "confirm",
+            required: true,
+            relevant: expression("${Id10366} < 500 or ${Id10366} > 6000"),
+            validation: { required: true, dataType: "boolean", constraintMessage: {} }
+          }
+        )
+      ],
+      whoChanges: {
+        Id10366: {
+          constraint: DORIS_BIRTH_WEIGHT_CONSTRAINT,
+          constraintMessage: "Enter the weight in grammes, not kilogrammes. 1 kg = 1,000 g."
+        }
+      },
+      odk: {
+        after: "Id10366",
+        note:
+          "Replace the existing Id10366 row, then add Id10366_confirm after it, inside group g10366 " +
+          "(whose relevance already limits both to under one year with the health card). A card " +
+          "without a weight is answered Id10366_check = no; 0 is no longer accepted."
+      }
+    },
+    {
+      id: "A3",
+      title: "Hours survived",
+      status: "agreed for deployment",
+      after: "Id10114",
+      questions: [
+        checked(
+          "doris_hours_survived",
+          next(),
+          stillbirthPath,
+          "For how many hours did the baby live?",
+          "integer",
+          coded(0, 23),
+          "Enter 0 to 23 hours",
+          {
+            relevant: expression(
+              "selected(${isNeonatal}, '1') and selected(${Id10020}, 'yes') and selected(${Id10022}, 'yes') and ${ageInDays} = 0 and not(selected(${Id10114}, 'yes'))"
+            )
+          }
+        )
+      ],
+      whoChanges: {},
+      odk: {
+        after: "Id10114",
+        note:
+          "In the stillbirth group. ageInDays is ${Id10023} - ${Id10021}, so 0 exactly when the " +
+          "recorded birth and death dates are the same day; age_neonate_hours is asked only when a " +
+          "date is missing."
+      }
+    },
+    {
+      id: "A4",
+      title: "Pregnancy length in weeks",
+      status: "proposed",
+      after: "Id10367",
+      questions: [
+        checked(
+          "doris_pregnancy_weeks",
+          next(),
+          weeksPath,
+          "How many completed weeks long was the pregnancy? (only if known, e.g. from an antenatal card)",
+          "integer",
+          coded(8, 48),
+          "Enter 8 to 48 weeks",
+          { relevant: expression(UNDER_ONE_YEAR) }
+        )
+      ],
+      whoChanges: {},
+      odk: { after: "Id10367" }
+    },
+    {
+      id: "A5",
+      title: "Mother's age",
+      status: "proposed",
+      after: "Id10354",
+      questions: [
+        checked(
+          "doris_mother_age",
+          next(),
+          motherPath,
+          "How old was the baby's mother, in completed years, when the baby was born?",
+          "integer",
+          coded(10, 60),
+          "Enter 10 to 60 years",
+          { relevant: expression(UNDER_ONE_YEAR) }
+        )
+      ],
+      whoChanges: {},
+      odk: { after: "Id10354" }
+    },
+    {
+      id: "A6",
+      title: "External cause",
+      status: "proposed",
+      // After Id10077_a and its confirmation Id10077_b.
+      after: "Id10077_b",
+      questions: [
+        selectOne(
+          "doris_injury_date_known",
+          next(),
+          injuryPath,
+          "Is the date of the injury known?",
+          "injury_date_known",
+          INJURY_DATE_KNOWN,
+          { relevant: expression(yes("Id10077")) }
+        ),
+        checked(
+          "doris_injury_date",
+          next(),
+          injuryPath,
+          "On what date was (s)he injured?",
+          "date",
+          NOT_AFTER_DEATH,
+          "Cannot be after the death",
+          { appearance: "no-calendar", relevant: expression("selected(${doris_injury_date_known}, 'full')") }
+        ),
+        checked(
+          "doris_injury_month_year",
+          next(),
+          injuryPath,
+          "In which month and year was (s)he injured?",
+          "date",
+          NOT_AFTER_DEATH,
+          "Cannot be after the death",
+          {
+            appearance: "month-year",
+            relevant: expression("selected(${doris_injury_date_known}, 'month_year')")
+          }
+        ),
+        selectOne(
+          "doris_injury_place",
+          next(),
+          injuryPath,
+          "Where did the injury happen?",
+          "injury_place",
+          INJURY_PLACE,
+          { relevant: expression(yes("Id10077")) }
+        ),
+        selectOne(
+          "doris_injury_legal_war",
+          next(),
+          injuryPath,
+          "Was the injury from police or legal action, or from war?",
+          "legal_war",
+          LEGAL_WAR,
+          { relevant: expression(yes("Id10077")) }
+        )
+      ],
+      whoChanges: {},
+      odk: {
+        after: "Id10077_b",
+        note: "After Id10077_a and its confirmation Id10077_b, so the two stay together."
+      }
+    },
+    {
+      id: "A7",
+      title: "Surgery",
+      status: "proposed",
+      after: "Id10446",
+      questions: [
+        selectOne(
+          "doris_surgery_performed",
+          next(),
+          surgeryPath,
+          "Did (s)he have an operation before death?",
+          "YES_NO_DK_REF",
+          WHO_YES_NO_DK_REF,
+          { relevant: expression("not(selected(${Id10114}, 'yes'))") }
+        ),
+        checked(
+          "doris_surgery_when",
+          next(),
+          surgeryPath,
+          "How long before death was the operation? (number)",
+          "integer",
+          ". >= 0 or . = 88 or . = 99",
+          "Enter a number, 88 if refused or 99 if not known",
+          { relevant: expression(yes("doris_surgery_performed")) }
+        ),
+        selectOne("doris_surgery_when_unit", next(), surgeryPath, "Unit", "time_unit", TIME_UNIT, {
+          relevant: expression(
+            `${yes("doris_surgery_performed")} and \${doris_surgery_when} != 88 and \${doris_surgery_when} != 99`
+          )
+        }),
+        base("doris_surgery_type", next(), surgeryPath, "What operation was done?", {
+          relevant: expression(yes("doris_surgery_performed"))
+        }),
+        base("doris_surgery_reason", next(), surgeryPath, "For what illness or condition was it done?", {
+          relevant: expression(yes("doris_surgery_performed"))
+        })
+      ],
+      whoChanges: {},
+      odk: {
+        afterGroupEnd: "health_service_utilization",
+        note:
+          "After the health_service_utilization group closes, still inside illhistory: that group is " +
+          "skipped for stillbirths and for injury deaths within 7 days, and surgery is asked of every " +
+          "death except stillbirths. The certificate's surgery within 4 weeks is doris_surgery_when " +
+          "<= 28 days."
+      }
+    },
+    {
+      id: "A8",
+      title: "Autopsy",
+      status: "proposed",
+      // After the death-certificate questions (Id10462-Id10473) and the
+      // medical-certificate upload that follows Id10473.
+      after: "custom_medical_certificate_upload",
+      questions: [
+        selectOne(
+          "doris_autopsy_requested",
+          next(),
+          autopsyPath,
+          "Was an autopsy (post-mortem examination) requested?",
+          "YES_NO_DK_REF",
+          WHO_YES_NO_DK_REF
+        ),
+        selectOne(
+          "doris_autopsy_findings",
+          next(),
+          autopsyPath,
+          "Were the autopsy findings made available?",
+          "YES_NO_DK_REF",
+          WHO_YES_NO_DK_REF,
+          { relevant: expression(yes("doris_autopsy_requested")) }
+        )
+      ],
+      whoChanges: {},
+      odk: {
+        after: "Id10473",
+        note:
+          "Last rows of the deathcert group. The web form has DigitVA's medical-certificate upload " +
+          "after Id10473 and places these after it."
+      }
+    },
+    {
+      id: "A9",
+      title: "Id10308 required",
+      status: "proposed",
+      questions: [],
+      // A blank Id10308 could not be told from "no".
+      whoChanges: { Id10308: { required: true } },
+      odk: {}
+    },
+    {
+      id: "A10",
+      title: "Id10340 relevance",
+      status: "proposed",
+      questions: [],
+      whoChanges: { Id10340: { relevant: DORIS_ID10340_RELEVANT } },
+      odk: {}
+    }
+  ];
+
+  const after: Record<string, InstrumentQuestion[]> = {};
+  const overrides: Record<string, (question: InstrumentQuestion) => InstrumentQuestion> = {};
+  for (const block of blocks) {
+    if (block.after) (after[block.after] ??= []).push(...block.questions);
+    for (const [name, change] of Object.entries(block.whoChanges)) {
+      overrides[name] = (question) => applyWhoChange(question, change);
+    }
+  }
+  return { blocks, after, overrides };
+}
+
+/** `question` with `change`'s cells set, in both the question and its validation. */
+function applyWhoChange(question: InstrumentQuestion, change: DorisWhoChange): InstrumentQuestion {
+  const changed: InstrumentQuestion = { ...question };
+  if (change.relevant !== undefined) changed.relevant = expression(change.relevant);
+  if (
+    change.constraint === undefined &&
+    change.constraintMessage === undefined &&
+    change.required === undefined
+  ) {
+    return changed;
+  }
+  const validation = question.validation
+    ? { ...question.validation }
+    : { required: question.required, dataType: question.dataType, constraintMessage: {} };
+  if (change.constraint !== undefined) {
+    changed.constraint = expression(change.constraint);
+    validation.constraint = expression(change.constraint);
+  }
+  if (change.constraintMessage !== undefined) {
+    changed.constraintMessage = { en: change.constraintMessage };
+    validation.constraintMessage = { en: change.constraintMessage };
+  }
+  if (change.required !== undefined) {
+    changed.required = change.required;
+    validation.required = change.required;
+  }
+  return { ...changed, validation };
 }

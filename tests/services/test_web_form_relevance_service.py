@@ -52,6 +52,141 @@ class StripIrrelevantAnswersTests(unittest.TestCase):
         self.assertEqual(removed, set())
         self.assertEqual(stripped, data)
 
+    def test_doris_support_answers_survive_when_relevant_and_go_when_not(self):
+        """doris_support_whova_2022 (digitva-hln): the server instrument knows
+        the added questions, so relevant answers reach the payload and
+        irrelevant ones are stripped like any other."""
+        injury_adult = {
+            "Id10013": "yes",
+            "Id10020": "no",
+            "Id10022": "yes",
+            "Id10023_b": "2024-05-01",
+            "dob_precision": "year",
+            "dob_year": "1950-01-01",
+            "age_group": "adult",
+            "age_adult": 74,
+            "Id10077": "yes",
+            "Id10077_a": "less",
+            "doris_injury_date_known": "full",
+            "doris_injury_date": "2024-04-30",
+            "doris_injury_place": "4",
+            "doris_injury_legal_war": "neither",
+            "doris_surgery_performed": "yes",
+            "doris_surgery_when": 3,
+            "doris_surgery_when_unit": "days",
+            "doris_surgery_type": "Laparotomy",
+            "doris_surgery_reason": "Abdominal injury",
+            "doris_autopsy_requested": "yes",
+            "doris_autopsy_findings": "no",
+        }
+        stripped, removed = strip_irrelevant_answers(injury_adult, now=NOW)
+        self.assertEqual(removed, set())
+        self.assertEqual(stripped, injury_adult)
+
+        changed = {
+            **injury_adult,
+            "Id10077": "no",
+            "dob_precision": "month_year",
+            "doris_surgery_performed": "no",
+            "Id10077_a": "less",
+            "doris_autopsy_requested": "no",
+        }
+        stripped, removed = strip_irrelevant_answers(changed, now=NOW)
+        self.assertIn("dob_precision", stripped)
+        self.assertEqual(
+            removed,
+            {
+                "dob_year",
+                "Id10077_a",
+                "doris_injury_date_known",
+                "doris_injury_date",
+                "doris_injury_place",
+                "doris_injury_legal_war",
+                "doris_surgery_when",
+                "doris_surgery_when_unit",
+                "doris_surgery_type",
+                "doris_surgery_reason",
+                "doris_autopsy_findings",
+            },
+        )
+
+    def test_the_newborn_same_day_and_birth_weight_questions_follow_their_gates(self):
+        same_day = {
+            "Id10013": "yes",
+            "Id10020": "yes",
+            "Id10021": "2024-05-01",
+            "Id10022": "yes",
+            "Id10023_a": "2024-05-01",
+            "doris_hours_survived": 4,
+            "Id10366_check": "yes",
+            "Id10366": 450,
+            "Id10366_confirm": True,
+            "doris_mother_age": 22,
+        }
+        stripped, removed = strip_irrelevant_answers(same_day, now=NOW)
+        self.assertEqual(removed, set())
+        self.assertEqual(stripped["doris_hours_survived"], 4)
+
+        three_days = {**same_day, "Id10021": "2024-04-28", "Id10366": 2800}
+        stripped, removed = strip_irrelevant_answers(three_days, now=NOW)
+        self.assertEqual(removed, {"doris_hours_survived", "Id10366_confirm"})
+        self.assertEqual(stripped["doris_mother_age"], 22)
+
+    def test_surgery_follows_its_own_gates(self):
+        """A7: asked outside health_service_utilization, so an injury death
+        within 7 days keeps it; the unit goes when the time is 88/99; a
+        stillbirth never has it."""
+        operated = {
+            "Id10013": "yes",
+            "Id10077": "yes",
+            "Id10077_a": "less",
+            "doris_surgery_performed": "yes",
+            "doris_surgery_when": 99,
+            "doris_surgery_when_unit": "days",
+        }
+        stripped, removed = strip_irrelevant_answers(operated, now=NOW)
+        self.assertEqual(stripped["doris_surgery_performed"], "yes")
+        self.assertEqual(removed, {"doris_surgery_when_unit"})
+
+        # A real amount of 88 or more (e.g. 120 days) keeps its unit; only
+        # the 88/99 codes drop it.
+        long_ago = {**operated, "doris_surgery_when": 120}
+        stripped, removed = strip_irrelevant_answers(long_ago, now=NOW)
+        self.assertEqual(stripped["doris_surgery_when_unit"], "days")
+        self.assertNotIn("doris_surgery_when_unit", removed)
+
+        stillbirth = {
+            "Id10013": "yes",
+            "Id10020": "yes",
+            "Id10021": "2024-05-01",
+            "Id10022": "yes",
+            "Id10023_a": "2024-05-01",
+            "Id10114": "yes",
+            "doris_surgery_performed": "no",
+        }
+        stripped, removed = strip_irrelevant_answers(stillbirth, now=NOW)
+        self.assertEqual(stripped["Id10114"], "yes")
+        self.assertEqual(removed, {"doris_surgery_performed"})
+
+    def test_id10340_keeps_who_relevance_for_every_project(self):
+        """The server artifact carries WHO's Id10340 relevance, not the DORIS
+        extension's (A10): a non-DORIS form asks it of a post-menopausal
+        woman with no pregnancy, and the answer must survive the strip."""
+        menopause = {
+            "Id10013": "yes",
+            "Id10019": "female",
+            "Id10020": "yes",
+            "Id10021": "1960-03-02",
+            "Id10022": "yes",
+            "Id10023_a": "2024-05-01",
+            "Id10296": "yes",
+            "Id10299": "yes",
+            "Id10340": "no",
+        }
+        stripped, removed = strip_irrelevant_answers(menopause, now=NOW)
+        self.assertEqual(removed, set())
+        self.assertEqual(stripped["Id10340"], "no")
+
     def test_toggling_the_gate_back_would_restore_answers_because_the_draft_is_never_touched(self):
         # strip_irrelevant_answers only ever returns a new dict; it never
         # mutates its input, which is what lets a caller keep the original

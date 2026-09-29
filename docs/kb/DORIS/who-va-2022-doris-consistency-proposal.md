@@ -215,7 +215,7 @@ unknown day or month; answer NO and use the next question."
 |---|---|---|---|---|
 | integer | doris_mother_age | How old was the baby's mother, in completed years, when the baby was born? | same as Id10354 | `(. >= 10 and . <= 60) or . = 88 or . = 99` (Enter 10 to 60 years) |
 
-### A6. External cause (after Id10077_a)
+### A6. External cause (after Id10077_a and its confirmation Id10077_b)
 
 | type | name | label (en) | relevant | constraint (message) | appearance |
 |---|---|---|---|---|---|
@@ -234,15 +234,19 @@ construction area; `7` Farm; `8` Other place; `9` Unknown. Choices
 `legal_war`: `legal` Police or legal action; `war` War; `neither` Neither;
 `dk` Doesn't know.
 
-### A7. Surgery (after Id10426)
+### A7. Surgery (after the health_service_utilization group, inside illhistory)
 
 | type | name | label (en) | relevant | constraint (message) |
 |---|---|---|---|---|
 | select_one YES_NO_DK_REF | doris_surgery_performed | Did (s)he have an operation before death? | `not(selected(${Id10114}, 'yes'))` | |
-| integer | doris_surgery_when | How long before death was the operation? (number) | `selected(${doris_surgery_performed}, 'yes')` | `. >= 0 or . = 88 or . = 99` |
-| select_one time_unit | doris_surgery_when_unit | Unit | `selected(${doris_surgery_performed}, 'yes') and ${doris_surgery_when} < 88` | |
+| integer | doris_surgery_when | How long before death was the operation? (number) | `selected(${doris_surgery_performed}, 'yes')` | `. >= 0 or . = 88 or . = 99` (Enter a number, 88 if refused or 99 if not known) |
+| select_one time_unit | doris_surgery_when_unit | Unit | `selected(${doris_surgery_performed}, 'yes') and ${doris_surgery_when} != 88 and ${doris_surgery_when} != 99` | |
 | text | doris_surgery_type | What operation was done? | `selected(${doris_surgery_performed}, 'yes')` | |
 | text | doris_surgery_reason | For what illness or condition was it done? | `selected(${doris_surgery_performed}, 'yes')` | |
+
+The group Id10426 sits in (health_service_utilization) is skipped for
+stillbirths and for injury deaths within 7 days; these rows follow its
+`end group` so that only the stillbirth exclusion applies.
 
 Choices `time_unit`: `days` Days; `weeks` Weeks; `months` Months; `years`
 Years. The certificate's "surgery within the last 4 weeks" is then

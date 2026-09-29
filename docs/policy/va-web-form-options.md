@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-21
+last_updated: 2026-09-29
 ---
 
 # VA Web Form Options Contract
@@ -40,7 +40,7 @@ questionnaire differ only by tier-2 options.
 | `instrument` | `InstrumentDefinition` (property) | **Yes** — selected by the default form type's `instrument_code` (2026-09-19) | The host must pass this once a second *standard instrument* is bundled. Built offline; never compiled at request time. |
 | `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on, read from `mas_form_types.base_instrument_code`; `null` when nothing is bundled for that form type, which the page renders as an error. |
 | `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key for the instrument's own identity. Not the instrument selector — `instrument_code` is. |
-| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `medical_records`, `abha`. Decides which sections exist. |
+| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `medical_records`, `abha`, `doris_support_whova_2022`. Decides which sections exist. |
 
 **DigitVA form types are layers, not instruments.** `WHO_2022_VA_SOCIAL` and
 any future `WHO_2022_VA_*` are layers on the one standard WHO 2022 VA
@@ -75,6 +75,7 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | `translation_versions` | `{locale: int}` | **Yes** — served (2026-09-19) | The version of every locale this project's instrument currently serves, `en` at 0. A page caches a locale's strings and re-fetches only when its version moves. |
 | `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendering waits for attachments phase 2. |
 | `medical_records` | boolean | **Yes — project setting** (2026-09-20) | The medical-record fields (`md_available`, `md_count`, `md_im1`..`md_im30`), `web_intake_medical_records_enabled`, on for every project. A project may opt out. |
+| `doris_support_whova_2022` | always on | **Yes — always on** (2026-09-29) | The DORIS prefill questions and the birth-weight grams check (`digitva-hln`; list in `docs/policy/va-form-project-configuration.md`). On for every web project, like `digitva_core`, whatever the `cod_entry_mode`; no switch. The certificate prefill itself still runs only where the DORIS editor is shown. Deliberate departures from WHO V1.1 in every web form: `Id10366` rejects values under 100 g (kilogrammes keyed as grammes) and asks an acknowledgement outside 500-6000 g; `Id10308` is required (a blank could not be told from "no"); `Id10340` (hysterectomy) is asked only after a pregnancy event (`Id10312`, `Id10313`, `Id10334` or `Id10308` = yes), not of every post-menopausal woman. The server's relevance and constraint re-derivation keeps WHO's own, looser rules for these: WHO's `Id10340` relevance contains the extension's and WHO's `Id10366` range contains 100-9999 g, so nothing the form collects is stripped or rejected. |
 
 ### Tier 3 — session and runtime
 
@@ -124,7 +125,7 @@ narration only.
 {
   "project_id": "...",
   "config_version": "...",          // moves when any option changes, like tree_version
-  "enabled_extensions": ["digitva_core", "geography", "narration_language"],
+  "enabled_extensions": ["digitva_core", "doris_support_whova_2022", "geography", "narration_language"],
   "form_types": [                    // form types live for this project
     {"form_type_code": "WHO_2022_VA_SOCIAL", "instrument_code": "WHO_2022_VA",
      "title": "...", "is_default": true}
@@ -160,7 +161,8 @@ Notes on the shape:
   that has been deactivated is skipped here rather than raised on — the
   interviewer's page degrades to the fallback questionnaire, and the readiness
   check reports the misconfiguration.
-- `enabled_extensions` is derived, never stored: `digitva_core` always;
+- `enabled_extensions` is derived, never stored: `digitva_core` and
+  `doris_support_whova_2022` always;
   `social_autopsy` from `social_autopsy_enabled`; `geography` when the project
   has an organization hierarchy; `narration_language` when narration languages
   resolve to a non-empty list; `abha` when the default form type has an active

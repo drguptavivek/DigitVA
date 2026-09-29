@@ -108,7 +108,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         project.narrative_qa_enabled = False
         db.session.commit()
 
-    def _start_coder(self, smartva_icd=None):
+    def _start_coder(self, smartva_icd=None, payload_data=None):
         sid = f"uuid:masked-doris-{uuid.uuid4()}"
         now = datetime.now(UTC)
         submission = VaSubmissions(
@@ -130,7 +130,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         db.session.add(submission)
         db.session.flush()
         ensure_active_payload_version(
-            submission, payload_data={}, source_updated_at=submission.va_odk_updatedat
+            submission,
+            payload_data=payload_data or {},
+            source_updated_at=submission.va_odk_updatedat,
         )
         db.session.add(
             VaAllocations(
@@ -250,6 +252,93 @@ class TestMaskedDorisCoding(BaseTestCase):
         body = response.get_data(as_text=True)
         self.assertIn("data-doris-final-host", body)
         self.assertNotIn("data-doris-editor", body)
+
+    # ---- Prefill from the interview (digitva-hln) ------------------------
+
+    _INJURY_PAYLOAD = {
+        "Id10019": "male",
+        "Id10020": "yes",
+        "Id10021": "1970-02-03",
+        "Id10022": "yes",
+        "Id10023": "2025-08-04T00:00:00.000+05:30",
+        "Id10077": "yes",
+        "Id10083": "yes",
+        "Id10098": "yes",
+    }
+
+    @staticmethod
+    def _json_script(body, attribute):
+        start = body.index(f"<script type=\"application/json\" {attribute}>") + len(
+            f"<script type=\"application/json\" {attribute}>"
+        )
+        return json.loads(body[start : body.index("</script>", start)])
+
+    def test_step1_get_prefills_the_certificate_from_the_interview(self):
+        sid = self._start_coder(smartva_icd="A16.9", payload_data=self._INJURY_PAYLOAD)
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        initial = self._json_script(body, "data-doris-initial")
+        self.assertEqual(
+            initial["AdministrativeData"],
+            {"Sex": 1, "DateBirth": "1970-02-03", "DateDeath": "2025-08-04"},
+        )
+        self.assertEqual(initial["MannerOfDeath"]["MannerOfDeath"], 1)
+        self.assertEqual(initial["MannerOfDeath"]["DescriptionExternalCause"], "Fall")
+        provenance = self._json_script(body, "data-doris-prefill")
+        self.assertEqual(provenance["MannerOfDeath.MannerOfDeath"], {"sources": ["Id10098"]})
+        self.assertEqual(provenance["AdministrativeData.DateBirth"], {"sources": ["Id10021"]})
+        # Every prefilled field has a control to carry its marker.
+        for path in provenance:
+            self.assertIn(f'data-doris-field="{path}"', body)
+        # Interview facts, not SmartVA: masked Step 1 still hides SmartVA.
+        self.assertNotIn("SmartVA", body)
+
+    def test_step1_get_with_a_saved_certificate_shows_no_prefill(self):
+        sid = self._start_coder(payload_data=self._INJURY_PAYLOAD)
+        self._step1_row(sid)
+        self._login(self.base_coder_id)
+
+        body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
+
+        self.assertEqual(self._json_script(body, "data-doris-initial"), _CERTIFICATE)
+        self.assertEqual(self._json_script(body, "data-doris-prefill"), {})
+
+    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
+    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.routes.va_form.verify_process_submission")
+    def test_step1_post_records_prefilled_fields_and_coder_changes(self, verify, _validate, _provenance):
+        sid = self._start_coder(payload_data=self._INJURY_PAYLOAD)
+        self._login(self.base_coder_id)
+        saved = {
+            **_CERTIFICATE,
+            "AdministrativeData": {"Sex": 1, "DateBirth": "1970-02-03", "DateDeath": "2025-08-04"},
+            # The coder changed accident (1) to assault (3).
+            "MannerOfDeath": {"MannerOfDeath": 3, "DescriptionExternalCause": "Fall"},
+        }
+        verify.return_value = {"certificate": saved, "doris": _DORIS, "codedit": _CODEDIT}
+
+        response = self._post_step1(sid, doris_certificate=json.dumps(saved))
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        row = db.session.scalar(
+            db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid)
+        )
+        record = row.cod_entry_mode_snapshot["doris_prefill"]
+        self.assertEqual(record["version"], 1)
+        self.assertEqual(
+            {path: entry["changed"] for path, entry in record["fields"].items()},
+            {
+                "AdministrativeData.Sex": False,
+                "AdministrativeData.DateBirth": False,
+                "AdministrativeData.DateDeath": False,
+                "MannerOfDeath.MannerOfDeath": True,
+                "MannerOfDeath.DescriptionExternalCause": False,
+            },
+        )
+        # Source ids only: no interview value leaves the certificate.
+        self.assertNotIn("1970", json.dumps(record))
 
     @patch("app.routes.va_form.validate_coding_value_for_submission")
     @patch("app.routes.va_form.verify_process_submission")
@@ -726,5 +815,5 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIsNone(final.source_initial_assessment_id)
         self.assertEqual(
             set(final.cod_entry_mode_snapshot),
-            {"masked_cod_required", "cod_entry_mode", "icd_release", "who_image_digest"},
+            {"masked_cod_required", "cod_entry_mode", "icd_release", "who_image_digest", "doris_prefill"},
         )

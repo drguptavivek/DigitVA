@@ -85,6 +85,8 @@ function expressionAst(question: InstrumentQuestion, key: "constraint" | "calcul
   return expression.ast ?? parseExpression(expression.source);
 }
 
+const DORIS_BOUNDS = /^\(?\. >= (\d+) and \. <= \d+(?:\) or \. = 88 or \. = 99)?$/;
+
 function validCurrentValue(question: InstrumentQuestion): AnswerValue {
   const source = question.constraint?.source ?? "";
   if (question.name === "age_group") return "adult";
@@ -104,6 +106,10 @@ function validCurrentValue(question: InstrumentQuestion): AnswerValue {
     if (source.includes("Id10413")) return question.choices?.[0]?.value ?? "yes";
     return "yes";
   }
+  // doris_support_whova_2022 bounds are written ". >= N and . <= M",
+  // optionally "(...) or . = 88 or . = 99" (Annex A's refused / don't know).
+  const dorisBounds = DORIS_BOUNDS.exec(source);
+  if (dorisBounds) return Number(dorisBounds[1]);
   if (source.includes(".>27")) return 28;
   if (source.includes(".>11")) return 12;
   if (source.includes(".>0")) return 1;
@@ -134,6 +140,8 @@ function invalidCurrentValue(question: InstrumentQuestion): AnswerValue {
     if (source.includes("Id10413")) return "cigarettes";
     return "no";
   }
+  const dorisBounds = DORIS_BOUNDS.exec(source);
+  if (dorisBounds) return Number(dorisBounds[1]) - 1;
   if (source.includes(".>27")) return 27;
   if (source.includes(".>11")) return 11;
   if (source.includes(".>0")) return 0;
@@ -170,15 +178,18 @@ describe("exhaustive WHO VA runtime expressions", () => {
   });
 
   it("accepts a valid current value for every configured constraint", () => {
-    // 101 = the generated WHO VA instrument's constrained questions plus the
+    // 109 = the generated WHO VA instrument's constrained questions plus the
     // 4 DigitVA extension questions that carry a constraint (abha_number,
     // abha_address, md_count, ds_count), added when the extension was
     // composed into the instrument (src/digitva-extension.ts, commit
     // 2fc60ea), plus the 8 social_autopsy questions mirrored from ND01 that
-    // carry a constraint (sa09, sa13..sa19). Asserted explicitly rather than
+    // carry a constraint (sa09, sa13..sa19), plus the 8 doris_support_whova_2022
+    // questions that carry one (dob_month_year, dob_year, doris_hours_survived,
+    // doris_injury_date, doris_injury_month_year, doris_mother_age,
+    // doris_pregnancy_weeks, doris_surgery_when). Asserted explicitly rather than
     // derived from whoVa2022Instrument, since the count under test is that
     // instrument's own constrained-question count.
-    expect(constrainedQuestions).toHaveLength(101);
+    expect(constrainedQuestions).toHaveLength(109);
 
     for (const question of constrainedQuestions) {
       const data = constraintData(question);

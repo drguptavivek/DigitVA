@@ -94,7 +94,7 @@ test("every DigitVA extension that contributes questions is represented", () => 
   const doc = readArtifact();
   const { extensionCounts } = doc;
 
-  // These five gate the question groups digitva-extension.ts emits, plus
+  // These six gate the question groups digitva-extension.ts emits, plus
   // digitva_core's always-on splice: all must contribute at least one item.
   for (const extension of [
     "digitva_core",
@@ -102,7 +102,8 @@ test("every DigitVA extension that contributes questions is represented", () => 
     "death_summary",
     "medical_records",
     "abha",
-    "social_autopsy"
+    "social_autopsy",
+    "doris_support_whova_2022"
   ]) {
     assert.ok(extensionCounts[extension], `missing extensionCounts entry for ${extension}`);
     const total = extensionCounts[extension].questions + extensionCounts[extension].sections + extensionCounts[extension].choices;

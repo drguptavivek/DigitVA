@@ -2304,6 +2304,60 @@
           "currentValue": null,
           "data": {},
           "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10366": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10366": 0
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10366": -3
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10366": "12"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "${Id10366} < 500 or ${Id10366} > 6000"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
           "result": null,
           "resultIsNaN": true,
           "scenario": "missing"
@@ -6191,6 +6245,168 @@
         },
         {
           "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": 0,
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": -3,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "12",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": "(. >= 0 and . <= 23) or . = 88 or . = 99"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": 0,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": -3,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "12",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": "(. >= 10 and . <= 60) or . = 88 or . = 99"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": 0,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": -3,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "12",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": "(. >= 8 and . <= 48) or . = 88 or . = 99"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
           "data": {
             "ageInDaysNeonate": ""
           },
@@ -6545,60 +6761,6 @@
           "currentValue": 0,
           "data": {},
           "error": null,
-          "result": true,
-          "resultIsNaN": false,
-          "scenario": "candidate_1"
-        },
-        {
-          "currentValue": -3,
-          "data": {},
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_2"
-        },
-        {
-          "currentValue": "12",
-          "data": {},
-          "error": null,
-          "result": true,
-          "resultIsNaN": false,
-          "scenario": "candidate_3"
-        },
-        {
-          "currentValue": null,
-          "data": {},
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "current_value_omitted"
-        }
-      ],
-      "parseError": null,
-      "source": "(.>=0 and .<=9999)"
-    },
-    {
-      "cases": [
-        {
-          "currentValue": null,
-          "data": {},
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "missing"
-        },
-        {
-          "currentValue": "",
-          "data": {},
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_0"
-        },
-        {
-          "currentValue": 0,
-          "data": {},
-          "error": null,
           "result": false,
           "resultIsNaN": false,
           "scenario": "candidate_1"
@@ -6630,105 +6792,6 @@
       ],
       "parseError": null,
       "source": "(.>=18 and .<90) or .=99"
-    },
-    {
-      "cases": [
-        {
-          "currentValue": null,
-          "data": {},
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "missing"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10077_a": "",
-            "Id10299": "",
-            "Id10305": "",
-            "Id10308": "",
-            "Id10310": "",
-            "Id10312": "",
-            "Id10313": "",
-            "Id10334": ""
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_0"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10077_a": "less",
-            "Id10299": "yes",
-            "Id10305": "yes",
-            "Id10308": "yes",
-            "Id10310": "yes",
-            "Id10312": "yes",
-            "Id10313": "yes",
-            "Id10334": "yes"
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_1"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10077_a": "more",
-            "Id10299": "no",
-            "Id10305": "no",
-            "Id10308": "no",
-            "Id10310": "yes",
-            "Id10312": "no",
-            "Id10313": "no",
-            "Id10334": "no"
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_2"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10077_a": "not_a_real_choice",
-            "Id10299": "not_a_real_choice",
-            "Id10305": "not_a_real_choice",
-            "Id10308": "not_a_real_choice",
-            "Id10310": "not_a_real_choice",
-            "Id10312": "not_a_real_choice",
-            "Id10313": "not_a_real_choice",
-            "Id10334": "not_a_real_choice"
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_3"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10077_a": "less",
-            "Id10299": "no",
-            "Id10305": "not_a_real_choice",
-            "Id10308": "",
-            "Id10310": "yes",
-            "Id10312": "no",
-            "Id10313": "not_a_real_choice",
-            "Id10334": ""
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "shifted"
-        }
-      ],
-      "parseError": null,
-      "source": "(not(selected(${Id10305}, 'yes'))   and ((selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))) or selected(${Id10299}, 'yes')) and not((selected(${Id10299}, 'no') or selected(${Id10299}, 'dk') or selected(${Id10299}, 'ref')) and selected(${Id10310}, 'yes')) or selected(${Id10313}, 'yes') or selected(${Id10312}, 'yes') )and not(selected(${Id10077_a}, 'less'))"
     },
     {
       "cases": [
@@ -6951,6 +7014,90 @@
       ],
       "parseError": null,
       "source": "(selected(${Id10296}, 'yes') or selected(${Id10296}, 'ref') or selected(${Id10296}, 'dk'))   and ${ageInYears2}>39"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10077_a": "",
+            "Id10308": "",
+            "Id10312": "",
+            "Id10313": "",
+            "Id10334": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10077_a": "less",
+            "Id10308": "yes",
+            "Id10312": "yes",
+            "Id10313": "yes",
+            "Id10334": "yes"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10077_a": "more",
+            "Id10308": "no",
+            "Id10312": "no",
+            "Id10313": "no",
+            "Id10334": "no"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10077_a": "not_a_real_choice",
+            "Id10308": "not_a_real_choice",
+            "Id10312": "not_a_real_choice",
+            "Id10313": "not_a_real_choice",
+            "Id10334": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10077_a": "less",
+            "Id10308": "no",
+            "Id10312": "not_a_real_choice",
+            "Id10313": "",
+            "Id10334": "yes"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": "(selected(${Id10312}, 'yes') or selected(${Id10313}, 'yes') or selected(${Id10334}, 'yes') or selected(${Id10308}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
     },
     {
       "cases": [
@@ -9697,6 +9844,134 @@
         },
         {
           "currentValue": "",
+          "data": {
+            "Id10023": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": "1915-01-01",
+          "data": {
+            "Id10023": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": "2020-06-15",
+          "data": {
+            "Id10023": "0"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "2099-01-01",
+          "data": {
+            "Id10023": "  "
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10023": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        },
+        {
+          "currentValue": "2020-06-15",
+          "data": {
+            "Id10023": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": "1915-01-01",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": "2020-06-15",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "2099-01-01",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": ". <= today() and . >= date('1900-01-01')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
           "data": {},
           "error": null,
           "result": false,
@@ -9900,6 +10175,114 @@
       ],
       "parseError": null,
       "source": ". >= 0 and . <= 5"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": 0,
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": -3,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "12",
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": ". >= 0 or . = 88 or . = 99"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": 0,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": -3,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "12",
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": ". >= 100 and . <= 9999"
     },
     {
       "cases": [
@@ -14134,6 +14517,60 @@
         {
           "currentValue": null,
           "data": {
+            "Id10114": ""
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10114": "yes"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10114": "no"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10114": "not_a_real_choice"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "not(selected(${Id10114}, 'yes'))"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
             "Id10077_a": "",
             "Id10114": ""
           },
@@ -15919,6 +16356,60 @@
       ],
       "parseError": null,
       "source": "selected(${Id10013}, 'yes')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "yes"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "no"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')"
     },
     {
       "cases": [
@@ -19928,6 +20419,399 @@
         {
           "currentValue": null,
           "data": {
+            "dob_precision": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "month_year"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "year"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${dob_precision}, 'month_year')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "month_year"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "year"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "dob_precision": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${dob_precision}, 'year')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_autopsy_requested": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_autopsy_requested": "yes"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_autopsy_requested": "no"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_autopsy_requested": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${doris_autopsy_requested}, 'yes')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "full"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "month_year"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${doris_injury_date_known}, 'full')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "full"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "month_year"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_injury_date_known": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${doris_injury_date_known}, 'month_year')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "yes"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "no"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${doris_surgery_performed}, 'yes')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "",
+            "doris_surgery_when": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "yes",
+            "doris_surgery_when": 0
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "no",
+            "doris_surgery_when": -3
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "not_a_real_choice",
+            "doris_surgery_when": "12"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "doris_surgery_performed": "yes",
+            "doris_surgery_when": -3
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${doris_surgery_performed}, 'yes') and ${doris_surgery_when} != 88 and ${doris_surgery_when} != 99"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
             "ds_available": ""
           },
           "error": null,
@@ -20687,6 +21571,90 @@
       ],
       "parseError": null,
       "source": "selected(${isNeonatal}, '1')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "",
+            "Id10022": "",
+            "Id10114": "",
+            "ageInDays": "",
+            "isNeonatal": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "yes",
+            "Id10022": "yes",
+            "Id10114": "yes",
+            "ageInDays": "hello world",
+            "isNeonatal": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "no",
+            "Id10022": "no",
+            "Id10114": "no",
+            "ageInDays": "0",
+            "isNeonatal": "0"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "not_a_real_choice",
+            "Id10022": "not_a_real_choice",
+            "Id10114": "not_a_real_choice",
+            "ageInDays": "  ",
+            "isNeonatal": "  "
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10020": "yes",
+            "Id10022": "no",
+            "Id10114": "not_a_real_choice",
+            "ageInDays": "",
+            "isNeonatal": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${isNeonatal}, '1') and selected(${Id10020}, 'yes') and selected(${Id10022}, 'yes') and ${ageInDays} = 0 and not(selected(${Id10114}, 'yes'))"
     },
     {
       "cases": [

@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # VA Form Project Configuration Policy
@@ -59,6 +59,7 @@ identifiers with ODK ones. Corrected 2026-09-20 (`digitva-c48`).
 | `death_summary` | Questions: `ds_available`, `ds_count`, `ds_im1..5` — project setting `web_intake_death_summary_enabled`, on by default (2026-09-19) |
 | `medical_records` | Questions: `md_available`, `md_count`, `md_im1..30` |
 | `abha` | Questions: `abha_number`, `abha_address` (web intake only) |
+| `doris_support_whova_2022` (always on) | Questions that fill the DORIS certificate fields the WHO form leaves open (`digitva-hln`), as Annex A of `docs/kb/DORIS/who-va-2022-doris-consistency-proposal.md`: `dob_precision`, `dob_month_year`, `dob_year`, `doris_hours_survived`, `doris_injury_date_known`, `doris_injury_date`, `doris_injury_month_year`, `doris_injury_place`, `doris_injury_legal_war`, `doris_mother_age`, `doris_pregnancy_weeks`, `doris_surgery_performed`, `doris_surgery_when`, `doris_surgery_when_unit`, `doris_surgery_type`, `doris_surgery_reason`, `doris_autopsy_requested`, `doris_autopsy_findings`, all optional (integers take 88 refused / 99 don't know); plus three changes to WHO questions: the birth-weight grams check (`Id10366` constraint 100-9999 g and the `Id10366_confirm` acknowledgement outside 500-6000 g), `Id10308` required, and `Id10340` asked only after a pregnancy event. On for every web project, like `digitva_core`, whatever the COD entry mode (2026-09-29); the certificate prefill still runs only where the DORIS editor is shown. The ODK rows are generated from this extension's own definition (`tooling/who-va-2022/build-odk-doris-rows.mjs`, then `build_odk_doris_rows.py`) into `docs/kb/WHO_VA_2022_Docs/odk-doris-support-rows.md` (and `.xlsx`): A1-A3 agreed for deployment, the rest proposed. |
 
 A project picks layers; it does not pick a whole form. The deployed forms
 decompose exactly this way — KEM_VAADU is the base plus `social_autopsy`; the

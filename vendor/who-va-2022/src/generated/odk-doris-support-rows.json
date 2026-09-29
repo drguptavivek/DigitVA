@@ -1,0 +1,504 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Month and year known",
+          "list_name": "dob_precision",
+          "name": "month_year"
+        },
+        {
+          "label": "Only the year known",
+          "list_name": "dob_precision",
+          "name": "year"
+        },
+        {
+          "label": "Neither known",
+          "list_name": "dob_precision",
+          "name": "neither"
+        }
+      ],
+      "id": "A1",
+      "odk": {
+        "after": "Id10021",
+        "note": "Id10020/Id10021 keep WHO's meaning (full date only) and the WHO age questions still run, so ageInDays and the age groups are unchanged. ODK stores dob_month_year as YYYY-MM-01 and dob_year as YYYY-01-01. Id10023 is calculated later in the form; while it is empty the death check is skipped. Interviewer guidance for Id10020: answer YES only when day, month and year are all known; never enter the 1st or 1 January for an unknown day or month."
+      },
+      "status": "agreed for deployment",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Is the month and year, or only the year, of birth known?",
+          "name": "dob_precision",
+          "relevant": "selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')",
+          "required": "",
+          "type": "select_one dob_precision"
+        },
+        {
+          "appearance": "month-year",
+          "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+          "constraint_message": "Cannot be in the future or after the death",
+          "hint": "",
+          "label": "In which month and year was the deceased born?",
+          "name": "dob_month_year",
+          "relevant": "selected(${dob_precision}, 'month_year')",
+          "required": "",
+          "type": "date"
+        },
+        {
+          "appearance": "year",
+          "constraint": ". <= today() and . >= date('1900-01-01')",
+          "constraint_message": "Cannot be in the future",
+          "hint": "",
+          "label": "In which year was the deceased born?",
+          "name": "dob_year",
+          "relevant": "selected(${dob_precision}, 'year')",
+          "required": "",
+          "type": "date"
+        }
+      ],
+      "title": "Partial date of birth"
+    },
+    {
+      "change": [
+        {
+          "cells": {
+            "constraint": ". >= 100 and . <= 9999",
+            "constraint_message": "Enter the weight in grammes, not kilogrammes. 1 kg = 1,000 g."
+          },
+          "name": "Id10366"
+        }
+      ],
+      "choices": [],
+      "id": "A2",
+      "odk": {
+        "after": "Id10366",
+        "note": "Replace the existing Id10366 row, then add Id10366_confirm after it, inside group g10366 (whose relevance already limits both to under one year with the health card). A card without a weight is answered Id10366_check = no; 0 is no longer accepted."
+      },
+      "status": "agreed for deployment",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "A birth weight of ${Id10366} g is unusual. Check the card and confirm the weight is in grammes.",
+          "name": "Id10366_confirm",
+          "relevant": "${Id10366} < 500 or ${Id10366} > 6000",
+          "required": "yes",
+          "type": "acknowledge"
+        }
+      ],
+      "title": "Birth weight check"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "A3",
+      "odk": {
+        "after": "Id10114",
+        "note": "In the stillbirth group. ageInDays is ${Id10023} - ${Id10021}, so 0 exactly when the recorded birth and death dates are the same day; age_neonate_hours is asked only when a date is missing."
+      },
+      "status": "agreed for deployment",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "(. >= 0 and . <= 23) or . = 88 or . = 99",
+          "constraint_message": "Enter 0 to 23 hours",
+          "hint": "",
+          "label": "For how many hours did the baby live?",
+          "name": "doris_hours_survived",
+          "relevant": "selected(${isNeonatal}, '1') and selected(${Id10020}, 'yes') and selected(${Id10022}, 'yes') and ${ageInDays} = 0 and not(selected(${Id10114}, 'yes'))",
+          "required": "",
+          "type": "integer"
+        }
+      ],
+      "title": "Hours survived"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "A4",
+      "odk": {
+        "after": "Id10367"
+      },
+      "status": "proposed",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "(. >= 8 and . <= 48) or . = 88 or . = 99",
+          "constraint_message": "Enter 8 to 48 weeks",
+          "hint": "",
+          "label": "How many completed weeks long was the pregnancy? (only if known, e.g. from an antenatal card)",
+          "name": "doris_pregnancy_weeks",
+          "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+          "required": "",
+          "type": "integer"
+        }
+      ],
+      "title": "Pregnancy length in weeks"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "A5",
+      "odk": {
+        "after": "Id10354"
+      },
+      "status": "proposed",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "(. >= 10 and . <= 60) or . = 88 or . = 99",
+          "constraint_message": "Enter 10 to 60 years",
+          "hint": "",
+          "label": "How old was the baby's mother, in completed years, when the baby was born?",
+          "name": "doris_mother_age",
+          "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+          "required": "",
+          "type": "integer"
+        }
+      ],
+      "title": "Mother's age"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Full date",
+          "list_name": "injury_date_known",
+          "name": "full"
+        },
+        {
+          "label": "Month and year",
+          "list_name": "injury_date_known",
+          "name": "month_year"
+        },
+        {
+          "label": "Not known",
+          "list_name": "injury_date_known",
+          "name": "unknown"
+        },
+        {
+          "label": "At home",
+          "list_name": "injury_place",
+          "name": "0"
+        },
+        {
+          "label": "Residential institution",
+          "list_name": "injury_place",
+          "name": "1"
+        },
+        {
+          "label": "School, other institution, public administration area",
+          "list_name": "injury_place",
+          "name": "2"
+        },
+        {
+          "label": "Sports and athletics area",
+          "list_name": "injury_place",
+          "name": "3"
+        },
+        {
+          "label": "Street and highway",
+          "list_name": "injury_place",
+          "name": "4"
+        },
+        {
+          "label": "Trade and service area",
+          "list_name": "injury_place",
+          "name": "5"
+        },
+        {
+          "label": "Industrial and construction area",
+          "list_name": "injury_place",
+          "name": "6"
+        },
+        {
+          "label": "Farm",
+          "list_name": "injury_place",
+          "name": "7"
+        },
+        {
+          "label": "Other place",
+          "list_name": "injury_place",
+          "name": "8"
+        },
+        {
+          "label": "Unknown",
+          "list_name": "injury_place",
+          "name": "9"
+        },
+        {
+          "label": "Police or legal action",
+          "list_name": "legal_war",
+          "name": "legal"
+        },
+        {
+          "label": "War",
+          "list_name": "legal_war",
+          "name": "war"
+        },
+        {
+          "label": "Neither",
+          "list_name": "legal_war",
+          "name": "neither"
+        },
+        {
+          "label": "Doesn't know",
+          "list_name": "legal_war",
+          "name": "dk"
+        }
+      ],
+      "id": "A6",
+      "odk": {
+        "after": "Id10077_b",
+        "note": "After Id10077_a and its confirmation Id10077_b, so the two stay together."
+      },
+      "status": "proposed",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Is the date of the injury known?",
+          "name": "doris_injury_date_known",
+          "relevant": "selected(${Id10077}, 'yes')",
+          "required": "",
+          "type": "select_one injury_date_known"
+        },
+        {
+          "appearance": "no-calendar",
+          "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+          "constraint_message": "Cannot be after the death",
+          "hint": "",
+          "label": "On what date was (s)he injured?",
+          "name": "doris_injury_date",
+          "relevant": "selected(${doris_injury_date_known}, 'full')",
+          "required": "",
+          "type": "date"
+        },
+        {
+          "appearance": "month-year",
+          "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+          "constraint_message": "Cannot be after the death",
+          "hint": "",
+          "label": "In which month and year was (s)he injured?",
+          "name": "doris_injury_month_year",
+          "relevant": "selected(${doris_injury_date_known}, 'month_year')",
+          "required": "",
+          "type": "date"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Where did the injury happen?",
+          "name": "doris_injury_place",
+          "relevant": "selected(${Id10077}, 'yes')",
+          "required": "",
+          "type": "select_one injury_place"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Was the injury from police or legal action, or from war?",
+          "name": "doris_injury_legal_war",
+          "relevant": "selected(${Id10077}, 'yes')",
+          "required": "",
+          "type": "select_one legal_war"
+        }
+      ],
+      "title": "External cause"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Yes",
+          "list_name": "YES_NO_DK_REF",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "list_name": "YES_NO_DK_REF",
+          "name": "no"
+        },
+        {
+          "label": "Doesn't know",
+          "list_name": "YES_NO_DK_REF",
+          "name": "dk"
+        },
+        {
+          "label": "Refused to answer",
+          "list_name": "YES_NO_DK_REF",
+          "name": "ref"
+        },
+        {
+          "label": "Days",
+          "list_name": "time_unit",
+          "name": "days"
+        },
+        {
+          "label": "Weeks",
+          "list_name": "time_unit",
+          "name": "weeks"
+        },
+        {
+          "label": "Months",
+          "list_name": "time_unit",
+          "name": "months"
+        },
+        {
+          "label": "Years",
+          "list_name": "time_unit",
+          "name": "years"
+        }
+      ],
+      "id": "A7",
+      "odk": {
+        "afterGroupEnd": "health_service_utilization",
+        "note": "After the health_service_utilization group closes, still inside illhistory: that group is skipped for stillbirths and for injury deaths within 7 days, and surgery is asked of every death except stillbirths. The certificate's surgery within 4 weeks is doris_surgery_when <= 28 days."
+      },
+      "status": "proposed",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Did (s)he have an operation before death?",
+          "name": "doris_surgery_performed",
+          "relevant": "not(selected(${Id10114}, 'yes'))",
+          "required": "",
+          "type": "select_one YES_NO_DK_REF"
+        },
+        {
+          "appearance": "",
+          "constraint": ". >= 0 or . = 88 or . = 99",
+          "constraint_message": "Enter a number, 88 if refused or 99 if not known",
+          "hint": "",
+          "label": "How long before death was the operation? (number)",
+          "name": "doris_surgery_when",
+          "relevant": "selected(${doris_surgery_performed}, 'yes')",
+          "required": "",
+          "type": "integer"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Unit",
+          "name": "doris_surgery_when_unit",
+          "relevant": "selected(${doris_surgery_performed}, 'yes') and ${doris_surgery_when} != 88 and ${doris_surgery_when} != 99",
+          "required": "",
+          "type": "select_one time_unit"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "What operation was done?",
+          "name": "doris_surgery_type",
+          "relevant": "selected(${doris_surgery_performed}, 'yes')",
+          "required": "",
+          "type": "text"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "For what illness or condition was it done?",
+          "name": "doris_surgery_reason",
+          "relevant": "selected(${doris_surgery_performed}, 'yes')",
+          "required": "",
+          "type": "text"
+        }
+      ],
+      "title": "Surgery"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "A8",
+      "odk": {
+        "after": "Id10473",
+        "note": "Last rows of the deathcert group. The web form has DigitVA's medical-certificate upload after Id10473 and places these after it."
+      },
+      "status": "proposed",
+      "survey": [
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Was an autopsy (post-mortem examination) requested?",
+          "name": "doris_autopsy_requested",
+          "relevant": "",
+          "required": "",
+          "type": "select_one YES_NO_DK_REF"
+        },
+        {
+          "appearance": "",
+          "constraint": "",
+          "constraint_message": "",
+          "hint": "",
+          "label": "Were the autopsy findings made available?",
+          "name": "doris_autopsy_findings",
+          "relevant": "selected(${doris_autopsy_requested}, 'yes')",
+          "required": "",
+          "type": "select_one YES_NO_DK_REF"
+        }
+      ],
+      "title": "Autopsy"
+    },
+    {
+      "change": [
+        {
+          "cells": {
+            "required": "yes"
+          },
+          "name": "Id10308"
+        }
+      ],
+      "choices": [],
+      "id": "A9",
+      "odk": {},
+      "status": "proposed",
+      "survey": [],
+      "title": "Id10308 required"
+    },
+    {
+      "change": [
+        {
+          "cells": {
+            "relevant": "(selected(${Id10312}, 'yes') or selected(${Id10313}, 'yes') or selected(${Id10334}, 'yes') or selected(${Id10308}, 'yes')) and not(selected(${Id10077_a}, 'less'))"
+          },
+          "name": "Id10340"
+        }
+      ],
+      "choices": [],
+      "id": "A10",
+      "odk": {},
+      "status": "proposed",
+      "survey": [],
+      "title": "Id10340 relevance"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "doris_support_whova_2022",
+    "generatedBy": "tooling/who-va-2022/build-odk-doris-rows.mjs"
+  }
+}

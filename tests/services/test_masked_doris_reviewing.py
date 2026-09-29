@@ -156,7 +156,7 @@ class TestMaskedDorisReviewing(BaseTestCase):
         project.reviewer_social_autopsy_enabled = False
         db.session.commit()
 
-    def _start_review(self, smartva_icd=None, allocate=True):
+    def _start_review(self, smartva_icd=None, allocate=True, payload_data=None):
         """A coder-finalized masked death in reviewer coding, with the
         coder's Step 1 certificate behind the authoritative coder final."""
         sid = f"uuid:masked-doris-rev-{uuid.uuid4()}"
@@ -180,7 +180,9 @@ class TestMaskedDorisReviewing(BaseTestCase):
         db.session.add(submission)
         db.session.flush()
         ensure_active_payload_version(
-            submission, payload_data={}, source_updated_at=submission.va_odk_updatedat
+            submission,
+            payload_data=payload_data or {},
+            source_updated_at=submission.va_odk_updatedat,
         )
         coder_step1 = VaInitialAssessments(
             va_sid=sid,
@@ -427,9 +429,13 @@ class TestMaskedDorisReviewing(BaseTestCase):
     @patch("app.services.reviewer_coding_service.validate_coding_value_for_submission")
     @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_stores_envelopes_and_derives_text_columns(self, verify, validate, provenance):
-        sid = self._start_review()
+        sid = self._start_review(payload_data={"Id10019": "male", "Id10077": "no"})
         before = self._coder_rows(sid)
-        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+        verify.return_value = {
+            "certificate": {**_CERTIFICATE, "AdministrativeData": {"Sex": 1}},
+            "doris": _DORIS,
+            "codedit": _CODEDIT,
+        }
         provenance.return_value = {"antecedent": {"code": "1C62.Z"}}
 
         response = self._post_initial(sid)
@@ -441,11 +447,23 @@ class TestMaskedDorisReviewing(BaseTestCase):
         self.assertEqual(row.va_immediate_cod, _TB)
         self.assertEqual(row.va_antecedent_cod, _HIV)
         self.assertIsNone(row.va_other_conditions)
-        self.assertEqual(row.doris_certificate, _CERTIFICATE)
+        self.assertEqual(row.doris_certificate, {**_CERTIFICATE, "AdministrativeData": {"Sex": 1}})
         self.assertEqual(row.doris_result, _DORIS)
         self.assertEqual(row.codedit_result, _CODEDIT)
         self.assertEqual(row.cod_entry_mode_snapshot["cod_entry_mode"], "doris")
         self.assertTrue(row.cod_entry_mode_snapshot["masked_cod_required"])
+        # The interview prefill, recomputed server-side: Sex kept, manner
+        # of death (Id10077 = no -> disease) dropped by the reviewer.
+        self.assertEqual(
+            row.cod_entry_mode_snapshot["doris_prefill"],
+            {
+                "version": 1,
+                "fields": {
+                    "AdministrativeData.Sex": {"sources": ["Id10019"], "changed": False},
+                    "MannerOfDeath.MannerOfDeath": {"sources": ["Id10077"], "changed": True},
+                },
+            },
+        )
         self.assertEqual(row.icd11_provenance, {"antecedent": {"code": "1C62.Z"}})
         provenance.assert_called_once_with(sid, {"antecedent": _HIV})
         validate.assert_called_once_with(sid, _HIV)

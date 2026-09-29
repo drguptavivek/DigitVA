@@ -63,9 +63,18 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    organization unit district setting (high on, low/very low off), else the
    form flag, else off; runs unchanged, split when mixed, options and source
    recorded (`docs/policy/smartva-generation-policy.md`). Agreed; not built.
-6. `digitva-hln`: prefill DORIS non-cause fields from the interview
-   (`.tasks/2026-09-29-doris-prefill-from-va.md`); needs the mapping verified
-   and clinically signed off before build.
+6. DORIS prefill (`digitva-hln`, built 2026-09-29) follow-ups, all owner
+   steps: deploy the ODK rows in
+   `docs/kb/WHO_VA_2022_Docs/odk-doris-support-rows.xlsx` (A1-A3 agreed;
+   A4-A10 proposed; test the `dob_*` constraints in Collect first); send
+   WHO `docs/kb/DORIS/who-va-2022-doris-consistency-proposal.md` (strip the
+   internal header line; GitHub issue on SwissTPH/WHO-VA or email); site
+   training on `docs/kb/WHO_VA_2022_Docs/odk-training-date-of-birth.md` and
+   on Id10366 no longer accepting 0 (answer `Id10366_check` = no).
+   `digitva-zyf`: the Id10366 override message is not translatable yet.
+   The extension is always on for every web project; ODK rows are generated
+   from it (`npm run build:odk-doris-rows` in `tooling/who-va-2022`, then
+   `tooling/who-va-2022/build_odk_doris_rows.py` in the app container).
 7. `digitva-ej1`: web attachment upload (audio narration, document images);
    owner allows offline on-device storage, encrypted, deleted after upload.
 8. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 report.
@@ -83,6 +92,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 - `digitva-r1p`: Project Setup home phases 2-4. `digitva-yds.3`: COD bucket
   schemes in Help. `digitva-e5j`: explain empty coding-search results.
+- `digitva-aek`: download a project's ODK XLSForm built from its enabled
+  modules (ODK form becomes a project output). After `digitva-hln`.
+- `digitva-d1x` (P3, after the WHO form is stable): PHMRC shortened form
+  (`docs/kb/PHMRC`) as a web form with its label images and audio; capture
+  only, downstream pipeline later.
 
 Epics: `digitva-dus` (V3), `digitva-roq` (per-project SSO; the email login
 step is where it hooks in), `digitva-sn1` (passkeys/TOTP, build done),

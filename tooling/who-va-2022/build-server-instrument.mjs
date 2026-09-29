@@ -1,11 +1,19 @@
 // Emit vendor/who-va-2022/src/generated/who-va-2022.server-instrument.json:
 // every question and section of the composed instrument (WHO base plus all
-// DigitVA extensions, i.e. exactly whoVa2022Instrument from
-// vendor/who-va-2022/src/instrument.ts), reduced to the fields a server-side
+// DigitVA extensions, as whoVa2022Instrument in
+// vendor/who-va-2022/src/instrument.ts, but with every WHO question as WHO
+// wrote it: `whoOverrides: false`), reduced to the fields a server-side
 // re-evaluation needs -- name, sectionPath, control, and the *source strings*
 // of relevant/constraint/calculation -- so app/services/web_intake_service.py
 // can re-derive relevance and validity without a Node process in the request
 // path. See beads digitva-cal.2 and digitva-aiy.1.
+//
+// Why `whoOverrides: false`: the server keeps WHO's own rules for the
+// questions doris_support_whova_2022 tightens (Id10366's constraint,
+// Id10340's relevance). WHO's rules are looser -- its Id10340 relevance is a
+// superset of the extension's and its Id10366 constraint admits every weight
+// the extension's does -- so nothing the web form collects is stripped or
+// rejected (digitva-hln).
 //
 // Deliberately source strings, not the TypeScript engine's own parsed AST:
 // app/services/xform_expression_evaluator.py already has a parser
@@ -44,7 +52,10 @@ async function loadInstrumentModule() {
   const outfile = path.join(tmpDir, "bundle.mjs");
   writeFileSync(
     entryPath,
-    `export { whoVa2022Instrument } from ${JSON.stringify(path.join(vendorSrc, "instrument.js"))};`
+    [
+      `export { createWhoVa2022Instrument } from ${JSON.stringify(path.join(vendorSrc, "instrument.js"))};`,
+      `export { ALL_DIGITVA_EXTENSIONS } from ${JSON.stringify(path.join(vendorSrc, "digitva-extension.js"))};`
+    ].join("\n")
   );
   try {
     await build({
@@ -63,7 +74,8 @@ async function loadInstrumentModule() {
 }
 
 async function main() {
-  const { whoVa2022Instrument } = await loadInstrumentModule();
+  const { createWhoVa2022Instrument, ALL_DIGITVA_EXTENSIONS } = await loadInstrumentModule();
+  const whoVa2022Instrument = createWhoVa2022Instrument(ALL_DIGITVA_EXTENSIONS, { whoOverrides: false });
 
   const sections = whoVa2022Instrument.sections.map((section) => ({
     name: section.name,

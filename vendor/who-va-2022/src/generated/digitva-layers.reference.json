@@ -47,6 +47,150 @@
     },
     {
       "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_precision/month_year",
+      "itemKind": "choice",
+      "text": "Month and year known"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_precision/neither",
+      "itemKind": "choice",
+      "text": "Neither known"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_precision/year",
+      "itemKind": "choice",
+      "text": "Only the year known"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_date_known/full",
+      "itemKind": "choice",
+      "text": "Full date"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_date_known/month_year",
+      "itemKind": "choice",
+      "text": "Month and year"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_date_known/unknown",
+      "itemKind": "choice",
+      "text": "Not known"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/0",
+      "itemKind": "choice",
+      "text": "At home"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/1",
+      "itemKind": "choice",
+      "text": "Residential institution"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/2",
+      "itemKind": "choice",
+      "text": "School, other institution, public administration area"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/3",
+      "itemKind": "choice",
+      "text": "Sports and athletics area"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/4",
+      "itemKind": "choice",
+      "text": "Street and highway"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/5",
+      "itemKind": "choice",
+      "text": "Trade and service area"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/6",
+      "itemKind": "choice",
+      "text": "Industrial and construction area"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/7",
+      "itemKind": "choice",
+      "text": "Farm"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/8",
+      "itemKind": "choice",
+      "text": "Other place"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "injury_place/9",
+      "itemKind": "choice",
+      "text": "Unknown"
+    },
+    {
+      "extensions": [
         "narration_language"
       ],
       "field": "label",
@@ -98,6 +242,42 @@
       "itemKey": "language/marathi",
       "itemKind": "choice",
       "text": "Marathi"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "legal_war/dk",
+      "itemKind": "choice",
+      "text": "Doesn't know"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "legal_war/legal",
+      "itemKind": "choice",
+      "text": "Police or legal action"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "legal_war/neither",
+      "itemKind": "choice",
+      "text": "Neither"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "legal_war/war",
+      "itemKind": "choice",
+      "text": "War"
     },
     {
       "extensions": [
@@ -497,6 +677,51 @@
     },
     {
       "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "time_unit/days",
+      "itemKind": "choice",
+      "text": "Days"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "time_unit/months",
+      "itemKind": "choice",
+      "text": "Months"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "time_unit/weeks",
+      "itemKind": "choice",
+      "text": "Weeks"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "time_unit/years",
+      "itemKind": "choice",
+      "text": "Years"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "Id10366_confirm",
+      "itemKind": "question",
+      "text": "A birth weight of ${Id10366} g is unusual. Check the card and confirm the weight is in grammes."
+    },
+    {
+      "extensions": [
         "abha"
       ],
       "field": "hint",
@@ -567,6 +792,168 @@
       "itemKey": "digitva_documents",
       "itemKind": "question",
       "text": "Medical and death documents"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_month_year",
+      "itemKind": "question",
+      "text": "In which month and year was the deceased born?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_precision",
+      "itemKind": "question",
+      "text": "Is the month and year, or only the year, of birth known?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "dob_year",
+      "itemKind": "question",
+      "text": "In which year was the deceased born?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_autopsy_findings",
+      "itemKind": "question",
+      "text": "Were the autopsy findings made available?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_autopsy_requested",
+      "itemKind": "question",
+      "text": "Was an autopsy (post-mortem examination) requested?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_hours_survived",
+      "itemKind": "question",
+      "text": "For how many hours did the baby live?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_injury_date",
+      "itemKind": "question",
+      "text": "On what date was (s)he injured?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_injury_date_known",
+      "itemKind": "question",
+      "text": "Is the date of the injury known?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_injury_legal_war",
+      "itemKind": "question",
+      "text": "Was the injury from police or legal action, or from war?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_injury_month_year",
+      "itemKind": "question",
+      "text": "In which month and year was (s)he injured?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_injury_place",
+      "itemKind": "question",
+      "text": "Where did the injury happen?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_mother_age",
+      "itemKind": "question",
+      "text": "How old was the baby's mother, in completed years, when the baby was born?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_pregnancy_weeks",
+      "itemKind": "question",
+      "text": "How many completed weeks long was the pregnancy? (only if known, e.g. from an antenatal card)"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_surgery_performed",
+      "itemKind": "question",
+      "text": "Did (s)he have an operation before death?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_surgery_reason",
+      "itemKind": "question",
+      "text": "For what illness or condition was it done?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_surgery_type",
+      "itemKind": "question",
+      "text": "What operation was done?"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_surgery_when",
+      "itemKind": "question",
+      "text": "How long before death was the operation? (number)"
+    },
+    {
+      "extensions": [
+        "doris_support_whova_2022"
+      ],
+      "field": "label",
+      "itemKey": "doris_surgery_when_unit",
+      "itemKind": "question",
+      "text": "Unit"
     },
     {
       "extensions": [
@@ -1305,6 +1692,11 @@
       "questions": 2,
       "sections": 0
     },
+    "doris_support_whova_2022": {
+      "choices": 24,
+      "questions": 19,
+      "sections": 0
+    },
     "geography": {
       "choices": 0,
       "questions": 0,
@@ -1342,7 +1734,8 @@
       "narration_language",
       "death_summary",
       "medical_records",
-      "abha"
+      "abha",
+      "doris_support_whova_2022"
     ],
     "generatedBy": "tooling/who-va-2022/build-layer-reference.mjs",
     "package": "@drguptavivek/who-2022-va",

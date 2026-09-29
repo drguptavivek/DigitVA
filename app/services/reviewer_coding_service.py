@@ -17,6 +17,7 @@ from app.models import (
     VaReviewerInitialAssessments,
     VaSmartvaResults,
     VaStatuses,
+    VaSubmissionPayloadVersion,
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
@@ -29,6 +30,7 @@ from app.services.cod_entry_mode import (
     smartva_icd11_alternatives,
 )
 from app.services.doris_certificate import DorisCertificateError
+from app.services.doris_prefill import doris_prefill_record
 from app.services.doris_process_proof import (
     ProcessProofCertificateChanged,
     ProcessProofContextMismatch,
@@ -183,6 +185,21 @@ def _verify_reviewer_doris(
         ) from exc
     except (DorisCertificateError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 422) from exc
+
+
+def _doris_prefill_snapshot(project, who_image_digest, submission, certificate) -> dict:
+    """The mode snapshot plus the prefill record for a saved certificate.
+
+    The record is recomputed from the payload version the certificate was
+    coded against (digitva-hln); it carries no answer values.
+    """
+    version = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id)
+    return {
+        **cod_entry_mode_snapshot(project, who_image_digest),
+        "doris_prefill": doris_prefill_record(
+            version.payload_data if version else None, certificate
+        ),
+    }
 
 
 def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) -> bool:
@@ -404,7 +421,11 @@ def submit_reviewer_final_cod(
         verified_doris = verified["doris"]
         verified_codedit = verified["codedit"]
 
-    snapshot = cod_entry_mode_snapshot(project, who_image_digest)
+    snapshot = (
+        _doris_prefill_snapshot(project, who_image_digest, submission, verified_certificate)
+        if verified_certificate is not None
+        else cod_entry_mode_snapshot(project, who_image_digest)
+    )
     if mode == "masked_doris":
         # Derived server-side, never trusted from the client; "doris" is the
         # reviewer's own Step 1 cause and wins a tie with SmartVA.
@@ -623,7 +644,9 @@ def submit_reviewer_initial_cod(
             "doris_certificate": verified["certificate"],
             "doris_result": verified["doris"],
             "codedit_result": verified["codedit"],
-            "cod_entry_mode_snapshot": cod_entry_mode_snapshot(project, who_image_digest),
+            "cod_entry_mode_snapshot": _doris_prefill_snapshot(
+                project, who_image_digest, submission, verified["certificate"]
+            ),
         }
     else:
         if not immediate_cod:

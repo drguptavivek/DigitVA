@@ -631,6 +631,45 @@ class WebIntakeServiceTests(BaseTestCase):
         # No answer value anywhere in the stored entries.
         self.assertNotIn("2099-01-01", str(version.validation_err))
 
+    def test_a_non_doris_project_keeps_the_doris_support_answers(self):
+        """digitva-hln: every web form asks the doris_support_whova_2022
+        questions, so a project coding in simple mode submits them cleanly:
+        kept by the server's relevance strip, no validation disagreement."""
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        self.assertNotEqual(project.cod_entry_mode, "doris")
+        answers = {
+            "Id10020": "no",
+            "dob_precision": "month_year",
+            "dob_month_year": "1962-03-01",
+            "Id10077": "yes",
+            "doris_injury_date_known": "unknown",
+            "doris_injury_place": "4",
+            "doris_injury_legal_war": "neither",
+            "doris_surgery_performed": "yes",
+            "doris_surgery_when": 3,
+            "doris_surgery_when_unit": "days",
+            "doris_surgery_type": "Laparotomy",
+            "doris_surgery_reason": "Abdominal injury",
+            "doris_autopsy_requested": "yes",
+            "doris_autopsy_findings": "no",
+        }
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        submission = intake_svc.submit_draft(
+            draft, self.interviewer, completion=self._completion(data=answers)
+        )
+
+        version = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == submission.va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
+        for name, value in answers.items():
+            self.assertEqual(version.payload_data.get(name), value, name)
+        self.assertEqual(version.validation_err, [])
+
     def test_submit_draft_strips_irrelevant_image_answers_but_keeps_them_in_the_draft(self):
         """beads digitva-aiy.1: a gate answered "no" after images were
         captured must not carry those images into the submission, and the

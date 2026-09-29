@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 ---
 
 # DORIS COD Workflow
@@ -114,8 +114,8 @@ where Step 1 and, once saved, Step 2 sit on one page.
   It is seeded (deep copy) from the reviewer's own active Step 1 row when it
   has a certificate, else from the certificate of the coder's Step 1 behind
   the authoritative coder final (`source_initial_assessment_id`), else from
-  the admin defaults (`_masked_reviewer_doris_context` in
-  `app/routes/va_form.py`). The reviewer processes it and confirms their own
+  the interview prefill (`_masked_reviewer_doris_context` and
+  `_doris_initial` in `app/routes/va_form.py`). The reviewer processes it and confirms their own
   underlying cause. `POST /api/v1/reviewing/initial/<sid>` (JSON,
   `X-CSRFToken`, 1.2 MB limit) calls `submit_reviewer_initial_cod`, which
   verifies the envelopes with `role="reviewer"` and the reviewer's active
@@ -222,8 +222,10 @@ warnings and CoDEdit report sentences as one "Check before you decide" list,
 or "No problems found". A rejected or failed run says so in place of the
 code. Engine status, stem, URI, readable reports and the Help rule trace sit
 in a collapsed "Technical details" section at the bottom, after Step 2. Both editors are two steps.
-"Step 1: DORIS" holds the certificate in DORIS's order (Part I, Part II,
-fetal or infant, pregnancy context), the Process button and the result.
+"Step 1: DORIS" holds the certificate in DORIS's order (sex, age and dates,
+Part I, Part II, fetal or infant, pregnancy context, manner of death,
+surgery and autopsy), the Process button and the result. The pregnancy
+context shows for a recorded sex of female or unknown.
 "Step 2: Final underlying cause of death" is always shown, says to process
 Step 1 first, and shows the final UCOD field once a result exists. Each
 step is its own card. Step 2 offers "Use DORIS result: <code>" when DORIS
@@ -231,9 +233,24 @@ suggested a code; clicking it runs the code through `codeinfo` and the
 selection check, like a searched code. The Help field takes one verified code and is not saved;
 certificate edits clear it with the results.
 
-A new clinical certificate starts with sex and whole-year age from the
-interview (`_doris_admin_defaults` in `app/routes/va_form.py`); under one
-year is left to the coder. DORIS rule warnings are joined with the matching
+A new clinical certificate starts with the non-cause fields the interview
+answers (`digitva-hln`): `_doris_initial` in `app/routes/va_form.py` reads
+the active payload version and calls `doris_prefill_from_payload` in
+`app/services/doris_prefill.py`, one pure function for web and ODK cases
+that follows the mapping in `docs/policy/doris-cod-workflow.md`. Masked
+Step 1 gets it too (interview facts, not SmartVA). A saved certificate is
+shown as saved, without prefill. Each prefilled control carries a "from
+interview (Id…)" badge from the `data-doris-prefill` map; every value stays
+editable. At every certificate save (coder masked Step 1 and unmasked
+final, reviewer masked Step 1 and unmasked final) the server recomputes the
+prefill from the same payload and stores
+`cod_entry_mode_snapshot["doris_prefill"]` = `{"version": 1, "fields":
+{"Section.Field": {"sources": [...], "changed": bool}}}`: which fields the
+interview prefilled and whether the saved certificate differs, with no
+answer values. Every web project's form carries the
+`doris_support_whova_2022` extension (always on, like `digitva_core`),
+whose questions fill the gaps; ODK cases use the WHO-question fallbacks
+until their workbooks take the rows generated from that extension. DORIS rule warnings are joined with the matching
 line of DORIS's report, and CoDEdit back-end keys are shown as WHO's
 published sentence. After an edit the status reads "Certificate changed.
 Process it again before saving." If a save is refused for another reason,

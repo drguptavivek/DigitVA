@@ -292,6 +292,45 @@
       "constraint": null,
       "control": "singleChoice",
       "dataType": "string",
+      "name": "dob_precision",
+      "relevant": "selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+      "control": "date",
+      "dataType": "date",
+      "name": "dob_month_year",
+      "relevant": "selected(${dob_precision}, 'month_year')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today() and . >= date('1900-01-01')",
+      "control": "date",
+      "dataType": "date",
+      "name": "dob_year",
+      "relevant": "selected(${dob_precision}, 'year')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
       "name": "Id10022",
       "relevant": null,
       "sectionPath": [
@@ -1191,6 +1230,18 @@
     },
     {
       "calculation": null,
+      "constraint": "(. >= 0 and . <= 23) or . = 88 or . = 99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "doris_hours_survived",
+      "relevant": "selected(${isNeonatal}, '1') and selected(${Id10020}, 'yes') and selected(${Id10022}, 'yes') and ${ageInDays} = 0 and not(selected(${Id10114}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "stillbirth"
+      ]
+    },
+    {
+      "calculation": null,
       "constraint": null,
       "control": "singleChoice",
       "dataType": "string",
@@ -1545,6 +1596,71 @@
       "dataType": "boolean",
       "name": "Id10077_b",
       "relevant": "selected(${Id10077_a}, 'less')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_injury_date_known",
+      "relevant": "selected(${Id10077}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+      "control": "date",
+      "dataType": "date",
+      "name": "doris_injury_date",
+      "relevant": "selected(${doris_injury_date_known}, 'full')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today() and (string-length(${Id10023}) = 0 or . <= ${Id10023})",
+      "control": "date",
+      "dataType": "date",
+      "name": "doris_injury_month_year",
+      "relevant": "selected(${doris_injury_date_known}, 'month_year')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_injury_place",
+      "relevant": "selected(${Id10077}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "injuries_accidents",
+        "injuries_accidents_yes"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_injury_legal_war",
+      "relevant": "selected(${Id10077}, 'yes')",
       "sectionPath": [
         "consented",
         "injuries_accidents",
@@ -4870,6 +4986,20 @@
     },
     {
       "calculation": null,
+      "constraint": "(. >= 10 and . <= 60) or . = 88 or . = 99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "doris_mother_age",
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
       "constraint": null,
       "control": "singleChoice",
       "dataType": "string",
@@ -4915,6 +5045,21 @@
     {
       "calculation": null,
       "constraint": null,
+      "control": "confirm",
+      "dataType": "boolean",
+      "name": "Id10366_confirm",
+      "relevant": "${Id10366} < 500 or ${Id10366} > 6000",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA",
+        "g10366"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
       "control": "singleChoice",
       "dataType": "string",
       "name": "Id10363",
@@ -4946,6 +5091,20 @@
       "control": "integer",
       "dataType": "number",
       "name": "Id10367",
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "sectionPath": [
+        "consented",
+        "illhistory",
+        "neonatal_child",
+        "neonatal_childA"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "(. >= 8 and . <= 48) or . = 88 or . = 99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "doris_pregnancy_weeks",
       "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
       "sectionPath": [
         "consented",
@@ -5597,6 +5756,66 @@
     {
       "calculation": null,
       "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_surgery_performed",
+      "relevant": "not(selected(${Id10114}, 'yes'))",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". >= 0 or . = 88 or . = 99",
+      "control": "integer",
+      "dataType": "number",
+      "name": "doris_surgery_when",
+      "relevant": "selected(${doris_surgery_performed}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_surgery_when_unit",
+      "relevant": "selected(${doris_surgery_performed}, 'yes') and ${doris_surgery_when} != 88 and ${doris_surgery_when} != 99",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "doris_surgery_type",
+      "relevant": "selected(${doris_surgery_performed}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "doris_surgery_reason",
+      "relevant": "selected(${doris_surgery_performed}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "illhistory"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
       "control": "note",
       "dataType": "none",
       "name": "botecrn",
@@ -5841,6 +6060,30 @@
       "dataType": "attachment",
       "name": "custom_medical_certificate_upload",
       "relevant": "selected(${Id10463}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_autopsy_requested",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deathcert"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "doris_autopsy_findings",
+      "relevant": "selected(${doris_autopsy_requested}, 'yes')",
       "sectionPath": [
         "consented",
         "deathcert"

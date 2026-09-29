@@ -589,11 +589,14 @@ def _enabled_extensions(
     -- a project that blanked the note wants no welcome screen -- and
     ``death_summary`` and ``medical_records`` each follow their own project
     switch, on unless an administrator turned it off (decided 2026-09-19,
-    docs/policy/va-web-form-options.md). The document upload itself lands with
+    docs/policy/va-web-form-options.md). ``digitva_core`` and
+    ``doris_support_whova_2022`` are always on: every web form asks the
+    DORIS support questions, whatever the COD entry mode (decided
+    2026-09-29, digitva-hln). The document upload itself lands with
     attachments phase 2; the extension is served now so the page can be built
     against the contract rather than against a constant.
     """
-    extensions = ["digitva_core"]
+    extensions = ["digitva_core", "doris_support_whova_2022"]
     if project.social_autopsy_enabled:
         extensions.append("social_autopsy")
     if intake_note:

@@ -492,11 +492,12 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self._login(self.base_admin_id)
         payload = self.client.get(self._api("/questions?page_size=1")).get_json()
         self.assertEqual(len(payload["items"]), 1)
-        # 536: the 446 base-instrument questions (449 minus the 3 with no
+        # 560: the 446 base-instrument questions (449 minus the 3 with no
         # display text: the audit trail, two calculated-only fields) plus the
-        # DigitVA layer's 80 questions/sections and 10 choice lists that no
-        # question can be linked to as owner (digitva-8go follow-up).
-        self.assertEqual(payload["total"], 536)
+        # DigitVA layer's 99 questions/sections and 15 choice lists that no
+        # question can be linked to as owner (digitva-8go follow-up; the
+        # doris_support_whova_2022 layer added 19 questions and 5 lists).
+        self.assertEqual(payload["total"], 560)
 
     def test_layer_questions_appear_after_every_base_question(self):
         """digitva-8go follow-up: the layers were missing entirely at first,
@@ -508,7 +509,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
                 self._api(f"/questions?page_size=200&page={page}")
             ).get_json()
             all_items.extend(payload["items"])
-        self.assertEqual(len(all_items), 536)
+        self.assertEqual(len(all_items), 560)
 
         by_name = {item["name"]: item for item in all_items}
         for name in ("consent_mode", "abha_number", "socialautopsy", "sa01"):

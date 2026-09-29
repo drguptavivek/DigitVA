@@ -71,6 +71,7 @@ from app.services.demo_project_service import (
     is_demo_training_submission,
 )
 from app.services.doris_certificate import DorisCertificateError
+from app.services.doris_prefill import doris_prefill_from_payload, doris_prefill_record
 from app.services.doris_process_proof import (
     ProcessProofCertificateChanged,
     ProcessProofContextMismatch,
@@ -318,7 +319,12 @@ def _masked_doris_step1_fields(va_sid, project):
         "doris_certificate": verified["certificate"],
         "doris_result": verified["doris"],
         "codedit_result": verified["codedit"],
-        "cod_entry_mode_snapshot": _cod_entry_mode_snapshot(project, who_image_digest),
+        "cod_entry_mode_snapshot": {
+            **_cod_entry_mode_snapshot(project, who_image_digest),
+            "doris_prefill": doris_prefill_record(
+                active_payload_version.payload_data, verified["certificate"]
+            ),
+        },
     }, None
 
 
@@ -332,22 +338,21 @@ def _json_form_value(name: str):
         raise ValueError(f"{name} must be valid JSON.") from exc
 
 
-def _doris_admin_defaults(submission) -> dict:
-    """Sex and age from the interview, to start a new DORIS certificate.
+def _doris_initial(saved_certificate, submission, project_mode) -> tuple[dict, dict]:
+    """``(initial certificate, prefill provenance)`` for a DORIS editor.
 
-    Only whole years are known here, so an age under one year is left for
-    the coder, who can enter days or months.
+    A saved (or just-submitted) certificate is shown as it is, with no
+    prefill markers. Otherwise a DORIS project's new certificate starts
+    with the non-cause fields the interview answers
+    (``doris_prefill_from_payload``, bead digitva-hln); these are interview
+    facts, not SmartVA output, so masked Step 1 shows them too.
     """
-    if submission is None:
-        return {}
-    admin = {}
-    sex = {"male": 1, "female": 2}.get((submission.va_deceased_gender or "").strip().lower())
-    if sex:
-        admin["Sex"] = sex
-    age = submission.va_deceased_age
-    if isinstance(age, int) and 0 < age < 130:
-        admin["EstimatedAge"] = f"P{age}Y"
-    return {"AdministrativeData": admin} if admin else {}
+    if saved_certificate is not None:
+        return copy.deepcopy(saved_certificate), {}
+    if submission is None or not _is_doris(project_mode):
+        return {}, {}
+    version = get_active_payload_version(submission.va_sid)
+    return doris_prefill_from_payload(version.payload_data if version else None)
 
 
 def _doris_conflict(code: str, message: str, processing: dict | None = None):
@@ -1043,6 +1048,17 @@ def renderpartial(va_sid, va_partial):
             doris_source, masked_reviewer_doris = _masked_reviewer_doris_context(
                 va_sid, va_reviewer_initial_assess, smartva
             )
+        # Only the workflow panel carries the editor; other categories skip
+        # the payload read.
+        doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+            doris_source.doris_certificate
+            if doris_source and doris_source.doris_certificate
+            else None,
+            va_submission
+            if category_config and category_config.render_mode == "workflow_panel"
+            else None,
+            project_mode,
+        )
         response = make_response(render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,
@@ -1087,11 +1103,8 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_labels = cod_health_history_labels,
             va_usernote = va_usernote,
             project_mode=project_mode,
-            doris_initial_certificate=(
-                copy.deepcopy(doris_source.doris_certificate)
-                if doris_source and doris_source.doris_certificate
-                else _doris_admin_defaults(va_submission)
-            ),
+            doris_initial_certificate=doris_initial_certificate,
+            doris_prefill_provenance=doris_prefill_provenance,
             doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
             doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
             doris_codeinfo_url=f"/api/v1/doris-clinical/codeinfo/{va_sid}",
@@ -1402,6 +1415,13 @@ def renderpartial(va_sid, va_partial):
                 )
                 .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
             )
+        doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+            existing_assess.doris_certificate
+            if existing_assess and existing_assess.doris_certificate
+            else None,
+            va_submission,
+            project_mode,
+        )
         pre_immediate_cod = None
         pre_antecedent_cod = None
         if existing_assess:
@@ -1438,11 +1458,8 @@ def renderpartial(va_sid, va_partial):
             pre_antecedent_cod=pre_antecedent_cod,
             project_mode=project_mode,
             # No SmartVA in masked Step 1: the certificate is entered blind.
-            doris_initial_certificate=copy.deepcopy(
-                existing_assess.doris_certificate
-                if existing_assess and existing_assess.doris_certificate
-                else _doris_admin_defaults(va_submission)
-            ),
+            doris_initial_certificate=doris_initial_certificate,
+            doris_prefill_provenance=doris_prefill_provenance,
             doris_initial_processing=saved_doris_processing,
             doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
             doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
@@ -1535,6 +1552,15 @@ def renderpartial(va_sid, va_partial):
                 if prior_authoritative_final
                 else None
             )
+            # Only unmasked DORIS shows a certificate here; masked Step 2
+            # confirms the cause without one.
+            doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+                submitted_certificate
+                if submitted_certificate is not None
+                else prior_certificate or None,
+                va_submission if project_mode == "unmasked_doris" else None,
+                project_mode,
+            )
             return render_template(
                 f"va_form_partials/{va_partial}.html",
                 form=form1,
@@ -1584,13 +1610,8 @@ def renderpartial(va_sid, va_partial):
                     else None
                 ),
                 project_mode=project_mode,
-                doris_initial_certificate=(
-                    copy.deepcopy(
-                        submitted_certificate
-                        if submitted_certificate is not None
-                        else prior_certificate or _doris_admin_defaults(va_submission)
-                    )
-                ),
+                doris_initial_certificate=doris_initial_certificate,
+                doris_prefill_provenance=doris_prefill_provenance,
                 doris_initial_processing=submitted_processing,
                 doris_process_url=f"/api/v1/doris-clinical/process/{va_sid}",
                 doris_terms_url=f"/api/v1/doris-clinical/terms/{va_sid}",
@@ -1757,6 +1778,12 @@ def renderpartial(va_sid, va_partial):
             active_recode_episode = get_active_recode_episode(va_sid)
             prior_authoritative_final = get_authoritative_final_assessment(va_sid)
             cod_entry_mode_snapshot = _cod_entry_mode_snapshot(project, who_image_digest)
+            if verified_certificate is not None:
+                # Which fields the interview prefilled and whether the coder
+                # changed them, recomputed here rather than trusted (digitva-hln).
+                cod_entry_mode_snapshot["doris_prefill"] = doris_prefill_record(
+                    active_payload_version.payload_data, verified_certificate
+                )
             if project_mode == "masked_doris":
                 cod_entry_mode_snapshot["final_ucod_source"] = _final_ucod_source(
                     form1.va_conclusive_cod.data,

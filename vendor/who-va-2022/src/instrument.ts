@@ -6,11 +6,13 @@ import generatedInstrument from "./generated/who-va-2022.instrument.json";
 
 import {
   ALL_DIGITVA_EXTENSIONS,
+  DORIS_SUPPORT_EXTENSION,
   createConsentModeQuestion,
-  createDigitVaExtension
+  createDigitVaExtension,
+  createDorisSupportExtension
 } from "./digitva-extension.js";
 
-import type { InstrumentDefinition, InstrumentQuestion } from "./types.js";
+import type { InstrumentDefinition, InstrumentQuestion, InstrumentSection } from "./types.js";
 
 const generated = generatedInstrument as InstrumentDefinition;
 
@@ -20,9 +22,16 @@ const generated = generatedInstrument as InstrumentDefinition;
  * docs/policy/va-form-project-configuration.md). `digitva_core` content —
  * the medical-certificate upload and the consent-mode question — is always
  * included: it does not depend on `enabledExtensions`.
+ *
+ * `options.whoOverrides: false` keeps every WHO question as WHO wrote it
+ * while still adding the extension questions. Only the server artifact
+ * (tooling/who-va-2022/build-server-instrument.mjs) uses it: the server's
+ * re-derivation keeps WHO's own, looser rules for the questions
+ * `doris_support_whova_2022` tightens (see `withDorisSupport`).
  */
 export function createWhoVa2022Instrument(
-  enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>
+  enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>,
+  options: { whoOverrides?: boolean } = {}
 ): InstrumentDefinition {
   const enabled = enabledExtensions instanceof Set ? enabledExtensions : new Set(enabledExtensions);
 
@@ -120,17 +129,53 @@ export function createWhoVa2022Instrument(
   ];
   const narrativeIndex = withDeceased.findIndex((question) => question.name === "Id10476");
 
+  const sections = [...generated.sections, ...digitva.sections];
+  const questions = [
+    ...withDeceased.slice(0, narrativeIndex + 1),
+    ...digitva.narrativeQuestions,
+    ...withDeceased.slice(narrativeIndex + 1),
+    ...digitva.documentQuestions,
+    ...digitva.socialAutopsyQuestions
+  ];
+
   return {
     ...generated,
-    sections: [...generated.sections, ...digitva.sections],
-    questions: [
-      ...withDeceased.slice(0, narrativeIndex + 1),
-      ...digitva.narrativeQuestions,
-      ...withDeceased.slice(narrativeIndex + 1),
-      ...digitva.documentQuestions,
-      ...digitva.socialAutopsyQuestions
-    ]
+    sections,
+    questions: enabled.has(DORIS_SUPPORT_EXTENSION)
+      ? withDorisSupport(questions, sections, options.whoOverrides ?? true)
+      : questions
   };
+}
+
+/**
+ * Splice the `doris_support_whova_2022` questions in after their anchors and,
+ * with `whoOverrides`, apply its changes to WHO questions (Id10366's grams
+ * check, Id10308 required, Id10340's relevance). Numbered past every order
+ * already used, as the other layers are.
+ *
+ * Without `whoOverrides` the WHO questions stay as WHO wrote them. The
+ * server's re-derivation uses that shape and still accepts everything the
+ * web form collects: A10's Id10340 relevance is a subset of WHO's
+ * (tests/digitva-extension-layers), so no Id10340 answer is stripped;
+ * WHO's Id10366 constraint admits every weight A2's does; and the server
+ * checks relevance and constraints, not `required` (A9).
+ */
+function withDorisSupport(
+  questions: InstrumentQuestion[],
+  sections: InstrumentSection[],
+  whoOverrides: boolean
+): InstrumentQuestion[] {
+  const byName = new Map(questions.map((question) => [question.name, question]));
+  const maxOrder = Math.max(...questions.map((q) => q.order), ...sections.map((s) => s.order));
+  const support = createDorisSupportExtension(maxOrder, (anchor) => {
+    const question = byName.get(anchor);
+    if (!question) throw new Error(`Cannot add the DORIS support questions because ${anchor} is missing`);
+    return [...question.sectionPath];
+  });
+  return questions.flatMap((question) => {
+    const override = whoOverrides ? support.overrides[question.name] : undefined;
+    return [override ? override(question) : question, ...(support.after[question.name] ?? [])];
+  });
 }
 
 /**

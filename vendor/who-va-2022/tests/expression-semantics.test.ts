@@ -33,7 +33,7 @@ describe("WHO VA expression semantics", () => {
       ...whoVa2022Instrument.sections.flatMap((section) => (section.relevant ? [section.relevant] : []))
     ];
 
-    // 533 = 464 pristine WHO VA expressions + 40 added when the DigitVA
+    // 559 = 464 pristine WHO VA expressions + 40 added when the DigitVA
     // extension questions (ABHA, narration language, md_im1..30, ds_im1..5)
     // were composed into the instrument in src/digitva-extension.ts /
     // src/instrument.ts (commit 2fc60ea), + 3 added by WP-A2's conditional
@@ -42,12 +42,15 @@ describe("WHO VA expression semantics", () => {
     // added by the social_autopsy layer mirrored from ND01 (the
     // reachinghealthcare/eventchronology group relevance, the sa06_a/sa03/
     // sa05/sa05_a/sa07_a/sa11/sa12/sa08 question relevance, the sa13..sa19
-    // literal-comparison relevance, and the sa09/sa13..sa19 constraints).
+    // literal-comparison relevance, and the sa09/sa13..sa19 constraints), + 26
+    // added by doris_support_whova_2022 (18 relevance, 8 constraints; its
+    // Id10366 constraint and Id10340 relevance replace WHO's rather than
+    // adding one).
     // This count is asserted explicitly, not derived from
     // whoVa2022Instrument, because the count under test is exactly
     // whoVa2022Instrument's own expression count — deriving it from the
     // instrument would make the assertion vacuous.
-    expect(expressions).toHaveLength(533);
+    expect(expressions).toHaveLength(559);
     for (const expression of expressions) {
       expect(
         () =>

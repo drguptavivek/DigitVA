@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-09-29
 ---
 
 # SmartVA Generation Policy
@@ -255,8 +255,10 @@ Current configurable options:
 area presets on the organization tree ([Web Intake Policy](web-intake.md),
 "Area VA presets") that prefill and lock `Id10002`/`Id10003` for the
 interviewer. The two can diverge (a form flagged `form_smartvahiv=True`
-serving a unit whose resolved preset is `low`, or the reverse); whether to
-align them is an open owner decision, not resolved by `digitva-dhc`.
+serving a unit whose resolved preset is `low`, or the reverse). Owner
+decision (2026-09-29): they are not aligned; SmartVA keeps the per-form
+flags. How SmartVA's own questionnaire and settings treat HIV and malaria is
+to be checked (`digitva-cts`).
 
 Operational baseline:
 

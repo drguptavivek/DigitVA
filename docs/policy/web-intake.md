@@ -148,8 +148,9 @@ a form definition change. SmartVA classification keeps using the per-form
 ([SmartVA Generation Policy](smartva-generation-policy.md), "Per-Form
 Execution Options") — those flags and the resolved area presets can diverge
 (e.g. a form flagged `form_smartvahiv=True` in a district whose unit preset
-is `low`), and whether to align them is an open owner decision, not resolved
-here.
+is `low`). The owner decided (2026-09-29) not to align them: SmartVA keeps
+its per-form flags, and how SmartVA's own questionnaire handles HIV and
+malaria is to be checked separately (`digitva-cts`).
 
 ## Submission
 

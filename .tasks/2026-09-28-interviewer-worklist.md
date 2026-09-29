@@ -161,8 +161,8 @@ codes (`org_<level>_code`) stay server-injected at submission as today.
 
 Still open:
 
-5. **Refused:** terminal, or reopenable by a supervisor? (Proposed:
-   reopenable by a supervisor, audited.)
+5. **Refused** (owner, 2026-09-29): a supervisor may reopen a refused case;
+   the reopen is audited (who, when, reason).
 6. **Duplicate and cancel:** supervisor only, or also the owning interviewer?
    (Proposed: interviewer may flag, supervisor confirms.)
 7. **Two interviewers on one case at once** (owner, 2026-09-29): **first
@@ -193,9 +193,11 @@ Still open:
    or respondent unavailable. The case status follows this answer
    (refused / incomplete / complete) for the first-complete-submission rule.
    It lives in `digitva-extension.ts` under `digitva_core` (always on), after
-   WHO's closing note, so WHO's own structure is untouched. Still to confirm: and whether an incomplete or refused
-   submission enters coding at all (proposed: no — it stays with the case
-   until superseded or a supervisor closes the case). Implications to
+   WHO's closing note, so WHO's own structure is untouched. **Incomplete** (owner, 2026-09-29) is defined by that
+   DigitVA question: partially completed or respondent unavailable. **An
+   incomplete or refused submission does not enter coding** (owner,
+   2026-09-29): it stays with the case until a complete submission
+   supersedes it or a supervisor closes the case. Implications to
    design: (a) drafts must be storable on the device for offline work, which
    reverses today's rule that answers are never kept in the browser
    (docs/policy/web-intake.md, field-data-collection.md) — so encrypted on

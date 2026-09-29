@@ -234,15 +234,16 @@ stops an interview, so it never makes a project unready.
 The assessment is read-only. It never creates a site, a web form or a grant,
 and a project PI may run it only for the projects they manage.
 
-## Case worklist and interview states (baseline 2026-09-29; phases 2 and 3 built 2026-09-30)
+## Case worklist and interview states (baseline 2026-09-29; phases 2 to 4 built 2026-09-30)
 
 Decided by the owner on 2026-09-29 unless a line says otherwise; the
 decisions of 2026-09-30 are marked as such. Plan and
 phasing: `.tasks/2026-09-28-interviewer-worklist.md` (bead `digitva-vzk`).
 This section is a rule baseline; table and column design stays in the plan.
 Phases 2 and 3 (the case model, the transition service, direct start creates
-the case, the worklist API) are built; see "Built in phases 2 and 3" at the end
-of this section for the details they fixed. The rest is not built yet, and the
+the case, the worklist API) and phase 4 (the worklist page) are built; see
+"Built in phases 2 and 3" and "Built in phase 4" at the end of this section for
+the details they fixed. The rest is not built yet, and the
 "Baseline" bullets above (own drafts only, one author per draft, 409 for a
 second interviewer) remain the running behaviour until team drafts land.
 
@@ -563,8 +564,9 @@ browser-stored drafts, and no amendment to that policy.
 ### Phasing
 
 Plan phases: 1 prefill and death-list fixes; 2 case model and transition
-service; 3 direct start creates the case and one worklist API; 4 worklist UI
-and register form; 5 appointments, contact attempts, pause; 6 duplicate check
+service; 3 direct start creates the case and one worklist API; 4 worklist UI;
+5 appointments, contact attempts, pause, and the register form's structured
+address and validated phone; 6 duplicate check
 and supervisor resolution; 7 supervisor view. Offline capture is in no phase of
 this plan: it is native-app work under Path B. This baseline precedes phase 2.
 
@@ -655,6 +657,39 @@ Details the baseline left open, fixed by the implementation
   by last activity until phase 5 adds visit dates; its rows carry no informant
   name, phone or address.
 
+### Built in phase 4 (digitva-vzk.6, 2026-09-30)
+
+The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
+`app/static/js/intake/intake_worklist.js`) replaces the "My drafts" and
+"Registered deaths" lists. No schema change.
+
+- **One list** over `GET /intake/api/cases`: team cases by default, a **Mine
+  only** switch, tabs **To visit** (registered, scheduled, not reachable,
+  paused), **In progress** (in progress, details pending) and **Done**
+  (submitted, refused; duplicate and cancelled shown as **Closed**). Tab counts
+  come from the API's `counts`. Keyset **Load more** follows `next_cursor`.
+  The list spans every project-site of the caller's interviewer grants; the
+  project/site and unit pickers only steer **Register death** and **Start new
+  interview**, which show as `web_intake_mode` allows.
+- **Row:** case id, name (or "New interview" with a "Details pending" badge),
+  sex, age, date of death (a plain date, never shifted), unit, state badge,
+  last activity in the user's timezone, and a pending-flag badge.
+- **Primary action:** **Resume** opens the caller's own draft; otherwise
+  **Start** (registered, scheduled, paused, not reachable), **Restart**
+  (refused) or **Resume** (in progress, details pending) calls
+  `POST /intake/api/drafts` with the case. A second interviewer on a case
+  with someone else's draft still gets the 409 message until team drafts land.
+- **Secondary actions:** **Flag duplicate** (the kept case picked from cases in
+  scope of the same project, the 200 most recently active) and **Flag for
+  cancel** (reason required, 200 characters), both with the warning "No
+  names, phone numbers or addresses in the reason". Hidden while a flag is
+  pending.
+- **Browser storage:** only the chosen project/site, unit, tab and Mine switch;
+  no case data in storage or URLs (Path A).
+- **Not in phase 4:** the next visit date and **Log attempt** (phase 5, with
+  appointments), and the register form's structured address and validated
+  phone, moved to phase 5 so it ships with that phase's migration.
+
 ### Open design items (questions for the owner)
 
 - **Date of death unknown** (found building phase 3). A direct start whose
@@ -667,8 +702,8 @@ Details the baseline left open, fixed by the implementation
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native
   app. Of "Case worklist and interview states" above, the case state machine,
-  flags and the worklist API are built (phases 2 and 3); the worklist page,
-  team drafts, supervisor powers and views, contact attempts, the
+  flags and the worklist API (phases 2 and 3) and the worklist page (phase 4)
+  are built; team drafts, supervisor powers and views, contact attempts, the
   `interview_outcome` question, first-complete-submission and offline capture
   are **not implemented**. Offline capture is native-app work under Path B of
   [Field Data Collection Policy](field-data-collection.md) (no amendment

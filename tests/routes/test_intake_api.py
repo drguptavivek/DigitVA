@@ -143,6 +143,19 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(self.client.get("/intake/").status_code, 403)
         self.assertEqual(self.client.get("/intake/deaths/new").status_code, 403)
 
+    def test_dashboard_renders_one_worklist_instead_of_the_two_old_lists(self):
+        self._login(self.interviewer_id)
+        response = self.client.get("/intake/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        for marker in ('id="intake-worklist"', 'id="intake-tabs"', 'id="intake-mine"',
+                       'id="intake-load-more"', 'js/intake/intake_worklist.js',
+                       'id="intake-scope"', 'id="intake-new-death"', 'id="intake-new-direct"'):
+            self.assertIn(marker, html)
+        self.assertIn('data-user-tz="', html)
+        for gone in ('id="intake-drafts"', 'id="intake-deaths"', "My drafts", "Registered deaths"):
+            self.assertNotIn(gone, html)
+
     def test_pages_redirect_an_anonymous_visitor_to_login(self):
         response = self.client.get("/intake/")
         self.assertEqual(response.status_code, 302)

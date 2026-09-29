@@ -549,9 +549,15 @@ browser-stored drafts, and no amendment to that policy.
   reconciles. **Duplicate checks run on upload.**
 - The list shows "Submitted by <name>" when a teammate finished a case while
   the device was offline, and the offline copy's submit says so.
-- **Not decided** (see open items 6 and 18): what happens to a device draft
-  after a superseding submission, and how a per-interviewer device store
-  relates to the team's shared server draft.
+- **A device draft that arrives after a teammate's complete submission won**
+  (owner, 2026-09-30, item 6) is uploaded **automatically as a superseded
+  copy**, linked to the case and visible to supervisors; the interviewer is
+  told that a teammate already completed the case and their copy was saved as
+  a backup. Nothing is lost and nothing waits on the device.
+- **A device copy is that interviewer's own attempt** (owner, 2026-09-30,
+  item 18). It reaches the server as its own submission under
+  first-complete-wins and is **never merged** into the team's shared server
+  draft.
 
 ### Phasing
 
@@ -609,21 +615,10 @@ Recorded above; removed from the open list.
 
 ### Open design items (questions for the owner)
 
-Numbering is stable: items 8 to 17 and the offline items 2, 3, 4, 5 and 7 were
-decided on 2026-09-30 and moved to "Decided 2026-09-30" above. Item 6 remains
-open; item 18 is new (numbered 18 so no earlier number is reused).
-
-6. **Device draft after a superseding submission.** When a teammate's
-   complete submission wins while a device is offline, what happens to that
-   device's unsent draft: is it uploaded as a superseded copy, kept on the
-   device until the interviewer reviews it, or discarded? Who is told what, and
-   when?
-18. **Device store versus the shared server draft.** Path B keeps one encrypted
-   store per interviewer, while the worklist makes the server draft shared
-   across the team. Assumption, for owner confirmation: the device holds that
-   interviewer's own copy of a case, which is that interviewer's own attempt
-   and reaches the server as its own submission under first-complete-wins; it
-   is never merged into the shared draft. Is that right?
+None. Every design question in this baseline is decided; the last two (item 6,
+device draft after a superseding submission, and item 18, device store versus
+the shared server draft) were decided on 2026-09-30 in "Offline capture". New
+questions found while building go here.
 
 ## Not yet implemented
 

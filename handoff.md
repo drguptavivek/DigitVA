@@ -47,10 +47,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    virtual authenticator passes end to end on dev.
 3. `digitva-vzk` worklist epic: policy baseline written and committed in
    `docs/policy/web-intake.md` (plan and decisions in
-   `.tasks/2026-09-28-interviewer-worklist.md`). All design questions are
-   decided except offline capture (open items 2-7; offline is in no phase
-   and contradicts `docs/policy/field-data-collection.md` Path A, which must
-   be amended in the change that builds it). Decided 2026-09-30: incomplete
+   `.tasks/2026-09-28-interviewer-worklist.md`). Every design question is
+   decided. Offline capture is native-app work under Path B (no change to
+   `docs/policy/field-data-collection.md`; the browser page stays online-only)
+   and is in no phase of the plan. Decided 2026-09-30: incomplete
    outcomes set the case state (no new state); refused is soft; a confirmed
    duplicate is excluded at case level through one shared predicate;
    supervisors are a new unit-scoped `interview_supervisor` grant with a

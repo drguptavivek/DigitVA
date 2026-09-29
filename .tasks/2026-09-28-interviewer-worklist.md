@@ -225,10 +225,12 @@ Decided 2026-09-30 (owner):
 7a. **Offline runs in the native app only**, under Path B as written. This
     answers open items 2 (keys), 3 (storage bounds: no ceiling, C3, "bounded"
     dropped), 4 (no expiry), 5 (wipe on logout and revocation, own store only)
-    and 7 (where offline runs). Still open: 6 (device draft after a
-    superseding submission) and 18 (device store versus shared server draft;
-    assumption: the device copy is the interviewer's own attempt, submitted as
-    its own submission, never merged; owner to confirm).
+    and 7 (where offline runs). Also decided (2026-09-30): 6 (a device draft
+    that arrives after a teammate's complete submission won is uploaded
+    automatically as a superseded copy, and the interviewer is told) and 18
+    (the device copy is the interviewer's own attempt, submitted as its own
+    submission, never merged into the shared draft). No design question is
+    open.
 
 8. **Incomplete submissions: no new state.** `interview_outcome` sets the case
    state: partially completed -> `paused`; respondent unavailable ->

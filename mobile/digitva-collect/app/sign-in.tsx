@@ -25,7 +25,8 @@ export default function SignIn() {
     try {
       const account = await signIn(email.trim(), password, needsOtp ? otp.trim() : undefined);
       await reload();
-      router.replace({ pathname: "/worklist", params: { userId: account.user_id } });
+      // Unlock sends an interviewer without a PIN yet to PIN setup.
+      router.replace({ pathname: "/unlock", params: { userId: account.user_id } });
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "second_factor_required") setNeedsOtp(true);
       if (caught instanceof ApiError && caught.code === "device_revoked") {

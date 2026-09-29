@@ -254,7 +254,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     return (
       <View
         ref={railRef}
-        accessibilityRole="navigation"
+        role="navigation"
         aria-label={messages.sections}
         style={navStyles.rail}
         testID="section-rail"

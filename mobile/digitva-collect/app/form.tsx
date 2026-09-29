@@ -19,7 +19,7 @@ import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useAppState } from "../src/AppState";
 import { createDraftStore, getDraftRow, getMeta, markCompleted, type Db } from "../src/drafts";
 import { t } from "../src/i18n";
-import { openInterviewerDb } from "../src/interviewerDb";
+import { isUnlocked, openInterviewerDb } from "../src/interviewerDb";
 import { platformServices } from "../src/platform";
 import { isUploadable, translationsFor, type Bootstrap } from "../src/sync";
 import { applyTranslations } from "../src/translations";
@@ -37,7 +37,7 @@ interface Loaded {
 export default function Form() {
   const router = useRouter();
   const params = useLocalSearchParams<{ userId: string; draftId: string; siteId?: string; orgUnitId?: string }>();
-  const { accounts } = useAppState();
+  const { accounts, activity, onBeforeLock } = useAppState();
   const account = accounts.find((a) => a.user_id === params.userId);
   const draftId = UUID.test(params.draftId ?? "") ? params.draftId : undefined;
   const [loaded, setLoaded] = useState<Loaded | undefined>();
@@ -51,7 +51,8 @@ export default function Form() {
     if (!account || !draftId) return;
     let active = true;
     void (async () => {
-      const db = await openInterviewerDb(account.user_id);
+      const db = await openInterviewerDb(account.user_id).catch(() => undefined);
+      if (!db) return;
       const [row, bootstrap] = await Promise.all([getDraftRow(db, draftId), getMeta<Bootstrap>(db, "bootstrap")]);
       if (!active) return;
       if (row?.completed) {
@@ -98,12 +99,29 @@ export default function Form() {
     return () => subscription.remove();
   }, []);
 
-  const draftStore = useMemo(
-    () => (loaded ? createDraftStore(loaded.db, { siteId: loaded.siteId, orgUnitId: loaded.orgUnitId }) : undefined),
-    [loaded]
+  // Locking saves the open draft before the database closes.
+  useEffect(
+    () => onBeforeLock(async () => void (await controller.current?.saveDraft())),
+    [onBeforeLock]
   );
 
+  // Autosaves count as activity, so typing a long answer never trips the idle lock.
+  const draftStore = useMemo(() => {
+    if (!loaded) return undefined;
+    const store = createDraftStore(loaded.db, { siteId: loaded.siteId, orgUnitId: loaded.orgUnitId });
+    return {
+      ...store,
+      save: (draft: Parameters<typeof store.save>[0]) => {
+        activity();
+        return store.save(draft);
+      }
+    };
+  }, [loaded, activity]);
+
   if (!account || !draftId) return <Redirect href="/" />;
+  if (!isUnlocked(account.user_id)) {
+    return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
+  }
   if (!loaded || !instrument || !draftStore) return <ActivityIndicator style={{ flex: 1 }} />;
 
   async function leave() {

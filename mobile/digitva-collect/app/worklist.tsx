@@ -1,6 +1,7 @@
 /**
  * One interviewer's in-flight interviews, "New interview" (site/unit from the
- * cached bootstrap), send completed interviews, and sign out.
+ * cached bootstrap), send completed interviews, lock, and sign out. Reached
+ * only while the interviewer's store is unlocked.
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -11,14 +12,14 @@ import { useAppState } from "../src/AppState";
 import { SessionRevokedError, SignInRequiredError, signOut } from "../src/auth";
 import { getMeta, listDrafts, type Db, type DraftRow } from "../src/drafts";
 import { t } from "../src/i18n";
-import { openInterviewerDb } from "../src/interviewerDb";
+import { isUnlocked, openInterviewerDb } from "../src/interviewerDb";
 import { refreshBootstrap, syncInterviewer, targetsFrom, type Bootstrap, type Units } from "../src/sync";
 import { Button, errorText, Row, Screen, styles } from "../src/ui";
 
 export default function Worklist() {
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
-  const { accounts, reload } = useAppState();
+  const { accounts, reload, lockNow } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -48,8 +49,8 @@ export default function Worklist() {
       if (!account) return;
       let active = true;
       void (async () => {
-        const handle = await openInterviewerDb(account.user_id);
-        if (!active) return;
+        const handle = await openInterviewerDb(account.user_id).catch(() => undefined);
+        if (!active || !handle) return;
         setDb(handle);
         setDrafts(await listDrafts(handle));
         const cached = await getMeta<Bootstrap>(handle, "bootstrap");
@@ -75,6 +76,9 @@ export default function Worklist() {
   );
 
   if (!account) return <Redirect href="/" />;
+  if (!isUnlocked(account.user_id)) {
+    return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
+  }
 
   async function refresh() {
     if (!db || !account) return;
@@ -179,6 +183,7 @@ export default function Worklist() {
       {message ? <Text style={styles.text}>{message}</Text> : null}
       <Row>
         <Button kind="secondary" label={t("home")} onPress={() => router.replace("/")} />
+        <Button kind="secondary" label={t("lockNow")} disabled={busy} onPress={() => void lockNow()} />
         <Button kind="danger" label={t("signOut")} disabled={busy} onPress={confirmSignOut} />
       </Row>
     </Screen>

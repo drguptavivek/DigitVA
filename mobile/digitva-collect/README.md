@@ -4,12 +4,11 @@ Offline WHO VA 2022 collection app for Path B of
 `docs/policy/field-data-collection.md`. Design and API contract:
 `.tasks/2026-09-30-android-collection-app.md` (epic `digitva-kmk`).
 
-> **Debug builds must not collect real interviews.** Phase 2a stores drafts
-> in plain, unencrypted SQLite and has no PIN or biometric lock; a debug APK
-> is signed with a well-known key. Point it at a non-production DigitVA only.
-> Encryption, PIN and lock arrive in phase 2b.
+> **Debug builds must not collect real interviews.** A debug APK is signed
+> with a well-known key and loads its JavaScript from Metro. Point it at a
+> non-production DigitVA only.
 
-## What it does (phase 2a)
+## What it does
 
 - **Enrol**: scan the one-time QR from the project's Setup home, Devices
   (or paste its JSON in a debug build). The server must be on the allowlist
@@ -21,7 +20,28 @@ Offline WHO VA 2022 collection app for Path B of
   display names only. Tokens live in SecureStore per interviewer; the access
   token refreshes with rotation (the refresh also carries the device id and
   secret), one refresh in flight per interviewer.
-- **Drafts**: each interviewer has their own SQLite file (`iv_<sha256>.db`),
+- **PIN and encryption** (phase 2b): after an interviewer's first sign-in on
+  the device they set a PIN (6 to 16 digits, confirmed). A random 32-byte
+  store secret goes into SecureStore; the SQLCipher passphrase is
+  `hex(secret) + ":" + PIN` (`src/vault.ts`), applied with `PRAGMA key` and
+  proved with a read. Phase-2a plaintext files are deleted at PIN setup (no
+  real data existed). Optional biometric unlock keeps the PIN in a SecureStore
+  entry with `requireAuthentication` under its own Keystore alias; a new
+  biometric enrolment invalidates it and the PIN takes over. The PIN always
+  works.
+- **Failed PINs**: counted in SecureStore before each try, cleared on
+  success; a warning from the third, and the fifth in a row deletes that
+  interviewer's database, keys and tokens and ends their server session.
+  Other interviewers are untouched.
+- **Lock**: unlocked handles live only in memory (`src/interviewerDb.ts`).
+  Auto-lock after 5 idle minutes or on return after over 1 minute in the
+  background (`src/autoLock.ts`); **Lock now** on the worklist. Locking saves
+  the open form's draft, closes every database and returns home, which shows
+  each account's name and Locked/Unlocked only.
+- **Secure screens**: `FLAG_SECURE` on the whole app. A debug build started
+  with `EXPO_PUBLIC_ALLOW_SCREENSHOTS=1 npx expo start` skips it for emulator
+  screenshots; release builds always set it.
+- **Drafts**: each interviewer has their own SQLCipher file (`iv_<sha256>.db`),
   opened in `src/interviewerDb.ts`; the form writes through a `draftStore`
   over it (`src/drafts.ts`). Attachments are disabled. New-interview choices
   come from `/api/v1/device/units` and form languages from
@@ -36,7 +56,7 @@ Offline WHO VA 2022 collection app for Path B of
   local copy is deleted when the server answers 201 or 200 (push and purge).
   The remaining count and draft ids are then reported to `/outstanding`.
 - **Sign out** warns about unsent interviews, then deletes that
-  interviewer's database and tokens. A `401 session_revoked` does the same
+  interviewer's database, store secret, PIN counter, biometric entry and tokens. A `401 session_revoked` does the same
   without asking. Any other refused refresh (`refresh_reused`,
   `409 refresh_retry_race`, `session_expired`, `refresh_invalid`,
   `device_invalid`) only marks the account "sign in again" and keeps its
@@ -88,8 +108,17 @@ npx tsc --noEmit
 npx jest
 ```
 
-## Phase 2b changes
+## Enrolment code from a shell (dev)
 
-- `src/interviewerDb.ts`: open with SQLCipher, keyed from the per-store
-  secret joined with the PIN; nothing else changes.
-- PIN and biometric unlock, auto-lock, `FLAG_SECURE`, wipe after failed PINs.
+```sh
+docker compose exec -T -e DEVICE_PUBLIC_URL=http://10.0.2.2:8051 minerva_app_service \
+  uv run --no-sync flask devices create-enrolment-code --project <id> --actor <admin email>
+```
+
+Prints the QR payload JSON to paste into the debug enrol box.
+
+## Needs a real device
+
+Biometric enforcement: emulators do not require the biometric to release a
+`requireAuthentication` entry, and `canUseBiometricAuthentication()` is false
+on a stock emulator, so the biometric offer never shows there.

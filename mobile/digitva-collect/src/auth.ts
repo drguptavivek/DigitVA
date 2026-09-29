@@ -11,12 +11,14 @@
  * refresh_retry_race`, `session_expired`, `refresh_invalid`,
  * `device_invalid`) drops the dead tokens and marks the account "sign in
  * again", keeping its data; offline and 5xx keep everything. Unsent
- * interviews wait for the next sign-in.
+ * interviews wait for the next sign-in. A wipe (sign-out, `session_revoked`,
+ * five wrong PINs) removes the database file, its store secret, PIN
+ * counter and biometric entry, the tokens and the account entry.
  */
 import * as SecureStore from "expo-secure-store";
 
 import { ApiError, DEVICE_API, requestJson } from "./api";
-import { deleteInterviewerDb } from "./interviewerDb";
+import { deleteInterviewerDb, unlockInterviewerDb, type UnlockResult } from "./interviewerDb";
 
 export interface Device {
   device_id: string;
@@ -167,6 +169,18 @@ export async function signOut(userId: string): Promise<void> {
     // Offline or already revoked: the local wipe still happens.
   }
   await wipeInterviewer(userId);
+}
+
+/**
+ * Try the interviewer's PIN. After the fifth wrong PIN in a row their store
+ * and keys are already deleted (src/interviewerDb.ts); this then ends the
+ * server session (best effort) and drops their tokens and account entry.
+ * Nobody else's data is touched.
+ */
+export async function unlockInterviewer(userId: string, pin: string): Promise<UnlockResult> {
+  const result = await unlockInterviewerDb(userId, pin);
+  if (!result.ok && result.wipe) await signOut(userId);
+  return result;
 }
 
 // One refresh in flight per interviewer. Two concurrent 401s must not both

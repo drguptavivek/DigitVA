@@ -323,6 +323,9 @@ def create_app(config_class=None):
     from app.commands.web_intake import init_app as init_web_intake_commands
     init_web_intake_commands(app)
 
+    from app.commands.devices import init_app as init_device_commands
+    init_device_commands(app)
+
     from app.commands.schema_drift import init_app as init_schema_drift_commands
     init_schema_drift_commands(app)
 

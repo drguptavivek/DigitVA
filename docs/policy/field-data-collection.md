@@ -153,9 +153,17 @@ enrolment codes are admin-only; both stay owner decisions.
 per-interviewer plain SQLite drafts, upload gated on the form's verdict or an
 incomplete interview outcome, push and purge, wipe only on `session_revoked`
 (other refusals mark the account "sign in again"), units and translations
-from the device API. **Not built** (phase 2b): encryption at rest, PIN,
-biometric, auto-lock, secure screens, failed-PIN wipe; until then debug
-builds must not collect real interviews.
+from the device API.
+
+**Built, app phase 2b** (2026-09-30): each interviewer's drafts are a
+SQLCipher database keyed by a random Keystore-held secret joined with a PIN
+of 6-16 digits; optional biometric unlock releases the PIN from a Keystore
+entry that needs a strong biometric; five wrong PINs in a row wipe that
+interviewer's store and end the server session; the app locks after 5 idle
+minutes or over a minute in the background, saving the open draft first;
+FLAG_SECURE covers every screen. Checked on the emulator (encrypted file,
+lock, PIN counter, wipe); biometric enforcement needs a real device. Builds
+stay debug-only and must not collect real interviews until C4 is settled.
 
 ### Accepted risk: no retention ceiling
 

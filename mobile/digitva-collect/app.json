@@ -12,7 +12,12 @@
       "expo-router",
       "expo-localization",
       "expo-secure-store",
-      "expo-sqlite",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
       [
         "expo-camera",
         {

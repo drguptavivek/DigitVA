@@ -34,8 +34,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    first passkey is registered); run `make ensure-secrets` (or `make prod`)
    and back up `.env` (`AUTH_FACTOR_ENCRYPTION_KEY` protects TOTP secrets);
    rebuild images (new deps: webauthn, pyotp, segno); run migrations
-   `c1d5e9a2f7b4` (auth factor tables) and `b1f4d8a6c9e2` (district VA
-   presets). Then the ingress switch, `COMPOSE_PROFILES=icd11`,
+   `c1d5e9a2f7b4` (auth factor tables), `b1f4d8a6c9e2` (district VA
+   presets), `d3a9c5e1f7b2` (ICD-11 owner decision 20) and `a7c3e9f1b5d2`
+   (ICD-11 coding policy), then `flask analytics refresh-submission-mv`. Then the ingress switch, `COMPOSE_PROFILES=icd11`,
    `DORIS_PUBLIC_COOKIE_SECURE=true` and the checks in the bead. Set
    `AUTH_FACTOR_ENFORCE_FROM` (launch + 30 days) when the owner announces the
    passkey/TOTP rollout. Login changes ship with it: two-step login,

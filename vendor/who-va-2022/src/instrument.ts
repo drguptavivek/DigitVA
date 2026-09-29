@@ -9,7 +9,8 @@ import {
   DORIS_SUPPORT_EXTENSION,
   createConsentModeQuestion,
   createDigitVaExtension,
-  createDorisSupportExtension
+  createDorisSupportExtension,
+  createInterviewOutcome
 } from "./digitva-extension.js";
 
 import type { InstrumentDefinition, InstrumentQuestion, InstrumentSection } from "./types.js";
@@ -20,7 +21,8 @@ const generated = generatedInstrument as InstrumentDefinition;
  * Compose the WHO VA 2022 instrument plus DigitVA's own additions, gating
  * each layer's questions on the extension names a project has enabled (see
  * docs/policy/va-form-project-configuration.md). `digitva_core` content —
- * the medical-certificate upload and the consent-mode question — is always
+ * the medical-certificate upload, the consent-mode question and the closing
+ * `interview_outcome` — is always
  * included: it does not depend on `enabledExtensions`.
  *
  * `options.whoOverrides: false` keeps every WHO question as WHO wrote it
@@ -138,12 +140,19 @@ export function createWhoVa2022Instrument(
     ...digitva.socialAutopsyQuestions
   ];
 
+  const composed = enabled.has(DORIS_SUPPORT_EXTENSION)
+    ? withDorisSupport(questions, sections, options.whoOverrides ?? true)
+    : questions;
+
+  // digitva_core: interview_outcome closes the form, after WHO's closing note
+  // and every layer, numbered past everything so its section sorts last.
+  const outcome = createInterviewOutcome(
+    Math.max(...composed.map((q) => q.order), ...sections.map((s) => s.order))
+  );
   return {
     ...generated,
-    sections,
-    questions: enabled.has(DORIS_SUPPORT_EXTENSION)
-      ? withDorisSupport(questions, sections, options.whoOverrides ?? true)
-      : questions
+    sections: [...sections, outcome.section],
+    questions: [...composed, outcome.question]
   };
 }
 

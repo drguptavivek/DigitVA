@@ -698,6 +698,53 @@ export function createConsentModeQuestion(order: number, sectionPath: string[]):
   });
 }
 
+/** Section holding `interview_outcome`: top-level, no relevance, always last. */
+export const DIGITVA_OUTCOME_SECTION = "digitva_outcome";
+
+/** `interview_outcome` values; the server keys case state off these (docs/policy/web-intake.md). */
+export const INTERVIEW_OUTCOMES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "completed", label: "Completed" },
+  { value: "partially_completed", label: "Partially completed" },
+  { value: "refused", label: "Refused" },
+  { value: "respondent_unavailable", label: "Respondent unavailable" }
+];
+
+/**
+ * digitva_core: how the interview ended. The engine has no calculated-but-
+ * editable answer (a `calculation` overwrites the answer on every change) and
+ * cannot express "every required question answered", so this is an ordinary
+ * optional choice; DigitVA's server sets the stored value on submit
+ * (`refused` when Id10013 = no, `completed` when the form is valid, otherwise
+ * the interviewer's pick). Its own top-level section, not WHO's `consented`
+ * group, so it stays relevant after a refusal.
+ */
+export function createInterviewOutcome(order: number): { section: InstrumentSection; question: InstrumentQuestion } {
+  return {
+    section: {
+      name: DIGITVA_OUTCOME_SECTION,
+      sourceRow: 0,
+      order,
+      label: { en: "Interview outcome" },
+      ageGroup: "ALL"
+    },
+    question: base("interview_outcome", order + 1, [DIGITVA_OUTCOME_SECTION], "Outcome of the interview", {
+      sourceType: "select_one INTERVIEW_OUTCOME",
+      control: "singleChoice",
+      listName: "INTERVIEW_OUTCOME",
+      choices: choices(INTERVIEW_OUTCOMES),
+      hint: {
+        en: "Set on submit: Refused when consent was not given, Completed when every required question is answered. Otherwise choose Partially completed or Respondent unavailable."
+      },
+      validation: {
+        required: false,
+        dataType: "string",
+        constraintMessage: {},
+        choiceValues: INTERVIEW_OUTCOMES.map((item) => item.value)
+      }
+    })
+  };
+}
+
 /**
  * Build the DigitVA layer questions, numbered after `startOrder`, under the
  * given parent section, for the extensions named in `enabledExtensions`.

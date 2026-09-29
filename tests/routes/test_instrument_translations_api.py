@@ -496,8 +496,10 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         # display text: the audit trail, two calculated-only fields) plus the
         # DigitVA layer's 99 questions/sections and 15 choice lists that no
         # question can be linked to as owner (digitva-8go follow-up; the
-        # doris_support_whova_2022 layer added 19 questions and 5 lists).
-        self.assertEqual(payload["total"], 560)
+        # doris_support_whova_2022 layer added 19 questions and 5 lists;
+        # digitva_core's interview_outcome one section, one question and one
+        # list, digitva-vzk.2).
+        self.assertEqual(payload["total"], 563)
 
     def test_layer_questions_appear_after_every_base_question(self):
         """digitva-8go follow-up: the layers were missing entirely at first,
@@ -509,7 +511,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
                 self._api(f"/questions?page_size=200&page={page}")
             ).get_json()
             all_items.extend(payload["items"])
-        self.assertEqual(len(all_items), 560)
+        self.assertEqual(len(all_items), 563)
 
         by_name = {item["name"]: item for item in all_items}
         for name in ("consent_mode", "abha_number", "socialautopsy", "sa01"):
@@ -958,7 +960,10 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200, response.get_json())
         report = response.get_json()["report"]
-        self.assertGreaterEqual(report["label_coverage"], 0.95)
+        # 0.94, not 0.95: the ND01 workbook predates digitva_core's
+        # interview_outcome (digitva-vzk.2), whose two labels it cannot carry
+        # (548 of 577 labels, was 548 of 575).
+        self.assertGreaterEqual(report["label_coverage"], 0.94)
         self.assertFalse(report["demoted"])
         self.assertNotIn("activated", report)
         self.assertGreater(report["written"], 400)

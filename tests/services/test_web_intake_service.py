@@ -7,6 +7,7 @@ Covers the rules the web intake path owns (docs/policy/web-intake.md):
   - drafts save section-wise and reassemble into the package's envelope
   - submitting a draft creates a ``va_submissions`` row with an active payload
     version and lands in ``smartva_pending`` when consent is valid
+  - ``interview_outcome`` sets the case state; only ``completed`` enters coding
   - the web ``va_forms`` row is never enumerated by ODK runtime form sync
 """
 import uuid
@@ -16,6 +17,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapCaseTransition,
     MapProjectSiteOdk,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -38,7 +40,7 @@ from app.services.runtime_form_sync_service import (
     ensure_web_runtime_form,
     sync_runtime_forms_from_site_mappings,
 )
-from app.services.workflow.definition import WORKFLOW_SMARTVA_PENDING
+from app.services.workflow.definition import WORKFLOW_CONSENT_REFUSED, WORKFLOW_SMARTVA_PENDING
 from app.services.workflow.state_store import get_submission_workflow_state
 from tests.base import BaseTestCase
 
@@ -358,7 +360,11 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.prefill["deceased"]["surname"], "Devi")
         self.assertEqual(draft.prefill["deceased"]["sex"], "female")
         self.assertEqual(draft.prefill["answers"]["abha_number"], "12345678901234")
-        self.assertEqual(draft.prefill["lockedQuestionNames"], ["abha_number"])
+        # Besides the interviewer's own questions (digitva-vzk.3), only ABHA.
+        self.assertEqual(
+            set(draft.prefill["lockedQuestionNames"]) - {"Id10010", "Id10010a", "Id10010b", "Id10010c"},
+            {"abha_number"},
+        )
 
     def test_prefill_never_sends_both_date_and_year_of_death(self):
         """digitva-dyk: vendor/who-va-2022/src/prefill.ts throws when both
@@ -749,6 +755,114 @@ class WebIntakeServiceTests(BaseTestCase):
         intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
             intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
+        self.assertEqual(ctx.exception.status_code, 409)
+
+    # -- interview_outcome (decision 8) --------------------------------------
+
+    def _submit_for_new_draft(self, death, completion):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            death_id=death.death_id,
+        )
+        submission = intake_svc.submit_draft(draft, self.interviewer, completion=completion)
+        return draft, submission
+
+    def _stored_outcome(self, submission):
+        version = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == submission.va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
+        return version.payload_data.get("interview_outcome")
+
+    def test_a_valid_form_is_completed_whatever_the_interviewer_picked(self):
+        death = self._register_death()
+        _draft, submission = self._submit_for_new_draft(
+            death, self._completion(data={"interview_outcome": "partially_completed"})
+        )
+        self.assertEqual(self._stored_outcome(submission), "completed")
+        self.assertEqual(death.status, "submitted")
+        self.assertEqual(death.va_sid, submission.va_sid)
+        self.assertEqual(get_submission_workflow_state(submission.va_sid), WORKFLOW_SMARTVA_PENDING)
+
+    def test_consent_no_is_refused_kept_out_of_coding_and_leaves_the_case_open(self):
+        death = self._register_death()
+        # Consent no: the rest of the form is irrelevant, validity is not required.
+        draft, submission = self._submit_for_new_draft(
+            death, self._completion(valid=False, data={"Id10013": "no", "interview_outcome": "completed"})
+        )
+        self.assertEqual(self._stored_outcome(submission), "refused")
+        self.assertEqual(submission.va_consent, "no")
+        self.assertEqual(death.status, "refused")
+        self.assertIsNone(death.va_sid)
+        self.assertEqual(draft.va_sid, submission.va_sid)
+        self.assertFalse(draft.client_valid)
+        self.assertEqual(get_submission_workflow_state(submission.va_sid), WORKFLOW_CONSENT_REFUSED)
+
+    def test_incomplete_outcomes_are_stored_kept_out_of_coding_and_set_the_waiting_state(self):
+        for outcome, case_state in (
+            ("partially_completed", "paused"),
+            ("respondent_unavailable", "not_reachable"),
+        ):
+            with self.subTest(outcome=outcome):
+                death = self._register_death()
+                _draft, submission = self._submit_for_new_draft(
+                    death, self._completion(valid=False, data={"interview_outcome": outcome})
+                )
+                self.assertIsNotNone(db.session.get(VaSubmissions, submission.va_sid))
+                self.assertEqual(self._stored_outcome(submission), outcome)
+                self.assertEqual(death.status, case_state)
+                self.assertIsNone(death.va_sid)
+                self.assertEqual(
+                    get_submission_workflow_state(submission.va_sid), WORKFLOW_CONSENT_REFUSED
+                )
+                action = db.session.scalar(
+                    sa.select(MapCaseTransition.action)
+                    .where(MapCaseTransition.death_id == death.death_id,
+                           MapCaseTransition.to_state == case_state)
+                    .order_by(MapCaseTransition.created_at.desc())
+                    .limit(1)
+                )
+                self.assertEqual(action, f"submitted_{outcome}")
+
+    def test_an_invalid_form_needs_an_incomplete_outcome(self):
+        death = self._register_death()
+        for picked in (None, "completed", "refused", "bogus"):
+            with self.subTest(picked=picked):
+                draft = intake_svc.start_draft(
+                    self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+                    death_id=death.death_id,
+                )
+                with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+                    intake_svc.submit_draft(
+                        draft, self.interviewer,
+                        completion=self._completion(valid=False, data={"interview_outcome": picked}),
+                    )
+                self.assertEqual(ctx.exception.status_code, 422)
+                self.assertEqual(draft.status, "draft")
+
+    def test_a_later_complete_submission_wins_over_a_refusal_and_an_incomplete_one(self):
+        death = self._register_death()
+        _d, refused = self._submit_for_new_draft(death, self._completion(data={"Id10013": "no"}))
+        # The web form's own refusal path: consent no validates, so valid is true.
+        self.assertEqual(death.status, "refused")
+        self.assertEqual(self._stored_outcome(refused), "refused")
+        _d, partial = self._submit_for_new_draft(
+            death, self._completion(valid=False, data={"interview_outcome": "partially_completed"})
+        )
+        self.assertEqual(death.status, "paused")
+        _d, complete = self._submit_for_new_draft(death, self._completion())
+        self.assertEqual(death.status, "submitted")
+        self.assertEqual(death.va_sid, complete.va_sid)
+        # The earlier submissions are kept, still outside coding.
+        for superseded in (refused, partial):
+            self.assertEqual(
+                get_submission_workflow_state(superseded.va_sid), WORKFLOW_CONSENT_REFUSED
+            )
+        # First complete submission wins: the case is closed to another one.
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            self._submit_for_new_draft(death, self._completion())
         self.assertEqual(ctx.exception.status_code, 409)
 
     # -- the locale a draft was filled in -----------------------------------

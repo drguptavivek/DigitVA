@@ -172,8 +172,10 @@ describe("section stepper", () => {
     expect(element.querySelector('[data-testid="section-rail"]')).not.toBeNull();
     expect(element.querySelector('[data-testid="section-drawer-toggle"]')).toBeNull();
     const items = element.querySelectorAll('[data-testid="section-slider-item"]');
-    expect(items).toHaveLength(3);
+    // Three WHO sections before consent, plus DigitVA's always-relevant interview outcome.
+    expect(items).toHaveLength(4);
     expect(items[0]?.getAttribute("aria-label")).toBe("1. VA interviewer");
+    expect(items[3]?.getAttribute("aria-label")).toBe("4. Interview outcome");
     expect(element.textContent).toContain("More sections appear as you answer");
     element.setData({
       Id10013: "yes",

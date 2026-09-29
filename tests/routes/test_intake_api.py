@@ -472,6 +472,29 @@ class IntakeApiTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 422)
 
+    def test_an_incomplete_interview_is_stored_and_the_case_waits(self):
+        """Decision 8: an invalid form with an incomplete interview_outcome and
+        the minimum identity is accepted; the case goes to not_reachable."""
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        response = self.client.post(
+            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            json={"completion": {"valid": False, "data": {
+                "Id10013": "yes",
+                "Id10017": "Bina",
+                "Id10018": "Sahu",
+                "Id10019": "female",
+                "Id10023": (date.today() - timedelta(days=5)).isoformat(),
+                "interview_outcome": "respondent_unavailable",
+            }}},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertIsNotNone(db.session.get(VaSubmissions, response.get_json()["va_sid"]))
+        case = db.session.get(VaDeathRegister, draft["death_id"])
+        self.assertEqual(case.status, "not_reachable")
+        self.assertIsNone(case.va_sid)
+
     def test_a_rejected_registration_leaves_nothing_behind(self):
         self._login(self.interviewer_id)
         before = db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister))

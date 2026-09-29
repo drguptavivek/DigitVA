@@ -105,6 +105,9 @@ class VaDeathRegister(db.Model):
     address_village_ward: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address_landmark: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     informant_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    # Parents' names (PII), optional; prefill WHO Id10061 / Id10062.
+    father_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    mother_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     # Indian mobile numbers, stored as 10 digits (older rows may hold free text).
     informant_phone: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
     informant_phone_2: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)

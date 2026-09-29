@@ -39,6 +39,7 @@ from app.models import (
     VaWebIntakeDraft,
     VaWebIntakeDraftSection,
 )
+from app.models.va_users import USER_SEX_VALUES
 from app.models.va_web_intake import (
     CASE_STATES,
     CONTACT_OUTCOMES,
@@ -497,6 +498,8 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         address_village_ward=_clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
         address_landmark=_clean(fields.get("address_landmark"), what="Landmark", max_len=200),
         informant_name=_clean(fields.get("informant_name"), what="Informant name"),
+        father_name=_clean(fields.get("father_name"), what="Father's name", max_len=200),
+        mother_name=_clean(fields.get("mother_name"), what="Mother's name", max_len=200),
         informant_phone=_clean_phone(fields.get("informant_phone"), what="Informant phone"),
         informant_phone_2=_clean_phone(fields.get("informant_phone_2"), what="Second phone"),
         remarks=_clean(fields.get("remarks"), what="Remarks"),
@@ -706,16 +709,122 @@ def pause_interview(user: VaUsers, death_id: object, *, reason: str,
 # ---------------------------------------------------------------------------
 
 
+#: Id10010's own constraint (letters and spaces). A locked answer that fails
+#: its constraint would trap the interviewer, so a name outside it stays editable.
+_INTERVIEWER_NAME_RE = re.compile(r"[A-Za-z ]+")
+#: Id10010a's WHO convention for "prefer not to disclose"; the constraint is
+#: ``(. >= 18 and . < 90) or . = 99``.
+INTERVIEWER_AGE_UNDISCLOSED = 99
+
+#: Id10058 choices matched exactly, by value or English label.
+_PLACE_OF_DEATH_CHOICES = {
+    "hospital": "hospital",
+    "other health facility": "other_health_facility",
+    "home": "home",
+    "on route to hospital or facility": "on_route_to_hospital_or_facility",
+    "other": "other",
+}
+#: Then keywords, in this order: "on the way to hospital" is en route, not a
+#: hospital; "nursing home" is a facility, not home.
+_PLACE_OF_DEATH_KEYWORDS = (
+    ("on_route_to_hospital_or_facility", ("route", "on the way", "transit", "ambulance")),
+    ("other_health_facility", ("phc", "chc", "health centre", "health center", "sub centre", "subcentre",
+                               "clinic", "dispensary", "nursing home", "facility")),
+    ("hospital", ("hospital",)),
+    ("home", ("home", "house", "residence")),
+)
+
+
+def _who_place_of_death(text: str | None) -> str | None:
+    """The Id10058 choice for a free-text register ``place_of_death``, or None
+    when nothing matches with confidence (the question is then left unasked
+    -- never defaulted to ``other``, since it is a coding input)."""
+    value = " ".join((text or "").lower().replace("_", " ").split())
+    if not value:
+        return None
+    if value in _PLACE_OF_DEATH_CHOICES:
+        return _PLACE_OF_DEATH_CHOICES[value]
+    for choice, words in _PLACE_OF_DEATH_KEYWORDS:
+        if any(word in value for word in words):
+            return choice
+    return None
+
+
+def _interviewer_age(user: VaUsers, at: datetime) -> int:
+    """Id10010a: the interview year (in the user's timezone) minus the
+    profile year of birth; 99 when no year is set or the age falls outside
+    the WHO constraint (18 to 89)."""
+    if user.year_of_birth is None:
+        return INTERVIEWER_AGE_UNDISCLOSED
+    age = _expression_now(user, at).year - user.year_of_birth
+    return age if 18 <= age < 90 else INTERVIEWER_AGE_UNDISCLOSED
+
+
+def _org_path_names(org_unit_id: uuid.UUID | None) -> list[str]:
+    """Unit names from the tree root down to the unit (active units only),
+    e.g. ["India", "Himachal Pradesh", "Solan", "Kandaghat"]. One query."""
+    unit = db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None
+    if unit is None:
+        return []
+    return [row["unit_name"] for row in org.list_units_by_codes(unit.project_id, str(unit.path).split("."))]
+
+
+def _case_address(death: VaDeathRegister) -> str:
+    """The case's address parts, structured first, joined with commas."""
+    parts = (death.address_house_street, death.address_village_ward, death.address_landmark, death.address)
+    return ", ".join(part.strip() for part in parts if part and part.strip())
+
+
 def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None) -> dict:
-    prefill: dict = {"interviewer": {"name": user.name, "id": str(user.user_id)}}
+    """The draft's prefill, per the map in docs/policy/web-intake.md.
+
+    ``deceased`` and ``interviewer`` go through the package's
+    ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
+    on top; ``lockedQuestionNames`` are the read-only ones (interviewer
+    identity, area presets, ABHA). Everything else is an ordinary editable
+    answer. Name split: the first word is the given name (Id10017), the rest
+    the surname (Id10018).
+    """
+    interviewer: dict = {"name": user.name, "id": str(user.user_id), "age": _interviewer_age(user, _utcnow())}
+    locked = {"Id10010a", "Id10010c"}
+    if _INTERVIEWER_NAME_RE.fullmatch((user.name or "").strip()):
+        locked.add("Id10010")
+    if user.sex in USER_SEX_VALUES:
+        interviewer["sex"] = user.sex
+        locked.add("Id10010b")
+    prefill: dict = {"interviewer": interviewer}
     answers: dict = {}
     if org_unit_id is not None:
         # Area presets (Id10002/Id10003) from the organization tree, per
         # docs/policy/web-intake.md ("Area VA presets"). Merged before the
         # death-register answers below so a death-register value always wins.
-        answers.update(org_grant_service.resolve_va_presets(org_unit_id))
+        presets = org_grant_service.resolve_va_presets(org_unit_id)
+        answers.update(presets)
+        locked.update(presets)
+    org_path = ", ".join(_org_path_names(org_unit_id))
+    address = _case_address(death) if death is not None else ""
+    # Id10057 in prefill.ts's location format: "path; address".
+    place = "; ".join(part for part in (org_path, address) if part)
+    residence = address or org_path
+    if place:
+        answers["Id10057"] = place
+    if residence:
+        answers["Id10055"] = residence
+    if place or residence:
+        # Id10055/Id10057 are asked only when Id10051 = yes.
+        answers["Id10051"] = "yes"
+    if death is not None:
+        place_of_death = _who_place_of_death(death.place_of_death)
+        for name, value in (
+            ("Id10058", place_of_death),
+            ("Id10007", death.informant_name),
+            ("Id10061", death.father_name),
+            ("Id10062", death.mother_name),
+        ):
+            if value:
+                answers[name] = value
     if death is not None and cases.identity_complete(death):
-        names = death.deceased_name.strip().split(" ", 1)
+        names = death.deceased_name.strip().split(None, 1)
         deceased = {
             "givenNames": names[0],
             "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
@@ -731,13 +840,20 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             deceased["dateOfBirth"] = death.date_of_birth.isoformat()
         elif death.age_years is not None and 12 <= death.age_years <= 119:
             deceased["ageInYears"] = death.age_years
+        elif death.age_years is not None and 1 <= death.age_years <= 11:
+            # prefill.ts maps adults only. Age 0 is not prefilled: days
+            # (neonate) or months (child) cannot be told from 0 years.
+            answers.update({
+                "Id10020": "no", "age_group": "child",
+                "age_child_unit": "years", "age_child_years": death.age_years,
+            })
         prefill["deceased"] = deceased
-        if death.abha_number:
-            answers["abha_number"] = death.abha_number
-        if death.abha_address:
-            answers["abha_address"] = death.abha_address
+        for name, value in (("abha_number", death.abha_number), ("abha_address", death.abha_address)):
+            if value:
+                answers[name] = value
+                locked.add(name)
     prefill["answers"] = answers
-    prefill["lockedQuestionNames"] = sorted(answers)
+    prefill["lockedQuestionNames"] = sorted(locked)
     return prefill
 
 
@@ -1127,18 +1243,62 @@ def _require_live_org_unit(draft: VaWebIntakeDraft) -> None:
         )
 
 
+#: ``interview_outcome`` -> the case state its submission leaves the case in
+#: (decision 8 of .tasks/2026-09-28-interviewer-worklist.md). Only
+#: ``completed`` enters coding; the rest keep the case open for a later
+#: complete submission.
+OUTCOME_CASE_STATES = {
+    "completed": "submitted",
+    "refused": "refused",
+    "partially_completed": "paused",
+    "respondent_unavailable": "not_reachable",
+}
+_INCOMPLETE_OUTCOMES = frozenset({"partially_completed", "respondent_unavailable"})
+
+
+def _interview_outcome(data: dict, completion: dict) -> str:
+    """The ``interview_outcome`` a submission is stored with, decided here.
+
+    The form cannot compute it (docs/policy/web-intake.md, "The
+    ``interview_outcome`` question"): ``refused`` when consent (Id10013) is
+    no; ``completed`` when the form reports every required question answered;
+    otherwise the interviewer's own pick, which must be ``partially_completed`` or
+    ``respondent_unavailable``. Raises 422 for an invalid form with no such
+    pick, or a valid one without consent.
+    """
+    consent = normalize_consent(data.get("Id10013"))
+    if consent.lower() == "no":
+        return "refused"
+    if completion.get("valid") is True:
+        if not consent:
+            raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
+        return "completed"
+    picked = data.get("interview_outcome")
+    if picked in _INCOMPLETE_OUTCOMES:
+        return picked
+    raise WebIntakeError(
+        "The questionnaire is not valid yet; complete the sections flagged by the form, "
+        "or record the interview outcome as partially completed or respondent unavailable.",
+        422,
+    )
+
+
 def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) -> VaSubmissions:
-    """Turn a completed draft into a submission and route it into the workflow."""
+    """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
+
+    Every outcome is stored as a submission. Only ``completed`` enters coding
+    and moves the case to ``submitted`` (first complete submission wins);
+    ``refused`` and the incomplete outcomes are routed to ``consent_refused``
+    (no SmartVA, no allocation) and leave the case waiting
+    (``OUTCOME_CASE_STATES``).
+    """
     if draft.status != "draft":
         raise WebIntakeError("This draft has already been submitted.", 409)
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
-    data = completion["data"]
-    if completion.get("valid") is not True:
-        raise WebIntakeError("The questionnaire is not valid yet; complete the sections flagged by the form.", 422)
+    outcome = _interview_outcome(completion["data"], completion)
+    data = {**completion["data"], "interview_outcome": outcome}
     consent = normalize_consent(data.get("Id10013"))
-    if not consent:
-        raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
     _require_live_org_unit(draft)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
     if death is not None:
@@ -1209,14 +1369,17 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
         created_by=user.user_id,
         validation_err=validation_err,
     )
-    valid_consent = consent_is_valid(consent)
+    # A refused or incomplete interview is kept but never coded. consent_refused
+    # is the only existing state that is outside coding *and* blocked from
+    # SmartVA (SMARTVA_BLOCKED_WORKFLOW_STATES); no new workflow state.
+    enters_coding = outcome == "completed" and consent_is_valid(consent)
     route_synced_submission(
         va_sid,
-        consent_valid=valid_consent,
+        consent_valid=enters_coding,
         reason="web_intake_submitted",
         actor=system_actor(),
     )
-    if valid_consent and not references:
+    if enters_coding and not references:
         mark_attachment_sync_completed(
             va_sid, reason="web_intake_no_attachments", actor=system_actor()
         )
@@ -1233,14 +1396,18 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     draft.status = "submitted"
     draft.va_sid = va_sid
     draft.submitted_at = submitted_at
-    draft.client_valid = True
+    draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
     draft.meta = {**(draft.meta or {}), "attachmentReferences": references}
     if death is not None:
-        cases.transition(death, "submitted", actor=user, action="submitted")
-        death.va_sid = va_sid
+        action = "submitted" if outcome == "completed" else f"submitted_{outcome}"
+        cases.transition(death, OUTCOME_CASE_STATES[outcome], actor=user, action=action)
+        if outcome == "completed":
+            # The case's submission is the complete one; an earlier refused or
+            # incomplete one stays linked through its draft only.
+            death.va_sid = va_sid
     db.session.flush()
-    log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, len(references))
+    log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | outcome=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, outcome, len(references))
     return submission
 
 
@@ -1490,6 +1657,8 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "address_village_ward": death.address_village_ward,
         "address_landmark": death.address_landmark,
         "informant_name": death.informant_name,
+        "father_name": death.father_name,
+        "mother_name": death.mother_name,
         "informant_phone": death.informant_phone,
         "informant_phone_2": death.informant_phone_2,
         "remarks": death.remarks,

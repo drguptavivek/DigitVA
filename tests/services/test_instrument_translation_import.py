@@ -1469,13 +1469,15 @@ class ReferenceDenominatorTests(unittest.TestCase):
     uses.
     """
 
-    def test_the_real_reference_totals_1478_items_and_575_labels(self):
+    def test_the_real_reference_totals_1485_items_and_577_labels(self):
         # doris_support_whova_2022 (digitva-hln) added 43 items: 19 question
-        # labels and 24 choice labels in its five own lists.
+        # labels and 24 choice labels in its five own lists. digitva_core's
+        # interview_outcome (digitva-vzk.2) added 7: its section and question
+        # labels, its hint and four choice labels.
         item_keys = svc.reference_item_keys(svc.BASE_INSTRUMENT_CODE)
         label_keys = svc.reference_label_keys(svc.BASE_INSTRUMENT_CODE)
-        self.assertEqual(len(item_keys), 1478)
-        self.assertEqual(len(label_keys), 575)
+        self.assertEqual(len(item_keys), 1485)
+        self.assertEqual(len(label_keys), 577)
 
 
 class NoPolicyDocReadDuringImportTests(unittest.TestCase):

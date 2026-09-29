@@ -1,6 +1,6 @@
 # Interviewer worklist and interview state machine
 
-- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration); phase 5 visits, contact attempts, pause, phones and address built (2026-09-30, `digitva-vzk.9`, migration `e5b2c8d4a1f7`); phase 7 supervisor view and audit grant built (2026-09-30, `digitva-vzk.8`, migration `a8d4f1c7e3b9`)
+- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration); phase 5 visits, contact attempts, pause, phones and address built (2026-09-30, `digitva-vzk.9`, migration `e5b2c8d4a1f7`); phase 7 supervisor view and audit grant built (2026-09-30, `digitva-vzk.8`, migration `a8d4f1c7e3b9`); prefill map and interviewer year of birth/sex built (2026-09-30, `digitva-vzk.1`, `digitva-vzk.3`, migration `c5e2b7a9d4f6`)
 - Priority: P2
 - Created: 2026-09-28
 - Bead: `digitva-vzk` (epic)
@@ -132,6 +132,12 @@ flow back to the case.
 | Id10007 respondent name | case informant name | no |
 | Id10061 / Id10062 father's / mother's name | new optional fields on the registration form (owner, 2026-09-29) | no |
 | Id10010a / Id10010b interviewer age / sex | new user-profile fields (owner, 2026-09-29): year of birth (age computed at interview time, so it never goes stale) and sex | yes |
+
+Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`); the as-built table and
+rules (name split, `Id10058` keyword mapping, child ages, conditional locks,
+`Id10023_a` vs `_b`) are in docs/policy/web-intake.md "Prefill map". Open
+owner decision: name split (first word given name today; last word as
+surname may suit Indian names better).
 
 Rules: prefill applies once, when a draft is created and has no saved answers;
 unlocked prefills are ordinary answers the interviewer can change; the org

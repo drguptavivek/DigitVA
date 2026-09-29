@@ -281,6 +281,12 @@
   var emailConfirmAsterisk = document.getElementById('user-email-confirm-asterisk');
   var nameInput = document.getElementById('user-name-input');
   var phoneInput = document.getElementById('user-phone-input');
+  var yobInput = document.getElementById('user-yob-input');
+  var sexInput = document.getElementById('user-sex-input');
+  var editOnlyCols = document.querySelectorAll('.user-edit-only');
+  function showEditOnly(on) {
+    for (var i = 0; i < editOnlyCols.length; i++) editOnlyCols[i].classList.toggle('d-none', !on);
+  }
   var passwordCol = document.getElementById('user-password-col');
   var passwordInput = document.getElementById('user-password-input');
   var passwordAsterisk = document.getElementById('user-password-asterisk');
@@ -301,6 +307,9 @@
     emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = '';
     phoneInput.value = '';
+    yobInput.value = '';
+    sexInput.value = '';
+    showEditOnly(false);
     passwordInput.value = '';
     passwordCol.classList.add('d-none');
     passwordAsterisk.classList.add('d-none');
@@ -326,6 +335,9 @@
     emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = user.name;
     phoneInput.value = user.phone || '';
+    yobInput.value = user.year_of_birth == null ? '' : String(user.year_of_birth);
+    sexInput.value = user.sex || '';
+    showEditOnly(true);
     passwordCol.classList.remove('d-none');
     passwordInput.value = '';
     passwordAsterisk.classList.add('d-none');
@@ -400,6 +412,8 @@
       url = '/admin/api/users/' + encodeURIComponent(_editingId);
       method = 'PUT';
       data.status = statusInput.value;
+      data.year_of_birth = yobInput.value.trim() || null;
+      data.sex = sexInput.value || null;
       data.email = emailInput.value.trim().toLowerCase();
       data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
       if (!data.email) { errEl.textContent = 'Email is required.'; return; }

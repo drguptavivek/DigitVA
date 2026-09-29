@@ -4,10 +4,13 @@ import sqlalchemy.orm as so
 from app import db, login
 from typing import Optional
 from flask_login import UserMixin
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from app.models.va_selectives import VaStatuses
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from werkzeug.security import generate_password_hash, check_password_hash
+
+#: Interviewer sex, as WHO VA 2022 Id10010b's choices.
+USER_SEX_VALUES = ("female", "male", "undetermined")
 
 
 class VaUsers(UserMixin, db.Model):
@@ -39,6 +42,11 @@ class VaUsers(UserMixin, db.Model):
         sa.String(15), nullable=True
     )
     other: so.Mapped[Optional[dict]] = so.mapped_column(JSONB, nullable=True)
+    # Interviewer demographics (PII, optional; digitva-vzk.3). Web intake
+    # prefills and locks WHO Id10010a (age, from year_of_birth at interview
+    # time) and Id10010b (sex: one of USER_SEX_VALUES). Never logged or exported.
+    year_of_birth: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    sex: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     user_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,
@@ -112,6 +120,28 @@ class VaUsers(UserMixin, db.Model):
     def is_active(self):
         """Flask-Login hook: only active users may log in or keep a session."""
         return self.user_status == VaStatuses.active
+
+    def set_interviewer_profile(self, year_of_birth, sex) -> None:
+        """Validate and set the optional year of birth and sex (vzk.3).
+
+        Blank or None clears a value. A year must be a whole number from
+        1900 to the current year; sex one of ``USER_SEX_VALUES`` (the WHO
+        Id10010b choices). Raises ``ValueError`` with a caller-safe message.
+        """
+        if year_of_birth in (None, ""):
+            year = None
+        else:
+            try:
+                year = int(year_of_birth)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Year of birth must be a whole number.") from exc
+            if not 1900 <= year <= datetime.now(UTC).year:
+                raise ValueError("Year of birth must be between 1900 and this year.")
+        sex = (sex or "").strip().lower() or None
+        if sex is not None and sex not in USER_SEX_VALUES:
+            raise ValueError("Sex must be one of " + ", ".join(USER_SEX_VALUES) + ".")
+        self.year_of_birth = year
+        self.sex = sex
 
     def set_password(self, password):
         self.password = generate_password_hash(password)

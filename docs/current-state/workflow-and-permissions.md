@@ -191,6 +191,12 @@ guard: `tests/test_duplicate_exclusion_coverage.py`.
 2. The workflow layer routes new or payload-changed submissions to:
    - `consent_refused`, or
    - `attachment_sync_pending`
+   A web intake submission enters the same way; only one whose
+   `interview_outcome` is `completed` goes to `attachment_sync_pending`. A
+   refused, partially completed or respondent-unavailable web submission is
+   routed to `consent_refused` (no SmartVA, no allocation) and its case waits
+   in `refused`, `paused` or `not_reachable` (`web_intake_service.submit_draft`,
+   `OUTCOME_CASE_STATES`; `docs/policy/web-intake.md`).
 3. Attachment completion for the current payload moves the submission to
    `smartva_pending`.
 4. SmartVA completion for the current payload moves the submission to

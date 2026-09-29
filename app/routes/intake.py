@@ -128,7 +128,7 @@ def api_register_death():
                 "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth",
                 "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
                 "address_village_ward", "address_landmark", "informant_name", "informant_phone",
-                "informant_phone_2", "remarks",
+                "informant_phone_2", "remarks", "father_name", "mother_name",
             )},
         )
         db.session.commit()

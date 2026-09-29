@@ -71,10 +71,11 @@ Two kinds of row, per form type
    regardless of ``is_active`` — see below) and invisible to the coding
    screen. Flagging a field never changes what a coder sees.
 
-   Of the fifteen fields below, twelve already have a category and
+   Of the seventeen fields below, fourteen already have a category and
    subcategory from the coder-facing mapping: ``Id10007``, ``Id10010``,
-   ``Id10010c``, ``Id10017``, ``Id10018``, ``Id10055``, ``Id10057``,
-   ``Id10061``, ``Id10062``, ``Id10070``, ``Id10071`` and ``Id10072`` are real
+   ``Id10010a``, ``Id10010b``, ``Id10010c``, ``Id10017``, ``Id10018``,
+   ``Id10055``, ``Id10057``, ``Id10061``, ``Id10062``, ``Id10070``,
+   ``Id10071`` and ``Id10072`` are real
    mapped rows and only get their PII flag set here. Only ``Id10073``,
    ``abha_number`` and ``abha_address`` are genuinely unmapped and get a
    redaction-only row created.
@@ -149,6 +150,10 @@ PII_FIELDS: dict[str, str] = {
     # --- Missing until now ---
     "Id10010c": PII_TYPE_IDENTIFIER,  # ID of VA interviewer
     "Id10073": PII_TYPE_IDENTIFIER,  # national identification number of deceased
+    # Interviewer age and sex: web intake fills them from the user profile
+    # (digitva-vzk.3), so with Id10010 they describe a named staff member.
+    "Id10010a": PII_TYPE_IDENTIFIER,  # age of VA interviewer
+    "Id10010b": PII_TYPE_IDENTIFIER,  # sex of VA interviewer
     # --- DigitVA extension fields (web intake) ---
     "abha_number": PII_TYPE_IDENTIFIER,
     "abha_address": PII_TYPE_IDENTIFIER,

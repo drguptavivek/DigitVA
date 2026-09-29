@@ -65,6 +65,38 @@
 
   <div class="row g-4 mt-1">
     <div class="col-12">
+      <div id="interviewer-card" class="card shadow-sm w-100 border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-id-card me-2"></i>Interviewer details</h5>
+          <p class="text-muted small">Optional. Web questionnaires you open fill in your age (from your year of birth) and sex; leave year of birth blank to record "prefer not to disclose" (99).</p>
+        </div>
+        <div class="card-body">
+          <div class="row g-2 align-items-end" style="max-width: 32rem;">
+            <div class="col-sm-5">
+              <label class="form-label text-muted small fw-bold" for="yob-input">Year of birth</label>
+              <input type="number" id="yob-input" class="form-control form-control-sm" min="1900" step="1" inputmode="numeric">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label text-muted small fw-bold" for="sex-select">Sex</label>
+              <select id="sex-select" class="form-select form-select-sm">
+                <option value="">Not given</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="undetermined">Intersex/Ambiguous</option>
+              </select>
+            </div>
+            <div class="col-sm-3">
+              <button id="interviewer-btn" class="btn btn-primary btn-sm w-100">Save</button>
+            </div>
+          </div>
+          <div id="interviewer-msg" class="small mt-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
       <div id="passkeys-card" class="card shadow-sm w-100 border-0" data-csrf="{{ csrf_token() }}">
         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
           <h5 class="card-title text-primary"><i class="fa fa-fingerprint me-2"></i>Passkeys</h5>
@@ -185,6 +217,20 @@ $(document).ready(async function () {
       document.getElementById('pw-new').value = '';
       document.getElementById('pw-confirm').value = '';
     }
+  });
+
+  // ── Interviewer details ───────────────────────────────────────────────
+  const yobInput = document.getElementById('yob-input');
+  const sexSelect = document.getElementById('sex-select');
+  yobInput.max = String(new Date().getFullYear());
+  yobInput.value = profile.year_of_birth == null ? '' : String(profile.year_of_birth);
+  sexSelect.value = profile.sex || '';
+  document.getElementById('interviewer-btn').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/v1/profile/interviewer', 'PATCH', {
+      year_of_birth: yobInput.value.trim() || null,
+      sex: sexSelect.value || null,
+    });
+    showMsg('interviewer-msg', data.message || data.error, ok);
   });
 
   // ── Timezone ──────────────────────────────────────────────────────────

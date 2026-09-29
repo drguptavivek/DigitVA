@@ -499,6 +499,10 @@ its case at once). `status` is the case state, written only by
   `address_village_ward`, `address_landmark` (Text, 200 characters by the
   service) beside the free-text `address`. All PII; they stay on the case and
   are not copied into the submission payload.
+- `father_name`, `mother_name` (Text, nullable, 200 characters by the
+  service; migration `c5e2b7a9d4f6`, `digitva-vzk.1`): optional register-form
+  fields, PII. They reach the payload only as the editable prefill of WHO
+  `Id10061` / `Id10062` (asked for children and neonates only).
 
 ### `map_case_transitions`
 
@@ -1338,7 +1342,12 @@ Key fields:
 
 Other important tables:
 
-- `va_users`
+- `va_users` — `year_of_birth` (Integer, nullable, 1900 to this year) and
+  `sex` (String(16), nullable, `female` | `male` | `undetermined`, checked by
+  `VaUsers.set_interviewer_profile`, no CHECK) from migration `c5e2b7a9d4f6`
+  (`digitva-vzk.3`): optional interviewer details, PII, set in Profile or by
+  an admin. Web intake prefills and locks `Id10010a` (age at interview, 99
+  when unset) and `Id10010b` from them.
 - `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
   admin-set target the DM burndown KPI projects against
   (`app/routes/api/dm_kpi/dm_kpi_burndown.py`), and the four web intake form

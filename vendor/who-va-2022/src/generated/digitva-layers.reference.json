@@ -20,6 +20,42 @@
     },
     {
       "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "INTERVIEW_OUTCOME/completed",
+      "itemKind": "choice",
+      "text": "Completed"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "INTERVIEW_OUTCOME/partially_completed",
+      "itemKind": "choice",
+      "text": "Partially completed"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "INTERVIEW_OUTCOME/refused",
+      "itemKind": "choice",
+      "text": "Refused"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "INTERVIEW_OUTCOME/respondent_unavailable",
+      "itemKind": "choice",
+      "text": "Respondent unavailable"
+    },
+    {
+      "extensions": [
         "social_autopsy"
       ],
       "field": "label",
@@ -795,6 +831,15 @@
     },
     {
       "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "digitva_outcome",
+      "itemKind": "question",
+      "text": "Interview outcome"
+    },
+    {
+      "extensions": [
         "doris_support_whova_2022"
       ],
       "field": "label",
@@ -1044,6 +1089,24 @@
       "itemKey": "imagenarr",
       "itemKind": "question",
       "text": "(Capture image for narration) Photograph of the written narrative, if the narrative was recorded on paper"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "hint",
+      "itemKey": "interview_outcome",
+      "itemKind": "question",
+      "text": "Set on submit: Refused when consent was not given, Completed when every required question is answered. Otherwise choose Partially completed or Respondent unavailable."
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "interview_outcome",
+      "itemKind": "question",
+      "text": "Outcome of the interview"
     },
     {
       "extensions": [
@@ -1688,9 +1751,9 @@
       "sections": 1
     },
     "digitva_core": {
-      "choices": 2,
-      "questions": 2,
-      "sections": 0
+      "choices": 6,
+      "questions": 3,
+      "sections": 1
     },
     "doris_support_whova_2022": {
       "choices": 24,

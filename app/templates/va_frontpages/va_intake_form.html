@@ -44,6 +44,7 @@
 <script type="module">
 import * as WhoVa from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ who_va_bundle_version(config.STATIC_ASSET_VERSION)|urlencode }}";
 import { applyTranslations } from "{{ url_for('static', filename='js/intake/translations.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { summaryFromAnswers, summaryFromPrefill } from "{{ url_for('static', filename='js/intake/summary.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 
 const DRAFT = {{ draft | tojson }};
 const PREFILL = {{ prefill | tojson }};
@@ -55,41 +56,17 @@ const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.class
 // -- minimal PII, never logged. Seeded from the death-register prefill below,
 // then kept live from the answers the host already hands draftStore.save()
 // on every change (Id10017/Id10018 names, Id10019 sex, Id10023 the
-// calculated date of death; see vendor/who-va-2022's generated instrument).
+// calculated date of death, the first finite age -- see
+// app/static/js/intake/summary.js and vendor/who-va-2022's generated instrument).
 // Cheap by construction: reads a handful of keys off an object already in
 // memory, no form re-render, no network request of its own.
-const SUMMARY_SEX_LABELS = { female: "Female", male: "Male", undetermined: "Undetermined" };
-const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function formatSummaryDate(iso) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
-  if (!m) return undefined;
-  const [, y, mo, d] = m;
-  const mi = Number(mo) - 1;
-  return mi >= 0 && mi <= 11 ? `${d}-${SUMMARY_MONTHS[mi]}-${y}` : undefined;
-}
 function updateSummary({ name, dod, age, sex } = {}) {
   $("wv-sum-name").textContent = name || "—";
   $("wv-sum-dod").textContent = dod || "—";
-  // The form's calculated age is NaN until the dates are answered.
-  $("wv-sum-age").textContent = age != null && age !== "" && !Number.isNaN(age) ? String(age) : "—";
+  $("wv-sum-age").textContent = age != null ? String(age) : "—";
   $("wv-sum-sex").textContent = sex || "—";
 }
-function summaryFromAnswers(data) {
-  if (!data) return {};
-  const name = [data.Id10017, data.Id10018].filter(Boolean).join(" ") || undefined;
-  return {
-    name,
-    dod: formatSummaryDate(data.Id10023),
-    age: data.ageInYears != null ? data.ageInYears : data.age_adult,
-    sex: SUMMARY_SEX_LABELS[data.Id10019],
-  };
-}
-updateSummary({
-  name: [PREFILL.deceased && PREFILL.deceased.givenNames, PREFILL.deceased && PREFILL.deceased.surname].filter(Boolean).join(" ") || undefined,
-  dod: PREFILL.deceased && formatSummaryDate(PREFILL.deceased.dateOfDeath),
-  age: PREFILL.deceased && PREFILL.deceased.ageInYears,
-  sex: PREFILL.deceased && SUMMARY_SEX_LABELS[PREFILL.deceased.sex],
-});
+updateSummary(summaryFromPrefill(PREFILL));
 
 const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   const headers = { "X-CSRFToken": CSRF };

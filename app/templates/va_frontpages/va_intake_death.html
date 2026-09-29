@@ -13,12 +13,16 @@
   <div class="col-md-3"><label class="form-label">Age (years, if DOB unknown)</label><input name="age_years" type="number" min="0" max="130" class="form-control"></div>
   <div class="col-md-3"><label class="form-label">ABHA number</label><input name="abha_number" class="form-control" placeholder="12-3456-7890-1234" maxlength="17"></div>
   <div class="col-md-3"><label class="form-label">ABHA address</label><input name="abha_address" class="form-control" placeholder="name@abdm" maxlength="64"></div>
-  <div class="col-md-6"><label class="form-label">Place of death</label><input name="place_of_death" class="form-control"></div>
+  <div class="col-md-6"><label class="form-label">Place of death</label><input name="place_of_death" class="form-control" list="place-of-death-options">
+    {# The WHO Id10058 choices: picking one prefills that question (other text is matched by keyword, else left for the interview). #}
+    <datalist id="place-of-death-options"><option value="Hospital"><option value="Other health facility"><option value="Home"><option value="On route to hospital or facility"><option value="Other"></datalist></div>
   <div class="col-md-6"><label class="form-label">Address</label><input name="address" class="form-control"></div>
   <div class="col-md-4"><label class="form-label">House or street</label><input name="address_house_street" class="form-control" maxlength="200"></div>
   <div class="col-md-4"><label class="form-label">Village or ward</label><input name="address_village_ward" class="form-control" maxlength="200"></div>
   <div class="col-md-4"><label class="form-label">Landmark</label><input name="address_landmark" class="form-control" maxlength="200"></div>
   <div class="col-md-4"><label class="form-label">Informant name</label><input name="informant_name" class="form-control"></div>
+  <div class="col-md-4"><label class="form-label">Father's name</label><input name="father_name" class="form-control" maxlength="200"></div>
+  <div class="col-md-4"><label class="form-label">Mother's name</label><input name="mother_name" class="form-control" maxlength="200"></div>
   {# Mirrors _PHONE_RE in app/services/web_intake_service.py; the server decides. #}
   <div class="col-md-4"><label class="form-label">Informant phone</label><input name="informant_phone" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>
   <div class="col-md-4"><label class="form-label">Second phone</label><input name="informant_phone_2" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>

@@ -58,6 +58,21 @@
             <option value="deactive">Inactive</option>
           </select>
         </div>
+        {# Interviewer year of birth and sex (optional PII, digitva-vzk.3):
+           shown when editing only. #}
+        <div class="col-sm-2 d-none user-edit-only">
+          <label class="form-label small mb-1" for="user-yob-input">Year of birth</label>
+          <input type="number" class="form-control form-control-sm" id="user-yob-input" min="1900" step="1" inputmode="numeric">
+        </div>
+        <div class="col-sm-2 d-none user-edit-only">
+          <label class="form-label small mb-1" for="user-sex-input">Sex</label>
+          <select class="form-select form-select-sm" id="user-sex-input">
+            <option value="">Not given</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="undetermined">Intersex/Ambiguous</option>
+          </select>
+        </div>
         <div class="col-sm-4">
           <label class="form-label small mb-1">VA Languages</label>
           <select class="form-select form-select-sm" id="user-languages-input" multiple style="width:100%"></select>

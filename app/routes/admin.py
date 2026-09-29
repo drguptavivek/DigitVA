@@ -2044,8 +2044,10 @@ def admin_update_project_attachment_central_fetch(project_id):
     })
 
 
-def _serialize_user(user):
-    return {
+def _serialize_user(user, *, include_profile=False):
+    """``include_profile`` adds the interviewer year of birth and sex (PII):
+    only for admin-only responses, never the project PI user search."""
+    data = {
         "user_id": str(user.user_id),
         "email": user.email,
         "name": user.name,
@@ -2056,6 +2058,10 @@ def _serialize_user(user):
         "languages": user.vacode_language or [],
         "is_admin": user.is_admin(),
     }
+    if include_profile:
+        data["year_of_birth"] = user.year_of_birth
+        data["sex"] = user.sex
+    return data
 
 
 @admin.get("/api/users")
@@ -2081,7 +2087,8 @@ def admin_users():
         )
         
     users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25 if not master else None)).all()
-    return jsonify({"users": [_serialize_user(u) for u in users]})
+    # master=1 is admin-only (checked above).
+    return jsonify({"users": [_serialize_user(u, include_profile=master) for u in users]})
 
 
 @admin.post("/api/users")
@@ -2193,6 +2200,15 @@ def admin_update_user(target_user_id):
     if "phone" in payload:
         target_user.phone = (payload["phone"] or "").strip() or None
         
+    if "year_of_birth" in payload or "sex" in payload:
+        try:
+            target_user.set_interviewer_profile(
+                payload.get("year_of_birth", target_user.year_of_birth),
+                payload.get("sex", target_user.sex),
+            )
+        except ValueError as exc:
+            return _json_error(str(exc), 400)
+
     if "status" in payload:
         try:
             target_user.user_status = VaStatuses(payload["status"])
@@ -2235,7 +2251,7 @@ def admin_update_user(target_user_id):
         except Exception:
             pass
 
-    return jsonify({"user": _serialize_user(target_user)})
+    return jsonify({"user": _serialize_user(target_user, include_profile=True)})
 
 
 @admin.post("/api/users/<uuid:target_user_id>/resend-verification")

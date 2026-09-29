@@ -273,6 +273,32 @@ describe("consent_mode", () => {
   });
 });
 
+describe("interview_outcome", () => {
+  it("is the last question in every combination, optional, with the four outcomes", () => {
+    for (const instrument of [createWhoVa2022Instrument(BASE_ONLY), whoVa2022Instrument]) {
+      const last = instrument.questions[instrument.questions.length - 1]!;
+      expect(last.name).toBe("interview_outcome");
+      expect(last.required).toBe(false);
+      expect(last.validation?.choiceValues).toEqual([
+        "completed",
+        "partially_completed",
+        "refused",
+        "respondent_unavailable"
+      ]);
+      expect(last.order).toBe(Math.max(...instrument.questions.map((q) => q.order)));
+    }
+  });
+
+  it("stays relevant after a refusal, outside WHO's consented group", () => {
+    const instrument = createWhoVa2022Instrument(BASE_ONLY);
+    const outcome = question(instrument, "interview_outcome")!;
+    expect(outcome.sectionPath).toEqual(["digitva_outcome"]);
+    expect(instrument.sections.find((s) => s.name === "digitva_outcome")!.relevant).toBeUndefined();
+    expect(isQuestionRelevant(instrument, outcome, { Id10013: "no" })).toBe(true);
+    expect(isQuestionRelevant(instrument, question(instrument, "noteend")!, { Id10013: "no" })).toBe(false);
+  });
+});
+
 describe("social_autopsy", () => {
   const SA_QUESTION_NAMES = [
     "sa01",

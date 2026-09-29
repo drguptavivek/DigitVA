@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-09-30
 ---
 
 # VA Form Project Configuration Policy
@@ -51,7 +51,7 @@ identifiers with ODK ones. Corrected 2026-09-20 (`digitva-c48`).
 
 | Extension | What it contributes |
 |---|---|
-| `digitva_core` (always on) | Questions: `unique_id`, `Site`, `comment`, `consent_mode`, `custom_medical_certificate_upload` |
+| `digitva_core` (always on) | Questions: `unique_id`, `Site`, `comment`, `consent_mode`, `custom_medical_certificate_upload`, `interview_outcome` (last question, own section `digitva_outcome`; completed / partially_completed / refused / respondent_unavailable; the server sets `refused` when `Id10013` = no and `completed` when the form is valid, otherwise the interviewer's pick; `digitva-vzk.2`, see [Web Intake Policy](web-intake.md), "The `interview_outcome` question"; ODK forms have no equivalent yet) |
 | `social_autopsy` | Questions: the social-autopsy sections (`sa01`–`sa19`, `sa_tu13`–`sa_tu19`, `sas01`–`sas07`) |
 | `intake_screen` | **No instrument questions.** A single admin-configured welcome card, from the project setting `web_intake_intake_note`, rendered client-side (`app/templates/va_frontpages/va_intake_form.html`). It deliberately *replaces* ND01's three-item `begin_screen` group (`introduction`, `instructions`, `confirm_inst`) rather than reproducing it (2026-09-19). |
 | `geography` | **No instrument questions.** `survey_state`, `survey_district`, `survey_block` and `site_individual_id` are server-injected into the payload after validation (`app/services/web_intake_service.py`) from the death register and the interviewer's organization unit, per decision **O4** — they are never asked. The flag is derived and served but currently has no consumer (`digitva-ybt`). |

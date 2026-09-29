@@ -6979,6 +6979,17 @@
         "socialautopsy",
         "eventchronology"
       ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "interview_outcome",
+      "relevant": null,
+      "sectionPath": [
+        "digitva_outcome"
+      ]
     }
   ],
   "schemaVersion": 1,
@@ -7157,6 +7168,11 @@
       "name": "eventchronology",
       "parent": "socialautopsy",
       "relevant": "selected(${sa02}, 'yes')"
+    },
+    {
+      "name": "digitva_outcome",
+      "parent": null,
+      "relevant": null
     }
   ],
   "source": {

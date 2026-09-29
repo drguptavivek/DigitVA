@@ -72,8 +72,11 @@ submission enters the workflow. Plan:
   deceased's name, date of death, age and sex while filling — seeded from
   the death-register prefill, then refreshed from the answers the host
   already hands `draftStore.save()` on every change (`Id10017`/`Id10018`
-  names, `Id10019` sex, the calculated `Id10023` date of death and
-  `ageInYears`). Only those four fields; nothing is logged.
+  names, `Id10019` sex, the calculated `Id10023` date of death and the
+  first finite age of `ageInYears`, `ageInYears2`, `age_adult`,
+  `age_child_years` -- `ageInYears` is NaN without a date of birth, which
+  used to blank an age-only case's age; `app/static/js/intake/summary.js`,
+  `digitva-vzk.1`). Only those four fields; nothing is logged.
 - **Which questionnaire a web form carries** (decided 2026-09-19):
   `va_project_master.web_intake_form_type_id`, a form type that must be
   active, carry a `base_instrument_code`, and have a confirmed PII set
@@ -155,12 +158,12 @@ submission's organization unit, falling back to the form-level setting
 
 ## Submission
 
-- A draft is submitted only when the questionnaire reports `valid` and the
-  consent question (`Id10013`) is answered. **Replaced when the worklist
-  phases land** (owner, 2026-09-30; see "Incomplete submissions" below): a
-  valid form is then required only for the `completed` outcome, and the other
-  outcomes need the `interview_outcome` answer and the minimum identity but
-  not `Id10013`. Until then this rule is the running behaviour. Server-side re-validation with
+- The server decides the submission's `interview_outcome` (see "The
+  `interview_outcome` question" below; `digitva-vzk.2`, 2026-09-30). A valid
+  form (`valid`, with `Id10013` answered) is required only for `completed`;
+  `refused` (`Id10013` = no) and the two incomplete outcomes need the minimum
+  identity but not a valid form. An invalid form with neither refusal nor an
+  incomplete outcome is refused (422). Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no
@@ -179,7 +182,12 @@ submission's organization unit, falling back to the form-level setting
 - The submission is created with the same projection and workflow entry as
   ODK sync (`build_submission_projection`, `ensure_active_payload_version`,
   `route_synced_submission`), so SmartVA, coding and reporting treat it like
-  any other case. Identity: `va_sid = web-<draft uuid>-<form id>`.
+  any other case. Identity: `va_sid = web-<draft uuid>-<form id>`. Only a
+  `completed` submission enters coding; a refused or incomplete one is routed
+  to `consent_refused`, the one existing workflow state that is outside
+  coding and blocked from SmartVA (no new workflow state). Data-manager KPIs
+  therefore count incomplete web interviews under "Consent refused" until a
+  separate state is decided.
 - The payload carries `intake_source = "web"` and `KEY = web:<draft uuid>`.
 - With no attachments the case moves straight to `smartva_pending`.
   Attachment upload (audio narration, document images) is phase 2; until
@@ -459,6 +467,29 @@ partially completed, refused, respondent unavailable.
   **Incomplete** means partially completed or respondent unavailable. This
   answer, not the device or the submit button, drives the first-complete-
   submission rule above.
+- **Built** (`digitva-vzk.2`, 2026-09-30). The form engine cannot hold a
+  calculated answer that stays editable (a calculation overwrites the answer
+  on every change) and cannot express "every required question answered", so
+  the question is an ordinary optional choice and **the server sets the stored
+  value on submit**: `refused` when `Id10013` = no, `completed` when the form
+  is valid (whatever the interviewer picked), otherwise the interviewer's pick,
+  which must be partially completed or respondent unavailable. It sits in its
+  own always-relevant section (`digitva_outcome`, "Interview outcome"), last
+  in the form, not inside WHO's `consented` group, whose relevance would hide
+  it after a refusal. Payload field: `interview_outcome`, alongside the other
+  DigitVA extension fields. Case audit action: `submitted` for completed,
+  `submitted_<outcome>` otherwise. The case's `va_sid` is set only by a
+  completed submission; a refused or incomplete one stays linked through its
+  draft.
+- **ODK side.** The ODK form has no `interview_outcome`; ODK-synced
+  submissions are routed as before (consent alone decides). A project that
+  also collects on ODK may add a `select_one` named `interview_outcome` with
+  the same four values at the end of its form; nothing reads it from ODK
+  payloads today.
+- Labels are English in the instrument. The other twelve locales' layer
+  strings were seeded by migration; `interview_outcome` has none yet, so it
+  falls back to English until a translation is added in the admin string
+  editor or a seed migration.
 
 #### Incomplete submissions (owner, 2026-09-30)
 
@@ -468,7 +499,10 @@ partially completed, refused, respondent unavailable.
   consent answer (`Id10013`), which a respondent-unavailable interview may
   never reach.
 - **Stop interview** stays as the interviewer's way to record the two
-  incomplete outcomes, with an optional revisit date.
+  incomplete outcomes, with an optional revisit date. Not yet built as a
+  submit: the web form submits only a valid questionnaire, so today an
+  incomplete submission reaches the server only through the API; the
+  worklist's pause and visit date remain the web path.
 - An incomplete or refused submission still does not enter coding.
 
 #### Restarting a refused case (owner, 2026-09-30)
@@ -537,19 +571,52 @@ Unlocked prefills are ordinary answers the interviewer may change; edits to
 name, sex and date of death flow back to the case (the form is the record of
 the interview). `org_<level>_code` stays server-injected at submission.
 
+Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
+`web_intake_service._prefill_from_death`:
+
 | WHO question | Source | Locked |
 |---|---|---|
-| `Id10010` / `Id10010c` interviewer name and id | signed-in user (`digitva-dyk`) | yes |
+| `Id10010` / `Id10010c` interviewer name and id | signed-in user (`digitva-dyk`) | yes; `Id10010` only when the name meets its letters-and-spaces constraint, else editable |
 | `Id10002` / `Id10003` HIV / malaria area | district presets (`digitva-dhc`, done) | yes |
 | `Id10017` / `Id10018` given name, surname; `Id10019` sex | case | no |
-| `Id10021` date of birth, or age group and age fields | case | no |
-| `Id10022` = yes, `Id10023_a` date of death | case | no |
-| `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices | no |
-| `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit plus the case address | no |
+| `Id10021` date of birth, or age group and age fields | case: date of birth; else `age_years` 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years); 0 is not prefilled (days or months cannot be told) | no |
+| `Id10022` = yes, `Id10023_a` (with a date of birth) or `Id10023_b` date of death | case | no |
+| `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices (see below) | no |
+| `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit, root first, then "; " and the case address | no |
 | `Id10055` usual residence | case address, else the same org path | no |
+| `Id10051` = yes | set whenever `Id10055` or `Id10057` is (they are asked only then) | no |
 | `Id10007` respondent name | case informant name | no |
-| `Id10061` / `Id10062` father's / mother's name | new optional registration-form fields (`digitva-vzk.1`) | no |
-| `Id10010a` / `Id10010b` interviewer age / sex | new user-profile fields: year of birth (age computed at interview time) and sex (`digitva-vzk.2`, `digitva-vzk.3`) | yes |
+| `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
+| `Id10010a` / `Id10010b` interviewer age / sex | user-profile `year_of_birth` (age = interview year in the user's timezone minus it) and `sex` (`digitva-vzk.3`) | yes; `Id10010b` only when the profile has a sex |
+| `abha_number` / `abha_address` | case | yes (unchanged) |
+
+Rules as built:
+
+- **Name split**: the first word of the case name is the given name
+  (`Id10017`), the rest the surname (`Id10018`); a one-word name has no
+  surname. Owner decision open: last word as surname suits Indian names
+  better ("Ram Kumar Sharma" gives "Ram" / "Kumar Sharma" today).
+- **Case address**: house or street, village or ward, landmark, then the
+  free-text address, comma-joined.
+- **`Id10058`**: the register's place of death is free text (the form offers
+  the WHO labels as suggestions). A WHO value or English label maps exactly;
+  otherwise keywords, in order: on route (route, on the way, transit,
+  ambulance), other health facility (PHC, CHC, health centre, sub centre,
+  clinic, dispensary, nursing home, facility), hospital, home (home, house,
+  residence). No match leaves the question unanswered; never `other` by
+  default.
+- **`Id10010a`**: 99 (WHO's "prefer not to disclose") when the profile has
+  no year of birth or the age falls outside the constraint (18 to 89).
+- **Direct start**: no case fields yet, so only the interviewer, presets,
+  and `Id10057` / `Id10055` from the org path.
+- Only name, sex and date of death flow back to the case; parents' names,
+  place and respondent do not.
+- `Id10061` / `Id10062` are asked for children and neonates only; an adult's
+  prefilled parents' names are dropped as irrelevant at submission.
+- Year of birth and sex are optional, set in Profile or by an admin (the
+  admin master list shows them; the user search a project PI calls does
+  not), and never logged. `Id10010a` / `Id10010b` are registered PII fields
+  (`app/services/pii_field_registry.py`).
 
 ### The list
 
@@ -680,7 +747,7 @@ Details the baseline left open, fixed by the implementation
   kept case in the same project, or `cancel` with a reason);
   `POST /intake/api/cases/<death_id>/flags`.
 - **Submission rule unchanged** (valid form and `Id10013`) until the
-  `interview_outcome` question is built; a submission moves its case to
+  `interview_outcome` question is built (built: `digitva-vzk.2`); a submission moves its case to
   `submitted`. A direct start whose answers lack the minimum identity is
   refused at submit (422).
 - **Lists:** `GET /intake/api/deaths` stays the death register
@@ -802,8 +869,10 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   app. Of "Case worklist and interview states" above, the case state machine,
   flags and the worklist API (phases 2 and 3), the worklist page (phase 4) and
   visits, contact attempts and pause (phase 5) are built; team drafts,
-  supervisor powers and views, the `interview_outcome` question, first-complete-submission and offline capture
-  are **not implemented**. Offline capture is native-app work under Path B of
+  supervisor powers and views, the `interview_outcome` question and its
+  first-complete-submission rule are built; team drafts, telling the
+  interviewer of a superseded copy, a web "Stop interview" submit and offline
+  capture are **not implemented**. Offline capture is native-app work under Path B of
   [Field Data Collection Policy](field-data-collection.md) (no amendment
   needed), not a web-page feature; it has open design items 6 and 18 there.
   ("Unit-scoped listing refinements" was struck on 2026-09-19: there was

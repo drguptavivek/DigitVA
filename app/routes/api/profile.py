@@ -99,6 +99,8 @@ def get_profile():
         "email": current_user.email,
         "languages": current_user.vacode_language or [],
         "timezone": current_user.timezone,
+        "year_of_birth": current_user.year_of_birth,
+        "sex": current_user.sex,
     })
 
 
@@ -199,6 +201,32 @@ def update_timezone():
     current_user.timezone = timezone
     db.session.commit()
     return jsonify({"message": "Timezone updated successfully.", "timezone": timezone})
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/v1/profile/interviewer  — year of birth and sex (optional)
+# ---------------------------------------------------------------------------
+
+@bp.patch("/interviewer")
+@login_required
+def update_interviewer_profile():
+    """Set or clear the year of birth and sex web intake prefills and locks
+    into WHO Id10010a / Id10010b (digitva-vzk.3). An omitted key keeps its
+    value; null or blank clears it. Values are never logged."""
+    body = request.get_json(silent=True) or {}
+    try:
+        current_user.set_interviewer_profile(
+            body.get("year_of_birth", current_user.year_of_birth),
+            body.get("sex", current_user.sex),
+        )
+    except ValueError as exc:
+        return _error(str(exc))
+    db.session.commit()
+    return jsonify({
+        "message": "Interviewer details updated.",
+        "year_of_birth": current_user.year_of_birth,
+        "sex": current_user.sex,
+    })
 
 
 # ---------------------------------------------------------------------------

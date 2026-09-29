@@ -1,6 +1,6 @@
 # Interviewer worklist and interview state machine
 
-- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration)
+- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); phases 2 and 3 built (2026-09-30, `digitva-vzk.4`, migration `c4e8a2f6b9d3`); phase 4 worklist page built (2026-09-30, `digitva-vzk.6`, no migration); phase 5 visits, contact attempts, pause, phones and address built (2026-09-30, `digitva-vzk.9`, migration `e5b2c8d4a1f7`)
 - Priority: P2
 - Created: 2026-09-28
 - Bead: `digitva-vzk` (epic)
@@ -357,6 +357,12 @@ Decided 2026-09-30 (owner):
    validated phone moved to phase 5 (they need a migration).
 5. Appointments, contact attempts, pause with reason; register form gains
    structured address and validated phone; migration.
+   **Built 2026-09-30** (`digitva-vzk.9`, migration `e5b2c8d4a1f7`):
+   `POST /intake/api/cases/<death_id>/visit`, `/attempts`, `/pause`;
+   worklist sorted by next visit then last activity; phones masked in rows.
+   Resume is the existing start. Rules in docs/policy/web-intake.md, "Built in
+   phase 5". Open: `not_reachable -> refused` is not in the transition table,
+   so a refusal after a failed attempt is refused (409).
 6. Duplicate check and supervisor resolution.
 7. Supervisor view (read-only across scope).
 

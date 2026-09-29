@@ -119,8 +119,9 @@ def api_register_death():
             org_unit_id=p.get("org_unit_id") or None,
             **{k: p.get(k) for k in (
                 "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth",
-                "age_years", "date_of_death", "place_of_death", "address", "informant_name",
-                "informant_phone", "remarks",
+                "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
+                "address_village_ward", "address_landmark", "informant_name", "informant_phone",
+                "informant_phone_2", "remarks",
             )},
         )
         db.session.commit()
@@ -185,6 +186,68 @@ def api_flag_case(death_id):
         )
         db.session.commit()
         return jsonify({"death": intake_svc.serialize_death(death)})
+
+    return _handle(run)
+
+
+def _visit_ack(death):
+    """What a visit, attempt or pause returns: the case's new state and dates,
+    no identifiers (the page reloads its list)."""
+    return {
+        "death_id": str(death.death_id),
+        "unique_id": death.unique_id,
+        "status": death.status,
+        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
+        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
+    }
+
+
+@intake.post("/api/cases/<death_id>/visit")
+@role_required("interviewer")
+def api_set_visit(death_id):
+    """Set (or clear, with ``null``) the case's next visit. Body: ``next_visit_at``
+    (ISO date-time with timezone)."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.set_visit(current_user, death_id, next_visit_at=p.get("next_visit_at"))
+        db.session.commit()
+        return jsonify({"case": _visit_ack(death)})
+
+    return _handle(run)
+
+
+@intake.post("/api/cases/<death_id>/attempts")
+@role_required("interviewer")
+def api_log_contact_attempt(death_id):
+    """Log a contact attempt. Body: ``outcome``, optional ``next_visit_at``."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.log_contact_attempt(
+            current_user, death_id, outcome=str(p.get("outcome") or ""),
+            next_visit_at=p.get("next_visit_at"),
+        )
+        db.session.commit()
+        return jsonify({"case": _visit_ack(death)}), 201
+
+    return _handle(run)
+
+
+@intake.post("/api/cases/<death_id>/pause")
+@role_required("interviewer")
+def api_pause_interview(death_id):
+    """Pause an in-progress interview. Body: ``reason`` (a code), optional
+    ``next_visit_at``. Resume is ``POST /api/drafts`` with the case."""
+    p = _payload()
+
+    def run():
+        death = intake_svc.pause_interview(
+            current_user, death_id, reason=str(p.get("reason") or ""),
+            next_visit_at=p.get("next_visit_at"),
+        )
+        db.session.commit()
+        return jsonify({"case": _visit_ack(death)})
 
     return _handle(run)
 

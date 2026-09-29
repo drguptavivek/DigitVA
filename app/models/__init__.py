@@ -94,6 +94,7 @@ from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.va_usernotes import VaUsernotes
 from app.models.va_users import VaUsers
 from app.models.va_web_intake import (
+    MapCaseContactAttempt,
     MapCaseTransition,
     VaDeathRegister,
     VaWebIntakeDraft,
@@ -182,6 +183,7 @@ __all__ = [
     "MapOrgUnitVaPresets",
     "MasOrgUnitWorker",
     "VaDeathRegister",
+    "MapCaseContactAttempt",
     "MapCaseTransition",
     "VaWebIntakeDraft",
     "VaWebIntakeDraftSection",

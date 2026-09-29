@@ -29,6 +29,8 @@ CASE_STATES = (
 DEATH_REGISTER_STATUSES = CASE_STATES
 CASE_SOURCES = ("register", "direct")
 CASE_FLAGS = ("duplicate", "cancel")
+#: Outcome of one contact attempt (``map_case_contact_attempts``); no notes.
+CONTACT_OUTCOMES = ("reached", "no_answer", "wrong_number", "moved", "refused")
 WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded")
 DEATH_SEX_VALUES = ("male", "female", "undetermined", "unknown")
 
@@ -53,6 +55,8 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_project_status", "project_id", "status"),
         sa.Index("ix_va_death_register_org_unit", "org_unit_id"),
         sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
+        # The worklist sorts by next visit, then last activity.
+        sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
         # The naming convention prefixes "ck_<table>_"; pass the discriminator.
         sa.CheckConstraint(
             "status IN (" + ", ".join(f"'{s}'" for s in CASE_STATES) + ")", name="status"
@@ -90,8 +94,14 @@ class VaDeathRegister(db.Model):
     date_of_death: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
     place_of_death: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    # Structured address beside the free-text one (PII).
+    address_house_street: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    address_village_ward: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    address_landmark: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     informant_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    # Indian mobile numbers, stored as 10 digits (older rows may hold free text).
     informant_phone: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
+    informant_phone_2: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
     remarks: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="registered", server_default="registered"
@@ -116,6 +126,9 @@ class VaDeathRegister(db.Model):
     duplicate_of_death_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_death_register.death_id"), nullable=True
     )
+    # Appointment or follow-up date, and the latest contact attempt.
+    next_visit_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    last_contact_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
@@ -153,6 +166,36 @@ class MapCaseTransition(db.Model):
     to_state: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
     reason: so.Mapped[str | None] = so.mapped_column(sa.String(200), nullable=True)
     actor_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
+    )
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+
+
+class MapCaseContactAttempt(db.Model):
+    """One attempt to reach a case's family: the outcome only, never notes."""
+
+    __tablename__ = "map_case_contact_attempts"
+    __table_args__ = (
+        sa.Index("ix_map_case_contact_attempts_death_attempted", "death_id", "attempted_at"),
+        # The worklist's "Mine" filter counts attempts the user logged.
+        sa.Index("ix_map_case_contact_attempts_by_user", "by_user_id", "death_id"),
+        sa.CheckConstraint(
+            "outcome IN (" + ", ".join(f"'{o}'" for o in CONTACT_OUTCOMES) + ")", name="outcome"
+        ),
+    )
+
+    attempt_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    death_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_death_register.death_id"), nullable=False
+    )
+    attempted_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime(timezone=True), nullable=False)
+    outcome: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    next_visit_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    by_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )
     created_at: so.Mapped[datetime] = so.mapped_column(

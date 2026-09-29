@@ -234,16 +234,17 @@ stops an interview, so it never makes a project unready.
 The assessment is read-only. It never creates a site, a web form or a grant,
 and a project PI may run it only for the projects they manage.
 
-## Case worklist and interview states (baseline 2026-09-29; phases 2 to 4 built 2026-09-30)
+## Case worklist and interview states (baseline 2026-09-29; phases 2 to 5 built 2026-09-30)
 
 Decided by the owner on 2026-09-29 unless a line says otherwise; the
 decisions of 2026-09-30 are marked as such. Plan and
 phasing: `.tasks/2026-09-28-interviewer-worklist.md` (bead `digitva-vzk`).
 This section is a rule baseline; table and column design stays in the plan.
 Phases 2 and 3 (the case model, the transition service, direct start creates
-the case, the worklist API) and phase 4 (the worklist page) are built; see
-"Built in phases 2 and 3" and "Built in phase 4" at the end of this section for
-the details they fixed. The rest is not built yet, and the
+the case, the worklist API), phase 4 (the worklist page) and phase 5 (visits,
+contact attempts, pause, phones and address) are built; see "Built in phases 2
+and 3", "Built in phase 4" and "Built in phase 5" at the end of this section
+for the details they fixed. The rest is not built yet, and the
 "Baseline" bullets above (own drafts only, one author per draft, 409 for a
 second interviewer) remain the running behaviour until team drafts land.
 
@@ -658,8 +659,8 @@ Details the baseline left open, fixed by the implementation
   (`source = register` only) and still accepts the old status names
   `va_in_progress` and `va_submitted` as filters. The worklist is
   `GET /intake/api/cases` (`mine`, `state`, `limit` up to 200, `cursor`), sorted
-  by last activity until phase 5 adds visit dates; its rows carry no informant
-  name, phone or address.
+  by last activity until phase 5 adds visit dates (superseded: see "Built in
+  phase 5"); its rows carry no informant name, phone or address.
 
 ### Built in phase 4 (digitva-vzk.6, 2026-09-30)
 
@@ -694,6 +695,71 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
   appointments), and the register form's structured address and validated
   phone, moved to phase 5 so it ships with that phase's migration.
 
+### Built in phase 5 (digitva-vzk.9, 2026-09-30)
+
+Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
+`log_contact_attempt`, `pause_interview`); every state change goes through
+`case_transition_service.transition()` and writes its audit row.
+
+- **Case columns:** `next_visit_at` (appointment or follow-up) and
+  `last_contact_at`; `informant_phone_2`; structured address
+  `address_house_street`, `address_village_ward`, `address_landmark` (200
+  characters each) beside the free-text `address`.
+- **Phones:** both phones must be an Indian mobile number: 10 digits starting
+  6-9, with an optional `+91` or `0` in front; spaces and hyphens are ignored.
+  Stored as the 10 digits. Checked on register (there is no edit endpoint
+  yet). Worklist rows carry only `informant_phone_masked` /
+  `informant_phone_2_masked` (`******1234`); `serialize_death` (the register
+  response) keeps the full numbers. Older free-text phones are masked to their
+  last four digits.
+- **Visit dates** are ISO date-times with a timezone (the page sends the
+  browser's local time as UTC), from yesterday to a year ahead.
+- **Set visit** (`POST /intake/api/cases/<death_id>/visit`, body
+  `next_visit_at` or `null`) on a case waiting for a visit (registered,
+  scheduled, not reachable, paused): a date moves registered and not reachable
+  to `scheduled` (audit `visit_scheduled`) and only changes the date on
+  scheduled or paused; `null` moves scheduled back to `registered` (audit
+  `visit_cleared`) and only clears the date elsewhere. A date-only change
+  writes no audit row.
+- **Log attempt** (`POST /intake/api/cases/<death_id>/attempts`, body
+  `outcome`, optional `next_visit_at`) on the same states writes one
+  `map_case_contact_attempts` row (outcome, time, next date, user; no notes)
+  and sets `last_contact_at`:
+  - `refused` -> `refused`, visit date cleared; a next date is refused (400).
+    From `not_reachable` it is refused (409): the transition table has no
+    `not_reachable -> refused` (open item below).
+  - `no_answer`, `wrong_number`, `moved` -> `not_reachable` (stays so if
+    already), next visit = the given date or none.
+  - `reached` -> with a date, registered and not reachable become `scheduled`
+    and a scheduled or paused case takes the date; without one, no state or
+    date change. Chosen so a reached family without a date keeps its
+    appointment, and because `paused -> scheduled` is not a transition.
+  Audit actions are `contact_<outcome>` when the state changes.
+- **Pause** (`POST /intake/api/cases/<death_id>/pause`, body `reason`,
+  optional `next_visit_at`): `in_progress -> paused`; the reason is a code
+  (`respondent_busy`, `respondent_left`, `needs_other_respondent`, `other`),
+  never free text. **Resume** is the existing start: `POST /intake/api/drafts`
+  with the case moves `paused -> in_progress`. Starting or resuming an
+  interview clears `next_visit_at`.
+- **Scope and CSRF:** the three POSTs resolve the case through `get_death`
+  (out of scope reads as 404) and are CSRF-checked (`X-CSRFToken`). Their
+  response is the case's id, state and dates only.
+- **Worklist order:** next visit ascending (overdue first), cases without a
+  date last, then last activity newest first; keyset-paged on
+  (`next_visit_at`, `updated_at`, `death_id`), index
+  `ix_va_death_register_next_visit`. The cursor format changed; an old cursor
+  is refused (400). **Mine** also counts cases the user logged an attempt on.
+- **Page:** rows show the next visit, last contact and the masked phone.
+  **Log attempt** is the primary action on a not-reachable case (Start stays
+  beside it); **Set visit** and **Log attempt** show on every case waiting for
+  a visit; **Pause** on an interview in progress; a paused case's start reads
+  **Resume**. Inline forms, no modal; nothing kept in browser storage. The
+  register form gains the structured address, a second phone and the phone
+  format hint (checked by the browser and again by the server).
+- **PII registry:** not applicable. The new columns stay on the case and
+  never enter the submission payload (`build_web_payload` copies only the ABHA
+  fields and the case id) or an export.
+
 ### Open design items (questions for the owner)
 
 - **Date of death unknown** (found building phase 3). A direct start whose
@@ -702,13 +768,17 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
   submitted. Should the minimum identity accept a year of death, and how
   should the case store it?
 
+- **Refused after not reachable** (found building phase 5). A family first
+  not reachable and then reached who refuses cannot be logged as refused: the
+  transition table has no `not_reachable -> refused`. Proposed: add it (team).
+
 ## Not yet implemented
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native
   app. Of "Case worklist and interview states" above, the case state machine,
-  flags and the worklist API (phases 2 and 3) and the worklist page (phase 4)
-  are built; team drafts, supervisor powers and views, contact attempts, the
-  `interview_outcome` question, first-complete-submission and offline capture
+  flags and the worklist API (phases 2 and 3), the worklist page (phase 4) and
+  visits, contact attempts and pause (phase 5) are built; team drafts,
+  supervisor powers and views, the `interview_outcome` question, first-complete-submission and offline capture
   are **not implemented**. Offline capture is native-app work under Path B of
   [Field Data Collection Policy](field-data-collection.md) (no amendment
   needed), not a web-page feature; it has open design items 6 and 18 there.

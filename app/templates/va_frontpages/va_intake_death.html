@@ -15,8 +15,14 @@
   <div class="col-md-3"><label class="form-label">ABHA address</label><input name="abha_address" class="form-control" placeholder="name@abdm" maxlength="64"></div>
   <div class="col-md-6"><label class="form-label">Place of death</label><input name="place_of_death" class="form-control"></div>
   <div class="col-md-6"><label class="form-label">Address</label><input name="address" class="form-control"></div>
+  <div class="col-md-4"><label class="form-label">House or street</label><input name="address_house_street" class="form-control" maxlength="200"></div>
+  <div class="col-md-4"><label class="form-label">Village or ward</label><input name="address_village_ward" class="form-control" maxlength="200"></div>
+  <div class="col-md-4"><label class="form-label">Landmark</label><input name="address_landmark" class="form-control" maxlength="200"></div>
   <div class="col-md-4"><label class="form-label">Informant name</label><input name="informant_name" class="form-control"></div>
-  <div class="col-md-3"><label class="form-label">Informant phone</label><input name="informant_phone" class="form-control" maxlength="32"></div>
+  {# Mirrors _PHONE_RE in app/services/web_intake_service.py; the server decides. #}
+  <div class="col-md-4"><label class="form-label">Informant phone</label><input name="informant_phone" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>
+  <div class="col-md-4"><label class="form-label">Second phone</label><input name="informant_phone_2" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>
+  <div class="col-12 form-text mt-0" id="phone-help">Mobile numbers: 10 digits starting 6-9; +91 or 0 in front is fine.</div>
   <div class="col-md-5"><label class="form-label">Remarks</label><input name="remarks" class="form-control"></div>
   <div class="col-12 d-flex gap-2">
     <button type="submit" class="btn btn-primary" id="death-save">Save</button>

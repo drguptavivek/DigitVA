@@ -385,6 +385,17 @@
     cancel: ['registered', 'scheduled', 'in_progress', 'paused']
   };
   var STARTABLE = ['draft_identity', 'registered', 'scheduled', 'paused', 'not_reachable', 'refused', 'in_progress'];
+  // Mirrors _VISIT_STATES and the codes in app/services/web_intake_service.py
+  // (phase 5, digitva-vzk.9); the server is the authority.
+  var VISIT_STATES = ['registered', 'scheduled', 'not_reachable', 'paused'];
+  var OUTCOMES = [
+    ['reached', 'Reached'], ['no_answer', 'No answer'], ['wrong_number', 'Wrong number'],
+    ['moved', 'Moved away'], ['refused', 'Refused']
+  ];
+  var PAUSE_REASONS = [
+    ['respondent_busy', 'Respondent busy'], ['respondent_left', 'Respondent had to leave'],
+    ['needs_other_respondent', 'Needs another respondent'], ['other', 'Other']
+  ];
   var REASON_MAX = 200;
   var REASON_WARNING = 'No names, phone numbers or addresses in the reason.';
   var TAB = 'visit', MINE = false, NEXT_CURSOR = null, LIST_TOKEN = 0;
@@ -475,7 +486,10 @@
       'died ' + (row.date_of_death || '—'),
       row.unit_name || 'no unit'
     ].join(' · ')));
-    var meta = el('div', 'small text-muted', 'Updated ' + formatWhen(row.updated_at));
+    if (row.next_visit_at) item.appendChild(el('div', 'small fw-semibold', 'Next visit ' + formatWhen(row.next_visit_at)));
+    var meta = el('div', 'small text-muted', 'Updated ' + formatWhen(row.updated_at)
+      + (row.last_contact_at ? ' · last contact ' + formatWhen(row.last_contact_at) : '')
+      + (row.informant_phone_masked ? ' · phone ' + row.informant_phone_masked : ''));
     if (row.pending_flag) {
       meta.appendChild(document.createTextNode(' '));
       meta.appendChild(el('span', 'badge text-bg-warning', row.pending_flag === 'duplicate' ? 'Duplicate flag pending' : 'Cancel flag pending'));
@@ -484,26 +498,42 @@
 
     var actions = el('div', 'd-flex flex-wrap gap-2 mt-2');
     var panel = el('div', 'mt-2 d-none');
+    var waiting = VISIT_STATES.indexOf(row.state) !== -1;
+    // A case that could not be reached is chased by phone first (the plan's
+    // "Log attempt" primary action); starting it stays one tap away.
+    var attemptFirst = row.state === 'not_reachable' && !row.my_draft_id;
+    if (attemptFirst) {
+      actions.appendChild(actionButton('Log attempt', 'btn-primary', function () { showAttemptForm(panel, row); }));
+    }
     if (row.my_draft_id) {
       var resume = el('a', 'btn btn-sm btn-primary', 'Resume');
       resume.href = '/intake/form/' + encodeURIComponent(row.my_draft_id);
       actions.appendChild(resume);
     } else if (STARTABLE.indexOf(row.state) !== -1) {
       var label = row.state === 'refused' ? 'Restart'
-        : (row.state === 'in_progress' || row.state === 'draft_identity') ? 'Resume' : 'Start';
-      var start = el('button', 'btn btn-sm btn-primary', label);
+        : (row.state === 'in_progress' || row.state === 'draft_identity' || row.state === 'paused') ? 'Resume' : 'Start';
+      var start = el('button', 'btn btn-sm ' + (attemptFirst ? 'btn-outline-primary' : 'btn-primary'), label);
       start.type = 'button';
       start.addEventListener('click', function () {
         openDraft({ project_id: row.project_id, site_id: row.site_id, death_id: row.death_id }, start);
       });
       actions.appendChild(start);
     }
+    if (waiting) {
+      if (!attemptFirst) {
+        actions.appendChild(actionButton('Log attempt', 'btn-outline-primary', function () { showAttemptForm(panel, row); }));
+      }
+      actions.appendChild(actionButton('Set visit', 'btn-outline-primary', function () { showVisitForm(panel, row); }));
+    }
+    if (row.state === 'in_progress') {
+      actions.appendChild(actionButton('Pause', 'btn-outline-primary', function () { showPauseForm(panel, row); }));
+    }
     if (!row.pending_flag) {
       if (FLAGGABLE.duplicate.indexOf(row.state) !== -1) {
-        actions.appendChild(flagButton('Flag duplicate', function () { showFlagForm(panel, row, 'duplicate'); }));
+        actions.appendChild(actionButton('Flag duplicate', 'btn-outline-secondary', function () { showFlagForm(panel, row, 'duplicate'); }));
       }
       if (FLAGGABLE.cancel.indexOf(row.state) !== -1) {
-        actions.appendChild(flagButton('Flag for cancel', function () { showFlagForm(panel, row, 'cancel'); }));
+        actions.appendChild(actionButton('Flag for cancel', 'btn-outline-secondary', function () { showFlagForm(panel, row, 'cancel'); }));
       }
     }
     if (actions.children.length) item.appendChild(actions);
@@ -511,11 +541,95 @@
     return item;
   }
 
-  function flagButton(text, onClick) {
-    var b = el('button', 'btn btn-sm btn-outline-secondary', text);
+  function actionButton(text, style, onClick) {
+    var b = el('button', 'btn btn-sm ' + style, text);
     b.type = 'button';
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  // ---- Visit, contact attempt, pause (phase 5) ----
+  //
+  // Small inline forms like the flag form. Dates are typed in the browser's
+  // local time and sent as ISO with offset; nothing is kept in storage.
+  function visitInput(form, labelText) {
+    form.appendChild(el('label', 'form-label small mb-1', labelText));
+    var input = el('input', 'form-control form-control-sm mb-2');
+    input.type = 'datetime-local';
+    form.appendChild(input);
+    return input;
+  }
+  function isoOrNull(input) {
+    if (!input.value) return null;
+    var parsed = new Date(input.value);
+    return isNaN(parsed) ? null : parsed.toISOString();
+  }
+  function choiceSelect(form, labelText, choices) {
+    form.appendChild(el('label', 'form-label small mb-1', labelText));
+    var select = el('select', 'form-select form-select-sm mb-2');
+    select.required = true;
+    select.add(new Option('Choose…', ''));
+    choices.forEach(function (c) { select.add(new Option(c[1], c[0])); });
+    form.appendChild(select);
+    return select;
+  }
+  // Builds the form in `panel`; `build(form)` adds fields and returns a
+  // function giving the request body; the POST goes to `path` on the case.
+  function inlineForm(panel, row, submitText, path, build, done, extraButton) {
+    panel.replaceChildren();
+    panel.classList.remove('d-none');
+    var form = el('form', 'border rounded p-2 bg-light');
+    var body = build(form);
+    var buttons = el('div', 'd-flex flex-wrap gap-2');
+    var submit = el('button', 'btn btn-sm btn-primary', submitText);
+    submit.type = 'submit';
+    buttons.appendChild(submit);
+    if (extraButton) buttons.appendChild(extraButton);
+    buttons.appendChild(actionButton('Close', 'btn-outline-secondary', function () {
+      panel.replaceChildren(); panel.classList.add('d-none');
+    }));
+    form.appendChild(buttons);
+    function send(payload) {
+      submit.disabled = true;
+      api('/intake/api/cases/' + encodeURIComponent(row.death_id) + '/' + path, 'POST', payload).then(function (res) {
+        submit.disabled = false;
+        if (!res.ok) { alertBox('danger', res.data.error || 'Could not save.'); return; }
+        alertBox('success', done);
+        loadWorklist(true);
+      });
+    }
+    form.addEventListener('submit', function (ev) { ev.preventDefault(); send(body()); });
+    panel.appendChild(form);
+    return send;
+  }
+  function showVisitForm(panel, row) {
+    var clear = null;
+    if (row.next_visit_at) {
+      clear = actionButton('Clear visit', 'btn-outline-secondary', function () { send({ next_visit_at: null }); });
+    }
+    var send = inlineForm(panel, row, 'Save visit', 'visit', function (form) {
+      var when = visitInput(form, 'Next visit');
+      when.required = true;
+      return function () { return { next_visit_at: isoOrNull(when) }; };
+    }, 'Visit saved for case ' + row.unique_id + '.', clear);
+  }
+  function showAttemptForm(panel, row) {
+    inlineForm(panel, row, 'Log attempt', 'attempts', function (form) {
+      var outcome = choiceSelect(form, 'Outcome', OUTCOMES);
+      var when = visitInput(form, 'Next visit (optional)');
+      outcome.addEventListener('change', function () {
+        when.disabled = outcome.value === 'refused';
+        if (when.disabled) when.value = '';
+      });
+      return function () { return { outcome: outcome.value, next_visit_at: isoOrNull(when) }; };
+    }, 'Contact attempt logged for case ' + row.unique_id + '.');
+  }
+  function showPauseForm(panel, row) {
+    inlineForm(panel, row, 'Pause interview', 'pause', function (form) {
+      var reason = choiceSelect(form, 'Reason', PAUSE_REASONS);
+      var when = visitInput(form, 'Revisit (optional)');
+      return function () { return { reason: reason.value, next_visit_at: isoOrNull(when) }; };
+    }, 'Interview paused for case ' + row.unique_id + '.');
   }
 
   // Inline form under the row (no modal: easier on a phone). A duplicate

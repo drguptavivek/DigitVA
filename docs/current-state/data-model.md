@@ -456,7 +456,9 @@ the respondent was shown stays reconstructible.
 ## Web Intake Cases
 
 Policy: `docs/policy/web-intake.md`, "Case worklist and interview states";
-migration `c4e8a2f6b9d3` (digitva-vzk.4, worklist phases 2 and 3).
+migrations `c4e8a2f6b9d3` (digitva-vzk.4, worklist phases 2 and 3) and
+`e5b2c8d4a1f7` (digitva-vzk.9, phase 5: visits, contact attempts, phones,
+address).
 
 ### `va_death_register` (the case)
 
@@ -483,8 +485,20 @@ its case at once). `status` is the case state, written only by
   `paused`, `not_reachable`, `refused` -> `va_in_progress`; `duplicate` ->
   `cancelled`) and refuses while any case has no identity.
 - Index `ix_va_death_register_updated (updated_at, death_id)` serves the
-  worklist's keyset paging (`GET /intake/api/cases`). A draft save bumps the
-  case's `updated_at` (last activity).
+  supervisor list's keyset paging. A draft save bumps the case's `updated_at`
+  (last activity).
+- `next_visit_at`, `last_contact_at` (timestamptz, nullable): the appointment
+  or follow-up date and the latest contact attempt. Index
+  `ix_va_death_register_next_visit (next_visit_at, updated_at, death_id)`
+  serves the worklist sort (next visit, undated last, then last activity) and
+  its keyset paging (`GET /intake/api/cases`). Starting an interview clears
+  `next_visit_at`.
+- `informant_phone_2` (String(32)) beside `informant_phone`; both hold a
+  validated Indian mobile as 10 digits for rows registered from phase 5 on
+  (older rows may hold free text). `address_house_street`,
+  `address_village_ward`, `address_landmark` (Text, 200 characters by the
+  service) beside the free-text `address`. All PII; they stay on the case and
+  are not copied into the submission payload.
 
 ### `map_case_transitions`
 
@@ -495,6 +509,17 @@ creation), `to_state`, `reason` (at most 200 characters, no personal data),
 `actor_user_id`, `created_at`. Indexed on `(death_id, created_at)` and
 `(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
 (cases a user registered, started or acted on).
+
+### `map_case_contact_attempts`
+
+One row per attempt to reach a case's family: `attempt_id`, `death_id` (FK
+`va_death_register`), `attempted_at`, `outcome` (CHECK
+`ck_map_case_contact_attempts_outcome`: `reached`, `no_answer`,
+`wrong_number`, `moved`, `refused`), `next_visit_at` (nullable), `by_user_id`
+(FK `va_users`), `created_at`. Outcome only, no notes. Indexed on
+`(death_id, attempted_at)` and `(by_user_id, death_id)`; the second serves the
+worklist's "mine" filter. Written by `web_intake_service.log_contact_attempt`;
+a state change the attempt causes is also audited in `map_case_transitions`.
 
 ## ICD Reference Master Table
 

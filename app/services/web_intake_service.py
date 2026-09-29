@@ -22,6 +22,7 @@ from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
+    MapCaseContactAttempt,
     MapCaseTransition,
     MasOrgLevel,
     MasOrgUnit,
@@ -40,6 +41,7 @@ from app.models import (
 )
 from app.models.va_web_intake import (
     CASE_STATES,
+    CONTACT_OUTCOMES,
     DEATH_NUMBER_SEQUENCE,
     DEATH_SEX_VALUES,
     WEB_INTAKE_MODES,
@@ -82,6 +84,11 @@ __all__ = [
     "list_deaths",
     "get_death",
     "flag_death",
+    "set_visit",
+    "log_contact_attempt",
+    "pause_interview",
+    "PAUSE_REASONS",
+    "mask_phone",
     "list_worklist",
     "start_draft",
     "list_drafts",
@@ -102,6 +109,9 @@ AUDIT_ROLE = "vainterviewer"
 PAYLOAD_ROLE = "vainterviewer"
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
+# Indian mobile: 10 digits starting 6-9, optionally after +91 or 0.
+_PHONE_RE = re.compile(r"^(?:\+91|0)?([6-9]\d{9})$")
+_PHONE_SEPARATORS_RE = re.compile(r"[\s-]")
 _SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 #: An instrument locale code as the XLSForm writes it ("hi", "kha", "pt-BR").
 _LOCALE_CODE_RE = re.compile(r"^[A-Za-z0-9-]{2,16}$")
@@ -421,6 +431,29 @@ def _clean_abha(number: object, address: object) -> tuple[str | None, str | None
     return abha_number, abha_address
 
 
+def _clean_phone(raw: object, *, what: str) -> str | None:
+    """An Indian mobile number normalised to its 10 digits, or None if blank.
+
+    Spaces and hyphens are ignored; a +91 or 0 prefix is dropped.
+    """
+    value = _clean(raw, what=what, max_len=32)
+    if value is None:
+        return None
+    match = _PHONE_RE.match(_PHONE_SEPARATORS_RE.sub("", value))
+    if not match:
+        raise WebIntakeError(f"{what} must be a 10-digit mobile number starting 6-9 (+91 or 0 in front is fine).")
+    return match.group(1)
+
+
+def mask_phone(phone: str | None) -> str | None:
+    """``******1234``: the last four digits only, for lists. Tolerates the free
+    text older rows may hold."""
+    if not phone:
+        return None
+    digits = re.sub(r"\D", "", phone)
+    return "******" + (digits[-4:] if len(digits) >= 4 else "")
+
+
 def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, **fields) -> VaDeathRegister:
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
@@ -460,8 +493,12 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         date_of_death=date_of_death,
         place_of_death=_clean(fields.get("place_of_death"), what="Place of death"),
         address=_clean(fields.get("address"), what="Address"),
+        address_house_street=_clean(fields.get("address_house_street"), what="House or street", max_len=200),
+        address_village_ward=_clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
+        address_landmark=_clean(fields.get("address_landmark"), what="Landmark", max_len=200),
         informant_name=_clean(fields.get("informant_name"), what="Informant name"),
-        informant_phone=_clean(fields.get("informant_phone"), what="Informant phone", max_len=32),
+        informant_phone=_clean_phone(fields.get("informant_phone"), what="Informant phone"),
+        informant_phone_2=_clean_phone(fields.get("informant_phone_2"), what="Second phone"),
         remarks=_clean(fields.get("remarks"), what="Remarks"),
         registered_by=user.user_id,
         source="register",
@@ -557,6 +594,114 @@ def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None
 
 
 # ---------------------------------------------------------------------------
+# Visits, contact attempts, pause (phase 5, digitva-vzk.9)
+# ---------------------------------------------------------------------------
+
+#: Pause reason codes (a code, never free text: the audit reason holds no PII).
+PAUSE_REASONS = ("respondent_busy", "respondent_left", "needs_other_respondent", "other")
+#: Cases waiting for a visit: a visit date may be set and attempts logged.
+_VISIT_STATES = frozenset({"registered", "scheduled", "not_reachable", "paused"})
+_VISIT_PAST = timedelta(days=1)
+_VISIT_AHEAD = timedelta(days=366)
+
+
+def _clean_visit_at(raw: object) -> datetime | None:
+    """An ISO date-time with a timezone, from yesterday to a year ahead, or None."""
+    value = _clean(raw, what="Visit date")
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.tzinfo is None:
+        raise WebIntakeError("Visit date must be a date and time with a timezone.")
+    now = _utcnow()
+    if not now - _VISIT_PAST <= parsed <= now + _VISIT_AHEAD:
+        raise WebIntakeError("Visit date must be between yesterday and a year from now.")
+    return parsed.astimezone(UTC)
+
+
+def _waiting_case(user: VaUsers, death_id: object) -> VaDeathRegister:
+    """A case in scope (else 404), row-locked, that is waiting for a visit (else 409)."""
+    death = cases.lock_case(get_death(user, death_id))
+    if death.status not in _VISIT_STATES:
+        raise WebIntakeError("Only a case waiting for a visit can take a visit date or a contact attempt.", 409)
+    return death
+
+
+def set_visit(user: VaUsers, death_id: object, *, next_visit_at: object | None) -> VaDeathRegister:
+    """Set or clear a case's next visit (appointment or follow-up).
+
+    Setting moves registered / not_reachable to ``scheduled``; on a scheduled
+    or paused case it only changes the date. Clearing moves ``scheduled`` back
+    to ``registered``; elsewhere it only clears the date.
+    """
+    visit_at = _clean_visit_at(next_visit_at)
+    death = _waiting_case(user, death_id)
+    death.next_visit_at = visit_at
+    if visit_at is not None and death.status in ("registered", "not_reachable"):
+        cases.transition(death, "scheduled", actor=user, action="visit_scheduled")
+    elif visit_at is None and death.status == "scheduled":
+        cases.transition(death, "registered", actor=user, action="visit_cleared")
+    db.session.flush()
+    return death
+
+
+def log_contact_attempt(user: VaUsers, death_id: object, *, outcome: str,
+                        next_visit_at: object | None = None) -> VaDeathRegister:
+    """Record one contact attempt and move the case by its outcome.
+
+    - ``refused``: the case becomes ``refused``; its visit date is cleared (a
+      next date is refused).
+    - ``no_answer`` / ``wrong_number`` / ``moved``: ``not_reachable`` (stays
+      so if already), next visit = the given date or none.
+    - ``reached``: with a date, registered / not_reachable become
+      ``scheduled`` and a scheduled or paused case takes the new date; without
+      one nothing changes but the contact time.
+    """
+    if outcome not in CONTACT_OUTCOMES:
+        raise WebIntakeError("Outcome must be one of " + ", ".join(CONTACT_OUTCOMES) + ".")
+    visit_at = _clean_visit_at(next_visit_at)
+    if outcome == "refused" and visit_at is not None:
+        raise WebIntakeError("A refusal takes no next visit date.")
+    death = _waiting_case(user, death_id)
+    now = _utcnow()
+    db.session.add(MapCaseContactAttempt(
+        death_id=death.death_id, attempted_at=now, outcome=outcome,
+        next_visit_at=visit_at, by_user_id=user.user_id,
+    ))
+    death.last_contact_at = now
+    if outcome == "refused":
+        death.next_visit_at = None
+        cases.transition(death, "refused", actor=user, action="contact_refused")
+    elif outcome == "reached":
+        if visit_at is not None:
+            death.next_visit_at = visit_at
+            if death.status in ("registered", "not_reachable"):
+                cases.transition(death, "scheduled", actor=user, action="contact_reached")
+    else:
+        death.next_visit_at = visit_at
+        if death.status != "not_reachable":
+            cases.transition(death, "not_reachable", actor=user, action=f"contact_{outcome}")
+    db.session.flush()
+    return death
+
+
+def pause_interview(user: VaUsers, death_id: object, *, reason: str,
+                    next_visit_at: object | None = None) -> VaDeathRegister:
+    """Pause an in-progress interview with a reason code and optional revisit
+    date. Resuming is starting the draft again (``start_draft``)."""
+    if reason not in PAUSE_REASONS:
+        raise WebIntakeError("Reason must be one of " + ", ".join(PAUSE_REASONS) + ".")
+    visit_at = _clean_visit_at(next_visit_at)
+    death = cases.lock_case(get_death(user, death_id))
+    death.next_visit_at = visit_at
+    cases.transition(death, "paused", actor=user, action="interview_paused", reason=reason)
+    return death
+
+
+# ---------------------------------------------------------------------------
 # Drafts
 # ---------------------------------------------------------------------------
 
@@ -607,6 +752,8 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         death.started_by_user_id = user.user_id
     if death.status in _STARTABLE_STATES:
         action = "interview_restarted" if death.status == "refused" else "interview_started"
+        # The visit is happening: the date no longer sorts the worklist.
+        death.next_visit_at = None
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
@@ -1119,6 +1266,34 @@ def _decode_cursor(raw: str) -> tuple[datetime, uuid.UUID]:
         raise WebIntakeError("Invalid cursor.") from None
 
 
+def _micros(at: datetime) -> int:
+    return (at - _EPOCH) // timedelta(microseconds=1)
+
+
+def _encode_worklist_cursor(case: VaDeathRegister) -> str:
+    visit = str(_micros(case.next_visit_at)) if case.next_visit_at else "-"
+    return f"{visit}_{_micros(case.updated_at)}_{case.death_id}"
+
+
+def _after_worklist_cursor(raw: str):
+    """Keyset condition for rows after *raw* in the worklist order: next visit
+    ascending with undated cases last, then last activity newest first."""
+    try:
+        visit, updated, death_id = raw.split("_", 2)
+        visit_at = None if visit == "-" else _EPOCH + timedelta(microseconds=int(visit))
+        at, death_uuid = _EPOCH + timedelta(microseconds=int(updated)), uuid.UUID(death_id)
+    except (ValueError, OverflowError):
+        raise WebIntakeError("Invalid cursor.") from None
+    older = sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_uuid)
+    if visit_at is None:
+        return sa.and_(VaDeathRegister.next_visit_at.is_(None), older)
+    return sa.or_(
+        VaDeathRegister.next_visit_at.is_(None),
+        VaDeathRegister.next_visit_at > visit_at,
+        sa.and_(VaDeathRegister.next_visit_at == visit_at, older),
+    )
+
+
 def _worklist_scope(user: VaUsers):
     """SQL condition for the cases this interviewer's grants reach, or None.
 
@@ -1153,7 +1328,8 @@ def _worklist_scope(user: VaUsers):
 
 
 def _mine_condition(user: VaUsers):
-    """Registered, started or otherwise worked on (any audited action) by *user*."""
+    """Registered, started or otherwise worked on (any audited action or
+    contact attempt) by *user*."""
     return sa.or_(
         VaDeathRegister.registered_by == user.user_id,
         VaDeathRegister.started_by_user_id == user.user_id,
@@ -1161,18 +1337,22 @@ def _mine_condition(user: VaUsers):
             MapCaseTransition.death_id == VaDeathRegister.death_id,
             MapCaseTransition.actor_user_id == user.user_id,
         ),
+        sa.exists().where(
+            MapCaseContactAttempt.death_id == VaDeathRegister.death_id,
+            MapCaseContactAttempt.by_user_id == user.user_id,
+        ),
     )
 
 
 def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
                   cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
-    """Team cases in the interviewer's scope, newest activity first.
+    """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
     {state: n}, "next_cursor": str | None}``. ``counts`` cover the scope and
     the *mine* filter but not *states*, so tabs can show their totals. Sorted
-    by last activity; the plan's "next visit first" waits for phase 5, which
-    adds visit dates. Keyset-paged on (updated_at, death_id).
+    by next visit (overdue first, undated last), then last activity newest
+    first. Keyset-paged on (next_visit_at, updated_at, death_id).
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -1197,8 +1377,7 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     if states:
         filters.append(VaDeathRegister.status.in_(states))
     if cursor:
-        at, death_id = _decode_cursor(cursor)
-        filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
+        filters.append(_after_worklist_cursor(cursor))
     my_draft = aliased(VaWebIntakeDraft)
     rows = db.session.execute(
         sa.select(VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id)
@@ -1212,14 +1391,15 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
             ),
         )
         .where(*filters)
-        .order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
+        .order_by(
+            VaDeathRegister.next_visit_at.asc().nulls_last(),
+            VaDeathRegister.updated_at.desc(),
+            VaDeathRegister.death_id.desc(),
+        )
         .limit(limit + 1)
     ).all()
     page = [tuple(row) for row in rows[:limit]]
-    next_cursor = None
-    if len(rows) > limit:
-        last = page[-1][0]
-        next_cursor = _encode_cursor(last.updated_at, last.death_id)
+    next_cursor = _encode_worklist_cursor(page[-1][0]) if len(rows) > limit else None
     return {"cases": page, "counts": counts, "next_cursor": next_cursor}
 
 
@@ -1306,9 +1486,15 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
         "place_of_death": death.place_of_death,
         "address": death.address,
+        "address_house_street": death.address_house_street,
+        "address_village_ward": death.address_village_ward,
+        "address_landmark": death.address_landmark,
         "informant_name": death.informant_name,
         "informant_phone": death.informant_phone,
+        "informant_phone_2": death.informant_phone_2,
         "remarks": death.remarks,
+        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
+        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
         "status": death.status,
         "source": death.source,
         "pending_flag": death.pending_flag,
@@ -1319,8 +1505,8 @@ def serialize_death(death: VaDeathRegister) -> dict:
 
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None) -> dict:
-    """One worklist row. No informant name, phone or address: the list shows
-    who died, not how to reach the family (phones are masked in phase 4)."""
+    """One worklist row. No informant name or address, and phones masked
+    (``******1234``): the list shows who died, not how to reach the family."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -1336,6 +1522,10 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
         "pending_flag": death.pending_flag,
+        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
+        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
+        "informant_phone_masked": mask_phone(death.informant_phone),
+        "informant_phone_2_masked": mask_phone(death.informant_phone_2),
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
         "my_draft_id": str(my_draft_id) if my_draft_id else None,

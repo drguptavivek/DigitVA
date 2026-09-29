@@ -258,11 +258,23 @@ interviewer. The two can diverge (a form flagged `form_smartvahiv=True`
 serving a unit whose resolved preset is `low`, or the reverse). Owner
 decision (2026-09-29): SmartVA's run behaviour does not change (it still
 runs after collection, in batches, with no re-runs); only the source of its
-HIV and malaria status moves. It was the ODK form-level setting; it is now
-set per district on the organization tree, passed into the WHO VA answers
-Id10002/Id10003, and read by SmartVA from each submission. Forms within a
-district carry the same values, so batches are unaffected in practice.
-Until `digitva-cts` lands, the per-form flags still apply.
+HIV and malaria status moves, to the district setting itself. For each
+submission, SmartVA's hiv/malaria options resolve in this order:
+
+1. the area preset of the submission's organization unit (nearest ancestor
+   with a value, as `org_grant_service.resolve_va_presets`): `high` -> on,
+   `low` / `veryl` -> off;
+2. otherwise the per-form `form_smartvahiv` / `form_smartvamalaria` flag
+   (projects without an organization tree, unplaced submissions);
+3. otherwise off.
+
+The submission's own Id10002/Id10003 answers are not used by SmartVA: web
+cases carry the district value anyway (prefilled and locked), and ODK
+answers stay in the record and may be flagged when they disagree with the
+district setting. A run is split if its submissions resolve to different
+option sets. Each result records the options it ran with and their source.
+A changed district setting affects later runs only. Until `digitva-cts`
+lands, the per-form flags still apply.
 
 Operational baseline:
 

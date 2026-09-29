@@ -149,9 +149,9 @@ a form definition change. SmartVA classification keeps using the per-form
 Execution Options") — those flags and the resolved area presets can diverge
 (e.g. a form flagged `form_smartvahiv=True` in a district whose unit preset
 is `low`). Owner decision (2026-09-29): SmartVA's run behaviour stays as
-is; its HIV and malaria status now comes from each submission's
-Id10002/Id10003 (set per district and passed into the WHO VA answers)
-instead of the form-level setting (`digitva-cts`).
+is; its HIV and malaria status comes from the district setting of the
+submission's organization unit, falling back to the form-level setting
+(`digitva-cts`, [SmartVA Generation Policy](smartva-generation-policy.md)).
 
 ## Submission
 

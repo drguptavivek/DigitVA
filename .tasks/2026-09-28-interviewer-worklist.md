@@ -159,12 +159,17 @@ codes (`org_<level>_code`) stay server-injected at submission as today.
 4. **Minimum identity from a direct start:** name + date of death + sex;
    until then the case shows only to its interviewer as "details pending".
 
-Still open:
+Decided later the same day:
 
 5. **Refused** (owner, 2026-09-29): a supervisor may reopen a refused case;
    the reopen is audited (who, when, reason).
-6. **Duplicate and cancel:** supervisor only, or also the owning interviewer?
-   (Proposed: interviewer may flag, supervisor confirms.)
+6. **Duplicate and cancel** (owner, 2026-09-29): both interviewers and
+   supervisors can flag a case as a possible duplicate (naming the case it
+   duplicates) or for cancellation (with a reason). An interviewer's flag
+   waits for a supervisor to confirm or reject it; a supervisor's own flag
+   takes effect directly (assumption to confirm). Every flag, confirmation
+   and rejection is audited; confirmed duplicates link to the kept case and
+   are never merged automatically.
 7. **Two interviewers on one case at once** (owner, 2026-09-29): **first
    submission wins, and offline capture is in scope.** No lock: team members
    may fill the same case independently, including offline on their own

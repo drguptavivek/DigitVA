@@ -45,13 +45,21 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 2. `digitva-sn1.1.7` (P1): real-device passkey check (Windows Hello, Touch ID,
    iOS Safari, Android Chrome, phone-to-laptop, a security key). Chrome's
    virtual authenticator passes end to end on dev.
-3. `digitva-vzk` worklist epic: plan and all owner decisions in
-   `.tasks/2026-09-28-interviewer-worklist.md` (no assignment; team fills
-   any registered case; first complete submission wins, incomplete/refused
-   do not; offline in scope; supervisors = MOs at higher facilities + data
-   managers; interviewers and supervisors flag duplicate/cancel, supervisors
-   confirm; supervisors reopen refused). Next: policy baseline in
-   `docs/policy/web-intake.md`, then build in the plan's phase order.
+3. `digitva-vzk` worklist epic: policy baseline written and committed in
+   `docs/policy/web-intake.md` (plan and decisions in
+   `.tasks/2026-09-28-interviewer-worklist.md`). All design questions are
+   decided except offline capture (open items 2-7; offline is in no phase
+   and contradicts `docs/policy/field-data-collection.md` Path A, which must
+   be amended in the change that builds it). Decided 2026-09-30: incomplete
+   outcomes set the case state (no new state); refused is soft; a confirmed
+   duplicate is excluded at case level through one shared predicate;
+   supervisors are a new unit-scoped `interview_supervisor` grant with a
+   cadre check against a new `can_supervise_interviews` flag on the level x
+   cadre grid. Next: phase 2 (case model, states, transition service with
+   audit; migration); phase 1 (`dyk`, `nrq`) is closed. Building the role
+   also means the `role_scope` migration and one-line amendments to
+   `access-control-model.md`, `organization-model.md` and
+   `coding-workflow-state-machine.md`.
    Children: `vzk.1` (prefill identity/place incl. parents' names at
    registration), `vzk.2` (`interview_outcome` question: auto refused/
    completed; partially completed / respondent unavailable = incomplete, not

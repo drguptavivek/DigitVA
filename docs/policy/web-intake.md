@@ -255,7 +255,10 @@ this section is the target and replaces them when phase 2 to 3 lands.
   calculated age) fill it as they are saved. A case cannot leave the pre-
   identity state until all three are present.
 - Until then the row shows as "New interview, details pending" and is visible
-  **only to the interviewer who started it**.
+  to **the interviewer who started it and to supervisors in scope** (owner,
+  2026-09-30, item 11). A supervisor sees "details pending, started by
+  <name>, <age of the case>", so they can chase or cancel an abandoned start;
+  nothing identifying is shown because none exists yet. Teammates do not see it.
 - The list is one query over cases; there is one state machine.
 
 ### States and transitions
@@ -345,7 +348,7 @@ a place for names, phone numbers or addresses).
   `collaborator`, `collaborator_pii`, `coding_tester`, `site_pi`, `project_pi`)
   confer nothing: explicit authorization, no silent widening.
 - **Reach (item 10).** A unit grant covers its unit and everything beneath it,
-  as all unit grants do. Assumption, to be confirmed (open item 17): the
+  as all unit grants do. Confirmed (owner, 2026-09-30, item 17): the
   `interview_supervisor` grant alone gives the supervisor views of that reach,
   with no interviewer grant needed.
 - **Privacy rule (item 14).** Supervisors see identifiers (deceased name,
@@ -368,6 +371,11 @@ a place for names, phone numbers or addresses).
 
 ### Duplicate and cancel flags
 
+- **Own registration (owner, 2026-09-30, item 12).** Until an interview has
+  started, the person who registered a death may **edit and cancel their own
+  registration** without a supervisor; every change is audited (who, when,
+  why). Once an interview has started, only the flag-and-confirm route below
+  applies.
 - Interviewers and supervisors may flag a case as a possible **duplicate**
   (naming the case it duplicates) or for **cancellation** (with a reason).
 - An interviewer's flag waits for a supervisor to **confirm or reject**. A
@@ -435,8 +443,9 @@ Refused is fully soft. A refusal never blocks another attempt: any team member
 in scope may start or resume it, and a complete submission wins. The earlier
 owner decision that a supervisor may reopen a refused case (2026-09-29) is
 **superseded**: it has no function, because no reopen is needed. History line
-kept for the record. Nothing further is required of the restarter today (no
-reason, no warning); see open item 13.
+kept for the record. Nothing further is required of the restarter (owner,
+2026-09-30, item 13): no reason, no warning; the audit row records who
+restarted it and when.
 
 #### Duplicate on a submitted case (owner, 2026-09-30)
 
@@ -576,6 +585,11 @@ Recorded above; removed from the open list.
 - Items 10 and 14, reach, identifier visibility and audit: see "Supervisors".
   Item 10 (subtree) is resolved on the basis that a unit grant covers its unit
   and everything beneath it.
+- Items 11, 12, 13 and 17 (owner, 2026-09-30): "details pending" is visible to
+  its starter and to supervisors; a registrant may edit and cancel their own
+  registration until an interview starts, audited; a refused case restarts
+  with no notice or reason, audit only; the supervisor grant alone gives the
+  supervisor views.
 - Item 16, scope of the `interview_supervisor` grant: unit scope only, so the
   cadre check applies to every supervisor grant (no project- or site-scoped
   supervisor grants). The `role_scope` constraint for the new role therefore
@@ -585,9 +599,9 @@ Recorded above; removed from the open list.
 
 ### Open design items (questions for the owner)
 
-Numbering is stable: items 8, 9, 10, 14, 15 and 16 were decided on 2026-09-30
-and moved to "Decided 2026-09-30" above, so the open items are 2 to 7, 11 to
-13 and 17.
+Numbering is stable: items 8 to 17 (except the offline items) were decided on
+2026-09-30 and moved to "Decided 2026-09-30" above, so only the offline items
+2 to 7 remain open.
 
 2. **Offline key handling.** Where is the key kept, and how is it protected
    (per interviewer, PIN or biometric, hardware-backed storage)? Path B
@@ -606,18 +620,6 @@ and moved to "Decided 2026-09-30" above, so the open items are 2 to 7, 11 to
 7. **Where offline runs.** Path B is a native app and the policy prohibits
    browser persistence. Is offline capture for the web page (which needs
    Path A amended), for the native app, or both?
-11. **Visibility of "details pending" to supervisors** and to interviewers
-    covering the same scope after a long delay: does it stay hidden from them?
-12. **Registrant edits.** May a registrant edit or cancel their own
-    registration before an interview starts (the plan lists "or registrant" for
-    cancel, decision 6 does not)?
-13. **Restarting a refused case.** Should the interviewer see "previously
-    refused on <date>" before restarting, and should a restart need a reason
-    (respondent welfare against friction)?
-17. **Does supervising also need case visibility?** Assumed yes and settled
-    the simple way: the `interview_supervisor` grant alone gives the worklist
-    and case-administration views of its reach, with no interviewer grant
-    needed. To be confirmed.
 
 ## Not yet implemented
 

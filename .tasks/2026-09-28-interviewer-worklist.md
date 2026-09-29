@@ -232,8 +232,8 @@ Decided 2026-09-30 (owner):
 9. **Refused is fully soft.** It blocks nothing: any team member may start or
    resume it, and a complete submission wins (`submitted`, refusal kept as a
    superseded copy). Restart moves it to `in_progress`, audited (who, when).
-   Decision 5 is superseded. Open: whether to show "previously refused on
-   <date>" and whether a restart needs a reason.
+   Decision 5 is superseded. Decided (2026-09-30): nothing extra on restart
+   (no notice, no reason; audit only).
 10. **Duplicate on a submitted case: coding follows state.** A supervisor may
     confirm it against a kept case they choose (UI warns if the duplicate is
     the one already coded). Mechanism superseded by decision 14: case-level
@@ -318,9 +318,11 @@ Decided 2026-09-30 (owner):
       `interview_supervisor` joins `coder` as a role whose grant needs a cadre
       check; coding-workflow-state-machine.md (decision 14).
     - **Decided (owner, 2026-09-30):** (16) supervisor grants are unit-scoped
-      only. **Open (owner):** (17) Does supervising
-      also need case visibility? Assumed yes: the supervisor grant alone gives
-      the supervisor views of its reach.
+      only. (17) The supervisor grant alone gives the
+      supervisor views of its reach (no interviewer grant needed).
+    - **Decided (owner, 2026-09-30):** (11) "details pending" is visible to its
+      starter and to supervisors, not to teammates; (12) a registrant may edit
+      and cancel their own registration until an interview starts, audited.
 
 ## Phases (after decisions; each with tests and a migration where noted)
 

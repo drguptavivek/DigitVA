@@ -45,31 +45,34 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 2. `digitva-sn1.1.7` (P1): real-device passkey check (Windows Hello, Touch ID,
    iOS Safari, Android Chrome, phone-to-laptop, a security key). Chrome's
    virtual authenticator passes end to end on dev.
-3. `digitva-vzk` worklist epic: plan and owner decisions in
-   `.tasks/2026-09-28-interviewer-worklist.md`. Next: write the policy
-   baseline in `docs/policy/web-intake.md`, then build in the plan's phase
-   order. Children: `vzk.1` (prefill identity/place incl. parents' names at
-   registration), `vzk.2` (`interview_outcome` question, auto-filled),
-   `vzk.3` (interviewer year of birth and sex in profile).
+3. `digitva-vzk` worklist epic: plan and all owner decisions in
+   `.tasks/2026-09-28-interviewer-worklist.md` (no assignment; team fills
+   any registered case; first complete submission wins, incomplete/refused
+   do not; offline in scope; supervisors = MOs at higher facilities + data
+   managers; interviewers and supervisors flag duplicate/cancel, supervisors
+   confirm; supervisors reopen refused). Next: policy baseline in
+   `docs/policy/web-intake.md`, then build in the plan's phase order.
+   Children: `vzk.1` (prefill identity/place incl. parents' names at
+   registration), `vzk.2` (`interview_outcome` question: auto refused/
+   completed; partially completed / respondent unavailable = incomplete, not
+   coded), `vzk.3` (interviewer year of birth and sex in profile).
 4. `digitva-5mu`: the web form's own UI strings stay English on a translated
    form; the date hint and "This question is required." show English on
    Hindi pages.
-5. `digitva-hln`: prefill DORIS non-cause fields from the interview
+5. `digitva-cts`: SmartVA takes HIV/malaria from the submission's
+   organization unit district setting (high on, low/very low off), else the
+   form flag, else off; runs unchanged, split when mixed, options and source
+   recorded (`docs/policy/smartva-generation-policy.md`). Agreed; not built.
+6. `digitva-hln`: prefill DORIS non-cause fields from the interview
    (`.tasks/2026-09-29-doris-prefill-from-va.md`); needs the mapping verified
    and clinically signed off before build.
-6. `digitva-ej1`: web attachment upload (audio narration, document images);
+7. `digitva-ej1`: web attachment upload (audio narration, document images);
    owner allows offline on-device storage, encrypted, deleted after upload.
-7. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 report.
+8. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 report.
    `digitva-fb5` (P1): translation label fixes need a speaker.
 
 ## Waiting on the owner
 
-- Worklist open items (`vzk`): may a supervisor reopen a refused case?
-  Duplicate/cancel: interviewer flags, supervisor confirms? What counts as
-  "incomplete" and whether incomplete/refused submissions enter coding
-  (proposals in the plan).
-- Align SmartVA's form-level HIV/malaria flags with the new district presets
-  (recorded as open in `docs/policy/smartva-generation-policy.md`).
 - Merge [drguptavivek/WHO-va-2022#1](https://github.com/drguptavivek/WHO-va-2022/pull/1)
   (our vendored package pushed upstream). `aashieshsingh/WHO-va-2022` has
   separate commits to 25 Sep (date calendar, field controls); not merged.

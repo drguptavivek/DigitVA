@@ -81,11 +81,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Waiting on the owner
 
-- Merge [drguptavivek/WHO-va-2022#1](https://github.com/drguptavivek/WHO-va-2022/pull/1)
-  (our vendored package pushed upstream). `aashieshsingh/WHO-va-2022` has
-  separate commits to 25 Sep (date calendar, field controls); not merged.
-- `digitva-712.6` (12 ICD-11 crosswalk disagreements), `digitva-dus.3`
-  (ICD-11 selectable/sex/age draft), `digitva-mdj` (WHO #94 unanswered).
+- `aashieshsingh/WHO-va-2022` has separate commits to 25 Sep (date calendar,
+  field controls); not merged into our vendored package.
+- `digitva-mdj` (WHO #94 unanswered).
 
 ## Approved, not started
 
@@ -103,6 +101,12 @@ step is where it hooks in), `digitva-sn1` (passkeys/TOTP, build done),
 (semantic ICD search).
 
 ## Caveats still true
+
+- ICD-11 policy is signed off and ships with migration `a7c3e9f1b5d2` (chain
+  head; owner decision 20 is `d3a9c5e1f7b2`). Existing deaths keep their old
+  bucket in the reporting snapshot until `flask analytics refresh-submission-mv`
+  runs (needed for the seven decision-20 buckets). Any later policy edit needs
+  a new migration; the frozen copy is `resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`.
 
 - Dev has a `test.coder.nc01@gmail.com` account (password as in `AGENTS.md`)
   created for the DORIS browser check; its SADEMO coder grant is set to

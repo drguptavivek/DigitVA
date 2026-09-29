@@ -236,7 +236,7 @@ and a project PI may run it only for the projects they manage.
 
 ## Case worklist and interview states (baseline 2026-09-29, not yet implemented)
 
-Decided by the owner on 2026-09-29 unless a line says otherwise; the four
+Decided by the owner on 2026-09-29 unless a line says otherwise; the
 decisions of 2026-09-30 are marked as such. Plan and
 phasing: `.tasks/2026-09-28-interviewer-worklist.md` (bead `digitva-vzk`).
 This section is a rule baseline; table and column design stays in the plan.
@@ -312,21 +312,59 @@ a place for names, phone numbers or addresses).
   managers in scope, are supervisors of the cases in their scope.
 - A supervisor may **view** the case, **confirm or reject** duplicate and
   cancel flags, and **reopen** terminal cases. A supervisor never assigns.
-- **Owner decision, 2026-09-30: derive from cadre.** Supervisor powers come
-  from the **cadre** carried on a unit-scoped grant, not from a new role and
-  not from a new grant. Data managers keep supervisor powers through their
-  `data_manager` grant.
-- **Consequence.** Cadre is descriptive today: nothing consults it at runtime
-  ([Access Control Model](access-control-model.md), Role To Scope Rules;
-  [Organization Model](organization-model.md), cadre rules). This makes cadre
-  **authoritative** for the worklist. Both policy documents must be amended in
-  the same change that builds it; this baseline does not edit them, and until
-  then they stand.
+- **Owner decision, 2026-09-30: a new explicit grant role, `interview_supervisor`,
+  with a cadre check.** It works the way `coder` works today: the role is the
+  permission, and the cadre is checked when the grant is written. Data managers
+  keep supervisor powers through their `data_manager` grant.
+- **How a cadre is marked as supervising (item 8).** An admin-set attribute,
+  never cadre names in code. It lives on the level x cadre grid row
+  (`map_org_level_cadre`) as a third permission, `can_supervise_interviews`,
+  next to `can_fill_va_form` and `can_code_va_form`; it is not on the cadre
+  itself, so a medical officer can be a supervisor at a PHC or CHC but not at a
+  sub-centre. An admin or project PI sets it in the same grid editor and
+  workbook import and export (`level_cadres` sheet) as the existing flags.
+- **The grant (item 9).** `interview_supervisor` is the permission. Scope:
+  **org_unit only** (owner, 2026-09-30, item 16): every supervisor grant is on
+  a unit, so every one gets the cadre check; broad supervision is a grant on a
+  top unit, which covers everything beneath it, like every unit grant
+  (item 10).
+- **Write-time check (item 9).** Writing an `interview_supervisor` unit grant
+  requires a cadre on the grant, and that cadre must be flagged
+  `can_supervise_interviews` on the level x cadre row for the unit's level, the
+  same way a `coder` grant requires a cadre with `can_code_va_form`
+  ([Organization Model](organization-model.md), cadre rules). The cadre is a
+  check made when the grant is written, not itself a permission; after that the
+  runtime reads the grant's role. Cadre stays descriptive and is not consulted
+  at runtime.
+- **Which grants confer supervision.** `interview_supervisor` and
+  `data_manager` grants only. `coder` and `interviewer` grants **no longer**
+  confer supervision (they did in the first form of this decision, replaced the
+  same day). A medical officer who supervises gets an additional
+  `interview_supervisor` grant; one grant per user x role x unit already allows
+  that alongside their `coder` grant. All other roles (`reviewer`,
+  `collaborator`, `collaborator_pii`, `coding_tester`, `site_pi`, `project_pi`)
+  confer nothing: explicit authorization, no silent widening.
+- **Reach (item 10).** A unit grant covers its unit and everything beneath it,
+  as all unit grants do. Assumption, to be confirmed (open item 17): the
+  `interview_supervisor` grant alone gives the supervisor views of that reach,
+  with no interviewer grant needed.
+- **Privacy rule (item 14).** Supervisors see identifiers (deceased name,
+  informant name and phones, address) **only in the worklist and
+  case-administration views**. Coding screens keep their existing PII redaction
+  (`should_redact_pii`) unchanged: an `interview_supervisor` grant does not lift
+  redaction anywhere else.
+- **Audit (item 14).** Every supervisor action's audit row names the grant and
+  the cadre relied on.
+- **Docs to amend when built** (not edited now; they stand until then): Access
+  Control Model, Role To Scope Rules and the `role_scope` check constraint (a
+  migration) gain the new role; the grants panel and grant import gain the
+  option; Organization Model gains one sentence that `interview_supervisor`
+  joins `coder` as a role whose grant needs a cadre check. Coding Workflow
+  State Machine is amended as noted under "Duplicate on a submitted case".
 - Authorization stays explicit: project, project-site, form and unit grants
   are not interchangeable, and no supervisory reach is inferred from another
-  grant. A cadre-derived power is still bounded by the grant's scope and
-  status and by closed-project dormancy. Open design items 8 to 10 and 14 settle the
-  rest.
+  grant. Supervisor power is bounded by grant scope, grant status and
+  closed-project dormancy (the shared `active_project_condition` predicate).
 
 ### Duplicate and cancel flags
 
@@ -404,20 +442,36 @@ reason, no warning); see open item 13.
 
 A supervisor may confirm a **submitted** case as a duplicate of a kept case.
 The supervisor chooses the kept case; the UI warns when the case marked
-duplicate is the one already coded. Effect on the duplicate's submission,
-following its coding state:
+duplicate is the one already coded.
 
-- **not yet coded or waiting**: excluded from coding as
-  `not_codeable_by_data_manager`, reason "duplicate of <kept case id>";
-- **being coded now**: the active allocation is revoked (the existing
-  allocation-timeout mechanism, [Coding Allocation
-  Timeouts](coding-allocation-timeouts.md)), then the submission is excluded;
-- **already finalized**: the stored coding stays intact, the case is marked
-  duplicate and excluded from reporting counts; nothing is un-finalized or
-  deleted. Only a supervisor **holding a data-manager grant** may confirm it.
+**Mechanism (owner, 2026-09-30): case-level exclusion, not a coding-state
+change.** Confirming marks the case as a confirmed duplicate, pointing at the
+kept case. The submission's coding workflow state is left exactly as it was:
+no new state, no new transition, and `not_codeable_by_data_manager` is **not**
+reused (it is legal only from `screening_pending`, `smartva_pending` and
+`ready_for_coding`, has no clearing path, and is a data-manager-owned record).
 
-Confirmation is audited and reversible by a supervisor: the submission then
-returns to coding. Not asserted as existing: see open items 14 and 15.
+- **One shared predicate.** Everything that reads coding state excludes
+  submissions whose case is a confirmed duplicate through a single shared
+  predicate, the same pattern as the closed-project `active_project_condition`
+  ([Access Control Model](access-control-model.md)); never per-call-site ad hoc
+  filters. Readers covered: coder allocation, the pick-and-choose list, queue
+  and dashboard counts, SmartVA generation, reviewer and secondary coding
+  queues, exports, and analytics and materialized views.
+- **Being coded now:** the active allocation is revoked when the duplicate is
+  confirmed (the existing allocation-timeout mechanism, [Coding Allocation
+  Timeouts](coding-allocation-timeouts.md)).
+- **Undo** clears the mark; the submission continues from the state it was in.
+- **Already finalized:** the stored coding stays intact, the case is excluded
+  from reporting counts, and nothing is un-finalized or deleted. Only a
+  supervisor **holding a `data_manager` grant** may confirm it.
+- Confirmation and undo are audited.
+- **Build requirement:** a test that enumerates every allocation, list, count,
+  export and view path and fails when one ignores the predicate.
+- **Doc follow-up when built:** [Coding Workflow State
+  Machine](coding-workflow-state-machine.md) needs one sentence saying case-
+  level exclusion is not a workflow state. It is not edited now.
+
 - Being a new extension question it is subject to the PII-registry rule in
   [Field Data Collection Policy](field-data-collection.md) if it ever carries
   personal data; as a choice it does not.
@@ -501,8 +555,10 @@ placed in a phase. This baseline precedes phase 2.
 
 Recorded above; removed from the open list.
 
-- Former item 1, supervisor role model: derived from the cadre on a unit-scoped
-  grant ("Supervisors"). Its follow-ups are items 8 to 10 and 14 below.
+- Former item 1, supervisor role model: a new explicit `interview_supervisor`
+  grant role with a write-time cadre check ("Supervisors"); the same-day first
+  form (derive from the cadre, carried by `coder` and `interviewer` grants) was
+  replaced. Its follow-ups (items 8 to 10 and 14) are decided below.
 - Former item 8, state after an incomplete or refused submission: no new
   state; the outcome sets it, and refused is soft ("States and transitions").
 - Former item 9, existing submit rule: replaced ("Incomplete submissions",
@@ -511,11 +567,27 @@ Recorded above; removed from the open list.
   ("Duplicate on a submitted case").
 - Owner decision 5 of 2026-09-29 (supervisor may reopen a refused case) is
   superseded by soft refusal.
+- Item 8, how a cadre is marked as supervising: an admin-set flag on the level
+  x cadre grid ("Supervisors").
+- Item 9, which grants carry the power: a new explicit `interview_supervisor`
+  grant role with a write-time cadre check (the cadre must be flagged
+  `can_supervise_interviews` at the unit's level), plus `data_manager` grants.
+  `coder` and `interviewer` grants confer nothing ("Supervisors").
+- Items 10 and 14, reach, identifier visibility and audit: see "Supervisors".
+  Item 10 (subtree) is resolved on the basis that a unit grant covers its unit
+  and everything beneath it.
+- Item 16, scope of the `interview_supervisor` grant: unit scope only, so the
+  cadre check applies to every supervisor grant (no project- or site-scoped
+  supervisor grants). The `role_scope` constraint for the new role therefore
+  allows `org_unit` only.
+- Item 15, mechanism for a confirmed duplicate: case-level exclusion, see
+  "Duplicate on a submitted case".
 
 ### Open design items (questions for the owner)
 
-Items 2 to 7, 11 and 12 keep their earlier numbers; items 8 to 10 and 13 to
-15 are new (the earlier 8 to 10 are decided, above).
+Numbering is stable: items 8, 9, 10, 14, 15 and 16 were decided on 2026-09-30
+and moved to "Decided 2026-09-30" above, so the open items are 2 to 7, 11 to
+13 and 17.
 
 2. **Offline key handling.** Where is the key kept, and how is it protected
    (per interviewer, PIN or biometric, hardware-backed storage)? Path B
@@ -534,15 +606,6 @@ Items 2 to 7, 11 and 12 keep their earlier numbers; items 8 to 10 and 13 to
 7. **Where offline runs.** Path B is a native app and the policy prohibits
    browser persistence. Is offline capture for the web page (which needs
    Path A amended), for the native app, or both?
-8. **How a cadre is marked as supervising.** An attribute on the cadre
-   definition that an admin sets (recommended), or matching cadre names in
-   code (authority would then depend on spelling)?
-9. **Which role's grant carries the supervising cadre.** Every grant has a role
-   and cadre attaches only to unit-scoped grants: an `interviewer` grant at the
-   higher-level unit (the person can then also interview), or another role?
-   And what does a supervising cadre on a `coder` or `collaborator` grant mean?
-10. **Reach of supervisor power.** Assumed to cover the grant unit's subtree,
-    as other unit grants do; confirm.
 11. **Visibility of "details pending" to supervisors** and to interviewers
     covering the same scope after a long delay: does it stay hidden from them?
 12. **Registrant edits.** May a registrant edit or cancel their own
@@ -551,18 +614,10 @@ Items 2 to 7, 11 and 12 keep their earlier numbers; items 8 to 10 and 13 to
 13. **Restarting a refused case.** Should the interviewer see "previously
     refused on <date>" before restarting, and should a restart need a reason
     (respondent welfare against friction)?
-14. **Supervisor visibility and audit.** Do supervisors see identifying details
-    (name, phones) for cases in scope at the interviewers' level (assumed yes:
-    needed to resolve duplicates)? Each supervisor action must record the grant
-    and cadre relied on: confirm.
-15. **Duplicate on a submitted case: mechanisms.**
-    [Coding Workflow State Machine](coding-workflow-state-machine.md) allows
-    `not_codeable_by_data_manager` only from `screening_pending`,
-    `smartva_pending` and `ready_for_coding`. Applying it to a submission being
-    coded, or clearing it on reversal, needs new transitions. Excluding a
-    finalized duplicate from reporting counts has no mechanism today. Which
-    transitions and which count rule, and does the "data-manager grant" limit
-    on the finalized case hold once cadre-derived supervisors exist?
+17. **Does supervising also need case visibility?** Assumed yes and settled
+    the simple way: the `interview_supervisor` grant alone gives the worklist
+    and case-administration views of its reach, with no interviewer grant
+    needed. To be confirmed.
 
 ## Not yet implemented
 

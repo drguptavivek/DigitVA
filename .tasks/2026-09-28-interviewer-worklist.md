@@ -157,7 +157,8 @@ codes (`org_<level>_code`) stay server-injected at submission as today.
    duplicates, cancel and reopen; they do not assign. Implication: a
    supervisory grant at an org unit covering its subtree (design to settle:
    a new `interview_supervisor` role at org-unit scope vs deriving it from an
-   existing role; data managers already hold project/site/unit grants).
+   existing role; data managers already hold project/site/unit grants; settled by decision 15: a new
+   `interview_supervisor` role).
 4. **Minimum identity from a direct start:** name + date of death + sex;
    until then the case shows only to its interviewer as "details pending".
 
@@ -235,26 +236,91 @@ Decided 2026-09-30 (owner):
    <date>" and whether a restart needs a reason.
 10. **Duplicate on a submitted case: coding follows state.** A supervisor may
     confirm it against a kept case they choose (UI warns if the duplicate is
-    the one already coded). Not yet coded or waiting: excluded as
-    `not_codeable_by_data_manager`, reason "duplicate of <kept case id>". Being
-    coded: allocation revoked (`docs/policy/coding-allocation-timeouts.md`),
-    then excluded. Finalized: coding stays intact, case marked duplicate and
-    excluded from reporting counts, only a supervisor holding a data-manager
-    grant may confirm. Audited, reversible by a supervisor. Open: today
-    `not_codeable_by_data_manager` is legal only from `screening_pending`,
-    `smartva_pending`, `ready_for_coding`, and no reporting-count exclusion
-    mechanism exists.
-11. **Supervisor model: derive from cadre.** Supervisor powers (view all cases
-    in scope, confirm/reject duplicate and cancel flags, never assign) come
-    from the cadre on a unit-scoped grant; no new role or grant. Data managers
-    keep them through their grant. This makes cadre authoritative rather than
-    descriptive, so `docs/policy/access-control-model.md` and
-    `docs/policy/organization-model.md` must be amended in the same change that
-    builds it. Still bounded by grant scope, status and closed-project
-    dormancy. Supersedes the "design to settle" in decision 3. Open (see
-    policy items 8 to 10, 14): how a cadre is marked supervising, which role's
-    grant carries it, subtree reach, supervisor visibility of identity, audit
-    of grant and cadre relied on.
+    the one already coded). Mechanism superseded by decision 14: case-level
+    exclusion, not `not_codeable_by_data_manager`. Being coded: allocation
+    revoked (`docs/policy/coding-allocation-timeouts.md`). Finalized: coding
+    stays intact, case excluded from reporting counts, only a supervisor holding
+    a data-manager grant may confirm. Audited, reversible by a supervisor.
+11. **Supervisor model: derive from cadre.** (Owner, 2026-09-30; the "derive
+    from cadre, no new role" part is **superseded by decision 15**, kept as
+    history.) Supervisor powers (view all cases in scope, confirm/reject
+    duplicate and cancel flags, never assign) were to come from the cadre on a
+    unit-scoped grant. Data managers keep them through their grant. Still
+    bounded by grant scope, status and closed-project dormancy. Supersedes the
+    "design to settle" in decision 3. The four follow-ups (marking, carrying
+    grant, subtree, identity visibility and audit) are settled by decisions 12,
+    13 and 15.
+12. **Supervising cadre is an admin-set flag on the level x cadre grid**
+    (owner, 2026-09-30). A third permission `can_supervise_interviews` on the
+    `map_org_level_cadre` row, next to `can_fill_va_form` and
+    `can_code_va_form`; not on the cadre itself, so an MO can supervise at a
+    PHC or CHC but not at a sub-centre. Set by an admin or project PI in the
+    same grid editor and `level_cadres` workbook sheet (import and export) as
+    the existing flags. No cadre names in code.
+13. **Which grants carry the power** (owner, 2026-09-30). **The carrying-grants
+    part is superseded by decision 15** (a new `interview_supervisor` grant
+    role; `coder` and `interviewer` grants no longer confer supervision). Kept
+    as history; the subtree, identifier-visibility, audit and bounds parts
+    stand. Original text: A `coder` or
+    `interviewer` grant on a unit whose level x cadre row is flagged
+    `can_supervise_interviews`, using that grant's cadre, confers supervisor
+    power over that unit's subtree (a unit grant covers its unit and everything
+    beneath it; resolves policy item 10). `data_manager` grants supervise
+    through the grant. Deliberately not reviewer, collaborator,
+    collaborator_pii, coding_tester, site_pi or project_pi: no silent widening.
+    Bounded by grant scope, status and closed-project dormancy
+    (shared predicate). Identifier visibility (deceased name, informant name
+    and phones, address) applies only in the worklist and case-administration
+    views; coding screens keep `should_redact_pii` unchanged. Every supervisor
+    action's audit row names the grant and the cadre relied on.
+14. **Confirmed duplicate: case-level exclusion** (owner, 2026-09-30). Confirming
+    marks the case (pointing at the kept case); the submission's coding
+    workflow state is untouched, with no new state or transition and no reuse of
+    `not_codeable_by_data_manager`. Every reader of coding state (allocation,
+    pick-and-choose, queue and dashboard counts, SmartVA generation,
+    reviewer and secondary queues, exports, analytics and materialized views)
+    excludes such submissions through ONE shared predicate, the pattern of
+    `active_project_condition`. An active allocation is revoked on
+    confirmation. Undo clears the mark and coding resumes from the state it was
+    in. A finalized duplicate keeps its coding, is excluded from reporting
+    counts, and only a supervisor with a data-manager grant may confirm it.
+    Build requirement: a test that enumerates every allocation, list, count,
+    export and view path and fails when one ignores the predicate.
+15. **Supervisor is a new explicit grant role, `interview_supervisor`, with a
+    cadre check** (owner, 2026-09-30). Supersedes the carrying-grants part of
+    decision 13 and the "derive from cadre, no new role" part of decision 11;
+    decisions 12 and 14 stand.
+    - `interview_supervisor` is the permission. Scope: **org_unit only**
+      (owner, 2026-09-30, item 16), so every supervisor grant gets the cadre
+      check; broad supervision is a grant on a top unit. A unit grant covers its
+      unit and everything beneath it.
+    - **Write-time check:** an `interview_supervisor` unit grant requires a
+      cadre, and that cadre must be flagged `can_supervise_interviews` on the
+      level x cadre row for the unit's level (decision 12), the way a `coder`
+      grant requires a cadre with `can_code_va_form`. The cadre is checked when
+      the grant is written, not itself a permission; the runtime then reads the
+      grant's role. Cadre stays descriptive, consistent with the existing
+      organization-model rule, so cadre does **not** become authoritative.
+    - `coder` and `interviewer` grants no longer confer supervision. A medical
+      officer who supervises gets an additional `interview_supervisor` grant
+      (one grant per user x role x unit already allows it). `data_manager`
+      grants keep supervising through the grant. All other roles confer nothing.
+    - Unchanged: powers (view all cases in scope, confirm/reject duplicate and
+      cancel flags, reopen where still applicable, never assign; only a
+      supervisor holding a data_manager grant may confirm a finalized
+      duplicate), the privacy rule (identifiers only in worklist and
+      case-administration views; coding screens keep `should_redact_pii`),
+      audit rows naming the grant and cadre relied on, bounds (grant scope,
+      status, closed-project dormancy via the shared predicate).
+    - **Docs to amend when built:** access-control-model.md Role To Scope Rules
+      and the `role_scope` check constraint (a migration); the grants panel and
+      grant import options; one sentence in organization-model.md that
+      `interview_supervisor` joins `coder` as a role whose grant needs a cadre
+      check; coding-workflow-state-machine.md (decision 14).
+    - **Decided (owner, 2026-09-30):** (16) supervisor grants are unit-scoped
+      only. **Open (owner):** (17) Does supervising
+      also need case visibility? Assumed yes: the supervisor grant alone gives
+      the supervisor views of its reach.
 
 ## Phases (after decisions; each with tests and a migration where noted)
 

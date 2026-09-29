@@ -2726,8 +2726,11 @@ def admin_panel_project_setup(project_id):
     """One page per project holding its configuration (epic digitva-r1p).
 
     Admin only, the same gate as the Projects panel whose edit form the Basics
-    section embeds. Counts are two indexed aggregates, not row loads.
+    section embeds; every other panel it hosts is admin-reachable on its own.
+    Counts are two indexed aggregates, not row loads.
     """
+    from app.utils import smartva_allowed_countries
+
     project = db.session.get(VaProjectMaster, project_id)
     if project is None:
         abort(404)
@@ -2750,6 +2753,8 @@ def admin_panel_project_setup(project_id):
         unit_count=unit_count,
         saved=request.args.get("saved") == "1",
         locked_project_id=project.project_id,
+        # The Project Forms panel (Data collection) renders these.
+        smartva_countries=smartva_allowed_countries,
     )
 
 
@@ -5820,8 +5825,15 @@ def admin_site_maintenance_end():
 @admin.get("/panels/activity")
 @role_required("admin")
 def admin_panel_activity():
+    """Audit-log activity, filtered and paged.
+
+    ``locked=1`` with a ``project_id`` is the Project Setup home's embedded
+    view: the project filter is fixed and the log swaps inside its own box.
+    It only narrows the rows; the route is admin-only either way.
+    """
     sid = (request.args.get("sid") or "").strip()
     project_id = (request.args.get("project_id") or "").strip().upper()
+    locked_project_id = project_id if request.args.get("locked") == "1" else ""
     site_id = (request.args.get("site_id") or "").strip().upper()
     user_id = (request.args.get("user_id") or "").strip()
     action = (request.args.get("action") or "").strip()
@@ -5846,9 +5858,10 @@ def admin_panel_activity():
     project_options = db.session.scalars(
         sa.select(VaForms.project_id).distinct().order_by(VaForms.project_id)
     ).all()
-    site_options = db.session.scalars(
-        sa.select(VaForms.site_id).distinct().order_by(VaForms.site_id)
-    ).all()
+    site_stmt = sa.select(VaForms.site_id).distinct().order_by(VaForms.site_id)
+    if locked_project_id:
+        site_stmt = site_stmt.where(VaForms.project_id == locked_project_id)
+    site_options = db.session.scalars(site_stmt).all()
     from app.models import VaSubmissionsAuditlog
     raw_action_options = db.session.scalars(
         sa.select(VaSubmissionsAuditlog.va_audit_action)
@@ -5877,6 +5890,7 @@ def admin_panel_activity():
         site_options=site_options,
         action_options=action_options,
         action_explanations=_AUDIT_ACTION_EXPLANATIONS,
+        locked_project_id=locked_project_id,
     )
 
 

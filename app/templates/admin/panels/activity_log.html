@@ -1,4 +1,12 @@
-<div id="panel-activity-log">
+{#
+  Activity Log panel. locked_project_id (the Project Setup home's embedded
+  view, ?locked=1): the project filter is fixed and every filter or page
+  request swaps only #setup-activity, not the whole admin panel.
+#}
+{% set locked_project_id = locked_project_id|default('') %}
+{% set swap_target = '#setup-activity' if locked_project_id else '#admin-panel' %}
+{% set locked_qs = '&locked=1' if locked_project_id else '' %}
+<div id="panel-activity-log" data-locked-project="{{ locked_project_id }}">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h5 class="mb-0">
       <i class="fa-solid fa-clock-rotate-left me-2 text-secondary"></i>Activity Log
@@ -10,15 +18,19 @@
     <div class="card-body py-3">
       <form class="row g-2 align-items-end"
             hx-get="/admin/panels/activity"
-            hx-target="#admin-panel"
+            hx-target="{{ swap_target }}"
             hx-swap="innerHTML">
+        {% if locked_project_id %}
+          <input type="hidden" name="project_id" value="{{ locked_project_id }}">
+          <input type="hidden" name="locked" value="1">
+        {% endif %}
         <div class="col-md-2">
           <label class="form-label small fw-semibold mb-1">SID</label>
           <input type="text" name="sid" value="{{ sid }}" class="form-control form-control-sm" placeholder="uuid:...">
         </div>
-        <div class="col-md-1">
+        <div class="col-md-1{{ ' d-none' if locked_project_id }}">
           <label class="form-label small fw-semibold mb-1">Project</label>
-          <select name="project_id" class="form-select form-select-sm">
+          <select name="project_id" class="form-select form-select-sm"{{ ' disabled' if locked_project_id }}>
             <option value="">All</option>
             {% for option in project_options %}
               <option value="{{ option }}" {% if project_id == option %}selected{% endif %}>{{ option }}</option>
@@ -125,16 +137,16 @@
     <div class="btn-group btn-group-sm">
       <button class="btn btn-outline-secondary"
               {% if page <= 1 %}disabled{% else %}
-              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&action={{ action | urlencode }}&limit={{ limit }}&page={{ page - 1 }}"
-              hx-target="#admin-panel"
+              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&action={{ action | urlencode }}&limit={{ limit }}&page={{ page - 1 }}{{ locked_qs }}"
+              hx-target="{{ swap_target }}"
               hx-swap="innerHTML"
               {% endif %}>
         <i class="fa-solid fa-chevron-left me-1"></i>Previous
       </button>
       <button class="btn btn-outline-secondary"
               {% if page >= total_pages %}disabled{% else %}
-              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&action={{ action | urlencode }}&limit={{ limit }}&page={{ page + 1 }}"
-              hx-target="#admin-panel"
+              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&action={{ action | urlencode }}&limit={{ limit }}&page={{ page + 1 }}{{ locked_qs }}"
+              hx-target="{{ swap_target }}"
               hx-swap="innerHTML"
               {% endif %}>
         Next<i class="fa-solid fa-chevron-right ms-1"></i>

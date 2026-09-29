@@ -1,8 +1,13 @@
 {#
   Project PI Management panel — Admin only.
   Dedicated view for managing global/project-level project_pi grants.
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  project filter is hidden, the list shows that project's PIs whatever
+  ?project_id= says, and the assign form's project is fixed to it.
 #}
-<div id="panel-project-pi">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-project-pi" data-locked-project="{{ locked_project_id }}">
 
   {# Header #}
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -10,7 +15,7 @@
       <h5 class="mb-0">
         <i class="fa-solid fa-user-tie me-2 text-secondary"></i>Project PIs
       </h5>
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
         <label for="ppi-project-filter" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
         <select id="ppi-project-filter" class="form-select form-select-sm" style="min-width:140px;">
           <option value="">All projects</option>
@@ -50,8 +55,12 @@
         </div>
         <div class="col-sm-6">
           <label class="form-label small mb-1">Project <span class="text-danger">*</span></label>
-          <select id="ppi-project-select" class="form-select form-select-sm">
-            <option value="">Loading projects…</option>
+          <select id="ppi-project-select" class="form-select form-select-sm"{{ ' disabled' if locked_project_id }}>
+            {% if locked_project_id %}
+              <option value="{{ locked_project_id }}" selected>{{ locked_project_id }}</option>
+            {% else %}
+              <option value="">Loading projects…</option>
+            {% endif %}
           </select>
         </div>
       </div>
@@ -93,10 +102,12 @@
 (function () {
   'use strict';
 
-  var PROJECT_ID = new URLSearchParams(window.location.search).get('project_id') || '';
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED = document.getElementById('panel-project-pi').getAttribute('data-locked-project') || '';
+  var PROJECT_ID = LOCKED || new URLSearchParams(window.location.search).get('project_id') || '';
 
   // Populate header project filter from bootstrap state
-  (function () {
+  if (!LOCKED) (function () {
     var sel = document.getElementById('ppi-project-filter');
     var projects = (window._adminState && window._adminState.accessible_projects) || [];
     projects.forEach(function (pid) {
@@ -290,7 +301,7 @@
     resetForm();
     formContainer.classList.remove('d-none');
     userSearchInput.focus();
-    if (projectSelect.options.length <= 1) loadProjects();
+    if (!LOCKED && projectSelect.options.length <= 1) loadProjects();
   });
 
   document.getElementById('ppi-cancel-btn').addEventListener('click', function () {
@@ -301,7 +312,7 @@
   function resetForm() {
     errEl.textContent = '';
     clearUserSelection();
-    projectSelect.value = '';
+    projectSelect.value = LOCKED;
   }
 
   // User search logic

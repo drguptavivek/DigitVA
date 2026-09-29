@@ -1,9 +1,10 @@
 {#
-  Project Setup home (epic digitva-r1p, phase 1): one page per project.
-  Sections switch client-side and persist as ?section=. Basics embeds the
-  Projects panel's own edit form locked to this project, so the form fields
-  and save logic stay in admin/panels/projects.html. Sections not built yet
-  point at the sidebar panel that still owns them.
+  Project Setup home (epic digitva-r1p): one page per project.
+  Sections switch client-side and persist as ?section=. Each section includes
+  the existing panel templates locked to this project (locked_project_id), so
+  their fields and save logic stay in those panels; phases 2-4 of the epic
+  added Structure, Coding, Data collection, People and Sync & activity. Every
+  panel is included once: their scripts find elements by id.
 #}
 {% set is_org = project.project_structure_mode == 'organization' %}
 <div id="panel-project-setup" data-project-id="{{ project.project_id }}">
@@ -89,33 +90,74 @@
         {% include "admin/panels/projects.html" %}
       </section>
 
-      {# Phases 2-4: placeholders pointing at the panel that owns the setting today #}
-      {% macro placeholder(name, panels) %}
-        <div class="card"><div class="card-body small">
-          <h6 class="card-title">{{ name }}</h6>
-          <p class="text-muted mb-2">Coming next. For now, use
-          {% for label, url in panels %}{% if not loop.first %}{{ ' or ' if loop.last else ', ' }}{% endif %}the
-          <a href="#" class="setup-panel-link" data-panel-link="{{ url }}">{{ label }}</a> panel{% endfor %}.</p>
-        </div></div>
-      {% endmacro %}
       <section class="setup-section d-none" data-section="data-collection">
-        {{ placeholder('Data collection', [('Project Forms', '/admin/panels/project-forms'), ('ODK Connections', '/admin/panels/odk-connections')]) }}
+        <p class="text-muted small">Web intake (off, direct questionnaire, death register first, or
+          both), its form type and languages are project fields: <a href="#" data-section="basics">edit them in Basics</a>.</p>
+        {% include "admin/panels/project_forms.html" %}
+        <hr class="my-4">
+        {% include "admin/panels/odk_connections.html" %}
       </section>
+      {# Structure: each panel is included once per page (their scripts find
+         elements by id), so Coding points into these rather than repeating them. #}
       <section class="setup-section d-none" data-section="structure">
         {% if is_org %}
-          {{ placeholder('Structure', [('Organization', '/admin/panels/organization')]) }}
-        {% else %}
-          {{ placeholder('Structure', [('Project Sites', '/admin/panels/project-sites')]) }}
+          {% include "admin/panels/organization.html" %}
+          <hr class="my-4">
         {% endif %}
+        {% include "admin/panels/project_sites.html" %}
       </section>
       <section class="setup-section d-none" data-section="coding">
-        {{ placeholder('Coding', [('Organization' if is_org else 'Project Sites', '/admin/panels/organization' if is_org else '/admin/panels/project-sites')]) }}
+        <div class="card mb-3"><div class="card-body small">
+          <h6 class="card-title">Coding intake and classification</h6>
+          <p class="text-muted mb-0">Coding intake ({{ 'pick and choose' if project.coding_intake_mode == 'pick_and_choose' else 'random form allocation' }})
+            and the ICD classification are project fields:
+            <a href="#" data-section="basics">edit them in Basics</a>.</p>
+        </div></div>
+        {% if is_org %}
+          {# The Organization panel's Coding scope block is moved here by the script below. #}
+          <div id="setup-coding-scope-slot" class="mb-3"></div>
+          <div class="card mb-3"><div class="card-body small">
+            <h6 class="card-title">Per-unit coding gates</h6>
+            <p class="text-muted mb-2">A gate on a unit narrows coding for its whole subtree (enabled, window,
+              daily coder limit); the stricter of the unit and site gates wins. Set it with the
+              <i class="fa-solid fa-gauge"></i> button on a unit in the tree.</p>
+            <a href="#" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-org-tab="units">
+              <i class="fa-solid fa-sitemap me-1"></i>Open the unit tree</a>
+          </div></div>
+        {% endif %}
+        <div class="card"><div class="card-body small">
+          <h6 class="card-title">Project coding gate (per site)</h6>
+          <p class="text-muted mb-2">Coding on or off, a coding window and a daily coder limit for each of the
+            project's sites{{ ', the container every unit sits under' if is_org }}. Set it with the
+            <i class="fa-solid fa-sliders"></i> button on a site row in Project Sites.</p>
+          <a href="#" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-to="panel-project-sites">
+            <i class="fa-solid fa-diagram-project me-1"></i>Open Project Sites</a>
+        </div></div>
       </section>
       <section class="setup-section d-none" data-section="people">
-        {{ placeholder('People', [('Access Grants', '/admin/panels/access-grants'), ('Project PIs', '/admin/panels/project-pi')]) }}
+        {% include "admin/panels/access_grants.html" %}
+        <hr class="my-4">
+        {% include "admin/panels/project_pi.html" %}
       </section>
+      {# Sync & activity. Data Sync is app-wide (one run covers every project,
+         with a global schedule and maintenance switch), so it is linked, not
+         hosted. Attachments and the activity log filter by project. #}
       <section class="setup-section d-none" data-section="sync">
-        {{ placeholder('Sync & activity', [('Data Sync', '/admin/panels/sync'), ('Attachments', '/admin/panels/attachments')]) }}
+        <div class="card mb-3"><div class="card-body small">
+          <h6 class="card-title">Data sync</h6>
+          <p class="text-muted mb-0">A sync run, its schedule and the ODK coverage checks cover every
+            project at once, so they stay in the
+            <a href="#" class="setup-panel-link" data-panel-link="/admin/panels/sync">Data Sync</a> panel.
+            This project's form mappings are under <a href="#" data-section="data-collection">Data collection</a>.</p>
+        </div></div>
+        {% include "admin/panels/attachments.html" %}
+        <hr class="my-4">
+        {# Loaded the first time the section is shown; its filters and pages swap in place. #}
+        <div id="setup-activity"
+             hx-get="/admin/panels/activity?project_id={{ project.project_id | urlencode }}&locked=1"
+             hx-trigger="intersect once" hx-swap="innerHTML">
+          <div class="text-muted small py-2">Loading activity…</div>
+        </div>
       </section>
     </div>
   </div>
@@ -150,7 +192,30 @@
     if (window.setUrlParam) window.setUrlParam('section', name);
   }
 
+  // The Organization panel's Coding scope block belongs under Coding.
+  var scopeSlot = document.getElementById('setup-coding-scope-slot');
+  var scopeBlock = document.getElementById('org-coding-scope');
+  if (scopeSlot && scopeBlock) scopeSlot.appendChild(scopeBlock);
+
+  // Coding's links into the panels hosted under Structure.
+  function jump(link) {
+    showSection(link.getAttribute('data-jump-section'));
+    var tab = link.getAttribute('data-jump-org-tab');
+    if (tab) {
+      var tabBtn = root.querySelector('#org-tabs [data-org-tab="' + tab + '"]');
+      if (tabBtn) { tabBtn.click(); tabBtn.scrollIntoView({ block: 'start' }); }
+    }
+    var target = document.getElementById(link.getAttribute('data-jump-to') || '');
+    if (target) target.scrollIntoView({ block: 'start' });
+  }
+
   root.addEventListener('click', function (e) {
+    var jumpLink = e.target.closest('[data-jump-section]');
+    if (jumpLink) {
+      e.preventDefault();
+      jump(jumpLink);
+      return;
+    }
     var sectionLink = e.target.closest('[data-section]:not(section)');
     if (sectionLink) {
       e.preventDefault();
@@ -184,7 +249,7 @@
   // section that fixes it.
 
   var FIX_SECTION = {
-    mode: 'basics', form_type: 'basics', locales: 'basics', coding_scope: 'basics',
+    mode: 'basics', form_type: 'basics', locales: 'basics', coding_scope: 'coding',
     sites: 'structure', org_tree: 'structure', org_unplaced: 'structure', geography_fields: 'structure',
     web_forms: 'data-collection',
     interviewers: 'people'

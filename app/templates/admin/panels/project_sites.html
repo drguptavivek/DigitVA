@@ -1,8 +1,13 @@
 {#
   Project-Site Mappings panel — DigitVA-vgz.5.
   Lists all mappings for the selected project with active/inactive toggle.
+
+  locked_project_id (set when the Project Setup home includes this panel):
+  the project picker is hidden and every load and add is pinned to that
+  project, whatever ?project_id= says.
 #}
-<div id="panel-project-sites">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-project-sites" data-locked-project="{{ locked_project_id }}">
 
   {# Header #}
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -10,7 +15,7 @@
       <h5 class="mb-0">
         <i class="fa-solid fa-diagram-project me-2 text-secondary"></i>Project Sites
       </h5>
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
         <label for="ps-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
         <select id="ps-project-select" class="form-select form-select-sm" style="min-width:140px;">
           <option value="">All projects</option>
@@ -76,10 +81,12 @@
 (function () {
   'use strict';
 
-  var PROJECT_ID = new URLSearchParams(window.location.search).get('project_id') || '';
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED = document.getElementById('panel-project-sites').getAttribute('data-locked-project') || '';
+  var PROJECT_ID = LOCKED || new URLSearchParams(window.location.search).get('project_id') || '';
 
   // Populate project selector from bootstrap state
-  (function () {
+  if (!LOCKED) (function () {
     var sel = document.getElementById('ps-project-select');
     var projects = (window._adminState && window._adminState.accessible_projects) || [];
     projects.forEach(function (pid) {

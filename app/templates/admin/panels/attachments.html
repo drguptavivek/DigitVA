@@ -14,8 +14,16 @@
   GET /admin/api/smartva/run-archive/overview and
   GET /admin/api/db-backups/overview, and each has one action that queues a
   Celery task.
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  overview is fetched for that project only and the project filter is hidden.
+  The app-wide parts are hidden and not loaded: the integrity check, the S3
+  sweep and quarantine, this worker's delivery counters, the SmartVA run
+  archive and the database backups.
 #}
-<div id="panel-attachments">
+{% set locked_project_id = locked_project_id|default('') %}
+{% set hide_if_locked = ' d-none' if locked_project_id else '' %}
+<div id="panel-attachments" data-locked-project="{{ locked_project_id }}">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">
@@ -23,13 +31,17 @@
       <span class="badge text-bg-light border ms-2" id="att-store-badge">&mdash;</span>
     </h5>
     <div class="d-flex gap-2 align-items-center">
-      <select class="form-select form-select-sm" id="att-project-filter" style="width:auto;">
-        <option value="">All projects</option>
+      <select class="form-select form-select-sm{{ hide_if_locked }}" id="att-project-filter" style="width:auto;">
+        {% if locked_project_id %}
+          <option value="{{ locked_project_id }}" selected>{{ locked_project_id }}</option>
+        {% else %}
+          <option value="">All projects</option>
+        {% endif %}
       </select>
       <button class="btn btn-sm btn-outline-secondary" id="att-refresh-btn">
         <i class="fa-solid fa-rotate me-1"></i>Refresh
       </button>
-      <button class="btn btn-sm btn-primary" id="att-integrity-btn">
+      <button class="btn btn-sm btn-primary{{ hide_if_locked }}" id="att-integrity-btn">
         <i class="fa-solid fa-clipboard-check me-1"></i>Run integrity check
       </button>
     </div>
@@ -53,7 +65,7 @@
 
   {# Delivery counters and error categories #}
   <div class="row g-3 mb-3">
-    <div class="col-md-6">
+    <div class="col-md-6{{ hide_if_locked }}">
       <div class="card h-100">
         <div class="card-body py-2">
           <h6 class="card-title small text-uppercase text-muted mb-2">
@@ -79,7 +91,7 @@
   <div id="att-forms-wrap"></div>
 
   {# S3 upload backlog — the cutover sweep and its manual trigger #}
-  <div class="card mt-3" id="att-s3-upload-card">
+  <div class="card mt-3{{ hide_if_locked }}" id="att-s3-upload-card">
     <div class="card-body py-2">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h6 class="card-title small text-uppercase text-muted mb-0">
@@ -107,7 +119,7 @@
   </div>
 
   {# SmartVA run archive — same bucket, smartva_runs/ prefix #}
-  <div class="card mt-3">
+  <div class="card mt-3{{ hide_if_locked }}">
     <div class="card-body py-2">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h6 class="card-title small text-uppercase text-muted mb-0">
@@ -129,7 +141,7 @@
   </div>
 
   {# Database backups — same bucket, db-backups/ prefix #}
-  <div class="card mt-3">
+  <div class="card mt-3{{ hide_if_locked }}">
     <div class="card-body py-2">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h6 class="card-title small text-uppercase text-muted mb-0">
@@ -154,6 +166,9 @@
 <script>
 (function () {
   'use strict';
+
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED = document.getElementById('panel-attachments').getAttribute('data-locked-project') || '';
 
   function csrf() { return window._adminCsrf || ''; }
 
@@ -414,7 +429,7 @@
       }
       _report = res.data;
       document.getElementById('att-store-badge').textContent = _report.store;
-      if (!_filterInitialised) {
+      if (!_filterInitialised && !LOCKED) {
         renderProjectFilter();
         _filterInitialised = true;
       }
@@ -558,6 +573,7 @@
 
   document.getElementById('att-refresh-btn').addEventListener('click', function () {
     load();
+    if (LOCKED) return;
     loadRunArchive();
     loadDbBackups();
   });
@@ -580,8 +596,10 @@
   });
 
   load();
-  loadRunArchive();
-  loadDbBackups();
+  if (!LOCKED) {
+    loadRunArchive();
+    loadDbBackups();
+  }
 
 }());
 </script>

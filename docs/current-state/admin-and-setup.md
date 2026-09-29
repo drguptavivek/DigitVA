@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-30
 ---
 
 # Admin And Setup Model
@@ -32,12 +32,36 @@ The `/admin` interface provides the following management panels:
   and the shell restores `?panel=/admin/panels/project-setup/<id>` on reload,
   highlighting Projects. Overview shows quick facts (structure, coding and web
   intake modes, active site or unit count) and the web-capture readiness
-  checks, each problem linking to the section that fixes it. Basics embeds
-  the Projects panel's own edit form locked to the project (`locked_project_id`
-  in `admin/panels/projects.html`), so there is one form and one save path;
-  creating projects stays in Projects. The remaining sections are placeholders
-  that link to the sidebar panel still owning that configuration; the sidebar
-  panels are unchanged. Admin only, the same gate as Projects.
+  checks, each problem linking to the section that fixes it. Every other
+  section includes the existing panel templates in a locked mode: the route
+  passes `locked_project_id`, each panel puts it on its root as
+  `data-locked-project`, hides its own project picker, and pins every load and
+  create to that project ahead of any `?project_id=` in the URL (which it then
+  leaves alone). With no `locked_project_id` the panels behave as before. Each
+  panel is included once per page, because its script finds elements by id.
+  - Basics: the Projects panel's edit form (one form, one save path; creating
+    projects stays in Projects).
+  - Data collection: Project Forms (mapping conflicts narrowed to ones that
+    involve the project) and ODK Connections (connections are global: it shows
+    the connection serving the project, or all of them while it has none, and
+    offers only this project to assign). Web intake mode stays in Basics.
+  - Structure: Organization (organization-mode projects only) and Project Sites.
+  - Coding: the Organization panel's Coding scope block (moved here by the
+    Setup script; it keeps its own status line), plus links into Structure
+    for the per-unit coding gates (unit tree) and the per-site coding gate
+    (Project Sites row settings), which live on rows of those panels.
+    Coding intake and ICD classification are in Basics.
+  - People: Access Grants (list and new grants in the project) and Project PIs
+    (assign form's project fixed).
+  - Sync & activity: Attachments filtered to the project, with the app-wide
+    parts hidden and not loaded (integrity check, S3 sweep and quarantine,
+    worker delivery counters, SmartVA run archive, database backups), and the
+    Activity Log loaded on first view through
+    `/admin/panels/activity?project_id=<id>&locked=1`, which fixes the project
+    filter and swaps filters and pages inside `#setup-activity`. Data Sync is
+    app-wide (runs, schedule, maintenance, coverage), so it is linked, not
+    hosted.
+  The sidebar panels stay. Admin only, the same gate as Projects.
 - **Sites** — site master management (create, activate, deactivate)
 - **Users** — user account management (create, reset password, toggle active status, assign coder languages)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment

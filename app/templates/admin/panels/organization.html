@@ -2,8 +2,14 @@
   Organization panel — per-project health-system tree: levels, units, cadres,
   level×cadre permissions, workers, export/import.
   API: /admin/api/organization/<project_id>/...  (app/routes/admin_organization.py)
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  project picker is hidden and the panel opens on that project. The Setup home
+  moves the Coding scope block (#org-coding-scope) into its Coding section;
+  the block's script finds its fields by id, so it works wherever it sits.
 #}
-<div id="panel-organization" class="org-no-project">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-organization" class="org-no-project" data-locked-project="{{ locked_project_id }}">
   <style>
     /* Nothing can be built until a project is chosen. */
     #panel-organization.org-no-project #org-tabs,
@@ -14,7 +20,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <div class="d-flex align-items-center gap-3">
       <h5 class="mb-0"><i class="fa-solid fa-sitemap me-2 text-secondary"></i>Organization</h5>
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
         <label for="org-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
         <select id="org-project-select" class="form-select form-select-sm" style="min-width:160px;"></select>
       </div>
@@ -34,7 +40,7 @@
 
   <div class="border rounded p-2 mb-3 small">
     <div class="fw-semibold mb-1">How to set up an organization</div>
-    <div class="mb-1">Pick an organization-mode project above (set <em>Structure: Organization</em> in the Projects panel), then work through the tabs in order:</div>
+    <div class="mb-1">{% if not locked_project_id %}Pick an organization-mode project above (set <em>Structure: Organization</em> in the Projects panel), then work{% else %}Work{% endif %} through the tabs in order:</div>
     <ol class="mb-1 ps-3">
       <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Seed template</em> adds a standard set.</li>
       <li><strong>Units</strong>: add places at each level, or use <em>Upload units CSV</em> in Export / Import. Import top-level units before children; a blank parent code leaves a unit to place with <em>Map parents</em>.</li>
@@ -240,7 +246,7 @@
     <div id="org-level-table"></div>
 
     {# Project coding scope — docs/policy/organization-model.md, "Coding scope" #}
-    <div class="border rounded p-2 mt-3">
+    <div class="border rounded p-2 mt-3" id="org-coding-scope">
       <div class="fw-semibold small mb-1">Coding scope</div>
       <div class="text-muted small mb-2">
         A coder only ever codes deaths from the unit they are granted and the units beneath it;
@@ -261,6 +267,8 @@
         </div>
         <div class="col-md-2"><button class="btn btn-sm btn-success w-100" id="org-scope-save">Save</button></div>
       </div>
+      {# Its own message line: the block may sit outside the panel (see header). #}
+      <div id="org-scope-msg" class="small mt-1" role="status"></div>
     </div>
   </div>
 
@@ -507,7 +515,7 @@
 </div>
 <script>
 (function () {
-  var PROJECT_ID = {{ project_id | tojson }};
+  var PROJECT_ID = {{ (locked_project_id or project_id|default(none)) | tojson }};
   var STATE = { levels: [], units: [], tree: [], cadres: [], level_cadres: [], workers: [] };
   var _lastDryRunOk = false;
   var ASSETS = {
@@ -649,10 +657,11 @@
   }
   $('org-scope-save').addEventListener('click', function () {
     var body = { coding_scope_level_id: $('org-scope-level').value || null, above_scope_coding_mode: $('org-scope-above').value };
+    var msg = $('org-scope-msg');
     api('/admin/api/projects/' + encodeURIComponent(PROJECT_ID), 'PUT', body).then(function (res) {
-      if (!res.ok) { fail(res); return; }
+      if (!res.ok) { msg.className = 'small mt-1 text-danger'; msg.textContent = (res.data && res.data.error) || 'Request failed.'; return; }
       Object.assign(PROJECTS[PROJECT_ID], body);
-      alertBox('success', 'Coding scope saved.');
+      msg.className = 'small mt-1 text-success'; msg.textContent = 'Coding scope saved.';
     });
   });
 

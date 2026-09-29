@@ -2,8 +2,13 @@
   Access Grants panel — DigitVA-vgz.2.
   Lists, creates, and deactivates access grants for the selected project.
   All mutations go through JSON API calls with X-CSRFToken.
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  project picker is hidden, the list is loaded for that project only and a new
+  grant is made in it, whatever ?project_id= says; the URL is left alone.
 #}
-<div id="panel-access-grants">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-access-grants" data-locked-project="{{ locked_project_id }}">
 
   {# Header #}
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -11,7 +16,7 @@
       <h5 class="mb-0">
         <i class="fa-solid fa-key me-2 text-secondary"></i>Access Grants
       </h5>
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
         <label for="ag-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
         <select id="ag-project-select" class="form-select form-select-sm" style="min-width:140px;">
           <option value="">All projects</option>
@@ -162,10 +167,12 @@
 (function () {
   'use strict';
 
-  var PROJECT_ID = new URLSearchParams(window.location.search).get('project_id') || '';
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED = document.getElementById('panel-access-grants').getAttribute('data-locked-project') || '';
+  var PROJECT_ID = LOCKED || new URLSearchParams(window.location.search).get('project_id') || '';
 
   // Populate project selector from bootstrap state
-  (function () {
+  if (!LOCKED) (function () {
     var sel = document.getElementById('ag-project-select');
     var projects = (window._adminState && window._adminState.accessible_projects) || [];
     projects.forEach(function (pid) {

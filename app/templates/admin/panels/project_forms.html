@@ -2,15 +2,20 @@
   Project Forms panel — admin-only.
   Per-project, per-site configuration of ODK form mappings.
   Extensible for future form-level config (sync settings, field mappings, etc.)
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  project picker is hidden, the panel opens on that project whatever
+  ?project_id= says, and mapping conflicts are shown only where they involve it.
 #}
-<div id="panel-project-forms">
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-project-forms" data-locked-project="{{ locked_project_id }}">
 
   {# Header #}
   <div class="mb-1">
     <h5 class="mb-2">
       <i class="fa-solid fa-file-waveform me-2 text-secondary"></i>Project Forms
     </h5>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
       <label for="pf-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
       <select id="pf-project-select" class="form-select form-select-sm" style="min-width:220px;">
         <option value="">— select project —</option>
@@ -85,7 +90,9 @@
 
   // ── state ─────────────────────────────────────────────────────────────────
 
-  var PROJECT_ID       = new URLSearchParams(window.location.search).get('project_id') || '';
+  // Set when embedded in the Project Setup home; see the header comment.
+  var LOCKED           = document.getElementById('panel-project-forms').getAttribute('data-locked-project') || '';
+  var PROJECT_ID       = LOCKED || new URLSearchParams(window.location.search).get('project_id') || '';
   var _connection      = null;   // { connection_id, connection_name, status }
   var _sites           = [];     // [{ site_id, site_name }]
   var _odkProjects     = [];     // [{ id, name }] from ODK Central
@@ -110,6 +117,7 @@
   // ── project selector ──────────────────────────────────────────────────────
 
   (function initProjectSelector() {
+    if (LOCKED) { loadProjectContext(); return; }
     apiJson('/admin/api/projects?master=1').then(function (res) {
       var projects = (res.data.projects || []).filter(function (p) { return p.status === 'active'; });
       var sel = document.getElementById('pf-project-select');
@@ -798,7 +806,13 @@
   function loadConflicts() {
     apiJson('/admin/api/odk-site-mappings/conflicts')
       .then(function (res) {
-        renderConflicts(res.ok ? (res.data.conflicts || []) : []);
+        var conflicts = res.ok ? (res.data.conflicts || []) : [];
+        if (LOCKED) {
+          conflicts = conflicts.filter(function (c) {
+            return c.targets.some(function (t) { return t.project_id === LOCKED; });
+          });
+        }
+        renderConflicts(conflicts);
       }).catch(function () { renderConflicts([]); });
   }
 
@@ -822,7 +836,7 @@
                 var line = '<li>' + esc(t.project_id) + '/' + esc(t.site_id)
                   + ' — pair ' + (t.project_site_active ? 'active' : 'deactivated')
                   + ', ' + esc(t.submission_count) + ' submissions';
-                if (t.removable) {
+                if (t.removable && (!LOCKED || t.project_id === LOCKED)) {
                   line += ' <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 ms-1'
                     + ' pf-conflict-remove-btn" data-project="' + esc(t.project_id)
                     + '" data-site="' + esc(t.site_id) + '">Remove stale mapping</button>';

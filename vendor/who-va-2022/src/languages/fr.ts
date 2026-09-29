@@ -3,6 +3,7 @@
  * must be reviewed by fluent verbal-autopsy specialists before production use.
  */
 import type { WhoVaLanguageFile } from "../i18n.js";
+import { frenchUiMessages } from "./ui.js";
 
 export default {
   locale: "fr",
@@ -4246,112 +4247,5 @@ export default {
       }
     }
   },
-  ui: {
-    sectionProgress: "Section {current} sur {total}",
-    sections: "Sections",
-    sectionsDone: "{count} terminées",
-    sectionsRemaining: "{count} restantes",
-    decrease: "Diminuer",
-    increase: "Augmenter",
-    unitDays: "jours",
-    unitMonths: "mois",
-    unitYears: "ans",
-    unitHours: "heures",
-    unitMinutes: "minutes",
-    unitWeeks: "semaines",
-    unitGrams: "grammes",
-    interviewer: "Enquêteur",
-    interviewerInstruction: "Consigne pour l’enquêteur",
-    dateFormatHint: "JJ-MMM-AAAA, par exemple 16-juil.-1986",
-    requiredShort: "Cette question est obligatoire.",
-    day: "Jour",
-    month: "Mois",
-    year: "Année",
-    openCalendar: "Ouvrir le calendrier",
-    audioUnavailable:
-      "L’enregistrement n’est pas encore disponible ici — faites-le dans l’application ODK ou notez-le dans le récit.",
-    imageUnavailable:
-      "Les photos ne peuvent pas encore être jointes ici — prenez-les dans l’application ODK ou notez-les dans le récit.",
-    fileUnavailable:
-      "Les fichiers ne peuvent pas encore être joints ici — joignez-les dans l’application ODK ou notez-les dans le récit.",
-    moreSectionsNote: "D’autres sections apparaissent au fil des réponses",
-    close: "Fermer",
-    back: "Retour",
-    saveDraft: "Enregistrer le brouillon",
-    saving: "Enregistrement…",
-    next: "Suivant",
-    complete: "Terminer",
-    draftSaved: "Brouillon enregistré",
-    draftSaveFailed: "Le brouillon n’a pas pu être enregistré",
-    draftId: "Brouillon pas encore enregistré",
-    required: "{label} est obligatoire",
-    invalidType: "{name} doit être une valeur {dataType} valide",
-    invalidChoice: "{name} contient une valeur absente de la liste de choix de l’OMS",
-    invalidConstraint: "{name} ne respecte pas la contrainte de l’OMS",
-    fourDigitYear: "Saisissez une année à quatre chiffres, par exemple 2026",
-    invalidDate: "Saisissez la date au format {format}, par exemple {example}",
-    openingCalendar: "Ouverture du calendrier…",
-    selectDate: "Sélectionner une date",
-    confirm: "Confirmer",
-    confirmed: "Confirmé",
-    answeredQuestions: "{count} questions répondues",
-    answerPreview: "Aperçu des réponses",
-    previewIntro: "Vérifiez les réponses saisies jusqu’ici. Revenez au formulaire pour les modifier.",
-    noAnswers: "Aucune réponse n’a encore été saisie.",
-    backToForm: "Retour au formulaire",
-    previewAnswers: "Aperçu des réponses",
-    yes: "Oui",
-    no: "Non",
-    recorded: "Enregistré",
-    startingMicrophone: "Démarrage du microphone…",
-    stopAndSaveRecording: "Arrêter et enregistrer l’audio",
-    savingRecording: "Enregistrement de l’audio…",
-    replaceAudio: "Remplacer l’audio",
-    recordAudio: "Enregistrer un audio",
-    microphonePermissionDenied:
-      "L’accès au microphone a été refusé. Autorisez-le dans le navigateur et réessayez.",
-    audioRecordingFailed: "L’enregistrement audio a échoué. Veuillez réessayer.",
-    selectedImage: "Image sélectionnée",
-    savedImageLoadFailed: "L’image enregistrée n’a pas pu être chargée depuis cet appareil.",
-    openingCamera: "Ouverture de l’appareil photo…",
-    camera: "Appareil photo",
-    openingImages: "Ouverture des images…",
-    replaceImage: "Remplacer l’image",
-    chooseImage: "Choisir une image",
-    hideImage: "Masquer l’image",
-    viewImage: "Afficher l’image",
-    rotate: "Faire pivoter",
-    zoomIn: "Agrandir",
-    zoomOut: "Réduire",
-    removeImage: "Supprimer l’image",
-    attachment: "pièce jointe",
-    pdf: "PDF",
-    openingFiles: "Ouverture des fichiers…",
-    replaceAttachment: "Remplacer {kind}",
-    chooseAttachment: "Choisir {kind}",
-    removeAttachment: "Supprimer {kind}",
-    attachmentProcessingFailed: "La pièce jointe sélectionnée n’a pas pu être traitée et a été supprimée.",
-    imageInputTooLarge: "Choisissez une image de moins de 10 Mo.",
-    imageTypeNotAllowed:
-      "Choisissez une image JPEG ou PNG valide. Les fichiers renommés ou non pris en charge ne sont pas acceptés.",
-    imageDimensionsInvalid:
-      "Les dimensions de cette image ne sont pas valides et elle ne peut pas être utilisée.",
-    imageDimensionsTooLarge:
-      "Cette image contient trop de pixels. Choisissez une image plus petite ou reprenez la photo.",
-    imageDecodeFailed: "Ce fichier n’a pas pu être décodé comme une image sûre.",
-    imageOutputInvalid: "L’image traitée n’a pas pu être vérifiée comme fichier JPEG.",
-    imageOutputTooLarge:
-      "Cette image n’a pas pu être réduite à moins de 2 Mo. Reprenez-la avec une résolution inférieure.",
-    imageProcessingUnavailable:
-      "Le traitement des images n’est pas disponible. L’image d’origine n’a pas été enregistrée.",
-    attachmentStorageFailed: "La pièce jointe traitée n’a pas pu être enregistrée sur cet appareil.",
-    pdfInputTooLarge: "Choisissez un PDF de moins de 5 Mo.",
-    pdfTypeNotAllowed:
-      "Choisissez un PDF valide. Les fichiers renommés ou non pris en charge ne sont pas acceptés.",
-    pdfRenderFailed: "Ce PDF n’a pas pu être converti de façon sûre en images de pages et a été supprimé.",
-    pdfTooManyPages: "Ce PDF contient trop de pages. Sélectionnez un document de 10 pages maximum.",
-    pdfOutputTooLarge: "Les pages PDF converties sont trop volumineuses et ont été supprimées.",
-    pdfProcessingUnavailable:
-      "La conversion PDF n’est pas disponible. Le PDF d’origine n’a pas été enregistré."
-  }
+  ui: frenchUiMessages
 } satisfies WhoVaLanguageFile;

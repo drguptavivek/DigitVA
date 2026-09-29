@@ -155,4 +155,25 @@ describe("native renderer integration", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("shows the built-in UI pack for a translated locale when the host passes no uiTranslations", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<WhoVaForm instrument={nativeInstrument} locale="hi" />);
+    });
+
+    expect(container.textContent).toContain("अनुभाग 1 / 2");
+    expect(container.textContent).not.toContain("Section 1 of 2");
+    // Buttons too, not just headings.
+    expect(button(container, "आगे")).toBeDefined();
+
+    await act(async () => {
+      root.render(<WhoVaForm instrument={nativeInstrument} locale="hi" uiTranslations={{}} />);
+    });
+    expect(container.textContent).toContain("Section 1 of 2");
+    await act(async () => root.unmount());
+  });
 });

@@ -22,6 +22,7 @@ export {
   withInstrumentTranslation,
   withInstrumentTranslations
 } from "./i18n.js";
+export { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "./languages/ui.js";
 export type {
   InstrumentTranslation,
   InstrumentTranslations,

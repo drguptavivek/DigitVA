@@ -8,7 +8,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { createDraftId } from "./draft.js";
 import { createWhoVaSession } from "./engine/session.js";
 import { whoVa2022Instrument } from "./instrument.js";
+import type { WhoVaUiTranslations } from "./i18n.js";
 import { loadWhoVa2022Language } from "./instrument-loader.js";
+import { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "./languages/ui.js";
 import type {
   InstrumentDefinition,
   SubmissionData,
@@ -50,6 +52,7 @@ export class WhoVaFormElement extends HTMLElement {
   private configuredDraftStore: WhoVaDraftStore | undefined;
   private configuredInstrument: InstrumentDefinition | undefined;
   private configuredPlatform: WhoVaPlatformServices | undefined;
+  private configuredUiTranslations: WhoVaUiTranslations | undefined;
   private configuredLockedQuestionNames: readonly string[] = [];
   private renderVersion = 0;
   /**
@@ -140,7 +143,9 @@ export class WhoVaFormElement extends HTMLElement {
    * Unset, the element loads the built-in instrument as before.
    *
    * Setting this disables the locale attribute's language loading, which only
-   * knows about the built-in instrument's translations.
+   * knows about the built-in instrument's translations: supply the translated
+   * text in the instrument itself. The form's own strings follow the locale
+   * attribute through `uiTranslations`.
    */
   get instrument(): InstrumentDefinition | undefined {
     return this.configuredInstrument;
@@ -149,6 +154,21 @@ export class WhoVaFormElement extends HTMLElement {
   set instrument(instrument: InstrumentDefinition | undefined) {
     if (instrument === this.configuredInstrument) return;
     this.configuredInstrument = instrument;
+    if (this.isConnected) void this.renderForm();
+  }
+
+  /**
+   * Form UI strings (Sections, Save draft, validation messages...) per locale
+   * for a host-supplied `instrument`. Unset, the package's built-in packs
+   * apply for the locale attribute; strings a pack lacks fall back to English.
+   */
+  get uiTranslations(): WhoVaUiTranslations | undefined {
+    return this.configuredUiTranslations;
+  }
+
+  set uiTranslations(translations: WhoVaUiTranslations | undefined) {
+    if (translations === this.configuredUiTranslations) return;
+    this.configuredUiTranslations = translations;
     if (this.isConnected) void this.renderForm();
   }
 
@@ -183,9 +203,14 @@ export class WhoVaFormElement extends HTMLElement {
     const renderVersion = ++this.renderVersion;
     const requestedLocale = this.getAttribute("locale") ?? "en";
     // A host-supplied instrument is used as given: the language loader only
-    // carries translations for the built-in WHO instrument.
+    // carries translations for the built-in WHO instrument. Its UI strings
+    // come from the host, else the built-in pack for the locale (digitva-5mu).
     const language = this.configuredInstrument
-      ? { instrument: this.configuredInstrument, locale: requestedLocale, uiTranslations: {} }
+      ? {
+          instrument: this.configuredInstrument,
+          locale: requestedLocale,
+          uiTranslations: this.configuredUiTranslations ?? WHO_VA_BUILT_IN_UI_TRANSLATIONS
+        }
       : await loadWhoVa2022Language(requestedLocale);
     if (!this.isConnected || renderVersion !== this.renderVersion) return;
     const base = this.configuredInstrument ?? whoVa2022Instrument;

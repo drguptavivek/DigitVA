@@ -26,6 +26,7 @@ import {
   validateAnswer
 } from "../engine/validation.js";
 import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } from "../i18n.js";
+import { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "../languages/ui.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
 import { englishAlongside, plainText } from "./localize.js";
 import { createRichText } from "./rich-text-view.js";
@@ -53,6 +54,11 @@ export type { WhoVaPlatformServices } from "./question-controls.js";
 
 interface WhoVaFormCommonProps {
   locale?: string;
+  /**
+   * Form UI strings per locale. Unset, the package's built-in packs (hi, fr)
+   * apply; a supplied value (even `{}`) replaces them. Missing strings fall
+   * back to English one by one.
+   */
   uiTranslations?: WhoVaUiTranslations;
   showSourceGuidance?: boolean;
   /**
@@ -639,10 +645,8 @@ export function createWhoVaForm(
     const showQuestionCodes = props.showQuestionCodes ?? true;
     const instrument = props.resolvedInstrument;
     const locale = props.locale ?? localeFromLanguageName(instrument.defaultLanguage) ?? "en";
-    const messages = useMemo(
-      () => resolveUiMessages(locale, props.uiTranslations),
-      [locale, props.uiTranslations]
-    );
+    const uiTranslations = props.uiTranslations ?? WHO_VA_BUILT_IN_UI_TRANSLATIONS;
+    const messages = useMemo(() => resolveUiMessages(locale, uiTranslations), [locale, uiTranslations]);
     const [restoredNavigation] = useState(() => {
       const restored = primitives.navigation?.read();
       if (restored?.instrumentId !== instrument.id) return undefined;
@@ -663,7 +667,7 @@ export function createWhoVaForm(
         ...(props.lockedQuestionNames ? { lockedQuestionNames: props.lockedQuestionNames } : {}),
         ...(restoredNavigation?.currentSection ? { initialSection: restoredNavigation.currentSection } : {}),
         locale,
-        ...(props.uiTranslations ? { uiTranslations: props.uiTranslations } : {})
+        uiTranslations
       });
     });
     const [snapshot, setSnapshot] = useState(() => session.getSnapshot());
@@ -715,8 +719,8 @@ export function createWhoVaForm(
     }, [onDraftError, onDraftSaved]);
 
     useEffect(() => {
-      session.setLocale(locale, props.uiTranslations);
-    }, [locale, props.uiTranslations, session]);
+      session.setLocale(locale, uiTranslations);
+    }, [locale, uiTranslations, session]);
 
     useEffect(() => {
       if (props.lockedQuestionNames !== undefined) session.setLockedQuestionNames(props.lockedQuestionNames);

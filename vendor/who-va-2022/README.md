@@ -257,7 +257,7 @@ defineWhoVaElement();
 </script>
 ```
 
-The element exposes `draftStore` and `platform` properties plus `getData()`, `setData(data)`, `getDraftId()`, `validate()`, and `complete()`. Set secure draft and attachment services plus any `draft-id` attribute before attaching the element. Without those services the form still works in memory, Save draft and binary controls remain disabled, and the element generates a new UUID.
+The element exposes `draftStore`, `platform`, `instrument` and `uiTranslations` properties plus `getData()`, `setData(data)`, `getDraftId()`, `validate()`, and `complete()`. Set secure draft and attachment services plus any `draft-id` attribute before attaching the element. Without those services the form still works in memory, Save draft and binary controls remain disabled, and the element generates a new UUID.
 
 ## Adding languages
 
@@ -312,6 +312,8 @@ const language = await loadLanguage(selectedLocale);
 Stable question names and choice values are never translated, so saved submissions and branching logic remain compatible across languages. Constraint expressions are also shared; each language file supplies only the interviewer-facing `constraintMessage`.
 
 Changing the loaded `instrument` and `locale` props switches the active language without discarding the current session answers.
+
+The form's own strings (Sections, Save draft, "This question is required.", the date hint, attachment notes) come from `uiTranslations`. When a host passes none, `WhoVaForm` (web and native) and `<who-va-2022-form>` use the package's built-in UI packs, `WHO_VA_BUILT_IN_UI_TRANSLATIONS` (currently `hi` and `fr`), for the selected `locale`. A host that translates the instrument itself only needs to set `locale`; to override, pass `uiTranslations` (the web component's `uiTranslations` property). Strings a pack lacks fall back to English one by one.
 
 ### Adding translations manually
 

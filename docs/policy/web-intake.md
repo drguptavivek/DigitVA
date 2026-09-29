@@ -533,32 +533,33 @@ the interview). `org_<level>_code` stays server-injected at submission.
 
 ### Offline capture
 
-Owner, 2026-09-29: offline capture is in scope for this feature.
+Owner, 2026-09-29: offline capture is in scope for this feature. Owner,
+2026-09-30: **offline capture runs in the native app only, under Path B of
+[Field Data Collection Policy](field-data-collection.md) exactly as written.**
+The browser page stays online-only (Path A, unchanged): no PWA, no
+browser-stored drafts, and no amendment to that policy.
 
-- **Reversal, stated precisely.** [Field Data Collection
-  Policy](field-data-collection.md) currently says, for Path A, that no answer
-  is persisted on the device and prohibits a browser-backed `draftStore`; it
-  reserves device storage for Path B, a native app. The offline decision
-  requires a device-held draft for the interviewer worklist. That policy must
-  be amended in the same change that builds it (this baseline does not edit
-  it); until then the prohibition stands.
-- Required shape: **encrypted on the device, bounded, deleted after upload**,
-  matching the attachment decision (`digitva-ej1`).
+- Device drafts follow Path B: encrypted at rest, hardware-backed keys, one
+  store per interviewer behind a PIN unlock gate, purged only after the server
+  acknowledges the upload, wiped on logout and on revocation for that
+  interviewer's store only, and no retention ceiling on unsent work (decision
+  C3, accepted risk recorded there). This baseline's earlier word "bounded" is
+  dropped in favour of C3.
 - A case registered offline gets a **client-generated id** the server
   reconciles. **Duplicate checks run on upload.**
 - The list shows "Submitted by <name>" when a teammate finished a case while
   the device was offline, and the offline copy's submit says so.
-- **Not decided** (see open items 2 to 6): key handling, storage bounds,
-  expiry, wipe on logout, and what happens to a device draft after a
-  superseding submission.
+- **Not decided** (see open items 6 and 18): what happens to a device draft
+  after a superseding submission, and how a per-interviewer device store
+  relates to the team's shared server draft.
 
 ### Phasing
 
 Plan phases: 1 prefill and death-list fixes; 2 case model and transition
 service; 3 direct start creates the case and one worklist API; 4 worklist UI
 and register form; 5 appointments, contact attempts, pause; 6 duplicate check
-and supervisor resolution; 7 supervisor view. Offline capture is not yet
-placed in a phase. This baseline precedes phase 2.
+and supervisor resolution; 7 supervisor view. Offline capture is in no phase of
+this plan: it is native-app work under Path B. This baseline precedes phase 2.
 
 ### Decided 2026-09-30
 
@@ -597,29 +598,32 @@ Recorded above; removed from the open list.
 - Item 15, mechanism for a confirmed duplicate: case-level exclusion, see
   "Duplicate on a submitted case".
 
+- Former items 2, 3, 4, 5 and 7 (owner, 2026-09-30), offline: all answered by
+  Path B ("Offline capture"). Item 7: offline runs in the **native app only**;
+  the browser page stays online-only and Path A is not amended. Item 2, keys:
+  hardware-backed storage, one store per interviewer, PIN unlock gate. Item 3,
+  storage bounds: **no retention ceiling** on unsent work (decision C3); the
+  baseline's earlier "bounded" is dropped. Item 4, expiry: none, a consequence
+  of C3; the server-side outstanding-work report is the control. Item 5, wipe:
+  on logout and on revocation, for that interviewer's store only.
+
 ### Open design items (questions for the owner)
 
-Numbering is stable: items 8 to 17 (except the offline items) were decided on
-2026-09-30 and moved to "Decided 2026-09-30" above, so only the offline items
-2 to 7 remain open.
+Numbering is stable: items 8 to 17 and the offline items 2, 3, 4, 5 and 7 were
+decided on 2026-09-30 and moved to "Decided 2026-09-30" above. Item 6 remains
+open; item 18 is new (numbered 18 so no earlier number is reused).
 
-2. **Offline key handling.** Where is the key kept, and how is it protected
-   (per interviewer, PIN or biometric, hardware-backed storage)? Path B
-   already decides these for a native app; does the worklist use the same or
-   something different in the browser?
-3. **Offline storage bounds.** How many cases, how much data, how long? Path B
-   decision C3 says **no retention ceiling**; this baseline says **bounded**.
-   Which governs?
-4. **Offline expiry.** Does an unsent device draft expire, and what happens to
-   it then?
-5. **Wipe on logout.** Path B wipes the interviewer's store on logout. Does
-   the worklist's device draft do the same?
 6. **Device draft after a superseding submission.** When a teammate's
-   complete submission wins while this device is offline, is the local draft
-   uploaded as a superseded copy, kept, or discarded, and who is told what?
-7. **Where offline runs.** Path B is a native app and the policy prohibits
-   browser persistence. Is offline capture for the web page (which needs
-   Path A amended), for the native app, or both?
+   complete submission wins while a device is offline, what happens to that
+   device's unsent draft: is it uploaded as a superseded copy, kept on the
+   device until the interviewer reviews it, or discarded? Who is told what, and
+   when?
+18. **Device store versus the shared server draft.** Path B keeps one encrypted
+   store per interviewer, while the worklist makes the server draft shared
+   across the team. Assumption, for owner confirmation: the device holds that
+   interviewer's own copy of a case, which is that interviewer's own attempt
+   and reaches the server as its own submission under first-complete-wins; it
+   is never merged into the shared draft. Is that right?
 
 ## Not yet implemented
 
@@ -628,14 +632,16 @@ Numbering is stable: items 8 to 17 (except the offline items) were decided on
   supervisor views, duplicate and cancel flags, contact attempts, the
   `interview_outcome` question, first-complete-submission and offline capture
   are baselined in "Case worklist and interview states" above and **not
-  implemented**; offline capture also has open design items there and needs
-  [Field Data Collection Policy](field-data-collection.md) amended first. ("Unit-scoped listing refinements" was struck on 2026-09-19: there was
+  implemented**. Offline capture is native-app work under Path B of
+  [Field Data Collection Policy](field-data-collection.md) (no amendment
+  needed), not a web-page feature; it has open design items 6 and 18 there.
+  ("Unit-scoped listing refinements" was struck on 2026-09-19: there was
   no concrete item behind it, and `list_deaths` already scopes by unit
   grants.)
 
 Web intake is path A of
 [Field Data Collection Policy](field-data-collection.md), which fixes the rule
-this path already follows — answers are never persisted in the browser, a
-rule the offline decision in "Case worklist and interview states" would
-reverse once that policy is amended — and sets the conditions an offline native collector must meet before it may hold
+this path follows and keeps: answers are never persisted in the browser.
+Offline capture is not a web-intake feature; it is the native app's Path B,
+which sets the conditions an offline collector must meet before it may hold
 interview data on a device.

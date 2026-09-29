@@ -208,17 +208,27 @@ Decided later the same day:
    incomplete or refused submission does not enter coding** (owner,
    2026-09-29): it stays with the case until a complete submission
    supersedes it or a supervisor closes the case. Implications to
-   design: (a) drafts must be storable on the device for offline work, which
-   reverses today's rule that answers are never kept in the browser
-   (docs/policy/web-intake.md, field-data-collection.md) — so encrypted on
-   device, deleted after upload, bounded, matching the attachment decision in
-   `digitva-ej1`; (b) the server decides "first" by acceptance time, not
+   design: (a) device drafts follow Path B of
+   `docs/policy/field-data-collection.md`: offline capture runs in the native
+   app only (owner, 2026-09-30), encrypted, hardware-backed keys, one store per
+   interviewer, purged after upload, no retention ceiling (decision C3), wiped
+   on logout; the browser page stays online-only and Path A is unchanged;
+   offline capture is in no phase of this plan and belongs to the native-app
+   work; (b) the server decides "first" by acceptance time, not
    device time; (c) the list shows "Submitted by <name>" on a case another
    team member finished while you were offline, and your copy's submit tells
    you so; (d) a case registered offline needs a client-generated id that the
    server reconciles (and duplicate checks run on upload).
 
 Decided 2026-09-30 (owner):
+
+7a. **Offline runs in the native app only**, under Path B as written. This
+    answers open items 2 (keys), 3 (storage bounds: no ceiling, C3, "bounded"
+    dropped), 4 (no expiry), 5 (wipe on logout and revocation, own store only)
+    and 7 (where offline runs). Still open: 6 (device draft after a
+    superseding submission) and 18 (device store versus shared server draft;
+    assumption: the device copy is the interviewer's own attempt, submitted as
+    its own submission, never merged; owner to confirm).
 
 8. **Incomplete submissions: no new state.** `interview_outcome` sets the case
    state: partially completed -> `paused`; respondent unavailable ->

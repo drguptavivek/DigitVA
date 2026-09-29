@@ -56,4 +56,9 @@ relevance and its follow-up chain -- is
 [SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95), covered in
 the same document.
 
+## Interviewer training lessons
+
+- `odk-training-date-of-birth.md`: year-only birth dates keyed as
+  1 January (Id10020 / Id10021), with dev evidence by age and site.
+
 The PDFs in this folder are the WHO manuals the forms implement.

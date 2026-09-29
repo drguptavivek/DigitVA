@@ -16,8 +16,8 @@ verbal autopsy instruments, added by the owner. No respondent data.
 | `ODK PHMRC_Shortened_Instrument_12_10_2018_all-files/PHMRC_Shortened_Instrument_12_10_2018.xlsx` | Shortened instrument as an ODK XLSForm (form_id `SmartVA_Generic_v1`, 633 rows; English plus a placeholder `language` column). SmartVA's native input. |
 | same folder, `.xml` and `-Change_ Log.xlsx` | Compiled XForm and the form's change log |
 | same folder, `-media/` | Label media shown to respondents: 9 images (baby size, chest indrawing, head too small / too big, bulging fontanelle, mass defect, other defect, tetanus) and `grunting.wav` |
-| `ODK PHMRC Full Instrument/FullInstrument4-3-13.xls` | Full instrument (2013) XLSForm, legacy `.xls`, with its `.xml` and media (adds wheezing, stridor audio and more images) |
-| `PHMRC Shortened VAI - *.doc`, `PHMRC full instrument - *.docx` | Paper questionnaires: general, adult, child and neonate modules |
+| `ODK PHMRC Full Instrument/FullInstrument4-3-13.xlsx` | Full instrument (2013) XLSForm, converted by the owner from the original `.xls`, with its `.xml` and media (adds wheezing, stridor audio and more images) |
+| `PHMRC Shortened VAI - *.docx`, `PHMRC full instrument - *.docx` | Paper questionnaires: general, adult, child and neonate modules (the shortened ones converted by the owner from `.doc`) |
 
 The `.zip` archives next to these folders are the original downloads and
 are not committed (they duplicate the unzipped folders).

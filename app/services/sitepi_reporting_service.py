@@ -10,6 +10,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
@@ -46,6 +47,8 @@ _PENDING_STATES = (
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
@@ -66,6 +69,7 @@ def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
             WHERE {scope_sql}
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
         ),
         authority AS (
             SELECT
@@ -237,6 +241,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             WHERE fa.va_finassess_status = :active_status
               AND s.va_form_id IN (SELECT form_id FROM site_forms)
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
             GROUP BY fa.va_finassess_by
         ) work ON work.user_id = u.user_id
         LEFT JOIN (
@@ -248,6 +253,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             WHERE cr.va_creview_status = :active_status
               AND s.va_form_id IN (SELECT form_id FROM site_forms)
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
             GROUP BY cr.va_creview_by
         ) review ON review.user_id = u.user_id
         ORDER BY coder_name
@@ -276,6 +282,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
         ),
         authority AS (
             SELECT

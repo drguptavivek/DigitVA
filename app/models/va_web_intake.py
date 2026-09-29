@@ -57,6 +57,12 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
         # The worklist sorts by next visit, then last activity.
         sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
+        # Every coding reader asks "is this va_sid a confirmed duplicate?"
+        # (app/services/duplicate_exclusion.py); only duplicate rows matter.
+        sa.Index(
+            "ix_va_death_register_duplicate_va_sid", "va_sid",
+            postgresql_where=sa.text("status = 'duplicate'"),
+        ),
         # The naming convention prefixes "ck_<table>_"; pass the discriminator.
         sa.CheckConstraint(
             "status IN (" + ", ".join(f"'{s}'" for s in CASE_STATES) + ")", name="status"

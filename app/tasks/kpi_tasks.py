@@ -11,11 +11,14 @@ from celery import shared_task
 from celery.utils.log import get_task_logger
 import sqlalchemy as sa
 
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 
 log = get_task_logger(__name__)
 
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @shared_task(
@@ -186,6 +189,7 @@ def _count_total_submissions(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND DATE(s.va_created_at) <= :snapshot_date
         """),
         {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
@@ -201,6 +205,7 @@ def _count_new_from_odk(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND DATE(s.va_created_at) = :snapshot_date
         """),
         {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
@@ -216,6 +221,7 @@ def _count_updated_from_odk(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND DATE(s.va_odk_updatedat) = :snapshot_date
               AND s.va_odk_updatedat > s.va_created_at
         """),
@@ -233,6 +239,7 @@ def _count_coded(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
               AND DATE(e.event_created_at) = :snapshot_date
         """),
@@ -250,6 +257,7 @@ def _count_pending_eod(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND w.workflow_state IN (
                   'ready_for_coding', 'coding_in_progress', 'coder_step1_saved',
                   'smartva_pending', 'screening_pending', 'attachment_sync_pending'
@@ -269,6 +277,7 @@ def _count_consent_refused_eod(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND w.workflow_state = 'consent_refused'
         """),
         {**IN_ODK_BIND, "site_id": site_id},
@@ -285,6 +294,7 @@ def _count_not_codeable_eod(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND w.workflow_state IN (
                   'not_codeable_by_coder', 'not_codeable_by_data_manager'
               )
@@ -303,6 +313,7 @@ def _count_reviewer_finalized(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id = 'reviewer_finalized'
               AND DATE(e.event_created_at) = :snapshot_date
         """),
@@ -320,6 +331,7 @@ def _count_upstream_changed_eod(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND w.workflow_state = 'finalized_upstream_changed'
         """),
         {**IN_ODK_BIND, "site_id": site_id},
@@ -336,6 +348,7 @@ def _count_reopened(db, site_id: str, snapshot_date: date) -> int:
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id = 'reopened'
               AND DATE(e.event_created_at) = :snapshot_date
         """),
@@ -366,6 +379,7 @@ def _compute_coding_duration_percentiles(db, site_id: str, snapshot_date: date) 
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
                   AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND DATE(e2.event_created_at) = :snapshot_date
                   AND NOT EXISTS (

@@ -31,6 +31,7 @@ from datetime import UTC, datetime, timedelta
 import sqlalchemy as sa
 
 from app import db
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
@@ -1179,6 +1180,10 @@ def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs, *, include_
     Submissions retired from ODK are excluded unless ``include_retired`` is
     set (docs/policy/odk-retired-submissions.md); they stay in the MV so the
     explicit "Missing in ODK" count can still find them.
+
+    Confirmed-duplicate web cases are always excluded, applied here at query
+    time (app/services/duplicate_exclusion.py): the MV rows stay, so a
+    reopened case counts again without a refresh. *mv* must expose ``va_sid``.
     """
     all_pairs: set[tuple[str, str]] = set(project_site_pairs)
     all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
@@ -1186,7 +1191,10 @@ def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs, *, include_
     if not all_pairs:
         return sa.false()
 
-    scope = sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs))
+    scope = sa.and_(
+        sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs)),
+        not_confirmed_duplicate_condition(mv.c.va_sid),
+    )
     if include_retired:
         return scope
     return sa.and_(scope, mv.c.odk_missing.is_(False))

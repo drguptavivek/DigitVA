@@ -31,6 +31,7 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
@@ -312,7 +313,10 @@ def debug_stats():
             sa.select(VaSubmissionWorkflow.workflow_state, sa.func.count())
             .select_from(VaSubmissions)
             .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-            .where(VaSubmissions.va_form_id.in_(form_ids))
+            .where(
+                VaSubmissions.va_form_id.in_(form_ids),
+                not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+            )
             .group_by(VaSubmissionWorkflow.workflow_state)
             .order_by(VaSubmissionWorkflow.workflow_state)
         ).all()
@@ -321,6 +325,7 @@ def debug_stats():
             VaSubmissions.va_form_id.in_(form_ids),
             VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
             submission_is_in_odk(),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
         ]
         if narration_language_filter is not None:
             ready_filters.append(narration_language_filter)

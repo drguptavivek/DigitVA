@@ -31,6 +31,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
@@ -43,7 +44,10 @@ log = logging.getLogger(__name__)
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 _IN_ODK_SQL_S2 = in_odk_sql("s2")
+_NOT_DUPLICATE_SQL_S2 = not_confirmed_duplicate_sql("s2.va_sid")
 
 
 @bp.get("/utilization")
@@ -91,6 +95,7 @@ def coder_utilization():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND a.va_allocation_status = 'active'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
@@ -162,6 +167,7 @@ def coder_output():
                 LEFT JOIN va_users u ON u.user_id = fa.va_finassess_by
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND fa.va_finassess_status = 'active'
                   {date_filter}
                 GROUP BY fa.va_finassess_by, u.name, s.va_narration_language
@@ -241,6 +247,7 @@ def coder_roster():
                         JOIN va_forms f2 ON f2.form_id = s2.va_form_id
                         WHERE f2.site_id = ANY(:site_ids)
                           AND {_IN_ODK_SQL_S2}
+                          AND {_NOT_DUPLICATE_SQL_S2}
                           AND fa.va_finassess_by = u.user_id
                           AND fa.va_finassess_status = 'active'
                     ) AS total_coded,
@@ -316,6 +323,7 @@ def coder_reviewer_disagreement():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND fa.va_finassess_status = 'active'
                   AND rf.va_rfinassess_status = 'active'
             """),

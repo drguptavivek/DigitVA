@@ -361,8 +361,8 @@ Decided 2026-09-30 (owner):
    `POST /intake/api/cases/<death_id>/visit`, `/attempts`, `/pause`;
    worklist sorted by next visit then last activity; phones masked in rows.
    Resume is the existing start. Rules in docs/policy/web-intake.md, "Built in
-   phase 5". Open: `not_reachable -> refused` is not in the transition table,
-   so a refusal after a failed attempt is refused (409).
+   phase 5". `not_reachable -> refused` added to the transition table the
+   same day.
 6. Duplicate check and supervisor resolution.
 7. Supervisor view (read-only across scope).
 

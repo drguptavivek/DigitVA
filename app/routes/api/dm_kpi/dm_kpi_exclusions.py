@@ -36,6 +36,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
@@ -44,6 +45,8 @@ log = logging.getLogger(__name__)
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/rates")
@@ -99,6 +102,7 @@ def exclusion_rates():
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
@@ -171,6 +175,7 @@ def exclusion_breakdown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND cr.va_creview_status = 'active'
                 GROUP BY cr.va_creview_reason
                 ORDER BY count DESC
@@ -187,6 +192,7 @@ def exclusion_breakdown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND dr.va_dmreview_status = 'active'
                 GROUP BY dr.va_dmreview_reason
                 ORDER BY count DESC
@@ -202,6 +208,7 @@ def exclusion_breakdown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids) AND dr.va_dmreview_status = 'active'
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
@@ -213,6 +220,7 @@ def exclusion_breakdown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids) AND cr.va_creview_status = 'active'
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
@@ -225,6 +233,7 @@ def exclusion_breakdown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id = 'screening_rejected'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
@@ -293,6 +302,7 @@ def blocked_forms():
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state = '{state}'
                 """),
                 {**IN_ODK_BIND, "site_ids": site_ids},
@@ -314,6 +324,7 @@ def blocked_forms():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
@@ -336,6 +347,7 @@ def blocked_forms():
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND s.va_odk_reviewstate = 'hasIssues'
             """),
@@ -358,6 +370,7 @@ def blocked_forms():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN (
                       'consent_refused', 'not_codeable_by_data_manager',
                       'not_codeable_by_coder'
@@ -433,6 +446,7 @@ def nqa_sa_rates():
                                 )
                             WHERE f.site_id = ANY(:site_ids)
                               AND {_IN_ODK_SQL}
+                              AND {_NOT_DUPLICATE_SQL}
                               AND w.workflow_state IN (
                                   'coder_finalized', 'reviewer_eligible',
                                   'reviewer_coding_in_progress',
@@ -498,6 +512,7 @@ def odk_issues():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()

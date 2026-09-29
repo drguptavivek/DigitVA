@@ -18,6 +18,7 @@ from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation
 from app.services.coder_workflow_service import _org_unit_scope_filter
 from app.services.coding_service import render_va_coding_page
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -70,6 +71,7 @@ def dashboard():
                         current_user.vacode_language
                     ),
                     reviewer_unit_filter,
+                    not_confirmed_duplicate_condition(VaSubmissions.va_sid),
                 )
             )
         )
@@ -154,6 +156,7 @@ def dashboard():
                             current_user.vacode_language
                         ),
                         reviewer_unit_filter,
+                        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
                         # A retired submission is not offered for review, but a
                         # review already done or still in session stays visible.
                         # See docs/policy/odk-retired-submissions.md.

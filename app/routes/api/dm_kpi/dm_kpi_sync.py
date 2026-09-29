@@ -44,6 +44,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
@@ -52,6 +53,8 @@ log = logging.getLogger(__name__)
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/status")
@@ -186,6 +189,7 @@ def sync_latency():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND s.va_created_at >= :cutoff
                   AND s.va_submission_date IS NOT NULL
             """),
@@ -245,6 +249,7 @@ def attachment_health():
                     LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state IS NOT NULL
                       AND w.workflow_state NOT IN (
                           'screening_pending', 'attachment_sync_pending', 'smartva_pending'

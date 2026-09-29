@@ -10,6 +10,7 @@ from app.services.workflow.intake_modes import (
     get_project_coding_intake_mode,
 )
 from app.services.demo_project_service import is_demo_training_submission
+from app.services.duplicate_exclusion import DUPLICATE_MESSAGE, is_confirmed_duplicate
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
 from app.utils import (
     va_permission_abortwithflash,
@@ -193,6 +194,8 @@ def _validate_vacode(actiontype, sid, partial):
         # See docs/policy/odk-retired-submissions.md.
         if is_submission_retired(sid):
             va_permission_abortwithflash(RETIRED_MESSAGE, 409)
+        if is_confirmed_duplicate(sid):
+            va_permission_abortwithflash(DUPLICATE_MESSAGE, 409)
     elif actiontype == "vademo_start_coding":
         if current_user.is_admin():
             return

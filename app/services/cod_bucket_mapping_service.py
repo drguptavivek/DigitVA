@@ -28,6 +28,7 @@ from app.models import (
     VaForms,
     VaSubmissions,
 )
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -3057,6 +3058,7 @@ def list_cod_bucket_unmapped_icd_rows(
                     cod.c.final_icd.is_not(None),
                     demo.c.has_human_final_cod.is_(True),
                     mapped_codes_sq.c.icd_code.is_(None),
+                    not_confirmed_duplicate_condition(cod.c.va_sid),
                 )
                 .group_by(cod.c.final_icd)
             ).mappings()
@@ -4736,6 +4738,8 @@ def _cod_bucket_aggregate_base_subquery(
         # Submissions retired from ODK are not reported
         # (docs/policy/odk-retired-submissions.md).
         core.c.odk_missing.is_(False),
+        # Nor are confirmed-duplicate web cases (app/services/duplicate_exclusion.py).
+        not_confirmed_duplicate_condition(core.c.va_sid),
         _gender_filter_clause(VaSubmissions.va_deceased_gender, gender_filter),
     ]
     if project_id:

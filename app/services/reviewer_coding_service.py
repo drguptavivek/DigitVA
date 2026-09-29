@@ -41,6 +41,7 @@ from app.services.doris_process_proof import (
     verify_process_submission,
 )
 from app.services.doris_processing import process_certificate
+from app.services.duplicate_exclusion import DUPLICATE_MESSAGE, is_confirmed_duplicate
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
 from app.services.icd_coding_value import (
     build_icd11_provenance_for_values,
@@ -256,6 +257,8 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
             f"Your profile does not support reviewing forms in {submission.va_narration_language}.",
             403,
         )
+    if is_confirmed_duplicate(va_sid):
+        raise ReviewerCodingError(DUPLICATE_MESSAGE, 409)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_ELIGIBLE:
         raise ReviewerCodingError(

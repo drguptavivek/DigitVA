@@ -170,6 +170,21 @@ Current rename note:
 - legacy migrated key: `revoked_va_data_changed`
 - UI target label remains `Finalized - ODK Data Changed`
 
+## Confirmed Duplicate Web Cases
+
+A web case confirmed as a duplicate (`va_death_register.status = duplicate`,
+`va_sid` set) drops its submission out of every coding reader through one
+predicate in `app/services/duplicate_exclusion.py`; the submission's workflow
+state is not changed. Confirmation (`case_transition_service.transition`)
+revokes any active coding or reviewing allocation through
+`coding_allocation_service.revoke_active_allocations`, which releases it like
+a timeout. A supervisor reopen restores the case status and with it every
+reader. Exclusion over the analytics materialized views is applied at query
+time in `submission_analytics_mv._mv_scope_filter`; raw-SQL KPI queries pair
+`_NOT_DUPLICATE_SQL` with every `_IN_ODK_SQL`. Policy and the reader list:
+`docs/policy/coding-workflow-state-machine.md`, "Confirmed Duplicate Cases";
+guard: `tests/test_duplicate_exclusion_coverage.py`.
+
 ## Main Workflow Sequence
 
 1. ODK sync writes or updates `va_submissions`.

@@ -245,13 +245,12 @@ class CaseVisitTests(BaseTestCase):
         self.assertIsNone(case.next_visit_at)
         self.assertEqual(self._last_audit(case).action, "contact_refused")
 
-    def test_refused_on_a_not_reachable_case_is_blocked_by_the_transition_table(self):
-        # TRANSITIONS has no not_reachable -> refused (reported for the owner).
+    def test_a_not_reachable_family_can_later_refuse(self):
         case = self._register()
         intake_svc.log_contact_attempt(self.alice, case.death_id, outcome="no_answer")
-        with self.assertRaises(cases.WebIntakeError) as ctx:
-            intake_svc.log_contact_attempt(self.alice, case.death_id, outcome="refused")
-        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(case.status, "not_reachable")
+        intake_svc.log_contact_attempt(self.alice, case.death_id, outcome="refused")
+        self.assertEqual(case.status, "refused")
 
     def test_attempt_rules(self):
         case = self._register()
@@ -401,14 +400,15 @@ class CaseVisitTests(BaseTestCase):
         response = self._post(pause, {"reason": "other"})
         self.assertEqual(response.status_code, 409)
 
-    def test_api_refused_attempt_on_not_reachable_leaves_no_row(self):
+    def test_api_refused_attempt_on_not_reachable_is_recorded(self):
         case = self._register()
         intake_svc.log_contact_attempt(self.alice, case.death_id, outcome="no_answer")
         db.session.commit()
         self._login(str(self.alice.user_id))
         response = self._post(f"/intake/api/cases/{case.death_id}/attempts", {"outcome": "refused"})
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(len(self._attempts(case)), 1)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["case"]["status"], "refused")
+        self.assertEqual(len(self._attempts(case)), 2)
 
     def test_pages_render_the_new_controls(self):
         self._login(str(self.alice.user_id))

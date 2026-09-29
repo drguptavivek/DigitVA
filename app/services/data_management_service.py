@@ -46,6 +46,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_retirement_service import (
     submission_is_in_odk,
@@ -787,7 +788,8 @@ def dm_submissions_page(
     redact_pii = should_redact_pii(user)
 
     scope = dm_scope_filter(user)
-    conditions = [scope]
+    # Confirmed-duplicate web cases leave the grid and every export built here.
+    conditions = [scope, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
     org_unit_condition = dm_submission_org_unit_condition(user)
     if org_unit_condition is not None:
         conditions.append(org_unit_condition)
@@ -1026,7 +1028,8 @@ def _dm_submission_query_parts(
             sa.column("analytics_age_band"),
         )
     scope = dm_scope_filter(user)
-    conditions = [scope]
+    # Confirmed-duplicate web cases leave the grid and every export built here.
+    conditions = [scope, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
     org_unit_condition = dm_submission_org_unit_condition(user)
     if org_unit_condition is not None:
         conditions.append(org_unit_condition)

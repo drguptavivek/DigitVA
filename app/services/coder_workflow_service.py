@@ -38,6 +38,11 @@ from app.services.odk_retirement_service import (
     is_submission_retired,
     submission_is_in_odk,
 )
+from app.services.duplicate_exclusion import (
+    DUPLICATE_MESSAGE,
+    is_confirmed_duplicate,
+    not_confirmed_duplicate_condition,
+)
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -215,6 +220,8 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
         # Retired-from-ODK submissions never enter a pool that creates a new
         # allocation. See docs/policy/odk-retired-submissions.md.
         submission_is_in_odk(),
+        # Confirmed-duplicate web cases never enter a pool either.
+        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
     ]
     if user is not None:
         language_filter = _narration_language_filter(user)
@@ -726,6 +733,8 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
 
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
+    if is_confirmed_duplicate(va_sid):
+        raise AllocationError(DUPLICATE_MESSAGE, 409)
 
     excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
     if sub_row.site_id in excluded:
@@ -778,6 +787,8 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
 
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
+    if is_confirmed_duplicate(va_sid):
+        raise AllocationError(DUPLICATE_MESSAGE, 409)
 
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_CODER_FINALIZED:
@@ -841,6 +852,8 @@ def admin_override_to_recode(user, va_sid: str) -> None:
     by admin role membership rather than project/site-scoped admin access.
     """
     _require_submission_exists(va_sid)
+    if is_confirmed_duplicate(va_sid):
+        raise AllocationError(DUPLICATE_MESSAGE, 409)
     current_state = get_submission_workflow_state(va_sid)
     if current_state not in (WORKFLOW_CODER_FINALIZED, WORKFLOW_REVIEWER_ELIGIBLE):
         raise AllocationError(
@@ -888,7 +901,10 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     cutoff = now - timedelta(hours=24)
     finalized_sids = db.session.scalars(
         sa.select(VaSubmissionWorkflow.va_sid).where(
-            VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED
+            VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
+            # A finalized duplicate keeps its coding but does not advance to
+            # review; after a reopen the next sweep picks it up.
+            not_confirmed_duplicate_condition(VaSubmissionWorkflow.va_sid),
         )
     ).all()
 

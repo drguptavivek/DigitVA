@@ -37,6 +37,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
@@ -45,6 +46,8 @@ log = logging.getLogger(__name__)
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/pending")
@@ -81,6 +84,7 @@ def pending_rate():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
@@ -122,6 +126,7 @@ def pipeline_aging():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = 'ready_for_coding'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
@@ -182,6 +187,7 @@ def time_to_code():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e2.event_created_at >= :cutoff
                   AND NOT EXISTS (
@@ -238,6 +244,7 @@ def review_rate():
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND (
                           w.workflow_state IN (
                               'reviewer_eligible', 'reviewer_coding_in_progress',
@@ -323,6 +330,7 @@ def upstream_changes():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = 'finalized_upstream_changed'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
@@ -338,6 +346,7 @@ def upstream_changes():
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state IN (
                           'coder_finalized', 'reviewer_eligible',
                           'reviewer_coding_in_progress', 'reviewer_finalized',
@@ -372,6 +381,7 @@ def upstream_changes():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND uc.resolved_at IS NOT NULL
                   AND uc.resolved_at >= :cutoff
             """),
@@ -391,6 +401,7 @@ def upstream_changes():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND e.event_created_at >= :cutoff
             """),
             {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
@@ -451,6 +462,7 @@ def inflow_outflow():
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND e.transition_id IN (
                           'smartva_completed', 'coder_finalized', 'recode_finalized'
                       )
@@ -514,6 +526,7 @@ def site_bottleneck():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                 GROUP BY f.site_id
                 ORDER BY (COUNT(*) FILTER (WHERE w.workflow_state IN (
                     'ready_for_coding', 'coding_in_progress', 'coder_step1_saved'
@@ -573,6 +586,7 @@ def reviewer_throughput():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id = 'reviewer_finalized'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids, "today": today_start, "seven_d": seven_days_ago},
@@ -651,6 +665,7 @@ def backlog_trend():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = 'ready_for_coding'
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},

@@ -609,6 +609,7 @@ def _load_final_cod_frequencies() -> dict[str, int]:
         return {}
 
     from app.services.demo_project_service import get_demo_training_project_ids
+    from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 
     demo_project_ids = get_demo_training_project_ids()
 
@@ -618,7 +619,11 @@ def _load_final_cod_frequencies() -> dict[str, int]:
         sa.select(cod.c.final_icd, sa.func.count().label("n"))
         .select_from(cod)
         .join(core, core.c.va_sid == cod.c.va_sid)
-        .where(cod.c.final_icd.is_not(None))
+        .where(
+            cod.c.final_icd.is_not(None),
+            # A confirmed duplicate's final COD would count one death twice.
+            not_confirmed_duplicate_condition(cod.c.va_sid),
+        )
     )
     if demo_project_ids:
         stmt = stmt.where(core.c.project_id.not_in(demo_project_ids))

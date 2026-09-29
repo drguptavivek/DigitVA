@@ -89,6 +89,7 @@ TRANSITIONS: dict[tuple[str, str], str] = {
     ("paused", "not_reachable"): TEAM,
     ("in_progress", "not_reachable"): TEAM,
     ("not_reachable", "scheduled"): TEAM,
+    ("not_reachable", "refused"): TEAM,
     ("registered", "refused"): TEAM,
     ("scheduled", "refused"): TEAM,
     ("in_progress", "refused"): TEAM,
@@ -327,6 +328,25 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     case.status = to_state
     if to_state in ("duplicate", "cancelled"):
         case.pending_flag = None
+    if to_state == "duplicate" and case.va_sid:
+        # The submission leaves every coding reader through the shared
+        # predicate (app/services/duplicate_exclusion.py); an allocation in
+        # flight is revoked like a timed-out one; finished coding is kept.
+        # Lazy import: the allocation service pulls in the coding stack.
+        from app.services.coding_allocation_service import revoke_active_allocations
+        from app.services.workflow.transitions import WorkflowTransitionError
+
+        try:
+            revoke_active_allocations(case.va_sid)
+        except WorkflowTransitionError as exc:
+            # An allocation whose workflow state does not match it cannot be
+            # released safely; refuse the confirmation (the caller rolls back)
+            # instead of a 500, and leave the repair to a data manager.
+            raise WebIntakeError(
+                "The submission's coding state does not match its active allocation, "
+                "so the duplicate cannot be confirmed yet. Ask a data manager to repair it.",
+                409,
+            ) from exc
     _audit(case, actor=actor, action=action, from_state=from_state, to_state=to_state, reason=reason)
     db.session.flush()
     return case
@@ -401,7 +421,9 @@ def reopen(case: VaDeathRegister, *, actor: VaUsers, reason: str | None = None) 
     The earlier state comes from the audit row that entered the terminal
     state; a case with no such row (migrated history) goes back to
     ``registered``, or ``draft_identity`` without identity. Undoing a duplicate
-    clears its link.
+    clears its link, and its submission returns to every coding reader in the
+    workflow state it kept (an allocation revoked on confirmation stays
+    released).
     """
     lock_case(case)
     if case.status not in TERMINAL_STATES:

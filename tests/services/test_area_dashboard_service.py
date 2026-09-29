@@ -12,6 +12,7 @@ from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaDeathRegister,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -444,6 +445,36 @@ class AreaSummaryTests(AreaDashboardFixture):
         self.assertEqual(counts["drafts_in_progress"], 1)
         self.assertTrue(rows[key]["has_children"])
         self.assertNotIn(area.UNROUTED_KEY, rows)
+
+    def test_a_confirmed_duplicate_leaves_the_unit_counts_and_project_card(self):
+        """digitva-vzk.7: exclusion is applied at query time over the MVs and
+        the Site PI KPIs, so no refresh is needed either way."""
+        key = str(self.chc_a.org_unit_id)
+
+        def counts():
+            summary = area.area_summary(self.unit_user, self.TREE)
+            unit = self._by_key(summary)[key]["counts"]
+            card = area.area_summary(self.project_user, self.TREE)["project_card"]
+            return unit["total_submissions"], unit["coded"], card["total_submissions"]
+
+        self.assertEqual(counts(), (3, 1, 7))
+        case = VaDeathRegister(
+            project_id=self.TREE, site_id=self.TREE_SITE, death_number=990001,
+            unique_id="AREA-DUP-1", deceased_name="Asha Devi", deceased_sex="female",
+            date_of_death=datetime.now(UTC).date(), registered_by=self.interviewer.user_id,
+            status="duplicate", va_sid="uuid:area-ca1",
+        )
+        db.session.add(case)
+        db.session.commit()
+        try:
+            # The coder_finalized submission at CHC A drops out.
+            self.assertEqual(counts(), (2, 0, 6))
+            case.status = "submitted"
+            db.session.commit()
+            self.assertEqual(counts(), (3, 1, 7))
+        finally:
+            db.session.delete(case)
+            db.session.commit()
 
     def test_project_wide_root_has_top_units_and_unrouted_row(self):
         rows = self._by_key(area.area_summary(self.project_user, self.TREE))

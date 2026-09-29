@@ -35,8 +35,50 @@ A web intake case confirmed as a duplicate (`va_death_register.status =
 duplicate`) is a case-level mark, not a workflow state: the submission's
 workflow state is untouched, and confirming one whose coding is finalized needs
 a supervisor holding a `data_manager` grant ([Web Intake Policy](web-intake.md),
-"Duplicate on a submitted case"). The shared predicate that excludes such
-submissions from coding readers is not built yet.
+"Duplicate on a submitted case"). See "Confirmed duplicate cases" below.
+
+## Confirmed Duplicate Cases
+
+Decisions 10 and 14 of `.tasks/2026-09-28-interviewer-worklist.md`.
+
+- **One predicate.** Every reader of coding state excludes a submission whose
+  web case is a confirmed duplicate through
+  `app/services/duplicate_exclusion.py`: `not_confirmed_duplicate_condition`
+  (ORM), `not_confirmed_duplicate_sql` (raw SQL, rendered from the same
+  expression) or `is_confirmed_duplicate` (one submission named in a request).
+  Readers are: random allocation, pick-and-choose list and pick, recode offer
+  and start, admin override to recode, reviewer queue and reviewer start,
+  coder and reviewer dashboard counts, the recode-window sweep to
+  `reviewer_eligible`, SmartVA generation (skipped like a protected state
+  unless forced), the data-manager grid and every export built on it,
+  data-manager and area-dashboard counts over the analytics materialized
+  views, the DM KPI endpoints and the daily KPI snapshot task, Site PI
+  reporting, COD bucket reports and ICD search frequencies.
+- **The mark is the case status, nothing else.** No workflow state is added,
+  and `not_codeable_by_data_manager` is not reused. A pending (unconfirmed)
+  duplicate flag excludes nothing.
+- **Allocation revoked on confirmation.** An active coding allocation is
+  released exactly as a timed-out one ([Coding Allocation Timeout
+  Policy](coding-allocation-timeouts.md)): first pass back to
+  `ready_for_coding`, recode back to `coder_finalized` with its authoritative
+  COD, a reviewer session back to `reviewer_eligible`. Finished coding is
+  never touched. Audited as `va_allocation_revoked_duplicate` /
+  `reviewer_allocation_revoked_duplicate`.
+- **Finalized duplicate.** Keeps its coding and workflow state and is excluded
+  from every reporting count.
+- **Undo.** A supervisor reopen of the case clears the mark; the submission
+  returns to every reader in the workflow state it has (a revoked allocation
+  stays released).
+- **Not readers.** Workflow writers, sync and payload maintenance, MV
+  definitions and refreshes, and single-submission paths behind an
+  allocation keep working on a duplicate, so a reopen finds its data
+  current. The list, with reasons, is `EXEMPT` in
+  `tests/test_duplicate_exclusion_coverage.py`, which fails when a function
+  reading coding state neither applies the predicate nor is listed.
+- **Materialized views keep the rows.** Exclusion is applied at query time,
+  so confirmation and reopen take effect without a refresh (cached dashboard
+  responses may lag by their TTL). Rows already written to
+  `va_daily_kpi_aggregates` keep a duplicate until that day is recomputed.
 
 ## Core Workflow Tracks
 

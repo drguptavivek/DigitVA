@@ -20,6 +20,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.demo_project_service import get_coder_demo_project_form_ids
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -336,6 +337,7 @@ def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> li
             # A recode creates a new allocation, so a retired submission is not
             # offered. See docs/policy/odk-retired-submissions.md.
             submission_is_in_odk(),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
             VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
             VaFinalAssessments.va_finassess_id.is_not(None),
             VaFinalAssessments.va_finassess_createdat + recent_window

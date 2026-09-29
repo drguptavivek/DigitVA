@@ -7408,6 +7408,7 @@ def admin_sync_revoked_stats():
         from app.models.va_project_master import VaProjectMaster
         from app.models.va_sites import VaSites
         from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 
         # Fetch revoked counts per form
         revoked_by_form = dict(
@@ -7419,7 +7420,8 @@ def admin_sync_revoked_stats():
                 .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
                 .where(
                     VaSubmissionWorkflow.workflow_state
-                    == WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+                    == WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+                    not_confirmed_duplicate_condition(VaSubmissions.va_sid),
                 )
                 .group_by(VaSubmissions.va_form_id)
             ).all()

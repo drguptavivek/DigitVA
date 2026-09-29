@@ -25,6 +25,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.duplicate_exclusion import is_confirmed_duplicate, not_confirmed_duplicate_condition
 
 log = logging.getLogger(__name__)
 
@@ -394,7 +395,10 @@ def pending_smartva_sids(form_id: str) -> set[str]:
 
     all_sids = set(
         db.session.scalars(
-            sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == form_id)
+            sa.select(VaSubmissions.va_sid).where(
+                VaSubmissions.va_form_id == form_id,
+                not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+            )
         ).all()
     )
     if not all_sids:
@@ -1033,7 +1037,11 @@ def generate_for_form(
                 db.session.scalars(
                     sa.select(VaSubmissionWorkflow.va_sid).where(
                         VaSubmissionWorkflow.va_sid.in_(form_requested),
-                        VaSubmissionWorkflow.workflow_state.in_(_protected_states()),
+                        sa.or_(
+                            VaSubmissionWorkflow.workflow_state.in_(_protected_states()),
+                            # Confirmed duplicates are skipped like protected states.
+                            sa.not_(not_confirmed_duplicate_condition(VaSubmissionWorkflow.va_sid)),
+                        ),
                     )
                 ).all()
             )
@@ -1129,6 +1137,9 @@ def generate_for_submission(
             VaSubmissionWorkflow.va_sid == va_sid
         )
     )
+    if is_confirmed_duplicate(va_sid) and not force:
+        log.info("SmartVA [%s]: skipped — confirmed duplicate case.", va_sid)
+        return 0
     if current_state in _protected_states() and not force:
         log.info("SmartVA [%s]: skipped — protected state %s.", va_sid, current_state)
         if log_progress:

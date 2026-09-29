@@ -3,7 +3,7 @@ title: Coding Allocation Timeout Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-24
+last_updated: 2026-09-30
 ---
 
 # Coding Allocation Timeout Policy
@@ -65,6 +65,15 @@ reviewer session. All intermediate saves (NQA, Social Autopsy, reviewer NQA)
 are partial saves. If the session times out before the final COD is submitted,
 all intermediate artifacts disappear and the submission returns to
 `reviewer_eligible` so a fresh reviewer session can start.
+
+## Revocation when a web case is confirmed as a duplicate
+
+Confirming a web case as a duplicate revokes every active coding and
+reviewing allocation on its submission at once, with the same release
+behaviour as above (first pass, recode, reviewer session), audited as
+`va_allocation_revoked_duplicate` / `reviewer_allocation_revoked_duplicate`
+instead of a timeout. See [Coding Workflow State Machine
+Policy](coding-workflow-state-machine.md), "Confirmed Duplicate Cases".
 
 ## Invariant for all timeout paths
 

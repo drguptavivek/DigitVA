@@ -58,8 +58,8 @@ def _naive_utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _deactivate_stale_initial_assessments(record: VaAllocations) -> None:
-    """Deactivate unfinished Step 1 COD drafts for a stale coding allocation."""
+def _deactivate_stale_initial_assessments(record: VaAllocations, cause: str) -> None:
+    """Deactivate unfinished Step 1 COD drafts for a released coding allocation."""
     initial_rows = db.session.scalars(
         sa.select(VaInitialAssessments).where(
             VaInitialAssessments.va_sid == record.va_sid,
@@ -75,13 +75,13 @@ def _deactivate_stale_initial_assessments(record: VaAllocations) -> None:
                 va_audit_entityid=initial_row.va_iniassess_id,
                 va_audit_byrole="vasystem",
                 va_audit_operation="u",
-                va_audit_action="initial cod draft reverted due to timeout",
+                va_audit_action=f"initial cod draft reverted due to {cause}",
             )
         )
 
 
-def _deactivate_first_pass_analysis_artifacts(record: VaAllocations) -> None:
-    """Deactivate first-pass analysis artifacts that must not survive timeout reversion."""
+def _deactivate_first_pass_analysis_artifacts(record: VaAllocations, cause: str) -> None:
+    """Deactivate first-pass analysis artifacts that must not survive a release."""
     narrative_assessment = db.session.scalar(
         sa.select(VaNarrativeAssessment).where(
             VaNarrativeAssessment.va_sid == record.va_sid,
@@ -97,7 +97,7 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations) -> None:
                 va_audit_entityid=narrative_assessment.va_nqa_id,
                 va_audit_byrole="vasystem",
                 va_audit_operation="u",
-                va_audit_action="narrative quality assessment reverted due to timeout",
+                va_audit_action=f"narrative quality assessment reverted due to {cause}",
             )
         )
 
@@ -116,9 +116,43 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations) -> None:
                 va_audit_entityid=social_analysis.va_saa_id,
                 va_audit_byrole="vasystem",
                 va_audit_operation="u",
-                va_audit_action="social autopsy analysis reverted due to timeout",
+                va_audit_action=f"social autopsy analysis reverted due to {cause}",
             )
         )
+
+
+def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str,
+                               audit_action: str) -> None:
+    """Release one active coding allocation without discarding coding work.
+
+    First pass: unfinished drafts and first-pass analyses are deactivated and
+    the submission returns to ``ready_for_coding``. Recode: the episode is
+    abandoned and the submission returns to ``coder_finalized`` with its
+    authoritative final COD intact (docs/policy/coding-allocation-timeouts.md).
+    *cause* words the artifact audit rows ("reverted due to <cause>").
+    """
+    recode_episode = get_active_recode_episode(record.va_sid)
+    record.va_allocation_status = VaStatuses.deactive
+    _deactivate_stale_initial_assessments(record, cause)
+    if recode_episode is None:
+        _deactivate_first_pass_analysis_artifacts(record, cause)
+        reset_incomplete_first_pass(record.va_sid, reason=reason, actor=system_actor())
+    else:
+        abandon_active_recode_episode(
+            record.va_sid,
+            by_role="vasystem",
+            audit_action=f"recode episode abandoned due to {cause}",
+        )
+        reset_incomplete_recode(record.va_sid, reason=reason, actor=system_actor())
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=record.va_allocation_id,
+            va_audit_byrole="vasystem",
+            va_audit_operation="d",
+            va_audit_action=audit_action,
+        )
+    )
 
 
 def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
@@ -142,37 +176,11 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
         if record.va_allocation_createdat >= cutoff:
             continue
 
-        recode_episode = get_active_recode_episode(record.va_sid)
-        record.va_allocation_status = VaStatuses.deactive
-        _deactivate_stale_initial_assessments(record)
-        if recode_episode is None:
-            _deactivate_first_pass_analysis_artifacts(record)
-        else:
-            abandon_active_recode_episode(
-                record.va_sid,
-                by_role="vasystem",
-                audit_action="recode episode abandoned due to timeout",
-            )
-        if recode_episode is None:
-            reset_incomplete_first_pass(
-                record.va_sid,
-                reason="allocation_timeout_release",
-                actor=system_actor(),
-            )
-        else:
-            reset_incomplete_recode(
-                record.va_sid,
-                reason="allocation_timeout_release",
-                actor=system_actor(),
-            )
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=record.va_sid,
-                va_audit_entityid=record.va_allocation_id,
-                va_audit_byrole="vasystem",
-                va_audit_operation="d",
-                va_audit_action="va_allocation_released_due_to_timeout",
-            )
+        _release_coding_allocation(
+            record,
+            cause="timeout",
+            reason="allocation_timeout_release",
+            audit_action="va_allocation_released_due_to_timeout",
         )
         released += 1
 
@@ -183,7 +191,7 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     return released
 
 
-def _deactivate_reviewer_session_artifacts(record: VaAllocations) -> None:
+def _deactivate_reviewer_session_artifacts(record: VaAllocations, cause: str) -> None:
     """Deactivate all intermediate reviewer session artifacts for a timed-out allocation.
 
     Reviewer sessions follow first-pass coder behaviour: the reviewer final COD
@@ -204,7 +212,7 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations) -> None:
             va_audit_entityid=rr.va_rreview_id,
             va_audit_byrole="vasystem",
             va_audit_operation="u",
-            va_audit_action="reviewer nqa reverted due to timeout",
+            va_audit_action=f"reviewer nqa reverted due to {cause}",
         ))
 
     for nqa in db.session.scalars(
@@ -220,7 +228,7 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations) -> None:
             va_audit_entityid=nqa.va_nqa_id,
             va_audit_byrole="vasystem",
             va_audit_operation="u",
-            va_audit_action="narrative quality assessment reverted due to reviewer timeout",
+            va_audit_action=f"narrative quality assessment reverted due to reviewer {cause}",
         ))
 
     for saa in db.session.scalars(
@@ -236,8 +244,57 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations) -> None:
             va_audit_entityid=saa.va_saa_id,
             va_audit_byrole="vasystem",
             va_audit_operation="u",
-            va_audit_action="social autopsy analysis reverted due to reviewer timeout",
+            va_audit_action=f"social autopsy analysis reverted due to reviewer {cause}",
         ))
+
+
+def _release_reviewer_allocation(record: VaAllocations, *, cause: str, reason: str,
+                                 audit_action: str) -> None:
+    """Release one active reviewer allocation: session artifacts go, state -> reviewer_eligible."""
+    record.va_allocation_status = VaStatuses.deactive
+    _deactivate_reviewer_session_artifacts(record, cause)
+    reset_incomplete_reviewer_session(record.va_sid, reason=reason, actor=system_actor())
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=record.va_sid,
+        va_audit_entityid=record.va_allocation_id,
+        va_audit_byrole="vasystem",
+        va_audit_operation="d",
+        va_audit_action=audit_action,
+    ))
+
+
+def revoke_active_allocations(va_sid: str) -> int:
+    """Revoke every active coding and reviewing allocation on *va_sid*.
+
+    Used when the submission's web case is confirmed as a duplicate
+    (docs/policy/coding-workflow-state-machine.md, "Confirmed duplicate
+    cases"): each allocation is released exactly as a timed-out one is
+    (docs/policy/coding-allocation-timeouts.md), audited as a revocation.
+    Finished coding is never touched. Does not commit: it runs inside the
+    caller's transaction. Returns the number of allocations revoked.
+    """
+    allocations = db.session.scalars(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    ).all()
+    for record in allocations:
+        if record.va_allocation_for == VaAllocation.reviewing:
+            _release_reviewer_allocation(
+                record,
+                cause="duplicate",
+                reason="reviewer_allocation_revoked_duplicate",
+                audit_action="reviewer_allocation_revoked_duplicate",
+            )
+        else:
+            _release_coding_allocation(
+                record,
+                cause="duplicate",
+                reason="allocation_revoked_duplicate",
+                audit_action="va_allocation_revoked_duplicate",
+            )
+    return len(allocations)
 
 
 def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
@@ -259,20 +316,12 @@ def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
 
     released = 0
     for record in stale_allocations:
-        record.va_allocation_status = VaStatuses.deactive
-        _deactivate_reviewer_session_artifacts(record)
-        reset_incomplete_reviewer_session(
-            record.va_sid,
+        _release_reviewer_allocation(
+            record,
+            cause="timeout",
             reason="reviewer_allocation_timeout_release",
-            actor=system_actor(),
+            audit_action="reviewer_allocation_released_due_to_timeout",
         )
-        db.session.add(VaSubmissionsAuditlog(
-            va_sid=record.va_sid,
-            va_audit_entityid=record.va_allocation_id,
-            va_audit_byrole="vasystem",
-            va_audit_operation="d",
-            va_audit_action="reviewer_allocation_released_due_to_timeout",
-        ))
         released += 1
 
     if released:

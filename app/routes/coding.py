@@ -10,6 +10,7 @@ from app.services.coder_dashboard_service import (
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
@@ -53,6 +54,7 @@ def dashboard():
             VaSubmissions.va_form_id.in_(va_form_access),
             VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
             submission_is_in_odk(),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
         ]
         if narration_language_filter is not None:
             total_filters.append(narration_language_filter)
@@ -76,6 +78,7 @@ def dashboard():
                 VaSubmissions.va_form_id.in_(random_form_ids),
                 VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
                 submission_is_in_odk(),
+                not_confirmed_duplicate_condition(VaSubmissions.va_sid),
             ]
             if narration_language_filter is not None:
                 random_filters.append(narration_language_filter)
@@ -361,7 +364,10 @@ def area_overview():
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
         .outerjoin(authoritative, authoritative.c.va_sid == VaSubmissions.va_sid)
-        .where(VaSubmissions.org_unit_id.in_(sorted(viewable)))
+        .where(
+            VaSubmissions.org_unit_id.in_(sorted(viewable)),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+        )
         .order_by(MasOrgUnit.path, VaSubmissions.va_submission_date.desc())
         .limit(AREA_OVERVIEW_MAX_ROWS + 1)
     )

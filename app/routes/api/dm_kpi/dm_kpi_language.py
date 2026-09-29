@@ -28,6 +28,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids, dm_project_site_pairs
 
@@ -36,6 +37,8 @@ log = logging.getLogger(__name__)
 
 # Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
 _IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 # States that count as "pending" (waiting for or in coding)
@@ -79,6 +82,7 @@ def language_gap():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
@@ -122,6 +126,7 @@ def language_gap():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e.event_created_at >= :cutoff
                   AND s.va_narration_language IS NOT NULL
@@ -198,6 +203,7 @@ def language_distribution():
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
                   AND (w.workflow_state IS NULL OR w.workflow_state != 'consent_refused')
@@ -219,6 +225,7 @@ def language_distribution():
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
                   AND (w.workflow_state IS NULL OR w.workflow_state != 'consent_refused')
@@ -275,6 +282,7 @@ def language_missing():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
             """),
             {**IN_ODK_BIND, "site_ids": site_ids},
@@ -289,6 +297,7 @@ def language_missing():
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
                   AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
@@ -307,6 +316,7 @@ def language_missing():
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
                       AND {_IN_ODK_SQL}
+                      AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                       AND s.va_narration_language IS NOT NULL
                       AND s.va_narration_language != ''

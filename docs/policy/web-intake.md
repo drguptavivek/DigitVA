@@ -369,8 +369,10 @@ a place for names, phone numbers or addresses).
   project and site grants); the supervisor API under
   `/intake/api/supervision/` (list, resolve flag, cancel, reopen). **Not built
   yet:** audit rows naming the grant and cadre (the audit row names the actor
-  only), the shared duplicate-exclusion predicate and allocation revocation,
-  and the supervisor UI.
+  only) and the supervisor UI. Confirming a duplicate excludes its submission
+  from every coding reader through `app/services/duplicate_exclusion.py` and
+  revokes any active coding or reviewing allocation (`digitva-vzk.7`; see
+  coding-workflow-state-machine.md, "Confirmed Duplicate Cases").
 - Authorization stays explicit: project, project-site, form and unit grants
   are not interchangeable, and no supervisory reach is inferred from another
   grant. Supervisor power is bounded by grant scope, grant status and
@@ -726,8 +728,8 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   `map_case_contact_attempts` row (outcome, time, next date, user; no notes)
   and sets `last_contact_at`:
   - `refused` -> `refused`, visit date cleared; a next date is refused (400).
-    From `not_reachable` it is refused (409): the transition table has no
-    `not_reachable -> refused` (open item below).
+    This includes a family first logged as not reachable
+    (`not_reachable -> refused`, team, added 2026-09-30).
   - `no_answer`, `wrong_number`, `moved` -> `not_reachable` (stays so if
     already), next visit = the given date or none.
   - `reached` -> with a date, registered and not reachable become `scheduled`
@@ -767,10 +769,6 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   gets a date of death, so it cannot leave `draft_identity` and cannot be
   submitted. Should the minimum identity accept a year of death, and how
   should the case store it?
-
-- **Refused after not reachable** (found building phase 5). A family first
-  not reachable and then reached who refuses cannot be logged as refused: the
-  transition table has no `not_reachable -> refused`. Proposed: add it (team).
 
 ## Not yet implemented
 

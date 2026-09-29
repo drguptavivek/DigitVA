@@ -7,152 +7,95 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 ## Prompt for the next session
 
 > Read `handoff.md`, then `docs/current-state/README.md` before structural
-> changes. Start the stack with `make dev` (it runs `make ensure-secrets`,
-> which appends `CAPTCHA_HMAC_KEY` and `AUTH_FACTOR_ENCRYPTION_KEY` to `.env`
-> when missing; plain `docker compose up` skips that and the Celery
-> containers then refuse to start). Add `--profile icd11` for the WHO API,
-> public DORIS service and ingress. Log in on port 8051 as the seeded admin
-> in `AGENTS.md`: login is now two steps (email + background proof-of-work
-> CAPTCHA, then password or passkey). The dev `testadmin` has a passkey, so
-> a password sign-in asks for a second factor; sign in with the passkey or
-> use its recovery codes.
+> changes. Start the stack with `make dev` (adds missing secrets to `.env`;
+> plain `docker compose up` skips that and Celery refuses to start). Add
+> `--profile icd11` for the WHO API and public DORIS. Log in on port 8051 as
+> the seeded admin in `AGENTS.md`: two-step login (email + proof-of-work
+> CAPTCHA, then password or passkey); the dev `testadmin` has a passkey, so a
+> password sign-in asks for a second factor.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2494 pass, about 2.5 min; run only touched migration tests plus
-> `test_schema_drift.py` and `test_no_app_imports_in_migrations.py`).
-> One pytest run per test database at a time. Web form package:
-> `cd vendor/who-va-2022 && npx vitest run` (779 pass); rebuild the served bundle
-> with `cd tooling/who-va-2022 && node build.mjs && node check.mjs` (updates
-> `manifest.json`; the page versions the bundle URL by its sha). Use `bd`;
-> commit in the repo's voice and push.
+> (2569 passed at the start of 2026-09-30; not rerun in full since, see
+> caveats). One pytest run per test database at a time. Web form package:
+> `cd vendor/who-va-2022 && npx vitest run` (782 pass); rebuild the served
+> bundle with `cd tooling/who-va-2022 && node build.mjs && node check.mjs`.
+> Android app: `mobile/digitva-collect/README.md`. Use `bd`; commit in the
+> repo's voice and push.
 
 ## Next, ranked
 
-1. `digitva-ddv.2` (in progress): production release on the app VM. Before
-   `docker compose up -d`: confirm `.env` has
-   `MAIL_BASE_URL=https://digitva.causeofdeathindia.com` (production refuses
-   other hosts, and it is also the passkey RP ID: never change it after the
-   first passkey is registered); run `make ensure-secrets` (or `make prod`)
-   and back up `.env` (`AUTH_FACTOR_ENCRYPTION_KEY` protects TOTP secrets);
-   rebuild images (new deps: webauthn, pyotp, segno); run migrations
-   `c1d5e9a2f7b4` (auth factor tables), `b1f4d8a6c9e2` (district VA
-   presets), `d3a9c5e1f7b2` (ICD-11 owner decision 20) and `a7c3e9f1b5d2`
-   (ICD-11 coding policy), then `flask analytics refresh-submission-mv`.
-   Then the ingress switch, `COMPOSE_PROFILES=icd11`,
-   `DORIS_PUBLIC_COOKIE_SECURE=true` and the checks in the bead. Set
-   `AUTH_FACTOR_ENFORCE_FROM` (launch + 30 days) when the owner announces the
-   passkey/TOTP rollout. Login changes ship with it: two-step login,
-   passkeys, TOTP, recovery codes, enrolment banner/hold, admin factor reset,
-   `flask auth reset-factors` (`docs/policy/authentication-factors.md`).
-2. `digitva-sn1.1.7` (P1): real-device passkey check (Windows Hello, Touch ID,
-   iOS Safari, Android Chrome, phone-to-laptop, a security key). Chrome's
-   virtual authenticator passes end to end on dev.
-3. `digitva-vzk` worklist epic: policy baseline written and committed in
-   `docs/policy/web-intake.md` (plan and decisions in
-   `.tasks/2026-09-28-interviewer-worklist.md`). Every design question is
-   decided. Offline capture is native-app work under Path B (no change to
-   `docs/policy/field-data-collection.md`; the browser page stays online-only)
-   and is in no phase of the plan. Decided 2026-09-30: incomplete
-   outcomes set the case state (no new state); refused is soft; a confirmed
-   duplicate is excluded at case level through one shared predicate;
-   supervisors are a new unit-scoped `interview_supervisor` grant with a
-   cadre check against a new `can_supervise_interviews` flag on the level x
-   cadre grid. Next: phase 2 (case model, states, transition service with
-   audit; migration); phase 1 (`dyk`, `nrq`) is closed. Building the role
-   also means the `role_scope` migration and one-line amendments to
-   `access-control-model.md`, `organization-model.md` and
-   `coding-workflow-state-machine.md`.
-   Children: `vzk.1` (prefill identity/place incl. parents' names at
-   registration), `vzk.2` (`interview_outcome` question: auto refused/
-   completed; partially completed / respondent unavailable = incomplete, not
-   coded), `vzk.3` (interviewer year of birth and sex in profile).
-4. `digitva-5mu`: the web form's own UI strings stay English on a translated
-   form; the date hint and "This question is required." show English on
-   Hindi pages.
-5. `digitva-cts`: SmartVA takes HIV/malaria from the submission's
-   organization unit district setting (high on, low/very low off), else the
-   form flag, else off; runs unchanged, split when mixed, options and source
-   recorded (`docs/policy/smartva-generation-policy.md`). Agreed; not built.
-6. DORIS prefill (`digitva-hln`, built 2026-09-29) follow-ups, all owner
-   steps: deploy the ODK rows in
-   `docs/kb/WHO_VA_2022_Docs/odk-doris-support-rows.xlsx` (A1-A3 agreed;
-   A4-A10 proposed; test the `dob_*` constraints in Collect first); send
-   WHO `docs/kb/DORIS/who-va-2022-doris-consistency-proposal.md` (strip the
-   internal header line; GitHub issue on SwissTPH/WHO-VA or email); site
-   training on `docs/kb/WHO_VA_2022_Docs/odk-training-date-of-birth.md` and
-   on Id10366 no longer accepting 0 (answer `Id10366_check` = no).
-   `digitva-zyf`: the Id10366 override message is not translatable yet.
-   The extension is always on for every web project; ODK rows are generated
-   from it (`npm run build:odk-doris-rows` in `tooling/who-va-2022`, then
-   `tooling/who-va-2022/build_odk_doris_rows.py` in the app container).
-7. `digitva-ej1`: web attachment upload (audio narration, document images).
-   Offline on-device storage is native-app work under Path B
-   (`docs/policy/field-data-collection.md`), not the browser page.
-8. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 report.
-   `digitva-fb5` (P1): translation label fixes need a speaker.
+1. **Run the full test suite** (command above). The 2026-09-30 overnight
+   session landed 16 commits on targeted runs only; its full-suite run was
+   blocked by a permission check after the first commit.
+2. **Owner browser checks** the overnight session could not do without an
+   admin or supervisor login (granting admin to a test account was refused):
+   - Setup home (`digitva-r1p`): every hosted panel inside the admin shell
+     (Structure/Organization tree, Coding scope block, Project Sites toggles,
+     Project Forms mapping editor, ODK Connections narrowing, Access Grants
+     and Project PIs with the pinned project, Attachments, Activity), and the
+     People > Devices card (create code, QR, revoke).
+   - Supervision page `/intake/supervision` as an `interview_supervisor`
+     and as a data manager.
+3. `digitva-kmk` Android app (design and API contract in
+   `.tasks/2026-09-30-android-collection-app.md`; policy baseline in
+   `docs/policy/field-data-collection.md`, "Path B design", marked
+   proposed). Built: server device API (`kmk.1`), app phase 2a (`kmk.2`).
+   Next: `kmk.6` hardening (may be in the tree or landed; check git log),
+   then `kmk.3` phase 2b security (SQLCipher per interviewer, PIN,
+   biometric, auto-lock, FLAG_SECURE, wipes), `kmk.4` offline cases and
+   attachments, `kmk.5` release. **No real interviews before 2b.**
+4. `digitva-vzk` worklist: phases 2-5 and 7 built, supervisor role built,
+   prefill and interview outcome built. Left: `vzk.11` automatic duplicate
+   check (phase 6), `vzk.10` duplicate-exclusion follow-ups (stored daily KPI
+   rows not recomputed on confirm/reopen; coverage guard's regex misses
+   `VaSubmissionWorkflowEvent`; missing indexes for the area staff view).
+5. `digitva-4in`: DM KPI dashboard shell admits admin/collaborators but its
+   APIs are data_manager-only (empty data); needs a PII review to open.
+6. Carried over: `digitva-ddv.2` production release (now also needs every
+   migration from `c4e8a2f6b9d3` to `d7a3c9e1f5b2` and later, plus
+   `DEVICE_PUBLIC_URL` if devices are used), `digitva-sn1.1.7` real-device
+   passkeys, `digitva-5mu`, `digitva-cts`, `digitva-hln` owner steps,
+   `digitva-ej1`, `digitva-ddv.5`, `digitva-fb5`.
 
-## Waiting on the owner
+## Open owner decisions (from 2026-09-30)
 
-- `aashieshsingh/WHO-va-2022` has separate commits to 25 Sep (date calendar,
-  field controls); not merged into our vendored package.
-- `digitva-mdj` (WHO #94 unanswered).
-
-## Approved, not started
-
-- `digitva-r1p`: Project Setup home phases 2-4. `digitva-yds.3`: COD bucket
-  schemes in Help. `digitva-e5j`: explain empty coding-search results.
-- `digitva-aek`: download a project's ODK XLSForm built from its enabled
-  modules (ODK form becomes a project output). After `digitva-hln`.
-- `digitva-d1x` (P3, after the WHO form is stable): PHMRC shortened form
-  (`docs/kb/PHMRC`) as a web form with its label images and audio; capture
-  only, downstream pipeline later.
-
-Epics: `digitva-dus` (V3), `digitva-roq` (per-project SSO; the email login
-step is where it hooks in), `digitva-sn1` (passkeys/TOTP, build done),
-`digitva-vzk` (worklist), `digitva-1eq` (more ML coders), `digitva-zpe`
-(semantic ICD search).
+- **Interview outcome routing** (`vzk.2`): partially completed and
+  respondent unavailable submissions route to the existing `consent_refused`
+  workflow state (the only non-coding state that also blocks SmartVA), so DM
+  KPIs count them as consent refusals. Alternatives: a new state, or no
+  submission row for incomplete interviews. The browser page cannot submit
+  an incomplete interview yet; the device API can.
+- Interviewer picking "refused" while consent is yes is refused (422).
+- Name split for prefill: first word given name, rest surname.
+- Area dashboard: collaborators get no links to the DM dashboard; project
+  cards follow final-COD authority and can differ from the table buckets.
+- Coder personal history keeps confirmed duplicates; DM grid has no "show
+  duplicates" toggle.
+- Android: C1 (30-day sliding refresh, 90-day cap proposed), C4 signing and
+  distribution, package id `org.digitva.collect`, who may create enrolment
+  codes (admin only now), PIN length/wipe threshold (6 digits / 5).
+- Setup home stays admin-only; opening it to project PIs is undecided.
 
 ## Caveats still true
 
-- ICD-11 is signed off (2026-09-29) and ships with migration `a7c3e9f1b5d2`
-  (current head; owner decision 20 is `d3a9c5e1f7b2`). Dev has both applied,
-  its 35,664 categories marked `reviewed`, and the snapshot refreshed;
-  production still needs both migrations and the refresh (release step
-  above). Any later policy edit needs a new migration; the frozen copy is
-  `resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`.
-- The policy added an age value `neonate_infant` (chapter 19 and `1C15`), RA02
-  and RA03 selectable, and sex rules for the genital blocks in chapters 16
-  and 20. ICD-10 was deliberately not changed (P codes stay neonate; U09.9,
-  U10.9 absent; no sex rules outside neoplasms and O). Whether to give ICD-10
-  the same treatment is undecided.
-- `ruff format --check` fails on several committed files already; only
-  `ruff check` is a gate.
-
-- Dev has a `test.coder.nc01@gmail.com` account (password as in `AGENTS.md`)
-  created for the DORIS browser check; its SADEMO coder grant is set to
-  `deactive`. The other four test coders are not in this dev database.
-
-- Web form: speed is the priority; round-3 measures (4x CPU throttle) are in
-  `docs/design/web-form-visual-pass/README.md` (tap on the 164-question
-  section 18/26 ms p50/p95). The bundle is 19 KB over the pre-round-3 size.
-- Web drafts: reopening now restores answers and blocks saves until restore
-  settles (`digitva-ybz`, fixed). Dev draft `eca5d80d` had its
-  `meta.createdAt` moved to 2026-09-29 by a pre-fix open (answers intact).
-- Dev passkeys need `WEBAUTHN_RP_ID=localhost` / `WEBAUTHN_ORIGIN`, pinned in
-  `docker-compose.override.yml`; dev `.env` carries the production
-  `MAIL_BASE_URL`.
-- Admin panels opened directly by URL (not through the admin shell) lack
-  Bootstrap JS, so their offcanvas buttons fail; use the shell.
+- ICD-11 signed off 2026-09-29 (migrations `d3a9c5e1f7b2`, `a7c3e9f1b5d2`);
+  production still needs them and `flask analytics refresh-submission-mv`.
+- Dev test data created overnight: cases SDH-000008 (direct, details
+  pending), SDH-000009 (Test Case Alpha, in progress, cancel flag pending),
+  SDH-000010 (Test Case Beta, not reachable); `test.coder.nc01` holds
+  temporary grants noted "TEMP area-dashboard browser check 2026-09-30"
+  (collaborator on unit SDH and on UNSW01, interviewer on DH01), set to
+  `deactive` at the end of the session.
+- Dev passkeys need `WEBAUTHN_RP_ID=localhost` / `WEBAUTHN_ORIGIN` pinned
+  in `docker-compose.override.yml`; dev `.env` carries the production
+  `MAIL_BASE_URL`. For the emulator set `DEVICE_PUBLIC_URL=http://10.0.2.2:8051`.
+- `ruff format --check` fails on several committed files; only `ruff check`
+  is a gate.
+- Admin panels opened directly by URL lack Bootstrap JS; use the shell.
 - "Reset from source" on `WHO_2022_VA_2026` drops the Fresh stillbirth node
   and ICD-11 rows; a snapshot is taken first (`digitva-tet`).
-- Dev's `WHO_2022_VA` has 2,414 mappings against a fresh clone's 2,380.
-- The dev DB stamp once moved back two revisions
-  (`.tasks/dev-db-stamp-regression-and-infra.md`).
-- Flaky: `digitva-ssi` (`test_odk_site_mappings`, passes on rerun),
-  `digitva-3jj`, `digitva-19l`.
+- Flaky: `digitva-ssi`, `digitva-3jj`, `digitva-19l`.
 - `stash@{0}` (WIP on `a24ea0a`) is from an old incident; drop it only after
   someone confirms it holds nothing needed.
-- ODK connection credentials still use Fernet (TOTP secrets moved to
-  AES-256-GCM); separate subsystem.
-- Browser-only behaviour verified by hand, not automated: `confirmDialog`,
-  the admin panel swap fix (`2c98f2a`), the project form layout, the passkey
-  ceremony (Playwright script lived in the session scratchpad only).
+- Test harness: the suite keeps one app context, so `g` and Flask-Login's
+  cached user carry over between requests in one test
+  (`tests/routes/test_device_api.py` uses a `_FreshGClient` for this).

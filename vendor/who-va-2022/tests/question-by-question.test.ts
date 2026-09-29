@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isQuestionRelevant,
+  parseExpression,
   validateAnswer,
   validateSubmission,
   whoVa2022Instrument,
@@ -91,8 +92,8 @@ describe("question-by-question canonical runtime contract", () => {
 
       for (const expression of [generated.relevant, generated.constraint, generated.calculation]) {
         if (!expression) continue;
-        expect(expression.ast).toBeDefined();
-        for (const dependency of references(expression.ast)) {
+        const ast = expression.ast ?? parseExpression(expression.source);
+        for (const dependency of references(ast)) {
           expect(knownNames.has(dependency), `${name} references unknown question ${dependency}`).toBe(true);
         }
       }

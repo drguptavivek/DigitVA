@@ -73,7 +73,8 @@ export default function DashboardRoute() {
   const visibleCompleted = currentUser
     ? completed.filter((submission) => {
         const caseUid = caseUidFromCompleted(submission);
-        const submissionUserId = submission.userId ?? (caseUid ? allCasesByUid.get(caseUid)?.userId : undefined);
+        const submissionUserId =
+          submission.userId ?? (caseUid ? allCasesByUid.get(caseUid)?.userId : undefined);
         return submissionUserId === currentUser.userId;
       })
     : [];

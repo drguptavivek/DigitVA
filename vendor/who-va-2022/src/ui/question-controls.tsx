@@ -770,6 +770,125 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  /**
+   * The text-entry state machine shared by the `month-year` and `year`
+   * appearances: empty clears, a complete entry stores the canonical ISO date
+   * and drops the draft, a partial entry keeps the draft and stores nothing.
+   */
+  function commitDateText(
+    text: string,
+    isComplete: (text: string) => boolean,
+    toIso: (text: string) => string,
+    updateDraft: (next: string | undefined) => void,
+    onAnswer: (value: AnswerValue | undefined) => void
+  ) {
+    if (text === "") {
+      updateDraft(undefined);
+      onAnswer(undefined);
+    } else if (isComplete(text)) {
+      onAnswer(toIso(text));
+      updateDraft(undefined);
+    } else {
+      updateDraft(text);
+      onAnswer(undefined);
+    }
+  }
+
+  function DateTextInput({
+    question,
+    label,
+    hasIssues,
+    ...rest
+  }: {
+    question: InstrumentQuestion;
+    label: string;
+    hasIssues: boolean;
+    value: string;
+    maxLength: number;
+    placeholder: string;
+    onChangeText: (text: string) => void;
+    keyboardType?: string;
+    type?: string;
+  }) {
+    const readOnly = question.readOnly;
+    const { type, ...props } = rest;
+    return (
+      <TextInput
+        accessibilityLabel={label}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          hasIssues && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
+        aria-invalid={hasIssues || undefined}
+        aria-readonly={readOnly || undefined}
+        editable={!readOnly}
+        readOnly={readOnly || undefined}
+        {...(type ? ({ type } as Record<string, unknown>) : {})}
+        {...props}
+      />
+    );
+  }
+
+  function DatePickerButton({
+    question,
+    value,
+    data,
+    locale,
+    messages,
+    label,
+    hasIssues,
+    pickDate,
+    onAnswer
+  }: {
+    question: InstrumentQuestion;
+    value: AnswerValue | undefined;
+    data: SubmissionData;
+    locale: string;
+    messages: WhoVaUiMessages;
+    label: string;
+    hasIssues: boolean;
+    pickDate: NonNullable<WhoVaPlatformServices["pickDate"]>;
+    onAnswer: (value: AnswerValue | undefined) => void;
+  }) {
+    const [busy, setBusy] = useState(false);
+    const readOnly = question.readOnly;
+    const shownText = busy
+      ? messages.openingCalendar
+      : value == null
+        ? messages.selectDate
+        : formatDdMmmYyyy(String(value), locale);
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: busy }}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          hasIssues && questionControlStyles.inputError,
+          (readOnly || busy) && questionControlStyles.buttonDisabled
+        ]}
+        disabled={readOnly || busy}
+        onPress={async () => {
+          if (readOnly) return;
+          setBusy(true);
+          try {
+            const selected = await pickDate(question, data, typeof value === "string" ? value : undefined);
+            if (selected !== undefined) onAnswer(selected);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <PrimitiveText style={value == null ? questionControlStyles.hint : questionControlStyles.choiceText}>
+          {shownText}
+        </PrimitiveText>
+      </Pressable>
+    );
+  }
+
   function Date({
     question,
     value,
@@ -782,7 +901,6 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     onDraftIssue
   }: WhoVaQuestionControlProps) {
     const [draft, setDraft] = useState<string>();
-    const [busy, setBusy] = useState(false);
     const label = questionLabel(question, locale);
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
@@ -796,37 +914,25 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     };
 
     if (hasAppearance(question, "month-year")) {
-      const shown = draft ?? (typeof value === "string" ? value.slice(0, 7) : "");
       return (
-        <TextInput
-          accessibilityLabel={label}
-          testID={`question-${question.name}`}
-          style={[
-            questionControlStyles.input,
-            hasIssues && questionControlStyles.inputError,
-            readOnly && questionControlStyles.inputReadOnly
-          ]}
-          aria-invalid={hasIssues || undefined}
-          aria-readonly={readOnly || undefined}
-          editable={!readOnly}
-          readOnly={readOnly || undefined}
-          {...({ type: "month" } as Record<string, unknown>)}
-          value={shown}
+        <DateTextInput
+          question={question}
+          label={label}
+          hasIssues={hasIssues}
+          type="month"
+          value={draft ?? (typeof value === "string" ? value.slice(0, 7) : "")}
           maxLength={7}
           placeholder="YYYY-MM"
           onChangeText={(text: string) => {
             if (readOnly || !/^[\d-]*$/.test(text)) return;
-            if (text === "") {
-              updateDraft(undefined);
-              onAnswer(undefined);
-            } else if (/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) {
-              // Canonical storage stays a full ISO date, as `year` does.
-              onAnswer(`${text}-01`);
-              updateDraft(undefined);
-            } else {
-              updateDraft(text);
-              onAnswer(undefined);
-            }
+            // Canonical storage stays a full ISO date, as `year` does.
+            commitDateText(
+              text,
+              (t) => /^\d{4}-(0[1-9]|1[0-2])$/.test(t),
+              (t) => `${t}-01`,
+              updateDraft,
+              onAnswer
+            );
           }}
         />
       );
@@ -834,34 +940,23 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
     if (hasAppearance(question, "year")) {
       return (
-        <TextInput
-          accessibilityLabel={label}
-          testID={`question-${question.name}`}
-          style={[
-            questionControlStyles.input,
-            hasIssues && questionControlStyles.inputError,
-            readOnly && questionControlStyles.inputReadOnly
-          ]}
-          aria-invalid={hasIssues || undefined}
-          aria-readonly={readOnly || undefined}
-          editable={!readOnly}
-          readOnly={readOnly || undefined}
-          value={draft ?? (typeof value === "string" ? value.slice(0, 4) : "")}
+        <DateTextInput
+          question={question}
+          label={label}
+          hasIssues={hasIssues}
           keyboardType="number-pad"
+          value={draft ?? (typeof value === "string" ? value.slice(0, 4) : "")}
           maxLength={4}
           placeholder="YYYY"
           onChangeText={(text: string) => {
             if (readOnly || !/^\d*$/.test(text)) return;
-            if (text === "") {
-              updateDraft(undefined);
-              onAnswer(undefined);
-            } else if (text.length === 4) {
-              onAnswer(`${text}-01-01`);
-              updateDraft(undefined);
-            } else {
-              updateDraft(text);
-              onAnswer(undefined);
-            }
+            commitDateText(
+              text,
+              (t) => t.length === 4,
+              (t) => `${t}-01-01`,
+              updateDraft,
+              onAnswer
+            );
           }}
         />
       );
@@ -873,42 +968,17 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     // the interviewer is meant to get.
     if (services?.pickDate) {
       return (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          accessibilityState={{ disabled: busy }}
-          testID={`question-${question.name}`}
-          style={[
-            questionControlStyles.input,
-            hasIssues && questionControlStyles.inputError,
-            (readOnly || busy) && questionControlStyles.buttonDisabled
-          ]}
-          disabled={readOnly || busy}
-          onPress={async () => {
-            if (readOnly) return;
-            setBusy(true);
-            try {
-              const selected = await services.pickDate?.(
-                question,
-                data,
-                typeof value === "string" ? value : undefined
-              );
-              if (selected !== undefined) onAnswer(selected);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <PrimitiveText
-            style={value == null ? questionControlStyles.hint : questionControlStyles.choiceText}
-          >
-            {busy
-              ? messages.openingCalendar
-              : value == null
-                ? messages.selectDate
-                : formatDdMmmYyyy(String(value), locale)}
-          </PrimitiveText>
-        </Pressable>
+        <DatePickerButton
+          question={question}
+          value={value}
+          data={data}
+          locale={locale}
+          messages={messages}
+          label={label}
+          hasIssues={hasIssues}
+          pickDate={services.pickDate}
+          onAnswer={onAnswer}
+        />
       );
     }
 
@@ -1576,25 +1646,57 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
-  function ImagePicker({
-    question,
-    value,
-    data,
-    platform,
-    messages = ENGLISH_UI_MESSAGES,
-    issues,
-    onAnswer
-  }: WhoVaQuestionControlProps) {
-    const attachment = attachmentDetails(value);
-    const [busy, setBusy] = useState<"camera" | "library" | "draw">();
-    const [rotation, setRotation] = useState(0);
-    const [zoom, setZoom] = useState(1);
-    const [visible, setVisible] = useState(true);
-    const [previewUri, setPreviewUri] = useState<string | undefined>(() => attachment.uri);
-    const [processingError, setProcessingError] = useState<string>();
-    const readOnly = question.readOnly;
-    const services = { ...primitives.platform, ...platform };
-    const currentAttachment = attachmentReference(value);
+  type ImageSource = "camera" | "library" | "draw";
+
+  /** The host picker for a source, or undefined when the host supplies none. */
+  function imagePickerFor(
+    source: ImageSource,
+    services: WhoVaPlatformServices,
+    drawMode: "draw" | "signature" | undefined
+  ) {
+    if (source === "camera") return services.captureImage;
+    if (source === "library") return services.selectImage;
+    const captureDrawing = services.captureDrawing;
+    if (!captureDrawing) return undefined;
+    return (q: InstrumentQuestion, d: SubmissionData) => captureDrawing(q, d, drawMode ?? "draw");
+  }
+
+  /**
+   * Run a picker and return the processed image it yields (undefined when the
+   * user cancels). Fail-closed: an unprocessed candidate needs the host's
+   * processImage, and whatever comes back must be a processed image.
+   */
+  async function acquireProcessedImage(
+    picker: (q: InstrumentQuestion, d: SubmissionData) => Promise<AttachmentCandidate | undefined>,
+    services: WhoVaPlatformServices,
+    question: InstrumentQuestion,
+    data: SubmissionData
+  ) {
+    const candidate = await picker(question, data);
+    let selected = candidate;
+    if (candidate !== undefined && !isProcessedImageAttachment(candidate)) {
+      if (!services.processImage) throw new AttachmentProcessingError("image-processing-unavailable");
+      selected = await services.processImage(candidate, WHO_VA_ATTACHMENT_POLICY.image, question, data);
+    }
+    if (selected !== undefined && !isProcessedImageAttachment(selected)) {
+      throw new AttachmentProcessingError("image-output-invalid");
+    }
+    return selected;
+  }
+
+  /**
+   * The URL to preview a stored image from. Opaque `who-va-attachment:` refs
+   * are resolved through the host (and released on change); anything else is
+   * shown as is. A failed resolution is reported through `onLoadError`.
+   */
+  function useImagePreviewUri(
+    value: AnswerValue | undefined,
+    attachmentUri: string | undefined,
+    services: WhoVaPlatformServices,
+    loadFailedMessage: string,
+    onLoadError: (message: string) => void
+  ) {
+    const [previewUri, setPreviewUri] = useState<string | undefined>(() => attachmentUri);
     const resolveAttachmentUri = services.resolveAttachmentUri;
     const releaseAttachmentUri = services.releaseAttachmentUri;
 
@@ -1602,18 +1704,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       let active = true;
       let resolvedUri: string | undefined;
       const attachmentValue = attachmentReference(value);
-      if (!attachment.uri) {
-        setPreviewUri(undefined);
-        return () => {
-          active = false;
-        };
-      }
       if (
+        !attachmentUri ||
         !resolveAttachmentUri ||
         attachmentValue === undefined ||
-        !attachment.uri.startsWith("who-va-attachment:")
+        !attachmentUri.startsWith("who-va-attachment:")
       ) {
-        setPreviewUri(attachment.uri);
+        setPreviewUri(attachmentUri);
         return () => {
           active = false;
         };
@@ -1625,13 +1722,173 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           if (active) setPreviewUri(uri);
         })
         .catch(() => {
-          if (active) setProcessingError(messages.savedImageLoadFailed);
+          if (active) onLoadError(loadFailedMessage);
         });
       return () => {
         active = false;
         if (resolvedUri) releaseAttachmentUri?.(resolvedUri);
       };
-    }, [attachment.uri, messages.savedImageLoadFailed, releaseAttachmentUri, resolveAttachmentUri, value]);
+    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, value]);
+
+    return previewUri;
+  }
+
+  interface ImageSourceButtonProps {
+    question: InstrumentQuestion;
+    services: WhoVaPlatformServices;
+    messages: WhoVaUiMessages;
+    invalid: boolean;
+    readOnly: boolean | undefined;
+    busy: ImageSource | undefined;
+    drawMode: "draw" | "signature" | undefined;
+    hasImage: boolean;
+    onChoose: (source: ImageSource) => void;
+  }
+
+  function ImageDrawButton({
+    question,
+    services,
+    messages,
+    invalid,
+    readOnly,
+    busy,
+    drawMode,
+    hasImage,
+    onChoose
+  }: ImageSourceButtonProps) {
+    if (!drawMode) return null;
+    const disabled = readOnly || !services.captureDrawing || busy != null;
+    const text =
+      drawMode === "signature"
+        ? hasImage
+          ? messages.reSign
+          : messages.sign
+        : hasImage
+          ? messages.redraw
+          : messages.draw;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        aria-invalid={invalid || undefined}
+        testID={`question-${question.name}-draw`}
+        disabled={disabled}
+        style={[
+          questionControlStyles.button,
+          invalid && questionControlStyles.buttonError,
+          disabled && questionControlStyles.buttonDisabled
+        ]}
+        onPress={() => onChoose("draw")}
+      >
+        <PrimitiveText style={questionControlStyles.buttonText}>{text}</PrimitiveText>
+      </Pressable>
+    );
+  }
+
+  function ImageCameraButton({
+    question,
+    services,
+    messages,
+    invalid,
+    readOnly,
+    busy,
+    drawMode,
+    onChoose
+  }: ImageSourceButtonProps) {
+    const disabled = readOnly || !services.captureImage || busy != null || Boolean(drawMode);
+    return (
+      <Pressable
+        accessibilityRole="button"
+        aria-describedby={
+          !services.captureImage && !services.selectImage
+            ? `question-${question.name}-unavailable`
+            : undefined
+        }
+        aria-invalid={invalid || undefined}
+        disabled={disabled}
+        style={[
+          questionControlStyles.button,
+          invalid && questionControlStyles.buttonError,
+          disabled && questionControlStyles.buttonDisabled,
+          Boolean(drawMode) && questionControlStyles.hidden
+        ]}
+        onPress={() => onChoose("camera")}
+      >
+        <PrimitiveText style={questionControlStyles.buttonText}>
+          {busy === "camera" ? messages.openingCamera : messages.camera}
+        </PrimitiveText>
+      </Pressable>
+    );
+  }
+
+  function ImageLibraryButton({
+    services,
+    messages,
+    invalid,
+    readOnly,
+    busy,
+    drawMode,
+    hasImage,
+    onChoose
+  }: ImageSourceButtonProps) {
+    const disabled = readOnly || !services.selectImage || busy != null || Boolean(drawMode);
+    const text =
+      busy === "library" ? messages.openingImages : hasImage ? messages.replaceImage : messages.chooseImage;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        aria-invalid={invalid || undefined}
+        disabled={disabled}
+        style={[
+          questionControlStyles.button,
+          questionControlStyles.buttonSecondary,
+          invalid && questionControlStyles.buttonSecondaryError,
+          disabled && questionControlStyles.buttonDisabled,
+          Boolean(drawMode) && questionControlStyles.hidden
+        ]}
+        onPress={() => onChoose("library")}
+      >
+        <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{text}</PrimitiveText>
+      </Pressable>
+    );
+  }
+
+  function ImageViewerButton({ label, onPress }: { label: string; onPress: () => void }) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
+        onPress={onPress}
+      >
+        <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{label}</PrimitiveText>
+      </Pressable>
+    );
+  }
+
+  function ImagePicker({
+    question,
+    value,
+    data,
+    platform,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
+    const attachment = attachmentDetails(value);
+    const [busy, setBusy] = useState<ImageSource>();
+    const [rotation, setRotation] = useState(0);
+    const [zoom, setZoom] = useState(1);
+    const [visible, setVisible] = useState(true);
+    const [processingError, setProcessingError] = useState<string>();
+    const readOnly = question.readOnly;
+    const services = { ...primitives.platform, ...platform };
+    const currentAttachment = attachmentReference(value);
+    const previewUri = useImagePreviewUri(
+      value,
+      attachment.uri,
+      services,
+      messages.savedImageLoadFailed,
+      setProcessingError
+    );
 
     // `signature` and `draw` replace capture-or-select with a drawing surface.
     const drawMode = hasAppearance(question, "signature")
@@ -1640,28 +1897,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         ? ("draw" as const)
         : undefined;
 
-    const choose = async (source: "camera" | "library" | "draw") => {
-      const picker =
-        source === "draw"
-          ? services?.captureDrawing
-            ? (q: InstrumentQuestion, d: SubmissionData) => services.captureDrawing!(q, d, drawMode ?? "draw")
-            : undefined
-          : source === "camera"
-            ? services?.captureImage
-            : services?.selectImage;
+    const choose = async (source: ImageSource) => {
+      const picker = imagePickerFor(source, services, drawMode);
       if (readOnly || !picker) return;
       setBusy(source);
       setProcessingError(undefined);
       try {
-        const candidate = await picker(question, data);
-        let selected = candidate;
-        if (candidate !== undefined && !isProcessedImageAttachment(candidate)) {
-          if (!services.processImage) throw new AttachmentProcessingError("image-processing-unavailable");
-          selected = await services.processImage(candidate, WHO_VA_ATTACHMENT_POLICY.image, question, data);
-        }
+        const selected = await acquireProcessedImage(picker, services, question, data);
         if (selected !== undefined) {
-          if (!isProcessedImageAttachment(selected))
-            throw new AttachmentProcessingError("image-output-invalid");
           if (currentAttachment) await services.removeAttachment?.(currentAttachment);
           onAnswer(selected);
           setRotation(0);
@@ -1673,6 +1916,18 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       } finally {
         setBusy(undefined);
       }
+    };
+
+    const sourceProps: ImageSourceButtonProps = {
+      question,
+      services,
+      messages,
+      invalid: issues.length > 0,
+      readOnly,
+      busy,
+      drawMode,
+      hasImage: Boolean(attachment.uri),
+      onChoose: (source) => void choose(source)
     };
 
     return (
@@ -1698,7 +1953,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             {processingError}
           </PrimitiveText>
         ) : null}
-        {!services?.captureImage && !services?.selectImage && !services?.captureDrawing ? (
+        {!services.captureImage && !services.selectImage && !services.captureDrawing ? (
           <PrimitiveText
             nativeID={`question-${question.name}-unavailable`}
             style={questionControlStyles.hint}
@@ -1708,113 +1963,27 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           </PrimitiveText>
         ) : null}
         <View style={questionControlStyles.actions}>
-          {drawMode ? (
-            <Pressable
-              accessibilityRole="button"
-              aria-invalid={issues.length > 0 || undefined}
-              testID={`question-${question.name}-draw`}
-              disabled={readOnly || !services?.captureDrawing || busy != null}
-              style={[
-                questionControlStyles.button,
-                issues.length > 0 && questionControlStyles.buttonError,
-                (readOnly || !services?.captureDrawing || busy != null) &&
-                  questionControlStyles.buttonDisabled
-              ]}
-              onPress={() => void choose("draw")}
-            >
-              <PrimitiveText style={questionControlStyles.buttonText}>
-                {drawMode === "signature"
-                  ? attachment.uri
-                    ? messages.reSign
-                    : messages.sign
-                  : attachment.uri
-                    ? messages.redraw
-                    : messages.draw}
-              </PrimitiveText>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            aria-describedby={
-              !services?.captureImage && !services?.selectImage
-                ? `question-${question.name}-unavailable`
-                : undefined
-            }
-            aria-invalid={issues.length > 0 || undefined}
-            disabled={readOnly || !services?.captureImage || busy != null || Boolean(drawMode)}
-            style={[
-              questionControlStyles.button,
-              issues.length > 0 && questionControlStyles.buttonError,
-              (readOnly || !services?.captureImage || busy != null || Boolean(drawMode)) &&
-                questionControlStyles.buttonDisabled,
-              Boolean(drawMode) && questionControlStyles.hidden
-            ]}
-            onPress={() => void choose("camera")}
-          >
-            <PrimitiveText style={questionControlStyles.buttonText}>
-              {busy === "camera" ? messages.openingCamera : messages.camera}
-            </PrimitiveText>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            aria-invalid={issues.length > 0 || undefined}
-            disabled={readOnly || !services?.selectImage || busy != null || Boolean(drawMode)}
-            style={[
-              questionControlStyles.button,
-              questionControlStyles.buttonSecondary,
-              issues.length > 0 && questionControlStyles.buttonSecondaryError,
-              (readOnly || !services?.selectImage || busy != null || Boolean(drawMode)) &&
-                questionControlStyles.buttonDisabled,
-              Boolean(drawMode) && questionControlStyles.hidden
-            ]}
-            onPress={() => void choose("library")}
-          >
-            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
-              {busy === "library"
-                ? messages.openingImages
-                : attachment.uri
-                  ? messages.replaceImage
-                  : messages.chooseImage}
-            </PrimitiveText>
-          </Pressable>
+          <ImageDrawButton {...sourceProps} />
+          <ImageCameraButton {...sourceProps} />
+          <ImageLibraryButton {...sourceProps} />
           {attachment.uri ? (
             <>
-              <Pressable
-                accessibilityRole="button"
-                style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
+              <ImageViewerButton
+                label={visible ? messages.hideImage : messages.viewImage}
                 onPress={() => setVisible((current) => !current)}
-              >
-                <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
-                  {visible ? messages.hideImage : messages.viewImage}
-                </PrimitiveText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
+              />
+              <ImageViewerButton
+                label={messages.rotate}
                 onPress={() => setRotation((current) => (current + 90) % 360)}
-              >
-                <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
-                  {messages.rotate}
-                </PrimitiveText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
+              />
+              <ImageViewerButton
+                label={messages.zoomIn}
                 onPress={() => setZoom((current) => Math.min(3, current + 0.25))}
-              >
-                <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
-                  {messages.zoomIn}
-                </PrimitiveText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
+              />
+              <ImageViewerButton
+                label={messages.zoomOut}
                 onPress={() => setZoom((current) => Math.max(0.5, current - 0.25))}
-              >
-                <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
-                  {messages.zoomOut}
-                </PrimitiveText>
-              </Pressable>
+              />
               <Pressable
                 accessibilityRole="button"
                 disabled={readOnly}

@@ -37,6 +37,10 @@ export async function revokeRefreshToken(_apiBaseUrl?: string): Promise<void> {
   return undefined;
 }
 
-export async function fetchWithAuth(apiBaseUrl: string, path: string, init: RequestInit = {}): Promise<Response> {
+export async function fetchWithAuth(
+  apiBaseUrl: string,
+  path: string,
+  init: RequestInit = {}
+): Promise<Response> {
   return fetch(`${apiBaseUrl.replace(/\/$/u, "")}${path}`, init);
 }

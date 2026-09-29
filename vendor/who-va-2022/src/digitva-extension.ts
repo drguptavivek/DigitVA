@@ -212,7 +212,13 @@ function base(
   } as InstrumentQuestion;
 }
 
-function image(name: string, order: number, sectionPath: string[], label: string, relevantSource?: string): InstrumentQuestion {
+function image(
+  name: string,
+  order: number,
+  sectionPath: string[],
+  label: string,
+  relevantSource?: string
+): InstrumentQuestion {
   return base(name, order, sectionPath, label, {
     sourceType: "image",
     dataType: "attachment",
@@ -238,7 +244,13 @@ function yesNoRef(name: string, order: number, sectionPath: string[], label: str
   });
 }
 
-function integer(name: string, order: number, sectionPath: string[], label: string, max: number): InstrumentQuestion {
+function integer(
+  name: string,
+  order: number,
+  sectionPath: string[],
+  label: string,
+  max: number
+): InstrumentQuestion {
   const constraint = `. >= 0 and . <= ${max}`;
   return base(name, order, sectionPath, label, {
     sourceType: "integer",
@@ -327,7 +339,8 @@ function requiredText(
 /** ND01's `sa09`: how many HCF the patient was taken to, 0-99. */
 function hcfCount(name: string, order: number, sectionPath: string[], label: string): InstrumentQuestion {
   const constraint = ". >= 0 and . < 100";
-  const constraintMessage = "The number of HCF the patient was taken can only range between 0 to 99 (both included).";
+  const constraintMessage =
+    "The number of HCF the patient was taken can only range between 0 to 99 (both included).";
   return base(name, order, sectionPath, label, {
     sourceType: "integer",
     dataType: "number",
@@ -361,7 +374,15 @@ function chronologyStep(
   valueHint?: string,
   tuHint?: string
 ): InstrumentQuestion[] {
-  const tu = selectOneRequired(tuName, order.next(), sectionPath, tuLabel, "sa_tu", SA_TU_UNITS, tuHint ? { hint: { en: tuHint } } : {});
+  const tu = selectOneRequired(
+    tuName,
+    order.next(),
+    sectionPath,
+    tuLabel,
+    "sa_tu",
+    SA_TU_UNITS,
+    tuHint ? { hint: { en: tuHint } } : {}
+  );
   const relevantSource = `\${${tuName}}!="na" and \${${tuName}}!="Na" and \${${tuName}}!="nA" and \${${tuName}}!="NA" and \${${tuName}}!=""`;
   const value = base(valueName, order.next(), sectionPath, valueLabel, {
     required: true,
@@ -414,7 +435,13 @@ function createSocialAutopsyExtension(
       SAS01_HEALTH_INSURANCE
     ),
     selectOneRequired("sa06", next(), socioeconomicPath, "2. Place of death", "sas04", SAS04_PLACE_OF_DEATH),
-    requiredText("sa06_a", next(), socioeconomicPath, "2.1 Please specify the other place of death", "selected(${sa06}, '4')"),
+    requiredText(
+      "sa06_a",
+      next(),
+      socioeconomicPath,
+      "2.1 Please specify the other place of death",
+      "selected(${sa06}, '4')"
+    ),
     selectOneRequired(
       "sa02",
       next(),
@@ -432,7 +459,13 @@ function createSocialAutopsyExtension(
       SAS02_NO_CARE_REASONS,
       { relevant: expression("selected(${sa02}, 'no')") }
     ),
-    requiredText("sa04", next(), socioeconomicPath, "4.1 Please specify the other reasons", "selected(${sa03}, '6')"),
+    requiredText(
+      "sa04",
+      next(),
+      socioeconomicPath,
+      "4.1 Please specify the other reasons",
+      "selected(${sa03}, '6')"
+    ),
     selectOneRequired(
       "sa05",
       next(),
@@ -443,8 +476,7 @@ function createSocialAutopsyExtension(
       {
         relevant: expression("selected(${sa02}, 'yes')"),
         hint: {
-          en:
-            "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\nMedium Hospital (polyclinics; 30-200 beds)\nLarge Hospital (corporate hospitals, Government/private medical colleges; ≥ 200 beds)"
+          en: "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\nMedium Hospital (polyclinics; 30-200 beds)\nLarge Hospital (corporate hospitals, Government/private medical colleges; ≥ 200 beds)"
         }
       }
     ),
@@ -475,13 +507,36 @@ function createSocialAutopsyExtension(
       "selected(${sa07}, '8')"
     ),
     hcfCount("sa09", next(), reachingPath, "7. How many HCF did you take the patient"),
-    selectOneRequired("sa10", next(), reachingPath, "8. Was the patient referred to another health facility?", "YES_NO_DK", SA_YES_NO_DK),
-    selectMultipleRequired("sa11", next(), reachingPath, "9. What was the reason for referral?", "sas07", SAS07_REFERRAL_REASONS, {
-      relevant: expression("selected(${sa10}, 'yes')")
-    }),
-    selectOneRequired("sa12", next(), reachingPath, "10. Did the patient go to the referred institution?", "YES_NO_DK", SA_YES_NO_DK, {
-      relevant: expression("selected(${sa10}, 'yes')")
-    }),
+    selectOneRequired(
+      "sa10",
+      next(),
+      reachingPath,
+      "8. Was the patient referred to another health facility?",
+      "YES_NO_DK",
+      SA_YES_NO_DK
+    ),
+    selectMultipleRequired(
+      "sa11",
+      next(),
+      reachingPath,
+      "9. What was the reason for referral?",
+      "sas07",
+      SAS07_REFERRAL_REASONS,
+      {
+        relevant: expression("selected(${sa10}, 'yes')")
+      }
+    ),
+    selectOneRequired(
+      "sa12",
+      next(),
+      reachingPath,
+      "10. Did the patient go to the referred institution?",
+      "YES_NO_DK",
+      SA_YES_NO_DK,
+      {
+        relevant: expression("selected(${sa10}, 'yes')")
+      }
+    ),
     selectOneRequired(
       "sa08",
       next(),
@@ -495,12 +550,18 @@ function createSocialAutopsyExtension(
 
   // eventchronology (field-list, relevant selected(${sa02}, 'yes')).
   questions.push(
-    base("sa_note", next(), eventPath, "Take the first onset of sign/symptom as “zero”. Please give the time taken for each of the following action points.", {
-      sourceType: "note",
-      dataType: "none",
-      control: "note",
-      validation: { required: false, dataType: "none", constraintMessage: {} }
-    })
+    base(
+      "sa_note",
+      next(),
+      eventPath,
+      "Take the first onset of sign/symptom as “zero”. Please give the time taken for each of the following action points.",
+      {
+        sourceType: "note",
+        dataType: "none",
+        control: "note",
+        validation: { required: false, dataType: "none", constraintMessage: {} }
+      }
+    )
   );
   questions.push(
     ...chronologyStep(
@@ -714,24 +775,60 @@ export function createDigitVaExtension(
   const docPath = [...narrativeAnchorPath.slice(0, -1), DIGITVA_DOCUMENTS_SECTION];
   const documentQuestions: InstrumentQuestion[] = [];
   if (enabled.has("medical_records")) {
-    documentQuestions.push(yesNoRef("md_available", next(), docPath, "Are there any medical documents available related to the deceased?"));
-    const mdCount = integer("md_count", next(), docPath, "How many medical document pages will you photograph?", DIGITVA_MEDICAL_IMAGE_SLOTS);
+    documentQuestions.push(
+      yesNoRef(
+        "md_available",
+        next(),
+        docPath,
+        "Are there any medical documents available related to the deceased?"
+      )
+    );
+    const mdCount = integer(
+      "md_count",
+      next(),
+      docPath,
+      "How many medical document pages will you photograph?",
+      DIGITVA_MEDICAL_IMAGE_SLOTS
+    );
     documentQuestions.push({ ...mdCount, relevant: expression("selected(${md_available}, 'yes')") });
     for (let slot = 1; slot <= DIGITVA_MEDICAL_IMAGE_SLOTS; slot += 1) {
       documentQuestions.push(
-        image(`md_im${slot}`, next(), docPath, `Medical Document Image ${String(slot).padStart(2, "0")}`, `\${md_count} >= ${slot}`)
+        image(
+          `md_im${slot}`,
+          next(),
+          docPath,
+          `Medical Document Image ${String(slot).padStart(2, "0")}`,
+          `\${md_count} >= ${slot}`
+        )
       );
     }
   }
   if (enabled.has("death_summary")) {
     documentQuestions.push(
-      yesNoRef("ds_available", next(), docPath, "Is there any death summary / certificate document (images) available for the deceased?")
+      yesNoRef(
+        "ds_available",
+        next(),
+        docPath,
+        "Is there any death summary / certificate document (images) available for the deceased?"
+      )
     );
-    const dsCount = integer("ds_count", next(), docPath, "How many death document pages will you photograph?", DIGITVA_DEATH_IMAGE_SLOTS);
+    const dsCount = integer(
+      "ds_count",
+      next(),
+      docPath,
+      "How many death document pages will you photograph?",
+      DIGITVA_DEATH_IMAGE_SLOTS
+    );
     documentQuestions.push({ ...dsCount, relevant: expression("selected(${ds_available}, 'yes')") });
     for (let slot = 1; slot <= DIGITVA_DEATH_IMAGE_SLOTS; slot += 1) {
       documentQuestions.push(
-        image(`ds_im${slot}`, next(), docPath, `Death Document Image ${String(slot).padStart(2, "0")}`, `\${ds_count} >= ${slot}`)
+        image(
+          `ds_im${slot}`,
+          next(),
+          docPath,
+          `Death Document Image ${String(slot).padStart(2, "0")}`,
+          `\${ds_count} >= ${slot}`
+        )
       );
     }
   }

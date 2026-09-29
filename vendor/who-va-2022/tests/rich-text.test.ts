@@ -20,11 +20,7 @@ describe("inline markup in labels, hints and guidance", () => {
 
   it("keeps text outside the span unstyled", () => {
     const spans = parseRichText('Before <span style="color:#336699">inside</span> after');
-    expect(spans).toEqual([
-      { text: "Before " },
-      { color: "#336699", text: "inside" },
-      { text: " after" }
-    ]);
+    expect(spans).toEqual([{ text: "Before " }, { color: "#336699", text: "inside" }, { text: " after" }]);
   });
 
   it("reads background-color alongside color", () => {

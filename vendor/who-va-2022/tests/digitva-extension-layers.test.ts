@@ -151,7 +151,12 @@ describe("createWhoVa2022Instrument: layer composition", () => {
     const baseline = createWhoVa2022Instrument(BASE_ONLY);
     const baseNames = new Set(
       baseline.questions
-        .filter((q) => q.sourceType !== "digitva-extension" && q.sourceType !== "custom-attachment" && !q.listName?.includes("CONSENT_MODE"))
+        .filter(
+          (q) =>
+            q.sourceType !== "digitva-extension" &&
+            q.sourceType !== "custom-attachment" &&
+            !q.listName?.includes("CONSENT_MODE")
+        )
         .map((q) => q.name)
     );
 
@@ -184,14 +189,30 @@ describe("createWhoVa2022Instrument: layer composition", () => {
     expect(whoVa2022Instrument.sections.map((s) => s.name)).toEqual(allOn.sections.map((s) => s.name));
 
     const present = names(whoVa2022Instrument);
-    for (const name of ["narr_language", "imagenarr", "abha_number", "abha_address", "ds_available", "ds_count", "md_available", "md_count", "consent_mode"]) {
+    for (const name of [
+      "narr_language",
+      "imagenarr",
+      "abha_number",
+      "abha_address",
+      "ds_available",
+      "ds_count",
+      "md_available",
+      "md_count",
+      "consent_mode"
+    ]) {
       expect(present.has(name)).toBe(true);
     }
   });
 });
 
 describe("createWhoVa2022Instrument: order uniqueness", () => {
-  const GATED_LAYERS = ["narration_language", "abha", "death_summary", "medical_records", "social_autopsy"] as const;
+  const GATED_LAYERS = [
+    "narration_language",
+    "abha",
+    "death_summary",
+    "medical_records",
+    "social_autopsy"
+  ] as const;
 
   function allCombinations<T>(items: readonly T[]): T[][] {
     let combos: T[][] = [[]];
@@ -218,7 +239,10 @@ describe("createWhoVa2022Instrument: order uniqueness", () => {
     for (const combo of combos) {
       const instrument = createWhoVa2022Instrument(new Set([...BASE_ONLY, ...combo]));
       const duplicates = duplicateOrders(instrument);
-      expect(duplicates, `duplicate order(s) ${duplicates.join(", ")} with extensions [${combo.join(", ")}]`).toEqual([]);
+      expect(
+        duplicates,
+        `duplicate order(s) ${duplicates.join(", ")} with extensions [${combo.join(", ")}]`
+      ).toEqual([]);
     }
   });
 
@@ -319,7 +343,9 @@ describe("social_autopsy", () => {
     const instrument = createWhoVa2022Instrument(new Set([...BASE_ONLY, "social_autopsy"]));
     const sa09 = question(instrument, "sa09");
     expect(sa09!.constraint?.source).toBe(". >= 0 and . < 100");
-    expect(sa09!.constraintMessage?.en).toBe("The number of HCF the patient was taken can only range between 0 to 99 (both included).");
+    expect(sa09!.constraintMessage?.en).toBe(
+      "The number of HCF the patient was taken can only range between 0 to 99 (both included)."
+    );
 
     for (const index of [13, 14, 15, 16, 17, 18, 19]) {
       const q = question(instrument, `sa${index}`);

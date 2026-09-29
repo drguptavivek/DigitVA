@@ -1737,5 +1737,5 @@ form?.addEventListener("who-va-complete", (event) => {
 });
 
 setDefaultEntryValues();
-setVisibleStep("login");
+setVisibleStep("instrument");
 updateAccessControls();

@@ -179,7 +179,9 @@ test("required and constraint errors appear, then clear after correction", async
   await choose(page, "language", "en");
   await expect(page.getByRole("alert")).toHaveCount(0);
   await next(page);
-  await expect(page.getByText("Preset HIV-Malaria mortality and season.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Preset HIV-Malaria mortality and season", exact: true })
+  ).toBeVisible();
 });
 
 for (const scenario of ageScenarios) {

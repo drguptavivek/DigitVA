@@ -24,15 +24,18 @@ export async function runMigrations(pool = createPostgresPool()) {
     if (alreadyApplied.rowCount) continue;
 
     const sql = await readFile(path.join(migrationsDirectory, file), "utf8");
-    await pool.query("begin");
+    const client = await pool.connect();
     try {
-      await pool.query(sql);
-      await pool.query("insert into schema_migrations (version, name) values ($1, $2)", [version, file]);
-      await pool.query("commit");
+      await client.query("begin");
+      await client.query(sql);
+      await client.query("insert into schema_migrations (version, name) values ($1, $2)", [version, file]);
+      await client.query("commit");
       console.log(`Applied migration ${file}`);
     } catch (error) {
-      await pool.query("rollback");
+      await client.query("rollback");
       throw error;
+    } finally {
+      client.release();
     }
   }
 }

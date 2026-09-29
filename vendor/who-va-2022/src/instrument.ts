@@ -4,7 +4,11 @@
  */
 import generatedInstrument from "./generated/who-va-2022.instrument.json";
 
-import { ALL_DIGITVA_EXTENSIONS, createConsentModeQuestion, createDigitVaExtension } from "./digitva-extension.js";
+import {
+  ALL_DIGITVA_EXTENSIONS,
+  createConsentModeQuestion,
+  createDigitVaExtension
+} from "./digitva-extension.js";
 
 import type { InstrumentDefinition, InstrumentQuestion } from "./types.js";
 
@@ -17,10 +21,14 @@ const generated = generatedInstrument as InstrumentDefinition;
  * the medical-certificate upload and the consent-mode question — is always
  * included: it does not depend on `enabledExtensions`.
  */
-export function createWhoVa2022Instrument(enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>): InstrumentDefinition {
+export function createWhoVa2022Instrument(
+  enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>
+): InstrumentDefinition {
   const enabled = enabledExtensions instanceof Set ? enabledExtensions : new Set(enabledExtensions);
 
-  const medicalCertificateAnchorIndex = generated.questions.findIndex((question) => question.name === "Id10473");
+  const medicalCertificateAnchorIndex = generated.questions.findIndex(
+    (question) => question.name === "Id10473"
+  );
   if (medicalCertificateAnchorIndex < 0) {
     throw new Error("Cannot add the medical-certificate upload because Id10473 is missing");
   }
@@ -59,7 +67,10 @@ export function createWhoVa2022Instrument(enabledExtensions: ReadonlySet<string>
   // and everything createDigitVaExtension adds is numbered from here instead.
   // Array position, not `.order`, is what the UI and this file's own splicing
   // use to place a question, so this renumbering does not move anything.
-  const maxOrder = Math.max(...withCertificate.map((question) => question.order), ...generated.sections.map((s) => s.order));
+  const maxOrder = Math.max(
+    ...withCertificate.map((question) => question.order),
+    ...generated.sections.map((s) => s.order)
+  );
 
   // digitva_core: the consent-mode question follows the consent question
   // itself (Id10013) and is relevant only once consent was given.

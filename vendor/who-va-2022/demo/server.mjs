@@ -419,7 +419,9 @@ async function ensureUserSessionsTable() {
       updated_at timestamptz not null default now()
     )
   `);
-  await pool.query("create index if not exists who_va_user_sessions_user_id_idx on who_va_user_sessions (user_id)");
+  await pool.query(
+    "create index if not exists who_va_user_sessions_user_id_idx on who_va_user_sessions (user_id)"
+  );
   await pool.query(
     "create index if not exists who_va_user_sessions_access_token_hash_idx on who_va_user_sessions (access_token_hash)"
   );
@@ -673,7 +675,9 @@ async function updateUserByAdmin(userId, payload, auth) {
   if (!existing) throw notFound("User not found");
 
   if (existing.role === "admin" && user.role !== "admin") {
-    const adminCount = await pool.query("select count(*)::int as count from who_va_users where role = 'admin'");
+    const adminCount = await pool.query(
+      "select count(*)::int as count from who_va_users where role = 'admin'"
+    );
     if (Number(adminCount.rows[0]?.count ?? 0) <= 1) {
       throw badRequest("At least one admin user is required");
     }
@@ -762,10 +766,10 @@ async function changeUserPassword(payload, auth) {
     throw badRequest("Current password is incorrect");
   }
 
-  await pool.query(
-    "update who_va_users set password_hash = $1, updated_at = now() where user_id = $2",
-    [hashPassword(newPassword), requester.userId]
-  );
+  await pool.query("update who_va_users set password_hash = $1, updated_at = now() where user_id = $2", [
+    hashPassword(newPassword),
+    requester.userId
+  ]);
   return userFromUserId(requester.userId);
 }
 const characterOnlyCaseEntryFields = {
@@ -1340,6 +1344,7 @@ const server = createHttpServer(async (request, response) => {
     }
 
     if (url.pathname.startsWith("/api/attachments/") && request.method === "GET") {
+      await requireAuthenticatedUser(request, url);
       const id = decodeURIComponent(url.pathname.slice("/api/attachments/".length));
       const attachment = await loadAttachment(id);
       const bytes = await readFile(attachment.storagePath);

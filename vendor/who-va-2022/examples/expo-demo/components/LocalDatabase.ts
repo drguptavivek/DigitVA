@@ -376,9 +376,7 @@ function normalizeServerCaseEntry(
     ...entry,
     householdHeadName: entry.householdHeadName?.trim() || "Not Recorded",
     deathPlace:
-      normalizeServerDeathPlace(entry.deathPlace) ??
-      normalizeServerDeathPlace(whoVaData?.Id10058) ??
-      "other"
+      normalizeServerDeathPlace(entry.deathPlace) ?? normalizeServerDeathPlace(whoVaData?.Id10058) ?? "other"
   };
 }
 
@@ -456,7 +454,9 @@ async function importServerEntries(
           caseEntry
         });
       } catch (error) {
-        result.errors.push(`${entry.uid}: completed submission was not imported: ${(error as Error).message}`);
+        result.errors.push(
+          `${entry.uid}: completed submission was not imported: ${(error as Error).message}`
+        );
       }
     }
   }

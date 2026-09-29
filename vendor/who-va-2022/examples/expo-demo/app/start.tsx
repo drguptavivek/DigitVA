@@ -22,7 +22,12 @@ export default function StartRoute() {
   const recoveredCaseEntry = selectedCase?.caseEntry ?? selectedCompleted?.caseEntry;
   const recoveredPrefill = recoveredCaseEntry ? createWhoVaDataFromCaseEntry(recoveredCaseEntry) : undefined;
   const savedDraft = requestedCaseUid ? getDraft(requestedCaseUid) : undefined;
-  const initialData = selectedCase?.whoVaData ?? selectedCompleted?.result.data;
+  // An explicitly reopened completed case starts from its answers, not the case's prefill-only data.
+  const reopenedCompletedData =
+    requestedCompletedId && selectedCompleted?.id === requestedCompletedId
+      ? selectedCompleted.result.data
+      : undefined;
+  const initialData = reopenedCompletedData ?? selectedCase?.whoVaData ?? selectedCompleted?.result.data;
   const formKey = recoveredCaseEntry
     ? `case-${requestedCaseUid ?? selectedCompleted?.id}-${selectedCompleted?.id ?? "new"}-${newFormKey}`
     : "start-empty";

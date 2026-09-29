@@ -166,8 +166,8 @@ Decided later the same day:
 6. **Duplicate and cancel** (owner, 2026-09-29): both interviewers and
    supervisors can flag a case as a possible duplicate (naming the case it
    duplicates) or for cancellation (with a reason). An interviewer's flag
-   waits for a supervisor to confirm or reject it; a supervisor's own flag
-   takes effect directly (assumption to confirm). Every flag, confirmation
+   waits for a supervisor to confirm or reject it; supervisors confirm (owner,
+   2026-09-29), so a supervisor may confirm their own flag at once. Every flag, confirmation
    and rejection is audited; confirmed duplicates link to the kept case and
    are never merged automatically.
 7. **Two interviewers on one case at once** (owner, 2026-09-29): **first

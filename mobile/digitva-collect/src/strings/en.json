@@ -45,5 +45,7 @@
   "signInAgain": "Sign in again to send interviews.",
   "home": "Home",
   "save": "Save",
-  "formLanguage": "Form language"
+  "formLanguage": "Form language",
+  "finishIncomplete": "Finish as incomplete",
+  "finishNeedsOutcome": "The questionnaire is not complete. Answer the flagged questions, or record the interview outcome as partially completed or respondent unavailable."
 }

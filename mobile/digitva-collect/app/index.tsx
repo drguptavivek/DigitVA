@@ -23,6 +23,7 @@ export default function Home() {
           onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id } })}
         >
           <Text style={styles.text}>{account.name}</Text>
+          {account.needs_sign_in ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
         </Pressable>
       ))}
       <View style={{ gap: 8 }}>

@@ -8,33 +8,12 @@ import { useCallback, useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../src/AppState";
-import { SessionRevokedError, signOut } from "../src/auth";
+import { SessionRevokedError, SignInRequiredError, signOut } from "../src/auth";
 import { getMeta, listDrafts, type Db, type DraftRow } from "../src/drafts";
 import { t } from "../src/i18n";
 import { openInterviewerDb } from "../src/interviewerDb";
-import { refreshBootstrap, syncInterviewer, type Bootstrap } from "../src/sync";
+import { refreshBootstrap, syncInterviewer, targetsFrom, type Bootstrap, type Units } from "../src/sync";
 import { Button, errorText, Row, Screen, styles } from "../src/ui";
-
-interface Target {
-  key: string;
-  label: string;
-  siteId: string;
-  orgUnitId?: string;
-}
-
-function targetsFrom(bootstrap: Bootstrap | undefined): Target[] {
-  return (bootstrap?.context ?? []).flatMap((entry) => {
-    const site = entry.site_name ?? entry.site_id;
-    const units = entry.org_units ?? [];
-    if (units.length === 0) return [{ key: entry.site_id, label: site, siteId: entry.site_id }];
-    return units.map((unit) => ({
-      key: `${entry.site_id}:${unit.org_unit_id}`,
-      label: `${site} · ${unit.unit_name ?? unit.unit_code ?? ""}`,
-      siteId: entry.site_id,
-      orgUnitId: unit.org_unit_id
-    }));
-  });
-}
 
 export default function Worklist() {
   const router = useRouter();
@@ -44,6 +23,7 @@ export default function Worklist() {
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [bootstrap, setBootstrap] = useState<Bootstrap | undefined>();
+  const [units, setUnits] = useState<Units | null | undefined>();
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -56,6 +36,8 @@ export default function Worklist() {
         router.replace("/");
         return;
       }
+      // Tokens dropped, data kept: the home screen now flags this account.
+      if (error instanceof SignInRequiredError) await reload();
       setMessage(errorText(error));
     },
     [reload, router]
@@ -71,12 +53,17 @@ export default function Worklist() {
         setDb(handle);
         setDrafts(await listDrafts(handle));
         const cached = await getMeta<Bootstrap>(handle, "bootstrap");
+        const cachedUnits = await getMeta<Units | null>(handle, "units");
         if (!active) return;
         setBootstrap(cached);
-        if (cached) return;
+        setUnits(cachedUnits);
+        if (cached && cachedUnits !== undefined) return;
         try {
           const fresh = await refreshBootstrap(account.user_id, handle);
-          if (active) setBootstrap(fresh);
+          if (active) {
+            setBootstrap(fresh.bootstrap);
+            setUnits(fresh.units ?? null);
+          }
         } catch (error) {
           if (active) await handleError(error);
         }
@@ -94,7 +81,9 @@ export default function Worklist() {
     setBusy(true);
     setMessage("");
     try {
-      setBootstrap(await refreshBootstrap(account.user_id, db));
+      const fresh = await refreshBootstrap(account.user_id, db);
+      setBootstrap(fresh.bootstrap);
+      setUnits(fresh.units ?? null);
     } catch (error) {
       await handleError(error);
     } finally {
@@ -134,7 +123,7 @@ export default function Worklist() {
     ]);
   }
 
-  const targets = targetsFrom(bootstrap);
+  const targets = targetsFrom(bootstrap, units);
   return (
     <Screen title={t("worklistTitle")}>
       <Text style={styles.muted}>{account.name}</Text>

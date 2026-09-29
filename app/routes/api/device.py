@@ -9,7 +9,8 @@ No cookies: every call after sign-in carries ``Authorization: Bearer``,
 resolved by the request loader in app/models/va_users.py, and this
 blueprint refuses any other kind of authentication (a browser's session
 cookie included), which is what makes exempting it from CSRF safe. Errors are
-``{"error": ..., "code": ...}``.
+``{"error": ..., "code": ...}``. Request bodies are capped (``_body_limit``)
+before anything reads them, the rate limiter's key functions included.
 """
 
 import uuid
@@ -18,13 +19,20 @@ from datetime import UTC, datetime
 from flask import Blueprint, g, jsonify, request
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import csrf, db, limiter
 from app.decorators import role_required
-from app.models import AuthDevice, VaProjectMaster
-from app.routes.api.organization import form_options_payload
+from app.models import AuthDevice, VaAccessRoles, VaProjectMaster
+from app.routes.api.instruments import translations_response
+from app.routes.api.organization import (
+    form_options_payload,
+    served_instrument_locales,
+    units_payload,
+)
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
+from app.services.org_grant_service import reachable_unit_ids
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.utils.who_va_bundle import who_va_bundle_version
 
@@ -34,6 +42,14 @@ csrf.exempt(bp)
 #: Endpoints reachable without a device session (they create one).
 _UNAUTHENTICATED = frozenset({"enroll", "open_session", "refresh_session"})
 
+#: Request body caps: one interview upload; the outstanding-work report (up
+#: to OUTSTANDING_MAX_IDS case ids and draft UUIDs, also accepted on refresh);
+#: every other (small) call.
+SUBMISSION_MAX_BYTES = 2 * 1024 * 1024
+REPORT_MAX_BYTES = 128 * 1024
+BODY_MAX_BYTES = 16 * 1024
+_REPORT_ENDPOINTS = frozenset({"report_outstanding", "refresh_session"})
+
 #: WebIntakeError carries a status only; the contract wants a machine code.
 _INTAKE_CODES = {400: "invalid_request", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid_interview"}
 
@@ -42,17 +58,48 @@ def _error(message, code, status_code):
     return jsonify({"error": message, "code": code}), status_code
 
 
+def _body_limit() -> int:
+    """Cap this request's body (idempotent). Runs before the first read,
+    wherever that is: the limiter's key functions read the body in an
+    app-level hook that runs before this blueprint's own."""
+    endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
+    if endpoint == "submit_interview":
+        limit = SUBMISSION_MAX_BYTES
+    elif endpoint in _REPORT_ENDPOINTS:
+        limit = REPORT_MAX_BYTES
+    else:
+        limit = BODY_MAX_BYTES
+    request.max_content_length = limit
+    return limit
+
+
 def _body() -> dict:
-    body = request.get_json(silent=True)
+    _body_limit()
+    try:
+        body = request.get_json(silent=True)
+    except RecursionError:  # absurdly nested JSON within the size cap
+        return {}
     return body if isinstance(body, dict) else {}
 
 
 def _body_key(name):
-    """Rate-limit key from a JSON body field (per device, per account)."""
+    """Rate-limit key from a JSON body field (per device, per account). An
+    oversized body gives an empty key here; the blueprint hook answers 413."""
     def key():
-        value = _body().get(name)
+        try:
+            value = _body().get(name)
+        except RequestEntityTooLarge:
+            value = None
         return f"device-{name}:{str(value).strip().lower()[:128]}" if value else f"device-{name}:"
     return key
+
+
+@bp.before_request
+def _refuse_oversized_body():
+    limit = _body_limit()
+    if request.content_length is not None and request.content_length > limit:
+        return _error("The request body is too large.", "payload_too_large", 413)
+    return None
 
 
 @bp.before_request
@@ -67,6 +114,11 @@ def _require_device_session():
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         return _error("Site is under maintenance.", "maintenance", 403)
     return None
+
+
+@bp.errorhandler(RequestEntityTooLarge)
+def _too_large(_exc):
+    return _error("The request body is too large.", "payload_too_large", 413)
 
 
 @bp.errorhandler(devices.DeviceAuthError)
@@ -124,12 +176,15 @@ def open_session():
 @bp.post("/sessions/refresh")
 @limiter.limit("30 per minute")
 def refresh_session():
-    """Rotate the refresh token; optional ``count``/``unique_ids`` record the
+    """Rotate the refresh token, presented with the device's id and secret;
+    optional ``count``/``unique_ids``/``client_draft_ids`` record the
     outstanding-work report in the same call."""
     p = _body()
-    issued, user = devices.refresh_session(p.get("refresh_token"))
+    issued, user = devices.refresh_session(
+        p.get("refresh_token"), device_id=p.get("device_id"), device_secret=p.get("device_secret")
+    )
     if "count" in p:
-        devices.record_outstanding(issued.session, p.get("count"), p.get("unique_ids"))
+        devices.record_outstanding(issued.session, p.get("count"), p.get("unique_ids"), p.get("client_draft_ids"))
     db.session.commit()
     return jsonify(devices.serialize_tokens(issued, user)), 200
 
@@ -219,6 +274,44 @@ def submit_interview():
 @role_required("interviewer")
 def report_outstanding():
     p = _body()
-    devices.record_outstanding(g.device_session, p.get("count"), p.get("unique_ids"))
+    devices.record_outstanding(g.device_session, p.get("count"), p.get("unique_ids"), p.get("client_draft_ids"))
     db.session.commit()
     return "", 204
+
+
+def _device_project() -> VaProjectMaster:
+    device = db.session.get(AuthDevice, g.device_session.device_id)
+    return db.session.get(VaProjectMaster, device.project_id)
+
+
+@bp.get("/units")
+@role_required("interviewer")
+@limiter.limit("120 per minute")
+def units():
+    """The device project's organization units this interviewer may pick:
+    the ``/api/v1/organization/<project>/units?role=interviewer`` body, scoped
+    by interviewer grants only (a unit grant sees its subtree, plus ancestors
+    as ``selectable: false`` context; a project or site grant the whole tree)."""
+    project = _device_project()
+    reachable = reachable_unit_ids(current_user, project.project_id, frozenset({VaAccessRoles.interviewer}))
+    if reachable is not None and not reachable:
+        return _error("You have no organization units in this project.", "forbidden", 403)
+    return jsonify(units_payload(project.project_id, reachable))
+
+
+@bp.get("/instruments/<instrument_code>/translations/<locale>")
+@role_required("interviewer")
+@limiter.limit("120 per minute")
+def instrument_translations(instrument_code, locale):
+    """One locale's questionnaire strings: the ``/api/v1/instruments`` body
+    and ETag, only for the instrument and locales the device's project
+    serves (its form options' default form type and ``available_locales``)."""
+    code = (instrument_code or "").strip().upper()
+    locale = (locale or "").strip()
+    served_code, served_locales = served_instrument_locales(_device_project())
+    if code != served_code or locale not in served_locales:
+        return _error("Translation not found.", "not_found", 404)
+    response = translations_response(code, locale)
+    if isinstance(response, tuple):  # the shared endpoint's 404
+        return _error("Translation not found.", "not_found", 404)
+    return response

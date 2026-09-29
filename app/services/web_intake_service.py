@@ -11,6 +11,7 @@ between the two sources.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
@@ -1427,6 +1428,25 @@ DEVICE_SECTION = "device"
 #: the case. Never refused, so nothing is left stuck on the phone.
 _SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
 _ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt")
+#: Bounds on a device upload's answers, checked before anything is stored
+#: (the request itself is capped at 2 MB by the device blueprint). Answers
+#: are flat values, choice lists and small attachment/audit objects.
+DEVICE_ANSWERS_MAX_BYTES = 1024 * 1024
+DEVICE_ANSWERS_MAX_DEPTH = 6
+
+
+def _check_device_answers(data: dict) -> None:
+    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH or
+    larger than DEVICE_ANSWERS_MAX_BYTES serialized."""
+    stack = [(data, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > DEVICE_ANSWERS_MAX_DEPTH:
+            raise WebIntakeError("draft.data is nested too deeply.", 422)
+        children = value.values() if isinstance(value, dict) else value
+        stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
+    if len(json.dumps(data, separators=(",", ":"))) > DEVICE_ANSWERS_MAX_BYTES:
+        raise WebIntakeError("draft.data is too large.", 422)
 
 
 def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
@@ -1490,6 +1510,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     if not isinstance(envelope, dict) or not isinstance(envelope.get("data"), dict):
         raise WebIntakeError("draft.data must be an object of answers.")
     data = envelope["data"]
+    _check_device_answers(data)
     meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
     meta["deviceId"] = str(device_id)
     completion = {

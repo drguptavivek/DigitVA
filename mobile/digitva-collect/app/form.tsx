@@ -1,26 +1,28 @@
 /**
  * The questionnaire for one draft, saved into the interviewer's own database.
- * Completing it marks the draft ready to send; the upload happens from the
- * worklist (push and purge).
+ * Completing it marks the draft ready to send with the form engine's verdict
+ * (`completion`); the upload happens from the worklist (push and purge). A
+ * questionnaire the form reports invalid can be finished only when the
+ * interviewer recorded the outcome as partially completed or respondent
+ * unavailable, which the server accepts (web-intake.md, interview outcome).
  */
 import {
   createWhoVa2022Instrument,
   type InstrumentDefinition,
   type SubmissionValidationResult
 } from "@drguptavivek/who-2022-va";
-import { WhoVaForm, type WhoVaDraftController } from "@drguptavivek/who-2022-va/native";
+import { WhoVaForm, type WhoVaDraftController, type WhoVaSession } from "@drguptavivek/who-2022-va/native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
 
 import { useAppState } from "../src/AppState";
-import { authedRequest } from "../src/auth";
-import { createDraftStore, getDraftRow, getMeta, markCompleted, setMeta, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, markCompleted, type Db } from "../src/drafts";
 import { t } from "../src/i18n";
 import { openInterviewerDb } from "../src/interviewerDb";
 import { platformServices } from "../src/platform";
-import type { Bootstrap } from "../src/sync";
-import { applyTranslations, type Translations } from "../src/translations";
+import { isUploadable, translationsFor, type Bootstrap } from "../src/sync";
+import { applyTranslations } from "../src/translations";
 import { Button, Row, Screen, styles } from "../src/ui";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,25 +32,6 @@ interface Loaded {
   siteId: string;
   orgUnitId?: string;
   bootstrap: Bootstrap | undefined;
-}
-
-/**
- * The locale's translations: the copy cached in this interviewer's database,
- * else fetched once. Any failure falls back to English, as the web form does.
- */
-async function translationsFor(userId: string, db: Db, code: string, locale: string): Promise<Translations | null> {
-  if (locale === "en") return null;
-  const key = `translations:${code}:${locale}`;
-  const cached = await getMeta<Translations>(db, key);
-  if (cached) return cached;
-  try {
-    const path = `/api/v1/instruments/${encodeURIComponent(code)}/translations/${encodeURIComponent(locale)}`;
-    const { body } = await authedRequest<Translations>(userId, path);
-    await setMeta(db, key, body);
-    return body;
-  } catch {
-    return null;
-  }
 }
 
 export default function Form() {
@@ -62,6 +45,7 @@ export default function Form() {
   const [instrument, setInstrument] = useState<InstrumentDefinition | undefined>();
   const [message, setMessage] = useState("");
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
+  const session = useRef<WhoVaSession | undefined>(undefined);
 
   useEffect(() => {
     if (!account || !draftId) return;
@@ -97,7 +81,8 @@ export default function Form() {
     let active = true;
     const code =
       loaded.bootstrap?.form_options?.form_types?.find((ft) => ft.is_default)?.instrument_code ?? "WHO_2022_VA";
-    void translationsFor(account.user_id, loaded.db, code, locale).then((translations) => {
+    const version = loaded.bootstrap?.form_options?.translation_versions?.[locale];
+    void translationsFor(account.user_id, loaded.db, code, locale, version).then((translations) => {
       if (active) setInstrument(applyTranslations(baseInstrument, translations, locale));
     });
     return () => {
@@ -136,10 +121,21 @@ export default function Form() {
   }
 
   async function complete(result: SubmissionValidationResult) {
-    if (!result.valid || !loaded || !draftId) return;
+    if (!loaded || !draftId) return;
+    const completion = { valid: result.valid, issues: result.issues };
+    if (!isUploadable(result.data, completion)) {
+      setMessage(t("finishNeedsOutcome"));
+      return;
+    }
     await controller.current?.saveDraft();
-    await markCompleted(loaded.db, draftId);
+    await markCompleted(loaded.db, draftId, completion);
     router.back();
+  }
+
+  /** Finish without the form's own "complete": allowed for an incomplete outcome only. */
+  function finishIncomplete() {
+    const result = session.current?.validate();
+    if (result) void complete(result);
   }
 
   const locales = loaded.bootstrap?.form_options?.available_locales ?? [];
@@ -149,6 +145,7 @@ export default function Form() {
         <Row>
           <Button kind="secondary" label={t("home")} onPress={() => void leave()} />
           <Button kind="secondary" label={t("save")} onPress={() => void controller.current?.saveDraft()} />
+          <Button kind="secondary" label={t("finishIncomplete")} onPress={finishIncomplete} />
         </Row>
         {locales.length > 1 ? (
           <Row>
@@ -177,6 +174,9 @@ export default function Form() {
         autoSaveDraftOnChange
         onDraftController={(next) => {
           controller.current = next;
+        }}
+        onReady={(next) => {
+          session.current = next;
         }}
         onDraftError={() => setMessage(t("errGeneric"))}
         onDraftSaved={() => setMessage("")}

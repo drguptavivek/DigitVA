@@ -117,6 +117,11 @@ class AuthSecurityEvent(db.Model):
     """
 
     __tablename__ = "auth_security_events"
+    # Per-account counts in a time window (the device second-factor lockout,
+    # app/services/device_auth_service.py).
+    __table_args__ = (
+        sa.Index("ix_auth_security_events_user_type_time", "user_id", "event_type", "occurred_at"),
+    )
 
     id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4

@@ -10,6 +10,7 @@ import {
   completedDrafts,
   countDrafts,
   createDraftStore,
+  draftIds,
   getMeta,
   listDrafts,
   markCompleted,
@@ -78,11 +79,32 @@ describe("draft store", () => {
     await store.save(draft("a", "2026-09-30T01:00:00Z"));
     await store.save(draft("b", "2026-09-30T02:00:00Z", { Id10007: "z" }));
     expect(await completedDrafts(db)).toEqual([]);
-    await markCompleted(db, "b");
+    const issues = [{ question: "Id10010", code: "required" as const, message: "Required" }];
+    await markCompleted(db, "b", { valid: false, issues });
     const ready = await completedDrafts(db);
     expect(ready).toHaveLength(1);
     expect(ready[0]).toMatchObject({ id: "b", site_id: "SITE1", org_unit_id: null });
     expect(ready[0].draft.data).toEqual({ Id10007: "z" });
+    expect(ready[0].completion).toEqual({ valid: false, issues });
+    expect(await draftIds(db)).toEqual(["a", "b"]);
+  });
+
+  it("adds the completion column to an older database, treating its completed drafts as valid", async () => {
+    const old = memoryDb();
+    await old.execAsync(`
+      CREATE TABLE drafts (id TEXT PRIMARY KEY NOT NULL, site_id TEXT NOT NULL, org_unit_id TEXT,
+        completed INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL, envelope TEXT NOT NULL);
+    `);
+    await old.runAsync("INSERT INTO drafts (id, site_id, completed, updated_at, envelope) VALUES (?, ?, ?, ?, ?)", [
+      "done", "S", 1, "2026-09-30T01:00:00Z", JSON.stringify(draft("done", "2026-09-30T01:00:00Z"))
+    ]);
+    await old.runAsync("INSERT INTO drafts (id, site_id, completed, updated_at, envelope) VALUES (?, ?, ?, ?, ?)", [
+      "open", "S", 0, "2026-09-30T02:00:00Z", JSON.stringify(draft("open", "2026-09-30T02:00:00Z"))
+    ]);
+    await migrate(old);
+    await migrate(old);
+    const ready = await completedDrafts(old);
+    expect(ready.map((d) => [d.id, d.completion])).toEqual([["done", { valid: true, issues: [] }]]);
   });
 
   it("keeps meta values such as the cached bootstrap", async () => {

@@ -48,9 +48,13 @@ def instrument_translations(instrument_code: str, locale: str):
     language exists but is still a draft is not something this endpoint's
     callers need to tell apart.
     """
-    code = (instrument_code or "").strip().upper()
-    locale = (locale or "").strip()
+    return translations_response((instrument_code or "").strip().upper(), (locale or "").strip())
 
+
+def translations_response(code: str, locale: str):
+    """One locale's strings as a response with its weak ETag (304 when the
+    client's copy is current); 404 when not servable. The caller decides
+    access. Also served by the device API (app/routes/api/device.py)."""
     if locale != BASE_LOCALE:
         row = get_locale(code, locale)
         if row is None or not is_servable(row):

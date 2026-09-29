@@ -79,13 +79,23 @@ class AuthDeviceSession(db.Model):
     """One interviewer signed in on one device: an access and a refresh token.
 
     ``previous_refresh_hash`` is the refresh token this row rotated away from
-    last; presenting it again is reuse and revokes the session. The
-    ``outstanding_*`` columns are the device's last report of unsent
-    interviews for this interviewer (policy: outstanding work visible
-    server-side).
+    last and ``retired_refresh_hashes`` the last few (newest first, bounded);
+    presenting any of them is reuse and revokes the session with reason
+    ``refresh_reuse`` (or ``refresh_retry_race`` inside the lost-response
+    grace window after ``refreshed_at``). The ``outstanding_*`` columns are
+    the device's last report of unsent interviews for this interviewer
+    (policy: outstanding work visible server-side).
     """
 
     __tablename__ = "auth_device_sessions"
+    __table_args__ = (
+        sa.Index(
+            "ix_auth_device_sessions_retired_refresh_hashes",
+            "retired_refresh_hashes",
+            postgresql_using="gin",
+            postgresql_ops={"retired_refresh_hashes": "jsonb_path_ops"},
+        ),
+    )
 
     session_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -108,6 +118,8 @@ class AuthDeviceSession(db.Model):
     previous_refresh_hash: so.Mapped[str | None] = so.mapped_column(
         sa.String(64), nullable=True, index=True
     )
+    retired_refresh_hashes: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
+    refreshed_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
@@ -116,6 +128,7 @@ class AuthDeviceSession(db.Model):
     revoked_reason: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
     outstanding_count: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     outstanding_unique_ids: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
+    outstanding_client_draft_ids: so.Mapped[list | None] = so.mapped_column(JSONB, nullable=True)
     outstanding_reported_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )

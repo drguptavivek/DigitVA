@@ -6,13 +6,18 @@ rate limit), refresh rotation and reuse, grant withdrawal, bearer scoping
 (never outside /api/v1/device, never a cookie inside it), bootstrap scope,
 idempotent upload, scope refusals, superseded copies, the outstanding-work
 report, the admin endpoints (admin only, CSRF) and that no credential
-reaches the logs.
+reaches the logs. Hardening (bead digitva-kmk.6): body caps and answer
+bounds, the absolute session cap, device-bound refresh, retired-token reuse
+(``refresh_reused``, never ``session_revoked``) and the lost-response grace
+window, the second-factor lockout and refusal audit, device units and
+translations, outstanding draft ids, and the enrolment QR URL check.
 """
 import hashlib
 import json
 import logging
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from unittest import mock
 
 import pyotp
 import sqlalchemy as sa
@@ -134,6 +139,9 @@ class DeviceApiTests(BaseTestCase):
         super().setUp()
         limiter.reset()
         self.client = _FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        # refresh token -> the device it was issued to, so _refresh can
+        # present the device credentials a refresh now requires.
+        self._device_for = {}
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -162,14 +170,23 @@ class DeviceApiTests(BaseTestCase):
         device = device or self._enrol()
         response = self._sign_in(device, **kwargs)
         self.assertEqual(response.status_code, 201, response.get_json())
-        return device, response.get_json()
+        tokens = response.get_json()
+        self._device_for[tokens["refresh_token"]] = device
+        return device, tokens
 
     @staticmethod
     def _bearer(tokens):
         return {"Authorization": f"Bearer {tokens['access_token']}"}
 
-    def _refresh(self, refresh_token, **extra):
-        return self.client.post(f"{API}/sessions/refresh", json={"refresh_token": refresh_token, **extra})
+    def _refresh(self, refresh_token, device=None, **extra):
+        device = device or self._device_for.get(refresh_token) or {}
+        response = self.client.post(f"{API}/sessions/refresh", json={
+            "refresh_token": refresh_token, "device_id": device.get("device_id"),
+            "device_secret": device.get("device_secret"), **extra,
+        })
+        if response.status_code == 200:
+            self._device_for[response.get_json()["refresh_token"]] = device
+        return response
 
     def _upload(self, tokens, client_draft_id=None, **body):
         payload = {
@@ -281,6 +298,70 @@ class DeviceApiTests(BaseTestCase):
         # A recovery code works once.
         self.assertEqual(self._sign_in(device, otp=codes[0]).status_code, 401)
 
+    def test_five_wrong_second_factor_codes_lock_the_account_on_devices(self):
+        secret = self._enrol_totp(self.interviewer)
+        device = self._enrol()
+        statuses = [self._sign_in(device, otp="000000").get_json()["code"] for _ in range(5)]
+        self.assertEqual(statuses, ["second_factor_required"] * 5)
+        lockouts = db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.user_id == self.interviewer.user_id,
+            AuthSecurityEvent.event_type == "second_factor_lockout")).all()
+        self.assertEqual(len(lockouts), 1)
+        self.assertEqual(lockouts[0].detail, {"device_id": device["device_id"], "channel": "device"})
+        # Even the right code is refused now, without being checked.
+        locked = self._sign_in(device, otp=pyotp.TOTP(secret).now())
+        self.assertEqual((locked.status_code, locked.get_json()["code"]), (429, "second_factor_locked"))
+        # The window passes: the right code works again.
+        db.session.execute(sa.update(AuthSecurityEvent).where(
+            AuthSecurityEvent.user_id == self.interviewer.user_id
+        ).values(occurred_at=datetime.now(UTC) - devices.SECOND_FACTOR_WINDOW - timedelta(seconds=1)))
+        db.session.commit()
+        self.assertEqual(self._sign_in(device, otp=pyotp.TOTP(secret).now()).status_code, 201)
+
+    def test_a_successful_sign_in_resets_the_second_factor_count(self):
+        secret = self._enrol_totp(self.interviewer)
+        codes = totp_service.generate_recovery_codes(self.interviewer)
+        db.session.commit()
+        device = self._enrol()
+        for _ in range(4):
+            self._sign_in(device, otp="000000")
+        self.assertEqual(self._sign_in(device, otp=codes[0]).status_code, 201)
+        self._sign_in(device, otp="000000")
+        self.assertEqual(self._sign_in(device, otp=pyotp.TOTP(secret).now()).status_code, 201)
+
+    def test_post_password_refusals_are_audited_without_secrets(self):
+        device = self._enrol()
+        user = self.teammate
+        cases = [
+            ("email_verified", False, "email_unverified"),
+            ("pw_reset_t_and_c", False, "password_change_required"),
+        ]
+        for attribute, value, code in cases:
+            original = getattr(user, attribute)
+            setattr(user, attribute, value)
+            db.session.commit()
+            try:
+                response = self._sign_in(device, email="device.teammate@test.local")
+                self.assertEqual(response.get_json()["code"], code)
+            finally:
+                setattr(user, attribute, original)
+                db.session.commit()
+        with mock.patch.object(devices, "should_block_non_admin_after_cutoff", return_value=True):
+            self.assertEqual(self._sign_in(device, email="device.teammate@test.local").get_json()["code"], "maintenance")
+        self._enrol_totp(user)
+        self.assertEqual(
+            self._sign_in(device, email="device.teammate@test.local").get_json()["code"], "second_factor_required")
+        events = db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.user_id == user.user_id,
+            AuthSecurityEvent.event_type == "device_session_failed",
+        ).order_by(AuthSecurityEvent.occurred_at)).all()
+        self.assertEqual(
+            [e.detail["reason"] for e in events],
+            ["email_unverified", "password_change_required", "maintenance", "second_factor_required"],
+        )
+        for event in events:
+            self.assertEqual(set(event.detail), {"device_id", "reason"})
+
     def test_sign_in_needs_an_interviewer_grant_in_the_device_project(self):
         device = self._enrol()
         response = self._sign_in(device, email="device.outsider@test.local")
@@ -332,17 +413,112 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(new)).status_code, 200)
         self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
 
-    def test_reusing_a_rotated_refresh_token_revokes_the_session(self):
-        _device, tokens = self._session()
+    def _age_rotation(self, user, seconds=120):
+        """Move the session's last rotation out of the grace window."""
+        db.session.execute(sa.update(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == user.user_id
+        ).values(refreshed_at=datetime.now(UTC) - timedelta(seconds=seconds)))
+        db.session.commit()
+
+    def test_reusing_a_rotated_refresh_token_revokes_the_session_as_reuse_not_revocation(self):
+        device, tokens = self._session()
         new = self._refresh(tokens["refresh_token"]).get_json()
-        reused = self._refresh(tokens["refresh_token"])
-        self.assertEqual((reused.status_code, reused.get_json()["code"]), (401, "session_revoked"))
-        # The whole session is gone: the attacker's or the owner's newer tokens too.
-        self.assertEqual(self._refresh(new["refresh_token"]).get_json()["code"], "session_revoked")
+        self._age_rotation(self.interviewer)
+        reused = self._refresh(tokens["refresh_token"], device)
+        self.assertEqual((reused.status_code, reused.get_json()["code"]), (401, "refresh_reused"))
+        # The whole session is gone: the attacker's or the owner's newer tokens
+        # too, and they keep answering refresh_reused, never session_revoked
+        # (the only code on which the app wipes the interviewer's store).
+        again = self._refresh(new["refresh_token"])
+        self.assertEqual((again.status_code, again.get_json()["code"]), (401, "refresh_reused"))
         self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(new)).status_code, 401)
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(row.revoked_reason, "refresh_reuse")
+
+    def test_any_of_the_last_retired_refresh_tokens_is_reuse(self):
+        device, tokens = self._session()
+        chain = [tokens["refresh_token"]]
+        for _ in range(4):
+            chain.append(self._refresh(chain[-1]).get_json()["refresh_token"])
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(len(row.retired_refresh_hashes), 4)
+        self.assertEqual(row.retired_refresh_hashes[0], devices.hash_token(chain[-2]))
+        # The oldest one, three rotations back from the previous one.
+        reused = self._refresh(chain[0], device)
+        self.assertEqual((reused.status_code, reused.get_json()["code"]), (401, "refresh_reused"))
+        db.session.refresh(row)
+        self.assertIsNotNone(row.revoked_at)
+
+    def test_retired_hash_history_is_bounded(self):
+        _device, tokens = self._session()
+        token = tokens["refresh_token"]
+        for _ in range(devices.RETIRED_REFRESH_KEEP + 3):
+            token = self._refresh(token).get_json()["refresh_token"]
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(len(row.retired_refresh_hashes), devices.RETIRED_REFRESH_KEEP)
+
+    def test_a_retry_within_the_grace_window_is_a_race_and_keeps_the_app_data(self):
+        device, tokens = self._session()
+        new = self._refresh(tokens["refresh_token"]).get_json()
+        # The response was lost; the app retries with the token it still has.
+        retry = self._refresh(tokens["refresh_token"], device)
+        self.assertEqual((retry.status_code, retry.get_json()["code"]), (409, "refresh_retry_race"))
+        # Revoked (the app never held the new pair), but not as session_revoked.
+        again = self._refresh(new["refresh_token"])
+        self.assertEqual((again.status_code, again.get_json()["code"]), (409, "refresh_retry_race"))
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(row.revoked_reason, "refresh_retry_race")
+
+    def test_refresh_needs_the_session_device_credentials(self):
+        device, tokens = self._session()
+        other = self._enrol()
+        for creds in ({}, {"device_id": device["device_id"]},
+                      {"device_id": device["device_id"], "device_secret": "wrong"},
+                      other):
+            response = self._refresh(tokens["refresh_token"], creds or {"device_id": None})
+            self.assertEqual((response.status_code, response.get_json()["code"]), (401, "device_invalid"), creds)
+        # Nothing was revoked or rotated: the right device still refreshes.
+        self.assertEqual(self._refresh(tokens["refresh_token"], device).status_code, 200)
+
+    def test_a_retired_token_without_the_device_secret_revokes_nothing(self):
+        device, tokens = self._session()
+        new = self._refresh(tokens["refresh_token"]).get_json()
+        self._age_rotation(self.interviewer)
+        leaked = self._refresh(tokens["refresh_token"], {"device_id": device["device_id"], "device_secret": "x"})
+        self.assertEqual(leaked.get_json()["code"], "device_invalid")
+        self.assertEqual(self._refresh(new["refresh_token"]).status_code, 200)
+
+    def test_session_past_the_absolute_cap_expires_without_revocation(self):
+        _device, tokens = self._session()
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertLessEqual(row.refresh_expires_at, row.created_at + timedelta(days=90))
+        db.session.execute(sa.update(AuthDeviceSession).where(
+            AuthDeviceSession.session_id == row.session_id
+        ).values(created_at=datetime.now(UTC) - timedelta(days=91)))
+        db.session.commit()
+        response = self._refresh(tokens["refresh_token"])
+        self.assertEqual((response.status_code, response.get_json()["code"]), (401, "session_expired"))
+        db.session.refresh(row)
+        self.assertIsNone(row.revoked_at)
+
+    def test_sliding_refresh_expiry_is_clamped_to_the_cap(self):
+        _device, tokens = self._session()
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        created = datetime.now(UTC) - timedelta(days=80)
+        db.session.execute(sa.update(AuthDeviceSession).where(
+            AuthDeviceSession.session_id == row.session_id).values(created_at=created))
+        db.session.commit()
+        body = self._refresh(tokens["refresh_token"]).get_json()
+        self.assertEqual(datetime.fromisoformat(body["refresh_expires_at"]), created + timedelta(days=90))
 
     def test_an_unknown_refresh_token_revokes_nothing(self):
-        response = self._refresh("never-issued")
+        response = self._refresh("never-issued", self._enrol())
         self.assertEqual((response.status_code, response.get_json()["code"]), (401, "refresh_invalid"))
 
     def test_withdrawn_grant_revokes_the_session_at_refresh(self):
@@ -357,13 +533,16 @@ class DeviceApiTests(BaseTestCase):
             AuthDeviceSession.user_id == self.teammate.user_id))
         self.assertEqual(row.revoked_reason, "grant_withdrawn")
 
-    def test_a_password_or_factor_reset_ends_device_sessions(self):
+    def test_a_password_or_factor_reset_ends_device_sessions_without_a_wipe(self):
         _device, tokens = self._session(email="device.teammate@test.local")
         self.teammate.bump_session_version()
         db.session.commit()
         self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
         response = self._refresh(tokens["refresh_token"])
-        self.assertEqual(response.get_json()["code"], "session_revoked")
+        # session_ended, not session_revoked: a forgotten-password reset must
+        # not make the phone destroy that interviewer's unsent interviews.
+        self.assertEqual((response.status_code, response.get_json()["code"]), (401, "session_ended"))
+        self.assertEqual(self._refresh(tokens["refresh_token"]).get_json()["code"], "session_ended")
         row = db.session.scalar(sa.select(AuthDeviceSession).where(
             AuthDeviceSession.user_id == self.teammate.user_id))
         self.assertEqual(row.revoked_reason, "account_changed")
@@ -496,6 +675,140 @@ class DeviceApiTests(BaseTestCase):
         # The winning case's identity is untouched by the copy.
         self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).deceased_name, "Bina Sahu")
 
+    # ── size limits ────────────────────────────────────────────────────────
+
+    def test_oversized_bodies_are_refused_with_413(self):
+        device, tokens = self._session()
+        big = "x" * (17 * 1024)
+        report = "x" * (129 * 1024)
+        for response in (
+            self._sign_in(device, password=big),
+            self.client.post(f"{API}/enroll", json={"code": big}),
+            self._refresh(tokens["refresh_token"], note=report),
+            self.client.post(f"{API}/outstanding", json={"count": 0, "note": report}, headers=self._bearer(tokens)),
+        ):
+            self.assertEqual((response.status_code, response.get_json()["code"]), (413, "payload_too_large"))
+        # The upload gets 2 MB: 17 KB is fine there, 2 MB + 1 is not.
+        ok = self._upload(tokens, draft={"data": {**_complete_answers(), "Id10476": big}})
+        self.assertEqual(ok.status_code, 201, ok.get_json())
+        huge = self._upload(tokens, draft={"data": {"Id10476": "x" * (2 * 1024 * 1024)}})
+        self.assertEqual((huge.status_code, huge.get_json()["code"]), (413, "payload_too_large"))
+
+    def test_deeply_nested_or_huge_answers_are_refused_before_storing(self):
+        _device, tokens = self._session()
+        nested = "leaf"
+        for _ in range(intake_svc.DEVICE_ANSWERS_MAX_DEPTH):
+            nested = {"n": nested}
+        deep = self._upload(tokens, draft={"data": {**_complete_answers(), "Id10476": nested}})
+        self.assertEqual((deep.status_code, deep.get_json()["code"]), (422, "invalid_interview"))
+        with mock.patch.object(intake_svc, "DEVICE_ANSWERS_MAX_BYTES", 200):
+            large = self._upload(tokens, draft={"data": {**_complete_answers(), "Id10476": "x" * 300}})
+        self.assertEqual((large.status_code, large.get_json()["code"]), (422, "invalid_interview"))
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
+
+    def test_superseded_path_is_bounded_too(self):
+        _device, teammate_tokens = self._session(email="device.teammate@test.local")
+        death_id = self._upload(teammate_tokens).get_json()["case"]["death_id"]
+        _device2, tokens = self._session()
+        nested = "leaf"
+        for _ in range(intake_svc.DEVICE_ANSWERS_MAX_DEPTH):
+            nested = [nested]
+        late = self._upload(tokens, death_id=death_id, draft={"data": {**_complete_answers(), "Id10476": nested}})
+        self.assertEqual(late.status_code, 422)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
+
+    # ── units and translations ─────────────────────────────────────────────
+
+    def _tree(self):
+        """District D1 with PHC P1 below it, and district D2, in the device project."""
+        from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+
+        district = MasOrgLevel(project_id=self.PROJECT_ID, level_code="district", level_name="District", depth=1)
+        phc = MasOrgLevel(project_id=self.PROJECT_ID, level_code="phc", level_name="PHC", depth=2)
+        db.session.add_all([district, phc])
+        db.session.flush()
+
+        def unit(code, level, path, parent=None):
+            row = MasOrgUnit(org_unit_id=uuid.uuid4(), project_id=self.PROJECT_ID, org_level_id=level.org_level_id,
+                             parent_org_unit_id=parent.org_unit_id if parent else None,
+                             unit_code=code, unit_name=f"Unit {code}", path=path, is_active=True)
+            db.session.add(row)
+            db.session.flush()
+            return row
+
+        d1 = unit("D1", district, "D1")
+        p1 = unit("P1", phc, "D1.P1", d1)
+        d2 = unit("D2", district, "D2")
+        db.session.commit()
+        return d1, p1, d2
+
+    def test_units_are_the_interviewers_reachable_units(self):
+        d1, p1, d2 = self._tree()
+        unit_user = self._get_or_make_user("device.unit@test.local", PASSWORD)
+        db.session.add(VaUserAccessGrants(
+            user_id=unit_user.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=d1.org_unit_id, notes="device unit grant", grant_status=VaStatuses.active,
+        ))
+        # A coder grant elsewhere must not widen the interviewer picker.
+        db.session.add(VaUserAccessGrants(
+            user_id=unit_user.user_id, role=VaAccessRoles.coder, scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=d2.org_unit_id, notes="device unit coder grant", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+        _device, tokens = self._session(email="device.unit@test.local")
+        body = self.client.get(f"{API}/units", headers=self._bearer(tokens)).get_json()
+        self.assertTrue(body["scoped"])
+        self.assertEqual(body["project_id"], self.PROJECT_ID)
+        self.assertEqual({u["unit_code"] for u in body["units"]}, {"D1", "P1"})
+        self.assertEqual({lvl["level_code"] for lvl in body["levels"]}, {"district", "phc"})
+
+        _device2, project_tokens = self._session()
+        whole = self.client.get(f"{API}/units", headers=self._bearer(project_tokens)).get_json()
+        self.assertFalse(whole["scoped"])
+        self.assertEqual({u["unit_code"] for u in whole["units"]}, {"D1", "P1", "D2"})
+        self.assertTrue(all(u["selectable"] for u in whole["units"]))
+
+    def test_units_need_a_bearer_token(self):
+        self._login(str(self.interviewer.user_id))
+        self.assertEqual(self.client.get(f"{API}/units").status_code, 401)
+
+    def test_translations_only_for_the_projects_instrument_and_locales(self):
+        from app.models.mas_instrument_locales import LIFECYCLE_APPROVED, MasInstrumentLocales
+        from app.routes.api.organization import served_instrument_locales
+
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        code, _ = served_instrument_locales(project)
+        for locale, name in (("hi", "Hindi"), ("ta", "Tamil")):
+            if db.session.get(MasInstrumentLocales, (code, locale)) is None:
+                db.session.add(MasInstrumentLocales(
+                    instrument_code=code, locale_code=locale, language_name=name, version=3, is_active=True,
+                    updated_at=datetime.now(UTC), lifecycle_state=LIFECYCLE_APPROVED))
+        project.web_intake_available_locales = None
+        db.session.commit()
+        _device, tokens = self._session()
+
+        def get(locale, instrument=code):
+            return self.client.get(f"{API}/instruments/{instrument}/translations/{locale}", headers=self._bearer(tokens))
+
+        # Every instrument locale is served while the project names none...
+        self.assertEqual(get("ta").status_code, 200)
+        hi = get("hi")
+        self.assertEqual(hi.status_code, 200)
+        self.assertEqual(hi.get_json()["version"], 3)
+        self.assertTrue(hi.headers["ETag"])
+        self.assertEqual(get("en").status_code, 200)
+        # ...then only the ones it names.
+        project.web_intake_available_locales = ["hi"]
+        db.session.commit()
+        self.assertEqual(get("hi").status_code, 200)
+        refused = get("ta")
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (404, "not_found"))
+        self.assertEqual(get("hi", instrument="PHMRC_ADULT").status_code, 404)
+        self.assertEqual(get("xx").status_code, 404)
+
     # ── outstanding ────────────────────────────────────────────────────────
 
     def test_outstanding_report_is_stored_on_the_session(self):
@@ -514,6 +827,32 @@ class DeviceApiTests(BaseTestCase):
 
         bad = self.client.post(f"{API}/outstanding", json={"count": -1}, headers=self._bearer(rotated.get_json()))
         self.assertEqual(bad.status_code, 400)
+
+    def test_outstanding_report_stores_client_draft_ids(self):
+        _device, tokens = self._session()
+        a, b = uuid.uuid4(), uuid.uuid4()
+        response = self.client.post(f"{API}/outstanding", json={
+            "count": 2, "unique_ids": [], "client_draft_ids": [str(b).upper(), str(a)],
+        }, headers=self._bearer(tokens))
+        self.assertEqual(response.status_code, 204)
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertEqual(row.outstanding_client_draft_ids, sorted([str(a), str(b)]))
+        self.assertEqual(row.outstanding_unique_ids, [])
+
+        rotated = self._refresh(tokens["refresh_token"], count=1, client_draft_ids=[str(a)])
+        self.assertEqual(rotated.status_code, 200)
+        db.session.refresh(row)
+        self.assertEqual(row.outstanding_client_draft_ids, [str(a)])
+
+        for bad_ids in (["not-a-uuid"], [1], "x", [str(uuid.uuid4()) for _ in range(devices.OUTSTANDING_MAX_IDS + 1)]):
+            bad = self.client.post(f"{API}/outstanding", json={"count": 0, "client_draft_ids": bad_ids},
+                                   headers=self._bearer(rotated.get_json()))
+            self.assertEqual(bad.status_code, 400, bad_ids)
+
+        self._login(str(self.base_admin_id))
+        listed = self.client.get(f"/admin/api/projects/{self.PROJECT_ID}/devices").get_json()["devices"]
+        self.assertEqual(listed[0]["sessions"][0]["outstanding_client_draft_ids"], [str(a)])
 
     # ── admin ──────────────────────────────────────────────────────────────
 
@@ -541,6 +880,28 @@ class DeviceApiTests(BaseTestCase):
 
         bad = self.client.post(url, json={"max_uses": 0}, headers=self._csrf_headers())
         self.assertEqual(bad.status_code, 400)
+
+    def test_device_public_url_rules(self):
+        problem = devices.device_public_url_problem
+        self.assertIsNone(problem("https://digitva.example.org", allow_insecure=False))
+        self.assertIsNone(problem("http://10.0.2.2:8051", allow_insecure=False))
+        self.assertIsNone(problem("http://localhost:8051", allow_insecure=False))
+        self.assertIsNotNone(problem("http://digitva.example.org", allow_insecure=False))
+        self.assertIsNone(problem("http://digitva.example.org", allow_insecure=True))
+        self.assertIsNotNone(problem("", allow_insecure=True))
+        self.assertIsNotNone(problem("ftp://x", allow_insecure=True))
+
+    def test_an_http_device_url_refuses_enrolment_codes_outside_development(self):
+        url = f"/admin/api/projects/{self.PROJECT_ID}/device-enrolments"
+        self._login(str(self.base_admin_id))
+        with mock.patch.dict(self.app.config, {"DEVICE_PUBLIC_URL": "http://digitva.example.org"}), \
+                mock.patch.object(devices, "_insecure_device_url_allowed", return_value=False):
+            refused = self.client.post(url, json={}, headers=self._csrf_headers())
+        self.assertEqual(refused.status_code, 503)
+        self.assertNotIn("code", refused.get_json())
+        with mock.patch.dict(self.app.config, {"DEVICE_PUBLIC_URL": "https://digitva.example.org"}), \
+                mock.patch.object(devices, "_insecure_device_url_allowed", return_value=False):
+            self.assertEqual(self.client.post(url, json={}, headers=self._csrf_headers()).status_code, 201)
 
     def test_admin_revoke_kills_every_session_on_the_device(self):
         device, tokens = self._session()

@@ -395,12 +395,16 @@ class Config:
     # --- Collection devices (Path B) --------------------------------------
     # docs/policy/field-data-collection.md. The server URL an enrolment QR
     # carries: the public scheme+host of MAIL_BASE_URL unless overridden (an
-    # Android emulator reaches the dev host as http://10.0.2.2:8051). Refresh
-    # lifetime in days, sliding: proposed decision C1.
+    # Android emulator reaches the dev host as http://10.0.2.2:8051). Outside
+    # debug/testing it must be https (or http to localhost/10.0.2.2), or
+    # issuing an enrolment code is refused. Refresh lifetime in days, sliding:
+    # proposed decision C1; capped at DEVICE_SESSION_MAX_DAYS from sign-in
+    # (proposed C1 addition).
     DEVICE_PUBLIC_URL = os.environ.get("DEVICE_PUBLIC_URL", "").strip() or _webauthn_origin_default(
         os.environ.get("MAIL_BASE_URL", "")
     )
     DEVICE_REFRESH_TTL_DAYS = int(os.environ.get("DEVICE_REFRESH_TTL_DAYS", "30"))
+    DEVICE_SESSION_MAX_DAYS = int(os.environ.get("DEVICE_SESSION_MAX_DAYS", "90"))
 
     # --- TOTP and recovery codes -----------------------------------------
     # docs/policy/authentication-factors.md section 4. Encrypts TOTP secrets

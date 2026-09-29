@@ -108,8 +108,25 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   requires an active `interviewer` grant in the enrolled project, checked
   again at every refresh.
 - **Tokens**: opaque, stored hashed; access 15 minutes; refresh rotated on
-  every use, reuse revokes the session. Proposed C1: refresh lifetime 30
-  days, sliding. Expiry never loses data (the store is keyed by the PIN).
+  every use and presented with the device secret; reuse of a retired refresh
+  token revokes the session. Proposed C1: refresh lifetime 30 days, sliding,
+  and (proposed addition) at most 90 days from sign-in, after which the
+  interviewer signs in again. Expiry never loses data (the store is keyed by
+  the PIN).
+- **Only revocation wipes.** The app wipes an interviewer's store only when
+  the server answers `session_revoked`, which it sends only for an
+  administrative or device revoke or a withdrawn grant. A password or factor
+  reset, a deactivated account or a closed project answers `session_ended`:
+  the session is over but a forgotten-password reset must not destroy unsent
+  field work. Token reuse (`refresh_reused`, or `refresh_retry_race` when a refresh
+  response was lost), expiry and an unrecognised device end the session but
+  keep the data: the interviewer signs in again and the unsent interviews are
+  still there. A replayed token is a theft signal, not proof the phone is
+  lost, and wiping on it would turn a flaky network into data loss.
+- **Second factor on the device**: five wrong codes for an account within 15
+  minutes lock its device sign-in for the rest of the window
+  (`second_factor_lockout` event); every refused sign-in after the password
+  step is audited without secrets.
 - **Store key**: a random per-store secret in the Android Keystore joined
   with the interviewer's PIN, fed to SQLCipher's key derivation; biometric
   unlock releases the PIN part from a Keystore entry that requires a strong
@@ -123,11 +140,22 @@ QR, device enrolment, interviewer sessions with the second factor and the
 grant check, hashed opaque tokens with rotation and reuse revocation,
 device revoke, bootstrap, idempotent upload with the superseded-copy path,
 and the outstanding-work report
-([Device Collection API](../current-state/device-collection-api.md)). The
-refresh lifetime is the proposed 30 days (C1) behind
-`DEVICE_REFRESH_TTL_DAYS`, and enrolment codes are admin-only; both stay
-owner decisions. The app itself, and so every on-device rule above, is not
-built.
+([Device Collection API](../current-state/device-collection-api.md)).
+Hardened (`digitva-kmk.6`): request and answer size bounds, the 90-day
+absolute cap (`DEVICE_SESSION_MAX_DAYS`, proposed), device-bound refresh,
+reuse codes separate from revocation, the device second-factor lockout,
+device units and translations endpoints, outstanding draft ids, and refusal
+of a plain-http `DEVICE_PUBLIC_URL` outside development. The refresh
+lifetime is the proposed 30 days (C1) behind `DEVICE_REFRESH_TTL_DAYS`, and
+enrolment codes are admin-only; both stay owner decisions.
+
+**Built, app phase 2a** (`mobile/digitva-collect`): enrolment, sign-in,
+per-interviewer plain SQLite drafts, upload gated on the form's verdict or an
+incomplete interview outcome, push and purge, wipe only on `session_revoked`
+(other refusals mark the account "sign in again"), units and translations
+from the device API. **Not built** (phase 2b): encryption at rest, PIN,
+biometric, auto-lock, secure screens, failed-PIN wipe; until then debug
+builds must not collect real interviews.
 
 ### Accepted risk: no retention ceiling
 
@@ -175,7 +203,7 @@ real interviews**, and must be pointed at a non-production DigitVA.
 
 | # | Question | Status |
 |---|---|---|
-| C1 | Device credential lifetime and refresh-rotation interval | ~~Open.~~ Sharpened by C2: the credential is per (device, interviewer), so a lifetime long enough for a multi-day offline circuit sits on a handset other people also use. **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |
+| C1 | Device credential lifetime and refresh-rotation interval | ~~Open.~~ Sharpened by C2: the credential is per (device, interviewer), so a lifetime long enough for a multi-day offline circuit sits on a handset other people also use. **Deferred 2026-09-19:** with the native app, not open; decided when that work starts. Proposed and built behind config: 30 days sliding, 90-day absolute cap |
 | C2 | One device per interviewer, or shared? | **Decided 2026-09-18:** shared, with one encrypted store per interviewer |
 | C3 | Retention ceiling for an unsent interview | **Decided 2026-09-18:** no ceiling; purge only after a confirmed push. Accepted risk recorded above |
 | C4 | Distribution and signing-key custody | ~~Deferred 2026-09-18: unsigned development builds for now; must be settled before the app collects real interviews~~ **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |

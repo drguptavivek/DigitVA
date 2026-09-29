@@ -19,17 +19,28 @@ Offline WHO VA 2022 collection app for Path B of
   (device with `adb reverse tcp:8051 tcp:8051`).
 - **Interviewers**: several may sign in on one phone. The home screen shows
   display names only. Tokens live in SecureStore per interviewer; the access
-  token refreshes with rotation, one refresh in flight per interviewer.
+  token refreshes with rotation (the refresh also carries the device id and
+  secret), one refresh in flight per interviewer.
 - **Drafts**: each interviewer has their own SQLite file (`iv_<sha256>.db`),
   opened in `src/interviewerDb.ts`; the form writes through a `draftStore`
-  over it (`src/drafts.ts`). Attachments are disabled.
-- **Send**: completed interviews go to `POST /api/v1/device/submissions`
-  with `client_draft_id` = the draft UUID; the local copy is deleted when the
-  server answers 201 or 200 (push and purge). The remaining count is then
-  reported to `/outstanding`.
+  over it (`src/drafts.ts`). Attachments are disabled. New-interview choices
+  come from `/api/v1/device/units` and form languages from
+  `/api/v1/device/instruments/<code>/translations/<locale>`, both cached in
+  the interviewer's database (`src/sync.ts`).
+- **Finish**: the form's own completion (valid) marks a draft ready with
+  `completion: {valid: true}`; **Finish as incomplete** is allowed only when
+  the interview outcome is partially completed or respondent unavailable.
+  Only such drafts are uploaded.
+- **Send**: ready interviews go to `POST /api/v1/device/submissions`
+  with `client_draft_id` = the draft UUID and the stored `completion`; the
+  local copy is deleted when the server answers 201 or 200 (push and purge).
+  The remaining count and draft ids are then reported to `/outstanding`.
 - **Sign out** warns about unsent interviews, then deletes that
   interviewer's database and tokens. A `401 session_revoked` does the same
-  without asking. Nobody else's data is touched.
+  without asking. Any other refused refresh (`refresh_reused`,
+  `409 refresh_retry_race`, `session_expired`, `refresh_invalid`,
+  `device_invalid`) only marks the account "sign in again" and keeps its
+  interviews. Nobody else's data is touched.
 - UI strings in `src/strings/{en,hi}.json`; `hi` needs native-speaker review.
 
 ## Setup

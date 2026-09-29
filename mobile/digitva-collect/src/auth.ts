@@ -4,8 +4,13 @@
  * rotation (pattern from vendor/who-va-2022/examples/expo-demo/components/AuthSession.ts).
  *
  * Wipe rules (docs/policy/field-data-collection.md, Path B): only
- * `401 session_revoked` wipes, and it wipes that interviewer's store and
- * tokens only. Offline, 5xx or an expired refresh keep everything, so unsent
+ * `401 session_revoked` (admin or device revoke, grant withdrawn) wipes, and
+ * it wipes that interviewer's store and tokens only. `session_ended`
+ * (password reset, account deactivated, project closed) keeps the data.
+ * Every other refusal of a refresh (`refresh_reused`, `409
+ * refresh_retry_race`, `session_expired`, `refresh_invalid`,
+ * `device_invalid`) drops the dead tokens and marks the account "sign in
+ * again", keeping its data; offline and 5xx keep everything. Unsent
  * interviews wait for the next sign-in.
  */
 import * as SecureStore from "expo-secure-store";
@@ -24,6 +29,8 @@ export interface Device {
 export interface Account {
   user_id: string;
   name: string;
+  /** The server refused the refresh token without revoking: sign in again, data kept. */
+  needs_sign_in?: boolean;
 }
 
 interface Tokens {
@@ -69,6 +76,7 @@ async function readJson<T>(key: string): Promise<T | undefined> {
 const writeJson = (key: string, value: unknown) => SecureStore.setItemAsync(key, JSON.stringify(value), OPTIONS);
 
 export const loadDevice = () => readJson<Device>(DEVICE_KEY);
+const loadDeviceSecret = () => SecureStore.getItemAsync(DEVICE_SECRET_KEY, OPTIONS);
 export const loadAccounts = async () => (await readJson<Account[]>(ACCOUNTS_KEY)) ?? [];
 
 /** POST /enroll and keep the device record. The secret is stored apart and sent only to /sessions. */
@@ -106,7 +114,7 @@ export async function forgetDevice(): Promise<void> {
 /** POST /sessions; throws ApiError (401 second_factor_required, 403 no_interviewer_grant, ...). */
 export async function signIn(email: string, password: string, otp?: string): Promise<Account> {
   const device = await loadDevice();
-  const secret = await SecureStore.getItemAsync(DEVICE_SECRET_KEY, OPTIONS);
+  const secret = await loadDeviceSecret();
   if (!device || !secret) throw new Error("not_enrolled");
   const { body } = await requestJson<Tokens & { user: { user_id: string; name: string } }>(
     device.server,
@@ -141,6 +149,16 @@ export async function wipeInterviewer(userId: string): Promise<void> {
   await writeJson(ACCOUNTS_KEY, remaining);
 }
 
+/** The server refused this interviewer's refresh without revoking: drop the dead tokens, flag the account, keep its data. */
+async function markSignInRequired(userId: string): Promise<void> {
+  await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
+  const accounts = await loadAccounts();
+  await writeJson(
+    ACCOUNTS_KEY,
+    accounts.map((a) => (a.user_id === userId ? { ...a, needs_sign_in: true } : a))
+  );
+}
+
 /** Sign out: tell the server (best effort, offline is fine), then wipe. */
 export async function signOut(userId: string): Promise<void> {
   try {
@@ -167,10 +185,12 @@ function refresh(userId: string, server: string): Promise<Tokens> {
 async function doRefresh(userId: string, server: string): Promise<Tokens> {
   const current = await readJson<Tokens>(tokensKey(userId));
   if (!current) throw new SignInRequiredError();
+  const device = await loadDevice();
+  const secret = await loadDeviceSecret();
   try {
     const { body } = await requestJson<Tokens>(server, `${DEVICE_API}/sessions/refresh`, {
       method: "POST",
-      body: { refresh_token: current.refresh_token }
+      body: { refresh_token: current.refresh_token, device_id: device?.device_id, device_secret: secret }
     });
     await saveTokens(userId, body);
     return body;
@@ -179,12 +199,21 @@ async function doRefresh(userId: string, server: string): Promise<Tokens> {
   }
 }
 
-async function classifyAuthError(userId: string, error: unknown): Promise<unknown> {
-  if (error instanceof ApiError && error.status === 401 && error.code === "session_revoked") {
+/**
+ * Map a refused call to what the app does. Only `session_revoked` wipes;
+ * any other 401, and 409 `refresh_retry_race` (the server rotated but the
+ * response was lost), means "sign in again" with the data kept.
+ */
+export async function classifyAuthError(userId: string, error: unknown): Promise<unknown> {
+  if (!(error instanceof ApiError)) return error;
+  if (error.status === 401 && error.code === "session_revoked") {
     await wipeInterviewer(userId);
     return new SessionRevokedError();
   }
-  if (error instanceof ApiError && error.status === 401) return new SignInRequiredError();
+  if (error.status === 401 || (error.status === 409 && error.code === "refresh_retry_race")) {
+    await markSignInRequired(userId);
+    return new SignInRequiredError();
+  }
   return error;
 }
 

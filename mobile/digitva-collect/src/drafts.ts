@@ -7,7 +7,7 @@
  * WHO answers. The device keeps in-flight interviews only: a row is deleted
  * once the server acknowledges it (push and purge).
  */
-import type { WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
+import type { ValidationIssue, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 
 type Bind = string | number | null;
 
@@ -18,6 +18,12 @@ export interface Db {
   getAllAsync<T>(source: string, params: Bind[]): Promise<T[]>;
   getFirstAsync<T>(source: string, params: Bind[]): Promise<T | null>;
   closeAsync(): Promise<void>;
+}
+
+/** The form engine's verdict when the interviewer finished, sent with the upload. */
+export interface Completion {
+  valid: boolean;
+  issues: ValidationIssue[];
 }
 
 export interface DraftRow {
@@ -40,6 +46,15 @@ export async function migrate(db: Db): Promise<void> {
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
   `);
+  // v1: the completion verdict. SQLite has no ADD COLUMN IF NOT EXISTS.
+  const columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((c) => c.name === "completion")) {
+    await db.execAsync(`
+      ALTER TABLE drafts ADD COLUMN completion TEXT;
+      UPDATE drafts SET completion = '{"valid":true,"issues":[]}' WHERE completed = 1;
+    `);
+    // Before v1 only a form-valid interview could be marked completed.
+  }
 }
 
 /**
@@ -81,24 +96,46 @@ export async function getDraftRow(db: Db, id: string): Promise<DraftRow | null> 
   );
 }
 
-export async function markCompleted(db: Db, id: string): Promise<void> {
-  await db.runAsync("UPDATE drafts SET completed = 1 WHERE id = ?", [id]);
+export async function markCompleted(db: Db, id: string, completion: Completion): Promise<void> {
+  await db.runAsync("UPDATE drafts SET completed = 1, completion = ? WHERE id = ?", [
+    JSON.stringify({ valid: completion.valid, issues: completion.issues }),
+    id
+  ]);
 }
 
-/** Completed drafts with their envelopes, oldest first, for upload. */
-export async function completedDrafts(
-  db: Db
-): Promise<Array<{ id: string; site_id: string; org_unit_id: string | null; draft: WhoVaDraft }>> {
-  const rows = await db.getAllAsync<{ id: string; site_id: string; org_unit_id: string | null; envelope: string }>(
-    "SELECT id, site_id, org_unit_id, envelope FROM drafts WHERE completed = 1 ORDER BY updated_at",
+export interface CompletedDraft {
+  id: string;
+  site_id: string;
+  org_unit_id: string | null;
+  draft: WhoVaDraft;
+  completion: Completion | null;
+}
+
+/** Completed drafts with their envelopes and verdicts, oldest first, for upload. */
+export async function completedDrafts(db: Db): Promise<CompletedDraft[]> {
+  const rows = await db.getAllAsync<{
+    id: string;
+    site_id: string;
+    org_unit_id: string | null;
+    envelope: string;
+    completion: string | null;
+  }>(
+    "SELECT id, site_id, org_unit_id, envelope, completion FROM drafts WHERE completed = 1 ORDER BY updated_at",
     []
   );
   return rows.map((row) => ({
     id: row.id,
     site_id: row.site_id,
     org_unit_id: row.org_unit_id,
-    draft: JSON.parse(row.envelope) as WhoVaDraft
+    draft: JSON.parse(row.envelope) as WhoVaDraft,
+    completion: row.completion ? (JSON.parse(row.completion) as Completion) : null
   }));
+}
+
+/** Every draft id on the phone (the outstanding-work report). */
+export async function draftIds(db: Db): Promise<string[]> {
+  const rows = await db.getAllAsync<{ id: string }>("SELECT id FROM drafts ORDER BY id", []);
+  return rows.map((row) => row.id);
 }
 
 export async function deleteDraft(db: Db, id: string): Promise<void> {

@@ -139,7 +139,13 @@ def project_units(project_id: str):
     if reachable is not None and not reachable:
         return _error("You do not have access to that project.", 403)
 
-    include_inactive = request.args.get("include_inactive") == "1"
+    return jsonify(units_payload(project_id, reachable, include_inactive=request.args.get("include_inactive") == "1"))
+
+
+def units_payload(project_id: str, reachable: set | None, *, include_inactive: bool = False) -> dict:
+    """The ``/units`` body for *project_id*, narrowed to *reachable* (None:
+    the whole tree); the caller decides access. Also served by the device
+    API's ``/units`` (app/routes/api/device.py)."""
     levels = org.list_levels(project_id, include_inactive=include_inactive)
     units = org.list_units(project_id, include_inactive=include_inactive)
     if reachable is not None:
@@ -185,7 +191,7 @@ def project_units(project_id: str):
         for unit in units:
             unit["selectable"] = True
 
-    return jsonify({
+    return {
         "project_id": project_id,
         # Moves whenever a level or unit changes, so a client can cache the
         # tree and revalidate cheaply instead of refetching per form.
@@ -221,7 +227,7 @@ def project_units(project_id: str):
             }
             for unit in units
         ],
-    })
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -636,6 +642,15 @@ def project_form_options(project_id: str):
         return _error("You do not have access to that project.", 403)
 
     return jsonify(form_options_payload(project))
+
+
+def served_instrument_locales(project: VaProjectMaster) -> tuple[str, set[str]]:
+    """The instrument code this project's questionnaire uses and the locale
+    codes it offers, exactly as ``form_options_payload`` resolves them."""
+    default_form_type = next((ft for ft in _project_form_types(project) if ft["is_default"]), None)
+    instrument_code = (default_form_type or {}).get("instrument_code")
+    _default, available = _resolve_locales(project, instrument_code)
+    return instrument_code or FALLBACK_INSTRUMENT_CODE, {entry["code"] for entry in available}
 
 
 def form_options_payload(project: VaProjectMaster) -> dict:

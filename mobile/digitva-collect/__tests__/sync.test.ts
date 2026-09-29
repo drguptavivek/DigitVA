@@ -16,7 +16,7 @@ jest.mock("expo-secure-store", () => ({
 }));
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
-import { createDraftStore, getMeta, markCompleted, migrate, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, type Db } from "../src/drafts";
 import { refreshBootstrap, syncInterviewer, targetsFrom, translationsFor, type Units } from "../src/sync";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -110,8 +110,24 @@ describe("syncInterviewer", () => {
     const store = createDraftStore(db, { siteId: "S1" });
     await store.save(envelope(ids.valid, {}));
     await markCompleted(db, ids.valid, { valid: true, issues: [] });
+    mockServer((call) => (call.url.endsWith("/submissions") ? json(409, { code: "conflict" }) : json(204, null)));
+    expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 1, remaining: 1 });
+    expect((await getDraftRow(db, ids.valid))?.completed).toBe(1);
+  });
+
+  it("reopens a draft the server refuses as invalid (422) so it can be corrected, answers kept", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { siteId: "S1" });
+    await store.save(envelope(ids.valid, { Id10013: "no" }));
+    await markCompleted(db, ids.valid, { valid: true, issues: [] });
     mockServer((call) => (call.url.endsWith("/submissions") ? json(422, { code: "invalid_interview" }) : json(204, null)));
     expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 1, remaining: 1 });
+    expect((await getDraftRow(db, ids.valid))?.completed).toBe(0);
+    expect((await store.load!(ids.valid))?.data).toEqual({ Id10013: "no" });
+    expect(calls.filter((c) => c.url.endsWith("/submissions"))).toHaveLength(1);
+    await syncInterviewer(USER, db); // not resent while being corrected
+    expect(calls.filter((c) => c.url.endsWith("/submissions"))).toHaveLength(1);
   });
 });
 

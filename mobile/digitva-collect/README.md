@@ -54,6 +54,9 @@ Offline WHO VA 2022 collection app for Path B of
 - **Send**: ready interviews go to `POST /api/v1/device/submissions`
   with `client_draft_id` = the draft UUID and the stored `completion`; the
   local copy is deleted when the server answers 201 or 200 (push and purge).
+  A 422 (the interview as it stands is refused) puts the draft back in
+  progress with its answers, so the interviewer can correct it; other
+  refusals keep it ready for the next send.
   The remaining count and draft ids are then reported to `/outstanding`.
 - **Sign out** warns about unsent interviews, then deletes that
   interviewer's database, store secret, PIN counter, biometric entry and tokens. A `401 session_revoked` does the same

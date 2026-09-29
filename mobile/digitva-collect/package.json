@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "vendor:build": "npm --prefix ../../vendor/who-va-2022 run build && npm install ../../vendor/who-va-2022",
+    "vendor:build": "npm --prefix ../../vendor/who-va-2022 run build && rm -rf node_modules/@drguptavivek/who-2022-va && npm install ../../vendor/who-va-2022",
     "start": "expo start",
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",

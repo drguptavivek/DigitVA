@@ -103,6 +103,15 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
   ]);
 }
 
+/**
+ * Back to in progress, answers kept: the server refused the interview as it
+ * stands (422), so the interviewer must be able to open and correct it
+ * rather than have it resent and refused on every sync.
+ */
+export async function reopenDraft(db: Db, id: string): Promise<void> {
+  await db.runAsync("UPDATE drafts SET completed = 0, completion = NULL WHERE id = ?", [id]);
+}
+
 export interface CompletedDraft {
   id: string;
   site_id: string;

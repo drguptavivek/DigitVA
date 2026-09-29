@@ -16,6 +16,7 @@ import {
   deleteDraft,
   draftIds,
   getMeta,
+  reopenDraft,
   setMeta,
   type CompletedDraft,
   type Completion,
@@ -62,10 +63,12 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
     } catch (error) {
       // Revocation already wiped the store; sign-in and network errors stop
       // the run with the rest kept. A per-draft refusal (409/413/422) keeps
-      // that draft and moves on.
+      // that draft and moves on; a 422 (the interview as it stands) also
+      // reopens it for editing.
       if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
       if (!(error instanceof ApiError)) throw error;
       console.warn(`submission refused draft=${item.id} status=${error.status} code=${error.code ?? "-"}`);
+      if (error.status === 422) await reopenDraft(db, item.id);
       failed += 1;
     }
   }

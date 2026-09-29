@@ -36,7 +36,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    rebuild images (new deps: webauthn, pyotp, segno); run migrations
    `c1d5e9a2f7b4` (auth factor tables), `b1f4d8a6c9e2` (district VA
    presets), `d3a9c5e1f7b2` (ICD-11 owner decision 20) and `a7c3e9f1b5d2`
-   (ICD-11 coding policy), then `flask analytics refresh-submission-mv`. Then the ingress switch, `COMPOSE_PROFILES=icd11`,
+   (ICD-11 coding policy), then `flask analytics refresh-submission-mv`.
+   Then the ingress switch, `COMPOSE_PROFILES=icd11`,
    `DORIS_PUBLIC_COOKIE_SECURE=true` and the checks in the bead. Set
    `AUTH_FACTOR_ENFORCE_FROM` (launch + 30 days) when the owner announces the
    passkey/TOTP rollout. Login changes ship with it: two-step login,
@@ -83,8 +84,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    The extension is always on for every web project; ODK rows are generated
    from it (`npm run build:odk-doris-rows` in `tooling/who-va-2022`, then
    `tooling/who-va-2022/build_odk_doris_rows.py` in the app container).
-7. `digitva-ej1`: web attachment upload (audio narration, document images);
-   owner allows offline on-device storage, encrypted, deleted after upload.
+7. `digitva-ej1`: web attachment upload (audio narration, document images).
+   Offline on-device storage is native-app work under Path B
+   (`docs/policy/field-data-collection.md`), not the browser page.
 8. `digitva-ddv.5`: owner sends WHO the CoDEdit BER-CE-9 report.
    `digitva-fb5` (P1): translation label fixes need a speaker.
 
@@ -111,11 +113,19 @@ step is where it hooks in), `digitva-sn1` (passkeys/TOTP, build done),
 
 ## Caveats still true
 
-- ICD-11 policy is signed off and ships with migration `a7c3e9f1b5d2` (chain
-  head; owner decision 20 is `d3a9c5e1f7b2`). Existing deaths keep their old
-  bucket in the reporting snapshot until `flask analytics refresh-submission-mv`
-  runs (needed for the seven decision-20 buckets). Any later policy edit needs
-  a new migration; the frozen copy is `resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`.
+- ICD-11 is signed off (2026-09-29) and ships with migration `a7c3e9f1b5d2`
+  (current head; owner decision 20 is `d3a9c5e1f7b2`). Dev has both applied,
+  its 35,664 categories marked `reviewed`, and the snapshot refreshed;
+  production still needs both migrations and the refresh (release step
+  above). Any later policy edit needs a new migration; the frozen copy is
+  `resource/icd11_mms_2026_01_policy_signoff_2026_09_29.json`.
+- The policy added an age value `neonate_infant` (chapter 19 and `1C15`), RA02
+  and RA03 selectable, and sex rules for the genital blocks in chapters 16
+  and 20. ICD-10 was deliberately not changed (P codes stay neonate; U09.9,
+  U10.9 absent; no sex rules outside neoplasms and O). Whether to give ICD-10
+  the same treatment is undecided.
+- `ruff format --check` fails on several committed files already; only
+  `ruff check` is a gate.
 
 - Dev has a `test.coder.nc01@gmail.com` account (password as in `AGENTS.md`)
   created for the DORIS browser check; its SADEMO coder grant is set to

@@ -1,6 +1,6 @@
 # Interviewer worklist and interview state machine
 
-- Status: Plan for owner review (2026-09-28); no code yet
+- Status: Policy baseline written in docs/policy/web-intake.md (2026-09-29); implementation not started
 - Priority: P2
 - Created: 2026-09-28
 - Bead: `digitva-vzk` (epic)
@@ -58,18 +58,20 @@ to its interviewer only.
 | `registered` | Basics captured, no interview yet | Register form |
 | `scheduled` | Appointment date set | Interviewer sets date |
 | `in_progress` | WHO form started, answers being saved | Start / resume interview |
-| `paused` | Interviewer stopped mid-interview with a reason (respondent busy, needs a document) and optionally a revisit date | "Pause" action |
-| `not_reachable` | Contact attempt failed; follow-up date set | Log contact attempt |
-| `refused` | Respondent declined (consent Id10013 = no, or before starting) | Form consent answer or action |
+| `paused` | Interviewer stopped mid-interview (outcome partially completed, or a pause) with a reason and optionally a revisit date | "Pause" / "Stop interview" action |
+| `not_reachable` | Contact attempt failed, or outcome respondent unavailable; follow-up or revisit date | Log contact attempt / "Stop interview" |
+| `refused` | Respondent declined (outcome refused). Soft: any team member may restart it | `interview_outcome` or action |
 | `submitted` | WHO form submitted; case enters coding | Submit (existing) |
 | `duplicate` | Same death as another case; points at it | Supervisor (or interviewer, see decisions) |
 | `cancelled` | Registered in error | Supervisor (or registrant, see decisions) |
 
 Transitions: registered ⇄ scheduled → in_progress ⇄ paused → submitted;
-registered/scheduled/paused → not_reachable → scheduled/in_progress;
-registered/scheduled/in_progress/paused → refused | duplicate | cancelled.
+in_progress → not_reachable (decision 8);
+registered/scheduled/paused/in_progress → not_reachable → scheduled/in_progress;
+registered/scheduled/in_progress/paused → refused | duplicate | cancelled;
+refused → in_progress (restart, audited; decision 9).
 `submitted`, `duplicate` and `cancelled` are terminal except a supervisor
-reopen (audited). Every transition writes an audit row (actor, from, to,
+reopen (audited). `refused` is not terminal. Every transition writes an audit row (actor, from, to,
 reason, time; no PII in the reason field by UI guidance).
 
 ### Supporting data
@@ -162,7 +164,8 @@ codes (`org_<level>_code`) stay server-injected at submission as today.
 Decided later the same day:
 
 5. **Refused** (owner, 2026-09-29): a supervisor may reopen a refused case;
-   the reopen is audited (who, when, reason).
+   the reopen is audited (who, when, reason). **Superseded 2026-09-30 by
+   decision 9** (refused is soft; no reopen needed). Kept as history.
 6. **Duplicate and cancel** (owner, 2026-09-29): both interviewers and
    supervisors can flag a case as a possible duplicate (naming the case it
    duplicates) or for cancellation (with a reason). An interviewer's flag
@@ -181,7 +184,8 @@ Decided later the same day:
    (owner, 2026-09-29). Once a complete submission has won, any later one is
    not merged and not silently dropped — it is stored as a superseded copy
    linked to the case, its interviewer is told, and a supervisor can view it.
-   Owner (2026-09-29): status comes from the WHO form's completion outcome.
+   (Superseded in part by decision 8, 2026-09-30: the valid-form rule applies
+   only to outcome `completed`.) Owner (2026-09-29): status comes from the WHO form's completion outcome.
    Finding: the WHO 2022 core has no outcome question — only consent Id10013
    (yes / no) and the closing `noteend` note; the form's own `completion.valid`
    says whether every required question is answered. Proposed mapping:
@@ -212,6 +216,45 @@ Decided later the same day:
    team member finished while you were offline, and your copy's submit tells
    you so; (d) a case registered offline needs a client-generated id that the
    server reconciles (and duplicate checks run on upload).
+
+Decided 2026-09-30 (owner):
+
+8. **Incomplete submissions: no new state.** `interview_outcome` sets the case
+   state: partially completed -> `paused`; respondent unavailable ->
+   `not_reachable` with optional revisit date; refused -> `refused`; completed
+   and first -> `submitted`. Transition `in_progress -> not_reachable` added.
+   A valid form (`completion.valid`) is required only for `completed`; the
+   other outcomes need `interview_outcome` and the minimum identity (name, date
+   of death, sex), not the consent answer (Id10013). "Stop interview" stays,
+   with optional revisit date. Replaces the "Submission" rule in
+   `docs/policy/web-intake.md` when the worklist phases land.
+9. **Refused is fully soft.** It blocks nothing: any team member may start or
+   resume it, and a complete submission wins (`submitted`, refusal kept as a
+   superseded copy). Restart moves it to `in_progress`, audited (who, when).
+   Decision 5 is superseded. Open: whether to show "previously refused on
+   <date>" and whether a restart needs a reason.
+10. **Duplicate on a submitted case: coding follows state.** A supervisor may
+    confirm it against a kept case they choose (UI warns if the duplicate is
+    the one already coded). Not yet coded or waiting: excluded as
+    `not_codeable_by_data_manager`, reason "duplicate of <kept case id>". Being
+    coded: allocation revoked (`docs/policy/coding-allocation-timeouts.md`),
+    then excluded. Finalized: coding stays intact, case marked duplicate and
+    excluded from reporting counts, only a supervisor holding a data-manager
+    grant may confirm. Audited, reversible by a supervisor. Open: today
+    `not_codeable_by_data_manager` is legal only from `screening_pending`,
+    `smartva_pending`, `ready_for_coding`, and no reporting-count exclusion
+    mechanism exists.
+11. **Supervisor model: derive from cadre.** Supervisor powers (view all cases
+    in scope, confirm/reject duplicate and cancel flags, never assign) come
+    from the cadre on a unit-scoped grant; no new role or grant. Data managers
+    keep them through their grant. This makes cadre authoritative rather than
+    descriptive, so `docs/policy/access-control-model.md` and
+    `docs/policy/organization-model.md` must be amended in the same change that
+    builds it. Still bounded by grant scope, status and closed-project
+    dormancy. Supersedes the "design to settle" in decision 3. Open (see
+    policy items 8 to 10, 14): how a cadre is marked supervising, which role's
+    grant carries it, subtree reach, supervisor visibility of identity, audit
+    of grant and cadre relied on.
 
 ## Phases (after decisions; each with tests and a migration where noted)
 

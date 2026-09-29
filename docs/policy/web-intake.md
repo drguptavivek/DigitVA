@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-09-30
 ---
 
 # Web Intake Policy
@@ -156,7 +156,11 @@ submission's organization unit, falling back to the form-level setting
 ## Submission
 
 - A draft is submitted only when the questionnaire reports `valid` and the
-  consent question (`Id10013`) is answered. Server-side re-validation with
+  consent question (`Id10013`) is answered. **Replaced when the worklist
+  phases land** (owner, 2026-09-30; see "Incomplete submissions" below): a
+  valid form is then required only for the `completed` outcome, and the other
+  outcomes need the `interview_outcome` answer and the minimum identity but
+  not `Id10013`. Until then this rule is the running behaviour. Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no
@@ -230,15 +234,351 @@ stops an interview, so it never makes a project unready.
 The assessment is read-only. It never creates a site, a web form or a grant,
 and a project PI may run it only for the projects they manage.
 
+## Case worklist and interview states (baseline 2026-09-29, not yet implemented)
+
+Decided by the owner on 2026-09-29 unless a line says otherwise; the four
+decisions of 2026-09-30 are marked as such. Plan and
+phasing: `.tasks/2026-09-28-interviewer-worklist.md` (bead `digitva-vzk`).
+This section is a rule baseline; table and column design stays in the plan.
+Nothing here is built yet, and until each phase lands the "Baseline" bullets
+above (own drafts only, one author per draft, 409 for a second interviewer)
+remain the running behaviour. Where this section and those bullets disagree,
+this section is the target and replaces them when phase 2 to 3 lands.
+
+### The case
+
+- The death register entry is **the case**, for both routes. Register-first
+  creates it from the register form; **direct start creates a case
+  immediately** with `source = direct` and no identity yet.
+- Identity is nullable until set. Minimum identity is **name, date of death
+  and sex**; the form's answers (`Id10017`/`Id10018`, `Id10019`, `Id10023`, the
+  calculated age) fill it as they are saved. A case cannot leave the pre-
+  identity state until all three are present.
+- Until then the row shows as "New interview, details pending" and is visible
+  **only to the interviewer who started it**.
+- The list is one query over cases; there is one state machine.
+
+### States and transitions
+
+| State | Meaning |
+|---|---|
+| `registered` | Basics captured, no interview yet |
+| `scheduled` | Appointment date set |
+| `in_progress` | Form started, answers being saved |
+| `paused` | Stopped mid-interview (outcome partially completed) or by choice, with a reason; optional revisit date |
+| `not_reachable` | Contact attempt failed, or outcome respondent unavailable; follow-up or revisit date optional |
+| `refused` | Respondent declined (outcome refused: `Id10013` = no, or before starting). Soft: never blocks a restart |
+| `submitted` | Complete submission accepted; the case enters coding |
+| `duplicate` | Same death as another case; links to the kept case |
+| `cancelled` | Registered in error |
+
+Allowed transitions: registered ⇄ scheduled → in_progress ⇄ paused →
+submitted; in_progress → not_reachable (owner, 2026-09-30); registered /
+scheduled / paused / in_progress → not_reachable → scheduled / in_progress;
+registered / scheduled / in_progress / paused → refused / duplicate /
+cancelled; refused → in_progress (restart, below). `submitted`, `duplicate`
+and `cancelled` are terminal except for a **supervisor reopen**. `refused` is
+**not** terminal (owner, 2026-09-30): any team member may start or resume a
+refused case at any time, which moves it back to `in_progress` and is audited
+(who, when). Every reopen records who, when and why.
+
+Owner, 2026-09-30: **no new state for incomplete submissions.** The
+submission's `interview_outcome` sets the case state: partially completed ->
+`paused`; respondent unavailable -> `not_reachable` (optional revisit date);
+refused -> `refused`; completed and first -> `submitted`.
+
+Every transition writes an audit row: **actor, from-state, to-state, reason,
+time**. Reasons carry no personal data (UI guidance says so; the field is not
+a place for names, phone numbers or addresses).
+
+### Ownership and visibility
+
+- **No assignment.** There is no assign or reassign action and no assignee.
+  A case belongs to its registrant until an interview starts, then to the
+  interviewer who started it (owner, 2026-09-29).
+- **Team cases.** Any interviewer whose scope covers the case may start,
+  continue or finish its interview. Every interviewer sees every case in their
+  scope. Scope is the existing grant reach (project, project-site or unit
+  subtree; see "Role gate vs scope").
+- **One shared draft per death**, replacing "only its author may edit". Each
+  save records who saved it; the audit trail keeps every interviewer who
+  worked on the case.
+- "Mine" is a filter (registered or worked on by me), not a boundary.
+
+### Supervisors
+
+- Medical officers and similar staff at higher-level facilities (PHC, CHC,
+  district hospital) over the interviewers in the units below them, plus data
+  managers in scope, are supervisors of the cases in their scope.
+- A supervisor may **view** the case, **confirm or reject** duplicate and
+  cancel flags, and **reopen** terminal cases. A supervisor never assigns.
+- **Owner decision, 2026-09-30: derive from cadre.** Supervisor powers come
+  from the **cadre** carried on a unit-scoped grant, not from a new role and
+  not from a new grant. Data managers keep supervisor powers through their
+  `data_manager` grant.
+- **Consequence.** Cadre is descriptive today: nothing consults it at runtime
+  ([Access Control Model](access-control-model.md), Role To Scope Rules;
+  [Organization Model](organization-model.md), cadre rules). This makes cadre
+  **authoritative** for the worklist. Both policy documents must be amended in
+  the same change that builds it; this baseline does not edit them, and until
+  then they stand.
+- Authorization stays explicit: project, project-site, form and unit grants
+  are not interchangeable, and no supervisory reach is inferred from another
+  grant. A cadre-derived power is still bounded by the grant's scope and
+  status and by closed-project dormancy. Open design items 8 to 10 and 14 settle the
+  rest.
+
+### Duplicate and cancel flags
+
+- Interviewers and supervisors may flag a case as a possible **duplicate**
+  (naming the case it duplicates) or for **cancellation** (with a reason).
+- An interviewer's flag waits for a supervisor to **confirm or reject**. A
+  supervisor's own flag is confirmed at once (owner, 2026-09-29). Every flag,
+  confirmation and rejection is audited.
+- A confirmed duplicate links to the kept case. Cases are **never merged
+  automatically**.
+- **Duplicate check.** When a case gains name and date of death (either
+  route), other open or submitted cases in the same project are compared:
+  date of death within 3 days, same sex, similar normalised name, same or
+  neighbouring unit. A match shows "Possible duplicate of <case id>" to the
+  interviewer before submit. It is a hint; only a supervisor resolves it. The
+  hint shows the case id, never the other case's identity.
+
+### One submission per case: first complete wins
+
+Owner, 2026-09-29. There is **no lock**. Team members may fill the same case
+independently, including offline on their own devices.
+
+- The **first complete submission the server accepts** becomes the case's
+  submission. "First" is decided by **server acceptance time**, never device
+  time.
+- An **incomplete** submission or a **refusal** does **not** close the case
+  and does **not** enter coding. It stays with the case until a later complete
+  submission supersedes it or a supervisor closes the case. A later complete
+  submission from any team member wins; the earlier one is kept as a
+  **superseded copy**. This includes a refused case: it blocks nothing, and a
+  complete submission moves it to `submitted`, the refusal kept as a
+  superseded copy (owner, 2026-09-30).
+- After a complete submission has won, every later submission is stored as a
+  superseded copy linked to the case. Its interviewer is told; supervisors can
+  view it. Submissions are **never merged and never silently dropped**.
+- The list shows "Submitted by <name>" on a case a teammate finished, and the
+  device copy's submit reports it.
+
+### The `interview_outcome` question
+
+A DigitVA extension question (in `digitva_core`, always on) placed **after
+WHO's closing note**, so WHO's own structure is untouched. Values: completed,
+partially completed, refused, respondent unavailable.
+
+- Auto-filled `refused` when `Id10013` = no; auto-filled `completed` when the
+  form reports every required question answered (`completion.valid`);
+  otherwise the interviewer picks partially completed or respondent
+  unavailable.
+- The case status follows this answer (see "States and transitions").
+  **Incomplete** means partially completed or respondent unavailable. This
+  answer, not the device or the submit button, drives the first-complete-
+  submission rule above.
+
+#### Incomplete submissions (owner, 2026-09-30)
+
+- A valid form (`completion.valid`) is required **only** for outcome
+  `completed`. The other outcomes need the `interview_outcome` answer and the
+  minimum identity (name, date of death, sex). They do **not** need the
+  consent answer (`Id10013`), which a respondent-unavailable interview may
+  never reach.
+- **Stop interview** stays as the interviewer's way to record the two
+  incomplete outcomes, with an optional revisit date.
+- An incomplete or refused submission still does not enter coding.
+
+#### Restarting a refused case (owner, 2026-09-30)
+
+Refused is fully soft. A refusal never blocks another attempt: any team member
+in scope may start or resume it, and a complete submission wins. The earlier
+owner decision that a supervisor may reopen a refused case (2026-09-29) is
+**superseded**: it has no function, because no reopen is needed. History line
+kept for the record. Nothing further is required of the restarter today (no
+reason, no warning); see open item 13.
+
+#### Duplicate on a submitted case (owner, 2026-09-30)
+
+A supervisor may confirm a **submitted** case as a duplicate of a kept case.
+The supervisor chooses the kept case; the UI warns when the case marked
+duplicate is the one already coded. Effect on the duplicate's submission,
+following its coding state:
+
+- **not yet coded or waiting**: excluded from coding as
+  `not_codeable_by_data_manager`, reason "duplicate of <kept case id>";
+- **being coded now**: the active allocation is revoked (the existing
+  allocation-timeout mechanism, [Coding Allocation
+  Timeouts](coding-allocation-timeouts.md)), then the submission is excluded;
+- **already finalized**: the stored coding stays intact, the case is marked
+  duplicate and excluded from reporting counts; nothing is un-finalized or
+  deleted. Only a supervisor **holding a data-manager grant** may confirm it.
+
+Confirmation is audited and reversible by a supervisor: the submission then
+returns to coding. Not asserted as existing: see open items 14 and 15.
+- Being a new extension question it is subject to the PII-registry rule in
+  [Field Data Collection Policy](field-data-collection.md) if it ever carries
+  personal data; as a choice it does not.
+
+### Contact data and attempts
+
+- Keep the informant name and phone. Add an optional second phone and a
+  structured address (house or street, village or ward, landmark) beside the
+  org unit.
+- Phones are validated (Indian mobile format) and **masked in lists**; shown in
+  full only on the case page.
+- **Contact attempts** record the outcome only (reached, no answer, wrong
+  number, moved, refused), the next date and the user. No free-text notes:
+  they would carry personal data.
+
+### Prefill map
+
+Prefill applies once, when a draft is created and has no saved answers.
+Unlocked prefills are ordinary answers the interviewer may change; edits to
+name, sex and date of death flow back to the case (the form is the record of
+the interview). `org_<level>_code` stays server-injected at submission.
+
+| WHO question | Source | Locked |
+|---|---|---|
+| `Id10010` / `Id10010c` interviewer name and id | signed-in user (`digitva-dyk`) | yes |
+| `Id10002` / `Id10003` HIV / malaria area | district presets (`digitva-dhc`, done) | yes |
+| `Id10017` / `Id10018` given name, surname; `Id10019` sex | case | no |
+| `Id10021` date of birth, or age group and age fields | case | no |
+| `Id10022` = yes, `Id10023_a` date of death | case | no |
+| `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices | no |
+| `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit plus the case address | no |
+| `Id10055` usual residence | case address, else the same org path | no |
+| `Id10007` respondent name | case informant name | no |
+| `Id10061` / `Id10062` father's / mother's name | new optional registration-form fields (`digitva-vzk.1`) | no |
+| `Id10010a` / `Id10010b` interviewer age / sex | new user-profile fields: year of birth (age computed at interview time) and sex (`digitva-vzk.2`, `digitva-vzk.3`) | yes |
+
+### The list
+
+- Default view: **team cases** in my scope with a **Mine** filter and a state
+  filter, sorted by next visit date, then last activity.
+- Tabs: **To visit** (registered, scheduled, not reachable, paused), **In
+  progress**, **Done** (submitted, refused).
+- Row: id, name (or "details pending"), sex, age, date of death, unit, state
+  badge, next visit date, primary action (Start, Resume, Log attempt).
+- Page top: **Register death** and **Start new interview**, shown as the
+  project's `web_intake_mode` allows (`death_register`: register only;
+  `direct`: start only; `both`: both; `off`: neither).
+- Supervisors get an **All in my scope** view showing who registered and who
+  started each case. There is no reassignment.
+
+### Offline capture
+
+Owner, 2026-09-29: offline capture is in scope for this feature.
+
+- **Reversal, stated precisely.** [Field Data Collection
+  Policy](field-data-collection.md) currently says, for Path A, that no answer
+  is persisted on the device and prohibits a browser-backed `draftStore`; it
+  reserves device storage for Path B, a native app. The offline decision
+  requires a device-held draft for the interviewer worklist. That policy must
+  be amended in the same change that builds it (this baseline does not edit
+  it); until then the prohibition stands.
+- Required shape: **encrypted on the device, bounded, deleted after upload**,
+  matching the attachment decision (`digitva-ej1`).
+- A case registered offline gets a **client-generated id** the server
+  reconciles. **Duplicate checks run on upload.**
+- The list shows "Submitted by <name>" when a teammate finished a case while
+  the device was offline, and the offline copy's submit says so.
+- **Not decided** (see open items 2 to 6): key handling, storage bounds,
+  expiry, wipe on logout, and what happens to a device draft after a
+  superseding submission.
+
+### Phasing
+
+Plan phases: 1 prefill and death-list fixes; 2 case model and transition
+service; 3 direct start creates the case and one worklist API; 4 worklist UI
+and register form; 5 appointments, contact attempts, pause; 6 duplicate check
+and supervisor resolution; 7 supervisor view. Offline capture is not yet
+placed in a phase. This baseline precedes phase 2.
+
+### Decided 2026-09-30
+
+Recorded above; removed from the open list.
+
+- Former item 1, supervisor role model: derived from the cadre on a unit-scoped
+  grant ("Supervisors"). Its follow-ups are items 8 to 10 and 14 below.
+- Former item 8, state after an incomplete or refused submission: no new
+  state; the outcome sets it, and refused is soft ("States and transitions").
+- Former item 9, existing submit rule: replaced ("Incomplete submissions",
+  "Submission").
+- Former item 10, duplicate from `submitted`: allowed, coding follows state
+  ("Duplicate on a submitted case").
+- Owner decision 5 of 2026-09-29 (supervisor may reopen a refused case) is
+  superseded by soft refusal.
+
+### Open design items (questions for the owner)
+
+Items 2 to 7, 11 and 12 keep their earlier numbers; items 8 to 10 and 13 to
+15 are new (the earlier 8 to 10 are decided, above).
+
+2. **Offline key handling.** Where is the key kept, and how is it protected
+   (per interviewer, PIN or biometric, hardware-backed storage)? Path B
+   already decides these for a native app; does the worklist use the same or
+   something different in the browser?
+3. **Offline storage bounds.** How many cases, how much data, how long? Path B
+   decision C3 says **no retention ceiling**; this baseline says **bounded**.
+   Which governs?
+4. **Offline expiry.** Does an unsent device draft expire, and what happens to
+   it then?
+5. **Wipe on logout.** Path B wipes the interviewer's store on logout. Does
+   the worklist's device draft do the same?
+6. **Device draft after a superseding submission.** When a teammate's
+   complete submission wins while this device is offline, is the local draft
+   uploaded as a superseded copy, kept, or discarded, and who is told what?
+7. **Where offline runs.** Path B is a native app and the policy prohibits
+   browser persistence. Is offline capture for the web page (which needs
+   Path A amended), for the native app, or both?
+8. **How a cadre is marked as supervising.** An attribute on the cadre
+   definition that an admin sets (recommended), or matching cadre names in
+   code (authority would then depend on spelling)?
+9. **Which role's grant carries the supervising cadre.** Every grant has a role
+   and cadre attaches only to unit-scoped grants: an `interviewer` grant at the
+   higher-level unit (the person can then also interview), or another role?
+   And what does a supervising cadre on a `coder` or `collaborator` grant mean?
+10. **Reach of supervisor power.** Assumed to cover the grant unit's subtree,
+    as other unit grants do; confirm.
+11. **Visibility of "details pending" to supervisors** and to interviewers
+    covering the same scope after a long delay: does it stay hidden from them?
+12. **Registrant edits.** May a registrant edit or cancel their own
+    registration before an interview starts (the plan lists "or registrant" for
+    cancel, decision 6 does not)?
+13. **Restarting a refused case.** Should the interviewer see "previously
+    refused on <date>" before restarting, and should a restart need a reason
+    (respondent welfare against friction)?
+14. **Supervisor visibility and audit.** Do supervisors see identifying details
+    (name, phones) for cases in scope at the interviewers' level (assumed yes:
+    needed to resolve duplicates)? Each supervisor action must record the grant
+    and cadre relied on: confirm.
+15. **Duplicate on a submitted case: mechanisms.**
+    [Coding Workflow State Machine](coding-workflow-state-machine.md) allows
+    `not_codeable_by_data_manager` only from `screening_pending`,
+    `smartva_pending` and `ready_for_coding`. Applying it to a submission being
+    coded, or clearing it on reversal, needs new transitions. Excluding a
+    finalized duplicate from reporting counts has no mechanism today. Which
+    transitions and which count rule, and does the "data-manager grant" limit
+    on the finalized case hold once cadre-derived supervisors exist?
+
 ## Not yet implemented
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native
-  app. ("Unit-scoped listing refinements" was struck on 2026-09-19: there was
+  app. The case worklist, the interview state machine, team cases and
+  supervisor views, duplicate and cancel flags, contact attempts, the
+  `interview_outcome` question, first-complete-submission and offline capture
+  are baselined in "Case worklist and interview states" above and **not
+  implemented**; offline capture also has open design items there and needs
+  [Field Data Collection Policy](field-data-collection.md) amended first. ("Unit-scoped listing refinements" was struck on 2026-09-19: there was
   no concrete item behind it, and `list_deaths` already scopes by unit
   grants.)
 
 Web intake is path A of
 [Field Data Collection Policy](field-data-collection.md), which fixes the rule
-this path already follows — answers are never persisted in the browser — and
-sets the conditions an offline native collector must meet before it may hold
+this path already follows — answers are never persisted in the browser, a
+rule the offline decision in "Case worklist and interview states" would
+reverse once that policy is amended — and sets the conditions an offline native collector must meet before it may hold
 interview data on a device.

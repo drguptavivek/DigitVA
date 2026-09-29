@@ -3,7 +3,7 @@ title: WHO 2022 VA native ICD-11 buckets, generator report (WHO_2022_VA_2026)
 doc_type: reference
 status: draft
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-29
 ---
 
 # WHO 2022 VA native ICD-11 buckets: generator report (WHO_2022_VA_2026)
@@ -13,12 +13,12 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 ## Totals
 
 - Catalogue categories (chapter X excluded): 18505
-- Generated mappings: 18505 (range 15965, split 64, owner decision 176, decision 5b fallback 2300)
+- Generated mappings: 18505 (range 15960, split 58, owner decision 187, decision 5b fallback 2300)
 - Unmapped: 0
 
 ## Review items (`icd11_review.csv`)
 
-- `crosswalk_disagreement`: 897
+- `crosswalk_disagreement`: 892
 - `node_matched_by_label`: 1
 - `pa_split`: 71
 - `pj2x_split`: 5
@@ -30,7 +30,7 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 | VA code | Cause | Codes |
 |---|---|---:|
 | VAs-01.01 | Sepsis | 2 |
-| VAs-01.02 | Acute respiratory infection, including pneumonia | 78 |
+| VAs-01.02 | Acute respiratory infection, including pneumonia | 79 |
 | VAs-01.03 | HIV/AIDS related death | 27 |
 | VAs-01.04 | Diarrheal diseases | 67 |
 | VAs-01.05 | Malaria | 16 |
@@ -39,7 +39,7 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 | VAs-01.08 | Tetanus | 2 |
 | VAs-01.09 | Pulmonary tuberculosis | 4 |
 | VAs-01.10 | Pertussis | 5 |
-| VAs-01.11 | Haemorrhagic fever | 50 |
+| VAs-01.11 | Haemorrhagic fever | 49 |
 | VAs-01.12 | Dengue fever | 4 |
 | VAs-01.13 | Coronavirus disease (COVID-19) | 3 |
 | VAs-01.99 | Unspecified infectious disease | 866 |
@@ -82,10 +82,10 @@ Written by `flask cod-buckets generate-icd11`. Policy: `docs/policy/icd11-cod-bu
 | VAs-10.99 | Other and unspecified perinatal cause of death | 550 |
 | VAs-11.01 | Fresh stillbirth | 1 |
 | VAs-11.02 | Macerated stillbirth | 3 |
-| VAs-12.01 | Road traffic accident | 30 |
-| VAs-12.02 | Other transport accident | 41 |
-| VAs-12.03 | Accidental fall | 3 |
-| VAs-12.04 | Accidental drowning and submersion | 4 |
+| VAs-12.01 | Road traffic accident | 25 |
+| VAs-12.02 | Other transport accident | 46 |
+| VAs-12.03 | Accidental fall | 4 |
+| VAs-12.04 | Accidental drowning and submersion | 3 |
 | VAs-12.05 | Accidental exposure to smoke, fire and flames | 13 |
 | VAs-12.06 | Contact with venomous animals and plants | 2 |
 | VAs-12.07 | Accidental poisoning and exposure to noxious substance | 17 |

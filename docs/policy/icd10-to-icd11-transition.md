@@ -3,7 +3,7 @@ title: ICD-10 to ICD-11 Transition for VA Cause Buckets
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-09-29
 ---
 
 # ICD-10 to ICD-11 Transition for VA Cause Buckets
@@ -388,6 +388,7 @@ resetting does not undo it.
 | 17 | ICD-11 `PA20`-`PA2Z` "unknown whether traffic or nontraffic" (added 2026-09-25) | The same WHO assumption applied by analogy: `PA22`-`PA29`, `PA2E`, `PA2F`, `PA2Y`, `PA2Z` → **Road traffic** (`VAs-12.01`); `PA2A`-`PA2D` (off-road/special vehicles, the ICD-10 `V83`-`V86` counterparts) and `PA20`, `PA21` (pedestrians; WHO counts only `V0x.1` as road traffic) → Other transport (`VAs-12.02`). **Supersedes decision 3** for the ten codes it moves |
 | 18 | Stillbirth (added 2026-09-25) | ICD-11: `KD3B` and `KD3B.Z` (time of fetal death not specified) are **not selectable**, so every ICD-11 stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` antepartum); vocabulary "stillbirth" offers `KD3B.1` first. ICD-10: WHO gives `P95` for both Fresh and Macerated and fresh versus macerated is **not differentiable** in ICD-10; DigitVA does not invent codes, so `P95` stays one code in one bucket |
 | 19 | Public mapping origins and explanations (added 2026-09-25, `digitva-oeu`) | Distinguish WHO, WHO overlap resolved, not in WHO's list, differs from WHO, not a cause of death, and unmapped. The 2,148 ICD-11 decision-5b rows with no usable single-bucket crosswalk suggestion are never selectable and use **Not a cause of death**. Other uncovered selectable placements use **Not in WHO's list**; a row mapped to a cause WHO assigns elsewhere uses **Differs from WHO**. Public pages show plain-language reasons and say **expert review**; decision number and date appear only in the CSV audit note and an **Expert review decision N (date)** tooltip. The legacy `?origin=digitva` filter remains an alias for the three DigitVA-origin groups |
+| 20 | ICD-11 crosswalk disagreements settled (owner, 2026-09-29, `digitva-712.6`) | The eleven specific-vs-specific items. Recorded, bucket unchanged: `1C8C` → Meningitis/encephalitis (`VAs-01.07`), `8B22.40` → Stroke (`VAs-04.02`), `KD3B.1` → Fresh stillbirth (`VAs-11.01`), `PA15` (nontraffic bus or coach occupant, ICD-10 `V79`) → Other transport (`VAs-12.02`), because ICD-11 says explicitly nontraffic and decisions 16 and 17 cover only codes unspecified as to traffic. Changed: `1D64` (MERS) → Acute respiratory infection (`VAs-01.02`), as the ICD-10 crosswalk `J12.9` agrees; `PA92` → Accidental fall (`VAs-12.03`), because the title excludes drowning and ICD-10 `W16` is in `W00`-`W19`; `PA08`, `PA0A`-`PA0D` → Other transport (`VAs-12.02`), following 13b (streetcar/rail are not road traffic) and 16 (`V83`-`V86` nontraffic; their counterparts `PA2A`-`PA2D` are already Other transport under 17). `PA2E`/`PA2F` were already settled by 17 |
 
 ### 6.1 Applied (2026-09-24)
 
@@ -405,7 +406,7 @@ no usable single-bucket crosswalk suggestion are **Not a cause of death**.
 
 | # | Applied | Rows |
 |---|---|---:|
-| 1 | `icd11_review.csv` marks 822 `crosswalk_disagreement` items "accepted: native bucket (owner decision 1)" and the 12 specific-vs-specific items "owner review (digitva-712.6)" (unchanged: 7 transport, `1C8C`, `1D64`, `8B22.40`, `KD3B.1`, `PA92`). The other 62 disagreements are on rows set by decisions 5a, 5b and 10 | 0 changed |
+| 1 | `icd11_review.csv` marks 822 `crosswalk_disagreement` items "accepted: native bucket (owner decision 1)" and the 12 specific-vs-specific items "owner review (digitva-712.6)" (unchanged then: 7 transport, `1C8C`, `1D64`, `8B22.40`, `KD3B.1`, `PA92`; ten settled by decision 20, plus `PA15`, listed after decision 20's regeneration and settled by it as the eleventh; their rows read "owner decision 20"). The other 62 disagreements are on rows set by decisions 5a, 5b and 10 | 0 changed |
 | 2 | `PJ20`-`PJ2Z` Assault; review type `pj2x_split`, no longer a proposal | 5 (unchanged) |
 | 3 | `PA20`-`PA2Z` Other transport; marked decision 3 in the PA split review | 18 (unchanged) |
 | 4 | `5C52.Y-5C52.Z` to `VAs-98` (`5C52.Y`, `5C52.Z`); the other seven range errors kept as expanded | 2 added |
@@ -416,8 +417,17 @@ no usable single-bucket crosswalk suggestion are **Not a cause of death**.
 | 11 | ICD-10 `A80`-`A89` (the scheme has only the ten three-character rows) to `VAs-01.07` | 10 ICD-10 rows |
 | 12 | The 65 ICD-10 codes whose title says "boarding or alighting" and whose WHO 10To11 one-category target is a `PA0x` traffic code, to Road traffic. Excluded: `V81.4` (rail) and `V82.4` (streetcar) under 13b, and `V15.3`, `V25.3`, `V97.1`, whose targets are not `PA0x` | 65 ICD-10 rows |
 
-ICD-11 totals after regeneration: 18,505 rows (range 15,965, split 76,
-owner decision 164, decision 5b 2,300).
+ICD-11 totals after regeneration: 18,505 rows (range 15,960, split 58,
+owner decision 187, decision 5b 2,300).
+
+Decision 20 (2026-09-29): seven `WHO_2022_VA_2026` ICD-11 rows change bucket
+(`1D64`, `PA92`, `PA08`, `PA0A`-`PA0D`); `1C8C`, `8B22.40`, `KD3B.1` and `PA15` keep
+their bucket. Migration `d3a9c5e1f7b2` moves the seven in existing
+databases and stamps all eleven `owner_decision` with the decision note (so
+the public mapping origin is right), only while a row still holds the
+generated value.
+After upgrading, run `flask analytics refresh-submission-mv` so saved
+deaths re-bucket in reports.
 
 ## 7. Public mapping page (owner, 2026-09-24)
 

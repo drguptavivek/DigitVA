@@ -452,7 +452,7 @@ WHO_2022_VA_2026,,1C86,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8
 WHO_2022_VA_2026,,1C87,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1C88,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1C8B,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,1C8C,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,1C8C,vas_01_07,owner_decision,VAs-01.07,33,"Owner decision 20 (2026-09-29): Venezuelan equine encephalitis -> Meningitis/encephalitis, matching ICD-11 1C80-1C8F and decision 11",who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,1C8D,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1C8E,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1C8E.1,vas_01_07,range,VAs-01.07,8,ICD-11 2026-01 range 1C80-1C8F,who_2022_va_cause_list_icd10_icd11.csv
@@ -574,7 +574,7 @@ WHO_2022_VA_2026,,1D62.2,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-
 WHO_2022_VA_2026,,1D62.Y,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1D62.Z,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1D63,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,1D64,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,1D64,vas_01_02,owner_decision,VAs-01.02,34,Owner decision 20 (2026-09-29): MERS is a respiratory infection -> Acute respiratory infection; the ICD-10 crosswalk (J12.9) agrees,who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,1D65,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1D6Y,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D60-1D6Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,1D6Z,vas_01_11,range,VAs-01.11,12,ICD-11 2026-01 range 1D6Z,who_2022_va_cause_list_icd10_icd11.csv
@@ -4733,7 +4733,7 @@ WHO_2022_VA_2026,,8B22.1,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-
 WHO_2022_VA_2026,,8B22.2,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,8B22.3,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,8B22.4,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,8B22.40,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,8B22.40,vas_04_02,owner_decision,VAs-04.02,35,"Owner decision 20 (2026-09-29): Arteriovenous malformation of cerebral vessels -> Stroke, as the ICD-11 range 8B00-8B23",who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,8B22.41,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,8B22.42,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,8B22.43,vas_04_02,range,VAs-04.02,28,ICD-11 2026-01 range 8B00-8B23,who_2022_va_cause_list_icd10_icd11.csv
@@ -10920,7 +10920,7 @@ WHO_2022_VA_2026,,KD39.Z,vas_10_99,range,VAs-10.99,52,ICD-11 2026-01 range KD30.
 WHO_2022_VA_2026,,KD3A,vas_10_99,range,VAs-10.99,52,ICD-11 2026-01 range KD30.2-KD5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,KD3B,vas_11_02,owner_decision,VAs-11.02,17,"Owner decision 9 (2026-09-24): Fetal death with unknown timing -> Macerated stillbirth, as ICD-10 P95",who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,KD3B.0,vas_11_02,range,VAs-11.02,54,ICD-11 2026-01 range KD3B.0,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,KD3B.1,vas_11_01,range,VAs-11.01,53,ICD-11 2026-01 range KD3B.1,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,KD3B.1,vas_11_01,owner_decision,VAs-11.01,36,"Owner decision 20 (2026-09-29): Intrapartum fetal death -> Fresh stillbirth (unlike ICD-10 P95, which is one code)",who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,KD3B.Z,vas_11_02,owner_decision,VAs-11.02,18,"Owner decision 9 (2026-09-24): Fetal death with unknown timing -> Macerated stillbirth, as ICD-10 P95",who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,KD3C,vas_10_99,range,VAs-10.99,52,ICD-11 2026-01 range KD30.2-KD5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,KD3C.0,vas_10_99,range,VAs-10.99,52,ICD-11 2026-01 range KD30.2-KD5Z,who_2022_va_cause_list_icd10_icd11.csv
@@ -15482,12 +15482,12 @@ WHO_2022_VA_2026,,PA04,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA
 WHO_2022_VA_2026,,PA05,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA06,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA07,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA08,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA08,vas_12_02,owner_decision,VAs-12.02,38,Owner decision 20 (2026-09-29): Streetcar or tram occupant -> Other transport: decision 13b (rail and streetcar are not road traffic),who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA09,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA0A,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA0B,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA0C,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA0D,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA0A,vas_12_02,owner_decision,VAs-12.02,39,Owner decision 20 (2026-09-29): Agricultural special vehicle -> Other transport: decision 16 (ICD-10 V83-V86 are nontraffic; ICD-11 PA2A-PA2D are Other transport under decision 17),who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA0B,vas_12_02,owner_decision,VAs-12.02,40,Owner decision 20 (2026-09-29): Industrial-premises special vehicle -> Other transport: decision 16 (ICD-10 V83-V86 are nontraffic; ICD-11 PA2A-PA2D are Other transport under decision 17),who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA0C,vas_12_02,owner_decision,VAs-12.02,41,Owner decision 20 (2026-09-29): Construction special vehicle -> Other transport: decision 16 (ICD-10 V83-V86 are nontraffic; ICD-11 PA2A-PA2D are Other transport under decision 17),who_2022_va_icd11_owner_decisions.csv
+WHO_2022_VA_2026,,PA0D,vas_12_02,owner_decision,VAs-12.02,42,Owner decision 20 (2026-09-29): All-terrain vehicle -> Other transport: decision 16 (ICD-10 V83-V86 are nontraffic; ICD-11 PA2A-PA2D are Other transport under decision 17),who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA0E,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA0F,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA0Y,vas_12_01,split,VAs-12.01,55,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
@@ -15497,7 +15497,7 @@ WHO_2022_VA_2026,,PA11,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA
 WHO_2022_VA_2026,,PA12,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA13,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA14,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA15,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA15,vas_12_02,owner_decision,VAs-12.02,43,Owner decision 20 (2026-09-29): Nontraffic bus or coach occupant -> Other transport: ICD-11 says explicitly nontraffic (ICD-10 V79); decisions 16 and 17 cover only codes unspecified as to traffic,who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA16,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA17,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA18,vas_12_02,split,VAs-12.02,56,ICD-11 2026-01 range PA00-PA5Z,who_2022_va_cause_list_icd10_icd11.csv
@@ -15577,7 +15577,7 @@ WHO_2022_VA_2026,,PA8Y,vas_12_99,range,VAs-12.99,65,ICD-11 2026-01 range PA7Y-PA
 WHO_2022_VA_2026,,PA8Z,vas_12_99,range,VAs-12.99,65,ICD-11 2026-01 range PA7Y-PA8Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA90,vas_12_04,range,VAs-12.04,58,ICD-11 2026-01 range PA90-PA9Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PA91,vas_12_04,range,VAs-12.04,58,ICD-11 2026-01 range PA90-PA9Z,who_2022_va_cause_list_icd10_icd11.csv
-WHO_2022_VA_2026,,PA92,vas_12_04,range,VAs-12.04,58,ICD-11 2026-01 range PA90-PA9Z,who_2022_va_cause_list_icd10_icd11.csv
+WHO_2022_VA_2026,,PA92,vas_12_03,owner_decision,VAs-12.03,37,Owner decision 20 (2026-09-29): Injury other than drowning following fall into water -> Accidental fall; the title excludes drowning and ICD-10 W16 is in W00-W19,who_2022_va_icd11_owner_decisions.csv
 WHO_2022_VA_2026,,PA9Z,vas_12_04,range,VAs-12.04,58,ICD-11 2026-01 range PA90-PA9Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PB00,vas_12_99,range,VAs-12.99,65,ICD-11 2026-01 range PB00-PB0Z,who_2022_va_cause_list_icd10_icd11.csv
 WHO_2022_VA_2026,,PB01,vas_12_99,range,VAs-12.99,65,ICD-11 2026-01 range PB00-PB0Z,who_2022_va_cause_list_icd10_icd11.csv

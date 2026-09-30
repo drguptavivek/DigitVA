@@ -11,11 +11,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > plain `docker compose up` skips that and Celery refuses to start). Add
 > `--profile icd11` for the WHO API and public DORIS. Log in on port 8051 as
 > the seeded admin in `AGENTS.md`: two-step login (email + proof-of-work
-> CAPTCHA, then password or passkey); the dev `testadmin` has a passkey, so a
-> password sign-in asks for a second factor.
+> CAPTCHA, then password or passkey). The dev `testadmin` has no passkey:
+> the one a virtual authenticator left on 2026-09-28 was removed 2026-09-30.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2569 passed before the 2026-09-30 night; not rerun in full since, see
-> item 1). One pytest run per test database at a time. Web form package:
+> (2814 passed on 2026-10-01, before two more seed tests). One pytest run per test database at a time. Web form package:
 > `cd vendor/who-va-2022 && npx vitest run` (786 pass); rebuild the served
 > bundle with `cd tooling/who-va-2022 && node build.mjs && node check.mjs`.
 > Android app: `mobile/digitva-collect/README.md` (`npx jest`: 66 pass).
@@ -23,11 +22,18 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **Run the full test suite** (command above) and fix anything it finds.
-   The overnight session (21 commits, `962f247`..`d059b711`) verified each
-   change on targeted runs of up to 390 tests; a full run was refused by
-   the permission check after the first commit and was not retried.
-2. **Owner browser checks** that needed an admin or supervisor login
+1. `digitva-583` org setup page: district reference card drawn from the
+   default template, template updated to the district model
+   (`docs/policy/district-reference-model.md`, proposed), button renamed
+   "Populate district defaults", TST001 rebuilt on the template's level codes.
+2. `digitva-nk1` People & roles matrix, which is also the access audit page
+   (owner decisions in the bead: everyone sees own units plus reporting line,
+   audit columns for admin/PI/DM, green/red/blank legend). Policy text first.
+3. `digitva-t6q` `death_reporter` role (ANM, MPW, ASHA): policy text for the
+   owner to approve, then code. Proposals `digitva-eiw` (mentor units beside
+   the DH, with mentoring links) and `digitva-vjt` (default roles per cadre)
+   wait for owner decisions.
+4. **Owner browser checks** that needed an admin or supervisor login
    (granting admin to a test account was refused):
    - Setup home (`digitva-r1p`, phases 2-4 built): each hosted panel inside
      the admin shell (Organization tree, Coding scope block, Project Sites
@@ -36,17 +42,17 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
      Activity) and People > Devices (create code, QR, list, revoke).
    - `/intake/supervision` as an `interview_supervisor` and as a data manager.
    - Duplicate hint banner and badge on `/intake/` and the form.
-3. **Owner decisions** (below), especially `digitva-vzk.12`: a refusal on a
+5. **Owner decisions** (below), especially `digitva-vzk.12`: a refusal on a
    direct-start interview can never be submitted, web or phone, because the
    minimum identity is asked after consent.
-4. `digitva-kmk.5` Android release: signing and distribution (C4), a real
+6. `digitva-kmk.5` Android release: signing and distribution (C4), a real
    device for biometric enforcement, QR camera scan, the 5-minute lock with
    the form open. Until then debug builds only, non-production server.
-5. `digitva-ej1` attachments (audio, document images) for web intake, then
+7. `digitva-ej1` attachments (audio, document images) for web intake, then
    on the phone as BLOBs in the encrypted store.
-6. `digitva-4in`: DM KPI dashboard shell admits admin/collaborators but its
+8. `digitva-4in`: DM KPI dashboard shell admits admin/collaborators but its
    APIs are data_manager-only; needs a PII review before opening.
-7. Carried over: `digitva-ddv.2` production release (now also every
+9. Carried over: `digitva-ddv.2` production release (now also every
    migration from `c4e8a2f6b9d3` to `b8d2e5f1a7c3`, and `DEVICE_PUBLIC_URL`
    if devices are used), `digitva-sn1.1.7` real-device passkeys,
    `digitva-cts`, `digitva-hln` owner steps, `digitva-ddv.5`, `digitva-fb5`
@@ -71,7 +77,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Open owner decisions
 
-- `vzk.12` refusal before identity (see item 3).
+- `vzk.12` refusal before identity (see item 5).
 - Incomplete interview outcomes (partially completed, respondent
   unavailable) route to the existing `consent_refused` workflow state, so DM
   KPIs count them as consent refusals. Alternatives: a new state, or no

@@ -38,6 +38,7 @@ Read these documents in this order:
 15. [Health-System Organization Model](health-system-organization-model.md)
 16. [DORIS COD Workflow](doris-cod-workflow.md)
 17. [Device Collection API](device-collection-api.md)
+18. [Test Project TST001](test-project-tst001.md)
 
 Related planning:
 

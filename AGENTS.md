@@ -126,6 +126,10 @@ docker compose exec minerva_app_service uv run flask seed run
 Restore the baseline test dataset (`private/test_data.sql`): `./scripts/restore-test-db.sh`
 (resets schema, restores, migrates, seeds testadmin).
 
+Organization and web-intake test project TST001 (dev/staging only, idempotent,
+not part of `seed run`): `flask seed test-project`; tree, grid and roster in
+`docs/current-state/test-project-tst001.md`.
+
 | Role | Email | Password |
 | --- | --- | --- |
 | Admin | testadmin@digitva.com | Admin@123 |

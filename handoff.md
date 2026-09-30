@@ -30,7 +30,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    (owner decisions in the bead: everyone sees own units plus reporting line,
    audit columns for admin/PI/DM, green/red/blank legend). Policy text first.
 3. `digitva-t6q` `death_reporter` role (ANM, MPW, ASHA): policy text for the
-   owner to approve, then code. Proposals `digitva-eiw` (mentor units beside
+   owner to approve, then code. Proposals `digitva-5op` (district team views
+   translations and suggests changes), `digitva-eiw` (mentor units beside
    the DH, with mentoring links) and `digitva-vjt` (default roles per cadre)
    wait for owner decisions.
 4. **Owner browser checks** that needed an admin or supervisor login

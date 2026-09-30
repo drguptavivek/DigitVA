@@ -158,8 +158,10 @@ def dashboard():
                         reviewer_unit_filter,
                         not_confirmed_duplicate_condition(VaSubmissions.va_sid),
                         # A retired submission is not offered for review, but a
-                        # review already done or still in session stays visible.
-                        # See docs/policy/odk-retired-submissions.md.
+                        # review already done or still in session stays visible
+                        # (docs/policy/odk-retired-submissions.md). That carve-out
+                        # is for retirement only: a confirmed duplicate leaves the
+                        # list in every state, finished reviews included.
                         sa.or_(
                             submission_is_in_odk(),
                             VaSubmissionWorkflow.workflow_state.in_(

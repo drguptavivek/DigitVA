@@ -19,6 +19,10 @@ log = get_task_logger(__name__)
 _IN_ODK_SQL = in_odk_sql("s")
 # Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
+#: Counted from current workflow state whatever the snapshot date.
+_END_OF_DAY_COLUMNS = (
+    "pending_count", "consent_refused_count", "not_codeable_count", "upstream_changed_count",
+)
 
 
 @shared_task(
@@ -97,8 +101,71 @@ def compute_daily_kpi_snapshot(self, snapshot_date=None, site_ids=None):
     }
 
 
-def _compute_site_snapshot(db, snapshot_date: date, site_id: str) -> None:
-    """Compute and upsert KPI aggregates for a single site and date."""
+@shared_task(
+    name="app.tasks.kpi_tasks.recompute_kpi_days_for_submission",
+    soft_time_limit=120,
+    time_limit=180,
+)
+def recompute_kpi_days_for_submission(va_sid: str) -> dict:
+    """Recount the stored daily KPI rows one submission's counts touched.
+
+    Queued after a web case is confirmed as a duplicate or reopened
+    (app/services/case_transition_service.py), so stored rows agree with the
+    live counts, which apply the predicate at query time. The days are the
+    ones the per-day counts key on (created, last ODK update, and the
+    coded / reviewer-finalized / reopened events), found with the same
+    ``DATE(...)`` expressions, on the submission's form site, and only where
+    a row is already stored: a missing day is live-filled by its readers.
+    Past days keep their end-of-day columns (``keep_end_of_day``); today's
+    row is recounted whole.
+
+    ponytail: ``total_submissions`` is cumulative, so stored days between
+    those recounted keep the old total until they are recomputed
+    (``flask kpi backfill``); recount every stored day after creation if
+    that drift matters.
+    """
+    from app import db
+
+    rows = db.session.execute(
+        sa.text("""
+            WITH sub AS (
+                SELECT f.site_id, s.va_created_at, s.va_odk_updatedat
+                FROM va_submissions s
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE s.va_sid = :va_sid
+            ), days AS (
+                SELECT DATE(va_created_at) AS d FROM sub
+                UNION SELECT DATE(va_odk_updatedat) FROM sub
+                UNION SELECT DATE(e.event_created_at)
+                FROM va_submission_workflow_events e
+                WHERE e.va_sid = :va_sid
+                  AND e.transition_id IN (
+                      'coder_finalized', 'recode_finalized', 'reviewer_finalized', 'reopened'
+                  )
+            )
+            SELECT a.site_id, a.snapshot_date, a.snapshot_date < CURRENT_DATE AS past
+            FROM va_daily_kpi_aggregates a
+            JOIN sub ON sub.site_id = a.site_id
+            JOIN days ON days.d = a.snapshot_date
+            ORDER BY a.snapshot_date
+        """),
+        {"va_sid": va_sid},
+    ).all()
+    for site_id, snapshot_date, past in rows:
+        _compute_site_snapshot(db, snapshot_date, site_id, keep_end_of_day=past)
+    log.info("Recomputed %d stored KPI day(s) for a duplicate status change", len(rows))
+    return {"status": "ok", "days_recomputed": len(rows)}
+
+
+def _compute_site_snapshot(db, snapshot_date: date, site_id: str, keep_end_of_day: bool = False) -> None:
+    """Compute and upsert KPI aggregates for a single site and date.
+
+    The end-of-day columns (pending, consent refused, not codeable, upstream
+    changed) count *current* workflow state. ``keep_end_of_day`` recounts
+    only the other columns and keeps the stored end-of-day ones, so a past
+    day recomputed later keeps the backlog it had (backlog_trend reads it as
+    history); it is meant for rows that already exist.
+    """
     # Resolve current owning project for this site
     project_id = db.session.execute(
         sa.text("""
@@ -124,13 +191,19 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str) -> None:
         "new_from_odk": _count_new_from_odk(db, site_id, snapshot_date),
         "updated_from_odk": _count_updated_from_odk(db, site_id, snapshot_date),
         "coded_count": _count_coded(db, site_id, snapshot_date),
-        "pending_count": _count_pending_eod(db, site_id, snapshot_date),
-        "consent_refused_count": _count_consent_refused_eod(db, site_id, snapshot_date),
-        "not_codeable_count": _count_not_codeable_eod(db, site_id, snapshot_date),
         "reviewer_finalized_count": _count_reviewer_finalized(db, site_id, snapshot_date),
-        "upstream_changed_count": _count_upstream_changed_eod(db, site_id, snapshot_date),
         "reopened_count": _count_reopened(db, site_id, snapshot_date),
     }
+    if keep_end_of_day:
+        # NULL keeps the stored value (COALESCE in the upsert below).
+        data.update(dict.fromkeys(_END_OF_DAY_COLUMNS))
+    else:
+        data.update({
+            "pending_count": _count_pending_eod(db, site_id, snapshot_date),
+            "consent_refused_count": _count_consent_refused_eod(db, site_id, snapshot_date),
+            "not_codeable_count": _count_not_codeable_eod(db, site_id, snapshot_date),
+            "upstream_changed_count": _count_upstream_changed_eod(db, site_id, snapshot_date),
+        })
 
     # Compute percentiles
     durations = _compute_coding_duration_percentiles(db, site_id, snapshot_date)
@@ -159,15 +232,15 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str) -> None:
             new_from_odk = EXCLUDED.new_from_odk,
             updated_from_odk = EXCLUDED.updated_from_odk,
             coded_count = EXCLUDED.coded_count,
-            pending_count = EXCLUDED.pending_count,
-            consent_refused_count = EXCLUDED.consent_refused_count,
-            not_codeable_count = EXCLUDED.not_codeable_count,
+            pending_count = COALESCE(EXCLUDED.pending_count, va_daily_kpi_aggregates.pending_count),
+            consent_refused_count = COALESCE(EXCLUDED.consent_refused_count, va_daily_kpi_aggregates.consent_refused_count),
+            not_codeable_count = COALESCE(EXCLUDED.not_codeable_count, va_daily_kpi_aggregates.not_codeable_count),
             coding_duration_min = EXCLUDED.coding_duration_min,
             coding_duration_max = EXCLUDED.coding_duration_max,
             coding_duration_p50 = EXCLUDED.coding_duration_p50,
             coding_duration_p90 = EXCLUDED.coding_duration_p90,
             reviewer_finalized_count = EXCLUDED.reviewer_finalized_count,
-            upstream_changed_count = EXCLUDED.upstream_changed_count,
+            upstream_changed_count = COALESCE(EXCLUDED.upstream_changed_count, va_daily_kpi_aggregates.upstream_changed_count),
             reopened_count = EXCLUDED.reopened_count
     """)
 

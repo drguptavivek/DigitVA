@@ -257,7 +257,7 @@ counts for the part of a project a user holds a grant for
   (registered = `registered_by` on `source = 'register'` cases, started =
   `started_by_user_id`), one over `va_web_intake_drafts` by owner
   (submitted, in progress), one over `map_case_contact_attempts` by
-  `by_user_id` in the last 30 days. Coders: one query over
+  `by_user_id` in the last 30 days (driven by the `attempted_at` index). Coders: one query over
   `va_submission_workflow_events`, the actor of `coder_finalized` (coded)
   and `coder_not_codeable` in the last 7 and 30 days, the attribution
   `dm_coder_daily_statistics` uses; retired submissions and inactive

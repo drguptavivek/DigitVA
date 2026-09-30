@@ -525,8 +525,9 @@ One row per attempt to reach a case's family: `attempt_id`, `death_id` (FK
 `ck_map_case_contact_attempts_outcome`: `reached`, `no_answer`,
 `wrong_number`, `moved`, `refused`), `next_visit_at` (nullable), `by_user_id`
 (FK `va_users`), `created_at`. Outcome only, no notes. Indexed on
-`(death_id, attempted_at)` and `(by_user_id, death_id)`; the second serves the
-worklist's "mine" filter. Written by `web_intake_service.log_contact_attempt`;
+`(death_id, attempted_at)`, `(by_user_id, death_id)` and `(attempted_at)`
+(migration `b8d2e5f1a7c3`); the second serves the worklist's "mine" filter,
+the third the area staff view's 30-day attempt counts. Written by `web_intake_service.log_contact_attempt`;
 a state change the attempt causes is also audited in `map_case_transitions`.
 
 ### Device uploads and device sessions

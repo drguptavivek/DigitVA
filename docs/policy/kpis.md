@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-30
 ---
 
 # Data Manager KPI Framework
@@ -58,7 +58,7 @@ Pre-computed daily grid columns. One row per `(snapshot_date, project_id, site_i
 | `reopened_count` | INT | COUNT of reopen events that day |
 | `created_at` | TIMESTAMPTZ | When this row was inserted |
 
-**Populated by:** Celery task, runs at configured time daily (see App-Level Settings below) + after each sync run.
+**Populated by:** Celery task, runs at configured time daily (see App-Level Settings below) + after each sync run. Confirming a web case as a duplicate, or reopening one, recounts the stored rows that submission touched (`recompute_kpi_days_for_submission`; past days keep their end-of-day columns). See [Coding Workflow State Machine](coding-workflow-state-machine.md), "Confirmed Duplicate Cases".
 **Purpose:** Fast dashboard grid + time-series charts without expensive event-table queries.
 
 ### App-Level Settings

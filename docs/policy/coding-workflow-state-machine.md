@@ -77,8 +77,17 @@ Decisions 10 and 14 of `.tasks/2026-09-28-interviewer-worklist.md`.
   reading coding state neither applies the predicate nor is listed.
 - **Materialized views keep the rows.** Exclusion is applied at query time,
   so confirmation and reopen take effect without a refresh (cached dashboard
-  responses may lag by their TTL). Rows already written to
-  `va_daily_kpi_aggregates` keep a duplicate until that day is recomputed.
+  responses may lag by their TTL).
+- **Stored daily KPI rows are recounted.** Confirming or reopening queues
+  `kpi_tasks.recompute_kpi_days_for_submission` after the commit. It recounts
+  the `va_daily_kpi_aggregates` rows already stored for the submission's form
+  site on the days its counts touched (created, last ODK update, and its
+  coded, reviewer-finalized and reopened events); days with no stored row are
+  live-filled by their readers. A past day keeps its end-of-day columns
+  (pending, consent refused, not codeable, upstream changed), which record
+  that day's backlog; today's row is recounted whole. Known ceiling:
+  `total_submissions` is cumulative, so stored days between those recounted
+  keep the old total until `flask kpi backfill` recomputes them.
 
 ## Core Workflow Tracks
 

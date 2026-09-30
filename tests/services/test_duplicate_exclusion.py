@@ -11,6 +11,7 @@ reopens the case -- so no test passes because the fixture was never seen.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from unittest.mock import patch
 
 import sqlalchemy as sa
 
@@ -20,14 +21,19 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocation,
     VaAllocations,
+    VaCodingEpisode,
     VaDeathRegister,
+    VaFinalAssessments,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
+    VaReviewerFinalAssessments,
     VaSiteMaster,
     VaStatuses,
     VaSubmissions,
+    VaSubmissionsAuditlog,
     VaSubmissionWorkflow,
+    VaSubmissionWorkflowEvent,
     VaUserAccessGrants,
 )
 from app.services import case_transition_service as cases
@@ -43,11 +49,23 @@ from app.services.duplicate_exclusion import (
     not_confirmed_duplicate_condition,
     not_confirmed_duplicate_sql,
 )
+from app.services.final_cod_authority_service import EPISODE_STATUS_ACTIVE, EPISODE_TYPE_RECODE
+from app.services.reviewer_coding_service import ReviewerCodingError, submit_reviewer_final_cod
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from app.services.sitepi_reporting_service import get_project_workflow_kpis
 from app.services.smartva_service import pending_smartva_sids
 from app.services.workflow.state_store import get_submission_workflow_state
+from app.tasks.kpi_tasks import (
+    _compute_site_snapshot,
+    _count_coded,
+    _count_pending_eod,
+    _count_total_submissions,
+    compute_daily_kpi_snapshot,
+    recompute_kpi_days_for_submission,
+)
 from tests.base import BaseTestCase
+
+_RECOUNT_DELAY = "app.tasks.kpi_tasks.recompute_kpi_days_for_submission.delay"
 
 
 class ConfirmedDuplicateExclusionTests(BaseTestCase):
@@ -91,7 +109,28 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
             grant_status=VaStatuses.active, scope_type=VaAccessScopeTypes.project,
             project_id=cls.PROJECT_ID,
         ))
+        # Real coder and reviewer grants, so a refusal after revocation comes
+        # from the missing allocation / state, not from missing access.
+        cls.reviewer = cls._get_or_make_user("dupx.reviewer@test.local", "Duplicate123")
+        project_site_id = db.session.scalar(
+            sa.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == cls.PROJECT_ID, VaProjectSites.site_id == cls.SITE_ID
+            )
+        )
+        for user, role in ((cls.coder, VaAccessRoles.coder), (cls.reviewer, VaAccessRoles.reviewer)):
+            db.session.add(VaUserAccessGrants(
+                user_id=user.user_id, role=role, notes="dupx", grant_status=VaStatuses.active,
+                scope_type=VaAccessScopeTypes.project_site, project_site_id=project_site_id,
+            ))
         db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        # Confirm and reopen queue the stored-KPI recount after commit; record
+        # the call instead of publishing to the broker.
+        patcher = patch(_RECOUNT_DELAY)
+        self.recount_delay = patcher.start()
+        self.addCleanup(patcher.stop)
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -236,10 +275,10 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
 
     # ── allocation revocation and finalized duplicates ─────────────────────
 
-    def _allocate(self, case, purpose):
+    def _allocate(self, case, purpose, user=None):
         allocation = VaAllocations(
             va_allocation_id=uuid.uuid4(), va_sid=case.va_sid,
-            va_allocated_to=self.coder.user_id, va_allocation_for=purpose,
+            va_allocated_to=(user or self.coder).user_id, va_allocation_for=purpose,
         )
         db.session.add(allocation)
         db.session.commit()
@@ -277,3 +316,161 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
         self.assertEqual(get_submission_workflow_state(case.va_sid), "reviewer_finalized")
         self._reopen(case)
         self.assertEqual(get_submission_workflow_state(case.va_sid), "reviewer_finalized")
+
+    def test_confirming_revokes_a_recode_allocation_back_to_coder_finalized(self):
+        """The recode branch: the episode is abandoned, the authoritative final kept."""
+        case = self._case("coding_in_progress")
+        final = VaFinalAssessments(
+            va_sid=case.va_sid, va_finassess_by=self.coder.user_id, va_conclusive_cod="R99",
+            va_finassess_remark="final", va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final)
+        db.session.flush()
+        db.session.add(VaCodingEpisode(
+            episode_id=uuid.uuid4(), va_sid=case.va_sid, episode_type=EPISODE_TYPE_RECODE,
+            episode_status=EPISODE_STATUS_ACTIVE, started_by=self.coder.user_id,
+            base_final_assessment_id=final.va_finassess_id,
+        ))
+        allocation = self._allocate(case, VaAllocation.coding)
+
+        self._confirm(case)
+        db.session.refresh(allocation)
+        db.session.refresh(final)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)
+        self.assertEqual(get_submission_workflow_state(case.va_sid), "coder_finalized")
+        self.assertEqual(final.va_finassess_status, VaStatuses.active)
+        actions = set(db.session.scalars(
+            sa.select(VaSubmissionsAuditlog.va_audit_action).where(
+                VaSubmissionsAuditlog.va_sid == case.va_sid
+            )
+        ))
+        self.assertIn("recode episode abandoned due to duplicate", actions)
+        self.assertIn("va_allocation_revoked_duplicate", actions)
+
+    def test_a_revoked_reviewer_cannot_submit_afterwards(self):
+        case = self._case("reviewer_coding_in_progress")
+        self._allocate(case, VaAllocation.reviewing, user=self.reviewer)
+        state_refusal = "Reviewer final COD can only be submitted from reviewer_coding_in_progress."
+
+        # Presence: with the allocation the reviewer gets past access and
+        # state, and is stopped only by the deliberately invalid COD.
+        with self.assertRaises(ReviewerCodingError) as before:
+            submit_reviewer_final_cod(self.reviewer, case.va_sid, conclusive_cod="NOT-A-CODE")
+        self.assertEqual(before.exception.status_code, 400)
+        db.session.rollback()
+
+        self._confirm(case)
+        with self.assertRaises(ReviewerCodingError) as after:
+            submit_reviewer_final_cod(self.reviewer, case.va_sid, conclusive_cod="NOT-A-CODE")
+        self.assertEqual(str(after.exception), state_refusal)
+        self.assertIsNone(db.session.scalar(
+            sa.select(VaReviewerFinalAssessments).where(
+                VaReviewerFinalAssessments.va_sid == case.va_sid
+            )
+        ))
+
+    def test_a_revoked_coder_cannot_save_afterwards(self):
+        case = self._case("coding_in_progress")
+        self._allocate(case, VaAllocation.coding)
+        self._login(self.coder.get_id())
+        url = f"/vaform/{case.va_sid}/vafinalasses?action=vacode&actiontype=vastartcoding"
+
+        # Presence: with the allocation the permission gate lets the same
+        # (empty) save through.
+        before = self.client.post(url, data={}, headers=self._csrf_headers())
+        self.assertEqual(before.status_code, 200)
+        db.session.rollback()
+
+        self._confirm(case)
+        after = self.client.post(url, data={}, headers=self._csrf_headers())
+        self.assertEqual(after.status_code, 403)
+        self.assertIsNone(db.session.scalar(
+            sa.select(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid == case.va_sid,
+                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            )
+        ))
+
+    # ── stored daily KPI rows ──────────────────────────────────────────────
+
+    # Task bodies are called through ``.run``: calling the task pushes its own
+    # app context (FlaskTask), whose session cannot see this test's savepoint.
+
+    def _stored(self, day, column):
+        return db.session.scalar(
+            sa.text(
+                f"SELECT {column} FROM va_daily_kpi_aggregates "  # column: hardcoded below
+                "WHERE snapshot_date = :d AND site_id = :s"
+            ),
+            {"d": day, "s": self.SITE_ID},
+        )
+
+    def test_the_daily_snapshot_task_excludes_a_confirmed_duplicate(self):
+        """Every raw-SQL count in kpi_tasks runs with the predicate."""
+        case = self._case("ready_for_coding")
+        today = db.session.scalar(sa.text("SELECT CURRENT_DATE"))
+        compute_daily_kpi_snapshot.run(snapshot_date=today.isoformat(), site_ids=[self.SITE_ID])
+        pending, total = self._stored(today, "pending_count"), self._stored(today, "total_submissions")
+        self.assertGreaterEqual(pending, 1)
+
+        self._confirm(case)
+        result = compute_daily_kpi_snapshot.run(snapshot_date=today.isoformat(), site_ids=[self.SITE_ID])
+        self.assertEqual(result["sites_processed"], 1)
+        self.assertEqual(self._stored(today, "pending_count"), pending - 1)
+        self.assertEqual(self._stored(today, "total_submissions"), total - 1)
+        self.assertEqual(_count_pending_eod(db, self.SITE_ID, today), pending - 1)
+
+    def test_confirm_and_reopen_recount_the_stored_days_the_case_touched(self):
+        case = self._case("coder_finalized")
+        today = db.session.scalar(sa.text("SELECT CURRENT_DATE"))
+        yesterday = today - timedelta(days=1)
+        db.session.add(VaSubmissionWorkflowEvent(
+            va_sid=case.va_sid, transition_id="coder_finalized", previous_state="coder_step1_saved",
+            current_state="coder_finalized", event_created_at=datetime.now(UTC) - timedelta(days=1),
+        ))
+        db.session.commit()
+        _compute_site_snapshot(db, today, self.SITE_ID)
+        _compute_site_snapshot(db, yesterday, self.SITE_ID)
+        # A past day's end-of-day columns are history; the recount keeps them.
+        db.session.execute(
+            sa.text(
+                "UPDATE va_daily_kpi_aggregates SET pending_count = 999 "
+                "WHERE snapshot_date = :d AND site_id = :s"
+            ),
+            {"d": yesterday, "s": self.SITE_ID},
+        )
+        db.session.commit()
+        coded, total = self._stored(yesterday, "coded_count"), self._stored(today, "total_submissions")
+        # Presence: the stored rows count the case, as the live counts do.
+        self.assertGreaterEqual(coded, 1)
+        self.assertEqual(coded, _count_coded(db, self.SITE_ID, yesterday))
+        self.assertEqual(total, _count_total_submissions(db, self.SITE_ID, today))
+
+        def recount():
+            self.recount_delay.assert_called_once_with(case.va_sid)
+            self.recount_delay.reset_mock()
+            return recompute_kpi_days_for_submission.run(case.va_sid)
+
+        self._confirm(case)
+        self.assertEqual(recount()["days_recomputed"], 2)
+        self.assertEqual(self._stored(yesterday, "coded_count"), coded - 1)
+        self.assertEqual(self._stored(yesterday, "coded_count"), _count_coded(db, self.SITE_ID, yesterday))
+        self.assertEqual(self._stored(today, "total_submissions"), total - 1)
+        self.assertEqual(
+            self._stored(today, "total_submissions"), _count_total_submissions(db, self.SITE_ID, today)
+        )
+        self.assertEqual(self._stored(yesterday, "pending_count"), 999)
+
+        self._reopen(case)
+        self.assertEqual(recount()["days_recomputed"], 2)
+        self.assertEqual(self._stored(yesterday, "coded_count"), coded)
+        self.assertEqual(self._stored(today, "total_submissions"), total)
+        self.assertEqual(self._stored(yesterday, "pending_count"), 999)
+
+    def test_a_rolled_back_confirmation_queues_no_recount(self):
+        case = self._case("ready_for_coding")
+        cases.flag_case(case, actor=self.dana, kind="duplicate", duplicate_of=self.kept, reason="same")
+        self.recount_delay.assert_not_called()  # not before the commit
+        db.session.rollback()
+        db.session.commit()  # a later commit must not queue the dropped one
+        self.recount_delay.assert_not_called()

@@ -214,6 +214,8 @@ class MapCaseContactAttempt(db.Model):
         sa.Index("ix_map_case_contact_attempts_death_attempted", "death_id", "attempted_at"),
         # The worklist's "Mine" filter counts attempts the user logged.
         sa.Index("ix_map_case_contact_attempts_by_user", "by_user_id", "death_id"),
+        # The area staff view counts the last 30 days' attempts across an area.
+        sa.Index("ix_map_case_contact_attempts_attempted", "attempted_at"),
         sa.CheckConstraint(
             "outcome IN (" + ", ".join(f"'{o}'" for o in CONTACT_OUTCOMES) + ")", name="outcome"
         ),

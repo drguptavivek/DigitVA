@@ -41,7 +41,7 @@ APP = pathlib.Path(__file__).resolve().parent.parent / "app"
 
 #: Names coding workflow state or an analytics materialized view.
 READER_PATTERN = re.compile(
-    r"workflow_state|VaSubmissionWorkflow\b|va_submission_workflow"
+    r"workflow_state|VaSubmissionWorkflow(Event)?\b|va_submission_workflow"
     r"|_MV_NAME\b|va_submission_analytics|va_submission_cod_"
 )
 PREDICATE_PATTERN = re.compile(
@@ -75,7 +75,11 @@ EXEMPT = {
     ),
     "routes/api/dm_kpi/dm_kpi_grid.py::daily_grid": (
         "dispatcher; its live queries (_grid_from_*) apply the predicate, the aggregate table "
-        "is pre-counted (see va_daily_kpi_aggregates follow-up)"
+        "is pre-counted by kpi_tasks and recounted on confirm / reopen"
+    ),
+    "routes/api/workflow.py::get_events": (
+        "one named submission's event history for a user with form access; a view, not a "
+        "coding list or count"
     ),
     "routes/api/reviewing.py::finalize": _ONE_ROW,
     "routes/va_form.py::renderpartial": (
@@ -93,6 +97,9 @@ EXEMPT = {
         "one named submission's upstream diff for its data manager"
     ),
     "services/data_management_service.py::dm_screening_pass": _WRITER,
+    "services/demo_project_service.py::should_use_demo_actiontype_for_submission": (
+        "classifies one named submission as a demo session; decides no allocation or count"
+    ),
     "services/data_management_service.py::dm_screening_reject": _WRITER,
     "services/data_management_service.py::dm_accept_upstream_change": _WRITER,
     "services/data_management_service.py::dm_keep_current_icd_on_upstream_change": _WRITER,
@@ -125,6 +132,7 @@ EXEMPT = {
     "services/va_data_sync/va_data_sync_01_odkcentral.py::_upsert_form_submissions": _SYNC,
     "services/va_data_sync/va_data_sync_01_odkcentral.py::_finalize_enriched_submissions_for_form": _SYNC,
     "services/workflow/definition.py::coding_bucket": "pure state -> bucket mapping",
+    "services/workflow/events.py::record_workflow_event": _WRITER,
     "services/workflow/state_store.py::get_submission_workflow_record": _WRITER,
     "services/workflow/state_store.py::set_submission_workflow_state": _WRITER,
     "services/workflow/state_store.py::infer_workflow_state_from_legacy_records": _WRITER,
@@ -136,6 +144,10 @@ EXEMPT = {
     "services/workflow/transitions.py::_apply_transition": _WRITER,
     "services/workflow/transitions.py::_apply_release_reset_transition": _WRITER,
     "services/workflow/upstream_changes.py::record_protected_upstream_change": _SYNC,
+    "tasks/kpi_tasks.py::recompute_kpi_days_for_submission": (
+        "finds the stored days a duplicate touched, so it must see it; the recount itself "
+        "runs through the predicate-applying _count_* queries"
+    ),
     "tasks/sync_tasks.py::_refresh_batch_plan_after_enrichment": _SYNC,
     "tasks/sync_tasks.py::refresh_submission_analytics_mv_task": _MV_DDL,
     "utils/va_permission/va_permission_07_ensurenotreviewed.py::va_permission_ensurenotreviewed": _ONE_ROW,
@@ -187,6 +199,8 @@ def test_every_coding_state_reader_applies_the_predicate_or_is_exempt():
     # Presence first: the sweep must see the readers this rule exists for.
     assert "services/coder_workflow_service.py::allocate_random_form" in readers
     assert "services/submission_analytics_mv.py::get_dm_kpi_from_mv" in readers
+    # Readers of workflow *events* only (VaSubmissionWorkflowEvent) count too.
+    assert "services/area_dashboard_service.py::_coder_rows" in readers
 
     missing = sorted(
         key for key in readers - EXEMPT.keys() if not _applies(FUNCTIONS[key])

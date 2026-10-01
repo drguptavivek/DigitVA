@@ -1211,7 +1211,11 @@
         document.getElementById('kpi-smartva-missing').textContent = fmt(d.smartva_missing_submissions);
         document.getElementById('kpi-smartva-failed').textContent  = fmt(d.smartva_failed_submissions);
         document.getElementById('kpi-revoked').textContent         = fmt(d.revoked_submissions);
-        document.getElementById('kpi-consent-refused').textContent = fmt(d.consent_refused_submissions);
+        document.getElementById('kpi-consent-refused').textContent = fmt(d.not_analysable_submissions);
+        const r = d.not_analysable_by_reason || {};
+        document.getElementById('kpi-not-analysable-reasons').textContent =
+          'Refused ' + fmt(r.refused || 0) + ' · Unavailable ' + fmt(r.respondent_unavailable || 0) +
+          ' · Partial ' + fmt(r.partially_completed || 0);
         document.getElementById('kpi-smartva-pending').textContent = fmt(d.smartva_pending_submissions);
         document.getElementById('kpi-missing-in-odk').textContent  = fmt(d.missing_in_odk_submissions);
         if (typeof __dm_update_workflow_counts === 'function') {

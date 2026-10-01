@@ -10,7 +10,8 @@ import {
   createConsentModeQuestion,
   createDigitVaExtension,
   createDorisSupportExtension,
-  createInterviewOutcome
+  createInterviewOutcome,
+  createVisitNote
 } from "./digitva-extension.js";
 
 import type { InstrumentDefinition, InstrumentQuestion, InstrumentSection } from "./types.js";
@@ -146,13 +147,17 @@ export function createWhoVa2022Instrument(
 
   // digitva_core: interview_outcome closes the form, after WHO's closing note
   // and every layer, numbered past everything so its section sorts last.
-  const outcome = createInterviewOutcome(
+  // The visit note (identity-less refusals only) sits just before it.
+  const visitNote = createVisitNote(
     Math.max(...composed.map((q) => q.order), ...sections.map((s) => s.order))
+  );
+  const outcome = createInterviewOutcome(
+    Math.max(...visitNote.questions.map((q) => q.order))
   );
   return {
     ...generated,
-    sections: [...sections, outcome.section],
-    questions: [...composed, outcome.question]
+    sections: [...sections, visitNote.section, outcome.section],
+    questions: [...composed, ...visitNote.questions, outcome.question]
   };
 }
 

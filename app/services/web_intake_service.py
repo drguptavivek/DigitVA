@@ -1294,6 +1294,22 @@ def _interview_outcome(data: dict, completion: dict) -> str:
     )
 
 
+def _visit_note(data: dict) -> dict:
+    """The visit note an identity-less refusal carries: address and date of
+    the visit required (422), remarks optional. Keyed by the form's answer
+    names so it is stored in the payload exactly as the form collects it."""
+    try:
+        address = _clean(data.get("visit_address"), what="Visit address", required=True, max_len=500)
+        visited = _clean_date(data.get("visit_date"), what="Visit date", required=True)
+        remarks = _clean(data.get("visit_remarks"), what="Visit remarks", max_len=2000)
+    except WebIntakeError as exc:
+        raise WebIntakeError(f"A refusal with no identity needs a visit note: {exc}", 422) from exc
+    note = {"visit_address": address, "visit_date": visited.isoformat()}
+    if remarks:
+        note["visit_remarks"] = remarks
+    return note
+
+
 def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
@@ -1312,6 +1328,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     consent = normalize_consent(data.get("Id10013"))
     _require_live_org_unit(draft)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    visit_note: dict = {}
     if death is not None:
         _sync_case_identity(death, data, user)
         # A refusal needs no identity: WHO asks it after consent, so a direct
@@ -1323,6 +1340,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             raise WebIntakeError(
                 "Record the name, date of death and sex of the deceased before submitting.", 422
             )
+        if identity_pending:
+            visit_note = _visit_note(data)
         _begin_interview(death, user)
         if not (identity_pending or death.status in ("in_progress", "paused")):
             raise WebIntakeError("This case is closed.", 409)
@@ -1342,6 +1361,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     # Final submit only (never a draft save): remove answers to questions
     # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
     stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
+    # Added after stripping: the form shows the note only while no given name
+    # is recorded, so a partial identity would otherwise lose it as irrelevant.
+    stripped_data = {**stripped_data, **visit_note}
     payload, references = build_web_payload(draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source)
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
@@ -1420,6 +1442,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
     draft.meta = {**(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome}
+    if visit_note:
+        draft.meta = {**draft.meta, "visitNote": visit_note}
     if death is not None:
         action = "submitted" if outcome == "completed" else f"submitted_{outcome}"
         to_state = "cancelled" if identity_pending else OUTCOME_CASE_STATES[outcome]

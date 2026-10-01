@@ -840,6 +840,15 @@
     },
     {
       "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "digitva_visit_note",
+      "itemKind": "question",
+      "text": "Visit note"
+    },
+    {
+      "extensions": [
         "doris_support_whova_2022"
       ],
       "field": "label",
@@ -1737,6 +1746,42 @@
       "itemKey": "socioeconomic",
       "itemKind": "question",
       "text": "Socio Economic Details"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "hint",
+      "itemKey": "visit_address",
+      "itemKind": "question",
+      "text": "Where the interview was attempted, so the household can be identified."
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "visit_address",
+      "itemKind": "question",
+      "text": "Address visited"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "visit_date",
+      "itemKind": "question",
+      "text": "Date of the visit"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "visit_remarks",
+      "itemKind": "question",
+      "text": "Remarks"
     }
   ],
   "extensionCounts": {
@@ -1752,8 +1797,8 @@
     },
     "digitva_core": {
       "choices": 6,
-      "questions": 3,
-      "sections": 1
+      "questions": 6,
+      "sections": 2
     },
     "doris_support_whova_2022": {
       "choices": 24,

@@ -37,6 +37,7 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
+from app.services import not_analysable
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
@@ -63,8 +64,12 @@ def exclusion_rates():
       Scope: ALL-SYNCED.
       Time frames: Snapshot.
 
-    C-06 — Consent Refusal Rate:
-      Numerator: COUNT WHERE workflow_state = 'consent_refused'.
+    C-06 — Not Analysable Rate (was Consent Refusal Rate):
+      Numerator: COUNT WHERE workflow_state = 'consent_refused', the one
+                 state holding refused, respondent-unavailable and partially
+                 completed interviews (app/services/not_analysable.py), with
+                 a per-reason split under ``not_analysable.by_reason``. The
+                 ``consent_refused`` key is kept for existing readers.
       Denominator: COUNT of ALL-SYNCED.
       Rate: N / D × 100.
       Time frames: Snapshot.
@@ -107,6 +112,22 @@ def exclusion_rates():
             {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
+        reason_rows = db.session.execute(
+            sa.text(f"""
+                SELECT {not_analysable.REASON_SQL} AS reason, COUNT(*) AS cnt
+                FROM va_submissions s
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+                {not_analysable.PAYLOAD_JOIN_SQL}
+                WHERE f.site_id = ANY(:site_ids)
+                  AND w.workflow_state = 'consent_refused'
+                  AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
+                GROUP BY 1
+            """),
+            {**IN_ODK_BIND, "site_ids": site_ids},
+        ).all()
+
         all_synced = row["all_synced"] or 0
         consent = row["consent_refused"] or 0
         dm_nc = row["dm_not_codeable"] or 0
@@ -119,6 +140,11 @@ def exclusion_rates():
         return {
             "all_synced": all_synced,
             "consent_refused": {"count": consent, "rate": pct(consent, all_synced)},
+            "not_analysable": {
+                "count": consent,
+                "rate": pct(consent, all_synced),
+                "by_reason": not_analysable.by_reason(reason_rows),
+            },
             "not_codeable_overall": {
                 "count": dm_nc + coder_nc,
                 "rate": pct(dm_nc + coder_nc, all_synced),

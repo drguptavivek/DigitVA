@@ -155,6 +155,8 @@ PII_FIELDS: dict[str, str] = {
     "Id10010a": PII_TYPE_IDENTIFIER,  # age of VA interviewer
     "Id10010b": PII_TYPE_IDENTIFIER,  # sex of VA interviewer
     # --- DigitVA extension fields (web intake) ---
+    "visit_address": PII_TYPE_LOCATION,  # identity-less refusal visit note, free text
+    "visit_remarks": PII_TYPE_LOCATION,  # visit note remarks, free text
     "abha_number": PII_TYPE_IDENTIFIER,
     "abha_address": PII_TYPE_IDENTIFIER,
 }

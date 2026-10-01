@@ -151,7 +151,7 @@
             { field: 'updated', headerName: 'Updated', flex: 1, type: 'rightAligned' },
             { field: 'coded', headerName: 'Coded', flex: 1, type: 'rightAligned' },
             { field: 'pending', headerName: 'Pending', flex: 1, type: 'rightAligned' },
-            { field: 'consent_refused', headerName: 'Consent Refused', flex: 1, type: 'rightAligned' },
+            { field: 'consent_refused', headerName: 'Not analysable', flex: 1, type: 'rightAligned' },
           ],
           rowData: gridData,
           domLayout: 'normal',
@@ -243,10 +243,14 @@
         document.getElementById('dm-kpi-not-codeable-rate').textContent =
           formatRate(nc.rate);
 
-        // C-06: Consent refused rate — API: rates.consent_refused.rate
-        const cr = rates.consent_refused || {};
+        // C-06: Not analysable rate — API: rates.not_analysable.rate, .by_reason
+        const cr = rates.not_analysable || {};
         document.getElementById('dm-kpi-consent-refused-rate').textContent =
           formatRate(cr.rate);
+        const br = cr.by_reason || {};
+        document.getElementById('dm-kpi-not-analysable-reasons').textContent =
+          '· Refused ' + (br.refused || 0) + ' · Unavailable ' + (br.respondent_unavailable || 0) +
+          ' · Partial ' + (br.partially_completed || 0);
 
         // C-09: % reviewed — API: reviewed.rate
         document.getElementById('dm-kpi-reviewed-rate').textContent =
@@ -655,7 +659,7 @@
       html += '<div class="wf-node wf-terminal">';
       html += '<div class="wf-node-label">Excluded</div>';
       if (excEntry.consent_refused > 0) {
-        html += '<div class="wf-excl-line"><small>Consent Refused: <strong>' + excEntry.consent_refused + '</strong></small></div>';
+        html += '<div class="wf-excl-line"><small>Not analysable: <strong>' + excEntry.consent_refused + '</strong></small></div>';
       }
       if (excEntry.not_codeable_dm > 0) {
         html += '<div class="wf-excl-line"><small>Not Codeable (DM): <strong>' + excEntry.not_codeable_dm + '</strong></small></div>';
@@ -973,7 +977,7 @@
     finalized_upstream_changed: 'Upstream Changed',
     not_codeable_by_coder: 'Not Codeable (Coder)',
     not_codeable_by_data_manager: 'Not Codeable (DM)',
-    consent_refused: 'Consent Refused',
+    consent_refused: 'Not Analysable',
   };
 
   var STATE_PHASES = {

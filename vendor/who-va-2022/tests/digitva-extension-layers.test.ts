@@ -299,6 +299,33 @@ describe("interview_outcome", () => {
   });
 });
 
+describe("visit note", () => {
+  const names = ["visit_address", "visit_date", "visit_remarks"];
+
+  it("is asked only when consent is no and the case identity is incomplete", () => {
+    const instrument = createWhoVa2022Instrument(BASE_ONLY);
+    const address = question(instrument, "visit_address")!;
+    expect(isQuestionRelevant(instrument, address, { Id10013: "no" })).toBe(true);
+    expect(isQuestionRelevant(instrument, address, { Id10013: "yes" })).toBe(false);
+    expect(isQuestionRelevant(instrument, address, {})).toBe(false);
+    // A name alone leaves the case in draft_identity, so the server still wants the note.
+    expect(isQuestionRelevant(instrument, address, { Id10013: "no", Id10017: "Asha" })).toBe(true);
+    expect(isQuestionRelevant(instrument, address, { Id10013: "no", Id10017: "Asha", Id10019: "female" })).toBe(true);
+    // A register case arrives with name, sex and date of death prefilled.
+    const full = { Id10013: "no", Id10017: "Asha", Id10019: "female", Id10022: "yes", Id10020: "yes", Id10023_a: "2026-01-02" };
+    expect(isQuestionRelevant(instrument, address, full)).toBe(false);
+  });
+
+  it("requires address and visit date, leaves remarks optional, and sits before interview_outcome", () => {
+    const instrument = createWhoVa2022Instrument(BASE_ONLY);
+    expect(names.map((n) => question(instrument, n)!.required)).toEqual([true, true, false]);
+    expect(question(instrument, "visit_date")!.constraint?.source).toBe(". <= today()");
+    const order = instrument.questions.map((q) => q.name);
+    expect(order.indexOf("visit_remarks")).toBeLessThan(order.indexOf("interview_outcome"));
+    expect(order[order.length - 1]).toBe("interview_outcome");
+  });
+});
+
 describe("social_autopsy", () => {
   const SA_QUESTION_NAMES = [
     "sa01",

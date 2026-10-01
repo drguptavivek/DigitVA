@@ -31,6 +31,7 @@ from datetime import UTC, datetime, timedelta
 import sqlalchemy as sa
 
 from app import db
+from app.services import not_analysable
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.odk_retirement_service import MISSING_IN_ODK
@@ -1444,12 +1445,31 @@ def get_dm_kpi_from_mv(
         sa.select(sa.func.count()).select_from(joined).where(missing_in_odk_where)
     ) or 0
 
-    consent_refused = db.session.scalar(
-        sa.select(sa.func.count())
-        .select_from(joined)
-        .where(where)
-        .where(core.c.workflow_state == WORKFLOW_CONSENT_REFUSED)
-    ) or 0
+    # "Not analysable": every consent_refused row, split by the reason read
+    # from the active payload (app/services/not_analysable.py).
+    from app.models import VaSubmissionPayloadVersion, VaSubmissions
+    outcome = VaSubmissionPayloadVersion.payload_data["interview_outcome"].astext
+    reason = sa.case(
+        (outcome.in_(["respondent_unavailable", "partially_completed"]), outcome),
+        else_="refused",
+    )
+    not_analysable_by_reason = not_analysable.by_reason(
+        db.session.execute(
+            sa.select(reason, sa.func.count())
+            .select_from(
+                joined.join(VaSubmissions, VaSubmissions.va_sid == core.c.va_sid)
+                .outerjoin(
+                    VaSubmissionPayloadVersion,
+                    VaSubmissionPayloadVersion.payload_version_id
+                    == VaSubmissions.active_payload_version_id,
+                )
+            )
+            .where(where)
+            .where(core.c.workflow_state == WORKFLOW_CONSENT_REFUSED)
+            .group_by(reason)
+        ).all()
+    )
+    consent_refused = sum(not_analysable_by_reason.values())
 
     # Per-state counts for the workflow flowchart — single GROUP BY query
     state_rows = db.session.execute(
@@ -1471,6 +1491,8 @@ def get_dm_kpi_from_mv(
         "smartva_failed_submissions": smartva_failed,
         "revoked_submissions": revoked,
         "consent_refused_submissions": consent_refused,
+        "not_analysable_submissions": consent_refused,
+        "not_analysable_by_reason": not_analysable_by_reason,
         "missing_in_odk_submissions": missing_in_odk,
         "workflow_counts": workflow_counts,
     }

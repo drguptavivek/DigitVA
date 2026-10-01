@@ -698,6 +698,62 @@ export function createConsentModeQuestion(order: number, sectionPath: string[]):
   });
 }
 
+/** Section holding the visit note asked of an identity-less refusal. */
+export const DIGITVA_VISIT_NOTE_SECTION = "digitva_visit_note";
+
+/**
+ * digitva_core: WHO asks the deceased's identity after consent, so a direct
+ * start refused at consent has none and nothing says which household it was.
+ * This short note (address, visit date, remarks) is asked in that case only:
+ * consent is no and no given name was recorded (a register case arrives with
+ * its identity prefilled). The server requires address and date on the same
+ * path (docs/policy/web-intake.md, "Submission"). Its own top-level section,
+ * numbered before `interview_outcome`, which stays last.
+ */
+export function createVisitNote(order: number): { section: InstrumentSection; questions: InstrumentQuestion[] } {
+  const relevant = expression(
+    "selected(${Id10013}, 'no') and (string-length(${Id10017}) = 0 or string-length(${Id10019}) = 0 or string-length(${Id10023}) = 0)"
+  );
+  const path = [DIGITVA_VISIT_NOTE_SECTION];
+  const dateConstraint = ". <= today()";
+  const required = (dataType: string, extra: Partial<InstrumentQuestion["validation"]> = {}) => ({
+    required: true,
+    dataType,
+    constraintMessage: {},
+    ...extra
+  });
+  return {
+    section: {
+      name: DIGITVA_VISIT_NOTE_SECTION,
+      sourceRow: 0,
+      order,
+      label: { en: "Visit note" },
+      ageGroup: "ALL",
+      relevant
+    },
+    questions: [
+      base("visit_address", order + 1, path, "Address visited", {
+        required: true,
+        hint: { en: "Where the interview was attempted, so the household can be identified." },
+        validation: required("string")
+      }),
+      base("visit_date", order + 2, path, "Date of the visit", {
+        sourceType: "date",
+        dataType: "date",
+        control: "date",
+        required: true,
+        constraint: expression(dateConstraint),
+        constraintMessage: { en: "Cannot be in the future" },
+        validation: required("date", {
+          constraint: expression(dateConstraint),
+          constraintMessage: { en: "Cannot be in the future" }
+        })
+      }),
+      base("visit_remarks", order + 3, path, "Remarks", {})
+    ]
+  };
+}
+
 /** Section holding `interview_outcome`: top-level, no relevance, always last. */
 export const DIGITVA_OUTCOME_SECTION = "digitva_outcome";
 

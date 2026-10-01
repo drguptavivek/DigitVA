@@ -33,7 +33,7 @@ from tests.base import BaseTestCase
 # redaction-only row for each (NULL category/subcategory, never rendered).
 # Kept in step with tests/migrations/test_migrate_who_2022_va.py, which asserts
 # the same invariant from the other side.
-PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address"}
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address", "visit_address", "visit_remarks"}
 
 
 LABELS_PATH = Path("resource/mapping/mapping_labels.xlsx")
@@ -82,7 +82,7 @@ class TestMigrationCompleteness(BaseTestCase):
         """DB field count matches Excel, plus the registry's own sentinel rows.
 
         The migration applies ``pii_field_registry`` so a fresh database is
-        never left with personal-data fields unflagged. Three of the registry's
+        never left with personal-data fields unflagged. Five of the registry's
         fields are not in the Excel mapping at all and get a redaction-only row
         created (NULL category/subcategory, so they never render). They are
         named here rather than absorbed into a tolerance: a fourth unexpected
@@ -105,7 +105,7 @@ class TestMigrationCompleteness(BaseTestCase):
             f"{sorted(PII_REGISTRY_FIELDS_NOT_IN_EXCEL)}, got {actual}",
         )
 
-        # The extras must be exactly those three, not merely three of something.
+        # The extras must be exactly those five, not merely five of something.
         extra = set(
             db.session.scalars(
                 db.select(MasFieldDisplayConfig.field_id).where(

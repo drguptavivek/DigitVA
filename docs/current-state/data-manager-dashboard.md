@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-10-01
 ---
 
 # Data Manager Dashboard
@@ -61,6 +61,13 @@ The coded COD snapshot export currently includes:
   submission payload
 
 ## Summary Cards
+
+The former `Consent Refused` card is `Not analysable` (2026-10-01): refused,
+respondent unavailable and partially completed interviews in the
+`consent_refused` workflow state (ODK consent = no counts as refused), with a
+per-reason count under the number, read from the active payload's
+`interview_outcome` in `get_dm_kpi_from_mv`. See
+[Data Manager KPI Framework](../policy/kpis.md), C-06.
 
 Current cards include:
 

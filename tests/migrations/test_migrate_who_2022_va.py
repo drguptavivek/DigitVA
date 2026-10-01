@@ -36,7 +36,7 @@ CHOICES_PATH = Path("resource/mapping/mapping_choices.xlsx")
 # app/services/pii_field_registry.py) that mapping_labels.xlsx does not carry
 # at all. run() applies the registry, so these are expected extras, not
 # migration data loss.
-PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address"}
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address", "visit_address", "visit_remarks"}
 
 
 class TestWho2022VaMigration(BaseTestCase):
@@ -171,7 +171,7 @@ class TestWho2022VaMigration(BaseTestCase):
         run() also applies the PII field registry (see PII_FIELDS in
         pii_field_registry.py), which creates redaction-only rows for
         registered fields the Excel does not carry at all — Id10073,
-        abha_number, abha_address. Those are added on top of the Excel-derived
+        abha_number, abha_address, visit_address, visit_remarks. Those are added on top of the Excel-derived
         count, not part of it.
         """
         labels_df = pd.read_excel(LABELS_PATH)

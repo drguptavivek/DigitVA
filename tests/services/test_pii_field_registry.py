@@ -75,6 +75,16 @@ class PiiFieldRegistryTests(BaseTestCase):
             self.assertTrue(row.is_pii)
             self.assertEqual(row.pii_type, "identifier")
 
+    def test_flags_the_visit_note_free_text_as_location(self):
+        apply_pii_field_registry(FORM_TYPE_CODE)
+        db.session.flush()
+
+        for field_id in ("visit_address", "visit_remarks"):
+            row = self._config_for(field_id)
+            self.assertIsNotNone(row, f"expected a config row for {field_id}")
+            self.assertTrue(row.is_pii)
+            self.assertEqual(row.pii_type, "location")
+
     def test_flags_an_existing_mapped_row_without_disturbing_its_mapping(self):
         db.session.add(
             MasFieldDisplayConfig(

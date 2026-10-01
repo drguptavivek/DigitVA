@@ -6983,6 +6983,39 @@
     {
       "calculation": null,
       "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "visit_address",
+      "relevant": null,
+      "sectionPath": [
+        "digitva_visit_note"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": ". <= today()",
+      "control": "date",
+      "dataType": "date",
+      "name": "visit_date",
+      "relevant": null,
+      "sectionPath": [
+        "digitva_visit_note"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "text",
+      "dataType": "string",
+      "name": "visit_remarks",
+      "relevant": null,
+      "sectionPath": [
+        "digitva_visit_note"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
       "control": "singleChoice",
       "dataType": "string",
       "name": "interview_outcome",
@@ -7168,6 +7201,11 @@
       "name": "eventchronology",
       "parent": "socialautopsy",
       "relevant": "selected(${sa02}, 'yes')"
+    },
+    {
+      "name": "digitva_visit_note",
+      "parent": null,
+      "relevant": "selected(${Id10013}, 'no') and (string-length(${Id10017}) = 0 or string-length(${Id10019}) = 0 or string-length(${Id10023}) = 0)"
     },
     {
       "name": "digitva_outcome",

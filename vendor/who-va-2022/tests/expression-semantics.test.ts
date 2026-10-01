@@ -50,7 +50,7 @@ describe("WHO VA expression semantics", () => {
     // whoVa2022Instrument, because the count under test is exactly
     // whoVa2022Instrument's own expression count — deriving it from the
     // instrument would make the assertion vacuous.
-    expect(expressions).toHaveLength(559);
+    expect(expressions).toHaveLength(561);
     for (const expression of expressions) {
       expect(
         () =>

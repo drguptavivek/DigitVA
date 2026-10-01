@@ -189,7 +189,7 @@ describe("exhaustive WHO VA runtime expressions", () => {
     // doris_pregnancy_weeks, doris_surgery_when). Asserted explicitly rather than
     // derived from whoVa2022Instrument, since the count under test is that
     // instrument's own constrained-question count.
-    expect(constrainedQuestions).toHaveLength(109);
+    expect(constrainedQuestions).toHaveLength(110);
 
     for (const question of constrainedQuestions) {
       const data = constraintData(question);

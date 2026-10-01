@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Data Manager KPI Framework
@@ -192,7 +192,7 @@ A 7-column table, last 8 rows (today + 7 prior days), slicable by project and si
 | **Updated in ODK** | SUM of `va_sync_runs.records_updated` for runs where `DATE(started_at) = row_date` | — | N/A | `va_sync_runs` |
 | **Coded** | COUNT of `va_submission_workflow_events` where `transition_id IN ('coder_finalized', 'recode_finalized')` and `DATE(event_created_at) = row_date` | — | CODED | `va_submission_workflow_events` |
 | **Pending Coding** | COUNT where `workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')` as of end of that day | — | CODING-POOL | `va_submission_workflow` |
-| **Consent Refused** | COUNT of events where `transition_id` resulting in `current_state = 'consent_refused'` and `DATE(event_created_at) = row_date` | — | ALL-SYNCED | `va_submission_workflow_events` |
+| **Not analysable** (was Consent Refused) | COUNT of events where `transition_id` resulting in `current_state = 'consent_refused'` and `DATE(event_created_at) = row_date` | — | ALL-SYNCED | `va_submission_workflow_events` |
 | **Not Codeable** | COUNT of events where `transition_id IN ('coder_not_codeable', 'data_manager_not_codeable')` and `DATE(event_created_at) = row_date` | — | ALL-SYNCED | `va_submission_workflow_events` |
 
 ### C-02: Last Sync Run Status
@@ -226,9 +226,21 @@ A 7-column table, last 8 rows (today + 7 prior days), slicable by project and si
 - **Time Frames:** Today, 7d, cumulative
 - **Drill-down:** By actor (coder vs DM) and by reason
 
-### C-06: Consent Refusal Rate
+### C-06: Not Analysable Rate
 
-- **Numerator:** COUNT where `workflow_state = 'consent_refused'`
+Was "Consent Refusal Rate"; renamed 2026-10-01 (`digitva-4tb`). One bucket for
+every interview that cannot be analysed, whatever the reason.
+
+- **Numerator:** COUNT where `workflow_state = 'consent_refused'`. That state
+  holds every web interview stored as `refused`, `respondent_unavailable` or
+  `partially_completed`, and ODK submissions with consent = no.
+- **Per-reason subtext:** Refused / Respondent unavailable / Partially
+  completed, read from the active payload's `interview_outcome`; a payload
+  without one (every ODK submission) counts as Refused. Derived at query time,
+  nothing stored: the API serves it as `not_analysable.by_reason`, the
+  dashboard card as `not_analysable_by_reason`. The old `consent_refused`
+  response key is kept with the same count. The daily grid and its stored
+  `consent_refused_count` column keep the total only, no per-reason split.
 - **Denominator:** COUNT of ALL-SYNCED
 - **Rate:** N / D × 100
 - **Time Frames:** Today, 7d, cumulative
@@ -651,7 +663,7 @@ Backlog         27         8        10       25
 
 **D-PS-01: Project-wise Form Counts**
 - Definition: Per `project_id`, same columns as daily grid but aggregated at project level
-- Columns: Total, Coded, Pending, Consent Refused, Not Codeable (DM + Coder), NQA count, SA count
+- Columns: Total, Coded, Pending, Not analysable, Not Codeable (DM + Coder), NQA count, SA count
 - Time Frames: Today, cumulative
 
 **D-PS-02: Site-wise within Project**
@@ -669,7 +681,7 @@ Backlog         27         8        10       25
 
 The daily grid (C-01) is the landing view:
 
-| Date | Total | New from ODK | Updated in ODK | Coded | Pending | Consent Refused | Not Codeable |
+| Date | Total | New from ODK | Updated in ODK | Coded | Pending | Not analysable | Not Codeable |
 |------|-------|-------------|----------------|-------|---------|-----------------|--------------|
 | Today | 1,281 | +8 | +2 | 5 | 115 | 2 | 1 |
 | Yesterday | 1,273 | +12 | +1 | 9 | 108 | 1 | 3 |

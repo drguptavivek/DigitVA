@@ -168,7 +168,21 @@ submission's organization unit, falling back to the form-level setting
   counted as field work, and the nameless case closes as `cancelled`, the only
   closed state the identity constraint allows without an identity. A register
   case already has its identity and goes to `refused` as before. An invalid form with neither refusal nor an
-  incomplete outcome is refused (422). Server-side re-validation with
+  incomplete outcome is refused (422).
+- **Visit note** (owner, 2026-10-01, `digitva-4tb`): the identity-less refusal
+  above leaves no record of which household it was, so the form asks a short
+  visit note, in that case only: **address** (free text), **visit date** (not
+  in the future) and **remarks** (optional). Answer names `visit_address`,
+  `visit_date`, `visit_remarks` (`digitva_core`, section `digitva_visit_note`,
+  before `interview_outcome`); the form shows the section while consent is no
+  and the case identity is incomplete (given name `Id10017`, sex `Id10019` or
+  date of death `Id10023` empty), the same condition that keeps a case in
+  `draft_identity`. The server requires address and
+  visit date on that path (422 otherwise, address at most 500 and remarks at
+  most 2000 characters), stores them in the submission payload and as
+  `visitNote` in the draft meta, and the nameless case still closes
+  `cancelled`. Every other interview is unchanged. No page shows the note to
+  supervisors or data managers yet; it is in the stored payload. Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no
@@ -191,8 +205,10 @@ submission's organization unit, falling back to the form-level setting
   `completed` submission enters coding; a refused or incomplete one is routed
   to `consent_refused`, the one existing workflow state that is outside
   coding and blocked from SmartVA (no new workflow state). Data-manager KPIs
-  therefore count incomplete web interviews under "Consent refused" until a
-  separate state is decided.
+  show one "Not analysable" bucket for refused, respondent-unavailable and
+  partially completed interviews (and ODK consent = no, as Refused), with a
+  count per reason (owner, 2026-10-01, `digitva-4tb`; derived from
+  `interview_outcome`, see [Data Manager KPI Framework](kpis.md), C-06).
 - The payload carries `intake_source = "web"` and `KEY = web:<draft uuid>`.
 - With no attachments the case moves straight to `smartva_pending`.
   Attachment upload (audio narration, document images) is phase 2; until

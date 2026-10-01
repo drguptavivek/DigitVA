@@ -1693,6 +1693,31 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["pending_submissions"], 3)
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
 
+    def test_not_analysable_card_splits_consent_refused_rows_by_reason(self):
+        for sid, outcome in (
+            ("uuid:mv-na-refused", "refused"),
+            ("uuid:mv-na-unavailable", "respondent_unavailable"),
+            ("uuid:mv-na-partial", "partially_completed"),
+            ("uuid:mv-na-odk", None),
+        ):
+            self._add_submission(
+                sid,
+                {"interview_outcome": outcome} if outcome else {},
+                workflow_state="consent_refused",
+            )
+        self._add_submission("uuid:mv-na-coded", {}, workflow_state="coder_finalized")
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [])
+
+        self.assertEqual(kpi["not_analysable_submissions"], 4)
+        self.assertEqual(kpi["consent_refused_submissions"], 4)
+        self.assertEqual(
+            kpi["not_analysable_by_reason"],
+            {"refused": 2, "respondent_unavailable": 1, "partially_completed": 1},
+        )
+
     def test_smartva_missing_includes_consent_refused_workflow(self):
         project_id = "SMMV01"
         site_id = "SM01"

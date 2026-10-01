@@ -18,7 +18,8 @@ describe("shared WHO date control", () => {
       "Id10024",
       "doris_injury_date",
       "doris_injury_month_year",
-      "Id10071"
+      "Id10071",
+      "visit_date"
     ]);
     expect(whoVa2022Instrument.questions.find((question) => question.name === "Id10024")?.appearance).toBe(
       "year"

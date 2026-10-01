@@ -146,8 +146,9 @@ For admins, project PIs and data managers only.
   only a session value. Owner, 2026-10-01: **record every web sign-in.**
   - Each completed web sign-in writes an `auth_security_events` row,
     `event_type="signed_in"`, `detail={"method": ...}` (password, password
-    plus second factor, passkey, or factor-reset link). No IP address or user
-    agent is stored, in line with minimising personal data in logs.
+    plus second factor, passkey, or factor-reset link) and the client IP
+    address (owner, 2026-10-01), taken from the trusted proxy header, never a
+    client-supplied one. How long the IP is kept is not decided yet.
   - A nullable `va_users.last_signed_in_at` (additive migration) is set on
     every completed web sign-in and device session opening, so the page reads
     one column instead of scanning events.

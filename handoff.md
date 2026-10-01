@@ -17,25 +17,51 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (about 2850 passed on 2026-10-01; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2842 passed on 2026-10-01; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
-> (`npx jest`: 66 pass). Dev DB head: `b8d2e5f1a7c3`. Use `bd`; commit in the
+> (`npx jest`: 66 pass). Dev DB head: `c4a9e7d2b6f1`. Use `bd`; commit in the
 > repo's voice and push. Owner wants second opinions from a read-only Fable
 > agent (`bd memories advisor`). Ask the owner one question at a time, in
 > plain terms.
 
 ## Next, ranked
 
-1. `digitva-djd` unit-scoped `site_pi`, `data_manager` and `coding_tester`
-   grants give no access: `get_site_pi_sites`, `VaUsers.is_data_manager`
-   and the coding-tester waiver read project/site grants only. Policy allows
-   all three at unit scope and the district model recommends them (CS at
-   DH01 `site_pi`; DPM/BPM `data_manager`). Owner decided: a unit grant
-   covers every site and form below it. Short baseline in
-   `docs/policy/access-control-model.md`, then code; verify with
-   `test.cs.dh01`, `test.dpm.dh01`, `test.bpm.chc01`.
+1. `digitva-eiw` + `digitva-djd` mentor institutes and unit-scoped roles.
+   Owner design is final (full text in both beads' notes). Stage 1 landed:
+   `mas_mentor_institute`, `map_mentor_institute_org_unit` (to depth-1
+   district units), `map_mentor_institute_user`, `flask mentor-institute ...`,
+   grant guard `check_mentor_grant` (member: org_unit grant inside an attached
+   district's subtree, roles coder/reviewer/coding_tester/collaborator_pii
+   only), `site_pi` refused at org_unit (CHECK + validator; classical projects
+   keep it at project_site), policy baselines written. Next, give each to a
+   fresh code-writer with its whole scope:
+   - **Stage 1b** (with these review fixes): a district `data_manager` may
+     give grants to staff of institutes attached to their district (still
+     inside the guard); new `mentor_institute` admin creates/removes only
+     their institute's staff accounts, never grants (an institute cannot
+     widen its own access); platform admin creates institutes and attaches
+     districts. Fixes: `add_member` warning undercounts active mentor-role
+     grants outside the attached subtree; `DEFAULT_TYPICAL_ROLES[("district",
+     "CS")]` in `organization_service.py:136` still lists `site_pi`; guard runs
+     before the permission check in admin grant create (info leak); CLI passes
+     no actor (audit `actor=-`); add tests for the import path, the data
+     manager create route and the warning count. No admin UI yet.
+   - **Stage 2**: `data_manager` and `coding_tester` at unit scope cover the
+     grant's subtree on every surface, incl. KPI/analytics, unrouted queue and
+     sync (owner: no hidden pages). Plan from the 2026-10-01 Plan agent:
+     per-submission predicate on `VaSubmissions.org_unit_id`; unit-only DM in
+     `is_data_manager` and `has_data_manager_submission_access(org_unit_id=)`;
+     DM grid via `scope_unit_ids_for_roles`; coding-tester bypass at
+     `coder_workflow_service.py:~719` and `_within_coding_org_scope` must
+     become unit-scoped; one `_coding_waivers` helper replacing four copies of
+     the PI/tester waiver; `_get_granted_va_forms` is project-wide for unit
+     grants (fail-open). Follow-ups `digitva-d5s` (waivers key on site_id
+     only) and `digitva-6qy` (query cost).
+   - Mentors are excluded from district staff headcounts and listed apart
+     (rule in `docs/policy/people-and-roles-page.md`; `mentors_for_unit`
+     exists, no UI).
 2. `digitva-6zq` verify: an active demo-training project may make
    `is_coder`/`is_reviewer`/`is_coding_tester` true for every user
    (`_get_granted_va_forms` unions demo forms). Policy opens demo projects
@@ -90,9 +116,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   user DB, practice interviews in `trn_*` tables only, trainer role on a
   mentor unit, certification gates real intake. Cases: the 6 cause-chain
   examples in the 2026 PCVA manual plus WHO ICD-11 mortality training
-  material (owner has WHO permission to adapt). Depends on `digitva-eiw`.
-- `digitva-eiw` mentor units (medical college beside the DH, a unit type
-  with mentoring links; unit grants alone reach only their own subtree).
+  material (owner has WHO permission to adapt). Depends on the mentor-institute stages above.
 - `digitva-vjt` default roles per cadre, pre-ticked at grant time.
 - `digitva-5op` district team views translations and suggests changes.
 
@@ -114,8 +138,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 - A direct start refused at consent with no identity stores a `refused` submission
   and closes its case `cancelled` (the identity constraint allows no other
   closed state without one); it counts under Not analysable in DM KPIs.
-- Data managers cannot give unit grants (refused by design); CHO interviewer
-  grants come from an admin or project PI.
+- Data managers cannot give unit grants (refused by design) until stage 1b,
+  which allows only mentor-institute grants; CHO interviewer grants come from
+  an admin or project PI. A mentor-institute member who also holds district
+  work needs a second account (guard refuses mixed grants).
 - A TST001 built before 2026-10-01 (level codes `dh`/`sc`) needs the one-off
   level conversion in `docs/current-state/test-project-tst001.md` before the
   seed reruns; dev is converted.

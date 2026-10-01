@@ -143,9 +143,15 @@ For admins, project PIs and data managers only.
   `docs/current-state/data-model.md` saying the column is unused are stale.
 - **Web sign-in is not recorded.** Device sign-in is (`device_session_opened`
   security event, `auth_device_sessions.last_seen_at`); a web sign-in leaves
-  only a session value. Proposed: a nullable `va_users.last_signed_in_at`,
-  set on every completed web sign-in and device session opening (additive
-  migration). Until then the column and the dormant flag are hidden.
+  only a session value. Owner, 2026-10-01: **record every web sign-in.**
+  - Each completed web sign-in writes an `auth_security_events` row,
+    `event_type="signed_in"`, `detail={"method": ...}` (password, password
+    plus second factor, passkey, or factor-reset link). No IP address or user
+    agent is stored, in line with minimising personal data in logs.
+  - A nullable `va_users.last_signed_in_at` (additive migration) is set on
+    every completed web sign-in and device session opening, so the page reads
+    one column instead of scanning events.
+  - Until both exist the column and the dormant flag are hidden.
 
 ## Performance
 

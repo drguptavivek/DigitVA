@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Web Intake Policy
@@ -162,7 +162,12 @@ submission's organization unit, falling back to the form-level setting
   `interview_outcome` question" below; `digitva-vzk.2`, 2026-09-30). A valid
   form (`valid`, with `Id10013` answered) is required only for `completed`;
   `refused` (`Id10013` = no) and the two incomplete outcomes need the minimum
-  identity but not a valid form. An invalid form with neither refusal nor an
+  identity but not a valid form, with one exception (owner, 2026-10-01,
+  `digitva-vzk.12`): WHO asks identity after consent, so a direct start
+  refused at consent has none. Its submission is stored as `refused` and
+  counted as field work, and the nameless case closes as `cancelled`, the only
+  closed state the identity constraint allows without an identity. A register
+  case already has its identity and goes to `refused` as before. An invalid form with neither refusal nor an
   incomplete outcome is refused (422). Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.

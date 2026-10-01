@@ -1314,13 +1314,23 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
     if death is not None:
         _sync_case_identity(death, data, user)
-        if death.status == "draft_identity":
+        # A refusal needs no identity: WHO asks it after consent, so a direct
+        # start refused at consent never has one. The submission is stored as
+        # refused and the nameless case closes as cancelled, the only closed
+        # state the identity constraint allows without one (digitva-vzk.12).
+        identity_pending = death.status == "draft_identity"
+        if identity_pending and outcome != "refused":
             raise WebIntakeError(
                 "Record the name, date of death and sex of the deceased before submitting.", 422
             )
         _begin_interview(death, user)
-        if death.status not in ("in_progress", "paused"):
+        if not (identity_pending or death.status in ("in_progress", "paused")):
             raise WebIntakeError("This case is closed.", 409)
+        # A case restarted from such a refusal still has no identity.
+        if outcome != "refused" and not cases.identity_complete(death):
+            raise WebIntakeError(
+                "Record the name, date of death and sex of the deceased before submitting.", 422
+            )
 
     submitted_at = _utcnow()
     expression_now = _expression_now(user, submitted_at)
@@ -1412,7 +1422,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     draft.meta = {**(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome}
     if death is not None:
         action = "submitted" if outcome == "completed" else f"submitted_{outcome}"
-        cases.transition(death, OUTCOME_CASE_STATES[outcome], actor=user, action=action)
+        to_state = "cancelled" if identity_pending else OUTCOME_CASE_STATES[outcome]
+        cases.transition(death, to_state, actor=user, action=action)
         if outcome == "completed":
             # The case's submission is the complete one; an earlier refused or
             # incomplete one stays linked through its draft only.

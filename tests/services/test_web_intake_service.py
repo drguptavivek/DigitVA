@@ -800,6 +800,36 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertFalse(draft.client_valid)
         self.assertEqual(get_submission_workflow_state(submission.va_sid), WORKFLOW_CONSENT_REFUSED)
 
+    def _no_identity(self, **data):
+        completion = {"valid": data.pop("valid", False), "issues": [], "data": data}
+        return completion
+
+    def test_a_direct_start_refused_at_consent_submits_without_identity(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        case = db.session.get(VaDeathRegister, draft.death_id)
+        self.assertEqual(case.status, "draft_identity")
+        submission = intake_svc.submit_draft(
+            draft, self.interviewer, completion=self._no_identity(Id10013="no")
+        )
+        self.assertEqual(self._stored_outcome(submission), "refused")
+        self.assertEqual(case.status, "cancelled")
+        self.assertIsNone(case.deceased_name)
+        self.assertEqual(get_submission_workflow_state(submission.va_sid), WORKFLOW_CONSENT_REFUSED)
+
+    def test_a_direct_start_without_identity_still_cannot_submit_anything_else(self):
+        for data in ({"interview_outcome": "partially_completed"}, {"Id10013": "yes", "valid": True}):
+            with self.subTest(data=data):
+                draft = intake_svc.start_draft(
+                    self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+                )
+                with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+                    intake_svc.submit_draft(
+                        draft, self.interviewer, completion=self._no_identity(**data)
+                    )
+                self.assertEqual(ctx.exception.status_code, 422)
+
     def test_incomplete_outcomes_are_stored_kept_out_of_coding_and_set_the_waiting_state(self):
         for outcome, case_state in (
             ("partially_completed", "paused"),

@@ -126,8 +126,8 @@ For admins, project PIs and data managers only.
   - Unit grant without a cadre.
   - Active grant on a deactivated user or a deactivated unit.
   - Account with no active grant in the project.
-  - No sign-in for N days. N is a project setting, default **90** (proposed
-    2026-10-01, owner to confirm): long enough that a coder between coding
+  - No sign-in for N days. N is a project setting, default **90** (owner,
+    2026-10-01): long enough that a coder between coding
     batches or a staff member on leave is not flagged, short enough to catch
     accounts of people who have moved on within one quarterly review.
 
@@ -165,7 +165,6 @@ selected unit's path, not per row. No per-row queries.
 - Closed projects are not listed; every resolver already ignores their
   grants.
 
-## Open
-
-- Confirm the dormant default of 90 days.
-- `digitva-djd`: what a unit-scoped `site_pi` should give.
+- Dormant flag default: 90 days.
+- A unit-scoped `site_pi` covers every site and form under that unit
+  (`digitva-djd`); until that is built the Site lead cell shows the warning.

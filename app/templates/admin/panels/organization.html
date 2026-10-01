@@ -51,6 +51,7 @@
   </div>
 
   {% set ref_model = district_reference_model() %}
+  {% set roles_help_url = url_for('help.page', slug='user-roles') %}
   <details class="border rounded p-2 mb-3 small" id="org-reference-model">
     <summary class="fw-semibold">District reference model</summary>
     <div class="mt-2 mb-2">
@@ -59,6 +60,7 @@
       {%- endfor -%}
     </div>
     <div class="text-muted mb-2">The grid is what a cadre <em>may</em> be given; typical roles are guidance; access comes only from each person's grants. Policy: <code>docs/policy/district-reference-model.md</code>.</div>
+    <div class="mb-2"><a href="{{ roles_help_url }}">What each role can do</a></div>
     <div class="table-responsive">
       <table class="table table-sm table-bordered mb-0">
         <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Typical roles</th></tr></thead>
@@ -70,7 +72,15 @@
             <td>{{ '✓' if row.can_fill_va_form else '–' }}</td>
             <td>{{ '✓' if row.can_code_va_form else '–' }}</td>
             <td>{{ '✓' if row.can_supervise_interviews else '–' }}</td>
-            <td>{% if row.typical_roles %}{{ row.typical_roles | join(', ') }}{% elif row.typical_roles_note %}<span class="text-muted">{{ row.typical_roles_note }}</span>{% else %}–{% endif %}</td>
+            <td>
+              {%- if row.typical_roles -%}
+                {%- for role in row.typical_roles -%}
+                  <a href="{{ roles_help_url }}#role-{{ role }}">{{ role }}</a>{% if not loop.last %}, {% endif %}
+                {%- endfor -%}
+              {%- elif row.typical_roles_note -%}
+                <a class="text-muted" href="{{ roles_help_url }}#role-death_reporter">{{ row.typical_roles_note }}</a>
+              {%- else -%}–{%- endif -%}
+            </td>
           </tr>
           {%- endfor %}
         </tbody>

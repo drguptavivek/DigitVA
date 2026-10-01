@@ -1,220 +1,214 @@
-<h2>Access Control Model</h2>
+<h2>How access works</h2>
 
-<p>DigitVA uses a <strong>hybrid RBAC + ABAC</strong> access control model:</p>
+<p>A person can do something in DigitVA only through a <strong>grant</strong>: one <strong>role</strong> at one <strong>scope</strong>.</p>
 
 <ul>
-  <li><strong>RBAC</strong> (Role-Based Access Control) determines <em>what</em> a user can do. Your role defines your capabilities.</li>
-  <li><strong>ABAC</strong> (Attribute-Based Access Control) determines <em>where</em> a user can do it. Your scope defines the boundary of your access.</li>
+  <li><strong>Scope</strong> is where the role applies: the <strong>whole project</strong>, one <strong>site</strong> of a project, or one <strong>organization unit</strong> (for example a district or CHC) <em>and every unit below it</em>. An administrator's grant is global. In the grant forms these scopes are named <code>project</code>, <code>project_site</code>, <code>org_unit</code> and <code>global</code>.</li>
+  <li><strong>Roles add up.</strong> A person may hold several grants; they can do everything any of them allows. There is no "deny" grant, and roles do not include each other (a reviewer is not automatically a coder).</li>
+  <li><strong>The level &times; cadre grid only limits.</strong> On the Organization setup page, the grid says which roles a cadre <em>may</em> be given at each level. It never gives access by itself. A <code>coder</code> grant on a unit needs a cadre allowed to <em>Code VA</em> at that level; an <code>interview_supervisor</code> grant needs a cadre allowed to <em>Supervise</em> interviews there. The <em>District reference model</em> card on that page shows the suggested roles for each cadre.</li>
+  <li><strong>Closed projects:</strong> grants on a project that is not active open nothing until the project is reopened.</li>
+  <li><strong>Area dashboard:</strong> everyone with at least one grant can open the Area dashboard (<code>/area</code>), which shows counts only (no case lists, no personal details) for the part of the project they hold a grant on.</li>
 </ul>
 
-<p>Access is granted only when <strong>both</strong> the role and the scope match the requested action and target record.</p>
+<h2>Summary</h2>
+
+<p>Click a role for details. "Yes" means the role can do it inside its own scope. Personal details means names and identifiers of the deceased and respondent, and who collected, coded or reviewed a death.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle small">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Register deaths</th>
+      <th>Interview</th>
+      <th>Supervise intake</th>
+      <th>Code</th>
+      <th>Review</th>
+      <th>Test coding</th>
+      <th>Manage data</th>
+      <th>See personal details</th>
+      <th>Read-only dashboards</th>
+      <th>Manage users / grants</th>
+      <th>Allowed scopes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><a href="#role-admin">admin</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Demo only</td><td>&ndash;</td><td>&ndash;</td><td>Partly</td><td>Yes</td><td>Yes</td><td>Yes, all</td><td>global</td></tr>
+    <tr><td><a href="#role-project_pi">project_pi</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>Own projects</td><td>project</td></tr>
+    <tr><td><a href="#role-site_pi">site_pi</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>site, unit*</td></tr>
+    <tr><td><a href="#role-data_manager">data_manager</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Coders, testers, data managers</td><td>project, site, unit*</td></tr>
+    <tr><td><a href="#role-collaborator">collaborator</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td><strong>No</strong></td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
+    <tr><td><a href="#role-collaborator_pii">collaborator_pii</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
+    <tr><td><a href="#role-coder">coder</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
+    <tr><td><a href="#role-coding_tester">coding_tester</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit*</td></tr>
+    <tr><td><a href="#role-reviewer">reviewer</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
+    <tr><td><a href="#role-interviewer">interviewer</a></td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
+    <tr><td><a href="#role-interview_supervisor">interview_supervisor</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>unit only</td></tr>
+    <tr class="text-muted"><td><a href="#role-death_reporter">death_reporter</a> <span class="badge text-bg-secondary">Planned</span></td><td>Planned</td><td>Never</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>unit</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="small text-muted">* The role can be granted at this scope, but part of it does not work there yet. See the "Known gap" note in the role's section.</p>
 
 <h2>Roles</h2>
 
-<p>DigitVA defines the following roles. Roles are additive and do not inherit from each other. Each role has a specific scope type that constrains where it can be applied.</p>
+<section id="role-admin">
+  <h3>admin</h3>
+  <p><strong>For:</strong> the people who run the DigitVA installation. <strong>Scope:</strong> global only.</p>
+  <ul>
+    <li><strong>Can:</strong> use the Admin panel (<code>/admin</code>) to create and edit users, projects, sites, project-site settings, forms, organization setup, translations, ICD and definition data and devices; give or remove any grant, including admin and project PI; return a finalized case to coding (override-to-recode); start demo coding; run and schedule ODK syncs; open the Data Manager dashboard and submission view, run screening, and accept or reject changes made in ODK.</li>
+    <li><strong>Cannot</strong> (without another grant): register deaths, interview or supervise intake; review. The coding dashboard opens, but real cases need a coder grant.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> another admin.</li>
+  </ul>
+</section>
 
-<table class="table">
-  <thead>
-    <tr>
-      <th>Role</th>
-      <th>Description</th>
-      <th>Allowed Scope Types</th>
-      <th>Landing Page</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>admin</strong></td>
-      <td>Global system administration. May manage users, projects, sites, project-site mappings, integrations, and all application records. Admin-only workflow actions (such as override-to-recode) rely on global admin membership.</td>
-      <td><code>global</code></td>
-      <td>Admin Dashboard (<code>/admin</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>project_pi</strong></td>
-      <td>Project Principal Investigator. Project-wide oversight within assigned projects. May view data and reporting across all sites in an assigned project, and perform oversight actions allowed by workflow policy.</td>
-      <td><code>project</code></td>
-      <td>Admin panel (project-scoped management)</td>
-    </tr>
-    <tr>
-      <td><strong>site_pi</strong></td>
-      <td>Site Principal Investigator. Site-specific oversight within assigned project-site scope. May view data and reporting for assigned sites. A user may hold site_pi grants for many project-site pairs.</td>
-      <td><code>project_site</code></td>
-      <td>Site PI Dashboard (<code>/sitepi</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>data_manager</strong></td>
-      <td>Data-quality and operational triage role. May browse all submissions in scope, view them in read-only mode, mark submissions as Not Codeable, trigger resync operations, and manage coder/coding_tester/data_manager grants within scope. May not start coding, submit COD, or perform reviewer actions.</td>
-      <td><code>project</code> or <code>project_site</code></td>
-      <td>Data Manager Dashboard (<code>/data-management</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>collaborator</strong></td>
-      <td>Read-only role. May view data and reporting within assigned scope. May not code, review, perform oversight write actions, or administer configuration.</td>
-      <td><code>project</code> or <code>project_site</code></td>
-      <td>Read-only views</td>
-    </tr>
-    <tr>
-      <td><strong>coder</strong></td>
-      <td>Coding role. May start coding, resume owned coding, submit coding outcomes, and view coding records when allowed by workflow policy. Only sees submissions whose forms resolve to an active project-site mapping.</td>
-      <td><code>project</code> or <code>project_site</code></td>
-      <td>Coder Dashboard (<code>/coding</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>coding_tester</strong></td>
-      <td>A grant role that can enter non-demo coding while bypassing normal project-site gates: <code>coding_enabled</code>, coding date windows (<code>coding_start_date</code>, <code>coding_end_date</code>), and <code>daily_coder_limit</code>. Uses the coder landing page and workflow.</td>
-      <td><code>project</code> or <code>project_site</code></td>
-      <td>Coder Dashboard (<code>/coding</code>)</td>
-    </tr>
-    <tr>
-      <td><strong>reviewer</strong></td>
-      <td>Secondary coding role. May start reviewer coding when allowed by workflow policy, resume owned reviewer coding, and submit reviewer COD outcomes. Reviewer coding opens only after the coder's 24-hour recode window closes.</td>
-      <td><code>project</code> or <code>project_site</code></td>
-      <td>Reviewer Dashboard (<code>/reviewing</code>)</td>
-    </tr>
-  </tbody>
-</table>
+<section id="role-project_pi">
+  <h3>project_pi</h3>
+  <p><strong>For:</strong> the principal investigator or programme lead of a project. <strong>Scope:</strong> one whole project.</p>
+  <ul>
+    <li><strong>Can:</strong> use the Admin panel (<code>/admin</code>) for their own projects: project-site settings, the Organization setup page (levels, units, cadres and the grid, workers, export and import), and access grants; give any role except admin and project_pi in their projects, including unit grants; import users from a spreadsheet, which attaches roles to people who already have an account. See the Area dashboard for the whole project. A project PI who also holds a coder grant is exempt from that project's coding on/off switch, date window and daily limit.</li>
+    <li><strong>Cannot:</strong> create new user accounts; give admin or project_pi grants; open the Data Manager dashboard; code, review, interview or supervise intake unless also granted those roles.</li>
+    <li><strong>Personal details:</strong> yes, on any screen the person can open.</li>
+    <li><strong>Granted by:</strong> an admin.</li>
+  </ul>
+</section>
 
-<h2>Scope Types</h2>
+<section id="role-site_pi">
+  <h3>site_pi</h3>
+  <p><strong>For:</strong> the lead investigator or officer for one site (for example the Civil Surgeon of a district). <strong>Scope:</strong> one site of a project, or an organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> open the Site PI dashboard (<code>/sitepi</code>): totals of submissions, cases with an agreed cause of death, not-codeable cases, and each coder's completed and corrected work for their sites. See the Area dashboard. A site PI who also holds a coder grant is exempt from that site's coding switch, date window and daily limit.</li>
+    <li><strong>Cannot:</strong> change data, code, review, interview, supervise intake or manage users.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+  <div class="help-warning"><strong>Known gap:</strong> the Site PI dashboard reads only site grants. A site PI granted on an organization unit currently gets "No sites assigned" there; they still see the Area dashboard.</div>
+</section>
 
-<p>Every role grant has an explicit scope type that defines the boundary of access:</p>
+<section id="role-data_manager">
+  <h3>data_manager</h3>
+  <p><strong>For:</strong> the person who keeps the data clean and the work moving (for example a District or Block Programme Manager). <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> open the Data Manager dashboard (<code>/data-management</code>, their landing page): browse and filter all submissions in scope, open a submission read-only, mark it Not Codeable, pass or reject it in screening, accept or reject changes made in ODK, re-sync a form or a submission from ODK, open it in ODK's editor, place unrouted submissions in the right unit, download CSV exports, see KPI and coder statistics and cause-of-death groupings. Supervise web intake (<code>/intake/supervision</code>): see cases, resolve flags, cancel, reopen, mark duplicates. Create users and give or remove <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> grants at project or site scope inside their own scope (Users page, <code>/data-management/users</code>).</li>
+    <li><strong>Cannot:</strong> register deaths or interview; code or review; give any other role; give grants on organization units.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, or another data manager (project or site scope only).</li>
+  </ul>
+  <div class="help-warning"><strong>Known gap:</strong> the data manager screens recognise only project and site grants. A data manager granted only on an organization unit cannot yet open the Data Manager dashboard or intake supervision; they see the Area dashboard. Use a project or site grant until this is fixed.</div>
+</section>
 
-<table class="table">
-  <thead>
-    <tr>
-      <th>Scope Type</th>
-      <th>Meaning</th>
-      <th>Required Data</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>global</code></td>
-      <td>System-wide access with no project or site boundary.</td>
-      <td>None (no project_id or site_id needed)</td>
-    </tr>
-    <tr>
-      <td><code>project</code></td>
-      <td>Access across all sites within a specific project.</td>
-      <td><code>project_id</code> required</td>
-    </tr>
-    <tr>
-      <td><code>project_site</code></td>
-      <td>Access to a single site within a single project.</td>
-      <td><code>project_id</code> and <code>site_id</code> both required</td>
-    </tr>
-  </tbody>
-</table>
+<section id="role-collaborator">
+  <h3>collaborator <small class="text-muted">(shown as "Viewer")</small></h3>
+  <p><strong>For:</strong> partners and observers who need to follow progress without seeing who anyone is. <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> open the Data Manager dashboard (<code>/data-management</code>) read-only: the submission list, filters and counts. See the Area dashboard.</li>
+    <li><strong>Cannot:</strong> open a single submission, change anything, download exports, code, review, interview or manage users. The KPI page opens but shows no data yet.</li>
+    <li><strong>Personal details:</strong> <strong>no</strong>. Names and identifiers, and who collected, coded or reviewed a death, are hidden. A person who also holds any other role sees them.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+</section>
 
-<div class="help-warning">
-  <strong>Broad access must be granted explicitly.</strong> The system never infers broader access from missing values. A <code>NULL</code> site_id does not imply project-wide access unless the scope type is explicitly set to <code>project</code>.
-</div>
+<section id="role-collaborator_pii">
+  <h3>collaborator_pii <small class="text-muted">(shown as "Viewer (with PII)")</small></h3>
+  <p><strong>For:</strong> someone who must follow the work and know who did what for which death (for example a District Epidemiologist). <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> exactly what a collaborator can.</li>
+    <li><strong>Cannot:</strong> exactly what a collaborator cannot, except personal details.</li>
+    <li><strong>Personal details:</strong> yes. Give this role only when the person's work needs it.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+</section>
 
-<h2>Role-to-Scope Mapping Rules</h2>
+<section id="role-coder">
+  <h3>coder</h3>
+  <p><strong>For:</strong> doctors who assign the cause of death. <strong>Scope:</strong> project, site, or organization unit (a unit grant needs a cadre allowed to Code VA at that level).</p>
+  <ul>
+    <li><strong>Can:</strong> open the Coding dashboard (<code>/coding</code>, their landing page); take the next case or pick one, code it and submit the cause of death; resume their own unfinished case; recode their own case within 24 hours; look up ICD codes and definitions. Only cases in their scope, in their coding language, at sites where coding is switched on, within the coding dates and under the daily limit.</li>
+    <li><strong>Cannot:</strong> review, change submission data or manage users.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, or a data manager (project or site scope).</li>
+  </ul>
+</section>
 
-<p>Not every role can be combined with every scope type. The allowed combinations are:</p>
+<section id="role-coding_tester">
+  <h3>coding_tester</h3>
+  <p><strong>For:</strong> people checking that coding works before or outside the live coding period. <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> everything a coder can, and code even when the site's coding is switched off, outside its coding dates, and beyond its daily limit.</li>
+    <li><strong>Cannot:</strong> review, change submission data or manage users.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, or a data manager (project or site scope).</li>
+  </ul>
+  <div class="help-warning"><strong>Known gap:</strong> the exemptions above are read from project and site grants only. On an organization unit, a coding tester currently works like an ordinary coder.</div>
+</section>
 
-<table class="table">
-  <thead>
-    <tr>
-      <th>Role</th>
-      <th>global</th>
-      <th>project</th>
-      <th>project_site</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>admin</td>
-      <td>Yes</td>
-      <td>No</td>
-      <td>No</td>
-    </tr>
-    <tr>
-      <td>project_pi</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>No</td>
-    </tr>
-    <tr>
-      <td>site_pi</td>
-      <td>No</td>
-      <td>No</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td>data_manager</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td>collaborator</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td>coder</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td>coding_tester</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>Yes</td>
-    </tr>
-    <tr>
-      <td>reviewer</td>
-      <td>No</td>
-      <td>Yes</td>
-      <td>Yes</td>
-    </tr>
-  </tbody>
-</table>
+<section id="role-reviewer">
+  <h3>reviewer</h3>
+  <p><strong>For:</strong> senior doctors who independently code a sample of cases a second time. <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> open the Reviewer dashboard (<code>/reviewing</code>, their landing page); start a review, resume their own, and submit their cause of death. A case opens for review only after the coder's 24-hour recode window has closed.</li>
+    <li><strong>Cannot:</strong> do first coding (that needs a coder grant), change submission data or manage users.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+</section>
 
-<h2>Authorization Rule</h2>
+<section id="role-interviewer">
+  <h3>interviewer</h3>
+  <p><strong>For:</strong> staff who visit the family and fill in the verbal autopsy questionnaire (for example a Staff Nurse or CHO). <strong>Scope:</strong> project, site, or organization unit.</p>
+  <ul>
+    <li><strong>Can:</strong> use web intake (<code>/intake</code>, their landing page) and the DigitVA mobile app: register a death, check possible duplicates, flag a case, set the next visit, log contact attempts, pause an interview, start, save, discard and submit an interview.</li>
+    <li><strong>Cannot:</strong> supervise other interviewers' cases, code, review or manage users.</li>
+    <li><strong>Personal details:</strong> yes; they collect them.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+</section>
 
-<p>A request is allowed only if all of the following conditions are met:</p>
+<section id="role-interview_supervisor">
+  <h3>interview_supervisor</h3>
+  <p><strong>For:</strong> officers who oversee interviewers in their area (for example a Senior Medical Officer of a CHC). <strong>Scope:</strong> organization unit only, with a cadre allowed to Supervise interviews at that level.</p>
+  <ul>
+    <li><strong>Can:</strong> open intake supervision (<code>/intake/supervision</code>) for cases in their unit and every unit below it: see the cases, resolve flags, cancel, reopen, and mark duplicates.</li>
+    <li><strong>Cannot:</strong> register deaths or interview (that needs an interviewer grant), code, review or manage users.</li>
+    <li><strong>Personal details:</strong> yes.</li>
+    <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
+  </ul>
+</section>
 
-<ol>
-  <li>The user is <strong>authenticated and active</strong>.</li>
-  <li>The user has the <strong>required role</strong> for the requested action.</li>
-  <li>The target record falls inside one of the user's <strong>explicit grant scopes</strong>.</li>
-  <li>Any applicable <strong>workflow-specific constraints</strong> also pass (for example: allowed language, workflow state, allocation ownership, terminal status).</li>
-</ol>
+<section id="role-death_reporter">
+  <h3>death_reporter <span class="badge text-bg-secondary">Planned &mdash; not available yet</span></h3>
+  <p>This role does not exist yet and cannot be granted. It is proposed for ANM, MPW and ASHA workers, who report deaths but have no role today.</p>
+  <ul>
+    <li><strong>Proposed scope:</strong> organization unit.</li>
+    <li><strong>Would:</strong> register deaths and add details useful before the interview visit.</li>
+    <li><strong>Would never:</strong> start or resume an interview.</li>
+    <li>It would be limited by a planned <em>Report deaths</em> column in the level &times; cadre grid.</li>
+  </ul>
+</section>
 
-<p>Workflow constraints narrow access further but they do <strong>not</strong> replace role and scope checks.</p>
-
-<h2>Language Filtering</h2>
-
-<p>In addition to role and scope, visibility is also filtered by the user's configured <strong>coding language</strong> (<code>vacode_language</code>). A coder or reviewer may have form access but still not see a particular submission if the submission's narration language does not match the user's language profile.</p>
-
-<h2>Access Examples</h2>
-
-<h3>Example: Coder with project-site scope</h3>
-
-<p>A coder with grant <code>project_site(UNSW01, NC01)</code> can code submissions from site NC01 in project UNSW01. They cannot see submissions from site TR01 in the same project, because the scope does not match.</p>
-
-<h3>Example: Coder with project-wide scope</h3>
-
-<p>A coder with grant <code>project(UNSW01)</code> can code submissions from <strong>all sites</strong> within project UNSW01, because the project-level grant covers the entire project.</p>
-
-<h3>Example: Site PI with multiple grants</h3>
-
-<p>A site PI with grants for <code>project_site(UNSW01, NC01)</code> and <code>project_site(ICMR01, NC01)</code> can see site NC01 data in both projects, but cannot see other sites in those projects unless separately granted.</p>
-
-<h2>Grant Administration</h2>
-
-<p>Role grants are managed by:</p>
+<h2>Examples</h2>
 
 <ul>
-  <li><strong>Admin</strong> &mdash; may manage all grants across the entire system.</li>
-  <li><strong>Project PI</strong> &mdash; may manage project-site mappings and non-global access grants only within explicitly granted projects.</li>
-  <li><strong>Data Manager</strong> &mdash; may create users and manage coder, coding_tester, and data_manager grants within their own grant scope.</li>
+  <li>A coder with a grant on <strong>site NC01 of project UNSW01</strong> codes NC01's cases only, not TR01's in the same project.</li>
+  <li>A coder with a grant on <strong>project UNSW01</strong> codes cases from every site of that project.</li>
+  <li>A coder with a grant on a <strong>district unit</strong> codes cases from that district and every CHC, PHC and subcentre below it.</li>
+  <li>A Senior Medical Officer granted <code>interview_supervisor</code> and <code>reviewer</code> on a CHC supervises interviews in the CHC's area and reviews its cases; neither grant lets them interview.</li>
+</ul>
+
+<h2>Coding language</h2>
+
+<p>Coders and reviewers also see only cases whose narration language matches the coding languages on their user profile. A grant alone is not enough.</p>
+
+<h2>Who manages grants</h2>
+
+<ul>
+  <li><strong>Admin</strong> &mdash; every grant, everywhere, and all user accounts.</li>
+  <li><strong>Project PI</strong> &mdash; every role except admin and project_pi, inside their own projects, from the Admin panel's access grants or the Organization page's user import. Unit grants are given here.</li>
+  <li><strong>Data manager</strong> &mdash; new users, and <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> grants at project or site scope inside their own scope.</li>
 </ul>
 
 <div class="help-info">
-  <strong>Note:</strong> Grant data is stored as explicit user-role-scope assignments in <code>va_user_access_grants</code>. The older JSONB permission structure on the user record (<code>va_users.permission</code>) is being phased out in favor of the grants table. During the transition, some legacy paths still reference both.
+  <strong>Turning access off:</strong> a grant is switched off, not deleted, so its history stays. Closing a project makes its grants dormant; reopening restores them.
 </div>

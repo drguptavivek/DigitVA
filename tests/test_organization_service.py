@@ -57,10 +57,61 @@ class OrganizationServiceTests(BaseTestCase):
     def test_seed_template_is_idempotent(self):
         first = org.seed_default_organization(self.PROJECT)
         second = org.seed_default_organization(self.PROJECT)
-        self.assertEqual(first, {"levels": 6, "cadres": 6, "level_cadres": 8})
+        self.assertEqual(first, {"levels": 6, "cadres": 11, "level_cadres": 15})
         self.assertEqual(second, {"levels": 0, "cadres": 0, "level_cadres": 0})
         self.assertEqual([lv.depth for lv in org.list_levels(self.PROJECT)], [1, 2, 3, 4, 5, 6])
         self.assertEqual(self._levels()["phc"].odk_field_name, "org_phc_code")
+        grid = {
+            (row["level_code"], row["cadre_code"]): (
+                row["can_fill_va_form"], row["can_code_va_form"], row["can_supervise_interviews"]
+            )
+            for row in org.list_level_cadres(self.PROJECT)
+        }
+        self.assertEqual(grid, org.DEFAULT_LEVEL_CADRE_TEMPLATE)
+        self.assertEqual(grid[("district", "CS")], (False, False, True))
+        self.assertEqual(grid[("chc", "SMO")], (False, True, True))
+        self.assertEqual(grid[("phc", "MO")], (False, True, True))
+        self.assertEqual(grid[("chc", "MO")], (False, True, False))
+
+    def test_seed_template_never_overwrites_an_existing_row(self):
+        org.seed_default_organization(self.PROJECT)
+        lv = self._levels()
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
+        org.update_level(self.PROJECT, lv["district"].org_level_id, level_name="Zila")
+        org.upsert_level_cadre(
+            self.PROJECT, org_level_id=lv["district"].org_level_id, cadre_id=cadres["CS"].cadre_id,
+            can_fill_va_form=True, can_code_va_form=True, can_supervise_interviews=False,
+        )
+        self.assertEqual(
+            org.seed_default_organization(self.PROJECT), {"levels": 0, "cadres": 0, "level_cadres": 0}
+        )
+        row = org.get_level_cadre_permission(lv["district"].org_level_id, cadres["CS"].cadre_id)
+        self.assertIsNotNone(row)
+        self.assertEqual(
+            (row.can_fill_va_form, row.can_code_va_form, row.can_supervise_interviews), (True, True, False)
+        )
+        self.assertEqual(self._levels()["district"].level_name, "Zila")
+
+    def test_seed_template_without_cadres_adds_levels_only(self):
+        self.assertEqual(
+            org.seed_default_organization(self.PROJECT, include_cadres=False),
+            {"levels": 6, "cadres": 0, "level_cadres": 0},
+        )
+        self.assertEqual(org.list_level_cadres(self.PROJECT), [])
+
+    def test_district_reference_model_matches_the_template(self):
+        model = org.district_reference_model()
+        self.assertEqual([lv["level_code"] for lv in model["levels"]],
+                         ["district", "taluka", "chc", "phc", "subcentre", "village"])
+        rows = {(r["level_code"], r["cadre_code"]): r for r in model["grid"]}
+        self.assertEqual(set(rows), set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
+        # A typical-roles key the grid does not have would never be shown.
+        self.assertTrue(set(org.DEFAULT_TYPICAL_ROLES) <= set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
+        self.assertEqual(rows[("district", "CS")]["typical_roles"], ["site_pi", "interview_supervisor"])
+        self.assertTrue(rows[("district", "CS")]["can_supervise_interviews"])
+        self.assertEqual(rows[("subcentre", "ANM")]["typical_roles"], [])
+        self.assertIn("death_reporter", rows[("village", "ASHA")]["typical_roles_note"])
+        self.assertIsNone(rows[("phc", "CHO")]["typical_roles_note"])
 
     # -- tree rules ----------------------------------------------------------
 

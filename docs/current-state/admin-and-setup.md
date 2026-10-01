@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Admin And Setup Model
@@ -230,8 +230,10 @@ Tabs: Units (tree with contact and location data), Levels, Cadres and
 permissions (level × cadre grid: can fill / can code VA form), Workers,
 ODK form fields, and Export / Import.
 
-- "Seed template" adds District > Taluka (optional) > CHC > PHC > Sub-centre >
-  Village with the default cadres; rerunning it keeps existing codes.
+- "Populate district defaults" adds the missing levels, cadres and grid rows
+  of the district reference model (`docs/policy/district-reference-model.md`);
+  existing ones are kept unchanged. The collapsed "District reference model"
+  card below the help box shows that model with advisory typical roles.
 - Export: workbook (`/admin/api/organization/<project_id>/export.xlsx`), one
   CSV per sheet, and the ODK choices CSV for cascading unit selects.
 - Import: upload the workbook, run the dry run, then apply. Rows are matched

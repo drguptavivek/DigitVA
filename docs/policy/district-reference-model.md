@@ -16,7 +16,8 @@ binding rules stay in that policy and in the
 [Access Control Model](access-control-model.md).
 
 Status: proposed by the owner 2026-10-01. The `TST001` test project
-(`flask seed test-project`, bead `digitva-5mo`) is built to this shape.
+(`flask seed test-project`, bead `digitva-5mo`) is built from the default
+template in code, with its village level deactivated (it has no villages).
 
 ## How rights are decided
 
@@ -61,34 +62,53 @@ The worked example district: DH01 > CHC01 > PHC01 (SC01-SC03) and PHC02
 
 ## Cadres and what they may be given
 
-| Level | Cadre | Fill VA | Code VA | Supervise interviews |
+This is the default template in code (`DEFAULT_LEVEL_TEMPLATE`,
+`DEFAULT_CADRE_TEMPLATE`, `DEFAULT_LEVEL_CADRE_TEMPLATE` in
+`app/services/organization_service.py`). *Populate district defaults* on the
+Organization page (`flask org seed-template`) adds whatever of it a project is
+missing and never changes an existing level, cadre or grid row, so flags an
+administrator set are kept. The page shows this table, with the typical roles,
+under *District reference model*.
+
+| Level code | Level label | Depth |
+|---|---|---|
+| `district` | District / District Hospital (DH) | 1 |
+| `taluka` | Sub-divisional Hospital (SDH) | 2, optional |
+| `chc` | Community Health Centre (CHC) | 3 |
+| `phc` | PHC-AAM | 4 |
+| `subcentre` | SC-AAM / Sub-centre | 5 |
+| `village` | Village | 6 |
+
+| Level code | Cadre | Fill VA | Code VA | Supervise interviews |
 |---|---|---|---|---|
-| DH | CS Civil Surgeon | – | – | ✓ |
-| DH | DPM District Programme Manager | – | – | – |
-| DH | DEPI District Epidemiologist | – | – | – |
-| DH | MO Medical Officer | – | ✓ | – |
-| DH | SN Staff Nurse | ✓ | – | – |
-| CHC | SMO Senior Medical Officer | – | ✓ | ✓ |
-| CHC | MO Medical Officer | – | ✓ | – |
-| CHC | BPM Block Programme Manager | – | – | – |
-| CHC | SN Staff Nurse | ✓ | – | – |
-| PHC-AAM | MO Medical Officer | – | ✓ | ✓ |
-| SC-AAM | CHO Community Health Officer | ✓ | – | – |
-| SC-AAM | ANM Auxiliary Nurse Midwife | ✓ | – | – |
-| SC-AAM | MPW Multipurpose Worker | ✓ | – | – |
-| Village | ASHA | ✓ | – | – |
+| `district` | CS Civil Surgeon | – | – | ✓ |
+| `district` | DPM District Programme Manager | – | – | – |
+| `district` | DEPI District Epidemiologist | – | – | – |
+| `district` | MO Medical Officer | – | ✓ | – |
+| `district` | SN Staff Nurse | ✓ | – | – |
+| `chc` | SMO Senior Medical Officer | – | ✓ | ✓ |
+| `chc` | MO Medical Officer | – | ✓ | – |
+| `chc` | BPM Block Programme Manager | – | – | – |
+| `chc` | SN Staff Nurse | ✓ | – | – |
+| `phc` | MO Medical Officer | – | ✓ | ✓ |
+| `phc` | CHO Community Health Officer | ✓ | – | – |
+| `subcentre` | CHO Community Health Officer | ✓ | – | – |
+| `subcentre` | MPW Multipurpose Worker | ✓ | – | – |
+| `subcentre` | ANM Auxiliary Nurse Midwife | ✓ | – | – |
+| `village` | ASHA Accredited Social Health Activist | ✓ | – | – |
 
 ## Typical roles by cadre
 
 Advisory. These are the grants an administrator would normally give; each
-person's grants are still chosen one by one.
+person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
+(display only, never read for authorization).
 
 | Where | Cadre / person | Typical roles | Covers |
 |---|---|---|---|
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
-| DH | CS | `site_pi`, `interview_supervisor` | whole district |
-| DH | DPM | `data_manager` | whole district: worklist, registering deaths, data |
+| DH | CS | `site_pi`, `interview_supervisor` | whole district (a unit-scoped `site_pi` gives no access yet, `digitva-djd`) |
+| DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is interviewer-only) |
 | DH | DEPI | `collaborator_pii` | read-only with personal details |
 | DH | MO | `coder`, or `reviewer` | whole district |
 | DH | SN | `interviewer` | facility deaths at the DH |

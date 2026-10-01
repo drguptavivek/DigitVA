@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Organization Model Policy
@@ -251,9 +251,12 @@ project ever has to carry two coding systems at once, that is when to add one.
   requires an active parent.
 - A level cannot be deactivated, nor its depth changed, while units exist at
   that level.
-- Seeding the template (District, Taluka optional, CHC, PHC, Sub-centre,
-  Village, with SMO/MO/CHO/MPW/ANM/ASHA) is idempotent: existing codes are
-  kept.
+- Seeding the template (*Populate district defaults*; levels `district`,
+  `taluka` optional, `chc`, `phc`, `subcentre`, `village`, the eleven default
+  cadres and their level x cadre grid, see
+  [District Reference Model](district-reference-model.md)) is additive: it
+  only creates what is missing and never changes an existing level, cadre or
+  grid row, so flags an administrator set are kept.
 - A submission already attributed to a unit **keeps that attribution** when
   the unit is deactivated (decision 2026-09-18), so counts over a closed unit
   stay correct. Deactivation removes the unit from routing and from every

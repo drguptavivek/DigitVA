@@ -344,6 +344,10 @@ def create_app(config_class=None):
     from app.utils.who_va_bundle import who_va_bundle_version
 
     app.add_template_global(who_va_bundle_version, "who_va_bundle_version")
+    # The Organization panel's reference card, standalone or inside Project Setup.
+    from app.services.organization_service import district_reference_model
+
+    app.add_template_global(district_reference_model, "district_reference_model")
 
     @app.context_processor
     def inject_template_globals():

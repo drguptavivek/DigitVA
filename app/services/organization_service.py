@@ -69,7 +69,7 @@ __all__ = [
     # workers
     "list_workers", "create_worker", "update_worker",
     # template, export, import
-    "seed_default_organization",
+    "seed_default_organization", "district_reference_model",
     "export_organization_rows", "export_organization_xlsx", "export_organization_csv",
     "export_odk_choices_rows", "export_odk_choices_csv",
     "parse_organization_workbook", "parse_organization_csv", "import_organization",
@@ -85,34 +85,69 @@ __all__ = [
 CODE_RE = re.compile(r"^[A-Z0-9_]{1,32}$")
 LEVEL_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
-# Seed template: District > Taluka (optional) > CHC > PHC > Sub-centre > Village.
+# Seed template ("Populate district defaults"), the district reference model:
+# docs/policy/district-reference-model.md. Codes and depths are stable (existing
+# projects and ODK field names org_<level_code>_code depend on them); only the
+# labels follow the AAM naming.
 DEFAULT_LEVEL_TEMPLATE: tuple[tuple[str, str, int, bool], ...] = (
-    ("district", "District", 1, False),
-    ("taluka", "Taluka / Sub-divisional Hospital", 2, True),
-    ("chc", "Community Health Centre", 3, False),
-    ("phc", "PHC / UPHC / AAM-PHC", 4, False),
-    ("subcentre", "Sub-centre / AAM-SHC", 5, False),
+    ("district", "District / District Hospital (DH)", 1, False),
+    ("taluka", "Sub-divisional Hospital (SDH)", 2, True),
+    ("chc", "Community Health Centre (CHC)", 3, False),
+    ("phc", "PHC-AAM", 4, False),
+    ("subcentre", "SC-AAM / Sub-centre", 5, False),
     ("village", "Village", 6, False),
 )
 DEFAULT_CADRE_TEMPLATE: tuple[tuple[str, str], ...] = (
+    ("CS", "Civil Surgeon"),
+    ("DPM", "District Programme Manager"),
+    ("DEPI", "District Epidemiologist"),
     ("SMO", "Senior Medical Officer"),
     ("MO", "Medical Officer"),
+    ("BPM", "Block Programme Manager"),
+    ("SN", "Staff Nurse"),
     ("CHO", "Community Health Officer"),
     ("MPW", "Multipurpose Worker"),
     ("ANM", "Auxiliary Nurse Midwife"),
     ("ASHA", "Accredited Social Health Activist"),
 )
-# (level_code, cadre_code) -> (can_fill_va_form, can_code_va_form)
-DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool]] = {
-    ("chc", "SMO"): (False, True),
-    ("chc", "MO"): (False, True),
-    ("phc", "MO"): (False, True),
-    ("phc", "CHO"): (True, False),
-    ("subcentre", "CHO"): (True, False),
-    ("subcentre", "MPW"): (True, False),
-    ("subcentre", "ANM"): (True, False),
-    ("village", "ASHA"): (True, False),
+# (level_code, cadre_code) -> (can_fill_va_form, can_code_va_form,
+# can_supervise_interviews): what a cadre MAY be given at that level.
+DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool]] = {
+    ("district", "CS"): (False, False, True),
+    ("district", "DPM"): (False, False, False),
+    ("district", "DEPI"): (False, False, False),
+    ("district", "MO"): (False, True, False),
+    ("district", "SN"): (True, False, False),
+    ("chc", "SMO"): (False, True, True),
+    ("chc", "MO"): (False, True, False),
+    ("chc", "BPM"): (False, False, False),
+    ("chc", "SN"): (True, False, False),
+    ("phc", "MO"): (False, True, True),
+    ("phc", "CHO"): (True, False, False),
+    ("subcentre", "CHO"): (True, False, False),
+    ("subcentre", "MPW"): (True, False, False),
+    ("subcentre", "ANM"): (True, False, False),
+    ("village", "ASHA"): (True, False, False),
 }
+# Advisory only, shown on the Organization page: the grants an administrator
+# would normally give each cadre. Never read for authorization; access comes
+# only from each person's grants.
+DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("district", "CS"): ("site_pi", "interview_supervisor"),
+    ("district", "DPM"): ("data_manager",),
+    ("district", "DEPI"): ("collaborator_pii",),
+    ("district", "MO"): ("coder", "reviewer"),
+    ("district", "SN"): ("interviewer",),
+    ("chc", "SMO"): ("interview_supervisor", "reviewer"),
+    ("chc", "MO"): ("coder",),
+    ("chc", "BPM"): ("data_manager",),
+    ("chc", "SN"): ("interviewer",),
+    ("phc", "MO"): ("interview_supervisor", "coder"),
+    ("subcentre", "CHO"): ("interviewer",),
+}
+# Cadres with no role yet: they report deaths, which no role covers today.
+_TYPICAL_ROLES_NOTE = "none yet; death_reporter proposed"
+_NO_ROLE_YET_CADRES = frozenset({"ANM", "MPW", "ASHA"})
 
 EXPORT_SHEETS = ("levels", "units", "cadres", "level_cadres", "workers")
 
@@ -1434,9 +1469,11 @@ def update_worker(project_id: str, worker_id: object, **fields) -> MasOrgUnitWor
 
 
 def seed_default_organization(project_id: str, *, include_cadres: bool = True) -> dict[str, int]:
-    """Idempotently add the template levels, cadres and permissions to a project.
+    """Additively add the template levels, cadres and level x cadre rows.
 
-    Existing codes are left untouched, so this is safe to rerun.
+    Only what is missing is created: an existing level (by code or depth),
+    cadre or grid row is never changed, so flags an admin set survive a
+    rerun. Returns how many of each were created.
     """
     _get_project(project_id)
     counts = {"levels": 0, "cadres": 0, "level_cadres": 0}
@@ -1458,18 +1495,17 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             continue
         existing_cadres[code] = create_cadre(project_id, cadre_code=code, cadre_name=name)
         counts["cadres"] += 1
-    for (level_code, cadre_code), (can_fill, can_code) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+    existing_pairs = set(
+        db.session.execute(
+            sa.select(MapOrgLevelCadre.org_level_id, MapOrgLevelCadre.cadre_id)
+            .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+            .where(MasOrgLevel.project_id == project_id)
+        ).all()
+    )
+    for (level_code, cadre_code), (can_fill, can_code, can_supervise) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
         level = existing_levels.get(level_code)
         cadre = existing_cadres.get(cadre_code)
-        if level is None or cadre is None:
-            continue
-        exists = db.session.scalar(
-            sa.select(MapOrgLevelCadre.level_cadre_id).where(
-                MapOrgLevelCadre.org_level_id == level.org_level_id,
-                MapOrgLevelCadre.cadre_id == cadre.cadre_id,
-            )
-        )
-        if exists is not None:
+        if level is None or cadre is None or (level.org_level_id, cadre.cadre_id) in existing_pairs:
             continue
         upsert_level_cadre(
             project_id,
@@ -1477,10 +1513,46 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             cadre_id=cadre.cadre_id,
             can_fill_va_form=can_fill,
             can_code_va_form=can_code,
+            can_supervise_interviews=can_supervise,
         )
         counts["level_cadres"] += 1
     db.session.flush()
     return counts
+
+
+def district_reference_model() -> dict:
+    """The seed template as display data for the Organization page.
+
+    Pure (no database): levels, cadres and one row per grid entry with its
+    flags and the advisory typical roles. Typical roles are guidance only and
+    are never used to decide access.
+    """
+    level_names = {code: name for code, name, _depth, _optional in DEFAULT_LEVEL_TEMPLATE}
+    cadre_names = dict(DEFAULT_CADRE_TEMPLATE)
+    grid = []
+    for (level_code, cadre_code), (can_fill, can_code, can_supervise) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+        roles = DEFAULT_TYPICAL_ROLES.get((level_code, cadre_code), ())
+        grid.append(
+            {
+                "level_code": level_code,
+                "level_name": level_names[level_code],
+                "cadre_code": cadre_code,
+                "cadre_name": cadre_names[cadre_code],
+                "can_fill_va_form": can_fill,
+                "can_code_va_form": can_code,
+                "can_supervise_interviews": can_supervise,
+                "typical_roles": list(roles),
+                "typical_roles_note": _TYPICAL_ROLES_NOTE if not roles and cadre_code in _NO_ROLE_YET_CADRES else None,
+            }
+        )
+    return {
+        "levels": [
+            {"level_code": code, "level_name": name, "depth": depth, "is_optional": optional}
+            for code, name, depth, optional in DEFAULT_LEVEL_TEMPLATE
+        ],
+        "cadres": [{"cadre_code": code, "cadre_name": name} for code, name in DEFAULT_CADRE_TEMPLATE],
+        "grid": grid,
+    }
 
 
 # ---------------------------------------------------------------------------

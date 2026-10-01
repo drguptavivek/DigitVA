@@ -5,7 +5,7 @@ Roster and grid: docs/current-state/test-project-tst001.md.
 import sqlalchemy as sa
 
 from app import db
-from app.commands.seed import _TST_GRID, _TST_USERS, TEST_PROJECT_ID
+from app.commands.seed import _TST_USERS, TEST_PROJECT_ID
 from app.models import (
     MasCadre,
     MasOrgUnit,
@@ -87,7 +87,17 @@ class SeedTestProjectTests(BaseTestCase):
             )
             for row in org.list_level_cadres(TEST_PROJECT_ID)
         }
-        self.assertEqual(grid, _TST_GRID)
+        # The template grid, village row included (its level is only deactivated).
+        self.assertEqual(grid, org.DEFAULT_LEVEL_CADRE_TEMPLATE)
+        levels = {
+            lv.level_code: lv.is_active
+            for lv in org.list_levels(TEST_PROJECT_ID, include_inactive=True)
+        }
+        self.assertEqual(
+            levels,
+            {"district": True, "taluka": True, "chc": True, "phc": True,
+             "subcentre": True, "village": False},
+        )
 
         for local, unit_code in (("test.anm.sc01", "SC01"), ("test.mpw.sc04", "SC04")):
             user = db.session.scalar(

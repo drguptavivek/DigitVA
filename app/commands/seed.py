@@ -274,52 +274,19 @@ def _seed_test_users():
 TEST_PROJECT_ID = "TST001"
 TEST_PROJECT_PASSWORD = "Aiims@123"
 
-#: (level_code, level_name, depth); every level is mandatory.
-_TST_LEVELS = (
-    ("dh", "District Hospital", 1),
-    ("chc", "Community Health Centre", 2),
-    ("phc", "PHC-AAM", 3),
-    ("sc", "SC-AAM", 4),
-)
+#: Levels, cadres and grid come from the district reference model
+#: (organization_service.seed_default_organization). TST001 has no villages,
+#: so its mandatory village level is deactivated to keep the project ready.
+_TST_UNUSED_LEVEL = "village"
 
 #: (unit_code, unit_name, level_code, parent_unit_code), parents first.
 _TST_UNITS = (
-    ("DH01", "District Hospital", "dh", None),
+    ("DH01", "District Hospital", "district", None),
     ("CHC01", "Community Health Centre", "chc", "DH01"),
     ("PHC01", "PHC-AAM 1", "phc", "CHC01"),
     ("PHC02", "PHC-AAM 2", "phc", "CHC01"),
-    *((f"SC0{n}", f"SC-AAM {n}", "sc", "PHC01" if n <= 3 else "PHC02") for n in range(1, 7)),
+    *((f"SC0{n}", f"SC-AAM {n}", "subcentre", "PHC01" if n <= 3 else "PHC02") for n in range(1, 7)),
 )
-
-_TST_CADRES = (
-    ("CS", "Civil Surgeon"),
-    ("DPM", "District Programme Manager"),
-    ("DEPI", "District Epidemiologist"),
-    ("MO", "Medical Officer"),
-    ("SN", "Staff Nurse"),
-    ("SMO", "Senior Medical Officer"),
-    ("BPM", "Block Programme Manager"),
-    ("CHO", "Community Health Officer"),
-    ("ANM", "Auxiliary Nurse Midwife"),
-    ("MPW", "Multipurpose Worker"),
-)
-
-#: (level_code, cadre_code) -> (can_fill, can_code, can_supervise).
-_TST_GRID = {
-    ("dh", "CS"): (False, False, True),
-    ("dh", "DPM"): (False, False, False),
-    ("dh", "DEPI"): (False, False, False),
-    ("dh", "MO"): (False, True, False),
-    ("dh", "SN"): (True, False, False),
-    ("chc", "SMO"): (False, True, True),
-    ("chc", "MO"): (False, True, False),
-    ("chc", "BPM"): (False, False, False),
-    ("chc", "SN"): (True, False, False),
-    ("phc", "MO"): (False, True, True),
-    ("sc", "CHO"): (True, False, False),
-    ("sc", "ANM"): (True, False, False),
-    ("sc", "MPW"): (True, False, False),
-}
 
 #: (email local part, landing_page, unit_code, cadre_code, roles). No unit
 #: means project scope. Landing pages are the values VaUsers.landing_url
@@ -431,14 +398,19 @@ def _build_test_project(org, user_import) -> dict:
     site = org.ensure_organization_site(TEST_PROJECT_ID)
     summary["site"] = site.site_id
 
+    org.seed_default_organization(TEST_PROJECT_ID)
     levels = {lv.level_code: lv for lv in org.list_levels(TEST_PROJECT_ID, include_inactive=True)}
-    for code, name, depth in _TST_LEVELS:
-        if code not in levels:
-            levels[code] = org.create_level(
-                TEST_PROJECT_ID, level_code=code, level_name=name, depth=depth
-            )
-        elif not levels[code].is_active:
+    used = {level_code for _code, _name, level_code, _parent in _TST_UNITS} | {_TST_UNUSED_LEVEL}
+    if missing := sorted(used - levels.keys()):
+        # The template skips a level whose depth another code already holds.
+        raise org.OrganizationError(
+            f"level(s) {', '.join(missing)} missing; another level holds the template depth."
+        )
+    for code in used - {_TST_UNUSED_LEVEL}:
+        if not levels[code].is_active:
             org.update_level(TEST_PROJECT_ID, levels[code].org_level_id, is_active=True)
+    if levels[_TST_UNUSED_LEVEL].is_active:
+        org.update_level(TEST_PROJECT_ID, levels[_TST_UNUSED_LEVEL].org_level_id, is_active=False)
 
     units = {}
     for code, name, level_code, parent_code in _TST_UNITS:
@@ -456,22 +428,13 @@ def _build_test_project(org, user_import) -> dict:
         units[code] = unit
 
     cadres = {c.cadre_code: c for c in org.list_cadres(TEST_PROJECT_ID, include_inactive=True)}
-    for code, name in _TST_CADRES:
-        if code not in cadres:
-            cadres[code] = org.create_cadre(TEST_PROJECT_ID, cadre_code=code, cadre_name=name)
-        elif not cadres[code].is_active:
+    for code in {cadre_code for *_rest, cadre_code, _roles in _TST_USERS if cadre_code}:
+        if not cadres[code].is_active:
             org.update_cadre(TEST_PROJECT_ID, cadres[code].cadre_id, is_active=True)
-
-    for (level_code, cadre_code), (fill, code_, supervise) in _TST_GRID.items():
-        org.upsert_level_cadre(
-            TEST_PROJECT_ID,
-            org_level_id=levels[level_code].org_level_id,
-            cadre_id=cadres[cadre_code].cadre_id,
-            can_fill_va_form=fill,
-            can_code_va_form=code_,
-            can_supervise_interviews=supervise,
-        )
-    summary["tree"] = f"{len(levels)} levels, {len(units)} units, {len(_TST_GRID)} grid rows"
+    summary["tree"] = (
+        f"{len(levels)} levels, {len(units)} units, "
+        f"{len(org.list_level_cadres(TEST_PROJECT_ID))} grid rows"
+    )
 
     # Users: created like _seed_test_users (verified, onboarded, no forced
     # reset). An existing user keeps password, profile and status: a

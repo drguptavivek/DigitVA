@@ -30,8 +30,8 @@
         <input class="form-check-input" type="checkbox" id="org-show-inactive" role="switch">
         <label class="form-check-label small text-muted" for="org-show-inactive">Show inactive</label>
       </div>
-      <button class="btn btn-sm btn-outline-secondary" id="org-seed-btn" title="Add the District > Taluka > CHC > PHC > Sub-centre > Village template with default cadres">
-        <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Seed template
+      <button class="btn btn-sm btn-outline-secondary" id="org-seed-btn" title="Add the district reference model's missing levels (DH > SDH > CHC > PHC-AAM > SC-AAM > Village), cadres and permissions; existing ones are kept unchanged">
+        <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Populate district defaults
       </button>
     </div>
   </div>
@@ -42,13 +42,41 @@
     <div class="fw-semibold mb-1">How to set up an organization</div>
     <div class="mb-1">{% if not locked_project_id %}Pick an organization-mode project above (set <em>Structure: Organization</em> in the Projects panel), then work{% else %}Work{% endif %} through the tabs in order:</div>
     <ol class="mb-1 ps-3">
-      <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Seed template</em> adds a standard set.</li>
+      <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Populate district defaults</em> adds the district reference model below.</li>
       <li><strong>Units</strong>: add places at each level, or use <em>Upload units CSV</em> in Export / Import. Import top-level units before children; a blank parent code leaves a unit to place with <em>Map parents</em>.</li>
       <li><strong>Cadres &amp; permissions</strong>: the worker types, and at which level each may fill or code VA forms.</li>
       <li><strong>Workers</strong>: attach health workers to units.</li>
     </ol>
     <div>Then use <strong>Export / Import</strong> to upload project users and roles. <strong>ODK form fields</strong> is optional for projects collecting through ODK.</div>
   </div>
+
+  {% set ref_model = district_reference_model() %}
+  <details class="border rounded p-2 mb-3 small" id="org-reference-model">
+    <summary class="fw-semibold">District reference model</summary>
+    <div class="mt-2 mb-2">
+      {%- for lv in ref_model.levels -%}
+        {{ lv.level_name }}{% if lv.is_optional %} (optional){% endif %}{% if not loop.last %} &gt; {% endif %}
+      {%- endfor -%}
+    </div>
+    <div class="text-muted mb-2">The grid is what a cadre <em>may</em> be given; typical roles are guidance; access comes only from each person's grants. Policy: <code>docs/policy/district-reference-model.md</code>.</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0">
+        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Typical roles</th></tr></thead>
+        <tbody>
+          {%- for row in ref_model.grid %}
+          <tr>
+            <td>{{ row.level_name }}</td>
+            <td>{{ row.cadre_code }} {{ row.cadre_name }}</td>
+            <td>{{ '✓' if row.can_fill_va_form else '–' }}</td>
+            <td>{{ '✓' if row.can_code_va_form else '–' }}</td>
+            <td>{{ '✓' if row.can_supervise_interviews else '–' }}</td>
+            <td>{% if row.typical_roles %}{{ row.typical_roles | join(', ') }}{% elif row.typical_roles_note %}<span class="text-muted">{{ row.typical_roles_note }}</span>{% else %}–{% endif %}</td>
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
 
   <ul class="nav nav-tabs mb-3" id="org-tabs" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-org-tab="levels" type="button">1. Levels</button></li>
@@ -637,10 +665,10 @@
 
   $('org-seed-btn').addEventListener('click', function () {
     if (!PROJECT_ID) { alertBox('warning', 'Select a project first.'); return; }
-    askConfirm('Add the template levels, cadres and permissions to project ' + PROJECT_ID + '? Existing codes are kept.', function () {
+    askConfirm('Add the missing district default levels, cadres and permissions to project ' + PROJECT_ID + '? Existing ones are kept unchanged.', function () {
       api(base() + '/seed-template', 'POST', {}).then(function (res) {
         if (!res.ok) { fail(res); return; }
-        var c = res.data.seeded; alertBox('success', 'Seeded levels=' + c.levels + ' cadres=' + c.cadres + ' permissions=' + c.level_cadres + '.'); loadAll();
+        var c = res.data.seeded; alertBox('success', 'Added levels=' + c.levels + ' cadres=' + c.cadres + ' permissions=' + c.level_cadres + '.'); loadAll();
       });
     });
   });
@@ -1468,7 +1496,7 @@
             + '<td>' + esc(r.label) + '</td><td>' + esc(r.required) + '</td>'
             + '<td><code>' + esc(r.choice_filter) + '</code></td></tr>';
         }).join('')
-      : '<tr><td colspan="5" class="text-muted small">No active levels yet — add levels or seed the template first.</td></tr>';
+      : '<tr><td colspan="5" class="text-muted small">No active levels yet — add levels or populate the district defaults first.</td></tr>';
 
     var shown = choices.slice(0, CHOICES_PREVIEW_ROWS);
     $('org-choices-rows').innerHTML = shown.length

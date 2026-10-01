@@ -318,6 +318,14 @@ class AdminOrganizationApiTests(BaseTestCase):
         response = self.client.get(f"/admin/panels/organization?project_id={self.PROJECT}")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="panel-organization"', response.data)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="org-reference-model"', html)
+        self.assertIn("<summary", html)  # collapsed without Bootstrap JS
+        self.assertIn("District reference model", html)
+        self.assertIn("CS Civil Surgeon", html)
+        self.assertIn("site_pi, interview_supervisor", html)
+        self.assertIn("Populate district defaults", html)
+        self.assertNotIn(">Seed template<", html)
 
     def test_coder_is_forbidden(self):
         self._login(str(self.base_coder_id))
@@ -392,7 +400,7 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         summary = self.client.get(self._url()).get_json()
         self.assertEqual(summary["units"][0]["children"][0]["unit_code"], "C01")
-        self.assertEqual(len(summary["level_cadres"]), 8)
+        self.assertEqual(len(summary["level_cadres"]), len(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
 
         toggled = self.client.post(self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": False}, headers=headers)
         self.assertEqual(toggled.get_json()["changed"], 2)

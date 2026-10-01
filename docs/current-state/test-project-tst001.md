@@ -29,34 +29,34 @@ both web-intake methods with a user in every role. Source:
 
 ## Tree
 
-All four levels are mandatory (depth 1-4).
+Levels, cadres and the grid are the default template
+(`seed_default_organization`, the
+[district reference model](../policy/district-reference-model.md)), added
+additively, so a grid flag changed by hand is kept on rerun. TST001 has no
+villages, so its `village` level is deactivated; `taluka` (SDH) is optional
+and empty. Every other level is mandatory.
 
 ```
-DH01  District Hospital            (dh)
-└─ CHC01  Community Health Centre  (chc)
-   ├─ PHC01  PHC-AAM 1             (phc)
-   │  └─ SC01, SC02, SC03  SC-AAM 1-3   (sc)
-   └─ PHC02  PHC-AAM 2             (phc)
-      └─ SC04, SC05, SC06  SC-AAM 4-6   (sc)
+DH01  District Hospital            (district, depth 1)
+└─ CHC01  Community Health Centre  (chc, depth 3)
+   ├─ PHC01  PHC-AAM 1             (phc, depth 4)
+   │  └─ SC01, SC02, SC03  SC-AAM 1-3   (subcentre, depth 5)
+   └─ PHC02  PHC-AAM 2             (phc, depth 4)
+      └─ SC04, SC05, SC06  SC-AAM 4-6   (subcentre, depth 5)
 ```
+
+Until 2026-10-01 TST001 used its own level codes `dh` and `sc` at depths 1-4.
+The dev database was converted in place (codes renamed through
+`update_level`, depths shifted, no rows deleted); a database built before
+then needs the same conversion before a rerun, or the command stops with
+"level(s) ... missing; another level holds the template depth."
 
 ## Level x cadre grid
 
-| Level | Cadre | Fill | Code | Supervise |
-| --- | --- | --- | --- | --- |
-| dh | CS Civil Surgeon | | | Y |
-| dh | DPM District Programme Manager | | | |
-| dh | DEPI District Epidemiologist | | | |
-| dh | MO Medical Officer | | Y | |
-| dh | SN Staff Nurse | Y | | |
-| chc | SMO Senior Medical Officer | | Y | Y |
-| chc | MO Medical Officer | | Y | |
-| chc | BPM Block Programme Manager | | | |
-| chc | SN Staff Nurse | Y | | |
-| phc | MO Medical Officer | | Y | Y |
-| sc | CHO Community Health Officer | Y | | |
-| sc | ANM Auxiliary Nurse Midwife | Y | | |
-| sc | MPW Multipurpose Worker | Y | | |
+The template grid (`DEFAULT_LEVEL_CADRE_TEMPLATE`); the table is in the
+district reference model. TST001 grants use `district` CS/DPM/DEPI/MO/SN,
+`chc` SMO/MO/BPM/SN, `phc` MO and `subcentre` CHO/ANM/MPW; the `phc` CHO and
+`village` ASHA rows exist but hold no one.
 
 ## Roster
 

@@ -1,7 +1,7 @@
 ---
 title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
-status: proposed
+status: active
 owner: engineering
 last_updated: 2026-10-01
 ---
@@ -15,7 +15,7 @@ cadres and grants ([Organization Model Policy](organization-model.md)). The
 binding rules stay in that policy and in the
 [Access Control Model](access-control-model.md).
 
-Status: proposed by the owner 2026-10-01. The `TST001` test project
+Status: active, accepted by the owner 2026-10-01 (parts marked proposed below, such as the mentor unit and `death_reporter`, remain proposals). The `TST001` test project
 (`flask seed test-project`, bead `digitva-5mo`) is built from the default
 template in code, with its village level deactivated (it has no villages).
 

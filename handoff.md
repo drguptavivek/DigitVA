@@ -17,8 +17,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2819 passed on 2026-10-01). One pytest run per test database at a time.
-> Web form package: `cd vendor/who-va-2022 && npx vitest run` (786 pass);
+> (about 2850 passed on 2026-10-01; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
 > (`npx jest`: 66 pass). Dev DB head: `b8d2e5f1a7c3`. Use `bd`; commit in the
@@ -58,9 +58,23 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `/help/user-roles`, Setup home panels (`digitva-r1p`), People > Devices,
    `/intake/supervision` (as `test.mo.phc01`), duplicate hint on `/intake/`.
    TST001 now supplies supervisor, DM and CHO accounts.
-8. `digitva-vzk.12`: a refusal on a direct-start interview can never be
-   submitted, web or phone, because minimum identity is asked after consent.
-9. `digitva-kmk.5` Android release (signing C4, real device biometric, QR
+8. `digitva-kfi` Android rewrite, all owner-decided 2026-10-01: policy text
+   first (`docs/policy/field-data-collection.md`, then mark Path B accepted),
+   then the app. 6-digit PIN; timed lock after 5 wrong, no wrong-PIN wipe;
+   wipe only on `session_revoked`; server issues one data key per scope
+   (district) at sign-in, kept in the Keystore, so the PIN is only the unlock
+   gate and a PIN reset (after password + second factor) keeps the interviews;
+   one shared store per scope (interviewers in a scope see each other's
+   interviews, unsynced included); data managers at any unit level create
+   enrolment codes for staff under their unit (depends on `djd`); 30-day
+   sliding refresh with 90-day cap; self-signed release key held and backed up
+   by the owner (C4 accepted).
+   `digitva-35x` duplicate hint, owner-decided: show name, date of death,
+   village, age, sex, respondent name and previous worker only for cases in
+   the viewer's own scope, never the ID or anything of an out-of-scope case;
+   supervisors at CHC/PHC/DH deactivate or reactivate an interview with a
+   logged reason. Policy baseline first.
+9. `digitva-kmk.5` Android release (signing now decided, see `kfi`; real device biometric, QR
    scan, 5-minute lock); debug builds only until then.
 10. `digitva-ej1` attachments for web intake, then on the phone.
 11. `digitva-4in` DM KPI dashboard shell vs data_manager-only APIs (PII
@@ -84,24 +98,22 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Open owner decisions
 
-- `vzk.12` (item 8).
-- Incomplete interview outcomes route to `consent_refused`, so DM KPIs count
-  them as refusals. Alternatives: a new state, or no submission row.
 - Picking "refused" while consent is yes is refused (422).
 - Prefill name split: first word given name, rest surname.
-- Possible-duplicate hint shows the other case's id only.
 - Coder personal history keeps confirmed duplicates; DM grid has no "show
   duplicates" toggle.
 - Area dashboard: collaborators get no DM links; project cards follow final
   COD authority and can differ from table buckets.
-- Android Path B (`docs/policy/field-data-collection.md`, proposed): 30-day
-  sliding refresh with 90-day cap, C4 signing, `org.digitva.collect`,
-  admin-only enrolment codes, PIN 6-16 digits wiped at 5 wrong, wipe only
-  on `session_revoked`.
-- `docs/policy/district-reference-model.md` is still `proposed`.
+- Daily KPI grid shows the Not analysable total only; a per-day reason split
+  would need a stored column and migration.
+- The visit note (refusal with no identity) is stored in the submission
+  payload only; no supervisor or DM page shows it yet.
 
 ## Caveats still true
 
+- A direct start refused at consent with no identity stores a `refused` submission
+  and closes its case `cancelled` (the identity constraint allows no other
+  closed state without one); it counts under Not analysable in DM KPIs.
 - Data managers cannot give unit grants (refused by design); CHO interviewer
   grants come from an admin or project PI.
 - A TST001 built before 2026-10-01 (level codes `dh`/`sc`) needs the one-off

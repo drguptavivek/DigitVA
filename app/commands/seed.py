@@ -296,7 +296,8 @@ _TST_USERS = (
     ("test.dm", "data_manager", None, None, ("data_manager",)),
     ("test.faculty", "data_manager", None, None, ("collaborator_pii", "coding_tester")),
     ("test.resident", "data_manager", None, None, ("collaborator_pii", "coding_tester")),
-    ("test.cs.dh01", "sitepi", "DH01", "CS", ("site_pi", "interview_supervisor")),
+    # No site_pi: it is not held at a unit (the project PI covers every district).
+    ("test.cs.dh01", "intake", "DH01", "CS", ("interview_supervisor",)),
     ("test.dpm.dh01", "data_manager", "DH01", "DPM", ("data_manager",)),
     ("test.depi.dh01", "data_manager", "DH01", "DEPI", ("collaborator_pii",)),
     ("test.mo.dh01", "coder", "DH01", "MO", ("coder",)),

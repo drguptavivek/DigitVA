@@ -69,7 +69,7 @@ onboarded, Asia/Kolkata, English. Unit-scoped grants carry the cadre.
 | test.pi | project | project_pi | admin |
 | test.dm | project | data_manager | data_manager |
 | test.faculty, test.resident | project | collaborator_pii, coding_tester | data_manager |
-| test.cs.dh01 | DH01 CS | site_pi, interview_supervisor | sitepi |
+| test.cs.dh01 | DH01 CS | interview_supervisor (no `site_pi`: not held at a unit; `test.pi` covers every district) | intake |
 | test.dpm.dh01 | DH01 DPM | data_manager | data_manager |
 | test.depi.dh01 | DH01 DEPI | collaborator_pii | data_manager |
 | test.mo.dh01 | DH01 MO | coder | coder |

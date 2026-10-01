@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Current Data Model
@@ -285,6 +285,21 @@ rows here keep the Project > Site > Form model.
   `is_active`
 - name and phone are personal data
 
+### Mentoring institutes
+
+- `mas_mentor_institute`: cross-project master (`institute_code` unique,
+  `institute_name`, `is_active`, `created_at`, `created_by_user_id`); not an org
+  unit
+- `map_mentor_institute_org_unit`: institute to district-level unit, composite
+  PK (`institute_id`, `org_unit_id`), `is_active`, `created_at`,
+  `created_by_user_id`; cascades on institute or unit delete; index on
+  `org_unit_id`
+- `map_mentor_institute_user`: institute to staff user, composite PK
+  (`institute_id`, `user_id`), same trailing columns; index on `user_id`
+- many to many on both maps; they only guard grant writes
+  (`app/services/mentor_institute_service.py`), they confer no access. Migration
+  `c4a9e7d2b6f1`. Policy: `docs/policy/organization-model.md`
+
 ### Unit-scoped access grants
 
 - `va_user_access_grants` accepts `scope_type = 'org_unit'` with
@@ -293,10 +308,12 @@ rows here keep the Project > Site > Form model.
 - a unit grant leaves `project_id` and `project_site_id` empty; the grant's
   project is the unit's project, resolved in queries through the unit
 - the grant covers the unit's whole subtree (`path <@ grant unit path`)
-- check constraints: the scope shape, the role/scope pairs (`site_pi`,
-  `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager` may use
-  `org_unit`; `interview_supervisor` may use **only** `org_unit`), and
-  `cadre_id` only on unit grants
+- check constraints: the scope shape, the role/scope pairs (`collaborator`,
+  `collaborator_pii`, `coder`, `coding_tester`, `reviewer`, `data_manager`,
+  `interviewer` may use `org_unit`; `interview_supervisor` may use **only**
+  `org_unit`; `site_pi` may use **only** `project_site`, migration
+  `c4a9e7d2b6f1`, created `NOT VALID` where legacy `site_pi` unit rows were
+  kept deactive), and `cadre_id` only on unit grants
 - partial unique index `uq_va_user_access_grants_org_unit` on
   (`user_id`, `role`, `org_unit_id`); lookup index on
   (`org_unit_id`, `role`, `grant_status`)

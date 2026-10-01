@@ -72,7 +72,7 @@ the page never decides access itself.
 | Manage data | `data_manager` |
 | Sees personal details | **per person, not per row**: shown once on the person, true unless all their active grants, across every active project, are plain `collaborator` (`should_redact_pii`, `app/services/viewer_pii_service.py`) |
 | Read-only view | `collaborator`, `collaborator_pii` |
-| Site lead | `site_pi`. At unit scope it gives **nothing today**: the site PI dashboards and the coder-gate waiver read `project_site` grants only (`VaUsers.get_site_pi_sites`); the cell shows a warning for a unit-scoped `site_pi` until that gap (`digitva-djd`) is closed |
+| Site lead | `site_pi`, which exists at `project_site` scope only (classical projects); organizational projects have none, the project PI covers every district |
 | Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at project or site scope only (`app/routes/data_management.py`) |
 
 ## Cell legend
@@ -170,5 +170,12 @@ selected unit's path, not per row. No per-row queries.
   grants.
 
 - Dormant flag default: 90 days.
-- A unit-scoped `site_pi` covers every site and form under that unit
-  (`digitva-djd`); until that is built the Site lead cell shows the warning.
+- `site_pi` is not held at unit scope (see [Access Control Model](access-control-model.md)):
+  in an organizational project the Site lead duty belongs to the project PI.
+- **Headcount excludes mentoring institute staff.** A district's staff
+  headcount counts only people whose grants sit in the district's own tree.
+  A member of a mentoring institute (`map_mentor_institute_user`, active) is
+  never counted there, even though their unit grants fall inside the district's
+  subtree. They appear in a separate **Mentors** listing for the district,
+  grouped by institute (`mentor_institute_service.mentors_for_unit`). There
+  is no headcount service yet; whoever builds it applies this rule.

@@ -15,7 +15,7 @@ cadres and grants ([Organization Model Policy](organization-model.md)). The
 binding rules stay in that policy and in the
 [Access Control Model](access-control-model.md).
 
-Status: active, accepted by the owner 2026-10-01 (parts marked proposed below, such as the mentor unit and `death_reporter`, remain proposals). The `TST001` test project
+Status: active, accepted by the owner 2026-10-01 (parts marked proposed below, such as `death_reporter`, remain proposals). The `TST001` test project
 (`flask seed test-project`, bead `digitva-5mo`) is built from the default
 template in code, with its village level deactivated (it has no villages).
 
@@ -49,7 +49,9 @@ Project
 │       └── PHC-AAM                       (phc, depth 4)
 │           └── SC-AAM                    (subcentre, depth 5)
 │               └── Village               (village, depth 6)
-└── MC    Medical College (mentor unit)   proposed, outside the service tree
+
+Mentoring institute (e.g. a medical college): not in this tree at all; a
+standalone entity attached to districts, see "Mentoring institutes" below.
 ```
 
 Level codes are the default template's (`district`, `taluka`, `chc`, `phc`,
@@ -107,7 +109,7 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 |---|---|---|---|
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
-| DH | CS | `site_pi`, `interview_supervisor` | whole district (a unit-scoped `site_pi` gives no access yet, `digitva-djd`) |
+| DH | CS | `interview_supervisor` | whole district. No `site_pi` at a unit: in an organizational project the site PI duty is the project PI's, who covers every district |
 | DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is interviewer-only) |
 | DH | DEPI | `collaborator_pii` | read-only with personal details |
 | DH | MO | `coder`, or `reviewer` | whole district |
@@ -120,7 +122,7 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 | SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
 | SC-AAM | ANM, MPW | none yet; `death_reporter` proposed | report deaths only |
 | Village | ASHA | none yet; `death_reporter` proposed | report deaths only |
-| Medical college | Faculty, residents | `collaborator_pii`, `coding_tester` | today: whole project; proposed: mentored units |
+| Mentoring institute | Faculty, residents | `coder`, `reviewer`, `coding_tester`, `collaborator_pii` | only the districts the institute is attached to, through ordinary unit grants at those districts |
 
 ## Who manages accounts and grants
 
@@ -134,16 +136,22 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 So interviewer grants for CHOs at SC-AAMs are given by an admin or the
 project PI, not by a district or block data manager.
 
+## Mentoring institutes
+
+A medical college (or similar) that gives technical support sits outside the
+service tree and is not a unit. It is a standalone, cross-project entity (the
+mentoring institute) that an administrator attaches to district units, and
+whose staff receive **ordinary unit grants** at or below those districts. See
+[Organization Model Policy](organization-model.md), "Mentoring institutes",
+for the entity, the guard and who manages it. Mentor staff are not counted in
+the district's staff headcount; they are listed separately as the district's
+mentoring institute.
+
 ## Proposed, not built
 
 - **`death_reporter` role** (`digitva-t6q`): ANM, MPW and ASHA register deaths
   but never start an interview. A unit-scope role gated by a new *Report
   deaths* grid flag, like `interview_supervisor`.
-- **Mentor units** (`digitva-eiw`): a medical college sits beside the DH, not
-  in the service tree. Because a unit grant reaches only its own subtree, it
-  needs a unit type plus explicit mentoring links to the units it supports,
-  and it stays out of pickers, staff counts and dashboard totals. Read and
-  practice roles only.
 - **Default roles per cadre** (`digitva-vjt`): the "Typical roles" column
   stored on the grid and pre-ticked when a person is added at a unit; saved
   as ordinary grants.

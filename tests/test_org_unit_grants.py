@@ -131,7 +131,7 @@ class OrgUnitGrantTests(BaseTestCase):
         cadres = self._cadres()
 
         unit, cadre = og.validate_org_unit_grant(
-            role=VaAccessRoles.site_pi, org_unit_id=chc.org_unit_id
+            role=VaAccessRoles.collaborator, org_unit_id=chc.org_unit_id
         )
         self.assertEqual(unit.unit_code, "C01")
         self.assertIsNone(cadre)

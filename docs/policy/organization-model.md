@@ -377,8 +377,11 @@ The rule and the shared predicate that implements it live in
   grantable choice, and submitting one as `org_unit_id` is refused by
   `web_intake_service._require_scope`, which validates against the grant-derived
   reachable set and ignores the flag entirely.
-- Roles accepted at unit scope: `site_pi` (oversight of a subtree),
-  `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager`.
+- Roles accepted at unit scope: `collaborator`, `collaborator_pii`, `coder`,
+  `coding_tester`, `reviewer`, `data_manager`, `interviewer`,
+  `interview_supervisor`. **Not `site_pi`**: it is held at `project_site`
+  scope only (database `role_scope` CHECK, refused by the validator); in an
+  organizational project the project PI covers every district.
   `admin` stays global and `project_pi` stays project-scoped.
 - A unit grant carries no `project_id` or `project_site_id`. The grant's
   project is the unit's project, and every project filter resolves it that way.
@@ -406,6 +409,49 @@ The rule and the shared predicate that implements it live in
 - `flask users grant` does not create unit grants; use the admin panel or the
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.
+
+## Mentoring institutes
+
+A medical college or similar body that gives technical support (reviews PII
+forms, assesses progress, practises coding) sits outside the health-service
+tree. It is **not an org unit**; it belongs to no project's tree.
+
+- `mas_mentor_institute`: a standalone, cross-project master (code, name,
+  `is_active`). Created, renamed and deactivated by a platform admin only.
+- `map_mentor_institute_org_unit`: institute to **district-level unit**
+  (depth-1 level), many to many: one institute may support districts in
+  several projects, one district may have several institutes. Attached and
+  detached by a platform admin only.
+- `map_mentor_institute_user`: institute to staff user, many to many. Added
+  and removed by a platform admin only.
+- Detaching, removing or deactivating never deletes grants; it only changes
+  what the guard allows on the next grant write. Grants already written stay
+  as they are (an admin revokes them in the grants panel).
+
+Mentor access is through **ordinary unit grants**, which flow down the subtree
+like any unit grant; the maps are only a **guard** on writing a grant. When the
+grantee is an active member of any active mentoring institute, the grant must
+be all of:
+
+1. at `org_unit` scope (never `project`, `project_site` or `global`);
+2. on a unit inside the subtree (the district itself included) of a district
+   unit attached to one of that person's institutes, in the same project;
+3. one of `coder`, `reviewer`, `coding_tester`, `collaborator_pii`. Never
+   `interviewer`, `data_manager`, `interview_supervisor`, `site_pi`,
+   `project_pi`, `collaborator` or `admin`.
+
+Otherwise the write is refused with an operator message. The guard runs on
+grant create, on reactivating a grant, and in the project user import.
+Non-members are unaffected. It is checked on **write only**: adding a person
+to an institute does not alter grants they already hold, so an admin should
+review a new member's existing grants.
+
+Mentor coding and review count toward the district's results like any
+coder's. Members are excluded from the district's staff headcount and shown
+separately (see [People and Roles Page](people-and-roles-page.md)).
+Management: `flask mentor-institute ...` and
+`app/services/mentor_institute_service.py`; every change is written to
+`grants.log`. There is no admin UI yet.
 
 ## ODK form contract
 

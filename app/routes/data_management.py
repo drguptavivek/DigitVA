@@ -34,6 +34,7 @@ from app.routes.admin import (
     _grant_project_id_expression,
     _grant_site_id_expression,
     _json_error,
+    _refuse_mentor_member,
     _resolve_scope_from_payload,
     _serialize_grant,
     _serialize_project_site,
@@ -160,6 +161,11 @@ def require_dm_scope(f):
                 )
             else:
                 return _json_error("Invalid scope type.", 400)
+            if grant.grant_status != VaStatuses.active:
+                try:
+                    _refuse_mentor_member(grant.user_id, grant.role)
+                except ValueError as exc:
+                    return _json_error(str(exc), 400)
             ok, err = _dm_can_manage_scope(
                 current_user, grant.role, grant.scope_type,
                 resolved_project_id, grant.project_site_id,
@@ -168,7 +174,11 @@ def require_dm_scope(f):
             # Create path — scope comes from the request payload.
             payload = request.get_json(silent=True) or {}
             try:
-                scope = _resolve_scope_from_payload(payload)
+                target_id = uuid.UUID(str(payload.get("user_id")))
+            except ValueError:
+                target_id = None  # the handler rejects a bad user_id itself
+            try:
+                scope = _resolve_scope_from_payload(payload, user_id=target_id)
             except ValueError as exc:
                 return _json_error(str(exc), 400)
             role = scope.role

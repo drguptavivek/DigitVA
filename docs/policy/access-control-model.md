@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-01
 ---
 
 # Access Control Model
@@ -71,7 +71,8 @@ May:
 - view reporting for assigned project-site scope
 - perform oversight actions allowed by workflow policy
 
-A user may hold `site_pi` grants for many project-site pairs.
+A user may hold `site_pi` grants for many project-site pairs. `site_pi` is
+not used in organizational (unit-tree) projects; see "Role To Scope Rules".
 
 ### `data_manager`
 
@@ -416,7 +417,10 @@ The system must not infer broader access from missing values or partial keys.
 
 - `admin` uses `global`
 - `project_pi` uses `project`
-- `site_pi` uses `project_site` or `org_unit`
+- `site_pi` uses `project_site` only. It is **never held at `org_unit`
+  scope**: in an organizational project the site PI duty is the `project_pi`'s,
+  who covers every district; classical (site-based) projects keep `site_pi` at
+  `project_site`. The database `role_scope` CHECK enforces it.
 - `data_manager` uses `project`, `project_site` or `org_unit`
 - `collaborator` uses `project`, `project_site` or `org_unit`
 - `collaborator_pii` uses `project`, `project_site` or `org_unit`
@@ -426,6 +430,21 @@ The system must not infer broader access from missing values or partial keys.
 - `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
   it supervises web intake cases in the unit's subtree, as do `data_manager`
   grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors")
+
+A unit grant of `data_manager` or `coding_tester` covers the grant's whole
+unit subtree on **every surface** (worklists, KPI and analytics, the unrouted
+queue, sync, the coder-gate waiver), exactly as a grant on each site in that
+subtree would, with no hidden pages. Grants flow down the tree and never up.
+(Implemented in stage 2 of `digitva-djd`; until then some surfaces still read
+project and site grants only.)
+
+**Mentoring institute members.** A person who belongs to a mentoring institute
+(see [Organization Model Policy](organization-model.md), "Mentoring
+institutes") may hold only `org_unit` grants of `coder`, `reviewer`,
+`coding_tester` or `collaborator_pii`, inside the subtree of a district their
+institute is attached to. They may not be given project-, site- or
+global-scope grants, nor `interviewer`, `data_manager` or any other role. The
+guard applies when a grant is written (create, reactivate, import).
 
 A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
 nothing at runtime consults it, but it is validated on write: the cadre must

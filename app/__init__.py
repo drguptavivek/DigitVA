@@ -299,6 +299,8 @@ def create_app(config_class=None):
     init_va_definition_commands(app)
     from app.commands.organization import init_app as init_org_commands
     init_org_commands(app)
+    from app.commands.mentor_institute import init_app as init_mentor_commands
+    init_mentor_commands(app)
 
     from app.commands.instrument_translations import (
         init_app as init_instrument_translation_commands,

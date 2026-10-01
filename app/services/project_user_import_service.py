@@ -22,6 +22,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_languages import MasLanguages
+from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
 
@@ -119,6 +120,7 @@ def prepare(project_id, rows, *, is_admin):
                            sa.or_(VaUserAccessGrants.project_id == project_id,
                                   VaUserAccessGrants.org_unit_id.in_([unit.org_unit_id for unit in units.values()])),
                        ))}
+    mentor_members = member_user_ids(user.user_id for user in users.values())
     plan = []
     seen = set()
     new_profiles = {}
@@ -141,7 +143,9 @@ def prepare(project_id, rows, *, is_admin):
             unit = units.get(unit_code) if unit_code else None
             if unit_code and (unit is None or not unit.is_active):
                 raise ProjectUserImportError("unit code is unknown or inactive")
-            if not unit and role in (VaAccessRoles.site_pi, VaAccessRoles.interview_supervisor):
+            if role == VaAccessRoles.site_pi:
+                raise ProjectUserImportError("site_pi cannot be held at a unit; the project PI covers every district")
+            if not unit and role == VaAccessRoles.interview_supervisor:
                 raise ProjectUserImportError(f"{role.value} requires an organization unit")
             cadre_code = row["cadre_code"].upper()
             if cadre_code and not unit:
@@ -168,6 +172,8 @@ def prepare(project_id, rows, *, is_admin):
                 raise ProjectUserImportError("duplicate email, role and scope")
             seen.add(key)
             user = users.get(email)
+            if user and user.user_id in mentor_members:
+                check_mentor_grant(user.user_id, role, unit)
             if not is_admin and (not user or user.user_status != VaStatuses.active):
                 raise ProjectUserImportError("account is unavailable for this project import")
             if user and user.user_status != VaStatuses.active:

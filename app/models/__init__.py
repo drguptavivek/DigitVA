@@ -27,6 +27,11 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.models.mas_languages import MapLanguageAliases, MasLanguages
+from app.models.mas_mentor_institute import (
+    MapMentorInstituteOrgUnit,
+    MapMentorInstituteUser,
+    MasMentorInstitute,
+)
 from app.models.mas_odk_connections import MasOdkConnections
 from app.models.mas_organization import (
     MapOrgLevelCadre,
@@ -183,6 +188,9 @@ __all__ = [
     "MapLanguageAliases",
     "MasInstrumentLocales",
     "MapInstrumentTranslations",
+    "MasMentorInstitute",
+    "MapMentorInstituteOrgUnit",
+    "MapMentorInstituteUser",
     "MasOrgLevel",
     "MasOrgUnit",
     "MasCadre",

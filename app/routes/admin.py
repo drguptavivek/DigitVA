@@ -1148,7 +1148,22 @@ class ResolvedGrantScope:
     cadre_id: uuid.UUID | None = None
 
 
-def _resolve_scope_from_payload(payload):
+def _refuse_mentor_member(user_id, role):
+    """A mentoring institute member holds unit-scope grants only (guard)."""
+    if user_id is None:
+        return
+    from app.services.mentor_institute_service import check_mentor_grant
+    from app.services.organization_service import OrganizationError
+
+    try:
+        check_mentor_grant(user_id, role, None)
+    except OrganizationError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _resolve_scope_from_payload(payload, user_id=None):
+    """Parse and validate a grant scope; *user_id* (the grantee) enables the
+    mentoring-institute guard."""
     role_value = payload.get("role")
     scope_value = payload.get("scope_type")
     if role_value not in {role.value for role in VaAccessRoles}:
@@ -1171,6 +1186,7 @@ def _resolve_scope_from_payload(payload):
             raise ValueError(
                 "Global scope must not include project_id, project_site_id or org_unit_id."
             )
+        _refuse_mentor_member(user_id, role)
         return ResolvedGrantScope(role, scope_type, None, None)
 
     if scope_type == VaAccessScopeTypes.project:
@@ -1187,6 +1203,7 @@ def _resolve_scope_from_payload(payload):
             raise ValueError("This role cannot use project scope.")
         if not project_id or project_site_id_value or org_unit_id_value:
             raise ValueError("Project scope requires project_id only.")
+        _refuse_mentor_member(user_id, role)
         return ResolvedGrantScope(role, scope_type, project_id, None)
 
     if scope_type == VaAccessScopeTypes.org_unit:
@@ -1204,6 +1221,7 @@ def _resolve_scope_from_payload(payload):
                 role=role,
                 org_unit_id=org_unit_id_value,
                 cadre_id=payload.get("cadre_id"),
+                user_id=user_id,
             )
         except OrganizationError as exc:
             raise ValueError(str(exc)) from exc
@@ -1241,6 +1259,7 @@ def _resolve_scope_from_payload(payload):
     project_site = db.session.get(VaProjectSites, project_site_id)
     if not project_site or project_site.project_site_status != VaStatuses.active:
         raise ValueError("Active project-site mapping not found.")
+    _refuse_mentor_member(user_id, role)
     return ResolvedGrantScope(
         role, scope_type, project_site.project_id, project_site.project_site_id
     )
@@ -2515,7 +2534,7 @@ def admin_create_access_grant():
         return _json_error("Active user not found.", 404)
 
     try:
-        scope = _resolve_scope_from_payload(payload)
+        scope = _resolve_scope_from_payload(payload, user_id=user_id)
     except ValueError as exc:
         return _json_error(str(exc), 400)
 
@@ -2681,9 +2700,17 @@ def admin_toggle_access_grant(grant_id):
 
         try:
             validate_org_unit_grant(
-                role=grant.role, org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id
+                role=grant.role,
+                org_unit_id=grant.org_unit_id,
+                cadre_id=grant.cadre_id,
+                user_id=grant.user_id,
             )
         except OrganizationError as exc:
+            return _json_error(str(exc), 400)
+    elif new_status == VaStatuses.active:
+        try:
+            _refuse_mentor_member(grant.user_id, grant.role)
+        except ValueError as exc:
             return _json_error(str(exc), 400)
     grant.grant_status = new_status
     db.session.commit()

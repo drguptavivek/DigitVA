@@ -218,6 +218,17 @@ def log_grant_action(
     )
 
 
+def log_mentor_institute_action(*, action: str, actor_user_id, **fields):
+    """Write one mentoring-institute change to grants.log (key=value, no PII).
+
+    Institute membership gates grant writes, so it is audited with the grants.
+    """
+    detail = " ".join(f"{key}={value}" for key, value in fields.items())
+    grant_audit_logger.info(
+        "action=%s actor=%s %s", action, actor_user_id or "-", detail
+    )
+
+
 def _safe_current_user_email() -> str:
     user_id = session.get("_user_id")
     if user_id:

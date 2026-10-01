@@ -33,16 +33,21 @@ part of one team.
   recorded here as such.
 - A user with a project-scope grant, an admin, and a project PI see the whole
   project.
-- **Plain collaborators** (decision pending, see Open): pseudonymous rows
-  (cadre and unit instead of a name) are rejected, because an SC-AAM with one
-  CHO identifies the person anyway; the Access Control Model (blanking names
-  leaves a stable per-person key) and the Area Dashboard policy (no per-staff
-  rows, not pseudonyms) already reject that pattern.
-- **Non-audit viewers** see name, cadre, unit and capabilities. Emails,
-  deactivated users, deactivated grants and global admins are shown only to
-  audit viewers (decision pending, see Open).
+- **Plain collaborators see initials** (owner, 2026-10-01) instead of full
+  names, with cadre, unit and capabilities. Grounds: a staff directory is not
+  death-linked staff identity, which the Access Control Model defines as who
+  collected, coded or reviewed a death. Initials do not hide a person who is
+  the only one of their cadre at a unit; the owner accepted that. The
+  Access Control Model and Area Dashboard rules against pseudonymous rows
+  keep applying to death-linked views.
+- **Emails, deactivated users, deactivated grants and global admins** are
+  shown to admins, project PIs, data managers, site PIs, interview
+  supervisors and reviewers (owner, 2026-10-01), within what each may see.
+  Other viewers (interviewers, coders, coding testers, plain and PII
+  collaborators) see name, cadre, unit and capabilities of active people
+  only.
 - **Audit columns and flags** (below) are shown only to admins, project PIs
-  and data managers (data managers within their own scope).
+  and data managers (data managers within their own grant scope).
 
 ## Layout
 
@@ -121,7 +126,10 @@ For admins, project PIs and data managers only.
   - Unit grant without a cadre.
   - Active grant on a deactivated user or a deactivated unit.
   - Account with no active grant in the project.
-  - No sign-in for N days (N a project setting, default 90).
+  - No sign-in for N days. N is a project setting, default **90** (proposed
+    2026-10-01, owner to confirm): long enough that a coder between coding
+    batches or a staff member on leave is not flagged, short enough to catch
+    accounts of people who have moved on within one quarterly review.
 
 ### Gaps to close before the audit columns work
 
@@ -145,15 +153,13 @@ One bounded query per project for grants joined to users, units (ltree path)
 and cadres, plus one for the grid. "Can act here" resolves ancestors from the
 selected unit's path, not per row. No per-row queries.
 
+## Decided 2026-10-01
+
+- Data managers' audit view covers only their own grant scope.
+- Closed projects are not listed; every resolver already ignores their
+  grants.
+
 ## Open
 
-- Plain collaborators: keep them off the page (proposed), or show them full
-  names on the grounds that a staff directory is not death-linked staff
-  identity (Access Control Model defines staff identity as who collected,
-  coded or reviewed a death).
-- Emails, deactivated users and global admins: audit viewers only (proposed).
-- Whether data managers' audit view covers only their grant scope (proposed)
-  or the whole project.
-- Closed projects: not listed (proposed), as every resolver ignores their
-  grants.
-- The default for N in the dormant flag.
+- Confirm the dormant default of 90 days.
+- `digitva-djd`: what a unit-scoped `site_pi` should give.

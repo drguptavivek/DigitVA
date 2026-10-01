@@ -148,7 +148,9 @@ For admins, project PIs and data managers only.
     `event_type="signed_in"`, `detail={"method": ...}` (password, password
     plus second factor, passkey, or factor-reset link) and the client IP
     address (owner, 2026-10-01), taken from the trusted proxy header, never a
-    client-supplied one. How long the IP is kept is not decided yet.
+    client-supplied one. Purpose: correlating sign-ins with firewall logs. The
+    IP is kept for **180 days**, then wiped from the event; the event itself
+    stays.
   - A nullable `va_users.last_signed_in_at` (additive migration) is set on
     every completed web sign-in and device session opening, so the page reads
     one column instead of scanning events.

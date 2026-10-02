@@ -62,6 +62,11 @@ _ROLE_METHODS = {
     "project_pi":     lambda u: u.is_project_pi(),
     "interviewer":    lambda u: u.is_interviewer(),
     "interview_supervisor": lambda u: u.is_interview_supervisor(),
+    # Not grant roles. mentor_institute_admin is a flag on an institute
+    # membership (staff management only, never grants); unit_data_manager gates
+    # the data-manager routes that give mentor staff their unit grants.
+    "mentor_institute_admin": lambda u: u.is_mentor_institute_admin(),
+    "unit_data_manager": lambda u: u.is_unit_data_manager(),
     # collaborator / collaborator_pii: identical reach, so both spellings
     # gate on the same check. What differs (PII visibility) is decided by
     # viewer_pii_service.should_redact_pii, not by route access.

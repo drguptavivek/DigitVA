@@ -295,7 +295,8 @@ rows here keep the Project > Site > Form model.
   `created_by_user_id`; cascades on institute or unit delete; index on
   `org_unit_id`
 - `map_mentor_institute_user`: institute to staff user, composite PK
-  (`institute_id`, `user_id`), same trailing columns; index on `user_id`
+  (`institute_id`, `user_id`), same trailing columns plus `is_admin` (institute
+  admin, default false; migration `d7e3a1c9b5f2`); index on `user_id`
 - many to many on both maps; they only guard grant writes
   (`app/services/mentor_institute_service.py`), they confer no access. Migration
   `c4a9e7d2b6f1`. Policy: `docs/policy/organization-model.md`

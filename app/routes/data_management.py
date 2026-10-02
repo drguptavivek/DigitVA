@@ -7,7 +7,6 @@ Shared helpers live in app/services/data_management_service.py.
 
 import logging
 import uuid
-import secrets
 
 import sqlalchemy as sa
 from flask import Blueprint, g, jsonify, redirect, render_template, request
@@ -18,6 +17,7 @@ from functools import wraps
 from app import db
 from app.decorators import role_required
 from app.models import (
+    MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -34,13 +34,15 @@ from app.routes.admin import (
     _grant_project_id_expression,
     _grant_site_id_expression,
     _json_error,
-    _refuse_mentor_member,
     _resolve_scope_from_payload,
     _serialize_grant,
     _serialize_project_site,
     _serialize_projects,
     _serialize_user,
 )
+from app.services import mentor_institute_service as mentors
+from app.services.org_grant_service import validate_org_unit_grant
+from app.services.organization_service import OrganizationError
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
     dm_odk_edit_url,
@@ -64,13 +66,58 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _dm_can_manage_scope(user, role, scope_type, resolved_project_id, project_site_id):
+_UNIT_GRANT_REFUSAL = (
+    "Unit-scoped grants are managed from the admin user panel, except for "
+    "mentoring institute staff inside districts you manage."
+)
+
+
+def _dm_can_manage_unit_grant(user, role, org_unit_id, target_user_id):
+    """Unit grants are the admin panel's, with one exception: a data manager
+    covering the unit's district (unit grant at or above it, or project scope)
+    may manage a mentoring institute member's mentor-role grant there. One
+    message for every refusal so it does not reveal who is a member.
+    """
+    if user.is_admin():
+        return False, _UNIT_GRANT_REFUSAL
+    unit = db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None
+    if (
+        unit is None
+        or role not in mentors.MENTOR_ROLES
+        or target_user_id not in mentors.member_user_ids([target_user_id])
+        or not mentors.dm_covers_mentor_unit(user.user_id, unit)
+    ):
+        return False, _UNIT_GRANT_REFUSAL
+    return True, None
+
+
+def _mentor_guard_error(user_id, role, org_unit_id=None, cadre_id=None):
+    """The mentoring-institute guard for a grant write, as a message or None.
+
+    Run only after the caller's own permission check passed, so the message
+    never discloses membership to someone who may not manage the grant.
+    """
+    if user_id is None:
+        return None
+    try:
+        if org_unit_id is not None:
+            validate_org_unit_grant(
+                role=role, org_unit_id=org_unit_id, cadre_id=cadre_id, user_id=user_id
+            )
+        else:
+            mentors.check_mentor_grant(user_id, role, None)
+    except OrganizationError as exc:
+        return str(exc)
+    return None
+
+
+def _dm_can_manage_scope(
+    user, role, scope_type, resolved_project_id, project_site_id,
+    org_unit_id=None, target_user_id=None,
+):
     """Return (ok, error_message) for whether *user* can create/toggle a grant."""
     if scope_type == VaAccessScopeTypes.org_unit:
-        # Unit-scoped grants are managed from the admin user panel, which
-        # carries the unit and cadre pickers. This interface only knows
-        # projects and sites, so it would silently drop the unit.
-        return False, "Unit-scoped grants are managed from the admin user panel."
+        return _dm_can_manage_unit_grant(user, role, org_unit_id, target_user_id)
     if user.is_admin():
         if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
             return False, "Only coder, coding_tester, or data_manager roles may be assigned from this interface."
@@ -135,7 +182,7 @@ def require_dm_scope(f):
     """Structural authz gate for grant mutation endpoints.
 
     Runs _dm_can_manage_scope() before the handler so the check is
-    structurally unskippable. Two paths:
+    structurally unskippable, then the mentoring-institute guard. Two paths:
 
     - Toggle (grant_id in URL kwargs): loads grant from DB, resolves scope.
     - Create (no grant_id): resolves scope from JSON payload and stores the
@@ -145,6 +192,7 @@ def require_dm_scope(f):
     def wrapper(*args, **kwargs):
         grant_id = kwargs.get("grant_id")
 
+        guard_error = None
         if grant_id is not None:
             # Toggle path — scope comes from the existing grant record.
             grant = db.session.get(VaUserAccessGrants, grant_id)
@@ -156,29 +204,34 @@ def require_dm_scope(f):
                 ps = db.session.get(VaProjectSites, grant.project_site_id)
                 resolved_project_id = ps.project_id if ps else None
             elif grant.scope_type == VaAccessScopeTypes.org_unit:
-                return _json_error(
-                    "Unit-scoped grants are managed from the admin user panel.", 403
-                )
+                unit = db.session.get(MasOrgUnit, grant.org_unit_id)
+                resolved_project_id = unit.project_id if unit else None
             else:
                 return _json_error("Invalid scope type.", 400)
-            if grant.grant_status != VaStatuses.active:
-                try:
-                    _refuse_mentor_member(grant.user_id, grant.role)
-                except ValueError as exc:
-                    return _json_error(str(exc), 400)
             ok, err = _dm_can_manage_scope(
                 current_user, grant.role, grant.scope_type,
                 resolved_project_id, grant.project_site_id,
+                org_unit_id=grant.org_unit_id, target_user_id=grant.user_id,
             )
+            if ok and grant.grant_status != VaStatuses.active:
+                # Reactivating is a write: the mentor guard (and, for a unit
+                # grant, the cadre rule) run after the permission check.
+                guard_error = _mentor_guard_error(
+                    grant.user_id, grant.role,
+                    grant.org_unit_id
+                    if grant.scope_type == VaAccessScopeTypes.org_unit else None,
+                    grant.cadre_id,
+                )
         else:
-            # Create path — scope comes from the request payload.
+            # Create path — scope comes from the request payload. Resolve
+            # without the mentor guard; it runs after the permission check.
             payload = request.get_json(silent=True) or {}
             try:
                 target_id = uuid.UUID(str(payload.get("user_id")))
             except ValueError:
                 target_id = None  # the handler rejects a bad user_id itself
             try:
-                scope = _resolve_scope_from_payload(payload, user_id=target_id)
+                scope = _resolve_scope_from_payload(payload)
             except ValueError as exc:
                 return _json_error(str(exc), 400)
             role = scope.role
@@ -187,9 +240,16 @@ def require_dm_scope(f):
             project_site_id = scope.project_site_id
             ok, err = _dm_can_manage_scope(
                 current_user, role, scope_type, resolved_project_id, project_site_id,
+                org_unit_id=scope.org_unit_id, target_user_id=target_id,
             )
+            if ok:
+                guard_error = _mentor_guard_error(
+                    target_id, role,
+                    scope.org_unit_id if scope_type == VaAccessScopeTypes.org_unit else None,
+                    scope.cadre_id,
+                )
             # Store parsed scope on g so the handler doesn't need to re-parse.
-            g.dm_scope = (role, scope_type, resolved_project_id, project_site_id)
+            g.dm_scope = scope
 
         if not ok:
             log.warning(
@@ -197,6 +257,8 @@ def require_dm_scope(f):
                 current_user.get_id(), request.path, err,
             )
             return _json_error(err, 403)
+        if guard_error:
+            return _json_error(guard_error, 400)
 
         return f(*args, **kwargs)
     return wrapper
@@ -474,11 +536,28 @@ def manage_project_sites():
 
 
 @data_management.get("/api/users")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "admin", "unit_data_manager")
 def manage_users():
     """User search for data-manager grant assignment."""
     query = (request.args.get("query") or "").strip()
     include_inactive = request.args.get("include_inactive", "1") == "1"
+    if not (current_user.is_admin() or current_user.is_data_manager()):
+        # A unit-only data manager reaches this route to find the staff of
+        # mentoring institutes attached to districts they cover, and sees no
+        # one else and no contact details.
+        staff, truncated = mentors.dm_visible_mentor_staff(
+            current_user.user_id, query, include_inactive
+        )
+        return jsonify({"users": [
+            {
+                "user_id": str(u.user_id),
+                "name": u.name,
+                "email": u.email,
+                "status": u.user_status.value,
+                "institutes": codes,
+            }
+            for u, codes in staff
+        ], "truncated": truncated})
     stmt = sa.select(VaUsers)
     if not include_inactive:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
@@ -495,37 +574,17 @@ def manage_users():
 @role_required("data_manager", "admin")
 def manage_create_user():
     """Create a new user (data-manager scoped)."""
-    from app.models.mas_languages import MasLanguages
+    from app.services import user_account_service as accounts
 
     payload = request.get_json(silent=True) or {}
-    email = (payload.get("email") or "").strip().lower()
-    email_confirm = (payload.get("email_confirm") or "").strip().lower()
-    name = (payload.get("name") or "").strip()
-    phone = (payload.get("phone") or "").strip()
-    languages = payload.get("languages")
     initial_role_value = payload.get("initial_role")
     initial_scope_value = payload.get("initial_scope_type")
     initial_project_id = (payload.get("initial_project_id") or "").strip() or None
 
-    if not email or not email_confirm or not name:
-        return _json_error("email, email_confirm, and name are required.", 400)
-    if email != email_confirm:
-        return _json_error("Email confirmation does not match.", 400)
-    if not isinstance(languages, list) or not languages:
-        return _json_error("At least one language must be selected.", 400)
-
-    valid_codes = set(
-        db.session.scalars(
-            sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
-        ).all()
-    )
-    invalid = [code for code in languages if code not in valid_codes]
-    if invalid:
-        return _json_error(f"Invalid language codes: {invalid}", 400)
-
-    existing = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
-    if existing:
-        return _json_error("Email already in use.", 400)
+    try:
+        fields = accounts.validate_new_user_payload(payload)
+    except accounts.UserAccountError as exc:
+        return _json_error(str(exc), 400)
 
     if not initial_role_value or not initial_scope_value:
         return _json_error("initial_role and initial_scope_type are required.", 400)
@@ -569,23 +628,9 @@ def manage_create_user():
     if not ok:
         return _json_error(err, 403)
 
-    new_user = VaUsers(
-        email=email,
-        name=name,
-        phone=phone or None,
-        user_status=VaStatuses.active,
-        vacode_language=languages,
-        permission={},
-        landing_page="coder",
-        pw_reset_t_and_c=False,
-        email_verified=False,
-        other={"created_by_user_id": str(current_user.user_id)},
+    new_user = accounts.create_invited_user(
+        fields, other={"created_by_user_id": str(current_user.user_id)}
     )
-    # Invite-only onboarding: user sets their own password via reset link.
-    new_user.set_password(secrets.token_urlsafe(32))
-
-    db.session.add(new_user)
-    db.session.flush()
     new_grant = VaUserAccessGrants(
         user_id=new_user.user_id,
         role=role,
@@ -598,19 +643,7 @@ def manage_create_user():
     db.session.add(new_grant)
     db.session.commit()
 
-    # Send verification + password-setup emails (async via Celery).
-    try:
-        from app.services.token_service import generate_token
-        from app.services.email_service import (
-            send_verification_email,
-            send_password_reset_email,
-        )
-        verify_token = generate_token(new_user.user_id, "email_verify")
-        reset_token = generate_token(new_user.user_id, "password_reset")
-        send_verification_email(new_user, verify_token)
-        send_password_reset_email(new_user, reset_token, invite_mode=True)
-    except Exception:
-        pass  # non-critical — user can request resend/reset
+    accounts.send_invitation(new_user)
 
     return jsonify({"user": _serialize_user(new_user)}), 201
 
@@ -835,12 +868,14 @@ def manage_access_grants():
 
 
 @data_management.post("/api/access-grants")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "admin", "unit_data_manager")
 @require_dm_scope
 def manage_create_access_grant():
     """Create a coder/coding_tester/data_manager grant within the DM's scope."""
     # Scope already validated by @require_dm_scope; retrieve parsed values from g.
-    role, scope_type, resolved_project_id, project_site_id = g.dm_scope
+    scope = g.dm_scope
+    role, scope_type = scope.role, scope.scope_type
+    resolved_project_id, project_site_id = scope.project_id, scope.project_site_id
 
     payload = request.get_json(silent=True) or {}
     user_id_value = payload.get("user_id")
@@ -871,6 +906,15 @@ def manage_create_access_grant():
                 VaUserAccessGrants.project_id == resolved_project_id,
             )
         )
+    elif scope_type == VaAccessScopeTypes.org_unit:
+        existing = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == user_id,
+                VaUserAccessGrants.role == role,
+                VaUserAccessGrants.scope_type == scope_type,
+                VaUserAccessGrants.org_unit_id == scope.org_unit_id,
+            )
+        )
     else:
         existing = db.session.scalar(
             sa.select(VaUserAccessGrants).where(
@@ -885,6 +929,9 @@ def manage_create_access_grant():
     if existing:
         existing.grant_status = VaStatuses.active
         existing.notes = payload.get("notes") or existing.notes
+        if scope_type == VaAccessScopeTypes.org_unit:
+            # As the admin route: reactivation re-states the cadre.
+            existing.cadre_id = scope.cadre_id
         grant = existing
         status_code = 200
     else:
@@ -894,6 +941,8 @@ def manage_create_access_grant():
             scope_type=scope_type,
             project_id=resolved_project_id if scope_type == VaAccessScopeTypes.project else None,
             project_site_id=project_site_id,
+            org_unit_id=scope.org_unit_id,
+            cadre_id=scope.cadre_id,
             notes=payload.get("notes"),
             grant_status=VaStatuses.active,
         )
@@ -912,6 +961,8 @@ def manage_create_access_grant():
         scope_type=scope_type.value,
         project_id=resolved_project_id,
         project_site_id=project_site_id,
+        org_unit_id=scope.org_unit_id,
+        cadre_id=scope.cadre_id,
         request_ip=request.remote_addr,
     )
 
@@ -942,7 +993,7 @@ def manage_create_access_grant():
 
 
 @data_management.post("/api/access-grants/<uuid:grant_id>/toggle")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "admin", "unit_data_manager")
 @require_dm_scope
 def manage_toggle_access_grant(grant_id):
     """Toggle (activate/deactivate) a coder/coding_tester/data_manager grant."""
@@ -974,6 +1025,7 @@ def manage_toggle_access_grant(grant_id):
         grant_id=grant.grant_id,
         role=grant.role.value,
         scope_type=grant.scope_type.value,
+        org_unit_id=grant.org_unit_id,
         request_ip=request.remote_addr,
     )
 

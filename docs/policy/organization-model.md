@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # Organization Model Policy
@@ -404,8 +404,10 @@ The rule and the shared predicate that implements it live in
 - Unit-scoped grants are created from the **admin user panel**, which carries
   the unit and cadre pickers. The data-manager grant interface knows only
   projects and sites and refuses to create or revoke a unit grant, for admins
-  too; a data manager still *sees* the unit grants of their own project in the
-  grant list, as they already see its project and site grants.
+  too, with one exception: a **district data manager** may create, reactivate
+  and revoke the unit grants of mentoring institute staff (see "Mentoring
+  institutes"). A data manager still *sees* the unit grants of their own
+  project in the grant list, as they already see its project and site grants.
 - `flask users grant` does not create unit grants; use the admin panel or the
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.
@@ -422,11 +424,17 @@ tree. It is **not an org unit**; it belongs to no project's tree.
   (depth-1 level), many to many: one institute may support districts in
   several projects, one district may have several institutes. Attached and
   detached by a platform admin only.
-- `map_mentor_institute_user`: institute to staff user, many to many. Added
-  and removed by a platform admin only.
+- `map_mentor_institute_user`: institute to staff user, many to many, with an
+  `is_admin` flag (the institute admin). Staff are added and removed by a
+  platform admin or by that institute's admin (below); the flag is set by a
+  platform admin only.
 - Detaching, removing or deactivating never deletes grants; it only changes
   what the guard allows on the next grant write. Grants already written stay
-  as they are (an admin revokes them in the grants panel).
+  as they are (an admin revokes them in the grants panel). One exception:
+  removing a person through the institute staff API (`remove_staff`)
+  deactivates (never deletes) their active mentor-role unit grants inside
+  that institute's district subtrees, except units still covered by another
+  institute they remain active staff of; the count is returned and audited.
 
 Mentor access is through **ordinary unit grants**, which flow down the subtree
 like any unit grant; the maps are only a **guard** on writing a grant. When the
@@ -446,10 +454,45 @@ Non-members are unaffected. It is checked on **write only**: adding a person
 to an institute does not alter grants they already hold, so an admin should
 review a new member's existing grants.
 
+**Who gives mentor staff their grants.** Not the institute: an institute
+cannot widen its own access. A platform admin or the project's PI (admin grant
+interface) or a **district data manager** may write the grants, always inside
+the guard above. A data manager qualifies when they hold an active
+`data_manager` grant at the district unit or above it (a project-scope grant
+counts), in the same project. Through the data-manager grant interface they
+may touch only grants of institute members, at `org_unit` scope, with a
+mentor role, on a unit inside a district they manage; every other unit grant
+stays refused to data managers, and no other data-manager power changes.
+(Listing those grants in the data-manager grant list is not done yet.) A
+data manager who holds only unit-scope grants finds people through the
+user search, which returns only active staff of active institutes attached to
+a district they cover, with id, name, email, status and institute code (no
+phone or landing page); platform and project-level data managers keep the
+full search. The unit-only search returns at most 25 people and reports
+`truncated: true` when more matched; its query is matched as a literal
+substring.
+
+**Institute admin (`mentor_institute_admin`).** A member flagged `is_admin`
+on one institute. It is not a grant and not a `VaAccessRoles` value: it is
+held per institute and confers no access to any submission. An institute
+admin may, for **their own institute only**, create staff accounts (invite-only,
+same validation and onboarding as other user creation) and remove staff
+(membership is deactivated; the account is deactivated too when the institute
+created it and the person belongs to no other active institute). They may not
+give, toggle or see grants, may not see other institutes, may not set the
+admin flag, and may not remove themselves. Only a platform admin may remove
+an institute admin; an institute admin removes non-admin staff only. Account creation by an institute admin never confirms whether an
+address is already registered (one generic refusal), is capped at **20
+creations per institute per day** (Flask-Limiter; platform admins exempt), and
+a platform admin cannot create staff in an inactive institute. A platform admin creates
+institutes, attaches districts and sets institute admins
+(`flask mentor-institute set-admin`). API: `/admin/api/mentor-institutes/...`.
+
 Mentor coding and review count toward the district's results like any
 coder's. Members are excluded from the district's staff headcount and shown
 separately (see [People and Roles Page](people-and-roles-page.md)).
-Management: `flask mentor-institute ...` and
+Management: `flask mentor-institute ...` (each command takes `--actor`, the
+platform admin's email, recorded in the audit line) and
 `app/services/mentor_institute_service.py`; every change is written to
 `grants.log`. There is no admin UI yet.
 

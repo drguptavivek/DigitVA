@@ -133,7 +133,7 @@ DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool]] = {
 # would normally give each cadre. Never read for authorization; access comes
 # only from each person's grants.
 DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("district", "CS"): ("site_pi", "interview_supervisor"),
+    ("district", "CS"): ("interview_supervisor",),
     ("district", "DPM"): ("data_manager",),
     ("district", "DEPI"): ("collaborator_pii",),
     ("district", "MO"): ("coder", "reviewer"),

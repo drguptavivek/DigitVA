@@ -87,6 +87,11 @@ class MapMentorInstituteUser(db.Model):
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=True, server_default=sa.true()
     )
+    # Institute admin: may create and remove this institute's staff accounts.
+    # Never confers grants (docs/policy/organization-model.md).
+    is_admin: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )

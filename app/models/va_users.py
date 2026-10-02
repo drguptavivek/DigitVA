@@ -215,6 +215,20 @@ class VaUsers(UserMixin, db.Model):
             self.get_data_manager_projects() or self.get_data_manager_project_sites()
         )
 
+    def is_unit_data_manager(self) -> bool:
+        """Holds a unit-scope data_manager grant. Gate for the mentor-staff grant
+        routes only; it does not make the user a data manager elsewhere (stage 2).
+        """
+        from app.services.mentor_institute_service import holds_unit_data_manager
+
+        return holds_unit_data_manager(self.user_id)
+
+    def is_mentor_institute_admin(self) -> bool:
+        """Administers a mentoring institute (flag on the membership, not a grant)."""
+        from app.services.mentor_institute_service import administered_institutes
+
+        return bool(administered_institutes(self.user_id))
+
     def is_admin(self):
         from app.models import (
             VaAccessRoles,

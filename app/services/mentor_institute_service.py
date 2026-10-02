@@ -6,10 +6,18 @@ district-level units (``map_mentor_institute_org_unit``) and staffed by users
 grants; the maps only *guard* writing them: ``check_mentor_grant`` refuses a
 member any grant outside an attached district's subtree or outside
 ``MENTOR_ROLES``. Detach and remove soft-deactivate (``is_active``), so they
-are reversible and never touch grants.
+are reversible and leave grants alone, except ``remove_staff`` (institute staff
+API), which also deactivates the person's mentor grants inside the institute's
+districts.
+
+An institute admin (``map_mentor_institute_user.is_admin``) creates and
+removes their own institute's staff only; they never give grants. A district
+data manager may write the grants of members inside the districts they manage
+(``dm_covers_mentor_unit``); the guard still applies.
 
 Policy: docs/policy/organization-model.md, "Mentoring institutes".
-Management is admin only, enforced by the callers (``flask mentor-institute``).
+Platform-admin management is enforced by the callers (``flask mentor-institute``);
+staff management by the institute admin by ``require_institute_admin``.
 """
 
 from __future__ import annotations
@@ -32,6 +40,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.org_grant_service import active_project_condition
 from app.services.organization_service import (
     OrganizationError,
     find_unit_by_code,
@@ -155,8 +164,9 @@ def detach_district(institute_code, project_id: str, unit_code, *, actor_user_id
 
 def add_member(institute_code, email: str, *, actor_user_id=None) -> int:
     """Make the user institute staff. Returns how many of their active grants
-    the guard would now refuse (project/site scope or non-mentor roles); those
-    stay in place until an admin revokes them.
+    the guard would now refuse (not unit scope, not a mentor role, or a unit
+    outside every district their institutes are attached to); those stay in
+    place until an admin revokes them.
     """
     institute = _institute(institute_code)
     user = _user_by_email(email)
@@ -188,6 +198,7 @@ def add_member(institute_code, email: str, *, actor_user_id=None) -> int:
                 sa.and_(
                     VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
                     VaUserAccessGrants.role.in_(MENTOR_ROLES),
+                    _covered_by_institutes(user.user_id, VaUserAccessGrants.org_unit_id),
                 )
             ),
         )
@@ -206,6 +217,348 @@ def remove_member(institute_code, email: str, *, actor_user_id=None) -> None:
         actor_user_id=actor_user_id,
         institute=institute.institute_code,
         target=user.user_id,
+    )
+
+
+def set_member_admin(institute_code, email: str, is_admin: bool, *, actor_user_id=None) -> None:
+    """Set or clear the institute-admin flag on an active member (platform admin only)."""
+    institute = _institute(institute_code)
+    user = _user_by_email(email)
+    link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
+    if link is None or not link.is_active:
+        raise OrganizationError("That user is not active staff of that institute; add them first.")
+    link.is_admin = is_admin
+    log_mentor_institute_action(
+        action="mentor_admin_set" if is_admin else "mentor_admin_cleared",
+        actor_user_id=actor_user_id,
+        institute=institute.institute_code,
+        target=user.user_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Institute admin: own-institute staff only, never grants (caller commits)
+# ---------------------------------------------------------------------------
+
+
+def administered_institutes(user_id) -> list[MasMentorInstitute]:
+    """Active institutes the user administers (active admin link, active institute)."""
+    return list(
+        db.session.scalars(
+            sa.select(MasMentorInstitute)
+            .join(
+                MapMentorInstituteUser,
+                MapMentorInstituteUser.institute_id == MasMentorInstitute.institute_id,
+            )
+            .where(
+                MapMentorInstituteUser.user_id == user_id,
+                MapMentorInstituteUser.is_admin.is_(True),
+                MapMentorInstituteUser.is_active.is_(True),
+                MasMentorInstitute.is_active.is_(True),
+            )
+            .order_by(MasMentorInstitute.institute_code)
+        ).all()
+    )
+
+
+def institute_for_staff_management(user, institute_code) -> MasMentorInstitute:
+    """The institute whose staff *user* may manage: any for a platform admin,
+    only their own otherwise. Raises OrganizationError (not found / not yours)."""
+    if user.is_admin():
+        return _institute(institute_code)
+    return require_institute_admin(user.user_id, institute_code)
+
+
+def require_institute_admin(user_id, institute_code) -> MasMentorInstitute:
+    """The institute, if the user administers it; else OrganizationError.
+
+    The same refusal for an unknown and for another institute's code, so an
+    institute admin cannot probe which institutes exist.
+    """
+    try:
+        code = normalize_code(institute_code, what="Institute code")
+    except OrganizationError:
+        code = None
+    for institute in administered_institutes(user_id):
+        if institute.institute_code == code:
+            return institute
+    raise OrganizationError("You do not administer that institute.")
+
+
+def list_staff(institute: MasMentorInstitute) -> list[tuple[VaUsers, MapMentorInstituteUser]]:
+    """Active staff of the institute, with their membership row."""
+    return [
+        (user, link)
+        for user, link in db.session.execute(
+            sa.select(VaUsers, MapMentorInstituteUser)
+            .join(MapMentorInstituteUser, MapMentorInstituteUser.user_id == VaUsers.user_id)
+            .where(
+                MapMentorInstituteUser.institute_id == institute.institute_id,
+                MapMentorInstituteUser.is_active.is_(True),
+            )
+            .order_by(VaUsers.email)
+        )
+    ]
+
+
+def create_staff(institute: MasMentorInstitute, fields: dict, *, actor_user_id) -> VaUsers:
+    """Create an invited account and make it staff of *institute*.
+
+    *fields* come from ``user_account_service.validate_new_user_payload``. The
+    account is tagged with the institute so ``remove_staff`` may later
+    deactivate it. Refuses an inactive institute. The caller commits, then
+    sends the invitation.
+    """
+    from app.services.user_account_service import create_invited_user
+
+    if not institute.is_active:
+        raise OrganizationError("That institute is inactive.")
+
+    user = create_invited_user(
+        fields,
+        other={
+            "created_by_user_id": str(actor_user_id),
+            "created_by_mentor_institute": institute.institute_code,
+        },
+    )
+    db.session.add(
+        MapMentorInstituteUser(
+            institute_id=institute.institute_id,
+            user_id=user.user_id,
+            created_by_user_id=actor_user_id,
+        )
+    )
+    db.session.flush()
+    log_mentor_institute_action(
+        action="mentor_staff_created",
+        actor_user_id=actor_user_id,
+        institute=institute.institute_code,
+        target=user.user_id,
+    )
+    return user
+
+
+def remove_staff(
+    institute: MasMentorInstitute, user_id, *, actor_user_id, actor_is_platform_admin=False
+) -> tuple[bool, int]:
+    """Remove a person from *institute*'s staff; returns (account deactivated, grants deactivated).
+
+    Membership is deactivated, and so are (never deleted) the person's active
+    mentor-role unit grants inside this institute's attached district subtrees,
+    except units another institute they remain staff of still covers. The
+    account is deactivated only when this institute created it and the person
+    belongs to no other active institute, so an institute never switches off
+    someone who is also another body's staff or was not its own hire. Cannot
+    remove oneself, and only a platform admin may remove an institute admin.
+    """
+    if user_id == actor_user_id:
+        raise OrganizationError("You cannot remove yourself from your institute.")
+    link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user_id))
+    if link is None or not link.is_active:
+        raise OrganizationError("That user is not staff of your institute.")
+    if link.is_admin and not actor_is_platform_admin:
+        raise OrganizationError("Only a platform administrator can remove an institute admin.")
+    link.is_active = False
+    link.is_admin = False
+    db.session.flush()  # so _covered_by_institutes sees only the remaining memberships
+    grants_deactivated = _deactivate_institute_grants(institute, user_id)
+    user = db.session.get(VaUsers, user_id)
+    deactivated = False
+    if (
+        user is not None
+        and (user.other or {}).get("created_by_mentor_institute") == institute.institute_code
+        and user_id not in member_user_ids([user_id])
+    ):
+        user.user_status = VaStatuses.deactive
+        deactivated = True
+    db.session.flush()
+    log_mentor_institute_action(
+        action="mentor_staff_removed",
+        actor_user_id=actor_user_id,
+        institute=institute.institute_code,
+        target=user_id,
+        account_deactivated=deactivated,
+        grants_deactivated=grants_deactivated,
+    )
+    return deactivated, grants_deactivated
+
+
+def _deactivate_institute_grants(institute: MasMentorInstitute, user_id) -> int:
+    """Deactivate the user's active mentor-role unit grants inside *institute*'s
+    district subtrees (any attachment, active or not) that no remaining
+    membership of theirs covers. Returns the count."""
+    district = sa.orm.aliased(MasOrgUnit, name="removed_district")
+    unit = sa.orm.aliased(MasOrgUnit, name="removed_unit")
+    in_institute = (
+        sa.select(sa.literal(1))
+        .select_from(MapMentorInstituteOrgUnit)
+        .join(district, district.org_unit_id == MapMentorInstituteOrgUnit.org_unit_id)
+        .where(
+            MapMentorInstituteOrgUnit.institute_id == institute.institute_id,
+            district.project_id == unit.project_id,
+            sa.text("removed_unit.path <@ removed_district.path"),
+        )
+        .exists()
+    )
+    grant_ids = (
+        sa.select(VaUserAccessGrants.grant_id)
+        .join(unit, unit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .where(
+            VaUserAccessGrants.user_id == user_id,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.role.in_(MENTOR_ROLES),
+            in_institute,
+            sa.not_(_covered_by_institutes(user_id, VaUserAccessGrants.org_unit_id)),
+        )
+    )
+    return db.session.execute(
+        sa.update(VaUserAccessGrants)
+        .where(VaUserAccessGrants.grant_id.in_(grant_ids))
+        .values(grant_status=VaStatuses.deactive)
+        .execution_options(synchronize_session="fetch")
+    ).rowcount
+
+
+# ---------------------------------------------------------------------------
+# District data manager reach (grants for members inside managed districts)
+# ---------------------------------------------------------------------------
+
+
+def holds_unit_data_manager(user_id) -> bool:
+    """Does the user hold an active unit-scope data_manager grant in an active project?"""
+    unit = sa.orm.aliased(MasOrgUnit, name="dm_gate_unit")
+    return bool(
+        db.session.scalar(
+            sa.select(
+                sa.exists().where(
+                    VaUserAccessGrants.user_id == user_id,
+                    VaUserAccessGrants.role == VaAccessRoles.data_manager,
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                    VaUserAccessGrants.grant_status == VaStatuses.active,
+                    unit.org_unit_id == VaUserAccessGrants.org_unit_id,
+                    unit.is_active.is_(True),
+                    active_project_condition(unit.project_id),
+                )
+            )
+        )
+    )
+
+
+def dm_covers_mentor_unit(dm_user_id, unit: MasOrgUnit) -> bool:
+    """May this data manager give mentor grants on *unit*?
+
+    True when they hold an active data_manager grant at project scope in the
+    unit's project, or at a unit that is the unit's district-level ancestor
+    (or the district itself) or above it. A grant lower down, at a CHC say,
+    does not cover the district.
+    """
+    if unit.project_id in _project_scope_dm_projects(dm_user_id):
+        return True
+    granted = sa.orm.aliased(MasOrgUnit, name="dm_granted_unit")
+    district = sa.orm.aliased(MasOrgUnit, name="dm_district")
+    target = sa.orm.aliased(MasOrgUnit, name="dm_target_unit")
+    return bool(
+        db.session.scalar(
+            sa.select(
+                sa.exists()
+                .where(
+                    VaUserAccessGrants.user_id == dm_user_id,
+                    VaUserAccessGrants.role == VaAccessRoles.data_manager,
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                    VaUserAccessGrants.grant_status == VaStatuses.active,
+                    granted.org_unit_id == VaUserAccessGrants.org_unit_id,
+                    granted.is_active.is_(True),
+                    active_project_condition(granted.project_id),
+                    district.project_id == granted.project_id,
+                    district.is_active.is_(True),
+                    sa.text("dm_district.path <@ dm_granted_unit.path"),
+                    MasOrgLevel.org_level_id == district.org_level_id,
+                    MasOrgLevel.depth == 1,
+                    target.org_unit_id == unit.org_unit_id,
+                    target.project_id == district.project_id,
+                    sa.text("dm_target_unit.path <@ dm_district.path"),
+                )
+            )
+        )
+    )
+
+
+def dm_visible_mentor_staff(
+    dm_user_id, query: str, include_inactive: bool, limit: int = 25
+) -> tuple[list[tuple[VaUsers, list[str]]], bool]:
+    """Active staff of active institutes attached to a district the data manager
+    covers (same rule as ``dm_covers_mentor_unit``), with their institute codes.
+
+    Backs the unit-only data manager's user search: nobody outside those
+    institutes, and no inactive membership, is returned. The query is a literal
+    substring (``%`` and ``_`` are escaped). Returns ``(rows, truncated)``;
+    *truncated* is True when more than *limit* people matched.
+    """
+    district = sa.orm.aliased(MasOrgUnit, name="dm_search_district")
+    granted = sa.orm.aliased(MasOrgUnit, name="dm_search_granted")
+    covered = sa.or_(
+        district.project_id.in_(_project_scope_dm_projects(dm_user_id)),
+        sa.exists().where(
+            VaUserAccessGrants.user_id == dm_user_id,
+            VaUserAccessGrants.role == VaAccessRoles.data_manager,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            granted.org_unit_id == VaUserAccessGrants.org_unit_id,
+            granted.is_active.is_(True),
+            active_project_condition(granted.project_id),
+            granted.project_id == district.project_id,
+            sa.text("dm_search_district.path <@ dm_search_granted.path"),
+        ),
+    )
+    codes = sa.func.array_agg(sa.distinct(MasMentorInstitute.institute_code))
+    stmt = (
+        sa.select(VaUsers, codes)
+        .join(MapMentorInstituteUser, MapMentorInstituteUser.user_id == VaUsers.user_id)
+        .join(
+            MasMentorInstitute,
+            MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
+        )
+        .join(
+            MapMentorInstituteOrgUnit,
+            MapMentorInstituteOrgUnit.institute_id == MasMentorInstitute.institute_id,
+        )
+        .join(district, district.org_unit_id == MapMentorInstituteOrgUnit.org_unit_id)
+        .where(
+            MapMentorInstituteUser.is_active.is_(True),
+            MasMentorInstitute.is_active.is_(True),
+            MapMentorInstituteOrgUnit.is_active.is_(True),
+            district.is_active.is_(True),
+            covered,
+        )
+        .group_by(VaUsers.user_id)
+        .order_by(VaUsers.email)
+        .limit(limit + 1)
+    )
+    if not include_inactive:
+        stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+    if query:
+        stmt = stmt.where(
+            sa.or_(
+                VaUsers.email.icontains(query, autoescape=True),
+                VaUsers.name.icontains(query, autoescape=True),
+            )
+        )
+    rows = [(user, sorted(c)) for user, c in db.session.execute(stmt)]
+    return rows[:limit], len(rows) > limit
+
+
+def _project_scope_dm_projects(user_id) -> set[str]:
+    return set(
+        db.session.scalars(
+            sa.select(VaUserAccessGrants.project_id).where(
+                VaUserAccessGrants.user_id == user_id,
+                VaUserAccessGrants.role == VaAccessRoles.data_manager,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                active_project_condition(VaUserAccessGrants.project_id),
+            )
+        ).all()
     )
 
 
@@ -235,27 +588,13 @@ def member_user_ids(user_ids) -> set[uuid.UUID]:
     )
 
 
-def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) -> None:
-    """Refuse a grant a mentoring institute member may not hold.
-
-    *unit* is the unit of an org_unit-scope grant, or None for any other scope.
-    No-op for non-members. Raises OrganizationError with an operator message.
+def _covered_by_institutes(user_id, unit_id_expr):
+    """EXISTS: *unit_id_expr* lies in a district attached to an institute the
+    user is an active member of (all links, institutes, districts active).
     """
-    if user_id not in member_user_ids([user_id]):
-        return
-    if unit is None:
-        raise OrganizationError(
-            "This user is staff of a mentoring institute and may only hold "
-            "unit-scope grants inside a district the institute is attached to."
-        )
-    if role not in MENTOR_ROLES:
-        raise OrganizationError(
-            f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
-            f"not {role.value}."
-        )
     district = sa.orm.aliased(MasOrgUnit, name="mentor_district")
     target = sa.orm.aliased(MasOrgUnit, name="mentored_unit")
-    covered = db.session.scalar(
+    return (
         sa.select(sa.literal(1))
         .select_from(MapMentorInstituteUser)
         .join(
@@ -280,10 +619,31 @@ def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) ->
             MasMentorInstitute.is_active.is_(True),
             MapMentorInstituteOrgUnit.is_active.is_(True),
             district.is_active.is_(True),
-            target.org_unit_id == unit.org_unit_id,
+            target.org_unit_id == unit_id_expr,
         )
-        .limit(1)
+        .exists()
     )
+
+
+def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) -> None:
+    """Refuse a grant a mentoring institute member may not hold.
+
+    *unit* is the unit of an org_unit-scope grant, or None for any other scope.
+    No-op for non-members. Raises OrganizationError with an operator message.
+    """
+    if user_id not in member_user_ids([user_id]):
+        return
+    if unit is None:
+        raise OrganizationError(
+            "This user is staff of a mentoring institute and may only hold "
+            "unit-scope grants inside a district the institute is attached to."
+        )
+    if role not in MENTOR_ROLES:
+        raise OrganizationError(
+            f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
+            f"not {role.value}."
+        )
+    covered = db.session.scalar(sa.select(_covered_by_institutes(user_id, unit.org_unit_id)))
     if not covered:
         raise OrganizationError(
             "This user is staff of a mentoring institute: the unit must be inside "

@@ -27,7 +27,6 @@ from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
@@ -35,7 +34,6 @@ from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
-    dm_project_site_pairs,
     dm_scope,
 )
 
@@ -51,7 +49,7 @@ _NOT_DUPLICATE_SQL_S2 = not_confirmed_duplicate_sql("s2.va_sid")
 
 
 @bp.get("/utilization")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def coder_utilization():
     """KPI: C-21 — Coder Utilization Rate.
 
@@ -66,11 +64,7 @@ def coder_utilization():
     scope = dm_scope()
     # Coder grants are keyed by project; a unit grant's project counts here
     # because this returns counts only, never who the coders are.
-    pairs = dm_project_site_pairs()
-    project_ids = sorted(
-        {pid for pid, _sid in pairs}
-        | current_user.get_org_unit_projects("data_manager")
-    )
+    project_ids = scope.all_project_ids
 
     if not project_ids:
         return jsonify({"active_count": 0, "total_coders": 0, "rate": 0.0})
@@ -118,7 +112,7 @@ def coder_utilization():
 
 
 @bp.get("/output")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def coder_output():
     """KPIs: C-12 (Coder Throughput), C-24 (Forms per Coder by Language),
     D-LC-04 (Coder Output by Language).
@@ -218,7 +212,7 @@ def coder_output():
 
 
 @bp.get("/roster")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def coder_roster():
     """KPI: D-LC-06 — Coder Roster.
 
@@ -231,9 +225,8 @@ def coder_roster():
     """
     # Coders are listed by direct project only (a unit grant never resolves to
     # its whole project); total_coded counts the DM's whole scope.
-    pairs = dm_project_site_pairs()
-    project_ids = sorted({pid for pid, _sid in pairs})
     scope = dm_scope()
+    project_ids = scope.direct_project_ids
 
     if not project_ids:
         return jsonify({"coders": []})
@@ -299,7 +292,7 @@ def coder_roster():
 
 
 @bp.get("/disagreement")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def coder_reviewer_disagreement():
     """KPI: D-QG-09 — Coder-Reviewer Disagreement Rate.
 

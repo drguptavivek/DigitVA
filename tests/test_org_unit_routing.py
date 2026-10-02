@@ -566,8 +566,12 @@ class UnroutedQueueApiTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
             json={"org_unit_id": str(foreign.org_unit_id)},
             headers=self._csrf_headers(),
         )
-        self.assertEqual(refused.status_code, 400, refused.get_json())
-        self.assertIn("not found in this submission", refused.get_json()["error"])
+        # digitva-0wc stage 3: the pin target is authorized on its own
+        # (authz ROUTE_PIN on the unit) before it is validated, so a unit
+        # of a project the manager holds nothing in is a 403 (was 400).
+        self.assertEqual(refused.status_code, 403, refused.get_json())
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(VaSubmissions, "queue-foreign-unit").org_unit_id)
 
 
 class SyncRoutesSubmissionsTests(OrgUnitRoutingFixtureMixin, BaseTestCase):

@@ -24,13 +24,12 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_project_site_pairs, dm_scope
+from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_language", __name__)
 log = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ _PENDING_STATES = (
 
 
 @bp.get("/gap")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def language_gap():
     """KPIs: C-15 (Language Gap Alert), C-20 (Language with Maximum Pendency),
     D-LC-03 (Language Gap Analysis).
@@ -95,11 +94,7 @@ def language_gap():
         # Step 2: Coders per language (DM-scoped)
         # Coder grants are project-keyed; a unit grant's project counts here
         # because this returns counts per language, never who the coders are.
-        pairs = dm_project_site_pairs()
-        project_ids = sorted(
-            {pid for pid, _sid in pairs}
-            | current_user.get_org_unit_projects("data_manager")
-        )
+        project_ids = dm_scope().all_project_ids
 
         coders_by_lang = db.session.execute(
             sa.text("""
@@ -182,7 +177,7 @@ def language_gap():
 
 
 @bp.get("/distribution")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def language_distribution():
     """KPI: D-LC-01 — Submission Language Distribution.
 
@@ -258,7 +253,7 @@ def language_distribution():
 
 
 @bp.get("/missing")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def language_missing():
     """KPI: D-LC-07 — Forms with Missing/Unmapped Language.
 

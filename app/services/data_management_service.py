@@ -13,6 +13,7 @@ import math
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 import pytz
@@ -75,6 +76,14 @@ from app.services.submission_payload_version_service import (
     get_payload_version,
     normalize_payload_for_fingerprint,
     promote_pending_upstream_payload_version,
+)
+from app.services.authz import (
+    Action,
+    AuthzError,
+    require,
+    resolve_grants,
+    scope_filter,
+    subtree_select,
 )
 from app.services.workflow.transitions import admin_actor, data_manager_actor
 from app.services.workflow.state_store import get_submission_workflow_record
@@ -304,179 +313,131 @@ def _redact_staff_identity_export_row(
 
 # ---------------------------------------------------------------------------
 # Scope helpers
+#
+# Which submissions a data manager or viewer reaches is one predicate,
+# ``authz.scope_filter(user, Action.LIST_DATA)`` (data_manager at any scope,
+# the In-charge, project_pi on a tree project, and both viewer roles); one
+# submission's DM actions are ``authz.require(TRIAGE | SYNC_SUBMISSION)``
+# and a whole form's ``SYNC_FORM``. ``DmGrantScope`` is the same grants as
+# plain values for the surfaces that cannot embed that predicate: the
+# analytics MVs, the raw-SQL KPI panels and the site-grouped stats.
+# Design: .tasks/digitva-0wc-design.md sections 2 and 7 (stage 3).
 # ---------------------------------------------------------------------------
 
-def dm_scope_filter(user):
-    """SQLAlchemy WHERE clause scoped to the user's data-management grants.
+@dataclass(frozen=True)
+class DmGrantScope:
+    """One user's data-management grants as plain values.
 
-    Covers ``data_manager`` (full access) and the two read-only viewer
-    roles, ``collaborator``/``collaborator_pii`` (identical reach — what
-    they may *see* once in scope is decided separately by
-    viewer_pii_service.should_redact_pii, not by this filter). Project-level
-    grants are expanded to their currently active (project_id, site_id)
-    pairs so that sites removed from a project are not included.
-
-    An org_unit-scoped grant (``data_manager`` or a viewer role) does not
-    name a site, so it is resolved to its whole project here (see
-    ``_dm_org_project_ids``) — coarser than the unit itself. That is only safe because this filter
-    decides which (project, site) pairs exist at all, not which submissions
-    within them are visible: callers that enumerate individual submissions
-    (``dm_submissions_page``, ``_dm_submission_query_parts``) additionally
-    apply ``dm_submission_org_unit_condition``, which restricts by
-    ``VaSubmissions.org_unit_id`` and restores the true unit-level grain.
-    Every caller that can be reached by a viewer must decide what to do
-    about that coarsening -- this filter alone is wider than the grant, so
-    forgetting the question fails open. ``dm_scoped_forms`` and
-    ``dm_filter_options`` carry no personal data, but their project/site
-    rosters, ODK ids and distinct value lists are still more than an
-    org_unit grant conveys, so both narrow themselves to forms and
-    submissions the user can actually see. If you add a caller, apply
-    ``dm_submission_org_unit_condition`` or write down why the coarse
-    answer is the right one.
+    ``project_ids`` and ``pairs`` are the project and project_site grants
+    (the whole-form, DM_DIRECT part); ``unit_grant_ids`` anchor the unit
+    subtree, which stays in Postgres (``unit_subtree``). An admin holds
+    every project. ``unit_project_ids`` are the unit grants' projects, for
+    counts and project metadata only: a unit grant never resolves to its
+    whole project's submissions.
     """
-    all_pairs = _dm_scope_pairs(user)
 
-    if not all_pairs:
-        return sa.false()
+    project_ids: frozenset[str] = frozenset()
+    pairs: frozenset[tuple[str, str]] = frozenset()
+    unit_grant_ids: frozenset[uuid.UUID] = frozenset()
+    unit_project_ids: frozenset[str] = frozenset()
 
-    return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
+    def __bool__(self) -> bool:
+        return bool(self.project_ids or self.pairs or self.unit_grant_ids)
+
+    @property
+    def has_direct(self) -> bool:
+        """A project or project_site grant (or admin): whole-form operations."""
+        return bool(self.project_ids or self.pairs)
+
+    def unit_subtree(self):
+        """Unexecuted SELECT of the unit subtree's ids, or ``None``."""
+        if not self.unit_grant_ids:
+            return None
+        return subtree_select(self.unit_grant_ids)
+
+    def form_condition(self):
+        """``VaForms`` condition for the project and pair grants, or ``None``."""
+        clauses = []
+        if self.project_ids:
+            clauses.append(VaForms.project_id.in_(sorted(self.project_ids)))
+        if self.pairs:
+            clauses.append(sa.tuple_(VaForms.project_id, VaForms.site_id).in_(sorted(self.pairs)))
+        return sa.or_(*clauses) if clauses else None
+
+    def active_pairs(self) -> set[tuple[str, str]]:
+        """Pair grants plus every active site of a project grant (one query)."""
+        from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+
+        return set(self.pairs) | _expand_project_ids_to_active_pairs(sorted(self.project_ids))
 
 
-def dm_direct_scope_pairs(user) -> set[tuple[str, str]]:
-    """Project/project_site grants only — data_manager plus both viewer roles.
+def dm_grant_scope(user, *, viewers: bool = False) -> DmGrantScope:
+    """The data-manager shaped grants of *user* (authz ``Lens.DM``), plus
+    collaborator / collaborator_pii with *viewers* (``Lens.VIEWER``).
 
-    Excludes org_unit grants, which cannot be expressed as a site. This is
-    the base both ``_dm_scope_pairs`` (bridged to org-project granularity,
-    below) and ``dm_submission_org_unit_condition`` (the finer per-submission
-    check) build on.
+    Built from ``authz.resolve_grants`` (memoised per request), so closed
+    projects are already gone. Admin holds every project, closed ones
+    included, as the authz admin bypass does.
     """
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+    from app.models import VaAccessRoles, VaAccessScopeTypes, VaProjectMaster
 
-    project_ids = user.get_dm_view_projects()
-    project_site_pairs = user.get_dm_view_project_sites()
-
-    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
-    all_pairs |= _expand_project_ids_to_active_pairs(sorted(project_ids))
-    return all_pairs
-
-
-def dm_org_unit_ids(user) -> set[uuid.UUID]:
-    """Org units reachable for the data-management view through unit grants.
-
-    ``data_manager`` and both viewer roles: a unit grant of any of them covers
-    its whole subtree here (policy: access-control-model.md, "Role To Scope
-    Rules"). One shared subtree query, no ltree logic of its own.
-    """
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import scope_unit_ids_for_roles
-
-    return scope_unit_ids_for_roles(
-        user.user_id,
-        (
-            VaAccessRoles.data_manager,
-            VaAccessRoles.collaborator,
-            VaAccessRoles.collaborator_pii,
+    resolved = resolve_grants(user)
+    if resolved.is_admin:
+        return DmGrantScope(project_ids=frozenset(
+            db.session.scalars(sa.select(VaProjectMaster.project_id)).all()
+        ))
+    grants = list(resolved.dm_grants())
+    if viewers:
+        grants += resolved.of((VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii))
+    units = [g for g in grants if g.scope_type == VaAccessScopeTypes.org_unit]
+    return DmGrantScope(
+        project_ids=frozenset(
+            g.project_id for g in grants if g.scope_type == VaAccessScopeTypes.project
         ),
+        pairs=frozenset(
+            (g.project_id, g.site_id)
+            for g in grants if g.scope_type == VaAccessScopeTypes.project_site
+        ),
+        unit_grant_ids=frozenset(g.org_unit_id for g in units),
+        unit_project_ids=frozenset(g.project_id for g in units),
     )
 
 
-def _dm_org_project_ids(user) -> set[str]:
-    """Projects reached through an org_unit grant (unit -> its project)."""
-    unit_ids = dm_org_unit_ids(user)
-    if not unit_ids:
-        return set()
-    from app.models import MasOrgUnit
-
-    return set(
-        db.session.scalars(
-            sa.select(MasOrgUnit.project_id)
-            .where(MasOrgUnit.org_unit_id.in_(unit_ids))
-            .distinct()
-        ).all()
+def _dm_visible_forms_condition(user):
+    """``VaForms`` condition: a form under a project or pair grant (with or
+    without submissions, so a new form can still be synced), or one holding
+    at least one submission the user may list (a unit grant reaches only the
+    forms its subtree actually holds; the site roster and ODK ids of the
+    rest of the project are not theirs)."""
+    visible_submission = sa.exists(
+        sa.select(1)
+        .select_from(VaSubmissions)
+        .where(
+            VaSubmissions.va_form_id == VaForms.form_id,
+            scope_filter(user, Action.LIST_DATA),
+        )
+        .correlate(VaForms)
     )
-
-
-def _dm_scope_pairs(user) -> set[tuple[str, str]]:
-    """Return active project/site pairs visible for the data-management view.
-
-    See the ``dm_scope_filter`` docstring for why an org_unit grant is
-    bridged to its whole project here rather than a specific site.
-    """
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
-
-    all_pairs = dm_direct_scope_pairs(user)
-    org_project_ids = _dm_org_project_ids(user)
-    if org_project_ids:
-        all_pairs |= _expand_project_ids_to_active_pairs(sorted(org_project_ids))
-    return all_pairs
-
-
-def dm_submission_org_unit_condition(user):
-    """Extra AND-condition that restores unit-level grain for a unit grant.
-
-    ``dm_scope_filter`` grants an entire project once ANY unit inside it is
-    granted. ANDed into a query that already joins ``VaSubmissions`` to
-    ``VaForms`` (both ``dm_submissions_page`` and
-    ``_dm_submission_query_parts`` do), the combination becomes:
-
-        (direct project/project_site grant) OR
-        (org-bridged project AND submission's org_unit_id is granted)
-
-    which is the correct grain — a unit-scoped data manager or viewer cannot
-    see submissions outside their granted subtree just because they share a
-    project with it. Returns ``None`` when the user holds no such org_unit
-    grant, so callers can skip appending it (and a project/site-scoped data
-    manager gets the exact same query as before unit grants existed).
-    """
-    unit_ids = dm_org_unit_ids(user)
-    if not unit_ids:
-        return None
-
-    direct_pairs = dm_direct_scope_pairs(user)
-    direct_clause = (
-        sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(direct_pairs))
-        if direct_pairs
-        else sa.false()
+    wide = dm_grant_scope(user, viewers=True).form_condition()
+    if wide is None:
+        return visible_submission
+    # A project grant does not reach a site moved out of the project.
+    active_pair = sa.exists(
+        sa.select(1).where(
+            VaProjectSites.project_id == VaForms.project_id,
+            VaProjectSites.site_id == VaForms.site_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+        ).correlate(VaForms)
     )
-    return sa.or_(direct_clause, VaSubmissions.org_unit_id.in_(unit_ids))
-
-
-def dm_form_in_scope(user, form_id: str) -> bool:
-    """Whole-form data-manager scope, e.g. syncing one form.
-
-    Project and project_site grants only: a form spans several units, so a
-    unit-scoped data manager may act on its own submissions but never on the
-    whole form.
-    """
-    return user.has_data_manager_form_access(form_id, include_units=False)
+    return sa.or_(sa.and_(wide, active_pair), visible_submission)
 
 
 def dm_scoped_forms(user) -> list[dict]:
-    """Forms visible for the data-management view, with their ODK mapping.
-
-    A user holding only an org_unit grant is widened by ``_dm_scope_pairs``
-    to the unit's whole project, so without the extra restriction below this
-    would hand them every site name and ODK project/form id in that project.
-    When ``dm_submission_org_unit_condition`` applies, each form must
-    therefore also have at least one submission the user can actually see.
-    A project/site-scoped data_manager gets ``None`` from that helper and
-    keeps the original query unchanged.
-    """
-    scoped_pairs = _dm_scope_pairs(user)
-    if not scoped_pairs:
+    """Forms visible for the data-management view, with their ODK mapping
+    (``_dm_visible_forms_condition``), on active project-sites only."""
+    if not dm_grant_scope(user, viewers=True):
         return []
-
-    org_unit_condition = dm_submission_org_unit_condition(user)
-    visible_submission_exists = (
-        sa.exists(
-            sa.select(sa.literal(1))
-            .select_from(VaSubmissions)
-            .where(VaSubmissions.va_form_id == VaForms.form_id, org_unit_condition)
-            .correlate(VaForms)
-        )
-        if org_unit_condition is not None
-        else sa.true()
-    )
+    visible = _dm_visible_forms_condition(user)
 
     sync_runtime_forms_from_site_mappings()
     return [
@@ -523,12 +484,7 @@ def dm_scoped_forms(user) -> list[dict]:
                 ),
             )
             .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
-            .where(
-                sa.tuple_(MapProjectSiteOdk.project_id, MapProjectSiteOdk.site_id).in_(
-                    list(scoped_pairs)
-                ),
-                visible_submission_exists,
-            )
+            .where(visible)
             .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
         ).mappings().all()
     ]
@@ -632,9 +588,9 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
     ).first()
     if not row:
         return None
-    if not user.has_data_manager_submission_access(
-        row.project_id, row.site_id, row.org_unit_id
-    ):
+    try:
+        require(user, Action.TRIAGE, va_sid)
+    except AuthzError:
         return None
     if not row.odk_project_id or not row.odk_form_id:
         return None
@@ -806,12 +762,11 @@ def dm_submissions_page(
     )
     redact_pii = should_redact_pii(user)
 
-    scope = dm_scope_filter(user)
     # Confirmed-duplicate web cases leave the grid and every export built here.
-    conditions = [scope, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
-    org_unit_condition = dm_submission_org_unit_condition(user)
-    if org_unit_condition is not None:
-        conditions.append(org_unit_condition)
+    conditions = [
+        scope_filter(user, Action.LIST_DATA),
+        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+    ]
     project_values = _csv_values(project)
     site_values = _csv_values(site)
 
@@ -1046,12 +1001,11 @@ def _dm_submission_query_parts(
             sa.column("va_sid"),
             sa.column("analytics_age_band"),
         )
-    scope = dm_scope_filter(user)
     # Confirmed-duplicate web cases leave the grid and every export built here.
-    conditions = [scope, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
-    org_unit_condition = dm_submission_org_unit_condition(user)
-    if org_unit_condition is not None:
-        conditions.append(org_unit_condition)
+    conditions = [
+        scope_filter(user, Action.LIST_DATA),
+        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+    ]
     project_values = _csv_values(project)
     site_values = _csv_values(site)
 
@@ -2433,43 +2387,30 @@ def dm_coder_daily_statistics(
 def dm_filter_options(user) -> dict:
     """Return distinct filter values available to the data manager.
 
-    ``dm_scope_filter`` alone is too coarse for a user holding only an
-    org_unit grant: it widens to the unit's whole project, so the raw
-    project/site lists would disclose every site in that project. Whenever
-    ``dm_submission_org_unit_condition`` applies, each list is therefore
-    derived from the submissions the user can actually see -- joining
-    ``VaSubmissions`` so the finer per-submission condition can be ANDed in.
-    A site with no visible submission then does not appear, which is the
-    right answer for options that filter a submission list.
-
-    A project/site-scoped data_manager gets ``None`` from that helper and so
-    keeps the original, cheaper queries with no ``VaSubmissions`` join.
+    Projects and sites come from the forms the user may see
+    (``_dm_visible_forms_condition``): a project or pair grant's forms, and
+    for a unit grant only the forms holding a submission routed into its
+    subtree, so the rest of the project's site roster is not disclosed.
+    Genders come from the submissions the user may list.
     """
-    scope = dm_scope_filter(user)
-    org_unit_condition = dm_submission_org_unit_condition(user)
-
-    project_stmt = sa.select(VaForms.project_id)
-    site_stmt = sa.select(VaForms.project_id, VaForms.site_id)
-    if org_unit_condition is not None:
-        join_on = VaForms.form_id == VaSubmissions.va_form_id
-        project_stmt = project_stmt.join(VaSubmissions, join_on).where(org_unit_condition)
-        site_stmt = site_stmt.join(VaSubmissions, join_on).where(org_unit_condition)
-
+    visible = _dm_visible_forms_condition(user)
     projects = db.session.scalars(
-        project_stmt.where(scope).distinct().order_by(VaForms.project_id)
+        sa.select(VaForms.project_id).where(visible).distinct().order_by(VaForms.project_id)
     ).all()
     sites = db.session.execute(
-        site_stmt.where(scope).distinct().order_by(VaForms.project_id, VaForms.site_id)
+        sa.select(VaForms.project_id, VaForms.site_id)
+        .where(visible)
+        .distinct()
+        .order_by(VaForms.project_id, VaForms.site_id)
     ).mappings().all()
-    gender_stmt = (
-        sa.select(VaSubmissions.va_deceased_gender)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .where(scope, VaSubmissions.va_deceased_gender.is_not(None))
-    )
-    if org_unit_condition is not None:
-        gender_stmt = gender_stmt.where(org_unit_condition)
     genders = db.session.scalars(
-        gender_stmt.distinct().order_by(VaSubmissions.va_deceased_gender)
+        sa.select(VaSubmissions.va_deceased_gender)
+        .where(
+            scope_filter(user, Action.LIST_DATA),
+            VaSubmissions.va_deceased_gender.is_not(None),
+        )
+        .distinct()
+        .order_by(VaSubmissions.va_deceased_gender)
     ).all()
     return {
         "projects": list(projects),
@@ -2506,21 +2447,24 @@ def audit_dm_submission_action(
 # ---------------------------------------------------------------------------
 
 def _dm_submission_scope_check(user, va_sid: str):
-    """Return (submission, form_row) or raise ValueError if out of scope."""
+    """Return (submission, form_row) for a submission *user* may triage.
+
+    ``authz.require(TRIAGE)`` (admin bypasses); raises ValueError when the
+    submission does not exist and PermissionError when it is out of scope,
+    the contract the routes translate to 404 and 403.
+    """
+    try:
+        require(user, Action.TRIAGE, va_sid)
+    except AuthzError as exc:
+        if exc.status_code == 404:
+            raise ValueError("Submission not found.") from exc
+        raise PermissionError("You do not have access to this submission.") from exc
     submission = db.session.get(VaSubmissions, va_sid)
-    if submission is None:
-        raise ValueError("Submission not found.")
     form_row = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(
             VaForms.form_id == submission.va_form_id
         )
     ).first()
-    if not form_row:
-        raise ValueError("Form not found.")
-    if not user.is_admin() and not user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id, submission.org_unit_id
-    ):
-        raise PermissionError("You do not have access to this submission.")
     return submission, form_row
 
 

@@ -34,7 +34,6 @@ from datetime import date, datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
@@ -43,7 +42,6 @@ from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     DmScope,
     cached_kpi,
-    dm_project_site_pairs,
     dm_scope,
 )
 
@@ -57,7 +55,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def burndown():
     """KPIs: C-16 (Mean Daily Coding Rate), C-17 (Predicted Days to Clear
     Backlog), C-18 (Predicted vs Achieved Burndown).
@@ -219,11 +217,7 @@ def burndown():
         # --- C-18: Burndown ---
         # Check if any project has a target completion date
         # Project metadata only: a unit grant's own project supplies its target.
-        pairs = dm_project_site_pairs()
-        project_ids = sorted(
-            {pid for pid, _sid in pairs}
-            | current_user.get_org_unit_projects("data_manager")
-        )
+        project_ids = dm_scope().all_project_ids
 
         target_date = None
         if project_ids:

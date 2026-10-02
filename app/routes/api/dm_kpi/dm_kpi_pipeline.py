@@ -51,7 +51,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/pending")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def pending_rate():
     """KPI: C-04 — % Uncoded (Pending Rate).
 
@@ -99,7 +99,7 @@ def pending_rate():
 
 
 @bp.get("/aging")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def pipeline_aging():
     """KPI: C-07 — Pipeline Aging (Stagnation).
 
@@ -142,7 +142,7 @@ def pipeline_aging():
 
 
 @bp.get("/time-to-code")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def time_to_code():
     """KPI: C-08 — Time to Code (Min / Max / Median / P90).
 
@@ -214,7 +214,7 @@ def time_to_code():
 
 
 @bp.get("/reviewed")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def review_rate():
     """KPI: C-09 — % Forms Reviewed.
 
@@ -284,7 +284,7 @@ def review_rate():
 
 
 @bp.get("/upstream-changes")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def upstream_changes():
     """KPIs: C-10 (Upstream Change Queue), C-11 (% Forms with Upstream Changes),
     D-WT-02 (Upstream Change Resolution Time), D-WT-04 (Reopen Rate).
@@ -426,7 +426,7 @@ def upstream_changes():
 
 
 @bp.get("/inflow-outflow")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def inflow_outflow():
     """KPI: C-19 — Daily Inflow vs Outflow.
 
@@ -495,7 +495,7 @@ def inflow_outflow():
 
 
 @bp.get("/site-bottleneck")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def site_bottleneck():
     """KPI: C-22 — Site-Level Bottleneck.
 
@@ -557,7 +557,7 @@ def site_bottleneck():
 
 
 @bp.get("/reviewer-throughput")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def reviewer_throughput():
     """KPI: D-WT-01 — Reviewer Throughput.
 
@@ -602,7 +602,7 @@ def reviewer_throughput():
 
 
 @bp.get("/backlog-trend")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def backlog_trend():
     """KPI: D-WT-03 — Coding Backlog Trend.
 

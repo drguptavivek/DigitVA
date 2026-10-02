@@ -220,15 +220,14 @@ class VaUsers(UserMixin, db.Model):
 
         return bool(granted_units(self.user_id, VaAccessRoles(role)))
 
-    def is_data_manager(self, project_id=None, site_id=None):
-        """Role gate for data management. A unit-scope grant counts: it covers
-        its subtree on every data-management surface (policy:
-        access-control-model.md, "Role To Scope Rules")."""
-        if project_id and site_id:
-            return self.has_data_manager_submission_access(project_id, site_id)
-        if project_id:
-            return project_id in self.get_data_manager_projects()
-        return self.has_direct_data_manager_scope() or self.is_unit_data_manager()
+    def is_data_manager(self):
+        """Role gate for data management, as ``authz.effective_roles`` says:
+        a data_manager grant at any scope, site_pi at a unit (the In-charge)
+        and project_pi on a tree project (policy: access-control-model.md,
+        "Role To Scope Rules"). Opens the gate only; scope is authz's."""
+        from app.services.authz import effective_roles
+
+        return "data_manager" in effective_roles(self)
 
     def has_direct_data_manager_scope(self) -> bool:
         """Holds a project- or project_site-scope data_manager grant.

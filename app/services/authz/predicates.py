@@ -25,6 +25,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -115,13 +116,21 @@ def _routed_into(unit_ids):
     return VaSubmissions.org_unit_id.in_(_subtree_select(unit_ids))
 
 
+# The form's project has an active org level (a tree project; design 0.2).
+_HAS_TREE = sa.exists(sa.select(1).where(
+    MasOrgLevel.project_id == VaForms.project_id,
+    MasOrgLevel.is_active.is_(True),
+))
+
+
 def _form_ids(condition, *, active_form: bool, active_pair: bool):
     """SELECT of form ids matching *condition* (on VaForms), uncorrelated.
 
     *active_form*: the form is active (the form-resolved roles: coder,
     coding_tester, reviewer, site_pi; va_users._get_granted_va_forms).
     *active_pair*: the form's (project, site) is an active project-site
-    (coder only; va_users.py active-site rule).
+    (coder, data manager, viewer: their lists never reached a site moved
+    out of the project).
     """
     stmt = sa.select(VaForms.form_id)
     if condition is not None:
@@ -208,10 +217,14 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
         ]
     if lens is Lens.VIEW_REVIEWER:
         return [(list(g.of((_R.reviewer,))), True, False)]
+    # Data-manager and viewer reach stops at a deactivated (project, site)
+    # pair, as their grid, exports and KPI cards always have
+    # (_expand_project_ids_to_active_pairs): a site moved to another
+    # project leaves its old forms behind.
     if lens is Lens.DM:
-        return [(list(g.dm_grants()), False, False)]
+        return [(list(g.dm_grants()), False, True)]
     if lens is Lens.VIEWER:
-        return [(list(g.of((_R.collaborator, _R.collaborator_pii))), False, False)]
+        return [(list(g.of((_R.collaborator, _R.collaborator_pii))), False, True)]
     if lens is Lens.SITE_PI_PAIR:
         return [(list(g.of((_R.site_pi,), scope_types=(_PS,))), True, False)]
     if lens is Lens.PROJECT_PI_SITE:
@@ -222,7 +235,7 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
         )]
     if lens is Lens.DM_DIRECT:
         # A form spans units, so a unit grant never covers a whole form.
-        return [([x for x in g.dm_grants() if x.is_wide], False, False)]
+        return [([x for x in g.dm_grants() if x.is_wide], False, True)]
     if lens is Lens.DM_PROJECT_UNROUTED:
         return [(list(g.dm_grants()), False, False)]
     raise ValueError(f"unknown lens {lens!r}")
@@ -236,7 +249,7 @@ def _lens_predicate(g: ResolvedGrants, lens: Lens):
         return [sa.and_(
             VaSubmissions.org_unit_id.is_(None),
             VaSubmissions.va_form_id.in_(
-                _form_ids(VaForms.project_id.in_(projects), active_form=False, active_pair=False)
+                _form_ids(VaForms.project_id.in_(projects), active_form=False, active_pair=True)
             ),
         )]
     clauses = []
@@ -257,9 +270,16 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
         raise ValueError(f"{action!r} has no submission predicate")
     g = _grants if _grants is not None else resolve_grants(user)
     if g.is_admin and action is Action.LIST_UNROUTED:
-        # The queue is the unrouted cases only, admin included: the bypass
-        # lifts the project limit, never the queue's own shape.
-        return VaSubmissions.org_unit_id.is_(None)
+        # The queue is the unrouted cases of tree projects only, admin
+        # included: the bypass lifts the project limit, never the queue's
+        # own shape. A site project's case is unrouted by construction and
+        # has nowhere to be routed to.
+        return sa.and_(
+            VaSubmissions.org_unit_id.is_(None),
+            VaSubmissions.va_form_id.in_(
+                _form_ids(_HAS_TREE, active_form=False, active_pair=False)
+            ),
+        )
     if g.is_admin and action in ADMIN_BYPASS:
         return sa.true()
     clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]
@@ -368,6 +388,7 @@ def _can_sync_form(g: ResolvedGrants, form_id) -> Decision:
         condition = _wide_form_condition(_lens_groups(g, Lens.DM_DIRECT)[0][0])
     if condition is not None and db.session.scalar(sa.select(sa.exists().where(
         VaForms.form_id == form_id, condition,
+        VaForms.form_id.in_(_form_ids(None, active_form=False, active_pair=True)),
     ))):
         return _ALLOWED
     if db.session.get(VaForms, form_id) is None:
@@ -378,8 +399,15 @@ def _can_sync_form(g: ResolvedGrants, form_id) -> Decision:
 
 
 def _can_list_unrouted(g: ResolvedGrants, project_id) -> Decision:
-    if g.is_admin or project_id in g.dm_projects():
+    if project_id in g.dm_projects():
         return _ALLOWED
+    if g.is_admin:
+        # Admin's queue is tree projects only, as in scope_filter.
+        if db.session.scalar(sa.select(sa.exists().where(
+            MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True),
+        ))):
+            return _ALLOWED
+        return _deny(Reason.OUT_OF_SCOPE)
     return _deny(Reason.NO_ROLE if not g.dm_grants() else Reason.OUT_OF_SCOPE)
 
 

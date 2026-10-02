@@ -16,8 +16,13 @@ Sources:
   - va_submission_attachments JOIN va_submissions JOIN va_forms (C-14)
 
 Design notes:
-  va_sync_runs has no per-site breakdown, so C-02 and C-03 are
-  system-level.  C-13 (sync latency) is DM-scoped via site attribution.
+  va_sync_runs and va_smartva_runs have no per-site breakdown, so C-02,
+  C-03, D-SH-01 and D-SH-04 are system-level. They are served only to a
+  data manager with a project or pair grant (or project_pi on a tree
+  project, or admin: authz ``Lens.DM_DIRECT``, digitva-38lp); a unit-only
+  data manager or In-charge sees sync runs only for forms a direct grant
+  covers, so gets 403 on /status and /smartva-failure-rate and no D-SH-01.
+  C-13 (sync latency) is DM-scoped via site attribution.
 
 Retired-from-ODK submissions (docs/policy/odk-retired-submissions.md),
 per KPI:
@@ -57,10 +62,16 @@ _IN_ODK_SQL = in_odk_sql("s")
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
+def _system_level_refused():
+    return jsonify({"error": "System-level sync figures need a project or site grant."}), 403
+
+
 @bp.get("/status")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def sync_status():
-    """KPIs: C-02 (Last Sync Run Status) + C-03 (Sync Error Rate).
+    """System-level, so direct grants only (module docstring, digitva-38lp).
+
+KPIs: C-02 (Last Sync Run Status) + C-03 (Sync Error Rate).
 
     C-02 — Last Sync Run Status:
       Definition: status, started_at, finished_at from most recent
@@ -76,6 +87,9 @@ def sync_status():
       Rate: N / D × 100.
       Time frames: 7d, cumulative.
     """
+    if not dm_scope().direct:
+        return _system_level_refused()
+
     def compute():
         # C-02: latest sync run
         latest = db.session.execute(
@@ -146,7 +160,7 @@ def sync_status():
 
 
 @bp.get("/latency")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def sync_latency():
     """KPI: C-13 — Sync Latency (ODK → App).
 
@@ -213,7 +227,7 @@ def sync_latency():
 
 
 @bp.get("/attachment-health")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def attachment_health():
     """KPIs: C-14 (Attachment Health) + D-SH-01 (Attachment Download Completeness).
 
@@ -273,8 +287,9 @@ def attachment_health():
         missing_c14 = c14["missing"] or 0
         c14_rate = round(missing_c14 / total_c14 * 100, 1) if total_c14 > 0 else 0.0
 
-        # D-SH-01: attachment download completeness from latest sync run
-        dsh01 = db.session.execute(
+        # D-SH-01: attachment download completeness from latest sync run;
+        # system-level, so direct grants only (digitva-38lp).
+        dsh01 = scope.direct and db.session.execute(
             sa.text("""
                 SELECT
                     attachment_downloaded,
@@ -309,7 +324,7 @@ def attachment_health():
 
 
 @bp.get("/smartva-failure-rate")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def smartva_failure_rate():
     """KPI: D-SH-04 — SmartVA Failure Rate.
 
@@ -318,8 +333,11 @@ def smartva_failure_rate():
     Denominator: COUNT of all va_smartva_runs in window.
     Rate: N / D × 100.
     Time frames: 7d, cumulative.
-    Source: va_smartva_runs.
+    Source: va_smartva_runs. System-level, so direct grants only (digitva-38lp).
     """
+    if not dm_scope().direct:
+        return _system_level_refused()
+
     def compute():
         now = datetime.now(timezone.utc)
         seven_days_ago = now - timedelta(days=7)

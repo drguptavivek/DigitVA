@@ -21,8 +21,7 @@ from app.services.cod_bucket_mapping_service import (
     summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.data_management_service import (
-    dm_direct_scope_pairs,
-    dm_org_unit_ids,
+    dm_grant_scope,
     dm_scoped_forms,
 )
 
@@ -38,9 +37,14 @@ def _cod_scope(user):
     """
     forms = dm_scoped_forms(user)
     pairs = {(row["project_id"], row["site_id"]) for row in forms}
-    unit_ids = dm_org_unit_ids(user)
-    if unit_ids:
-        pairs &= dm_direct_scope_pairs(user)
+    scope = dm_grant_scope(user, viewers=True)
+    unit_ids = set()
+    if scope.unit_grant_ids:
+        pairs &= scope.active_pairs()
+        # ponytail: the subtree is materialised once here because the
+        # cod_bucket_mapping_service filters take an id set; pass the
+        # subquery through if a district subtree ever gets large.
+        unit_ids = set(db.session.scalars(scope.unit_subtree()).all())
     return forms, pairs, unit_ids
 
 

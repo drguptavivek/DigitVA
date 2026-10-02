@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-03
 ---
 
 # Submission Analytics Materialized Views
@@ -72,7 +72,7 @@ belong to several active projects (`va_project_sites` is unique on the pair,
 not on `site_id`), so a submission is never attributed to "the site's
 project". Whether a submission is visible is decided by the scope filters,
 which compare `(project_id, site_id)` against currently active
-`va_project_sites` pairs — the same rule `dm_scope_filter` applies to forms.
+`va_project_sites` pairs (`submission_analytics_mv._mv_scope_filter`).
 Submissions of a form whose pair has been deactivated therefore drop out of
 scoped analytics rather than being re-attributed to another project.
 

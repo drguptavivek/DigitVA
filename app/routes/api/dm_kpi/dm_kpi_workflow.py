@@ -191,7 +191,7 @@ def _coder_finalized_24h_split(scope: DmScope) -> dict:
 # ---------------------------------------------------------------------------
 
 @bp.get("/flowchart")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def flowchart():
     """KPI: D-WF-01 — CONSORT Pipeline Flowchart.
 
@@ -280,7 +280,7 @@ def flowchart():
 # ---------------------------------------------------------------------------
 
 @bp.get("/state-velocity")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def state_velocity():
     """KPI: D-WF-02 — State Velocity.
 
@@ -375,7 +375,7 @@ def state_velocity():
 # ---------------------------------------------------------------------------
 
 @bp.get("/stagnation")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def stagnation():
     """KPI: D-WF-03 — State Stagnation Alerts.
 
@@ -490,7 +490,7 @@ def stagnation():
 # ---------------------------------------------------------------------------
 
 @bp.get("/daily-transitions")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def daily_transitions():
     """KPI: D-WF-04 — Daily State Transitions.
 

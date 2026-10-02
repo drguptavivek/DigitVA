@@ -35,7 +35,8 @@ MATRIX = [
     ("admin", A.LIST_UNROUTED, "proj:AZTA01", True),
     ("admin", A.LIST_UNROUTED, "ta-unr", True),      # the bypass lifts the project limit...
     ("admin", A.LIST_UNROUTED, "ta-p1", False),      # ...never the queue's shape: routed is out
-    ("admin", A.LIST_UNROUTED, "sp-1", True),        # a site project's case is unrouted by construction
+    ("admin", A.LIST_UNROUTED, "sp-1", False),       # owner 2026-10-03: admin's queue is tree projects only
+    ("admin", A.LIST_UNROUTED, "proj:AZSP01", OUT),  # a site project has nowhere to route to
     ("admin", A.CODE, "ta-p1", NO_ROLE),             # D 2.2: admin codes demo only
     ("admin", A.REVIEW, "ta-p1", NO_ROLE),
     ("admin", A.SUPERVISE_INTAKE, "case:P1", NO_ROLE),  # D 9.9: no intake bypass
@@ -204,7 +205,8 @@ MATRIX = [
 
     # -- data_manager on a site project
     ("dm_sp", A.TRIAGE, "sp-1", True),
-    ("dm_sp", A.TRIAGE, "sp-4", True),               # a DM project grant covers every form of it
+    ("dm_sp", A.TRIAGE, "sp-4", OUT),                # a site moved out of the project: DM reach stops at an inactive pair (grid, KPI cards)
+    ("dm_sp", A.VIEW, "sp-4", OUT),
     ("dm_sp", A.LIST_UNROUTED, "proj:AZSP01", OUT),  # no tree, no unrouted queue
     ("dm_sp", A.LIST_UNROUTED, "sp-1", False),
     ("dm_sp", A.SYNC_FORM, "form:sp3", True),
@@ -288,7 +290,7 @@ MATRIX = [
     ("collab_c1", A.LIST_DATA, "ta-d1", False),
     ("collab_c1", A.TRIAGE, "ta-p1", NO_ROLE),
     ("collab_c1", A.CODE, "ta-p1", NO_ROLE),
-    ("collabpii_sp", A.VIEW, "sp-4", True),
+    ("collabpii_sp", A.VIEW, "sp-4", OUT),           # viewer reach stops at an inactive pair, as the DM grid does
     ("collabpii_sp", A.VIEW, "ta-unr", OUT),
     ("collabpii_sp", A.LIST_DATA, "sp-3", True),
     ("collabpii_sp", A.SYNC_FORM, "form:sp1", NO_ROLE),

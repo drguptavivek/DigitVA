@@ -1,23 +1,16 @@
-"""Tests for wiring collaborator/collaborator_pii into dm_scope_filter.
+"""Tests for collaborator/collaborator_pii on the data-management view.
 
 Access half of the viewer-PII split (.tasks/viewer-pii-roles.md,
 docs/policy/access-control-model.md, "collaborator" / "collaborator_pii").
 The redaction half (what a viewer may see once in scope) is covered by
 tests/services/test_viewer_pii_redaction.py and is not re-tested here.
 
-Covers all three grant scope types named in the task:
-  - project        -> _dm_scope_pairs via VaUsers.get_viewer_projects()
-  - project_site    -> _dm_scope_pairs via VaUsers.get_viewer_project_sites()
-  - org_unit        -> bridged to its whole project in _dm_scope_pairs
-                        (dm_scope_filter alone is coarse there), but every
-                        caller that could disclose more than the unit grants
-                        — dm_submissions_page, _dm_submission_query_parts,
-                        dm_scoped_forms, dm_filter_options — additionally
-                        ANDs in (or EXISTS-restricts by)
-                        dm_submission_org_unit_condition, which narrows back
-                        to VaSubmissions.org_unit_id. A plain data_manager
-                        never triggers that extra restriction (it returns
-                        None for them), so their results are unchanged.
+Covers all three grant scope types. Since digitva-0wc stage 3 the reach is
+one predicate, ``authz.scope_filter(user, LIST_DATA)``, and the form and
+filter lists derive from it, so an org_unit grant is never bridged to its
+whole project (the old ``_dm_scope_pairs`` /
+``dm_submission_org_unit_condition`` pair is gone; the assertions on those
+internals are now assertions on the forms the user is offered).
 """
 from datetime import datetime, timezone
 
@@ -41,12 +34,10 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUserAccessGrants,
 )
+from app.services.authz import Action, scope_filter
 from app.services.data_management_service import (
-    _dm_scope_pairs,
     dm_filter_options,
-    dm_scope_filter,
     dm_scoped_forms,
-    dm_submission_org_unit_condition,
     dm_submissions_page,
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -55,7 +46,7 @@ from tests.base import BaseTestCase
 
 
 class ViewerScopeHelperTests(BaseTestCase):
-    """VaUsers.get_viewer_* — the building blocks _dm_scope_pairs relies on."""
+    """VaUsers.get_viewer_* — the viewer-grant resolvers."""
 
     PROJECT = "VSC001"
     SITE_A = "VSCA"
@@ -160,8 +151,8 @@ class ViewerScopeHelperTests(BaseTestCase):
 
 
 class DmScopeFilterCollaboratorTests(BaseTestCase):
-    """_dm_scope_pairs / dm_scope_filter resolve collaborator grants at all
-    three scope types; data_manager behaviour is unchanged (regression)."""
+    """LIST_DATA resolves collaborator grants at all three scope types;
+    data_manager behaviour is unchanged (regression)."""
 
     PROJECT = "VDS001"
     SITE_A = "VDSA"
@@ -327,6 +318,11 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
         submission_b.org_unit_resolution = "manual"
         db.session.commit()
 
+    @staticmethod
+    def _scoped_pairs(user):
+        """(project, site) of every form the data-management view offers."""
+        return {(f["project_id"], f["site_id"]) for f in dm_scoped_forms(user)}
+
     def _grant(self, user, role, **kwargs):
         kwargs.setdefault("grant_status", VaStatuses.active)
         db.session.add(VaUserAccessGrants(user_id=user.user_id, role=role, **kwargs))
@@ -341,7 +337,7 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
             project_id=self.PROJECT,
         )
 
-        pairs = _dm_scope_pairs(user)
+        pairs = self._scoped_pairs(user)
         self.assertEqual(pairs, {(self.PROJECT, self.SITE_A), (self.PROJECT, self.SITE_B)})
 
         result = dm_submissions_page(user, per_page=25)
@@ -364,7 +360,7 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
             project_site_id=project_site_id,
         )
 
-        pairs = _dm_scope_pairs(user)
+        pairs = self._scoped_pairs(user)
         self.assertEqual(pairs, {(self.PROJECT, self.SITE_A)})
 
         result = dm_submissions_page(user, per_page=25)
@@ -373,12 +369,9 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
         self.assertNotIn(self.sid_b, sids)
 
     def test_org_unit_scope_collaborator_restricted_to_its_unit_not_whole_project(self):
-        """The security-relevant case: dm_scope_filter alone bridges an
-        org_unit grant to the whole project (coarse, by design), but
-        dm_submissions_page also ANDs in dm_submission_org_unit_condition,
-        which must narrow the result back to the granted unit's own
-        submissions. Unit A's submission must be visible; unit B's
-        (same project, different unit, no grant) must not.
+        """The security-relevant case: an org_unit grant reaches its unit's
+        submissions and forms only. Unit A's submission must be visible;
+        unit B's (same project, different unit, no grant) must not.
         """
         user = self._get_or_make_user("vds.collab.org@test.local", "VdsCollabOrg123")
         self._grant(
@@ -388,24 +381,18 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
             org_unit_id=self.unit_a.org_unit_id,
         )
 
-        # dm_scope_filter alone is coarse: it bridges the org_unit grant to
-        # the whole project, so both site pairs come back from it.
-        pairs = _dm_scope_pairs(user)
-        self.assertEqual(pairs, {(self.PROJECT, self.SITE_A), (self.PROJECT, self.SITE_B)})
+        # The forms offered stop at the unit too (the old helper bridged the
+        # grant to the whole project here and relied on callers to narrow).
+        self.assertEqual(self._scoped_pairs(user), {(self.PROJECT, self.SITE_A)})
 
-        # But the actual submission listing ANDs in the narrower per-unit
-        # condition, so only the granted unit's submission is visible.
         result = dm_submissions_page(user, per_page=25)
         sids = {row["va_sid"] for row in result["data"]}
         self.assertIn(self.sid_a, sids)
         self.assertNotIn(self.sid_b, sids)
 
-    def test_no_org_unit_grant_returns_no_extra_condition(self):
-        """A user with no viewer org_unit grant (including a plain
-        data_manager) gets None back — dm_submissions_page must not append
-        anything, so its query is byte-for-byte what it was before this
-        change for every role except a viewer holding an org_unit grant.
-        """
+    def test_project_data_manager_lists_every_routed_unit(self):
+        """A project grant reaches every submission of the project, whatever
+        unit it is routed to (was: no extra org_unit condition for them)."""
         dm_user = self._get_or_make_user("vds.dm.plain@test.local", "VdsDmPlain123")
         self._grant(
             dm_user,
@@ -413,7 +400,9 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
             scope_type=VaAccessScopeTypes.project,
             project_id=self.PROJECT,
         )
-        self.assertIsNone(dm_submission_org_unit_condition(dm_user))
+        sids = {row["va_sid"] for row in dm_submissions_page(dm_user, per_page=25)["data"]}
+        self.assertIn(self.sid_a, sids)
+        self.assertIn(self.sid_b, sids)
 
     def test_data_manager_scope_unaffected_by_collaborator_wiring(self):
         """Regression: a data_manager-only user's scope is exactly what it
@@ -431,18 +420,16 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
             ),
         )
 
-        pairs = _dm_scope_pairs(user)
+        pairs = self._scoped_pairs(user)
         self.assertEqual(pairs, {(self.PROJECT, self.SITE_A)})
 
     def test_dm_scoped_forms_excludes_forms_with_only_sibling_unit_submissions(self):
-        """dm_scope_filter alone bridges an org_unit grant to the whole
-        project, which would hand a unit-scoped viewer every site name and
-        ODK project/form id in that project (a leak: the site roster is more
-        than the grant conveys). dm_scoped_forms closes this with an EXISTS
-        on a submission the dm_submission_org_unit_condition actually allows
-        — form B's only submission sits in unit B, which this viewer was
-        never granted, so form B must not appear even though its project is
-        the same as form A's.
+        """A unit-scoped viewer must not be handed every site name and ODK
+        project/form id in the project (the site roster is more than the
+        grant conveys). dm_scoped_forms lists a form for a unit grant only
+        when it holds a submission LIST_DATA allows -- form B's only
+        submission sits in unit B, which this viewer was never granted, so
+        form B must not appear even though its project is the same as form A's.
         """
         user = self._get_or_make_user("vds.collab.forms@test.local", "VdsCollabForms123")
         self._grant(
@@ -458,10 +445,8 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
         self.assertNotIn(self.FORM_B, form_ids)
 
     def test_dm_scoped_forms_unchanged_for_data_manager(self):
-        """Regression: a data_manager grant (no org_unit involved) gets
-        None back from dm_submission_org_unit_condition, so the EXISTS
-        restriction never applies and both forms in scope are returned,
-        exactly as before this fix."""
+        """Regression: a project data_manager grant is offered every form of
+        the project, with or without a visible submission."""
         user = self._get_or_make_user("vds.dm.forms@test.local", "VdsDmForms123")
         self._grant(
             user,
@@ -478,8 +463,7 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
     def test_dm_filter_options_excludes_sibling_unit_site_and_project_stays(self):
         """Same leak, same fix, in the filter-options dropdowns: a viewer
         granted only unit A must see site A (their own unit's submission)
-        but not site B, even though both sites belong to the same project
-        and dm_scope_filter alone would have allowed both.
+        but not site B, even though both sites belong to the same project.
         """
         user = self._get_or_make_user("vds.collab.filteropts@test.local", "VdsCollabFilterOpts123")
         self._grant(
@@ -512,7 +496,7 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
 
     def test_empty_scope_returns_false_clause(self):
         user = self._get_or_make_user("vds.none@test.local", "VdsNone123")
-        clause = dm_scope_filter(user)
+        clause = scope_filter(user, Action.LIST_DATA)
         compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
         self.assertIn("false", compiled.lower())
 

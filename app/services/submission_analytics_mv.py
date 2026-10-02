@@ -1171,6 +1171,14 @@ def _expand_project_ids_to_active_pairs(project_ids: list[str]) -> set[tuple[str
     return {(row.project_id, row.site_id) for row in rows}
 
 
+def _in_unit_ids(column, unit_ids):
+    """``column IN`` a unit-id set, or an unexecuted SELECT of unit ids
+    (``authz.subtree_select``) so a district subtree stays in Postgres."""
+    if isinstance(unit_ids, sa.Select):
+        return column.in_(unit_ids)
+    return column.in_(sorted(unit_ids))
+
+
 def _mv_scope_filter(
     mv,
     project_ids: list[str],
@@ -1183,9 +1191,10 @@ def _mv_scope_filter(
 
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
-    not included. *scope_unit_ids* (the subtree of the caller's unit grants)
-    also admits each row routed to one of those units, so a unit grant counts
-    exactly its own submissions; *mv* must then expose ``org_unit_id``.
+    not included. *scope_unit_ids* (the subtree of the caller's unit grants,
+    an id set or an unexecuted SELECT of ids) also admits each row routed to
+    one of those units, so a unit grant counts exactly its own submissions;
+    *mv* must then expose ``org_unit_id``.
 
     Submissions retired from ODK are excluded unless ``include_retired`` is
     set (docs/policy/odk-retired-submissions.md); they stay in the MV so the
@@ -1201,8 +1210,10 @@ def _mv_scope_filter(
     granted = []
     if all_pairs:
         granted.append(sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs)))
-    if scope_unit_ids:
-        granted.append(mv.c.org_unit_id.in_(sorted(scope_unit_ids)))
+    if scope_unit_ids is not None and (
+        isinstance(scope_unit_ids, sa.Select) or scope_unit_ids
+    ):
+        granted.append(_in_unit_ids(mv.c.org_unit_id, scope_unit_ids))
     if not granted:
         return sa.false()
 
@@ -1716,7 +1727,7 @@ def get_dm_org_unit_stats_from_mv(
     )
     unit_filters = [MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True)]
     if unit_ids is not None:
-        unit_filters.append(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)))
+        unit_filters.append(_in_unit_ids(MasOrgUnit.org_unit_id, unit_ids))
 
     rows = db.session.execute(
         sa.select(

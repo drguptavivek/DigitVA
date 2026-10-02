@@ -11,7 +11,10 @@ overview and the ``vacode`` partial validator) call this package. Stage 2:
 the read-only rendering (``vadata``/``vaarea`` validators, write partials in
 va_form.renderpartial), attachments and workflow events. Every other caller
 still uses the old helpers in org_grant_service and VaUsers until the stages
-in .tasks/digitva-0wc-design.md move it here.
+in .tasks/digitva-0wc-design.md move it here. Stage 3: the data-manager
+grid, exports, KPIs, triage, sync, the unrouted queue and pinning.
+``subtree_select`` is the unit-subtree SELECT for the raw-SQL and MV
+surfaces that cannot embed ``scope_filter``.
 """
 
 from app.services.authz.actions import (
@@ -40,6 +43,7 @@ from app.services.authz.predicates import (
     require,
     scope_filter,
 )
+from app.services.authz.predicates import _subtree_select as subtree_select
 from app.services.authz.waivers import CodingWaivers, coding_gate_waivers
 from app.services.viewer_pii_service import should_redact_pii as redacts_pii
 
@@ -69,4 +73,5 @@ __all__ = [
     "require",
     "resolve_grants",
     "scope_filter",
+    "subtree_select",
 ]

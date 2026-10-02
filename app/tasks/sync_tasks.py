@@ -224,34 +224,35 @@ def _get_request_user(user_id):
     from app.models import VaUsers
 
     if not user_id:
-        return None
-    return db.session.get(VaUsers, user_id)
+        return None  # system-triggered run: no user to authorize
+    user = db.session.get(VaUsers, user_id)
+    if user is None:
+        # The requester vanished between enqueue and run: refuse rather than
+        # fall through to the system path.
+        raise PermissionError("Requesting user no longer exists.")
+    return user
 
 
 def _authorize_data_manager_form_sync(user_id, va_form):
+    """authz SYNC_FORM, re-checked in the worker (admin bypasses; a unit
+    grant never covers a whole form)."""
+    from app.services.authz import Action, can
+
     user = _get_request_user(user_id)
     if user is None:
         return
-    if user.is_admin():
-        return
-    if not user.is_data_manager():
-        raise PermissionError("User is not allowed to run data-manager sync.")
-    # Whole-form sync: a unit grant never covers a whole form (dm_form_in_scope).
-    if not user.has_data_manager_form_access(va_form.form_id, include_units=False):
+    if not can(user, Action.SYNC_FORM, va_form.form_id):
         raise PermissionError("User does not have access to this form.")
 
 
 def _authorize_data_manager_submission_sync(user_id, submission, va_form):
+    """authz SYNC_SUBMISSION, re-checked in the worker (admin bypasses)."""
+    from app.services.authz import Action, can
+
     user = _get_request_user(user_id)
     if user is None:
         return
-    if user.is_admin():
-        return
-    if not user.is_data_manager():
-        raise PermissionError("User is not allowed to run data-manager sync.")
-    if not user.has_data_manager_submission_access(
-        va_form.project_id, va_form.site_id, submission.org_unit_id
-    ):
+    if not can(user, Action.SYNC_SUBMISSION, submission.va_sid):
         raise PermissionError("User does not have access to this submission.")
 
 

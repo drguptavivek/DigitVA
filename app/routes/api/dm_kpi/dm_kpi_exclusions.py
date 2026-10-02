@@ -51,7 +51,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/rates")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def exclusion_rates():
     """KPIs: C-05 (% Not Codeable Overall), C-06 (Consent Refusal Rate),
     D-QG-01 (Coder Not-Codeable Rate), D-QG-02 (DM Not-Codeable Rate).
@@ -164,7 +164,7 @@ def exclusion_rates():
 
 
 @bp.get("/breakdown")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def exclusion_breakdown():
     """KPIs: D-QG-04 (Coder Not-Codeable Reason Breakdown),
     D-QG-05 (DM Not-Codeable Reason Breakdown), D-QG-03 (Exclusions by Actor).
@@ -285,7 +285,7 @@ def exclusion_breakdown():
 
 
 @bp.get("/blocked")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def blocked_forms():
     """KPI: C-23 — Blocked Forms Alert (Composite).
 
@@ -422,7 +422,7 @@ def blocked_forms():
 
 
 @bp.get("/nqa-sa")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def nqa_sa_rates():
     """KPIs: D-QG-07 (NQA Completion Rate), D-QG-08 (Social Autopsy Completion Rate).
 
@@ -515,7 +515,7 @@ def nqa_sa_rates():
 
 
 @bp.get("/odk-issues")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def odk_issues():
     """KPI: D-QG-06 — ODK Has Issues Count.
 

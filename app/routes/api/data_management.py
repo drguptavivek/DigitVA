@@ -36,8 +36,7 @@ from app.services.data_management_service import (
     dm_coded_cod_snapshot_export_csv,
     dm_coder_daily_statistics,
     dm_filter_options,
-    dm_form_in_scope,
-    dm_org_unit_ids,
+    dm_grant_scope,
     dm_screening_pass,
     dm_screening_reject,
     dm_reject_upstream_change,
@@ -52,6 +51,7 @@ from app.services.data_management_service import (
     sync_run_entries,
     sync_run_target_label,
 )
+from app.services.authz import Action, AuthzError, can, require, scope_filter
 from app.services.viewer_pii_service import should_redact_pii
 from app.services import export_store_service as export_store
 from app.services.attachment_store import AttachmentStoreError
@@ -72,6 +72,18 @@ bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
 _CACHE_TTL = 300
 _EXPORT_CACHE_TTL = 900
+
+
+def _refusal(action: Action, target, message: str):
+    """``authz.require`` as a JSON refusal: ``None`` when allowed, else the
+    response (404 for a missing target, 403 with *message* otherwise)."""
+    try:
+        require(current_user, action, target)
+    except AuthzError as exc:
+        if exc.status_code == 404:
+            return jsonify({"error": exc.message}), 404
+        return jsonify({"error": message}), 403
+    return None
 
 
 def _cache_key(suffix: str) -> str:
@@ -310,15 +322,12 @@ def submissions_export_coded_cod_snapshot_csv():
 @role_required("data_manager", "collaborator", "collaborator_pii")
 @limiter.limit("120 per minute")
 def kpi():
-
-    project_ids = sorted(current_user.get_dm_view_projects())
-    project_site_pairs = current_user.get_dm_view_project_sites()
-    unit_ids = dm_org_unit_ids(current_user)
+    scope = dm_grant_scope(current_user, viewers=True)
     return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
-            project_ids,
-            project_site_pairs,
-            unit_ids=unit_ids,
+            sorted(scope.project_ids),
+            scope.pairs,
+            unit_ids=scope.unit_subtree(),
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,
@@ -379,21 +388,23 @@ def upstream_change_details(va_sid: str):
 # ---------------------------------------------------------------------------
 
 def _dm_syncable_forms(user) -> list[dict]:
-    """``dm_scoped_forms`` narrowed to forms a project or site grant covers."""
-    projects = user.get_data_manager_projects()
-    project_sites = user.get_data_manager_project_sites()
+    """``dm_scoped_forms`` narrowed to the forms ``SYNC_FORM`` allows: a
+    data-manager project or pair grant, or project_pi on a tree project
+    (authz ``Lens.DM_DIRECT``; a unit grant never covers a whole form)."""
+    scope = dm_grant_scope(user)
     return [
         form for form in dm_scoped_forms(user)
-        if form["project_id"] in projects
-        or (form["project_id"], form["site_id"]) in project_sites
+        if form["project_id"] in scope.project_ids
+        or (form["project_id"], form["site_id"]) in scope.pairs
     ]
 
 
 @bp.post("/forms/<form_id>/sync")
 @role_required("data_manager")
 def sync_form(form_id: str):
-    if not dm_form_in_scope(current_user, form_id):
-        return jsonify({"error": "You do not have access to sync this form."}), 403
+    refused = _refusal(Action.SYNC_FORM, form_id, "You do not have access to sync this form.")
+    if refused:
+        return refused
 
     try:
         from app.tasks.sync_tasks import run_single_form_sync
@@ -417,7 +428,7 @@ def sync_form(form_id: str):
 def sync_preview():
     # ODK-side counts cannot be narrowed to a unit, so the preview, like the
     # form sync it previews, is for project and project_site grants only.
-    if not current_user.has_direct_data_manager_scope():
+    if not dm_grant_scope(current_user).has_direct:
         return jsonify({"error": "Form sync requires a project or site grant."}), 403
 
     payload = request.get_json(silent=True) or {}
@@ -553,9 +564,10 @@ def sync_runs():
 def project_site_submissions():
 
     timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-    unit_ids = current_user.get_data_manager_org_unit_ids()
+    scope = dm_grant_scope(current_user)
+    project_ids = sorted(scope.project_ids)
+    project_site_pairs = scope.pairs
+    unit_ids = scope.unit_subtree()
     project_filter = request.args.get("project", "")
     common_filters = dict(
         site=request.args.get("site", ""),
@@ -584,10 +596,7 @@ def project_site_submissions():
         project_filter in project_ids
         or any(pair[0] == project_filter for pair in project_site_pairs)
     )
-    unit_projects = (
-        current_user.get_org_unit_projects("data_manager") if unit_ids else set()
-    )
-    dm_may_see_project = dm_sees_whole_project or project_filter in unit_projects
+    dm_may_see_project = dm_sees_whole_project or project_filter in scope.unit_project_ids
     if (
         request.args.get("group_by", "") == "org_unit"
         and dm_may_see_project
@@ -624,20 +633,11 @@ def project_site_submissions():
 @bp.post("/submissions/<va_sid>/sync")
 @role_required("data_manager")
 def sync_submission(va_sid: str):
-
-    submission = db.session.get(VaSubmissions, va_sid)
-    if submission is None:
-        return jsonify({"error": "Submission not found."}), 404
-
-    form_row = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id).where(
-            VaForms.form_id == submission.va_form_id
-        )
-    ).first()
-    if not form_row or not current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id, submission.org_unit_id
-    ):
-        return jsonify({"error": "You do not have access to sync this submission."}), 403
+    refused = _refusal(
+        Action.SYNC_SUBMISSION, va_sid, "You do not have access to sync this submission."
+    )
+    if refused:
+        return refused
 
     try:
         from app.tasks.sync_tasks import run_single_submission_sync
@@ -764,47 +764,27 @@ def reject_upstream_change(va_sid: str):
 # that nothing in the payload resolved land here: either unrouted entirely, or
 # sitting on the ODK mapping's fallback unit rather than their own. A data
 # manager pins the right unit by hand, and that pin outranks later syncs.
-# Policy: docs/policy/organization-model.md.
+# Every data manager of a tree project (any scope, the In-charge and the
+# project_pi included) sees the project's unrouted cases and pins them into
+# their own subtree; a fallback-routed case is theirs when it sits inside
+# what they manage. Policy: docs/policy/organization-model.md, design
+# .tasks/digitva-0wc-design.md section 2.3.
 # ---------------------------------------------------------------------------
 
 UNROUTED_QUEUE_MAX_ROWS = 200
 
 
-def _dm_submission_scope_filter():
-    """WHERE clause limiting submissions to the current DM's granted scope.
-
-    A unit grant admits submissions routed into its subtree, which here means
-    the ones sitting on a fallback unit inside it; a submission with no unit at
-    all belongs to no subtree and is left to project/site data managers.
-    """
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import scope_unit_ids_select
-
-    project_ids = current_user.get_data_manager_projects()
-    project_site_pairs = current_user.get_data_manager_project_sites()
-    conditions = [
-        VaSubmissions.org_unit_id.in_(
-            scope_unit_ids_select(current_user.user_id, [VaAccessRoles.data_manager])
-        )
-    ]
-    if project_ids:
-        conditions.append(VaForms.project_id.in_(sorted(project_ids)))
-    if project_site_pairs:
-        conditions.append(
-            sa.tuple_(VaForms.project_id, VaForms.site_id).in_(sorted(project_site_pairs))
-        )
-    return sa.or_(*conditions)
-
-
 @bp.get("/submissions/unrouted")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def unrouted_submissions():
     """Submissions in the DM's scope that are not attributed to their own unit.
 
     ``include=fallback`` (the default) also lists submissions sitting on their
     ODK mapping's fallback unit; ``include=unrouted`` lists only the ones with
-    no unit at all.
+    no unit at all. Unrouted cases: authz ``LIST_UNROUTED`` (every DM of the
+    project; admin, tree projects only). Fallback cases are routed, so they
+    follow ``ROUTE_PIN``: the ones the user may pin.
     """
     from app.models import MasOrgLevel, MasOrgUnit
     from app.services.org_unit_routing_service import RESOLUTION_MAPPING_FALLBACK
@@ -821,14 +801,15 @@ def unrouted_submissions():
         )
     )
     unit = sa.orm.aliased(MasOrgUnit)
-    routing_condition = (
-        VaSubmissions.org_unit_id.is_(None)
-        if include == "unrouted"
-        else sa.or_(
-            VaSubmissions.org_unit_id.is_(None),
-            VaSubmissions.org_unit_resolution == RESOLUTION_MAPPING_FALLBACK,
+    routing_condition = scope_filter(current_user, Action.LIST_UNROUTED)
+    if include == "fallback":
+        routing_condition = sa.or_(
+            routing_condition,
+            sa.and_(
+                VaSubmissions.org_unit_resolution == RESOLUTION_MAPPING_FALLBACK,
+                scope_filter(current_user, Action.ROUTE_PIN),
+            ),
         )
-    )
 
     project_id = (request.args.get("project") or "").strip()
     stmt = (
@@ -844,11 +825,7 @@ def unrouted_submissions():
         )
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .outerjoin(unit, unit.org_unit_id == VaSubmissions.org_unit_id)
-        .where(
-            _dm_submission_scope_filter(),
-            project_has_tree,
-            routing_condition,
-        )
+        .where(project_has_tree, routing_condition)
         .order_by(VaSubmissions.va_submission_date.desc())
         .limit(UNROUTED_QUEUE_MAX_ROWS + 1)
     )
@@ -890,34 +867,27 @@ def set_submission_org_unit(va_sid: str):
     from app.services.org_unit_routing_service import clear_pin, pin_submission_org_unit
     from app.services.organization_service import OrganizationError
 
+    refused = _refusal(Action.ROUTE_PIN, va_sid, "You do not have access to this submission.")
+    if refused:
+        return refused
     submission = db.session.get(VaSubmissions, va_sid)
-    if submission is None:
-        return jsonify({"error": "Submission not found."}), 404
-
     form_row = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id).where(
-            VaForms.form_id == submission.va_form_id
-        )
+        sa.select(VaForms.project_id).where(VaForms.form_id == submission.va_form_id)
     ).first()
-    if not form_row or not current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id, submission.org_unit_id
-    ):
-        return jsonify({"error": "You do not have access to this submission."}), 403
 
     payload = request.get_json(silent=True) or {}
     raw_unit_id = payload.get("org_unit_id")
-    # A data manager who reaches the submission only through a unit grant
-    # may pin it only inside that grant's subtree: never move a death out of
-    # their area into someone else's.
-    reaches_whole_site = current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id
-    )
-    if raw_unit_id not in (None, "") and not reaches_whole_site:
+    # The target unit is checked on its own (authz ROUTE_PIN on a unit): a
+    # project or pair grant pins anywhere in the project; a unit data
+    # manager or In-charge only inside their own subtree, so a death is
+    # never moved out of their area into someone else's. Clearing a pin
+    # needs only the submission check above.
+    if raw_unit_id not in (None, ""):
         try:
             target_unit_id = uuid.UUID(str(raw_unit_id))
         except ValueError:
             return jsonify({"error": "Invalid org_unit_id."}), 400
-        if target_unit_id not in current_user.get_data_manager_org_unit_ids():
+        if not can(current_user, Action.ROUTE_PIN, ("unit", target_unit_id)):
             return jsonify({"error": "You may pin only to a unit inside your area."}), 403
 
     try:

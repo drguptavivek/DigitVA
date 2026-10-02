@@ -20,7 +20,6 @@ from app.models import (
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
-    VaForms,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -47,9 +46,10 @@ from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
-    dm_org_unit_ids,
+    dm_grant_scope,
     dm_scoped_forms,
 )
+from app.services.authz import Action, AuthzError, require
 from app.services.cod_bucket_mapping_service import (
     default_reporting_scheme_code,
     list_cod_bucket_schemes,
@@ -307,21 +307,14 @@ def require_dm_scope(f):
 @data_management.get("/")
 @role_required("data_manager", "admin", "collaborator", "collaborator_pii")
 def dashboard():
-    project_ids = sorted(current_user.get_dm_view_projects())
-    project_site_pairs = current_user.get_dm_view_project_sites()
-    unit_ids = dm_org_unit_ids(current_user)
-    if (
-        not current_user.is_admin()
-        and not project_ids
-        and not project_site_pairs
-        and not unit_ids
-    ):
+    scope = dm_grant_scope(current_user, viewers=True)
+    if not scope and not current_user.is_admin():
         va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     kpi = get_dm_kpi_from_mv(
-        project_ids=project_ids,
-        project_site_pairs=project_site_pairs,
-        unit_ids=unit_ids,
+        project_ids=sorted(scope.project_ids),
+        project_site_pairs=scope.pairs,
+        unit_ids=scope.unit_subtree(),
     )
     return render_template(
         "va_frontpages/va_data_manager.html",
@@ -329,8 +322,12 @@ def dashboard():
         flagged_submissions=kpi["flagged_submissions"],
         odk_has_issues_submissions=kpi["odk_has_issues_submissions"],
         smartva_missing_submissions=kpi["smartva_missing_submissions"],
-        # Whole-form sync needs a project or site grant (dm_form_in_scope).
-        can_sync_forms=current_user.has_direct_data_manager_scope(),
+        # Whole-form sync (authz SYNC_FORM): a data-manager project or site
+        # grant, or project_pi on a tree project; the sync routes are
+        # data-manager only, so an admin without such a grant is not offered it.
+        can_sync_forms=(
+            current_user.is_data_manager() and dm_grant_scope(current_user).has_direct
+        ),
         # A viewer's row link opens the read-only area view; the data-manager
         # view, ODK edit and upstream-change actions are not theirs.
         view_only=not (current_user.is_admin() or current_user.is_data_manager()),
@@ -338,28 +335,19 @@ def dashboard():
 
 
 @data_management.get("/dashboard")
-@role_required("data_manager", "admin", "collaborator", "collaborator_pii")
+@role_required("data_manager", "admin")
 def kpi_dashboard():
     """Data manager KPI analytics dashboard.
 
     Shell template only — all data fetched client-side from /api/v1/analytics/dm-kpi/* endpoints.
 
-    Those dm-kpi endpoints are data_manager/admin only today (they resolve
-    scope through their own dm_kpi_scope.py, separate from dm_scope_filter,
-    and several surface staff identity with no redaction) — a viewer who
-    reaches this shell will see a KPI dashboard with no data. Documented as
-    a known gap rather than fixed here; see the access-control-model.md note
-    on this route's blast radius.
+    Admits exactly what those endpoints admit (digitva-4in): data managers
+    as ``effective_roles`` counts them (any scope, the In-charge, project_pi
+    on a tree project) and admin. Viewers are not: several panels name
+    coders, with no redaction path.
     """
-    if not current_user.is_admin():
-        project_ids = current_user.get_dm_view_projects()
-        project_site_pairs = current_user.get_dm_view_project_sites()
-        if (
-            not project_ids
-            and not project_site_pairs
-            and not dm_org_unit_ids(current_user)
-        ):
-            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+    if not current_user.is_admin() and not dm_grant_scope(current_user):
+        va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     return render_template("va_frontpages/va_dm_kpi_dashboard.html")
 
@@ -374,15 +362,8 @@ def kpi_dashboard():
 # rather than being pulled in as a side effect of granting the page.
 @role_required("data_manager", "admin")
 def cod_bucket_reporting():
-    if not current_user.is_admin():
-        project_ids = current_user.get_dm_view_projects()
-        project_site_pairs = current_user.get_dm_view_project_sites()
-        if (
-            not project_ids
-            and not project_site_pairs
-            and not dm_org_unit_ids(current_user)
-        ):
-            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+    if not current_user.is_admin() and not dm_grant_scope(current_user, viewers=True):
+        va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     forms = dm_scoped_forms(current_user)
     schemes = [
@@ -405,20 +386,22 @@ def cod_bucket_reporting():
 @data_management.get("/view/<va_sid>")
 @role_required("data_manager", "admin")
 def view_submission(va_sid):
-    """Data manager read-only view of a submission."""
+    """Data manager read-only view of a submission.
+
+    The data-manager rendering carries the triage panel, so it needs authz
+    TRIAGE (the data-manager lens; admin bypasses, F11).
+    """
     from app.models import VaSubmissionsAuditlog
     from app.services.coding_service import render_va_coding_page
+    try:
+        require(current_user, Action.TRIAGE, va_sid)
+    except AuthzError as e:
+        message = (
+            e.message if e.status_code == 404
+            else "You do not have data-manager access to this submission."
+        )
+        va_permission_abortwithflash(message, e.status_code)
     form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    # ABAC: verify the DM's grant scope covers this submission's project/site
-    form_meta = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form.va_form_id)
-    ).mappings().first()
-    if not form_meta or not current_user.has_data_manager_submission_access(
-        form_meta["project_id"], form_meta["site_id"], form.org_unit_id
-    ):
-        va_permission_abortwithflash("You do not have data-manager access to this submission.", 403)
     # Audit read
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,

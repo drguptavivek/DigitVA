@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-03
 ---
 
 # Data Manager KPI Framework
@@ -25,7 +25,7 @@ A data manager's visibility is determined by their grants in `va_user_access_gra
 - **Project-level grant** (`scope_type = 'project'`): DM sees all sites within that project.
 - **Project-site grant** (`scope_type = 'project_site'`): DM sees only that specific project-site pair.
 - A single DM may hold multiple grants across different projects and project-site pairs.
-- **Every KPI denominator is filtered through `dm_scope_filter(user)`** — a DM only sees data for the projects/sites they have grants for.
+- **Every KPI denominator is filtered through the DM's scope** (`dm_kpi_scope.DmScope`, built from the authorization module's resolved grants) — a DM only sees data for the projects, sites and unit subtrees they have grants for.
 - When the dashboard shows project-level or site-level breakdowns, it only shows projects/sites within the DM's scope.
 - A submission is attributed to its form's own `(project_id, site_id)` pair. A site may be active in several projects; analytics never re-attributes a submission to another project sharing the site. See [Project attribution](../current-state/submission-analytics.md#project-attribution).
 

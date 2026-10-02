@@ -5,7 +5,7 @@ docs/policy/access-control-model.md, "collaborator" / "collaborator_pii").
 The foundation half (role existence, grant/scope rules) is covered by
 tests/test_collaborator_pii_role.py and is not re-tested here.
 
-Scope note: ``dm_scope_filter`` (and therefore ``dm_submissions_page`` /
+Scope note: the data-management scope (and therefore ``dm_submissions_page`` /
 ``dm_submissions_export_csv``) resolves visible project/site pairs only from
 ``data_manager``-role grants — collaborator is not wired into that scope
 resolution, and no route grants a plain ``collaborator`` or
@@ -278,8 +278,8 @@ class RedactStaffIdentityRowTests(BaseTestCase):
 class DmSubmissionsPageStaffIdentityTests(BaseTestCase):
     """End-to-end through dm_submissions_page.
 
-    dm_scope_filter resolves visible project/site pairs from data_manager
-    grants only, so the fixture user must hold a data_manager-shaped grant
+    The data-management scope resolves visible project/site pairs from
+    data_manager grants only, so the fixture user must hold a data_manager-shaped grant
     to see any rows at all (see module docstring). To exercise both
     redaction outcomes without touching scope resolution, the same
     project/site is granted twice: once as data_manager (for scope) and
@@ -528,8 +528,8 @@ class RedactStaffIdentityExportRowTests(BaseTestCase):
 class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
     """End-to-end through dm_submissions_export_csv.
 
-    A redacted viewer cannot be built end-to-end today: dm_scope_filter
-    resolves visible project/site pairs from data_manager grants only, and a
+    A redacted viewer cannot be built end-to-end today: the data-management
+    scope resolves visible project/site pairs from data_manager grants only, and a
     data_manager grant is itself PII-granting, so any user who can see a row
     is by construction unredacted (see module docstring). The redacted branch
     is therefore reached by patching the single decision point where the

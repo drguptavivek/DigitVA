@@ -8,12 +8,16 @@ build scoped sub-queries.  The key design decisions:
   (P1, S1) sees P1's forms at S1 and nothing of P2's forms at the same S1.
   Project grants expand to their currently active pairs via
   ``va_project_sites``.
-- **Unit-scope data_manager grants count their subtree, per submission.** A
-  unit grant covers part of a site, so it is never resolved to a site: a live
-  query passes a row when its form's (project, site) pair is in the direct
-  scope OR the submission's ``org_unit_id`` is in the DM's unit subtree
-  (``DmScope.sql``). Each row is tested once in one WHERE, so a submission
-  both in a direct pair and in the subtree is counted once.
+- **The grants are authz's** (``data_management_service.dm_grant_scope``,
+  digitva-0wc stage 3): data_manager at any scope, the In-charge (site_pi at
+  a unit) and project_pi on a tree project; admin holds every project.
+- **Unit grants count their subtree, per submission.** A unit grant covers
+  part of a site, so it is never resolved to a site: a live query passes a
+  row when its form's (project, site) pair is in the direct scope OR the
+  submission's ``org_unit_id`` is in the subtree of the granted units, a
+  subquery anchored on the grant ids (``DmScope.sql``), never a materialised
+  id list. Each row is tested once in one WHERE, so a submission both in a
+  direct pair and in the subtree is counted once.
 - **Aggregate panels** (daily grid, burndown, backlog trend) read
   ``va_daily_kpi_aggregates``, which holds one row per (date, site) counting
   every project's forms at that site (``app/tasks/kpi_tasks.py``; its
@@ -39,34 +43,16 @@ import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from app import cache, db
+from app import cache, db, limiter
 from app.decorators import role_required
 from app.models import VaForms
-from app.services.submission_analytics_mv import (
-    _expand_project_ids_to_active_pairs,
-)
+from app.services.data_management_service import dm_grant_scope
 
 log = logging.getLogger(__name__)
 
 _CACHE_TTL = 300  # 5 minutes
 
 bp = Blueprint("dm_kpi_cache", __name__)
-
-
-# ---------------------------------------------------------------------------
-# DM scope → (project_id, site_id) pairs
-# ---------------------------------------------------------------------------
-
-def dm_project_site_pairs() -> set[tuple[str, str]]:
-    """Resolve the current DM's grants → active (project_id, site_id) pairs.
-
-    Project grants expand to every currently active site of the project;
-    project_site grants are taken as they are.
-    """
-    project_ids = sorted(current_user.get_data_manager_projects())
-    pairs: set[tuple[str, str]] = set(current_user.get_data_manager_project_sites())
-    pairs |= _expand_project_ids_to_active_pairs(project_ids)
-    return pairs
 
 
 def _aggregate_safe_sites(pairs: set[tuple[str, str]]) -> list[str]:
@@ -101,14 +87,19 @@ class DmScope:
     """The current DM's KPI scope: direct (project, site) pairs plus a unit subtree.
 
     ``pairs`` are bound as two parallel text arrays and ``unit_ids`` (string
-    UUIDs of every active unit under the DM's unit-scope data_manager grants)
-    as a ``uuid[]``; nothing is interpolated. ``aggregate_site_ids`` are the
-    direct sites whose daily aggregate rows may be read (``_aggregate_safe_sites``).
+    UUIDs of the DM's granted units, the subtree anchors) as a ``uuid[]``;
+    nothing is interpolated. ``aggregate_site_ids`` are the direct sites
+    whose daily aggregate rows may be read (``_aggregate_safe_sites``).
+    ``unit_project_ids`` are the unit grants' projects (counts and project
+    metadata only); ``direct`` says the DM holds a project or pair grant
+    (authz ``Lens.DM_DIRECT``), which the system-level sync panels need.
     """
 
     pairs: list[tuple[str, str]]
     unit_ids: list[str]
     aggregate_site_ids: list[str]
+    unit_project_ids: tuple[str, ...] = ()
+    direct: bool = True
 
     def __bool__(self) -> bool:
         return bool(self.pairs or self.unit_ids)
@@ -121,7 +112,28 @@ class DmScope:
         )
         if not self.unit_ids:
             return pair_sql
-        return f"({pair_sql} OR {sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[])))"
+        # The subtree of the granted units (authz.subtree_select as text):
+        # anchored on the grant ids, served by the ltree GiST index.
+        subtree_sql = (
+            "SELECT dm_scope_cu.org_unit_id FROM mas_org_unit dm_scope_gu"
+            " JOIN mas_org_unit dm_scope_cu"
+            " ON dm_scope_cu.project_id = dm_scope_gu.project_id"
+            " AND dm_scope_cu.path <@ dm_scope_gu.path"
+            " WHERE dm_scope_gu.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
+            " AND dm_scope_cu.is_active"
+        )
+        return f"({pair_sql} OR {sub}.org_unit_id IN ({subtree_sql}))"
+
+    @property
+    def direct_project_ids(self) -> list[str]:
+        """Projects of the direct pairs: a unit grant never names its project's coders."""
+        return sorted({project_id for project_id, _ in self.pairs})
+
+    @property
+    def all_project_ids(self) -> list[str]:
+        """Direct projects plus the unit grants' projects, for counts and
+        project metadata only."""
+        return sorted(set(self.direct_project_ids) | set(self.unit_project_ids))
 
     @property
     def has_outside_aggregates(self) -> bool:
@@ -149,7 +161,8 @@ class DmScope:
 
     def digest(self) -> str:
         """Short stable hash of the scope, for cache keys. Pairs, not sites:
-        the same site in another project is another scope."""
+        the same site in another project is another scope; the unit grant
+        ids, not their subtrees: two grants are two scopes."""
         raw = (
             "|".join(f"{project_id}/{site_id}" for project_id, site_id in self.pairs)
             + "#" + "|".join(self.unit_ids)
@@ -170,11 +183,14 @@ def dm_scope() -> DmScope:
     cached = request.environ.get(_SCOPE_ENVIRON_KEY)
     if cached is not None and cached[0] == current_user.user_id:
         return cached[1]
-    pairs = dm_project_site_pairs()
+    grants = dm_grant_scope(current_user)
+    pairs = grants.active_pairs()
     scope = DmScope(
         pairs=sorted(pairs),
-        unit_ids=sorted(str(u) for u in current_user.get_data_manager_org_unit_ids()),
+        unit_ids=sorted(str(u) for u in grants.unit_grant_ids),
         aggregate_site_ids=_aggregate_safe_sites(pairs),
+        unit_project_ids=tuple(sorted(grants.unit_project_ids)),
+        direct=grants.has_direct,
     )
     request.environ[_SCOPE_ENVIRON_KEY] = (current_user.user_id, scope)
     return scope
@@ -233,7 +249,7 @@ def bust_dm_kpi_cache(user_id: int | None = None) -> int:
 
 
 @bp.post("/cache/bust")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def cache_bust():
     """Clear all cached KPI data for the current DM."""
     deleted = bust_dm_kpi_cache()
@@ -241,7 +257,8 @@ def cache_bust():
 
 
 @bp.post("/refresh")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
+@limiter.limit("2 per minute")
 def refresh_dashboard():
     """Full dashboard refresh: recompute daily KPIs, refresh MVs, bust cache.
 
@@ -255,7 +272,7 @@ def refresh_dashboard():
 
     # Step 1: Recompute today's KPI aggregates for the DM's sites (the rows
     # are site-keyed; dm_scope decides which of them the DM may read)
-    site_ids = sorted({site_id for _project_id, site_id in dm_project_site_pairs()})
+    site_ids = sorted({site_id for _project_id, site_id in dm_scope().pairs})
     kpi_result = {"status": "skipped", "sites_processed": 0}
     if site_ids:
         try:

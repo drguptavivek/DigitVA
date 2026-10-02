@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Organization Model Policy
@@ -586,7 +586,7 @@ levels API, the exports, the panel and routing all read from it:
   to another district). In an organizational project the `project_pi` may
   route too, across the whole project (see
   [Access Control Model](access-control-model.md), `project_pi`).
-  Implementation tracked in digitva-0wc.
+  Implemented in digitva-0wc stage 3.
 - `va_submissions.org_unit_resolution` records how the unit was decided:
   `form_field`, `mapping_fallback` or `manual`.
 - Routing is **idempotent**: the same payload always yields the same unit, so
@@ -699,7 +699,7 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
   on that pair, subject to the coding scope rule above for coding and
   reviewing. The one exception is the unrouted queue itself: every
   `data_manager` of the project, unit grants included, sees it in order to
-  route (see "Submission routing"; implementation tracked in digitva-0wc).
+  route (see "Submission routing").
 - The check is applied in two places, because a list filter alone is not
   authorization: the pick list and dashboard counts filter by unit, and
   opening or being allocated one submission is gated separately

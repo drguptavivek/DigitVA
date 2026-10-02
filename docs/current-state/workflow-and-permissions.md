@@ -667,17 +667,43 @@ Grant scope is resolved back to forms and submissions as follows:
   a unit `coding_tester` adds its whole subtree to the coder pool and its
   gate waivers apply to its own units only
   (`coder_workflow_service._coding_waivers`, `tester_covers_submission`)
-- a unit-scoped `data_manager` is a data manager on every data-management
-  surface for its subtree: the role gate (`VaUsers.is_data_manager`), the
-  grid, exports and filters (`data_management_service.dm_org_unit_ids` /
-  `dm_submission_org_unit_condition`), the MV-backed KPI cards and
-  `/api/v1/analytics/*` (`_mv_scope_filter(scope_unit_ids=...)`), COD bucket
-  reports, the unrouted queue, sync and per-submission actions
-  (`has_data_manager_submission_access(..., org_unit_id)`), and the
-  `/api/v1/analytics/dm-kpi/*` panels (`dm_kpi_scope.DmScope`: direct site
-  OR submission unit in the subtree; site-keyed aggregates plus a live unit
-  part outside the direct sites). One limit: a unit data manager pins a
-  submission only to a unit inside their subtree
+- data-management surfaces ask the authorization module (`app/services/authz`,
+  digitva-0wc stage 3). A data manager is whoever `authz.effective_roles`
+  says: a `data_manager` grant at any scope, `site_pi` at a unit (the
+  In-charge; no such grant can be stored until stage 5) and `project_pi` on
+  a tree project. `VaUsers.is_data_manager()` wraps it, so the role gate,
+  navbar, `landing_url` and the sign-in factor rules follow. Reach:
+  - the grid, exports and filter options: `authz.scope_filter(user,
+    LIST_DATA)` (the data-manager lens plus `collaborator` /
+    `collaborator_pii`); a unit grant reaches the submissions routed into its
+    subtree, and the form and filter lists only the forms holding one
+    (`data_management_service._dm_visible_forms_condition`). A project grant
+    reaches every form of the project, including a deactivated pair's
+  - the data-manager view `/data-management/view/<va_sid>`, triage,
+    screening, upstream-change resolution and the ODK edit link:
+    `require(TRIAGE)`; single-submission sync `require(SYNC_SUBMISSION)`,
+    re-checked in the Celery task; admin bypasses both (F11)
+  - whole-form sync, its preview and the sync-run history: `SYNC_FORM`,
+    a project or pair grant (or `project_pi` on a tree project); never a unit
+    grant, so a unit data manager or In-charge syncs single submissions only
+  - the MV-backed KPI cards, `/api/v1/analytics/*`, the site-grouped stats,
+    COD bucket reports and the `/api/v1/analytics/dm-kpi/*` panels take the
+    same grants as plain values (`data_management_service.dm_grant_scope`):
+    project and pair grants, with the unit subtree as a subquery anchored on
+    the granted units (`authz.subtree_select`; `DmScope.sql` renders the
+    same subquery as text). `DmScope`: direct (project, site) pair OR
+    submission unit in the subtree; site-keyed aggregates plus a live unit
+    part outside the direct sites; the cache key digests the pairs and the
+    granted unit ids
+- the unrouted queue (`GET /api/v1/data-management/submissions/unrouted`):
+  every data manager of a tree project, at any scope, sees the project's
+  unrouted submissions (`LIST_UNROUTED`; admin's queue is tree projects
+  only), plus the fallback-routed cases they may pin (`ROUTE_PIN`).
+  Pinning (`POST .../submissions/<va_sid>/org-unit`) requires `ROUTE_PIN` on
+  the submission and, for a target unit, `ROUTE_PIN` on that unit: a
+  project or pair grant pins anywhere in its project, a unit data manager or
+  In-charge only inside their own subtree; clearing a pin needs only the
+  submission check
 - the narrowing is applied in the shared availability filter
   (`coder_workflow_service._org_unit_scope_filter`, used by the pick list,
   random allocation and the dashboard counts) **and** per submission when one
@@ -736,14 +762,16 @@ The list below is the data-management reach, unchanged by stage 2.
 Route wiring (2026-09-19, design record `.tasks/viewer-pii-roles.md`) put
 `role_required("collaborator", "collaborator_pii")` (both spellings gate on the same check,
 `VaUsers.is_viewer()`, since the two roles have identical reach) into the
-read-only data-management surfaces that go through
-`data_management_service.dm_scope_filter` and are already redaction-safe:
+read-only data-management surfaces that go through the grid's scope (now
+`authz.scope_filter(user, LIST_DATA)`) and are already redaction-safe:
 
-- `GET /data-management/` (dashboard), `/data-management/dashboard` (KPI
-  shell)
+- `GET /data-management/` (dashboard)
 - `GET /api/v1/data-management/submissions`, `/filter-options`, `/kpi`
 
-That is the complete list — five routes.
+That is the complete list — four routes. The KPI shell
+`/data-management/dashboard` was the fifth until digitva-4in (stage 3): it
+now admits what the `dm-kpi` APIs admit, data managers and admin, because
+those panels name coders with no redaction path.
 
 Deliberately **not** widened, and still `data_manager`/`admin` only:
 
@@ -768,40 +796,30 @@ Deliberately **not** widened, and still `data_manager`/`admin` only:
   the `*_by` user ids). Their services now redact for a viewer (table
   below), but neither route is wired to viewers
 - `GET /api/v1/data-management/submissions/unrouted` and
-  `/project-site-submissions` — each resolves data-manager scope through its
-  own helper (`_dm_submission_scope_filter()`, which includes unit grants,
-  and a direct `get_data_manager_projects()`/`get_data_manager_project_sites()`
-  read, respectively), not `dm_scope_filter`
-- the whole `dm_kpi/*` analytics blueprint and `/api/v1/analytics/*` — these
-  resolve data-manager scope, unit grants included, through `dm_kpi_scope.py`
-  / `_mv_scope_filter`, not `dm_scope_filter`, and several surface coder/reviewer
-  performance data by name with no redaction
+  `/project-site-submissions` — data-manager actions and data-manager
+  grants only (`LIST_UNROUTED` / `ROUTE_PIN`, and `dm_grant_scope` without
+  viewers, respectively)
+- the whole `dm_kpi/*` analytics blueprint, its KPI shell and
+  `/api/v1/analytics/*` — data-manager grants only, and several surface
+  coder/reviewer performance data by name with no redaction (digitva-4in)
 
-`dm_scope_filter` (and the `_dm_scope_pairs` it calls) now resolves
-`collaborator`/`collaborator_pii` grants at all three scope types:
+The grid's scope, `authz.scope_filter(user, LIST_DATA)`, resolves
+`collaborator`/`collaborator_pii` grants at all three scope types exactly
+like `data_manager`: a project or pair grant reaches its forms' submissions,
+a unit grant the submissions routed into its subtree and nothing else of the
+project. There is one predicate on `VaSubmissions`, so no caller can forget
+to narrow a unit grant (the old `dm_scope_filter` bridged it to the whole
+project and relied on each caller to AND a second condition).
+`dm_scoped_forms` and `dm_filter_options` list a project or pair grant's
+forms, and for a unit grant only the forms holding a submission it may list,
+so a project's site roster and ODK ids are not disclosed to a unit grant.
 
-- `project` / `project_site` — exactly like `data_manager`, via
-  `VaUsers.get_viewer_projects()` / `get_viewer_project_sites()`
-- `org_unit` — reuses `org_grant_service.scope_unit_ids_for_roles()` (no
-  ltree logic reimplemented) but **bridges the granted unit to its whole
-  project** rather than to a site, because a unit does not name one. That
-  makes `dm_scope_filter` alone coarser than the grant for an org_unit
-  viewer, so it **fails open**: a caller that forgets the question serves
-  the whole project. Every caller must therefore decide explicitly.
-  `dm_scoped_forms` and `dm_filter_options` carry no personal data, but a
-  project's site roster, its ODK project/form ids and its distinct value
-  lists are still more than an org_unit grant conveys, so both narrow
-  themselves to forms and submissions the user can actually see (an
-  `EXISTS` on a visible submission, and a `VaSubmissions` join,
-  respectively). A plain `data_manager` never reaches that branch and keeps
-  the original queries unchanged. For the two callers that
-  enumerate actual submissions (`dm_submissions_page`,
-  `_dm_submission_query_parts`, behind the submissions API and the
-  dashboard), a second condition
-  (`dm_submission_org_unit_condition`) is ANDed in alongside it, restricting
-  by `VaSubmissions.org_unit_id`; combined, the net effect is the correct
-  grain — visible if inside a direct project/project_site grant, or inside
-  the project **and** the submission's own unit is granted.
+The system-level sync panels of `dm_kpi/sync` (`/status`, the D-SH-01 part
+of `/attachment-health`, `/smartva-failure-rate`) read `va_sync_runs` /
+`va_smartva_runs`, which have no per-site breakdown, so they are served only
+to a holder of a project or pair grant (or `project_pi` on a tree project,
+or admin; digitva-38lp). `POST /api/v1/analytics/dm-kpi/refresh`, a global
+concurrent MV refresh, is limited to 2 per minute.
 
 #### Redaction coverage of the data-management exports
 

@@ -47,7 +47,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 @bp.get("/")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def daily_grid():
     """KPI: C-01 — Daily Operations Grid.
 

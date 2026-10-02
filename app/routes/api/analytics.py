@@ -23,6 +23,7 @@ from flask_login import current_user
 
 from app import db, limiter, cache
 from app.decorators import role_required
+from app.services.data_management_service import dm_grant_scope
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
@@ -87,19 +88,22 @@ _CACHE_TTL = 300  # 5 minutes
 def _dm_scope_filter(*, include_retired: bool = False):
     """WHERE clause restricted to the current data-manager user's grants.
 
+    The data-manager grants as authz resolves them (``dm_grant_scope``:
+    data_manager at any scope, the In-charge, project_pi on a tree project).
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
     not included; unit grants admit the submissions routed into their
-    subtree. Submissions retired from ODK are excluded unless
+    subtree, as a subquery. Submissions retired from ODK are excluded unless
     ``include_retired`` is set (docs/policy/odk-retired-submissions.md).
     """
     from app.services.submission_analytics_mv import _mv_scope_filter
 
+    scope = dm_grant_scope(current_user)
     return _mv_scope_filter(
         _core,
-        sorted(current_user.get_data_manager_projects()),
-        current_user.get_data_manager_project_sites(),
-        scope_unit_ids=current_user.get_data_manager_org_unit_ids(),
+        sorted(scope.project_ids),
+        scope.pairs,
+        scope_unit_ids=scope.unit_subtree(),
         include_retired=include_retired,
     )
 
@@ -147,10 +151,11 @@ def _bust_user_analytics_cache():
 @role_required("data_manager")
 def kpi():
 
+    scope = dm_grant_scope(current_user)
     data = _cached("kpi", lambda: get_dm_kpi_from_mv(
-        project_ids=sorted(current_user.get_data_manager_projects()),
-        project_site_pairs=current_user.get_data_manager_project_sites(),
-        unit_ids=current_user.get_data_manager_org_unit_ids(),
+        project_ids=sorted(scope.project_ids),
+        project_site_pairs=scope.pairs,
+        unit_ids=scope.unit_subtree(),
     ))
     return jsonify(data)
 
@@ -233,12 +238,13 @@ def submissions_by_month():
 def demographics():
 
     def compute():
+        scope = dm_grant_scope(current_user)
         core_conditions = build_dm_mv_filter_conditions(
             _core,
             _demo,
-            project_ids=sorted(current_user.get_data_manager_projects()),
-            project_site_pairs=current_user.get_data_manager_project_sites(),
-            scope_unit_ids=current_user.get_data_manager_org_unit_ids(),
+            project_ids=sorted(scope.project_ids),
+            project_site_pairs=scope.pairs,
+            scope_unit_ids=scope.unit_subtree(),
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,

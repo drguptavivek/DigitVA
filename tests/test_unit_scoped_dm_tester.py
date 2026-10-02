@@ -199,7 +199,10 @@ class UnitDataManagerRouteTests(UnitScopeFixture, BaseTestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
 
-    def test_unrouted_queue_lists_fallbacks_inside_the_subtree_only(self):
+    def test_unrouted_queue_lists_unrouted_and_fallbacks_inside_the_subtree_only(self):
+        """Owner 2026-10-02 (digitva-0wc stage 3): every data manager of a
+        tree project sees its unrouted cases (was: project/site DMs only);
+        fallback-routed cases still stop at the subtree."""
         from app.services.org_unit_routing_service import RESOLUTION_MAPPING_FALLBACK
 
         _, _, _, phc_a, phc_b = self._tree()
@@ -219,7 +222,7 @@ class UnitDataManagerRouteTests(UnitScopeFixture, BaseTestCase):
         }
         self.assertIn("csc-fallback-mine", sids)
         self.assertNotIn("csc-fallback-theirs", sids)
-        self.assertNotIn("csc-unrouted", sids)
+        self.assertIn("csc-unrouted", sids)
 
     def test_unit_data_manager_pins_only_inside_the_subtree(self):
         _, _, chc, phc_a, phc_b = self._tree()
@@ -393,11 +396,11 @@ class CrossUnitSubmissionScopeTests(UnitScopeFixture, BaseTestCase):
                 str(dm.user_id), db.session.get(VaForms, self.FORM_ID))
 
     def test_project_data_manager_keeps_form_sync(self):
-        from app.services.data_management_service import dm_form_in_scope
+        from app.services.authz import Action, can
         from app.tasks.sync_tasks import _authorize_data_manager_form_sync
 
         dm = self._project_grant("x.dm.project.sync@test.local", VaAccessRoles.data_manager)
-        self.assertTrue(dm_form_in_scope(dm, self.FORM_ID))
+        self.assertTrue(can(dm, Action.SYNC_FORM, self.FORM_ID))
         _authorize_data_manager_form_sync(str(dm.user_id), db.session.get(VaForms, self.FORM_ID))
 
     def test_unit_only_data_manager_does_not_see_other_managers_form_runs(self):

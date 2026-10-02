@@ -76,7 +76,10 @@ In an **organizational (unit-tree) project** the `project_pi` additionally:
   unit, sync, screening, upstream-change resolution, the unrouted queue and
   intake supervision actions
 
-Implementation tracked in digitva-0wc.
+Implemented for the data-management screens and actions (dashboard, grid,
+KPIs, submission view, triage, sync, routing and pinning, the unrouted
+queue) in digitva-0wc stage 3; intake supervision and the site PI report
+are tracked in digitva-0wc (stage 5).
 
 Coding and reviewing still require a `coder` or `reviewer` grant. In a site
 (non-tree) project the `project_pi` keeps only the powers in the first list.
@@ -475,7 +478,7 @@ exception. **The unrouted queue of an organizational project is open to every
 project's unrouted submissions and may route one to a unit inside their own
 subtree, never outside it. The owner accepted the trade-off that a district
 data manager sees unrouted cases that may belong to another district
-(decision 2026-10-02). Implementation tracked in digitva-0wc. A unit grant
+(decision 2026-10-02; implemented in digitva-0wc stage 3). A unit grant
 resolves to the forms under its subtree (a form with a submission routed
 there, or whose ODK mapping falls back to a unit there), never to its whole
 project. Implemented in stage 2 of `digitva-djd`. The

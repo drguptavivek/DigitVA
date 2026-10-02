@@ -276,7 +276,11 @@ class CollaboratorViewerAccessTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_collaborator_reaches_kpi_dashboard_shell(self):
+    def test_collaborator_refused_on_kpi_dashboard_shell(self):
+        """digitva-4in: the KPI shell admits exactly what the dm-kpi APIs
+        admit (data managers and admin). A viewer used to reach a shell
+        whose every panel 403'd; the APIs name coders and have no redaction
+        path, so the shell closes rather than the APIs opening."""
         user = self._make_viewer(
             VaAccessRoles.collaborator, "vca.collab.kpishell@test.local", "VcaCollabKpiShell123"
         )
@@ -284,7 +288,7 @@ class CollaboratorViewerAccessTests(BaseTestCase):
 
         response = self.client.get("/data-management/dashboard")
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
     def test_collaborator_refused_on_cod_bucket_reporting_page(self):
         """Deliberately not widened: the page is a shell whose data all
@@ -535,8 +539,8 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_collaborator_refused_on_unrouted_submissions(self):
-        """Deliberately not widened: this route resolves scope through its
-        own private _dm_submission_scope_filter(), not dm_scope_filter."""
+        """Deliberately not widened: the queue is for pinning, a
+        data-manager action (authz LIST_UNROUTED / ROUTE_PIN)."""
         user = self._make_viewer(
             VaAccessRoles.collaborator, "vca.collab.unrouted@test.local", "VcaCollabUnrouted123"
         )
@@ -547,9 +551,8 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_collaborator_refused_on_project_site_submissions(self):
-        """Deliberately not widened: resolves scope via
-        get_data_manager_projects()/get_data_manager_project_sites()
-        directly, not dm_scope_filter."""
+        """Deliberately not widened: data-manager grants only
+        (dm_grant_scope without viewers)."""
         user = self._make_viewer(
             VaAccessRoles.collaborator, "vca.collab.pss@test.local", "VcaCollabPss123"
         )

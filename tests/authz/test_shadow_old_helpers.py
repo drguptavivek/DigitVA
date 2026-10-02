@@ -67,6 +67,11 @@ DELIBERATE = {
     # lenses, the demo coder's included); a data manager's old DM check
     # never covered demo. TRIAGE stays refused (never data_manager on demo).
     **{(dm, "dm_view", "dm-1"): "6zq/F14" for dm in DATA_MANAGERS if dm != "admin"},
+    # Narrowing, stage 3: the per-submission DM check reached forms on a
+    # deactivated (project, site) pair while the DM grid, exports and KPI
+    # cards did not. Now both stop at the inactive pair.
+    ("dm_sp", "dm_view", "sp-4"): "inactive pair",
+    ("dm_sp", "dm_triage", "sp-4"): "inactive pair",
 }
 
 
@@ -147,4 +152,8 @@ class ShadowOldHelpersTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(unexpected, {}, "old and new disagree outside DELIBERATE")
         missing = set(DELIBERATE) - set(differ)
         self.assertEqual(missing, set(), "listed as deliberate but they agree")
-        self.assertTrue(all(v == (False, True) for v in differ.values()))
+        narrowed = {k for k, why in DELIBERATE.items() if why == "inactive pair"}
+        self.assertTrue(all(
+            v == ((True, False) if k in narrowed else (False, True))
+            for k, v in differ.items()
+        ))

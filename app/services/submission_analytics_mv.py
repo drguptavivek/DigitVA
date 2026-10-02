@@ -1171,12 +1171,21 @@ def _expand_project_ids_to_active_pairs(project_ids: list[str]) -> set[tuple[str
     return {(row.project_id, row.site_id) for row in rows}
 
 
-def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs, *, include_retired: bool = False):
+def _mv_scope_filter(
+    mv,
+    project_ids: list[str],
+    project_site_pairs,
+    *,
+    scope_unit_ids=None,
+    include_retired: bool = False,
+):
     """Return a WHERE clause scoped to the given project/project-site grants.
 
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
-    not included.
+    not included. *scope_unit_ids* (the subtree of the caller's unit grants)
+    also admits each row routed to one of those units, so a unit grant counts
+    exactly its own submissions; *mv* must then expose ``org_unit_id``.
 
     Submissions retired from ODK are excluded unless ``include_retired`` is
     set (docs/policy/odk-retired-submissions.md); they stay in the MV so the
@@ -1189,11 +1198,16 @@ def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs, *, include_
     all_pairs: set[tuple[str, str]] = set(project_site_pairs)
     all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
 
-    if not all_pairs:
+    granted = []
+    if all_pairs:
+        granted.append(sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs)))
+    if scope_unit_ids:
+        granted.append(mv.c.org_unit_id.in_(sorted(scope_unit_ids)))
+    if not granted:
         return sa.false()
 
     scope = sa.and_(
-        sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs)),
+        sa.or_(*granted),
         not_confirmed_duplicate_condition(mv.c.va_sid),
     )
     if include_retired:
@@ -1213,6 +1227,7 @@ def build_dm_mv_filter_conditions(
     *,
     project_ids: list[str],
     project_site_pairs,
+    scope_unit_ids=None,
     project: str = "",
     site: str = "",
     date_from: str | None = None,
@@ -1241,6 +1256,7 @@ def build_dm_mv_filter_conditions(
             core,
             project_ids,
             project_site_pairs,
+            scope_unit_ids=scope_unit_ids,
             include_retired=odk_sync in (ODK_SYNC_ALL, ODK_SYNC_MISSING),
         )
     ]
@@ -1306,13 +1322,19 @@ def get_dm_kpi_from_mv(
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    unit_ids=None,
 ) -> dict:
-    """Return scoped KPI counts for the data-manager dashboard from the analytics MVs."""
+    """Return scoped KPI counts for the data-manager dashboard from the analytics MVs.
+
+    *unit_ids* is the subtree of the caller's unit grants (see
+    ``_mv_scope_filter``); ``None`` or empty adds nothing.
+    """
     core = sa.table(
         CORE_MV_NAME,
         sa.column("va_sid"),
         sa.column("project_id"),
         sa.column("site_id"),
+        sa.column("org_unit_id"),
         sa.column("submission_date"),
         sa.column("workflow_state"),
         sa.column("odk_review_state"),
@@ -1332,6 +1354,7 @@ def get_dm_kpi_from_mv(
         demo,
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
+        scope_unit_ids=unit_ids,
         project=project,
         site=site,
         date_from=date_from,
@@ -1430,6 +1453,7 @@ def get_dm_kpi_from_mv(
         demo,
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
+        scope_unit_ids=unit_ids,
         project=project,
         site=site,
         date_from=date_from,
@@ -1513,8 +1537,12 @@ def get_dm_project_site_stats_from_mv(
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    unit_ids=None,
 ) -> list[dict]:
-    """Return project/site submission stats for the data-manager dashboard."""
+    """Return project/site submission stats for the data-manager dashboard.
+
+    *unit_ids*: the caller's unit-grant subtree, as in ``get_dm_kpi_from_mv``.
+    """
     import pytz
     from datetime import datetime, timedelta
 
@@ -1523,6 +1551,7 @@ def get_dm_project_site_stats_from_mv(
         sa.column("va_sid"),
         sa.column("project_id"),
         sa.column("site_id"),
+        sa.column("org_unit_id"),
         sa.column("submission_at"),
         sa.column("submission_date"),
         sa.column("workflow_state"),
@@ -1550,6 +1579,7 @@ def get_dm_project_site_stats_from_mv(
         demo,
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
+        scope_unit_ids=unit_ids,
         project=project,
         site=site,
         date_from=date_from,
@@ -1611,6 +1641,7 @@ def get_dm_org_unit_stats_from_mv(
     workflow: str = "",
     unit_ids: Iterable | None = None,
     include_breakdown: bool = False,
+    scope_unit_ids=None,
 ) -> list[dict]:
     """Return per-organization-unit submission counts for one project's tree.
 
@@ -1628,7 +1659,9 @@ def get_dm_org_unit_stats_from_mv(
 
     ``unit_ids`` limits the rows to those candidate units (still each with
     its whole subtree); ``None`` returns every active unit, as the data
-    manager dashboard always had. ``include_breakdown`` adds the area
+    manager dashboard always had. ``scope_unit_ids`` is the caller's
+    unit-grant subtree and limits which *submissions* are counted
+    (``_mv_scope_filter``). ``include_breakdown`` adds the area
     dashboard's columns to each row, from the same query: submissions in
     the last 7 and 30 days and one count per coding bucket
     (``area_breakdown_columns``). docs/policy/area-dashboard.md.
@@ -1649,6 +1682,7 @@ def get_dm_org_unit_stats_from_mv(
         demo,
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
+        scope_unit_ids=scope_unit_ids,
         project=project or project_id,
         site=site,
         date_from=date_from,
@@ -1760,6 +1794,7 @@ def _core_table_with_org_unit():
         sa.column("odk_review_state"),
         sa.column("odk_sync_issue_code"),
         sa.column("odk_missing"),
+        sa.column("org_unit_id"),
         sa.column("org_unit_path"),
     )
 

@@ -35,7 +35,6 @@ def _fake_user(**overrides):
         user_id=uuid.uuid4(),
         permission={},
         is_admin=lambda: False,
-        has_data_manager_form_access=lambda form: False,
         is_site_pi=lambda form=None: False,
         is_reviewer=lambda form=None: False,
         is_coder=lambda form=None: False,
@@ -49,8 +48,10 @@ class AuthorizationMatrixTests(TestCase):
     FORM = "FORM01"
     SID = "sid-1"
 
-    def _allowed(self, user, holds=False):
-        with patch.object(svc, "_user_holds_submission", return_value=holds):
+    def _allowed(self, user, holds=False, dm_reaches=False, in_unit=True):
+        with patch.object(svc, "_user_holds_submission", return_value=holds), patch.object(
+            svc, "_data_manager_reaches", return_value=dm_reaches
+        ), patch.object(svc, "submission_within_org_scope", return_value=in_unit):
             return svc.can_access_submission_attachment(
                 user, va_form_id=self.FORM, va_sid=self.SID
             )
@@ -64,8 +65,10 @@ class AuthorizationMatrixTests(TestCase):
         self.assertTrue(self._allowed(_fake_user(is_admin=lambda: True)))
 
     def test_data_manager_scope_allowed(self):
-        user = _fake_user(has_data_manager_form_access=lambda form: form == self.FORM)
-        self.assertTrue(self._allowed(user))
+        # Decided per submission (a unit grant reaches its subtree only), not
+        # per form: see _data_manager_reaches.
+        self.assertTrue(self._allowed(_fake_user(), dm_reaches=True))
+        self.assertFalse(self._allowed(_fake_user(), dm_reaches=False))
 
     def test_site_pi_scope_allowed(self):
         self.assertTrue(self._allowed(_fake_user(is_site_pi=lambda form=None: form == self.FORM)))
@@ -73,6 +76,11 @@ class AuthorizationMatrixTests(TestCase):
     def test_reviewer_form_scope_allowed_without_allocation(self):
         user = _fake_user(is_reviewer=lambda form=None: form == self.FORM)
         self.assertTrue(self._allowed(user, holds=False))
+
+    def test_reviewer_outside_the_submissions_unit_denied(self):
+        # A form spans several units; the submission's own unit decides.
+        user = _fake_user(is_reviewer=lambda form=None: form == self.FORM)
+        self.assertFalse(self._allowed(user, holds=False, in_unit=False))
 
     def test_coder_requires_submission_entitlement(self):
         user = _fake_user(is_coder=lambda form=None: form == self.FORM)

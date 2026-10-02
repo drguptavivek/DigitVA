@@ -20,9 +20,28 @@ from app.services.cod_bucket_mapping_service import (
     summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
-from app.services.data_management_service import dm_scoped_forms
+from app.services.data_management_service import (
+    dm_direct_scope_pairs,
+    dm_org_unit_ids,
+    dm_scoped_forms,
+)
 
 bp = Blueprint("cod_buckets_api", __name__)
+
+
+def _cod_scope(user):
+    """(forms, whole project-sites, unit subtree) this user may report on.
+
+    A unit grant reaches a form, so its site shows among the forms, but it
+    counts only the deaths routed into its subtree: the whole site is allowed
+    through a project or project-site grant alone.
+    """
+    forms = dm_scoped_forms(user)
+    pairs = {(row["project_id"], row["site_id"]) for row in forms}
+    unit_ids = dm_org_unit_ids(user)
+    if unit_ids:
+        pairs &= dm_direct_scope_pairs(user)
+    return forms, pairs, unit_ids
 
 
 def _parse_iso_date(value: str | None):
@@ -79,8 +98,7 @@ def schemes():
 @bp.get("/aggregates")
 @role_required("data_manager", "admin")
 def aggregates():
-    forms = dm_scoped_forms(_resolved_scope_user())
-    allowed_pairs = {(row["project_id"], row["site_id"]) for row in forms}
+    forms, allowed_pairs, allowed_units = _cod_scope(_resolved_scope_user())
     form_ids = {row["form_id"] for row in forms}
 
     project_id = (request.args.get("project_id") or "").strip() or None
@@ -103,6 +121,7 @@ def aggregates():
         submission_date_from=_parse_iso_date(request.args.get("date_from")),
         submission_date_to=_parse_iso_date(request.args.get("date_to")),
         allowed_project_site_pairs=allowed_pairs,
+        allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
     )
     unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
@@ -114,6 +133,7 @@ def aggregates():
         submission_date_from=_parse_iso_date(request.args.get("date_from")),
         submission_date_to=_parse_iso_date(request.args.get("date_to")),
         allowed_project_site_pairs=allowed_pairs,
+        allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
     )
     unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
@@ -125,6 +145,7 @@ def aggregates():
         submission_date_from=_parse_iso_date(request.args.get("date_from")),
         submission_date_to=_parse_iso_date(request.args.get("date_to")),
         allowed_project_site_pairs=allowed_pairs,
+        allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
     )
     reporting_breakdowns = summarize_cod_bucket_reporting_breakdowns(
@@ -136,6 +157,7 @@ def aggregates():
         submission_date_from=_parse_iso_date(request.args.get("date_from")),
         submission_date_to=_parse_iso_date(request.args.get("date_to")),
         allowed_project_site_pairs=allowed_pairs,
+        allowed_org_unit_ids=allowed_units,
         top_n=10,
     )
     return jsonify(
@@ -172,8 +194,7 @@ def aggregates():
 @bp.get("/export.csv")
 @role_required("data_manager", "admin")
 def export_csv():
-    forms = dm_scoped_forms(_resolved_scope_user())
-    allowed_pairs = {(row["project_id"], row["site_id"]) for row in forms}
+    forms, allowed_pairs, allowed_units = _cod_scope(_resolved_scope_user())
     form_ids = {row["form_id"] for row in forms}
 
     project_id = (request.args.get("project_id") or "").strip() or None
@@ -196,5 +217,6 @@ def export_csv():
         submission_date_from=_parse_iso_date(request.args.get("date_from")),
         submission_date_to=_parse_iso_date(request.args.get("date_to")),
         allowed_project_site_pairs=allowed_pairs,
+        allowed_org_unit_ids=allowed_units,
     )
     return _csv_response(csv_text, filename_prefix="cod-bucket-report")

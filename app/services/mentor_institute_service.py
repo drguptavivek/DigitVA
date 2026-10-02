@@ -485,15 +485,17 @@ def dm_covers_mentor_unit(dm_user_id, unit: MasOrgUnit) -> bool:
 
 
 def dm_visible_mentor_staff(
-    dm_user_id, query: str, include_inactive: bool, limit: int = 25
+    dm_user_id, query: str, include_inactive: bool, limit: int = 25, *, user_id=None
 ) -> tuple[list[tuple[VaUsers, list[str]]], bool]:
     """Active staff of active institutes attached to a district the data manager
     covers (same rule as ``dm_covers_mentor_unit``), with their institute codes.
 
     Backs the unit-only data manager's user search: nobody outside those
     institutes, and no inactive membership, is returned. The query is a literal
-    substring (``%`` and ``_`` are escaped). Returns ``(rows, truncated)``;
-    *truncated* is True when more than *limit* people matched.
+    substring (``%`` and ``_`` are escaped). *user_id* narrows the answer to
+    that one person (is this account visible to the data manager?). Returns
+    ``(rows, truncated)``; *truncated* is True when more than *limit* people
+    matched.
     """
     district = sa.orm.aliased(MasOrgUnit, name="dm_search_district")
     granted = sa.orm.aliased(MasOrgUnit, name="dm_search_granted")
@@ -537,6 +539,8 @@ def dm_visible_mentor_staff(
     )
     if not include_inactive:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+    if user_id is not None:
+        stmt = stmt.where(VaUsers.user_id == user_id)
     if query:
         stmt = stmt.where(
             sa.or_(
@@ -567,6 +571,21 @@ def _project_scope_dm_projects(user_id) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
+def active_member_ids_select():
+    """SELECT of the user ids that are active members of an active institute."""
+    return (
+        sa.select(MapMentorInstituteUser.user_id)
+        .join(
+            MasMentorInstitute,
+            MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
+        )
+        .where(
+            MapMentorInstituteUser.is_active.is_(True),
+            MasMentorInstitute.is_active.is_(True),
+        )
+    )
+
+
 def member_user_ids(user_ids) -> set[uuid.UUID]:
     """Which of *user_ids* are active members of an active institute (one query)."""
     user_ids = list(user_ids)
@@ -574,16 +593,7 @@ def member_user_ids(user_ids) -> set[uuid.UUID]:
         return set()
     return set(
         db.session.scalars(
-            sa.select(MapMentorInstituteUser.user_id)
-            .join(
-                MasMentorInstitute,
-                MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
-            )
-            .where(
-                MapMentorInstituteUser.user_id.in_(user_ids),
-                MapMentorInstituteUser.is_active.is_(True),
-                MasMentorInstitute.is_active.is_(True),
-            )
+            active_member_ids_select().where(MapMentorInstituteUser.user_id.in_(user_ids))
         ).all()
     )
 

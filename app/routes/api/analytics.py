@@ -44,6 +44,7 @@ _core = sa.table(
     sa.column("va_sid"),
     sa.column("project_id"),
     sa.column("site_id"),
+    sa.column("org_unit_id"),
     sa.column("submission_date"),
     sa.column("submission_week_start"),
     sa.column("submission_month_start"),
@@ -88,7 +89,8 @@ def _dm_scope_filter(*, include_retired: bool = False):
 
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
-    not included. Submissions retired from ODK are excluded unless
+    not included; unit grants admit the submissions routed into their
+    subtree. Submissions retired from ODK are excluded unless
     ``include_retired`` is set (docs/policy/odk-retired-submissions.md).
     """
     from app.services.submission_analytics_mv import _mv_scope_filter
@@ -97,6 +99,7 @@ def _dm_scope_filter(*, include_retired: bool = False):
         _core,
         sorted(current_user.get_data_manager_projects()),
         current_user.get_data_manager_project_sites(),
+        scope_unit_ids=current_user.get_data_manager_org_unit_ids(),
         include_retired=include_retired,
     )
 
@@ -147,6 +150,7 @@ def kpi():
     data = _cached("kpi", lambda: get_dm_kpi_from_mv(
         project_ids=sorted(current_user.get_data_manager_projects()),
         project_site_pairs=current_user.get_data_manager_project_sites(),
+        unit_ids=current_user.get_data_manager_org_unit_ids(),
     ))
     return jsonify(data)
 
@@ -234,6 +238,7 @@ def demographics():
             _demo,
             project_ids=sorted(current_user.get_data_manager_projects()),
             project_site_pairs=current_user.get_data_manager_project_sites(),
+            scope_unit_ids=current_user.get_data_manager_org_unit_ids(),
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,

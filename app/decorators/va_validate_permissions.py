@@ -83,11 +83,12 @@ def _within_coding_org_scope(sid: str | None, form_id: str | None) -> bool:
     """Unit-scope gate for a coding action on one submission."""
     if not sid:
         return True
-    if form_id and current_user.is_coding_tester(form_id):
-        return True
     from app.models import VaAccessRoles
+    from app.services.coder_workflow_service import tester_covers_submission
     from app.services.org_grant_service import submission_within_org_scope
 
+    if form_id and tester_covers_submission(current_user, sid, form_id):
+        return True
     return submission_within_org_scope(current_user, sid, VaAccessRoles.coder)
 
 
@@ -307,14 +308,19 @@ def _validate_vadata(actiontype, sid, partial):
     from app.models import VaForms
 
     form = db.session.execute(
-        sa.select(VaSubmissions.va_form_id, VaForms.project_id, VaForms.site_id)
+        sa.select(
+            VaSubmissions.va_form_id,
+            VaSubmissions.org_unit_id,
+            VaForms.project_id,
+            VaForms.site_id,
+        )
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .where(VaSubmissions.va_sid == sid)
     ).mappings().first()
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
     if not current_user.has_data_manager_submission_access(
-        form["project_id"], form["site_id"]
+        form["project_id"], form["site_id"], form["org_unit_id"]
     ):
         va_permission_abortwithflash(
             "You do not have data-manager access to this submission.", 403

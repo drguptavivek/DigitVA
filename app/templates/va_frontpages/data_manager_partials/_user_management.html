@@ -333,6 +333,8 @@
   // ════════════════════════════════════════════════════════════════════════════
 
   var _users = [];
+  var _usersTruncated = false;
+  var TRUNCATED_NOTE = 'Only the first matches are shown. Refine the search to find someone else.';
   var _langData = [];
   var _searchTimeout = null;
   var _selectedUserId = null;
@@ -406,6 +408,7 @@
         return;
       }
       _users = res.data.users || [];
+      _usersTruncated = !!res.data.truncated;
       renderUserTable();
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
@@ -526,7 +529,8 @@
       + '<th class="fw-medium small text-muted">Status</th>'
       + '<th class="fw-medium small text-muted">Email Verified</th>'
       + '</tr></thead>'
-      + '<tbody>' + rows + '</tbody></table></div>';
+      + '<tbody>' + rows + '</tbody></table></div>'
+      + (_usersTruncated ? '<p class="text-muted small mt-2 mb-0">' + esc(TRUNCATED_NOTE) + '</p>' : '');
 
     wrap.querySelectorAll('.dm-user-row').forEach(function (row) {
       row.addEventListener('click', function () {
@@ -992,7 +996,10 @@
         return '<button type="button" class="list-group-item list-group-item-action py-1 small"'
           + ' data-uid="' + esc(u.user_id) + '" data-label="' + esc(u.email + ' (' + u.name + ')') + '">'
           + esc(u.email) + ' <span class="text-muted">— ' + esc(u.name) + '</span></button>';
-      }).join('');
+      }).join('')
+        + (res.data.truncated
+          ? '<div class="list-group-item disabled small text-muted">' + esc(TRUNCATED_NOTE) + '</div>'
+          : '');
       list.classList.remove('d-none');
       list.querySelectorAll('button').forEach(function (b) {
         b.addEventListener('click', function () { selectGrantUser(this.dataset.uid, this.dataset.label); });

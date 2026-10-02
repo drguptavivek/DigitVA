@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms
+from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms, VaAccessRoles
 from flask_login import current_user
 from flask import Blueprint, render_template, url_for, redirect, request
 from app.decorators import role_required
@@ -15,9 +15,11 @@ from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
+from app.services.org_grant_service import submission_within_org_view_scope
 from app.services.coder_workflow_service import (
     AllocationError,
     AllocationResult,
+    _coding_waivers,
     _narration_language_filter,
     _tr01_cutoff_filter,
     allocate_random_form,
@@ -27,6 +29,7 @@ from app.services.coder_workflow_service import (
     get_active_coding_allocation,
     get_pick_available_forms,
     _org_unit_scope_filter,
+    tester_covers_submission,
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
@@ -139,14 +142,13 @@ def dashboard():
             .order_by(VaResearchProjects.project_id, VaSites.site_id)
         ).all()
 
-        pi_project_ids = set(current_user.get_project_pi_projects())
-        pi_site_ids = set(current_user.get_site_pi_sites())
-        tester_projects = set(current_user.get_coding_tester_projects())
-        tester_pairs = current_user.get_coding_tester_project_site_pairs()
+        waivers = _coding_waivers(current_user)
 
         def _coding_status(r):
-            is_pi = r.project_id in pi_project_ids or r.site_id in pi_site_ids
-            is_tester = r.project_id in tester_projects or (r.project_id, r.site_id) in tester_pairs
+            # Site-level status: a unit tester's waiver is per submission and
+            # does not reopen the whole site, so it is not applied here.
+            is_pi = waivers.is_pi(r.project_id, r.site_id)
+            is_tester = waivers.is_tester(r.project_id, r.site_id)
             if not is_pi and not is_tester:
                 if r.coding_enabled is False:
                     return "disabled"
@@ -296,11 +298,17 @@ def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    if not (
-        current_user.has_va_form_access(form.va_form_id, "coder")
-        or current_user.is_coding_tester(form.va_form_id)
-    ):
+    # A unit tester reaches only the submissions of their own subtree.
+    tester_covers = tester_covers_submission(current_user, va_sid, form.va_form_id)
+    if not (current_user.has_va_form_access(form.va_form_id, "coder") or tester_covers):
         va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
+    # A form spans several units: apply the coder ``vaview`` validator's
+    # per-submission rule before rendering the shell.
+    if not (
+        tester_covers
+        or submission_within_org_view_scope(current_user, va_sid, VaAccessRoles.coder)
+    ):
+        va_permission_abortwithflash("This submission belongs to a unit outside your area.", 403)
     return render_va_coding_page(form, "vacode", "vaview", "coder")
 
 

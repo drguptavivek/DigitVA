@@ -36,6 +36,7 @@ from flask import abort, current_app, g, redirect, send_file, stream_with_contex
 
 from app import db, cache as flask_cache
 from app.models import (
+    VaAccessRoles,
     VaAllocations,
     VaCoderReview,
     VaFinalAssessments,
@@ -46,6 +47,7 @@ from app.models import (
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services.odk_retirement_service import MISSING_IN_ODK
+from app.services.org_grant_service import submission_within_org_scope
 
 log = logging.getLogger(__name__)
 
@@ -254,6 +256,18 @@ def _user_holds_submission(user_id, va_sid: str) -> bool:
     )
 
 
+def _data_manager_reaches(user, va_form_id: str, va_sid: str) -> bool:
+    """Data-manager scope over this one submission (a unit grant: its subtree)."""
+    row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
+        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
+        .where(VaSubmissions.va_sid == va_sid, VaForms.form_id == va_form_id)
+    ).first()
+    return row is not None and user.has_data_manager_submission_access(
+        row.project_id, row.site_id, row.org_unit_id
+    )
+
+
 def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> bool:
     """Role matrix for attachment delivery — see docs/policy/attachment-storage.md.
 
@@ -264,13 +278,15 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
         return False
     if user.is_admin():
         return True
-    if user.has_data_manager_form_access(va_form_id):
+    if _data_manager_reaches(user, va_form_id, va_sid):
         return True
     if user.is_site_pi(va_form_id):
         return True
-    # Reviewer section views are read-only per form (see the reviewer ``vaview``
-    # validator), so reviewer attachment access follows the same form scope.
-    if user.is_reviewer(va_form_id):
+    # Reviewer access follows the reviewer validator: the form, then the
+    # submission's own routed unit (a form spans several units).
+    if user.is_reviewer(va_form_id) and submission_within_org_scope(
+        user, va_sid, VaAccessRoles.reviewer
+    ):
         return True
     if user.is_coder(va_form_id) or user.is_coding_tester(va_form_id):
         return _user_holds_submission(user.user_id, va_sid)

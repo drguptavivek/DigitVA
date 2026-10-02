@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-02
 ---
 
 # Workflow And Permissions
@@ -659,11 +659,25 @@ For example:
 - coder access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - site PI access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - reviewer access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
-- unit-scoped (`org_unit`) grants reach the forms of their unit's project, and
-  for projects with an active organization tree the submissions of those forms
-  are then narrowed to the coder's own unit subtree, honouring the project's
-  coding scope level and above-scope mode
-  (`app/services/org_grant_service.py::codeable_unit_ids`)
+- unit-scoped (`org_unit`) grants reach only the forms under their subtree (a
+  submission routed there, or the ODK mapping's fallback unit there;
+  `VaUsers._get_granted_va_forms`), and for projects with an active
+  organization tree the submissions of those forms are then narrowed to the
+  coder's own unit subtree, honouring the project's coding scope level and
+  above-scope mode (`app/services/org_grant_service.py::codeable_unit_ids`);
+  a unit `coding_tester` adds its whole subtree to the coder pool and its
+  gate waivers apply to its own units only
+  (`coder_workflow_service._coding_waivers`, `tester_covers_submission`)
+- a unit-scoped `data_manager` is a data manager on every data-management
+  surface for its subtree: the role gate (`VaUsers.is_data_manager`), the
+  grid, exports and filters (`data_management_service.dm_org_unit_ids` /
+  `dm_submission_org_unit_condition`), the MV-backed KPI cards and
+  `/api/v1/analytics/*` (`_mv_scope_filter(scope_unit_ids=...)`), COD bucket
+  reports, the unrouted queue, sync and per-submission actions
+  (`has_data_manager_submission_access(..., org_unit_id)`). Two limits: the
+  `/api/v1/analytics/dm-kpi/*` panels are site-keyed and leave unit grants
+  out (fail closed), and a unit data manager pins a submission only to a unit
+  inside their subtree
 - the narrowing is applied in the shared availability filter
   (`coder_workflow_service._org_unit_scope_filter`, used by the pick list,
   random allocation and the dashboard counts) **and** per submission when one
@@ -875,8 +889,12 @@ Current baseline:
 - `admin` may manage all admin API resources
 - `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
 - `data_manager` may create users and manage coder/coding_tester/data_manager grants within their own grant scope via `/data-management/users`
-- unit-scoped grants are created only from the admin Access Grants panel; the
-  data-manager grant endpoints refuse `org_unit` scope, admins included
+- unit-scoped grants are created from the admin Access Grants panel; the
+  data-manager grant endpoints refuse `org_unit` scope, admins included,
+  except a district data manager's mentor-role grants to mentoring institute
+  staff (`docs/policy/organization-model.md`, "Mentoring institutes"). A
+  data manager holding only unit grants searches and opens only that staff,
+  and cannot create users
 - `admin` may also use the data-manager user management interface with full scope access
 - browser-originated mutating admin API requests require the `X-CSRFToken` header
 

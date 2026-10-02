@@ -236,7 +236,8 @@ def _authorize_data_manager_form_sync(user_id, va_form):
         return
     if not user.is_data_manager():
         raise PermissionError("User is not allowed to run data-manager sync.")
-    if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
+    # Whole-form sync: a unit grant never covers a whole form (dm_form_in_scope).
+    if not user.has_data_manager_form_access(va_form.form_id, include_units=False):
         raise PermissionError("User does not have access to this form.")
 
 
@@ -248,7 +249,9 @@ def _authorize_data_manager_submission_sync(user_id, submission, va_form):
         return
     if not user.is_data_manager():
         raise PermissionError("User is not allowed to run data-manager sync.")
-    if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
+    if not user.has_data_manager_submission_access(
+        va_form.project_id, va_form.site_id, submission.org_unit_id
+    ):
         raise PermissionError("User does not have access to this submission.")
 
 

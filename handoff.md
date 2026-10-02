@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2880 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2908 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
@@ -28,34 +28,24 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. `digitva-eiw` + `digitva-djd` mentor institutes and unit-scoped roles.
-   Owner design is final (full text in both beads' notes). Stages 1 and 1b landed (institute admin role `is_admin` on the staff map,
-   district DM grants to mentor staff via the `unit_data_manager` gate, API +
-   CLI only, no UI):
-   `mas_mentor_institute`, `map_mentor_institute_org_unit` (to depth-1
-   district units), `map_mentor_institute_user`, `flask mentor-institute ...`,
-   grant guard `check_mentor_grant` (member: org_unit grant inside an attached
-   district's subtree, roles coder/reviewer/coding_tester/collaborator_pii
-   only), `site_pi` refused at org_unit (CHECK + validator; classical projects
-   keep it at project_site), policy baselines written. Next, give stage 2 to a
-   fresh code-writer with its whole scope:
-   - **Stage 2**: `data_manager` and `coding_tester` at unit scope cover the
-     grant's subtree on every surface, incl. KPI/analytics, unrouted queue and
-     sync (owner: no hidden pages). Plan from the 2026-10-01 Plan agent:
-     per-submission predicate on `VaSubmissions.org_unit_id`; unit-only DM in
-     `is_data_manager` and `has_data_manager_submission_access(org_unit_id=)`;
-     DM grid via `scope_unit_ids_for_roles`; coding-tester bypass at
-     `coder_workflow_service.py:~719` and `_within_coding_org_scope` must
-     become unit-scoped; one `_coding_waivers` helper replacing four copies of
-     the PI/tester waiver; `_get_granted_va_forms` is project-wide for unit
-     grants (fail-open). Also: make `is_data_manager` and the DM page/grant list work for a
-     unit-only DM so they see and manage their district's mentor grants (the
-     page is unreachable for them today); extend search parity tests. Follow-ups
-     `digitva-d5s` (waivers key on site_id
-     only) and `digitva-6qy` (query cost).
-   - Mentors are excluded from district staff headcounts and listed apart
-     (rule in `docs/policy/people-and-roles-page.md`; `mentors_for_unit`
-     exists, no UI).
+1. Unit-scoped roles follow-ups (stages 1, 1b and 2 of `digitva-eiw` /
+   `digitva-djd` landed; unit DM, tester, coder and reviewer grants reach
+   only their subtree, per submission on `VaSubmissions.org_unit_id`;
+   `is_data_manager` includes unit grants, the `unit_data_manager` gate is
+   gone):
+   - `digitva-m5r` **owner decision**: DM KPI panels (`/api/v1/analytics/dm-kpi/*`)
+     fail closed for unit grants (site-keyed aggregates, no unit column), so a
+     unit-only DM sees them empty. Real unit totals need an additive migration.
+   - `digitva-7xq` project/site coder and reviewer grants are refused per
+     submission on tree projects (`codeable_unit_ids` reads unit grants only);
+     `workflow.get_events` lets them through, so the paths disagree.
+   - Unit-only DMs cannot run whole-form sync or preview (ODK counts cannot be
+     split by unit); single-submission refresh works.
+   - `digitva-d5s` partly done (coder waivers keyed on project+site; site PI
+     and `excluded_sites` still site-only), `digitva-ck9`, `digitva-iv7`,
+     `digitva-6qy` query cost.
+   - Mentors excluded from district headcounts and listed apart: UI belongs to
+     `digitva-nk1` (`mentors_for_unit` exists).
 2. `digitva-6zq` verify: an active demo-training project may make
    `is_coder`/`is_reviewer`/`is_coding_tester` true for every user
    (`_get_granted_va_forms` unions demo forms). Policy opens demo projects
@@ -132,10 +122,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 - A direct start refused at consent with no identity stores a `refused` submission
   and closes its case `cancelled` (the identity constraint allows no other
   closed state without one); it counts under Not analysable in DM KPIs.
-- Data managers cannot give unit grants (refused by design) until stage 1b,
-  which allows only mentor-institute grants; CHO interviewer grants come from
-  an admin or project PI. A mentor-institute member who also holds district
-  work needs a second account (guard refuses mixed grants).
+- Data managers give unit grants only to mentor-institute staff (inside the
+  mentor guard); CHO interviewer grants come from an admin or project PI. A
+  mentor-institute member who also holds district work needs a second
+  account (guard refuses mixed grants).
+- Unit-only DMs now count as privileged: second-factor enforcement applies to
+  them (TST001 DPM/BPM) once `AUTH_FACTOR_ENFORCE_FROM` is set.
 - A TST001 built before 2026-10-01 (level codes `dh`/`sc`) needs the one-off
   level conversion in `docs/current-state/test-project-tst001.md` before the
   seed reruns; dev is converted.

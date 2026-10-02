@@ -418,7 +418,11 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
 
         _, _, _, phc_a, phc_b = self._tree()
         self._grant(phc_a)
+        # Something inside the coder's subtree, so the form itself is granted
+        # and the refusal below is the unit check's, not the form check's.
+        self._submission("csc-inside", unit=phc_a)
         self._submission("csc-outside", unit=phc_b)
+        self.assertTrue(self.base_coder_user.is_coder(self.FORM_ID))
 
         with self.assertRaises(AllocationError) as ctx:
             allocate_pick_form(self.base_coder_user, "csc-outside")

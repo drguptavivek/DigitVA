@@ -186,9 +186,12 @@ def _org_unit_scope_filter(user, role: str = "coder"):
     the project's coding scope level and above-scope mode. An unrouted
     submission of a tree project is therefore not codeable by anyone until a
     data manager routes it, which is the point of the unrouted queue.
+
+    For the coder pool a unit-scope ``coding_tester`` grant adds its whole
+    subtree: a tester is not bound by the project's coding scope level.
     """
     from app.models import MasOrgLevel, VaAccessRoles
-    from app.services.org_grant_service import codeable_unit_ids
+    from app.services.org_grant_service import codeable_unit_ids, scope_unit_ids
 
     # Correlated on VaSubmissions alone, with VaForms pulled inside the
     # subquery: this filter is used by queries that do not join VaForms, and
@@ -203,6 +206,8 @@ def _org_unit_scope_filter(user, role: str = "coder"):
         )
     )
     unit_ids = codeable_unit_ids(user.user_id, VaAccessRoles(role))
+    if role == "coder":
+        unit_ids |= scope_unit_ids(user.user_id, VaAccessRoles.coding_tester)
     if not unit_ids:
         # No unit grants at all: every tree project is out of reach, while
         # non-tree projects are unaffected.
@@ -242,6 +247,70 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     return filters
 
 
+@dataclass(frozen=True)
+class _CodingWaivers:
+    """Where a user skips the coding gates (enabled flag, date window, limit).
+
+    PI waiver: a project_pi grant on the project or a site_pi grant on the
+    (project, site) pair -- keyed on the pair, never the bare site id, so a
+    grant in one project waives nothing in another (digitva-d5s).
+    coding_tester waiver: a project or project_site grant there, or a unit
+    grant whose subtree holds the submission's unit.
+    """
+
+    pi_projects: frozenset
+    pi_pairs: frozenset
+    tester_projects: frozenset
+    tester_pairs: frozenset
+    tester_unit_ids: frozenset
+
+    def is_pi(self, project_id, site_id) -> bool:
+        return project_id in self.pi_projects or (project_id, site_id) in self.pi_pairs
+
+    def is_tester(self, project_id, site_id, org_unit_id=None) -> bool:
+        return (
+            project_id in self.tester_projects
+            or (project_id, site_id) in self.tester_pairs
+            or (org_unit_id is not None and org_unit_id in self.tester_unit_ids)
+        )
+
+    def waives(self, project_id, site_id, org_unit_id=None) -> bool:
+        return self.is_pi(project_id, site_id) or self.is_tester(
+            project_id, site_id, org_unit_id
+        )
+
+
+def _coding_waivers(user) -> _CodingWaivers:
+    """The user's PI and coding_tester gate waivers, resolved once."""
+    return _CodingWaivers(
+        pi_projects=frozenset(user.get_project_pi_projects()),
+        pi_pairs=frozenset(user.get_site_pi_project_site_pairs()),
+        tester_projects=frozenset(user.get_coding_tester_projects()),
+        tester_pairs=frozenset(user.get_coding_tester_project_site_pairs()),
+        tester_unit_ids=frozenset(user.get_coding_tester_org_unit_ids()),
+    )
+
+
+def tester_covers_submission(user, va_sid: str, form_id: str) -> bool:
+    """Does a coding_tester grant reach this one submission?
+
+    A project or project_site tester reaches every submission of a form they
+    test; a unit tester only those routed into their subtree. Used where a
+    tester skips the coder's unit-scope check.
+    """
+    if not user.is_coding_tester(form_id):
+        return False
+    row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
+        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
+        .where(VaSubmissions.va_sid == va_sid)
+    ).first()
+    if row is None:
+        return False
+    waivers = _coding_waivers(user)
+    return waivers.is_tester(row.project_id, row.site_id, row.org_unit_id)
+
+
 def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
     """Return site_ids that are ineligible for new coding allocations.
 
@@ -251,12 +320,10 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
       - today is after coding_end_date
       - the user has already met the daily_coder_limit for that site today
 
-    coding_tester waiver: users who hold coding_tester access for the project
-    or project/site pair are exempt from all four gates above.
-
-    PI waiver: users who hold a project_pi grant for the project OR a site_pi
-    grant for the site are exempt from enabled/date restrictions and
-    daily_coder_limit restrictions.
+    PI and coding_tester waivers (``_CodingWaivers``) exempt a site from all
+    four gates. A unit tester's waiver is per submission, not per site, so it
+    does not exempt the site here; ``allocate_random_form`` lets the tester's
+    own units through a closed site instead.
 
     Sites with no VaProjectSites row are not restricted.
     """
@@ -269,10 +336,7 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
-    pi_project_ids = set(user.get_project_pi_projects())
-    pi_site_ids = set(user.get_site_pi_sites())
-    tester_projects = set(user.get_coding_tester_projects())
-    tester_pairs = user.get_coding_tester_project_site_pairs()
+    waivers = _coding_waivers(user)
 
     pairs = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).distinct()
@@ -315,22 +379,20 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
         ps = ps_by_pair.get((p.project_id, p.site_id))
         if not ps:
             continue
-        is_pi = p.project_id in pi_project_ids or p.site_id in pi_site_ids
-        is_tester = p.project_id in tester_projects or (p.project_id, p.site_id) in tester_pairs
         # coding_enabled + date-window + daily limit checks are waived for PI
         # and coding_tester users.
-        if not is_pi and not is_tester:
-            if not ps.coding_enabled:
-                excluded.add(p.site_id)
-                continue
-            if ps.coding_start_date and ps.coding_start_date > today:
-                excluded.add(p.site_id)
-                continue
-        if not is_pi and not is_tester:
-            if ps.coding_end_date and ps.coding_end_date < today:
-                excluded.add(p.site_id)
-                continue
-        if not is_pi and not is_tester and today_counts.get(p.site_id, 0) >= ps.daily_coder_limit:
+        if waivers.waives(p.project_id, p.site_id):
+            continue
+        if not ps.coding_enabled:
+            excluded.add(p.site_id)
+            continue
+        if ps.coding_start_date and ps.coding_start_date > today:
+            excluded.add(p.site_id)
+            continue
+        if ps.coding_end_date and ps.coding_end_date < today:
+            excluded.add(p.site_id)
+            continue
+        if today_counts.get(p.site_id, 0) >= ps.daily_coder_limit:
             excluded.add(p.site_id)
     return excluded
 
@@ -345,8 +407,9 @@ def _get_excluded_org_units_for_coding(form_ids: list, user) -> set:
     to the site exclusion, not instead of it. A unit with no gate at all --
     its own or inherited -- is unaffected.
 
-    Same coding_tester and PI waivers as the site gate, checked at the same
-    project/site granularity (a unit gate never has its own waiver).
+    Same coding_tester and PI waivers as the site gate (``_CodingWaivers``),
+    plus a unit tester's waiver for the units of their subtree; a unit gate
+    never has its own waiver.
 
     The daily limit is counted once per gate (allocations today whose
     submission falls anywhere in the gated unit's subtree) and compared
@@ -380,10 +443,7 @@ def _get_excluded_org_units_for_coding(form_ids: list, user) -> set:
     if not gates:
         return set()
 
-    pi_project_ids = set(user.get_project_pi_projects())
-    pi_site_ids = set(user.get_site_pi_sites())
-    tester_projects = set(user.get_coding_tester_projects())
-    tester_pairs = user.get_coding_tester_project_site_pairs()
+    waivers = _coding_waivers(user)
 
     gate_unit_ids = {gate.org_unit_id for gate in gates.values()}
     submission_unit = sa.orm.aliased(MasOrgUnit, name="submission_unit")
@@ -420,9 +480,7 @@ def _get_excluded_org_units_for_coding(form_ids: list, user) -> set:
         project_id, site_id = site_by_unit.get(target_unit_id, (None, None))
         if project_id is None:
             continue
-        is_pi = project_id in pi_project_ids or site_id in pi_site_ids
-        is_tester = project_id in tester_projects or (project_id, site_id) in tester_pairs
-        if is_pi or is_tester:
+        if waivers.waives(project_id, site_id, target_unit_id):
             continue
         if not gate.coding_enabled:
             excluded_units.add(target_unit_id)
@@ -458,12 +516,7 @@ def _get_site_coding_error(
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
-    pi_project_ids = set(user.get_project_pi_projects())
-    pi_site_ids = set(user.get_site_pi_sites())
-    tester_projects = set(user.get_coding_tester_projects())
-    tester_pairs = user.get_coding_tester_project_site_pairs()
-    is_pi = project_id in pi_project_ids or site_id in pi_site_ids
-    is_tester = project_id in tester_projects or (project_id, site_id) in tester_pairs
+    waived = _coding_waivers(user).waives(project_id, site_id, org_unit_id)
 
     ps = db.session.scalar(
         sa.select(VaProjectSites).where(
@@ -474,16 +527,15 @@ def _get_site_coding_error(
     )
     if not ps:
         return "Coding is not configured for this site."
-    if not is_pi and not is_tester:
+    if not waived:
         if not ps.coding_enabled:
             return "Coding is currently disabled for this site."
         if ps.coding_start_date and ps.coding_start_date > today:
             return f"Coding for this site opens on {ps.coding_start_date.strftime('%B %-d, %Y')}."
-    if not is_pi and not is_tester:
         if ps.coding_end_date and ps.coding_end_date < today:
             return f"Coding for this site ended on {ps.coding_end_date.strftime('%B %-d, %Y')}."
 
-    if org_unit_id is not None and not is_pi and not is_tester:
+    if org_unit_id is not None and not waived:
         from app.models import MasOrgUnit
         from app.services.org_grant_service import resolve_unit_coding_gates
 
@@ -532,7 +584,7 @@ def _get_site_coding_error(
             VaForms.site_id == site_id,
         )
     ) or 0
-    if not is_pi and not is_tester and count >= ps.daily_coder_limit:
+    if not waived and count >= ps.daily_coder_limit:
         return (
             f"You have reached today's coding limit of {ps.daily_coder_limit} "
             f"form{'s' if ps.daily_coder_limit != 1 else ''} for this site."
@@ -651,11 +703,18 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
     excluded_sites = _get_excluded_sites_for_coding(random_form_ids, user)
     base_filters = _available_submission_filters(random_form_ids, project_id=project_id, user=user)
     if excluded_sites:
-        base_filters.append(
-            VaSubmissions.va_form_id.not_in(
-                sa.select(VaForms.form_id).where(VaForms.site_id.in_(excluded_sites))
-            )
+        outside_closed_sites = VaSubmissions.va_form_id.not_in(
+            sa.select(VaForms.form_id).where(VaForms.site_id.in_(excluded_sites))
         )
+        tester_unit_ids = user.get_coding_tester_org_unit_ids()
+        if tester_unit_ids:
+            # A unit tester's waiver is per submission: their own units stay
+            # open inside a site that is closed to everyone else.
+            outside_closed_sites = sa.or_(
+                outside_closed_sites,
+                VaSubmissions.org_unit_id.in_(sorted(tester_unit_ids)),
+            )
+        base_filters.append(outside_closed_sites)
 
     # Per-unit gates narrow further within otherwise-open sites (never widen
     # what the site gate above already allows).
@@ -716,7 +775,7 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     from app.models import VaAccessRoles
     from app.services.org_grant_service import submission_within_org_scope
 
-    if not user.is_coding_tester(form.va_form_id) and not submission_within_org_scope(
+    if not tester_covers_submission(user, va_sid, form.va_form_id) and not submission_within_org_scope(
         user, va_sid, VaAccessRoles.coder
     ):
         raise AllocationError(
@@ -737,7 +796,9 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         raise AllocationError(DUPLICATE_MESSAGE, 409)
 
     excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
-    if sub_row.site_id in excluded:
+    if sub_row.site_id in excluded and not _coding_waivers(user).is_tester(
+        sub_row.project_id, sub_row.site_id, form.org_unit_id
+    ):
         raise AllocationError(_get_site_coding_error(sub_row.project_id, sub_row.site_id, user))
 
     excluded_units = _get_excluded_org_units_for_coding([form.va_form_id], user)

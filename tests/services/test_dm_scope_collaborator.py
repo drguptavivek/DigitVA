@@ -515,3 +515,84 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
         clause = dm_scope_filter(user)
         compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
         self.assertIn("false", compiled.lower())
+
+    # -- unit-scoped data_manager: parity with a site grant (digitva-djd) ----
+    #
+    # Unit A holds exactly site A's submission, so a data_manager granted at
+    # unit A must see, and find by search, exactly what one granted site A
+    # sees: the same deaths, never unit B's.
+
+    def _site_and_unit_data_managers(self):
+        site_dm = self._get_or_make_user("vds.dm.site.parity@test.local", "VdsParity123")
+        self._grant(
+            site_dm,
+            VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=db.session.scalar(
+                sa.select(VaProjectSites.project_site_id).where(
+                    VaProjectSites.project_id == self.PROJECT,
+                    VaProjectSites.site_id == self.SITE_A,
+                )
+            ),
+        )
+        unit_dm = self._get_or_make_user("vds.dm.unit.parity@test.local", "VdsParity123")
+        self._grant(
+            unit_dm,
+            VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=self.unit_a.org_unit_id,
+        )
+        return site_dm, unit_dm
+
+    def test_unit_data_manager_grid_and_search_match_a_site_grant_over_the_subtree(self):
+        site_dm, unit_dm = self._site_and_unit_data_managers()
+        for search in ("", "dm-scope-collab", "collab-b"):
+            with self.subTest(search=search):
+                site_sids = {
+                    row["va_sid"]
+                    for row in dm_submissions_page(site_dm, per_page=25, search=search)["data"]
+                }
+                unit_sids = {
+                    row["va_sid"]
+                    for row in dm_submissions_page(unit_dm, per_page=25, search=search)["data"]
+                }
+                self.assertEqual(unit_sids, site_sids)
+                self.assertNotIn(self.sid_b, unit_sids)
+        self.assertIn(
+            self.sid_a,
+            {r["va_sid"] for r in dm_submissions_page(unit_dm, per_page=25)["data"]},
+        )
+
+    def test_unit_data_manager_forms_and_filter_options_stay_inside_the_subtree(self):
+        _, unit_dm = self._site_and_unit_data_managers()
+        form_ids = {f["form_id"] for f in dm_scoped_forms(unit_dm)}
+        self.assertIn(self.FORM_A, form_ids)
+        self.assertNotIn(self.FORM_B, form_ids)
+        sites = {s["site_id"] for s in dm_filter_options(unit_dm)["sites"]}
+        self.assertEqual(sites, {self.SITE_A})
+
+    def test_unit_data_manager_submission_access_is_per_routed_unit(self):
+        _, unit_dm = self._site_and_unit_data_managers()
+        self.assertTrue(unit_dm.is_data_manager())
+        self.assertFalse(unit_dm.has_direct_data_manager_scope())
+        self.assertTrue(unit_dm.has_data_manager_submission_access(
+            self.PROJECT, self.SITE_A, self.unit_a.org_unit_id))
+        self.assertFalse(unit_dm.has_data_manager_submission_access(
+            self.PROJECT, self.SITE_B, self.unit_b.org_unit_id))
+        # An unrouted submission belongs to no subtree.
+        self.assertFalse(unit_dm.has_data_manager_submission_access(
+            self.PROJECT, self.SITE_A, None))
+        self.assertTrue(unit_dm.has_data_manager_form_access(self.FORM_A))
+        self.assertFalse(unit_dm.has_data_manager_form_access(self.FORM_B))
+
+    def test_unit_data_manager_kpi_counts_match_a_site_grant(self):
+        from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+        from tests.routes.test_data_manager_dashboard import DataManagerDashboardTests
+
+        # Per-test isolation rolls DDL back: build (and so fill) the MVs here.
+        DataManagerDashboardTests._create_analytics_mvs(self, "ix_test_unit_dm_kpi")
+        site_kpi = get_dm_kpi_from_mv([], {(self.PROJECT, self.SITE_A)})
+        unit_kpi = get_dm_kpi_from_mv([], set(), unit_ids={self.unit_a.org_unit_id})
+        self.assertEqual(site_kpi["total_submissions"], 1)
+        self.assertEqual(unit_kpi["total_submissions"], site_kpi["total_submissions"])
+        self.assertEqual(get_dm_kpi_from_mv([], set())["total_submissions"], 0)

@@ -373,6 +373,31 @@ class OrgUnitCodingGateTests(BaseTestCase):
 
         self.assertEqual(excluded, set())
 
+    def test_unit_coding_tester_waives_only_the_gates_of_its_own_subtree(self):
+        org.set_unit_coding_gate(self.PROJECT, self.phc.org_unit_id, coding_enabled=False)
+        org.set_unit_coding_gate(self.PROJECT, self.sibling_chc.org_unit_id, coding_enabled=False)
+        tester = self._get_or_make_user(
+            f"unitgate.unittester{_RUN_SUFFIX.lower()}@test.local", "UnitGateTester123"
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=tester.user_id,
+                role=VaAccessRoles.coding_tester,
+                scope_type=VaAccessScopeTypes.org_unit,
+                org_unit_id=self.chc.org_unit_id,
+                notes="unit gate test unit tester grant",
+                grant_status=VaStatuses.active,
+            )
+        )
+        self._submission("uuid:unit-tester-own", org_unit_id=self.phc.org_unit_id)
+        self._submission("uuid:unit-tester-sibling", org_unit_id=self.sibling_chc.org_unit_id)
+        db.session.commit()
+
+        excluded = _get_excluded_org_units_for_coding([self.FORM_ID], tester)
+
+        self.assertIn(self.sibling_chc.org_unit_id, excluded)
+        self.assertNotIn(self.phc.org_unit_id, excluded)
+
     def test_project_pi_waives_unit_gate(self):
         org.set_unit_coding_gate(self.PROJECT, self.phc.org_unit_id, coding_enabled=False)
         pi_user = self._get_or_make_user(

@@ -10,6 +10,13 @@ site_ids and build scoped sub-queries.  The key design decision:
   not the access gate.
 - A DM sees **all rows for their currently-owned site_ids**, regardless of
   which project owned those sites historically.
+- **Unit-scope data_manager grants are left out, deliberately (fail closed).**
+  Every figure here is keyed by site (``va_daily_kpi_aggregates`` has no unit
+  column, and the live queries filter ``f.site_id``), and a unit grant covers
+  part of a site. Resolving it to its site would show the DM other districts'
+  work. Until these queries gain a unit grain (digitva-djd stage 2 report), a
+  unit-only DM sees an empty KPI panel here; the MV-backed dashboard cards and
+  ``/api/v1/analytics/*`` already count their subtree.
 """
 
 from __future__ import annotations

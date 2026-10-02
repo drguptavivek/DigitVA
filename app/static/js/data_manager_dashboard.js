@@ -1734,8 +1734,8 @@
         });
     });
 
-    /* sync modal open */
-    document.getElementById('dm-open-sync-modal-btn').addEventListener('click', () => {
+    /* sync modal open (absent for a unit-only data manager: no whole-form sync) */
+    document.getElementById('dm-open-sync-modal-btn')?.addEventListener('click', () => {
       const modal = new bootstrap.Modal(document.getElementById('dm-sync-confirm-modal'));
       loadFilterOptions()
         .then(() => {

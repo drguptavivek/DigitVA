@@ -138,9 +138,11 @@ that every request pass role *and* scope.
 
 Two halves, because a list filter is not authorization:
 
-1. A unit grant reaches the **forms** of its unit's project
-   (`va_users._get_granted_va_forms`), which is what makes the project visible
-   at all.
+1. A unit grant reaches the **forms** under its subtree: a form with a
+   submission routed into it, or whose ODK mapping falls back to a unit in it
+   (`va_users._get_granted_va_forms`). The role gate (`is_coder`,
+   `is_coding_tester`, `is_reviewer`, `is_data_manager`) opens on the grant
+   alone, so an empty subtree shows an empty page, not a 403.
 2. The **submissions** of those forms are then narrowed to the coder's own
    units (`coder_workflow_service._org_unit_scope_filter`), and opening or
    being allocated one submission is gated separately

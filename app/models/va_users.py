@@ -153,7 +153,7 @@ class VaUsers(UserMixin, db.Model):
         coder_va_form = self.get_coder_va_forms()
         if va_form:
             return va_form in coder_va_form
-        return bool(coder_va_form)
+        return bool(coder_va_form) or self._holds_unit_grant("coder")
 
     def is_interviewer(self, va_form=None):
         interviewer_va_form = self.get_interviewer_va_forms()
@@ -192,7 +192,7 @@ class VaUsers(UserMixin, db.Model):
         tester_forms = self.get_coding_tester_va_forms()
         if va_form:
             return va_form in tester_forms
-        return bool(tester_forms)
+        return bool(tester_forms) or self._holds_unit_grant("coding_tester")
 
     def is_site_pi(self, va_form=None):
         site_pi_va_form = self.get_site_pi_va_forms()
@@ -204,24 +204,53 @@ class VaUsers(UserMixin, db.Model):
         reviewer_va_form = self.get_reviewer_va_forms()
         if va_form:
             return va_form in reviewer_va_form
-        return bool(reviewer_va_form)
+        return bool(reviewer_va_form) or self._holds_unit_grant("reviewer")
+
+    def _holds_unit_grant(self, role: str) -> bool:
+        """Holds a live unit grant of *role* (role gate only, never scope).
+
+        A unit grant resolves to the forms its subtree actually holds (see
+        _get_granted_va_forms), so a subtree with nothing in it yet has no
+        forms; the role gate must still open, as it does for interviewers.
+        """
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import granted_units
+
+        return bool(granted_units(self.user_id, VaAccessRoles(role)))
 
     def is_data_manager(self, project_id=None, site_id=None):
+        """Role gate for data management. A unit-scope grant counts: it covers
+        its subtree on every data-management surface (policy:
+        access-control-model.md, "Role To Scope Rules")."""
         if project_id and site_id:
             return self.has_data_manager_submission_access(project_id, site_id)
         if project_id:
             return project_id in self.get_data_manager_projects()
+        return self.has_direct_data_manager_scope() or self.is_unit_data_manager()
+
+    def has_direct_data_manager_scope(self) -> bool:
+        """Holds a project- or project_site-scope data_manager grant.
+
+        The wider powers that a unit grant does not carry hang off this (the
+        full user search, creating users, site-level grant management).
+        """
         return bool(
             self.get_data_manager_projects() or self.get_data_manager_project_sites()
         )
 
     def is_unit_data_manager(self) -> bool:
-        """Holds a unit-scope data_manager grant. Gate for the mentor-staff grant
-        routes only; it does not make the user a data manager elsewhere (stage 2).
-        """
+        """Holds a unit-scope data_manager grant in an active project."""
         from app.services.mentor_institute_service import holds_unit_data_manager
 
         return holds_unit_data_manager(self.user_id)
+
+    def get_data_manager_org_unit_ids(self) -> set[uuid.UUID]:
+        """Active units inside the subtree of any unit-scope data_manager grant."""
+        return self.get_org_unit_scope_ids("data_manager")
+
+    def get_coding_tester_org_unit_ids(self) -> set[uuid.UUID]:
+        """Active units inside the subtree of any unit-scope coding_tester grant."""
+        return self.get_org_unit_scope_ids("coding_tester")
 
     def is_mentor_institute_admin(self) -> bool:
         """Administers a mentoring institute (flag on the membership, not a grant)."""
@@ -333,6 +362,10 @@ class VaUsers(UserMixin, db.Model):
     def get_site_pi_va_forms(self):
         return self._get_granted_va_forms("site_pi")
 
+    def get_site_pi_project_site_pairs(self) -> set[tuple[str, str]]:
+        """(project_id, site_id) pairs of the user's live site_pi grants."""
+        return self._get_granted_project_site_pairs("site_pi")
+
     def get_site_pi_sites(self, project_id=None):
         from app.models import (
             VaProjectSites,
@@ -424,12 +457,37 @@ class VaUsers(UserMixin, db.Model):
         """Project/site pairs reachable for the data-management view."""
         return self.get_data_manager_project_sites() | self.get_viewer_project_sites()
 
-    def has_data_manager_submission_access(self, project_id: str, site_id: str) -> bool:
+    def has_data_manager_submission_access(
+        self, project_id: str, site_id: str, org_unit_id: uuid.UUID | None = None
+    ) -> bool:
+        """May this user act as data manager on one submission?
+
+        Project and project_site grants answer from the submission's form.
+        A unit grant answers from the submission's own routed unit, passed as
+        *org_unit_id*: inside the grant's subtree or not. An unrouted
+        submission (no unit) is reachable through a direct grant only.
+        """
         if project_id in self.get_data_manager_projects():
             return True
-        return (project_id, site_id) in self.get_data_manager_project_sites()
+        if (project_id, site_id) in self.get_data_manager_project_sites():
+            return True
+        return (
+            org_unit_id is not None
+            and org_unit_id in self.get_data_manager_org_unit_ids()
+        )
 
-    def has_data_manager_form_access(self, va_form: str) -> bool:
+    def has_data_manager_form_access(self, va_form: str, *, include_units: bool = True) -> bool:
+        """Form-level data-manager access.
+
+        A unit grant reaches a form whose submissions (or ODK mapping
+        fallback unit) fall inside its subtree; which of that form's
+        submissions it may open is still decided per submission.
+
+        ``include_units=False`` answers from project and project_site grants
+        only. Whole-form operations (syncing one form, its preview counts and
+        run history) need that: a form spans several units, so a unit grant
+        never covers all of it.
+        """
         from app.models import VaForms
 
         row = db.session.execute(
@@ -437,7 +495,15 @@ class VaUsers(UserMixin, db.Model):
         ).first()
         if not row:
             return False
-        return self.has_data_manager_submission_access(row.project_id, row.site_id)
+        if self.has_data_manager_submission_access(row.project_id, row.site_id):
+            return True
+        if not include_units:
+            return False
+        # Without the demo-training union: that is coding practice, not a
+        # data-management grant (digitva-6zq).
+        return self.is_unit_data_manager() and va_form in self._get_granted_va_forms(
+            "data_manager", include_demo=False
+        )
 
     def get_all_accessible_va_forms(self):
         all_va_forms = set()
@@ -470,18 +536,22 @@ class VaUsers(UserMixin, db.Model):
                 return True
         return False
 
-    def _get_granted_va_forms(self, role: str) -> set[str]:
+    def _get_granted_va_forms(self, role: str, *, include_demo: bool = True) -> set[str]:
         from app.models import (
-            MasOrgUnit,
+            MapProjectSiteOdk,
             VaForms,
             VaProjectSites,
+            VaSubmissions,
             VaUserAccessGrants,
             VaAccessRoles,
             VaAccessScopeTypes,
             VaStatuses,
         )
         from app.services.demo_project_service import get_coder_demo_project_form_ids
-        from app.services.org_grant_service import active_project_condition
+        from app.services.org_grant_service import (
+            active_project_condition,
+            scope_unit_ids_select,
+        )
 
         role_enum = VaAccessRoles(role)
         active_status = VaStatuses.active
@@ -518,26 +588,30 @@ class VaUsers(UserMixin, db.Model):
                 VaProjectSites.project_site_status == active_status,
             )
         )
-        # A unit-scoped grant reaches the forms of its unit's project. Which
-        # of that project's *submissions* the user may open is then narrowed by
-        # the routed unit (see coder_workflow_service._org_unit_scope_filter);
-        # a project without an organization tree has no unit grants, so this
-        # adds nothing for it.
-        org_unit_scope_exists = sa.exists(
-            sa.select(1)
-            .select_from(VaUserAccessGrants)
-            .join(
-                MasOrgUnit,
-                MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id,
-            )
-            .where(
-                VaUserAccessGrants.user_id == self.user_id,
-                VaUserAccessGrants.role == role_enum,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                VaUserAccessGrants.grant_status == active_status,
-                MasOrgUnit.is_active.is_(True),
-                MasOrgUnit.project_id == VaForms.project_id,
-            )
+        # A unit-scoped grant reaches only the forms under its subtree: a
+        # form with a submission routed into the subtree, or whose ODK
+        # mapping falls back to a unit inside it. Never the whole project:
+        # that failed open for every form-level gate. Which submissions of
+        # such a form the user may open is still narrowed by the routed unit
+        # (coder_workflow_service._org_unit_scope_filter and friends).
+        subtree = scope_unit_ids_select(self.user_id, [role_enum])
+        org_unit_scope_exists = sa.or_(
+            sa.exists(
+                sa.select(1).where(
+                    VaSubmissions.va_form_id == VaForms.form_id,
+                    VaSubmissions.org_unit_id.in_(subtree),
+                )
+            ),
+            sa.exists(
+                sa.select(1).where(
+                    MapProjectSiteOdk.project_id == VaForms.project_id,
+                    MapProjectSiteOdk.site_id == VaForms.site_id,
+                    MapProjectSiteOdk.odk_form_id == VaForms.odk_form_id,
+                    sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text)
+                    == VaForms.odk_project_id,
+                    MapProjectSiteOdk.org_unit_id.in_(subtree),
+                )
+            ),
         )
         stmt = (
             sa.select(VaForms.form_id)
@@ -557,16 +631,16 @@ class VaUsers(UserMixin, db.Model):
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
-        if role in ("coder", "coding_tester", "data_manager", "reviewer"):
+        if include_demo and role in ("coder", "coding_tester", "data_manager", "reviewer"):
             return granted_form_ids | get_coder_demo_project_form_ids()
         return granted_form_ids
 
     # -- unit-scoped grants (health-system projects) -----------------------
     #
-    # These resolve grants to organization-unit ids. Coding and reviewer
-    # enforcement still runs off va_forms (see _get_granted_va_forms); routing
-    # submissions to units is phase 3 and enforcement phase 4, so nothing here
-    # widens access on its own. See app/services/org_grant_service.py.
+    # These resolve grants to organization-unit ids. Form-level gates run off
+    # va_forms (see _get_granted_va_forms); per-submission checks compare the
+    # submission's routed unit with these sets. See
+    # app/services/org_grant_service.py.
 
     def get_org_unit_scope_ids(self, role: str) -> set[uuid.UUID]:
         """Active units inside the subtree of any *role* unit-grant this user holds."""

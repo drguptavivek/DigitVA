@@ -11,6 +11,7 @@ Resources:
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -36,6 +37,7 @@ from app.services.data_management_service import (
     dm_coder_daily_statistics,
     dm_filter_options,
     dm_form_in_scope,
+    dm_org_unit_ids,
     dm_screening_pass,
     dm_screening_reject,
     dm_reject_upstream_change,
@@ -311,10 +313,12 @@ def kpi():
 
     project_ids = sorted(current_user.get_dm_view_projects())
     project_site_pairs = current_user.get_dm_view_project_sites()
+    unit_ids = dm_org_unit_ids(current_user)
     return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
             project_ids,
             project_site_pairs,
+            unit_ids=unit_ids,
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,
@@ -374,6 +378,17 @@ def upstream_change_details(va_sid: str):
 # (existing endpoints below)
 # ---------------------------------------------------------------------------
 
+def _dm_syncable_forms(user) -> list[dict]:
+    """``dm_scoped_forms`` narrowed to forms a project or site grant covers."""
+    projects = user.get_data_manager_projects()
+    project_sites = user.get_data_manager_project_sites()
+    return [
+        form for form in dm_scoped_forms(user)
+        if form["project_id"] in projects
+        or (form["project_id"], form["site_id"]) in project_sites
+    ]
+
+
 @bp.post("/forms/<form_id>/sync")
 @role_required("data_manager")
 def sync_form(form_id: str):
@@ -400,6 +415,10 @@ def sync_form(form_id: str):
 @bp.post("/sync/preview")
 @role_required("data_manager")
 def sync_preview():
+    # ODK-side counts cannot be narrowed to a unit, so the preview, like the
+    # form sync it previews, is for project and project_site grants only.
+    if not current_user.has_direct_data_manager_scope():
+        return jsonify({"error": "Form sync requires a project or site grant."}), 403
 
     payload = request.get_json(silent=True) or {}
     project_ids = payload.get("project_ids") or []
@@ -409,7 +428,7 @@ def sync_preview():
         from app.utils import va_odk_fetch_instance_ids, va_odk_delta_count
         from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
-        scoped = dm_scoped_forms(current_user)
+        scoped = _dm_syncable_forms(current_user)
         matched = filter_scoped_forms(scoped, project_ids, site_ids)
         if not matched:
             return jsonify({
@@ -496,7 +515,9 @@ def sync_preview():
 @role_required("data_manager")
 def sync_runs():
 
-    scoped_form_ids = {f["form_id"] for f in dm_scoped_forms(current_user)}
+    # Other managers' runs only on forms this user may sync: a whole-form run's
+    # counts and errors span every unit of the form.
+    scoped_form_ids = {f["form_id"] for f in _dm_syncable_forms(current_user)}
     runs = db.session.scalars(
         sa.select(VaSyncRun)
         .where(VaSyncRun.triggered_by == "data-manager")
@@ -534,6 +555,7 @@ def project_site_submissions():
     timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
+    unit_ids = current_user.get_data_manager_org_unit_ids()
     project_filter = request.args.get("project", "")
     common_filters = dict(
         site=request.args.get("site", ""),
@@ -556,10 +578,16 @@ def project_site_submissions():
     # grants respectively, exactly as the site-grouped branch below uses
     # them) — the requested project must be inside one of the two, the same
     # authorization every other DM query in this module already applies.
-    dm_may_see_project = project_filter and (
+    # A unit-only data manager groups by unit too, but is shown only the
+    # units of their own subtree: the rest of the tree is not theirs to see.
+    dm_sees_whole_project = project_filter and (
         project_filter in project_ids
         or any(pair[0] == project_filter for pair in project_site_pairs)
     )
+    unit_projects = (
+        current_user.get_org_unit_projects("data_manager") if unit_ids else set()
+    )
+    dm_may_see_project = dm_sees_whole_project or project_filter in unit_projects
     if (
         request.args.get("group_by", "") == "org_unit"
         and dm_may_see_project
@@ -572,6 +600,8 @@ def project_site_submissions():
                 project_ids=project_ids,
                 project_site_pairs=project_site_pairs,
                 project=project_filter,
+                unit_ids=None if dm_sees_whole_project else unit_ids,
+                scope_unit_ids=unit_ids,
                 **common_filters,
             ),
             "timezone": timezone_name,
@@ -582,6 +612,7 @@ def project_site_submissions():
         "stats": get_dm_project_site_stats_from_mv(
             project_ids=project_ids,
             project_site_pairs=project_site_pairs,
+            unit_ids=unit_ids,
             timezone_name=timezone_name,
             project=project_filter,
             **common_filters,
@@ -604,7 +635,7 @@ def sync_submission(va_sid: str):
         )
     ).first()
     if not form_row or not current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id
+        form_row.project_id, form_row.site_id, submission.org_unit_id
     ):
         return jsonify({"error": "You do not have access to sync this submission."}), 403
 
@@ -740,18 +771,28 @@ UNROUTED_QUEUE_MAX_ROWS = 200
 
 
 def _dm_submission_scope_filter():
-    """WHERE clause limiting submissions to the current DM's granted scope."""
+    """WHERE clause limiting submissions to the current DM's granted scope.
+
+    A unit grant admits submissions routed into its subtree, which here means
+    the ones sitting on a fallback unit inside it; a submission with no unit at
+    all belongs to no subtree and is left to project/site data managers.
+    """
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import scope_unit_ids_select
+
     project_ids = current_user.get_data_manager_projects()
     project_site_pairs = current_user.get_data_manager_project_sites()
-    conditions = []
+    conditions = [
+        VaSubmissions.org_unit_id.in_(
+            scope_unit_ids_select(current_user.user_id, [VaAccessRoles.data_manager])
+        )
+    ]
     if project_ids:
         conditions.append(VaForms.project_id.in_(sorted(project_ids)))
     if project_site_pairs:
         conditions.append(
             sa.tuple_(VaForms.project_id, VaForms.site_id).in_(sorted(project_site_pairs))
         )
-    if not conditions:
-        return sa.false()
     return sa.or_(*conditions)
 
 
@@ -859,12 +900,25 @@ def set_submission_org_unit(va_sid: str):
         )
     ).first()
     if not form_row or not current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id
+        form_row.project_id, form_row.site_id, submission.org_unit_id
     ):
         return jsonify({"error": "You do not have access to this submission."}), 403
 
     payload = request.get_json(silent=True) or {}
     raw_unit_id = payload.get("org_unit_id")
+    # A data manager who reaches the submission only through a unit grant
+    # may pin it only inside that grant's subtree: never move a death out of
+    # their area into someone else's.
+    reaches_whole_site = current_user.has_data_manager_submission_access(
+        form_row.project_id, form_row.site_id
+    )
+    if raw_unit_id not in (None, "") and not reaches_whole_site:
+        try:
+            target_unit_id = uuid.UUID(str(raw_unit_id))
+        except ValueError:
+            return jsonify({"error": "Invalid org_unit_id."}), 400
+        if target_unit_id not in current_user.get_data_manager_org_unit_ids():
+            return jsonify({"error": "You may pin only to a unit inside your area."}), 403
 
     try:
         if raw_unit_id in (None, ""):

@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # Access Control Model
@@ -435,8 +435,22 @@ A unit grant of `data_manager` or `coding_tester` covers the grant's whole
 unit subtree on **every surface** (worklists, KPI and analytics, the unrouted
 queue, sync, the coder-gate waiver), exactly as a grant on each site in that
 subtree would, with no hidden pages. Grants flow down the tree and never up.
-(Implemented in stage 2 of `digitva-djd`; until then some surfaces still read
-project and site grants only.)
+Coverage is decided per submission by its routed unit
+(`va_submissions.org_unit_id`): a submission with no unit belongs to no
+subtree and is reached only through a project or site grant. A unit grant
+resolves to the forms under its subtree (a form with a submission routed
+there, or whose ODK mapping falls back to a unit there), never to its whole
+project. Implemented in stage 2 of `digitva-djd`. One exception remains: the
+`/api/v1/analytics/dm-kpi/*` panels are keyed by site (daily aggregates and
+site-filtered queries), so they leave unit grants out rather than show other
+districts' figures (fail closed) until they gain a unit grain. Likewise,
+whole-form operations need a project or site grant: a form spans several
+units, and ODK-side counts cannot be narrowed to one, so a unit-only data
+manager refreshes single submissions but neither syncs nor previews a whole
+form, and sees other managers' sync runs only on forms a project or site
+grant covers. Every other per-submission surface (attachments, workflow
+history, the coder and reviewer view pages) checks the submission's own unit,
+not only form access.
 
 **Mentoring institute members.** A person who belongs to a mentoring institute
 (see [Organization Model Policy](organization-model.md), "Mentoring

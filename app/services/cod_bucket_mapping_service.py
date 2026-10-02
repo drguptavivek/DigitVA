@@ -3245,10 +3245,15 @@ def aggregate_coded_submissions_by_bucket(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
     collapse_scope: bool = False,
 ) -> list[dict]:
     """Return grouped coded-form counts by bucket for the given scheme."""
-    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
         return []
     scheme, base_rows = _cod_bucket_aggregate_base_subquery(
         scheme_code=scheme_code,
@@ -3259,6 +3264,7 @@ def aggregate_coded_submissions_by_bucket(
         submission_date_from=submission_date_from,
         submission_date_to=submission_date_to,
         allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
     field_node = sa.orm.aliased(MasCodBucketNode)
@@ -3481,10 +3487,15 @@ def summarize_unmatched_coded_submissions_by_bucket(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
     collapse_scope: bool = False,
 ) -> list[dict]:
     """Return counts for coded submissions that do not match the active scheme."""
-    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
         return []
     scheme, base_rows = _cod_bucket_aggregate_base_subquery(
         scheme_code=scheme_code,
@@ -3495,6 +3506,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
         submission_date_from=submission_date_from,
         submission_date_to=submission_date_to,
         allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
     select_columns = [
@@ -3625,10 +3637,15 @@ def list_unmatched_coded_submission_icds_by_bucket(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
     collapse_scope: bool = False,
 ) -> list[dict]:
     """Return unmatched ICD codes and counts for the active scheme."""
-    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
         return []
     scheme, base_rows = _cod_bucket_aggregate_base_subquery(
         scheme_code=scheme_code,
@@ -3639,6 +3656,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
         submission_date_from=submission_date_from,
         submission_date_to=submission_date_to,
         allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
     select_columns = [
@@ -3905,10 +3923,15 @@ def summarize_cod_bucket_reporting_breakdowns(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
     top_n: int = 10,
 ) -> dict:
     """Return dashboard summaries for the current COD bucket reporting scope."""
-    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
         return {
             "scheme_used": scheme_code,
             "top_causes": [],
@@ -3939,6 +3962,7 @@ def summarize_cod_bucket_reporting_breakdowns(
         submission_date_from=submission_date_from,
         submission_date_to=submission_date_to,
         allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
     )
     matched_rows = _matched_cod_bucket_rows_subquery(scheme=scheme, base_rows=base_rows)
 
@@ -4486,9 +4510,14 @@ def export_cod_bucket_reporting_csv(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
 ) -> str:
     """Return a CSV export for the current COD bucket reporting scope."""
-    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
         return ""
 
     scheme, base_rows = _cod_bucket_aggregate_base_subquery(
@@ -4500,6 +4529,7 @@ def export_cod_bucket_reporting_csv(
         submission_date_from=submission_date_from,
         submission_date_to=submission_date_to,
         allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
     query = (
@@ -4680,6 +4710,7 @@ def _cod_bucket_aggregate_base_subquery(
     submission_date_from=None,
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
 ):
     """Return the filtered coded submission set joined to scheme age bands.
 
@@ -4753,9 +4784,18 @@ def _cod_bucket_aggregate_base_subquery(
     if submission_date_to:
         conditions.append(core.c.submission_date <= submission_date_to)
     if allowed_project_site_pairs is not None:
-        conditions.append(
-            sa.tuple_(core.c.project_id, core.c.site_id).in_(list(allowed_project_site_pairs))
-        )
+        # Whole project-sites, plus (for a unit grant) the deaths routed into
+        # the grant's subtree: never a unit grant's whole site.
+        allowed = []
+        if allowed_project_site_pairs:
+            allowed.append(
+                sa.tuple_(core.c.project_id, core.c.site_id).in_(
+                    list(allowed_project_site_pairs)
+                )
+            )
+        if allowed_org_unit_ids:
+            allowed.append(VaSubmissions.org_unit_id.in_(sorted(allowed_org_unit_ids)))
+        conditions.append(sa.or_(*allowed) if allowed else sa.false())
 
     query = (
         sa.select(

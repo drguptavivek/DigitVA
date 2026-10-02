@@ -41,12 +41,13 @@ from app.routes.admin import (
     _serialize_user,
 )
 from app.services import mentor_institute_service as mentors
-from app.services.org_grant_service import validate_org_unit_grant
+from app.services.org_grant_service import scope_unit_ids_select, validate_org_unit_grant
 from app.services.organization_service import OrganizationError
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
+    dm_org_unit_ids,
     dm_scoped_forms,
 )
 from app.services.cod_bucket_mapping_service import (
@@ -149,33 +150,72 @@ def _dm_can_manage_scope(
 
 
 def _dm_grant_filter(project_id_expression):
-    """SQLAlchemy WHERE clause limiting grants to the DM's managed scope."""
+    """SQLAlchemy WHERE clause limiting grants to the DM's managed scope.
+
+    Project grant: every grant in the project. Site grant: grants on that
+    project-site. Unit grant: unit grants held inside its subtree (seeing them
+    is not managing them; ``_dm_can_manage_scope`` decides that).
+    """
     if current_user.is_admin():
         return sa.true()
     dm_projects = current_user.get_data_manager_projects()
     dm_site_pairs = current_user.get_data_manager_project_sites()
 
-    conditions = []
+    conditions = [
+        sa.and_(
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            VaUserAccessGrants.org_unit_id.in_(
+                scope_unit_ids_select(current_user.user_id, [VaAccessRoles.data_manager])
+            ),
+        )
+    ]
     if dm_projects:
-        conditions.append(project_id_expression.in_(list(dm_projects)))
+        conditions.append(project_id_expression.in_(sorted(dm_projects)))
     if dm_site_pairs:
-        ps_ids = [
-            db.session.scalar(
+        conditions.append(
+            VaUserAccessGrants.project_site_id.in_(
                 sa.select(VaProjectSites.project_site_id).where(
-                    VaProjectSites.project_id == pid,
-                    VaProjectSites.site_id == sid,
+                    sa.tuple_(VaProjectSites.project_id, VaProjectSites.site_id).in_(
+                        sorted(dm_site_pairs)
+                    ),
                     VaProjectSites.project_site_status == VaStatuses.active,
                 )
             )
-            for pid, sid in dm_site_pairs
-        ]
-        ps_ids = [p for p in ps_ids if p is not None]
-        if ps_ids:
-            conditions.append(VaUserAccessGrants.project_site_id.in_(ps_ids))
-
-    if not conditions:
-        return sa.false()
+        )
     return sa.or_(*conditions)
+
+
+#: Roles listed on the data-manager grant pages: the three a data manager
+#: assigns, plus the mentor roles on unit grants of mentoring institute staff
+#: (which a district data manager also manages).
+_DM_LISTED_ROLES = (VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager)
+
+
+def _dm_listed_grant_condition():
+    return sa.or_(
+        VaUserAccessGrants.role.in_(_DM_LISTED_ROLES),
+        sa.and_(
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            VaUserAccessGrants.role.in_(list(mentors.MENTOR_ROLES)),
+            VaUserAccessGrants.user_id.in_(mentors.active_member_ids_select()),
+        ),
+    )
+
+
+def _dm_may_see_user(target_user_id) -> bool:
+    """Whose account a data manager may open or edit on these pages.
+
+    Admins and project/site data managers keep the reach they always had. A
+    data manager holding only unit grants sees the mentoring institute staff
+    of districts they cover and no one else (the same people their user
+    search returns).
+    """
+    if current_user.is_admin() or current_user.has_direct_data_manager_scope():
+        return True
+    staff, _ = mentors.dm_visible_mentor_staff(
+        current_user.user_id, "", True, user_id=target_user_id
+    )
+    return bool(staff)
 
 
 def require_dm_scope(f):
@@ -269,17 +309,19 @@ def require_dm_scope(f):
 def dashboard():
     project_ids = sorted(current_user.get_dm_view_projects())
     project_site_pairs = current_user.get_dm_view_project_sites()
+    unit_ids = dm_org_unit_ids(current_user)
     if (
         not current_user.is_admin()
         and not project_ids
         and not project_site_pairs
-        and not current_user.get_viewer_org_unit_ids()
+        and not unit_ids
     ):
         va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     kpi = get_dm_kpi_from_mv(
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
+        unit_ids=unit_ids,
     )
     return render_template(
         "va_frontpages/va_data_manager.html",
@@ -287,6 +329,8 @@ def dashboard():
         flagged_submissions=kpi["flagged_submissions"],
         odk_has_issues_submissions=kpi["odk_has_issues_submissions"],
         smartva_missing_submissions=kpi["smartva_missing_submissions"],
+        # Whole-form sync needs a project or site grant (dm_form_in_scope).
+        can_sync_forms=current_user.has_direct_data_manager_scope(),
     )
 
 
@@ -310,7 +354,7 @@ def kpi_dashboard():
         if (
             not project_ids
             and not project_site_pairs
-            and not current_user.get_viewer_org_unit_ids()
+            and not dm_org_unit_ids(current_user)
         ):
             va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
@@ -333,7 +377,7 @@ def cod_bucket_reporting():
         if (
             not project_ids
             and not project_site_pairs
-            and not current_user.get_viewer_org_unit_ids()
+            and not dm_org_unit_ids(current_user)
         ):
             va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
@@ -368,7 +412,9 @@ def view_submission(va_sid):
     form_meta = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form.va_form_id)
     ).mappings().first()
-    if not form_meta or not current_user.has_data_manager_submission_access(form_meta["project_id"], form_meta["site_id"]):
+    if not form_meta or not current_user.has_data_manager_submission_access(
+        form_meta["project_id"], form_meta["site_id"], form.org_unit_id
+    ):
         va_permission_abortwithflash("You do not have data-manager access to this submission.", 403)
     # Audit read
     db.session.add(VaSubmissionsAuditlog(
@@ -454,8 +500,12 @@ def manage_projects():
     """Projects the data-manager can manage."""
     dm_projects = current_user.get_data_manager_projects()
     dm_site_pairs = current_user.get_data_manager_project_sites()
-    # Union of project IDs from both project-scoped and site-scoped grants
-    all_project_ids = dm_projects | {pid for pid, _ in dm_site_pairs}
+    # Union of project IDs from project-, site- and unit-scoped grants
+    all_project_ids = (
+        dm_projects
+        | {pid for pid, _ in dm_site_pairs}
+        | current_user.get_org_unit_projects("data_manager")
+    )
     # Admins see all projects
     if current_user.is_admin():
         stmt = (
@@ -535,18 +585,27 @@ def manage_project_sites():
     return jsonify({"project_sites": [_serialize_project_site(r) for r in rows]})
 
 
+#: Rows a data-manager user search returns; more matches set ``truncated``.
+_USER_SEARCH_LIMIT = 25
+
+
 @data_management.get("/api/users")
-@role_required("data_manager", "admin", "unit_data_manager")
+@role_required("data_manager", "admin")
 def manage_users():
-    """User search for data-manager grant assignment."""
+    """User search for data-manager grant assignment.
+
+    Returns ``{"users": [...], "truncated": bool}``; *truncated* says more
+    than ``_USER_SEARCH_LIMIT`` people matched, so the caller can ask the
+    user to refine the search instead of silently missing someone.
+    """
     query = (request.args.get("query") or "").strip()
     include_inactive = request.args.get("include_inactive", "1") == "1"
-    if not (current_user.is_admin() or current_user.is_data_manager()):
+    if not (current_user.is_admin() or current_user.has_direct_data_manager_scope()):
         # A unit-only data manager reaches this route to find the staff of
         # mentoring institutes attached to districts they cover, and sees no
         # one else and no contact details.
         staff, truncated = mentors.dm_visible_mentor_staff(
-            current_user.user_id, query, include_inactive
+            current_user.user_id, query, include_inactive, limit=_USER_SEARCH_LIMIT
         )
         return jsonify({"users": [
             {
@@ -562,12 +621,21 @@ def manage_users():
     if not include_inactive:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
     if query:
-        pattern = f"%{query}%"
+        # A literal substring: %, _ and \ in the query match themselves
+        # (autoescape sets its own ESCAPE character, so \ is literal too).
         stmt = stmt.where(
-            sa.or_(VaUsers.email.ilike(pattern), VaUsers.name.ilike(pattern))
+            sa.or_(
+                VaUsers.email.icontains(query, autoescape=True),
+                VaUsers.name.icontains(query, autoescape=True),
+            )
         )
-    users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25)).all()
-    return jsonify({"users": [_serialize_user(u) for u in users]})
+    users = db.session.scalars(
+        stmt.order_by(VaUsers.email).limit(_USER_SEARCH_LIMIT + 1)
+    ).all()
+    return jsonify({
+        "users": [_serialize_user(u) for u in users[:_USER_SEARCH_LIMIT]],
+        "truncated": len(users) > _USER_SEARCH_LIMIT,
+    })
 
 
 @data_management.post("/api/users")
@@ -653,7 +721,7 @@ def manage_create_user():
 def manage_user_detail(target_user_id):
     """Return user details for DM/admin view."""
     user = db.session.get(VaUsers, target_user_id)
-    if not user:
+    if not user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
 
     project_id_expression = _grant_project_id_expression()
@@ -682,9 +750,7 @@ def manage_user_detail(target_user_id):
         .where(
             VaUserAccessGrants.user_id == target_user_id,
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            VaUserAccessGrants.role.in_(
-                [VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager]
-            ),
+            _dm_listed_grant_condition(),
             _dm_grant_filter(project_id_expression),
         )
         .order_by(
@@ -715,7 +781,7 @@ def manage_user_detail(target_user_id):
 def manage_resend_verification(target_user_id):
     """Resend email verification link for a user."""
     user = db.session.get(VaUsers, target_user_id)
-    if not user:
+    if not user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
     if user.email_verified:
         return _json_error("User email is already verified.", 400)
@@ -745,7 +811,7 @@ def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
 def manage_update_user(target_user_id):
     """Update user email and/or languages (email is creator-scoped for DMs)."""
     target_user = db.session.get(VaUsers, target_user_id)
-    if not target_user:
+    if not target_user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
     payload = request.get_json(silent=True) or {}
     email_raw = payload.get("email")
@@ -818,7 +884,8 @@ def manage_update_user(target_user_id):
 @data_management.get("/api/access-grants")
 @role_required("data_manager", "admin")
 def manage_access_grants():
-    """List coder/coding_tester/data_manager grants within the DM's scope."""
+    """List coder/coding_tester/data_manager grants within the DM's scope,
+    plus the mentor-role unit grants of mentoring institute staff there."""
     project_id_expression = _grant_project_id_expression()
     site_id_expression = _grant_site_id_expression()
 
@@ -845,9 +912,7 @@ def manage_access_grants():
         )
         .where(
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            VaUserAccessGrants.role.in_(
-                [VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager]
-            ),
+            _dm_listed_grant_condition(),
             _dm_grant_filter(project_id_expression),
         )
     )
@@ -868,7 +933,7 @@ def manage_access_grants():
 
 
 @data_management.post("/api/access-grants")
-@role_required("data_manager", "admin", "unit_data_manager")
+@role_required("data_manager", "admin")
 @require_dm_scope
 def manage_create_access_grant():
     """Create a coder/coding_tester/data_manager grant within the DM's scope."""
@@ -993,7 +1058,7 @@ def manage_create_access_grant():
 
 
 @data_management.post("/api/access-grants/<uuid:grant_id>/toggle")
-@role_required("data_manager", "admin", "unit_data_manager")
+@role_required("data_manager", "admin")
 @require_dm_scope
 def manage_toggle_access_grant(grant_id):
     """Toggle (activate/deactivate) a coder/coding_tester/data_manager grant."""

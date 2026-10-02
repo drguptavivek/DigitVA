@@ -1,6 +1,7 @@
 import sqlalchemy as sa
 from app import db
 from app.models import (
+    VaAccessRoles,
     VaAllocations,
     VaAllocation,
     VaFinalAssessments,
@@ -18,6 +19,7 @@ from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation
 from app.services.coder_workflow_service import _org_unit_scope_filter
 from app.services.coding_service import render_va_coding_page
+from app.services.org_grant_service import submission_within_org_scope
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import (
@@ -230,4 +232,9 @@ def view_submission(va_sid):
         va_permission_abortwithflash("Submission not found.", 404)
     if not current_user.has_va_form_access(form.va_form_id, "reviewer"):
         va_permission_abortwithflash("Reviewer access is required.", 403)
+    # A form spans several units: the reviewing validator's per-submission rule.
+    if not submission_within_org_scope(current_user, va_sid, VaAccessRoles.reviewer):
+        va_permission_abortwithflash(
+            "This submission belongs to a unit outside your reviewing scope.", 403
+        )
     return render_va_coding_page(form, "vareview", "vaview", "reviewer")

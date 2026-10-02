@@ -282,10 +282,17 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
         # (c) the coder scoped to B is offered it...
         self.assertIn(va_sid, self._pick_list(self.coder_b))
 
-        # ...and (d) the coder scoped to A is not. Assert A's form access first,
-        # so the absence is the unit filter's doing and not an empty form set.
-        self.assertIn(submission.va_form_id, self.coder_a.get_coder_va_forms())
-        self.assertNotIn(va_sid, self._pick_list(self.coder_a))
+        # ...and (d) the coder scoped to A is not. A's unit grant does not
+        # even reach the form, since a unit grant yields only forms with
+        # something under its subtree; and asked about the form directly, the
+        # per-submission unit filter still refuses the case.
+        self.assertIn(submission.va_form_id, self.coder_b.get_coder_va_forms())
+        self.assertNotIn(submission.va_form_id, self.coder_a.get_coder_va_forms())
+        offered_to_a = {
+            row["va_sid"]
+            for row in get_pick_available_forms(self.coder_a, [submission.va_form_id])
+        }
+        self.assertNotIn(va_sid, offered_to_a)
 
     # ── a tree project always needs a unit, at the HTTP layer too ──────────
     #

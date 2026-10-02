@@ -463,14 +463,15 @@ counts), in the same project. Through the data-manager grant interface they
 may touch only grants of institute members, at `org_unit` scope, with a
 mentor role, on a unit inside a district they manage; every other unit grant
 stays refused to data managers, and no other data-manager power changes.
-(Listing those grants in the data-manager grant list is not done yet.) A
+The data-manager grant list shows those mentor grants, and a unit data
+manager sees the unit grants held inside their subtree. A
 data manager who holds only unit-scope grants finds people through the
 user search, which returns only active staff of active institutes attached to
 a district they cover, with id, name, email, status and institute code (no
 phone or landing page); platform and project-level data managers keep the
-full search. The unit-only search returns at most 25 people and reports
-`truncated: true` when more matched; its query is matched as a literal
-substring.
+full search, and may open only the accounts their search returns. Both
+searches return at most 25 people, report `truncated: true` when more matched
+(the page says so), and match the query as a literal substring.
 
 **Institute admin (`mentor_institute_admin`).** A member flagged `is_admin`
 on one institute. It is not a grant and not a `VaAccessRoles` value: it is

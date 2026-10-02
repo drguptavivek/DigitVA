@@ -246,9 +246,19 @@ def scope_unit_ids_for_roles(
     roles = list(roles)
     if not roles:
         return set()
+    return set(db.session.scalars(scope_unit_ids_select(user_id, roles)).all())
+
+
+def scope_unit_ids_select(user_id: uuid.UUID, roles: Iterable[VaAccessRoles]):
+    """The ``scope_unit_ids_for_roles`` query as a SELECT of unit ids, unexecuted.
+
+    For callers that embed the subtree in their own statement
+    (``col.in_(scope_unit_ids_select(...))``) instead of shipping the id set
+    back as bind parameters. *roles* must not be empty.
+    """
     granted = sa.orm.aliased(MasOrgUnit, name="granted_unit_roles")
     covered = sa.orm.aliased(MasOrgUnit, name="covered_unit_roles")
-    stmt = (
+    return (
         sa.select(covered.org_unit_id)
         .select_from(VaUserAccessGrants)
         .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
@@ -261,15 +271,16 @@ def scope_unit_ids_for_roles(
         )
         .where(
             VaUserAccessGrants.user_id == user_id,
-            VaUserAccessGrants.role.in_(roles),
+            VaUserAccessGrants.role.in_(list(roles)),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             granted.is_active.is_(True),
             covered.is_active.is_(True),
             active_project_condition(granted.project_id),
         )
+        # Never correlate with an enclosing query that also reads grants.
+        .correlate(None)
     )
-    return set(db.session.scalars(stmt).all())
 
 
 def granted_project_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[str]:

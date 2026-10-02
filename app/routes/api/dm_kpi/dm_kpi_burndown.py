@@ -121,10 +121,13 @@ def burndown():
                     SUM(coded_count) AS total_coded,
                     COUNT(DISTINCT snapshot_date) AS days_with_data
                 FROM va_daily_kpi_aggregates
-                WHERE site_id = ANY(:site_ids)
+                WHERE site_id = ANY(:aggregate_site_ids)
                   AND snapshot_date >= :from_date
             """),
-            {"site_ids": scope.site_ids, "from_date": date.today() - timedelta(days=7)},
+            {
+                "aggregate_site_ids": scope.aggregate_site_ids,
+                "from_date": date.today() - timedelta(days=7),
+            },
         ).mappings().first()
 
         has_aggregates = agg_row and (agg_row["days_with_data"] or 0) > 0
@@ -132,10 +135,10 @@ def burndown():
         if has_aggregates:
             total_coded_7d = agg_row["total_coded"] or 0
             days_with_data = agg_row["days_with_data"] or 1
-            if scope.unit_ids:
-                # Unit part outside the direct sites, live.
+            if scope.has_outside_aggregates:
+                # The scope outside the aggregate sites, live.
                 total_coded_7d += _coded_since(
-                    scope.unit_only_sql(), scope.params, seven_days_ago
+                    scope.outside_aggregates_sql(), scope.params, seven_days_ago
                 )
             mean_daily_rate = round(total_coded_7d / 7.0, 1)
         else:
@@ -288,7 +291,7 @@ def burndown():
                     current += timedelta(days=1)
 
                 # Achieved line from aggregates
-                if scope.unit_ids:
+                if scope.has_outside_aggregates:
                     achieved = _achieved_with_units(scope, has_aggregates, total_forms)
                 elif has_aggregates:
                     agg_rows = db.session.execute(
@@ -302,12 +305,12 @@ def burndown():
                             FROM (
                                 SELECT snapshot_date, SUM(coded_count) AS coded_count
                                 FROM va_daily_kpi_aggregates
-                                WHERE site_id = ANY(:site_ids)
+                                WHERE site_id = ANY(:aggregate_site_ids)
                                 GROUP BY snapshot_date
                             ) sub
                             ORDER BY snapshot_date
                         """),
-                        {"site_ids": scope.site_ids},
+                        {"aggregate_site_ids": scope.aggregate_site_ids},
                     ).mappings().all()
 
                     for r in agg_rows:
@@ -368,12 +371,13 @@ def _coded_since(scope_sql: str, scope_params: dict, cutoff: datetime) -> int:
 
 
 def _achieved_with_units(scope: DmScope, has_aggregates: bool, total_forms: int) -> list[dict]:
-    """C-18 achieved line for a DM holding unit-scope grants.
+    """C-18 achieved line for a scope the aggregates do not wholly cover.
 
-    Daily coded counts come from the aggregates for the direct sites (when
-    they exist) plus live events for the rest: the unit part outside the
-    direct sites, or the whole scope when there are no aggregates. The two
-    parts are disjoint, so the cumulative line counts each event once.
+    Daily coded counts come from the aggregates for the aggregate sites (when
+    they exist) plus live events for the rest of the scope (shared sites and
+    the unit subtree outside those sites), or the whole scope when there are
+    no aggregates. The two parts are disjoint, so the cumulative line counts
+    each event once.
     """
     daily: dict[date, int] = {}
     if has_aggregates:
@@ -381,15 +385,15 @@ def _achieved_with_units(scope: DmScope, has_aggregates: bool, total_forms: int)
             sa.text("""
                 SELECT snapshot_date AS d, SUM(coded_count) AS cnt
                 FROM va_daily_kpi_aggregates
-                WHERE site_id = ANY(:site_ids)
+                WHERE site_id = ANY(:aggregate_site_ids)
                 GROUP BY snapshot_date
             """),
-            {"site_ids": scope.site_ids},
+            {"aggregate_site_ids": scope.aggregate_site_ids},
         ).mappings().all()
         for r in rows:
             daily[r["d"]] = daily.get(r["d"], 0) + (r["cnt"] or 0)
 
-    live_sql = scope.unit_only_sql() if has_aggregates else scope.sql()
+    live_sql = scope.outside_aggregates_sql() if has_aggregates else scope.sql()
     rows = db.session.execute(
         sa.text(f"""
             SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt

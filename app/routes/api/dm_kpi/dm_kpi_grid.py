@@ -13,15 +13,14 @@ Sources:
 
 Design notes:
   The grid reads from ``va_daily_kpi_aggregates`` which is keyed by
-  ``(snapshot_date, site_id)``.  ``project_id`` is a data column (audit).
-  DM scoping resolves site_ids from current ``va_project_sites`` active
-  membership, so a DM sees all rows for their currently-owned sites
-  regardless of which project owned those sites historically.
+  ``(snapshot_date, site_id)`` and counts every project's forms at the site,
+  so only ``DmScope.aggregate_site_ids`` (sites whose every project is in the
+  DM's pairs) are read from it (digitva-lh1h).
 
-  A unit-scope DM grant has no aggregate rows (they are site-keyed). Dates
-  filled live use the whole scope (direct sites OR unit subtree) in one WHERE;
-  dates served from the aggregates add the unit part live, restricted to
-  submissions outside the direct sites, so no submission is counted twice.
+  Dates filled live use the whole scope (direct pairs OR unit subtree) in one
+  WHERE; dates served from the aggregates add the rest of the scope live
+  (shared sites and the unit subtree outside the aggregate sites), so no
+  submission is counted twice.
 """
 
 from __future__ import annotations
@@ -78,17 +77,17 @@ def daily_grid():
     days = min(int(request.args.get("days", 8)), 90)
 
     def compute():
-        # Aggregates are site-keyed, so only the direct sites can have any.
-        # An empty IN () would abort the transaction, hence the guard.
+        # Aggregates are site-keyed, so only the aggregate-safe direct sites
+        # are read. An empty IN () would abort the transaction, hence the guard.
         has_aggregates = False
-        if scope.site_ids:
+        if scope.aggregate_site_ids:
             try:
                 has_aggregates = bool(db.session.scalar(
                     sa.select(sa.func.count()).select_from(
                         sa.text("va_daily_kpi_aggregates")
                     ).where(
                         sa.text("site_id IN :sites"),
-                    ).params(sites=tuple(scope.site_ids))
+                    ).params(sites=tuple(scope.aggregate_site_ids))
                 ))
             except Exception as e:
                 # Table doesn't exist yet (migration not run) — fall back to live
@@ -186,9 +185,9 @@ def _grid_from_aggregates_with_live_fill(scope: DmScope, days: int) -> dict:
     - Days where no task ran are also missing.
     Use live workflow-event counts for any date not covered by the aggregates.
 
-    Live-filled dates count the whole scope. Aggregate dates cover the direct
-    sites only, so the unit part outside those sites is added live (event and
-    new-submission counts; the unit part has no pending history).
+    Live-filled dates count the whole scope. Aggregate dates cover the
+    aggregate sites only, so the rest of the scope is added live (event and
+    new-submission counts; that part has no pending history).
     """
     today = date.today()
     from_date = today - timedelta(days=days - 1)
@@ -206,12 +205,12 @@ def _grid_from_aggregates_with_live_fill(scope: DmScope, days: int) -> dict:
                 SUM(consent_refused_count)     AS consent_refused,
                 SUM(not_codeable_count)        AS not_codeable
             FROM va_daily_kpi_aggregates
-            WHERE site_id = ANY(:site_ids)
+            WHERE site_id = ANY(:aggregate_site_ids)
               AND snapshot_date >= :from_date
             GROUP BY snapshot_date
             ORDER BY snapshot_date DESC
         """),
-        {"site_ids": scope.site_ids, "from_date": from_date},
+        {"aggregate_site_ids": scope.aggregate_site_ids, "from_date": from_date},
     ).mappings().all()
 
     agg_map = {str(r["date"]): dict(r) for r in agg_rows}
@@ -239,11 +238,13 @@ def _grid_from_aggregates_with_live_fill(scope: DmScope, days: int) -> dict:
                 "_source": "live",
             }
 
-    # Unit part of the dates served from the aggregates.
+    # The rest of the scope on the dates served from the aggregates.
     covered = [d for d in all_dates if str(d) in agg_map]
     unit_live = None
-    if scope.unit_ids and covered:
-        unit_live = _live_daily_counts(scope.unit_only_sql(), scope.params, min(covered))
+    if scope.has_outside_aggregates and covered:
+        unit_live = _live_daily_counts(
+            scope.outside_aggregates_sql(), scope.params, min(covered)
+        )
 
     # Merge: live overrides agg for missing dates; agg wins for older covered dates
     # But today always uses live even if an (stale) agg row exists
@@ -286,7 +287,7 @@ def _grid_from_aggregates_with_live_fill(scope: DmScope, days: int) -> dict:
 def _grid_from_live(scope: DmScope, days: int) -> dict:
     """Compute daily grid live from va_submissions + workflow events.
 
-    One WHERE over the whole scope (direct sites OR unit subtree).
+    One WHERE over the whole scope (direct pairs OR unit subtree).
     """
     from_date = date.today() - timedelta(days=days - 1)
     live = _live_daily_counts(scope.sql(), scope.params, from_date)

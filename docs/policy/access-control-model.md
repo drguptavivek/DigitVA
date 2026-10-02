@@ -476,11 +476,13 @@ resolves to the forms under its subtree (a form with a submission routed
 there, or whose ODK mapping falls back to a unit there), never to its whole
 project. Implemented in stage 2 of `digitva-djd`. The
 `/api/v1/analytics/dm-kpi/*` panels count the same subtree per submission
-(`digitva-m5r`): a row counts when its form's site is in the manager's
-project or site scope or its submission's unit is in the subtree, tested once,
-so a mixed manager sees the union with nothing counted twice. The site-keyed
-daily aggregates (daily grid, burndown, backlog trend) still serve the direct
-sites; the unit part is added live from the raw tables, limited to
+(`digitva-m5r`): a row counts when its form's (project, site) pair is in the
+manager's project or site scope (never the bare site id, `digitva-lh1h`) or
+its submission's unit is in the subtree, tested once, so a mixed manager sees
+the union with nothing counted twice. The site-keyed daily aggregates (daily
+grid, burndown, backlog trend) count every project at a site, so they serve
+only direct sites whose every project with forms there is in the manager's
+scope; the rest of the scope is added live from the raw tables, limited to
 submissions outside those sites. Coder counts keyed by coder grant project
 (utilization, coders per language) include a unit grant's project, but the
 coder roster, which names coders, stays on project and site grants, since a

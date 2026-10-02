@@ -621,15 +621,15 @@ def backlog_trend():
     def compute():
         from_date = date.today() - timedelta(days=days - 1)
 
-        # Try aggregates first (site-keyed: the direct sites only)
+        # Try aggregates first (site-keyed: the aggregate-safe sites only)
         has_aggregates = False
         try:
-            has_aggregates = bool(scope.site_ids) and bool(db.session.scalar(
+            has_aggregates = bool(scope.aggregate_site_ids) and bool(db.session.scalar(
                 sa.text("""
                     SELECT COUNT(*) FROM va_daily_kpi_aggregates
-                    WHERE site_id = ANY(:site_ids) AND snapshot_date >= :from_date
+                    WHERE site_id = ANY(:aggregate_site_ids) AND snapshot_date >= :from_date
                 """),
-                {"site_ids": scope.site_ids, "from_date": from_date},
+                {"aggregate_site_ids": scope.aggregate_site_ids, "from_date": from_date},
             ))
         except Exception as e:
             # Table doesn't exist yet (migration not run) — fall back to live
@@ -641,22 +641,24 @@ def backlog_trend():
                 sa.text("""
                     SELECT snapshot_date AS date, SUM(pending_count) AS pending
                     FROM va_daily_kpi_aggregates
-                    WHERE site_id = ANY(:site_ids) AND snapshot_date >= :from_date
+                    WHERE site_id = ANY(:aggregate_site_ids) AND snapshot_date >= :from_date
                     GROUP BY snapshot_date
                     ORDER BY snapshot_date
                 """),
-                {"site_ids": scope.site_ids, "from_date": from_date},
+                {"aggregate_site_ids": scope.aggregate_site_ids, "from_date": from_date},
             ).mappings().all()
 
             data = [
                 {"date": str(r["date"]), "pending": r["pending"] or 0}
                 for r in rows
             ]
-            if scope.unit_ids:
-                # The unit part has no history: add today's live count for the
-                # subtree outside the direct sites (disjoint, no double count).
+            if scope.has_outside_aggregates:
+                # The rest of the scope has no history: add today's live count
+                # outside the aggregate sites (disjoint, no double count).
                 today = str(date.today())
-                unit_pending = _ready_for_coding_count(scope.unit_only_sql(), scope.params)
+                unit_pending = _ready_for_coding_count(
+                    scope.outside_aggregates_sql(), scope.params
+                )
                 if data and data[-1]["date"] == today:
                     data[-1]["pending"] += unit_pending
                 else:

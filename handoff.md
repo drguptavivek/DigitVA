@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2949 passed on 2026-10-02, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2975 passed on 2026-10-02, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
@@ -35,9 +35,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    screen, partial, attachment and API calls it. Input: the audit of how each
    screen decides access today, `.tasks/digitva-0wc-access-matrix-current.md`
    (F1, F6, F9 fixed in `74c114e1`; F2-F5, F7, F8, F10-F19 open). Progress:
-   policy written (`4fcd984e`); **design pass running** (Fable, read-only),
-   output to be saved as `.tasks/digitva-0wc-design.md`; then stage 1 to a
-   writer. Update this line as each stage lands. Owner decisions 2026-10-02 (all in the bead notes, written into
+   policy written (`4fcd984e`); **design done**:
+   `.tasks/digitva-0wc-design.md` (package `app/services/authz/`: `can`,
+   `require`, `scope_filter`, `can_grant`; stages 0-7). **Stage 0
+   committed** (module, 236-row matrix, single-source and shadow tests, lh1h
+   fix; no callers yet). Next: stage 1 (coding), plus two small module fixes
+   from the stage 0 review (admin LIST_UNROUTED bypass must keep
+   `org_unit_id IS NULL`; can_grant cadre/mentor refusal tests).
+   Demo projects stay open to coding and reviewing (owner). Update this line as each stage
+   lands. Owner decisions 2026-10-02 (all in the bead notes, written into
    `docs/policy/access-control-model.md` / `organization-model.md`, marked
    "Implementation tracked in digitva-0wc"):
    - **In-charge** at every level of a district project (District = CMO or

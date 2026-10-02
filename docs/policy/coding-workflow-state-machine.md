@@ -250,6 +250,9 @@ Current intended baseline:
   coder dashboard while they remain active
 - project-declared demo/training projects are open to all active authenticated
   users; no coder grant is required for those projects
+- demo/training projects are open to every user for both coding and
+  reviewing without a grant, never for data management (owner decision
+  2026-10-02, digitva-6zq)
 - non-demo projects continue to require normal grant-based coding access
 - demo artifacts are temporary and must expire automatically after the
   configured demo-retention window

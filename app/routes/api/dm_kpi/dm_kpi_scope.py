@@ -3,25 +3,26 @@
 All KPI endpoints use these to resolve the current data-manager's scope and
 build scoped sub-queries.  The key design decisions:
 
-- **Site-project attribution uses current `va_project_sites` active membership**,
-  not the frozen `va_forms.project_id`.
-- **Direct DM scoping uses `site_id` resolved from current `va_project_sites`**.
-  The `project_id` column in `va_daily_kpi_aggregates` is audit data,
-  not the access gate.
-- A DM sees **all rows for their currently-owned site_ids**, regardless of
-  which project owned those sites historically.
+- **Direct scope is keyed on (project_id, site_id) pairs, never the bare
+  site id** (digitva-lh1h). A site_id is shared across projects; a DM on
+  (P1, S1) sees P1's forms at S1 and nothing of P2's forms at the same S1.
+  Project grants expand to their currently active pairs via
+  ``va_project_sites``.
 - **Unit-scope data_manager grants count their subtree, per submission.** A
   unit grant covers part of a site, so it is never resolved to a site: a live
-  query passes a row when its form's site is in the direct scope OR the
-  submission's ``org_unit_id`` is in the DM's unit subtree
+  query passes a row when its form's (project, site) pair is in the direct
+  scope OR the submission's ``org_unit_id`` is in the DM's unit subtree
   (``DmScope.sql``). Each row is tested once in one WHERE, so a submission
-  both in a direct site and in the subtree is counted once.
-- **Aggregate panels** (daily grid, burndown, backlog trend) read the
-  site-keyed ``va_daily_kpi_aggregates`` for the direct sites only, and add
-  the unit part live from the raw tables with ``DmScope.unit_only_sql``
-  (in the subtree AND not in a direct site), so the two parts are disjoint
-  and nothing is double-counted. A DM without unit grants gets exactly the
-  queries it got before unit grants existed.
+  both in a direct pair and in the subtree is counted once.
+- **Aggregate panels** (daily grid, burndown, backlog trend) read
+  ``va_daily_kpi_aggregates``, which holds one row per (date, site) counting
+  every project's forms at that site (``app/tasks/kpi_tasks.py``; its
+  ``project_id`` is only the site's latest owner). So a row is read only for
+  a site whose every project with forms there is in the DM's pairs for that
+  site (``aggregate_site_ids``). The rest of the scope -- shared sites and
+  the unit subtree outside those sites -- is added live with
+  ``DmScope.outside_aggregates_sql``, disjoint from the aggregate part, so
+  nothing is double-counted.
 - Coder counts keyed by coder grant project (utilization denominator, coders
   per language) include a unit grant's project; they are counts only. The
   coder roster names coders, so it stays on the direct projects: a unit grant
@@ -34,11 +35,13 @@ import hashlib
 import logging
 from dataclasses import dataclass
 
+import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from app import cache
+from app import cache, db
 from app.decorators import role_required
+from app.models import VaForms
 from app.services.submission_analytics_mv import (
     _expand_project_ids_to_active_pairs,
 )
@@ -51,36 +54,14 @@ bp = Blueprint("dm_kpi_cache", __name__)
 
 
 # ---------------------------------------------------------------------------
-# DM scope → site_ids
+# DM scope → (project_id, site_id) pairs
 # ---------------------------------------------------------------------------
-
-def dm_site_ids() -> list[str]:
-    """Resolve the current DM's grants → active site_ids.
-
-    - Project-level grants (`scope_type = 'project'`): expanded to all
-      currently active sites within those projects via `va_project_sites`.
-    - Project-site grants (`scope_type = 'project_site'`): looked up
-      individually.
-
-    Returns a deduplicated, sorted list of site_ids the DM can see.
-    """
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-
-    # project_site_pairs is set of (project_id, site_id)
-    site_set: set[str] = {sid for _pid, sid in project_site_pairs}
-
-    # Expand project-level grants
-    expanded = _expand_project_ids_to_active_pairs(project_ids)
-    site_set |= {sid for _pid, sid in expanded}
-
-    return sorted(site_set)
-
 
 def dm_project_site_pairs() -> set[tuple[str, str]]:
     """Resolve the current DM's grants → active (project_id, site_id) pairs.
 
-    Used when the query needs project_id grouping (e.g. burndown per project).
+    Project grants expand to every currently active site of the project;
+    project_site grants are taken as they are.
     """
     project_ids = sorted(current_user.get_data_manager_projects())
     pairs: set[tuple[str, str]] = set(current_user.get_data_manager_project_sites())
@@ -88,51 +69,91 @@ def dm_project_site_pairs() -> set[tuple[str, str]]:
     return pairs
 
 
+def _aggregate_safe_sites(pairs: set[tuple[str, str]]) -> list[str]:
+    """Sites of *pairs* whose aggregate rows hold only projects in *pairs*.
+
+    A ``va_daily_kpi_aggregates`` row counts every form at its site whatever
+    the project, so it may be read only when every project with a form at
+    the site is one the DM holds there. A site with no forms has nothing of
+    another project in it. One query.
+
+    ponytail: a site that ever held a form of a project outside the DM's
+    pairs (a closed or departed project's old forms included) is served live
+    for good -- slower, never a leak. Per-project aggregate rows
+    (``(snapshot_date, project_id, site_id)``) would lift that.
+    """
+    if not pairs:
+        return []
+    held: dict[str, set[str]] = {}
+    for project_id, site_id in pairs:
+        held.setdefault(site_id, set()).add(project_id)
+    rows = db.session.execute(
+        sa.select(VaForms.site_id, VaForms.project_id)
+        .where(VaForms.site_id.in_(sorted(held)))
+        .distinct()
+    ).all()
+    unsafe = {site_id for site_id, project_id in rows if project_id not in held[site_id]}
+    return sorted(set(held) - unsafe)
+
+
 @dataclass(frozen=True)
 class DmScope:
-    """The current DM's KPI scope: direct site_ids plus a unit subtree.
+    """The current DM's KPI scope: direct (project, site) pairs plus a unit subtree.
 
-    ``unit_ids`` are string UUIDs of every active unit under the DM's
-    unit-scope data_manager grants; they are bound as an array parameter and
-    cast to ``uuid[]`` in SQL, never interpolated.
+    ``pairs`` are bound as two parallel text arrays and ``unit_ids`` (string
+    UUIDs of every active unit under the DM's unit-scope data_manager grants)
+    as a ``uuid[]``; nothing is interpolated. ``aggregate_site_ids`` are the
+    direct sites whose daily aggregate rows may be read (``_aggregate_safe_sites``).
     """
 
-    site_ids: list[str]
+    pairs: list[tuple[str, str]]
     unit_ids: list[str]
+    aggregate_site_ids: list[str]
 
     def __bool__(self) -> bool:
-        return bool(self.site_ids or self.unit_ids)
+        return bool(self.pairs or self.unit_ids)
 
     def sql(self, form: str = "f", sub: str = "s") -> str:
-        """WHERE fragment for live queries joining va_forms *form* and va_submissions *sub*.
-
-        Without unit grants this is exactly the pre-unit site filter.
-        """
-        if not self.unit_ids:
-            return f"{form}.site_id = ANY(:site_ids)"
-        return (
-            f"({form}.site_id = ANY(:site_ids)"
-            f" OR {sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[])))"
+        """WHERE fragment for live queries joining va_forms *form* and va_submissions *sub*."""
+        pair_sql = (
+            f"({form}.project_id, {form}.site_id) IN (SELECT * FROM unnest("
+            "CAST(:pair_project_ids AS text[]), CAST(:pair_site_ids AS text[])))"
         )
+        if not self.unit_ids:
+            return pair_sql
+        return f"({pair_sql} OR {sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[])))"
 
-    def unit_only_sql(self, form: str = "f", sub: str = "s") -> str:
-        """The unit part minus the direct sites, for adding live figures to
-        site-keyed aggregates without counting a submission twice."""
+    @property
+    def has_outside_aggregates(self) -> bool:
+        """Whether some of the scope is not covered by readable aggregate rows."""
+        covered = set(self.aggregate_site_ids)
+        return bool(self.unit_ids) or any(site_id not in covered for _, site_id in self.pairs)
+
+    def outside_aggregates_sql(self, form: str = "f", sub: str = "s") -> str:
+        """The scope minus the aggregate sites, for adding live figures to
+        aggregate rows without counting a submission twice."""
         return (
-            f"{sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
-            f" AND NOT COALESCE({form}.site_id = ANY(:site_ids), FALSE)"
+            f"{self.sql(form, sub)}"
+            f" AND NOT COALESCE({form}.site_id = ANY(:aggregate_site_ids), FALSE)"
         )
 
     @property
     def params(self) -> dict:
-        """Bind parameters matching ``sql`` / ``unit_only_sql``."""
-        if not self.unit_ids:
-            return {"site_ids": self.site_ids}
-        return {"site_ids": self.site_ids, "unit_ids": self.unit_ids}
+        """Bind parameters matching ``sql`` / ``outside_aggregates_sql``."""
+        return {
+            "pair_project_ids": [project_id for project_id, _ in self.pairs],
+            "pair_site_ids": [site_id for _, site_id in self.pairs],
+            "unit_ids": self.unit_ids,
+            "aggregate_site_ids": self.aggregate_site_ids,
+        }
 
     def digest(self) -> str:
-        """Short stable hash of the scope, for cache keys."""
-        raw = "|".join(self.site_ids) + "#" + "|".join(self.unit_ids)
+        """Short stable hash of the scope, for cache keys. Pairs, not sites:
+        the same site in another project is another scope."""
+        raw = (
+            "|".join(f"{project_id}/{site_id}" for project_id, site_id in self.pairs)
+            + "#" + "|".join(self.unit_ids)
+        )
         return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
@@ -149,9 +170,11 @@ def dm_scope() -> DmScope:
     cached = request.environ.get(_SCOPE_ENVIRON_KEY)
     if cached is not None and cached[0] == current_user.user_id:
         return cached[1]
+    pairs = dm_project_site_pairs()
     scope = DmScope(
-        site_ids=dm_site_ids(),
+        pairs=sorted(pairs),
         unit_ids=sorted(str(u) for u in current_user.get_data_manager_org_unit_ids()),
+        aggregate_site_ids=_aggregate_safe_sites(pairs),
     )
     request.environ[_SCOPE_ENVIRON_KEY] = (current_user.user_id, scope)
     return scope
@@ -230,8 +253,9 @@ def refresh_dashboard():
     from app.services.submission_analytics_mv import refresh_submission_analytics_mv
     from app.tasks.kpi_tasks import compute_daily_kpi_snapshot
 
-    # Step 1: Recompute today's KPI aggregates for the DM's sites
-    site_ids = dm_site_ids()
+    # Step 1: Recompute today's KPI aggregates for the DM's sites (the rows
+    # are site-keyed; dm_scope decides which of them the DM may read)
+    site_ids = sorted({site_id for _project_id, site_id in dm_project_site_pairs()})
     kpi_result = {"status": "skipped", "sites_processed": 0}
     if site_ids:
         try:

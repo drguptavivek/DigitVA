@@ -209,7 +209,14 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
             (list(g.of((_R.coding_tester,), virtual=False)) + virtual_coders, True, False),
         ]
     if lens is Lens.CODE_REVIEWER:
-        return [(coded(g.of((_R.reviewer,))), True, False)]
+        # Demo-training grants are exempt from the coding scope level, as
+        # for coders: demo practice never depends on a project's tree.
+        return [(
+            coded(g.of((_R.reviewer,), virtual=False))
+            + list(g.of((_R.reviewer,), virtual=True)),
+            True,
+            False,
+        )]
     if lens is Lens.VIEW_CODER:
         return [
             (list(g.of((_R.coder,), virtual=False)), True, True),
@@ -257,6 +264,23 @@ def _lens_predicate(g: ResolvedGrants, lens: Lens):
         if grants:
             clauses.extend(_group_predicate(grants, active_form=active_form, active_pair=active_pair))
     return clauses
+
+
+def reaches(user, lens: Lens, va_sid, *, _grants: ResolvedGrants | None = None) -> bool:
+    """Whether *va_sid* lies in the reach of one lens of *user*'s grants.
+
+    For a rendering that must belong to one role (the reviewer view): VIEW
+    answers whether the user may see the case at all, this whether they see
+    it as that role. A role flag such as ``VaUsers.is_reviewer()`` is not
+    enough, because the demo-training grants make it true for everyone.
+    """
+    g = _grants if _grants is not None else resolve_grants(user)
+    clauses = _lens_predicate(g, lens)
+    if not clauses:
+        return False
+    return bool(db.session.scalar(sa.select(sa.exists().where(
+        VaSubmissions.va_sid == va_sid, sa.or_(*clauses),
+    ))))
 
 
 def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None):

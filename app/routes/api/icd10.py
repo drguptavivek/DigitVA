@@ -15,6 +15,7 @@ from app import cache, db, limiter
 from app.decorators.role_required import role_required
 from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
 from app.services import coding_search_telemetry_service
+from app.services.authz import Action, can
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
     get_icd10_2019_2_node_details,
@@ -113,7 +114,7 @@ def _require_coding_or_reviewing_access(va_sid: str):
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         return _error("Submission not found.", 404)
-    if not current_user.has_va_form_access(submission.va_form_id, "reviewer"):
+    if not can(current_user, Action.REVIEW, va_sid):
         return coding_err
 
     active_reviewing_allocation = db.session.scalar(

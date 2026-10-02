@@ -223,9 +223,10 @@ def _area_grants(track: str | None = None):
     ))
 
 
-def _has_org_unit_area():
-    """Whether this user oversees any part of an organization tree, in either track."""
-    return bool(_area_grants().grants)
+def _has_org_unit_area(track: str | None = None):
+    """Whether this user oversees any part of an organization tree, in
+    *track* ("coder" or "reviewer") or, by default, in either track."""
+    return bool(_area_grants(track).grants)
 
 
 @coding.post("/start")

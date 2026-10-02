@@ -196,44 +196,20 @@ def _validate_vacode(actiontype, sid, partial):
         va_permission_abortwithflash("Unknown coding action requested.", 404)
 
 
-def _within_reviewing_org_scope(sid: str | None) -> bool:
-    """Unit-scope gate for a reviewing action on one submission."""
-    if not sid:
-        return True
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import submission_within_org_scope
-
-    return submission_within_org_scope(current_user, sid, VaAccessRoles.reviewer)
-
-
 def _validate_vareview(actiontype, sid, partial):
-    form = (
-        db.session.execute(
-            sa.select(
-                VaSubmissions.va_form_id, VaSubmissions.va_narration_language
-            ).where(VaSubmissions.va_sid == sid)
-        )
-        .mappings()
-        .first()
+    form_lang = db.session.scalar(
+        sa.select(VaSubmissions.va_narration_language).where(VaSubmissions.va_sid == sid)
     )
-    form_id = form["va_form_id"] if form and form["va_form_id"] else None
-    form_lang = (
-        form["va_narration_language"]
-        if form and form["va_narration_language"]
-        else None
-    )
-    # Same unit-scope rule as coding, with reviewer grants. Checked once for
-    # every reviewing action. No-op for projects without an organization tree.
-    if not _within_reviewing_org_scope(sid):
-        va_permission_abortwithflash(
-            "This submission belongs to a unit outside your reviewing scope.", 403
-        )
+    # Scope is checked once here, for every reviewing action: REVIEW (the
+    # coding-scope rule on reviewer grants) to review, VIEW for ``vaview``,
+    # the wider right (F7). No submission (the resume shell) means nothing
+    # to check yet. Allocation, language and state checks stay below.
+    if sid:
+        from app.services.authz import Action
+
+        _require(Action.VIEW if actiontype == "vaview" else Action.REVIEW, sid)
     if actiontype == "vastartreviewing":
         if not partial:
-            if not current_user.has_va_form_access(form_id, "reviewer"):
-                va_permission_abortwithflash(
-                    "Reviewer access is required to access this VA form.", 403
-                )
             if form_lang not in current_user.vacode_language:
                 va_permission_abortwithflash(
                     f"Your profile does not support reviewing forms in {form_lang}.",
@@ -254,7 +230,13 @@ def _validate_vareview(actiontype, sid, partial):
         else:
             va_permission_ensureallocation(sid, "reviewing")
     elif actiontype == "vaview":
-        if not current_user.has_va_form_access(form_id, "reviewer"):
+        # VIEW settled the scope; this is still the reviewer's rendering, so
+        # the case must be reached through the user's reviewer grants (demo
+        # included). is_reviewer() is true for everyone while a demo project
+        # is active.
+        from app.services.authz import Lens, reaches
+
+        if not sid or not reaches(current_user, Lens.VIEW_REVIEWER, sid):
             va_permission_abortwithflash(
                 "You do not have reviewer access to view this form.", 403
             )

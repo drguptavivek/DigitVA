@@ -10,7 +10,6 @@ from flask import current_app
 
 from app import db
 from app.models import (
-    VaAccessRoles,
     VaAllocation,
     VaAllocations,
     VaFinalAssessments,
@@ -22,6 +21,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.authz import Action, Reason, can
 from app.services.cod_entry_mode import (
     cod_entry_mode_snapshot,
     final_ucod_source,
@@ -49,7 +49,6 @@ from app.services.icd_coding_value import (
     validate_coding_value_for_submission,
 )
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
-from app.services.org_grant_service import submission_within_org_scope
 from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
 )
@@ -234,21 +233,31 @@ def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) ->
     )
 
 
-def _require_reviewer_access(user, submission: VaSubmissions) -> None:
-    """Reviewer access to the submission's form and its reviewing scope.
+# Refusals as the reviewer screens have always worded them; the decision is
+# authz's (REVIEW), only the message is chosen here.
+_OUT_OF_REVIEWING_SCOPE = "This submission belongs to a unit outside your reviewing scope."
+_REVIEWING_REFUSALS = {
+    Reason.NOT_FOUND: ("Submission not found.", 404),
+    Reason.NO_ROLE: ("Reviewer access is required.", 403),
+}
 
-    Every reviewer entry point (start, Step 1, final) checks both, so a
-    reviewer cannot allocate or complete a review outside their units.
-    ``submission_within_org_scope`` is a no-op on projects without a tree.
+
+def _require_reviewer_access(user, va_sid: str) -> None:
+    """Raise ReviewerCodingError unless *user* may REVIEW the submission.
+
+    Every reviewer entry point (start, Step 1, final) calls it before any
+    allocation or workflow check, so a reviewer cannot allocate or complete
+    a review outside their reviewing scope (the coding-scope rule on
+    reviewer grants). A closed project keeps authz's message.
     """
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
-        raise ReviewerCodingError("Reviewer access is required.", 403)
-    if not submission_within_org_scope(
-        user, submission.va_sid, VaAccessRoles.reviewer
-    ):
-        raise ReviewerCodingError(
-            "This submission belongs to a unit outside your reviewing scope.", 403
-        )
+    decision = can(user, Action.REVIEW, va_sid)
+    if decision:
+        return
+    if decision.reason in _REVIEWING_REFUSALS:
+        raise ReviewerCodingError(*_REVIEWING_REFUSALS[decision.reason])
+    if decision.reason is Reason.PROJECT_CLOSED:
+        raise ReviewerCodingError(decision.message, 403)
+    raise ReviewerCodingError(_OUT_OF_REVIEWING_SCOPE, 403)
 
 
 def get_active_reviewing_allocation(user_id) -> str | None:
@@ -269,7 +278,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, submission)
+    _require_reviewer_access(user, va_sid)
     if submission.va_narration_language not in user.vacode_language:
         raise ReviewerCodingError(
             f"Your profile does not support reviewing forms in {submission.va_narration_language}.",
@@ -357,7 +366,7 @@ def submit_reviewer_final_cod(
     )
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, submission)
+    _require_reviewer_access(user, va_sid)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(
@@ -595,7 +604,7 @@ def submit_reviewer_initial_cod(
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, submission)
+    _require_reviewer_access(user, va_sid)
     project = get_project_for_submission(va_sid)
     if project is None:
         raise ReviewerCodingError("Project not found.", 404)

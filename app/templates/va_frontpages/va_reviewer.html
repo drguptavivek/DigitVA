@@ -83,6 +83,23 @@
       </div>
     </div>
   </div>
+  {% if has_org_unit_area %}
+  <!-- Organization area: read-only oversight of the units this reviewer covers -->
+  <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h4 class="text-primary mb-1">My Area</h4>
+        <p class="text-secondary mb-0">
+          Deaths recorded in the units you oversee, including the ones outside
+          your reviewing scope.
+        </p>
+      </div>
+      <a href="{{ url_for('coding.area_overview', role='reviewer') }}" class="btn btn-outline-primary">
+        <i class="fas fa-sitemap me-1"></i>Open my area
+      </a>
+    </div>
+  </div>
+  {% endif %}
   {% if va_has_allocation %}
   <!-- Continue Pending QA -->
   <div class="text-center mb-4">

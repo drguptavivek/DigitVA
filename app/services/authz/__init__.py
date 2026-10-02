@@ -12,7 +12,9 @@ the read-only rendering (``vadata``/``vaarea`` validators, write partials in
 va_form.renderpartial), attachments and workflow events. Every other caller
 still uses the old helpers in org_grant_service and VaUsers until the stages
 in .tasks/digitva-0wc-design.md move it here. Stage 3: the data-manager
-grid, exports, KPIs, triage, sync, the unrouted queue and pinning.
+grid, exports, KPIs, triage, sync, the unrouted queue and pinning. Stage 4:
+reviewing (dashboard, start, Step 1, final, the view page, the ``vareview``
+validator and the reviewer branches of the NQA, SO, ICD and DORIS APIs).
 ``subtree_select`` is the unit-subtree SELECT for the raw-SQL and MV
 surfaces that cannot embed ``scope_filter``.
 """
@@ -40,6 +42,7 @@ from app.services.authz.predicates import (
     Decision,
     can,
     effective_roles,
+    reaches,
     require,
     scope_filter,
 )
@@ -69,6 +72,7 @@ __all__ = [
     "effective_roles",
     "grant_list_filter",
     "invalidate",
+    "reaches",
     "redacts_pii",
     "require",
     "resolve_grants",

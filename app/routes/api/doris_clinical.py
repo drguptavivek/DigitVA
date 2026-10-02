@@ -13,6 +13,7 @@ from flask_login import current_user
 from app import db
 from app.decorators.role_required import role_required
 from app.models import VaAllocation, VaAllocations, VaStatuses, VaSubmissions
+from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
 from app.services.doris_process_proof import generate_process_proof
@@ -77,7 +78,7 @@ def _clinical_context(va_sid: str, role: str) -> ClinicalDorisContext:
         raise ClinicalDorisAccessError("NOT_FOUND", "Submission not found.", 404)
 
     if role == "reviewer":
-        allowed = current_user.has_va_form_access(submission.va_form_id, "reviewer")
+        allowed = can(current_user, Action.REVIEW, va_sid).allowed
         allocation_for = VaAllocation.reviewing
     else:
         allowed = current_user.has_va_form_access(

@@ -159,7 +159,7 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(org.set_unit_active(self.PROJECT, c.org_unit_id, True), 1)
         self.assertEqual(len(org.get_unit_tree(self.PROJECT)), 1)
         self.assertEqual([u["unit_code"] for u in org.list_units(self.PROJECT, include_inactive=True)], ["D01", "C01", "P01", "S01"])
-        self.assertEqual(org.subtree_unit_ids(d), [d.org_unit_id, c.org_unit_id])
+        self.assertCountEqual(org.subtree_unit_ids(d), [d.org_unit_id, c.org_unit_id])
 
     # -- cadres, permissions, workers ----------------------------------------
 

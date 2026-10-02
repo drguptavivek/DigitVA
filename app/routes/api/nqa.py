@@ -22,6 +22,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
@@ -56,7 +57,9 @@ def save_narrative_qa(va_sid: str):
         submission = db.session.get(VaSubmissions, va_sid)
         if not submission:
             return jsonify({"error": "Submission not found."}), 404
-        if not current_user.has_va_form_access(submission.va_form_id, "reviewer"):
+        # REVIEW scope as well as the allocation: an allocation that outlived
+        # a re-routing or a narrowed grant does not carry the save.
+        if not can(current_user, Action.REVIEW, va_sid):
             return jsonify({"error": "Reviewer access is required."}), 403
         active_reviewing_allocation = db.session.scalar(
             sa.select(VaAllocations.va_allocation_id).where(

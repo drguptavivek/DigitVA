@@ -452,6 +452,13 @@ grant covers. Every other per-submission surface (attachments, workflow
 history, the coder and reviewer view pages) checks the submission's own unit,
 not only form access.
 
+On a tree project a `coder` or `reviewer` grant at `project` or `project_site`
+scope is a grant at the top of the tree: it views every submission of its
+project or (project, site) pair, routed or unrouted, and codes or reviews them
+unless the project sets a coding scope level with `above_scope_coding_mode =
+view_only` (see [Organization Model Policy](organization-model.md), "Coding
+scope"; decision 2026-10-02, `digitva-7xq`).
+
 **Mentoring institute members.** A person who belongs to a mentoring institute
 (see [Organization Model Policy](organization-model.md), "Mentoring
 institutes") may hold only `org_unit` grants of `coder`, `reviewer`,

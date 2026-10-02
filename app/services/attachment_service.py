@@ -47,7 +47,10 @@ from app.models import (
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services.odk_retirement_service import MISSING_IN_ODK
-from app.services.org_grant_service import submission_within_org_scope
+from app.services.org_grant_service import (
+    submission_within_org_scope,
+    submission_within_org_view_scope,
+)
 
 log = logging.getLogger(__name__)
 
@@ -289,7 +292,16 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     ):
         return True
     if user.is_coder(va_form_id) or user.is_coding_tester(va_form_id):
-        return _user_holds_submission(user.user_id, va_sid)
+        # Holding it is not enough: an old allocation or outcome must not
+        # outlive re-routing out of the coder's unit (digitva-ck9). Same unit
+        # rule as the coder ``view_submission`` route. Imported here:
+        # coder_workflow_service imports app.utils, which imports this module.
+        from app.services.coder_workflow_service import tester_covers_submission
+
+        return _user_holds_submission(user.user_id, va_sid) and (
+            tester_covers_submission(user, va_sid, va_form_id)
+            or submission_within_org_view_scope(user, va_sid, VaAccessRoles.coder)
+        )
     for legacy_role, va_forms in (user.permission or {}).items():
         if legacy_role in _SCOPED_LEGACY_ROLES:
             continue

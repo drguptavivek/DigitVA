@@ -105,7 +105,7 @@ def dashboard():
         today = datetime.utcnow().date()
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         _tc_rows = db.session.execute(
-            sa.select(VaForms.site_id, sa.func.count().label("cnt"))
+            sa.select(VaForms.project_id, VaForms.site_id, sa.func.count().label("cnt"))
             .select_from(VaAllocations)
             .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -115,9 +115,10 @@ def dashboard():
                 VaAllocations.va_allocation_createdat >= today_start,
                 VaForms.form_id.in_(va_form_access),
             )
-            .group_by(VaForms.site_id)
+            .group_by(VaForms.project_id, VaForms.site_id)
         ).all()
-        site_today_counts = {r.site_id: r.cnt for r in _tc_rows}
+        # Keyed on the pair: a site_id is shared across projects (digitva-d5s).
+        site_today_counts = {(r.project_id, r.site_id): r.cnt for r in _tc_rows}
         eligibility_rows = db.session.execute(
             sa.select(
                 VaResearchProjects.project_id,
@@ -171,7 +172,7 @@ def dashboard():
                 "coding_start_date": r.coding_start_date,
                 "coding_end_date": r.coding_end_date,
                 "daily_coder_limit": r.daily_coder_limit if r.daily_coder_limit is not None else 100,
-                "today_count": site_today_counts.get(r.site_id, 0),
+                "today_count": site_today_counts.get((r.project_id, r.site_id), 0),
             }
             for r in eligibility_rows
         ]

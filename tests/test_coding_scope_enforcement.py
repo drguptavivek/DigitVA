@@ -428,6 +428,37 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
             allocate_pick_form(self.base_coder_user, "csc-outside")
         self.assertIn("outside your coding scope", str(ctx.exception))
 
+    def test_attachment_access_ends_when_the_submission_leaves_the_coders_unit(self):
+        # digitva-ck9: an old allocation alone must not outlive re-routing.
+        import uuid
+
+        from app.models import VaAllocation, VaAllocations
+        from app.services.attachment_service import can_access_submission_attachment
+
+        _, _, _, phc_a, phc_b = self._tree()
+        self._grant(phc_a)
+        # Keeps the form granted after the re-route, so the denial below is the
+        # unit check's, not the form check's.
+        self._submission("csc-anchor", unit=phc_a)
+        submission = self._submission("csc-attach", unit=phc_a)
+        db.session.add(VaAllocations(
+            va_allocation_id=uuid.uuid4(), va_sid="csc-attach",
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        user = self.base_coder_user
+
+        self.assertTrue(can_access_submission_attachment(
+            user, va_form_id=self.FORM_ID, va_sid="csc-attach"))
+
+        submission.org_unit_id = phc_b.org_unit_id
+        db.session.commit()
+        self.assertTrue(user.is_coder(self.FORM_ID))
+        self.assertFalse(can_access_submission_attachment(
+            user, va_form_id=self.FORM_ID, va_sid="csc-attach"))
+
 
 class CodingScopeSettingsApiTests(CodingScopeFixtureMixin, BaseTestCase):
     """The admin API for the project's coding scope level and above-scope mode."""

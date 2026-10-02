@@ -241,7 +241,7 @@ class SitePiReportingServiceTests(BaseTestCase):
         )
         db.session.commit()
 
-        data = get_sitepi_dashboard_data(self.BASE_SITE_ID)
+        data = get_sitepi_dashboard_data(self.BASE_PROJECT_ID, self.BASE_SITE_ID)
 
         self.assertEqual(data["total_submissions"], 4)
         self.assertEqual(data["total_coded"], 2)
@@ -286,7 +286,7 @@ class SitePiReportingServiceTests(BaseTestCase):
         )
         db.session.commit()
 
-        data = get_sitepi_dashboard_data(self.BASE_SITE_ID)
+        data = get_sitepi_dashboard_data(self.BASE_PROJECT_ID, self.BASE_SITE_ID)
 
         self.assertEqual(data["total_submissions"], 1)
         self.assertEqual(

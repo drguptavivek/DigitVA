@@ -366,35 +366,6 @@ class VaUsers(UserMixin, db.Model):
         """(project_id, site_id) pairs of the user's live site_pi grants."""
         return self._get_granted_project_site_pairs("site_pi")
 
-    def get_site_pi_sites(self, project_id=None):
-        from app.models import (
-            VaProjectSites,
-            VaUserAccessGrants,
-            VaAccessRoles,
-            VaAccessScopeTypes,
-            VaStatuses,
-        )
-        from app.services.org_grant_service import active_project_condition
-
-        stmt = (
-            sa.select(VaProjectSites.site_id)
-            .join(
-                VaUserAccessGrants,
-                VaUserAccessGrants.project_site_id == VaProjectSites.project_site_id,
-            )
-            .where(
-                VaUserAccessGrants.user_id == self.user_id,
-                VaUserAccessGrants.role == VaAccessRoles.site_pi,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                VaProjectSites.project_site_status == VaStatuses.active,
-                active_project_condition(VaProjectSites.project_id),
-            )
-        )
-        if project_id:
-            stmt = stmt.where(VaProjectSites.project_id == project_id)
-        return set(db.session.scalars(stmt).all())
-
     def get_reviewer_va_forms(self):
         return self._get_granted_va_forms("reviewer")
 

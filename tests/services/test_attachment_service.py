@@ -48,10 +48,18 @@ class AuthorizationMatrixTests(TestCase):
     FORM = "FORM01"
     SID = "sid-1"
 
-    def _allowed(self, user, holds=False, dm_reaches=False, in_unit=True):
+    def _allowed(
+        self, user, holds=False, dm_reaches=False, in_unit=True,
+        in_view_scope=True, tester_covers=False,
+    ):
         with patch.object(svc, "_user_holds_submission", return_value=holds), patch.object(
             svc, "_data_manager_reaches", return_value=dm_reaches
-        ), patch.object(svc, "submission_within_org_scope", return_value=in_unit):
+        ), patch.object(svc, "submission_within_org_scope", return_value=in_unit), patch.object(
+            svc, "submission_within_org_view_scope", return_value=in_view_scope
+        ), patch(
+            "app.services.coder_workflow_service.tester_covers_submission",
+            return_value=tester_covers,
+        ):
             return svc.can_access_submission_attachment(
                 user, va_form_id=self.FORM, va_sid=self.SID
             )
@@ -91,6 +99,16 @@ class AuthorizationMatrixTests(TestCase):
         user = _fake_user(is_coding_tester=lambda form=None: form == self.FORM)
         self.assertFalse(self._allowed(user, holds=False))
         self.assertTrue(self._allowed(user, holds=True))
+
+    def test_coder_holding_a_submission_outside_their_unit_denied(self):
+        # digitva-ck9: the old allocation survives re-routing; the unit check does not.
+        user = _fake_user(is_coder=lambda form=None: form == self.FORM)
+        self.assertFalse(self._allowed(user, holds=True, in_view_scope=False))
+
+    def test_coding_tester_covering_the_submission_skips_the_coder_unit_check(self):
+        user = _fake_user(is_coding_tester=lambda form=None: form == self.FORM)
+        self.assertTrue(self._allowed(user, holds=True, in_view_scope=False, tester_covers=True))
+        self.assertFalse(self._allowed(user, holds=True, in_view_scope=False, tester_covers=False))
 
     def test_coder_on_other_form_denied(self):
         user = _fake_user(is_coder=lambda form=None: form == "OTHER")

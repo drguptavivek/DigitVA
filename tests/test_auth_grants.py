@@ -231,7 +231,9 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.refresh(user)
 
-        self.assertEqual(user.get_site_pi_sites(), {self.site_b})
+        self.assertEqual(
+            user.get_site_pi_project_site_pairs(), {(self.project_id, self.site_b)}
+        )
         self.assertEqual(user.get_site_pi_va_forms(), {self.form_b})
         self.assertTrue(user.is_site_pi())
         self.assertTrue(user.has_va_form_access(self.form_b, "sitepi"))
@@ -243,7 +245,7 @@ class AuthGrantResolutionTests(BaseTestCase):
         user = self._create_user("test.auth.sitepi@example.com")
         db.session.refresh(user)
 
-        self.assertEqual(user.get_site_pi_sites(), set())
+        self.assertEqual(user.get_site_pi_project_site_pairs(), set())
         self.assertEqual(user.get_site_pi_va_forms(), set())
         self.assertFalse(user.is_site_pi())
         self.assertFalse(user.has_va_form_access(self.form_a, "sitepi"))

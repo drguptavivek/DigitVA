@@ -213,16 +213,16 @@ def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
     a candidate name into search and learn, from a nonzero result, that it
     matches. See docs/policy/access-control-model.md, "collaborator".
     """
-    like = f"%{search}%"
+    # autoescape: % and _ in the search text match literally (digitva-iv7).
     if redact_staff_identity:
-        return VaSubmissions.va_uniqueid_masked.ilike(like)
+        return VaSubmissions.va_uniqueid_masked.icontains(search, autoescape=True)
 
     coder_final_sids = (
         sa.select(VaFinalAssessments.va_sid)
         .join(VaUsers, VaUsers.user_id == VaFinalAssessments.va_finassess_by)
         .where(
             VaFinalAssessments.va_finassess_status == VaStatuses.active,
-            VaUsers.name.ilike(like),
+            VaUsers.name.icontains(search, autoescape=True),
         )
     )
     reviewer_final_sids = (
@@ -230,12 +230,12 @@ def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
         .join(VaUsers, VaUsers.user_id == VaReviewerFinalAssessments.va_rfinassess_by)
         .where(
             VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
-            VaUsers.name.ilike(like),
+            VaUsers.name.icontains(search, autoescape=True),
         )
     )
     return sa.or_(
-        VaSubmissions.va_uniqueid_masked.ilike(like),
-        VaSubmissions.va_data_collector.ilike(like),
+        VaSubmissions.va_uniqueid_masked.icontains(search, autoescape=True),
+        VaSubmissions.va_data_collector.icontains(search, autoescape=True),
         VaSubmissions.va_sid.in_(coder_final_sids),
         VaSubmissions.va_sid.in_(reviewer_final_sids),
     )

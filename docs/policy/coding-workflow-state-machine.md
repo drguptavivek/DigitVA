@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-02
 ---
 
 # Coding Workflow State Machine Policy
@@ -208,7 +208,7 @@ Canonical non-demo coding gates:
 - `coding_enabled = true`
 - current date is on/after `coding_start_date` when a start date is set
 - current date is on/before `coding_end_date` when an end date is set
-- per-site `daily_coder_limit` is not exceeded
+- per project-site `daily_coder_limit` (keyed on the (project, site) pair) is not exceeded
 
 Gate evaluation timezone:
 
@@ -221,7 +221,7 @@ Role and bypass semantics:
   - `coding_enabled = false`
   - current UTC date is before `coding_start_date`
   - current UTC date is after `coding_end_date`
-  - per-site `daily_coder_limit` has been reached
+  - per project-site `daily_coder_limit` (keyed on the (project, site) pair) has been reached
 - project PI and site PI roles do not implicitly grant coder workflow entry;
   explicit coder or coding_tester access is still required to code
 

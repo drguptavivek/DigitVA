@@ -590,6 +590,15 @@ unit-based coding scope.
 - `view_only` means the person **sees the cause of death and the submission
   data for their subtree, read-only, and codes nothing** (decision
   2026-09-18). Both halves are implemented.
+- A `coder` or `reviewer` grant at **`project` or `project_site` scope** on a
+  tree project is a grant at the **top of the tree** (decision 2026-10-02,
+  `digitva-7xq`). It is therefore above any scope level: with no
+  `coding_scope_level_id` it codes every submission in its scope; with one
+  set it codes them only under `code_any`, and under `view_only` codes
+  nothing. A `project` grant's scope is every submission of the project; a
+  `project_site` grant's is every submission whose form is on that
+  (project, site) pair, keyed on the pair, never the bare site id. Both
+  include **unrouted** submissions of that scope.
 
 ### Per-unit coding gates
 
@@ -624,7 +633,9 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 
 - The **viewable** unit set is the whole subtree of every active grant,
   regardless of the project's coding scope level: oversight does not shrink
-  because coding does. It is resolved separately from the codeable set
+  because coding does. A `project` or `project_site` coder or reviewer grant
+  views every submission of its project, or of its (project, site) pair,
+  routed or not, whatever the coding scope level. It is resolved separately from the codeable set
   (`org_grant_service.viewable_unit_ids`), and the two are never substituted
   for one another — that separation is what stops a viewer becoming a coder.
 - A read-only **area** surface lists the submissions routed to those units,
@@ -648,15 +659,23 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 - The narrowing applies **only to projects with an active organization tree**.
   A project without one keeps the form-and-site model exactly as before —
   this is what makes the change safe to add to a shared filter path.
-- An **unrouted** submission of a tree project is codeable by nobody until a
-  data manager routes it. That is deliberate: attributing a death to the wrong
-  unit is worse than leaving it in the queue.
+- An **unrouted** submission of a tree project is reached by no unit grant
+  until a data manager routes it. That is deliberate: attributing a death to
+  the wrong unit is worse than leaving it in the queue. A `project` grant
+  still reaches it (its scope is the whole project), and so does a
+  `project_site` grant when the submission's form is on that pair, subject to
+  the coding scope rule above for coding and reviewing.
 - The check is applied in two places, because a list filter alone is not
   authorization: the pick list and dashboard counts filter by unit, and
   opening or being allocated one submission is gated separately
   (`org_grant_service.submission_within_org_scope`). Every coding and
   reviewing action passes through the gate, rather than each action
-  remembering to ask.
+  remembering to ask. The same two functions
+  (`submission_within_org_scope`, `submission_within_org_view_scope`) and the
+  list filter (`coder_workflow_service._org_unit_scope_filter`) apply the
+  project and project_site rule, so the coder and reviewer validators, view
+  pages, attachments, pick list, allocation, reviewing list and workflow
+  history agree.
 - `coding_tester` is exempt, as it is from the site coding gates.
 
 ## Not yet implemented (later phases of the plan)

@@ -203,21 +203,30 @@ def get_project_workflow_kpis(project_id: str) -> dict:
     )
 
 
-def get_sitepi_dashboard_data(site_id: str) -> dict:
-    """Return workflow-aware reporting for a Site PI site."""
-    kpis = _workflow_kpis("f.site_id = :site_id", {"site_id": site_id})
+def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
+    """Return workflow-aware reporting for one Site PI (project, site) pair.
+
+    Every query keys on the pair: a site_id is shared across projects, and a
+    PI of the site in one project sees nothing of it in another (digitva-d5s).
+    """
+    kpis = _workflow_kpis(
+        "f.project_id = :project_id AND f.site_id = :site_id",
+        {"project_id": project_id, "site_id": site_id},
+    )
 
     coder_kpi_sql = sa.text(
         f"""
         WITH site_forms AS (
             SELECT form_id
             FROM va_forms
-            WHERE site_id = :site_id
+            WHERE project_id = :project_id
+              AND site_id = :site_id
         ),
         site_project_sites AS (
             SELECT ps.project_site_id
             FROM va_project_sites ps
-            WHERE ps.site_id = :site_id
+            WHERE ps.project_id = :project_id
+              AND ps.site_id = :site_id
               AND ps.project_site_status = :active_status
         )
         SELECT
@@ -264,6 +273,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
         coder_kpi_sql,
         {
             **IN_ODK_BIND,
+            "project_id": project_id,
             "site_id": site_id,
             "active_status": VaStatuses.active.value,
             "coder_role": VaAccessRoles.coder.value,
@@ -280,7 +290,8 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-            WHERE f.site_id = :site_id
+            WHERE f.project_id = :project_id
+              AND f.site_id = :site_id
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
         ),
@@ -334,6 +345,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
         submission_rows_sql,
         {
             **IN_ODK_BIND,
+            "project_id": project_id,
             "site_id": site_id,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "transition_coder_finalized": TRANSITION_CODER_FINALIZED,

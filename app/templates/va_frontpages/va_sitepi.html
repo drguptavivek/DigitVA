@@ -54,8 +54,8 @@
             hx-target="#siteContent"
             hx-trigger="change"
             hx-indicator="#loading">
-      {% for site in sitepi_sites %}
-        <option value="{{ site }}" {% if loop.first %}selected{% endif %}>{{ site }}</option>
+      {% for site_key, site_label in sitepi_sites %}
+        <option value="{{ site_key }}" {% if loop.first %}selected{% endif %}>{{ site_label }}</option>
       {% endfor %}
     </select>
   </div>

@@ -503,22 +503,41 @@ def projects_with_org_tree(project_ids: set[str] | None = None) -> set[str]:
     return set(db.session.scalars(stmt.distinct()).all())
 
 
-def submission_within_org_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
-    """Whether one submission is inside the user's unit scope for *role*.
+def wide_grant_scope(
+    user, role: VaAccessRoles, *, coding: bool
+) -> tuple[set[str], set[tuple[str, str]]]:
+    """Projects and (project, site) pairs *user* holds *role* at above any unit.
 
-    True for any submission of a project with no organization tree: those keep
-    the form-and-site model untouched. For a tree project the submission must
-    be routed to a unit inside the user's coding scope, so an unrouted one is
-    reachable by nobody until a data manager routes it.
+    A ``project`` or ``project_site`` grant on a tree project is a grant at the
+    top of the tree (decision 2026-10-02, digitva-7xq): it views its whole
+    project or pair, routed and unrouted. For *coding* it is above any scope
+    level, so a project that sets ``coding_scope_level_id`` keeps it only under
+    ``above_scope_coding_mode = 'code_any'``. Pairs are keyed on
+    (project_id, site_id), never the bare site id.
 
-    This is the per-submission counterpart of the list filter in
-    ``coder_workflow_service._org_unit_scope_filter``: the list decides what is
-    offered, this decides what may be opened directly.
+    Two or three queries per call, whatever the number of grants.
     """
+    projects = user._get_granted_project_ids(role.value)
+    pairs = user._get_granted_project_site_pairs(role.value)
+    if not coding or not (projects or pairs):
+        return projects, pairs
+    settings = _project_scope_settings(projects | {project_id for project_id, _ in pairs})
+
+    def codes(project_id: str) -> bool:
+        scope_depth, above_mode = settings.get(project_id, (None, ABOVE_SCOPE_VIEW_ONLY))
+        return scope_depth is None or above_mode == ABOVE_SCOPE_CODE_ANY
+
+    return (
+        {project_id for project_id in projects if codes(project_id)},
+        {pair for pair in pairs if codes(pair[0])},
+    )
+
+
+def _submission_within(user, va_sid: str, role: VaAccessRoles, *, coding: bool) -> bool:
     from app.models import MasOrgLevel, VaForms, VaSubmissions
 
     row = db.session.execute(
-        sa.select(VaSubmissions.org_unit_id, VaForms.project_id)
+        sa.select(VaSubmissions.org_unit_id, VaForms.project_id, VaForms.site_id)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .where(VaSubmissions.va_sid == va_sid)
     ).first()
@@ -537,9 +556,36 @@ def submission_within_org_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
     )
     if not has_tree:
         return True
+    # Checked before the unrouted test: a project or pair grant reaches the
+    # unrouted submissions of its scope too.
+    projects, pairs = wide_grant_scope(user, role, coding=coding)
+    if row.project_id in projects or (row.project_id, row.site_id) in pairs:
+        return True
     if row.org_unit_id is None:
         return False
-    return row.org_unit_id in codeable_unit_ids(user.user_id, role)
+    units = (
+        codeable_unit_ids(user.user_id, role)
+        if coding
+        else viewable_unit_ids(user.user_id, role)
+    )
+    return row.org_unit_id in units
+
+
+def submission_within_org_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
+    """Whether one submission is inside the user's coding scope for *role*.
+
+    True for any submission of a project with no organization tree: those keep
+    the form-and-site model untouched. On a tree project it is True when a
+    ``project`` / ``project_site`` grant codes there (``wide_grant_scope``),
+    routed or not, or when the submission is routed to a unit inside the
+    user's codeable units. An unrouted submission is reached by no unit grant
+    until a data manager routes it.
+
+    This is the per-submission counterpart of the list filter in
+    ``coder_workflow_service._org_unit_scope_filter``: the list decides what is
+    offered, this decides what may be opened directly.
+    """
+    return _submission_within(user, va_sid, role, coding=True)
 
 
 # ---------------------------------------------------------------------------
@@ -565,34 +611,11 @@ def viewable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]
 def submission_within_org_view_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
     """Whether one submission is inside the user's *viewing* scope for *role*.
 
-    Same shape as ``submission_within_org_scope``, against the viewable set.
-    True for any submission of a project with no organization tree.
+    Same shape as ``submission_within_org_scope``, against the viewable units
+    and every ``project`` / ``project_site`` grant whatever the coding scope
+    level. True for any submission of a project with no organization tree.
     """
-    from app.models import MasOrgLevel, VaForms, VaSubmissions
-
-    row = db.session.execute(
-        sa.select(VaSubmissions.org_unit_id, VaForms.project_id)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .where(VaSubmissions.va_sid == va_sid)
-    ).first()
-    if row is None:
-        return False
-
-    has_tree = db.session.scalar(
-        sa.select(sa.literal(True)).where(
-            sa.exists(
-                sa.select(1).where(
-                    MasOrgLevel.project_id == row.project_id,
-                    MasOrgLevel.is_active.is_(True),
-                )
-            )
-        )
-    )
-    if not has_tree:
-        return True
-    if row.org_unit_id is None:
-        return False
-    return row.org_unit_id in viewable_unit_ids(user.user_id, role)
+    return _submission_within(user, va_sid, role, coding=False)
 
 
 def has_view_only_scope(user_id: uuid.UUID, role: VaAccessRoles) -> bool:

@@ -32,7 +32,10 @@ DigitVA uses these roles:
 - `collaborator`
 - `collaborator_pii`
 - `coder`
+- `coding_tester`
 - `reviewer`
+- `interviewer`
+- `interview_supervisor`
 
 Roles are additive and do not inherit from each other.
 
@@ -55,11 +58,28 @@ May manage:
 
 Project-wide oversight within assigned projects.
 
-May:
+May, in every project:
 
 - view data across all assigned sites in an assigned project
 - view reporting for an assigned project
 - perform oversight actions allowed by workflow policy
+- set up the project and grant roles in it (see
+  [Organization Model Policy](organization-model.md), "Spreadsheet setup")
+
+In an **organizational (unit-tree) project** the `project_pi` additionally:
+
+- sees every screen of the project, with personal data: the data-management
+  dashboard, grid, KPIs and submission view, the coder and reviewer views,
+  the area view, intake supervision and the site PI report
+- may act as `data_manager` and `interview_supervisor` across the whole
+  project: triage and not codeable, routing and pinning a submission to a
+  unit, sync, screening, upstream-change resolution, the unrouted queue and
+  intake supervision actions
+
+Implementation tracked in digitva-0wc.
+
+Coding and reviewing still require a `coder` or `reviewer` grant. In a site
+(non-tree) project the `project_pi` keeps only the powers in the first list.
 
 ### `site_pi`
 
@@ -100,6 +120,8 @@ May:
 
 - view data
 - view reporting
+- open a single submission read-only, within scope, with personal data
+  redacted (implementation tracked in digitva-0wc)
 
 May not:
 
@@ -130,8 +152,11 @@ Read-only role within assigned scope, **including personal data**. Shown in
 the admin panel as "Viewer (with PII)"; plain `collaborator` is shown as
 "Viewer".
 
-Identical to `collaborator` in everything it may do. The only difference is
-that personal data is not redacted from what it sees.
+Identical to `collaborator` in everything it may do, including opening a
+single submission read-only within scope (implementation tracked in
+digitva-0wc). The only difference is that personal data is not redacted from
+what it sees. Mentors, who may hold `collaborator_pii`, open submissions the
+same way.
 
 May additionally see:
 
@@ -220,137 +245,43 @@ Activation and creation of a form type are deliberately *not* blocked on this:
 a form type has no fields at registration time, so the working order is
 register -> ODK sync -> flag.
 
-#### Route wiring (2026-09-19): what a viewer can actually reach
+#### Redaction rules for viewer-reachable surfaces
 
-The role and the redaction helper existed before any route granted them —
-see `.tasks/viewer-pii-roles.md`. This wired `role_required("collaborator",
-"collaborator_pii")` (both spellings gate on the same check,
-`VaUsers.is_viewer()`, since the two roles have identical reach) into the
-read-only data-management surfaces that go through
-`data_management_service.dm_scope_filter` and are already redaction-safe:
+A surface a viewer reaches redacts through `should_redact_pii`, never through
+a per-screen role test. Which routes a viewer reaches today, and which
+surfaces redact what, is recorded in
+[Workflow And Permissions](../current-state/workflow-and-permissions.md),
+"Viewer route reach and export redaction".
 
-- `GET /data-management/` (dashboard), `/data-management/dashboard` (KPI
-  shell)
-- `GET /api/v1/data-management/submissions`, `/filter-options`, `/kpi`
-
-That is the complete list — five routes.
-
-Deliberately **not** widened, and still `data_manager`/`admin` only:
-
-- every POST/PUT/DELETE in `app/routes/data_management.py` and
-  `app/routes/api/data_management.py` (sync, screening, upstream-change
-  resolution, org-unit correction, user and grant management) — writes
-- `GET /data-management/view/<va_sid>` (submission detail) — renders the
-  ~1300-line `renderpartial` route in `app/routes/va_form.py`, which is not
-  yet redaction-safe for a viewer (see `.tasks/viewer-pii-roles.md`, "Two
-  surfaces still unredacted"); wiring it needs its own change
-- `GET /data-management/cod-buckets` (COD bucket reporting) — the page is
-  only a shell; every value on it is fetched from
-  `app/routes/api/cod_buckets.py` (`/schemes`, `/aggregates`,
-  `/export.csv`), all three `data_manager`/`admin` only. Granting the page
-  alone would give a viewer a screen that 403s on every fetch. Opening the
-  API is a separate widening — `export.csv` emits staff identity with no
-  redaction path — so it needs its own review rather than arriving as a
-  side effect of granting the page
-- `GET /data-management/submissions/<va_sid>/odk-edit` — an edit-adjacent
-  affordance (a link into ODK Central's own editor), not a read
-- `GET /api/v1/data-management/coder-daily-stats` and
-  `/submissions/export.csv` — both emit staff identity (`coder_name`;
-  `dm_review_by`/`coder_review_by`/`reviewer_review_by`/`final_assess_by`
-  user ids) with no `should_redact_pii` call at all
-- `GET /api/v1/data-management/submissions/unrouted` and
-  `/project-site-submissions` — each resolves scope through its own private
-  helper (`_dm_submission_scope_filter()`, and a direct
-  `get_data_manager_projects()`/`get_data_manager_project_sites()` read,
-  respectively), not `dm_scope_filter`
-- the whole `dm_kpi/*` analytics blueprint and `/api/v1/analytics/*` — these
-  resolve scope through `dm_kpi_scope.py` / a separate `_mv_scope_filter`
-  helper, not `dm_scope_filter`, and several surface coder/reviewer
-  performance data by name with no redaction
-
-`dm_scope_filter` (and the `_dm_scope_pairs` it calls) now resolves
-`collaborator`/`collaborator_pii` grants at all three scope types:
-
-- `project` / `project_site` — exactly like `data_manager`, via
-  `VaUsers.get_viewer_projects()` / `get_viewer_project_sites()`
-- `org_unit` — reuses `org_grant_service.scope_unit_ids_for_roles()` (no
-  ltree logic reimplemented) but **bridges the granted unit to its whole
-  project** rather than to a site, because a unit does not name one. That
-  makes `dm_scope_filter` alone coarser than the grant for an org_unit
-  viewer, so it **fails open**: a caller that forgets the question serves
-  the whole project. Every caller must therefore decide explicitly.
-  `dm_scoped_forms` and `dm_filter_options` carry no personal data, but a
-  project's site roster, its ODK project/form ids and its distinct value
-  lists are still more than an org_unit grant conveys, so both narrow
-  themselves to forms and submissions the user can actually see (an
-  `EXISTS` on a visible submission, and a `VaSubmissions` join,
-  respectively). A plain `data_manager` never reaches that branch and keeps
-  the original queries unchanged. For the two callers that
-  enumerate actual submissions (`dm_submissions_page`,
-  `_dm_submission_query_parts`, behind the submissions API and the
-  dashboard), a second condition
-  (`dm_submission_org_unit_condition`) is ANDed in alongside it, restricting
-  by `VaSubmissions.org_unit_id`; combined, the net effect is the correct
-  grain — visible if inside a direct project/project_site grant, or inside
-  the project **and** the submission's own unit is granted.
-
-Inherited, not introduced by this change: neither `_expand_project_ids_to_active_pairs`
-nor `get_data_manager_projects()`/`get_viewer_projects()` checks the
-**project's own** status (only `va_project_sites.project_site_status` is
-checked). A project-scoped grant — `data_manager` or a viewer — on a closed
-project still resolves. This was already true for `data_manager` before
-this change and is left as is for consistency; it is not this change's
-concern to fix.
-
-#### Redaction coverage of the data-management exports
-
-As of 2026-09-19 these surfaces consult `should_redact_pii` and blank staff
-identity for a viewer who must not see it:
-
-| Surface | Redacted |
-| --- | --- |
-| `dm_submissions_page` | `va_data_collector`, `coded_by` |
-| `dm_submissions_export_csv` | the `*_by` user ids (`dm_review_by`, `initial_assess_by`, `coder_review_by`, `reviewer_review_by`, `final_assess_by`, `reviewer_final_assess_by`) |
-| `dm_coded_cod_snapshot_export_csv` | `coder_name`, `reviewer_name`, `nqa_name`, `social_autopsy_name`, `active_coder_assigned_name`, `active_reviewer_assigned_name` |
-| `dm_coder_daily_statistics` | all rows — see below |
-| `_dm_search_condition` | the collector, coder and reviewer name clauses |
-
-Two rules the implementations follow, both worth keeping:
-
-- **Empty the column, never drop it.** The submissions export records that
-  downstream consumers depend on its column order and offsets, so a redacted
+- **Empty the column, never drop it.** Downstream consumers of the
+  submissions export depend on its column order and offsets, so a redacted
   export has the same shape as an unredacted one.
-- **`dm_coder_daily_statistics` returns no rows rather than pseudonymous
-  ones.** Every row of that panel *is* staff identity. Blanking the name
-  would leave `coder_id` as a stable per-person key across days and across
-  exports — the same disclosure by another route.
-
-The three SmartVA exports (`input`, `results`, `likelihoods`) emit no
-staff-identity column; the input export's payload already passes through
-`_filter_export_payload`.
+- **Coder daily statistics return no rows rather than pseudonymous ones** to
+  a viewer subject to redaction. Every row of that panel *is* staff identity.
+  Blanking the name would leave `coder_id` as a stable per-person key across
+  days and across exports — the same disclosure by another route.
 
 ##### Blocker: `narrative_text` blocks wiring the snapshot export to viewers
 
 **Do not grant `collaborator` the coded-COD snapshot export until
-`narrative_text` is resolved.** The staff-identity columns above are handled;
-that column is not, and it is the one that carries the deceased's name.
+`narrative_text` is resolved.** Its staff-identity columns are redacted;
+`narrative_text` is not, and it is the column that carries the deceased's
+name.
 
 `narrative_text` is the free-text death narrative. It routinely contains the
 names of the deceased, the respondent and the attending clinician, in prose,
-where no field-level flag reaches them. It is deliberately **not** in
-`COD_SNAPSHOT_STAFF_IDENTITY_HEADERS`: it is subject personal data governed by
-`is_pii` on the payload field, not staff identity, and filing it under a
-staff-identity name would hand the next reader a category error. It is also
-not redacted anywhere else — `dm_submissions_export_csv` ships the same
-narrative to every role today — so redacting it on one export alone would be
-an inconsistent half-change.
+where no field-level flag reaches them. It is subject personal data governed
+by `is_pii` on the payload field, not staff identity, so it must not be filed
+under `COD_SNAPSHOT_STAFF_IDENTITY_HEADERS`. The submissions export carries
+the same narrative, so redacting it on one export alone would be an
+inconsistent half-change.
 
-The failure this blocker exists to prevent: the staff columns now look
-handled, so the export reads as safe to widen, and a plain viewer gets the
-deceased's name in free text on the first row.
+The failure this blocker exists to prevent: the staff columns look handled,
+so the export reads as safe to widen, and a plain viewer gets the deceased's
+name in free text on the first row.
 
 Resolving it is the `is_pii` decision, applied consistently across both
-exports — not this one.
+exports.
 
 ### `coder`
 
@@ -387,6 +318,62 @@ Current workflow-policy note:
 - reviewer participation is optional and sample-based
 - reviewer coding opens only after the coder's 24-hour recode window closes
 - reviewer is a coding authority, not just an accept/reject QA overlay
+
+### `coding_tester`
+
+Coding role for exercising the coding workflow within assigned scope.
+
+May:
+
+- code submissions in scope to check that coding works, including while
+  coding gates are closed
+
+Rules:
+
+- its coding does not count toward results or real workflow counts (see
+  [Auth Decorator and RBAC Gating Policy](auth-decorator-rbac.md))
+- it waives coding gates — site gates and per-unit gates — but **never
+  scope**: a tester codes only submissions its grants cover, and a unit
+  tester waives gates only within its own subtree (see
+  [Organization Model Policy](organization-model.md), "Per-unit coding
+  gates")
+
+May not:
+
+- review
+- grant roles
+
+### `interviewer`
+
+Data-collection role within assigned scope.
+
+May:
+
+- register deaths and interview respondents through web intake or the mobile
+  app, for the projects, sites and units its grants reach
+- see and follow up its own cases
+
+May not:
+
+- code or review
+
+See [Web Intake Policy](web-intake.md).
+
+### `interview_supervisor`
+
+Supervision role for web intake, held at `org_unit` scope only.
+
+May:
+
+- view the web intake cases in its unit subtree, confirm or reject
+  duplicate and cancel flags, and reopen terminal cases; a supervisor never
+  assigns
+
+May not:
+
+- interview, code or review without the matching grant
+
+See [Web Intake Policy](web-intake.md), "Supervisors".
 
 ## Scope Model
 
@@ -427,17 +414,25 @@ The system must not infer broader access from missing values or partial keys.
 - `coder` uses `project`, `project_site` or `org_unit`
 - `coding_tester` uses `project`, `project_site` or `org_unit`
 - `reviewer` uses `project`, `project_site` or `org_unit`
+- `interviewer` uses `project`, `project_site` or `org_unit` (see
+  [Web Intake Policy](web-intake.md))
 - `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
   it supervises web intake cases in the unit's subtree, as do `data_manager`
   grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors")
 
 A unit grant of `data_manager` or `coding_tester` covers the grant's whole
-unit subtree on **every surface** (worklists, KPI and analytics, the unrouted
-queue, sync, the coder-gate waiver), exactly as a grant on each site in that
+unit subtree on **every surface** (worklists, KPI and analytics, sync, the
+coder-gate waiver), exactly as a grant on each site in that
 subtree would, with no hidden pages. Grants flow down the tree and never up.
 Coverage is decided per submission by its routed unit
 (`va_submissions.org_unit_id`): a submission with no unit belongs to no
-subtree and is reached only through a project or site grant. A unit grant
+subtree and is reached only through a project or site grant, with one
+exception. **The unrouted queue of an organizational project is open to every
+`data_manager` of the project, at any scope, unit included**: each sees the
+project's unrouted submissions and may route one to a unit inside their own
+subtree, never outside it. The owner accepted the trade-off that a district
+data manager sees unrouted cases that may belong to another district
+(decision 2026-10-02). Implementation tracked in digitva-0wc. A unit grant
 resolves to the forms under its subtree (a form with a submission routed
 there, or whose ODK mapping falls back to a unit there), never to its whole
 project. Implemented in stage 2 of `digitva-djd`. The
@@ -639,13 +634,17 @@ Rules:
 
 This is preferred over loosely structured JSON.
 
-## Migration Rule
+## Migration Rule (historical)
 
-Current permissions are legacy and inconsistent:
+Historical: the form-centric permissions this rule migrated from no longer
+exist, and every grant is now an explicit role and scope. Kept as the record
+of how legacy access was converted.
 
-- coder and reviewer permissions are currently form-centric
-- Site PI behavior mixes form and site assumptions
-- data-manager behavior must be introduced as explicit scope-based access rather
+The legacy permissions were inconsistent:
+
+- coder and reviewer permissions were form-centric
+- Site PI behavior mixed form and site assumptions
+- data-manager behavior had to be introduced as explicit scope-based access rather
   than via coder or site-PI shortcuts
 
 Migration policy:

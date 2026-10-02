@@ -402,12 +402,18 @@ The rule and the shared predicate that implements it live in
   grant's resolved scope without touching the grant rows. Reactivating the
   unit restores them.
 - Unit-scoped grants are created from the **admin user panel**, which carries
-  the unit and cadre pickers. The data-manager grant interface knows only
-  projects and sites and refuses to create or revoke a unit grant, for admins
-  too, with one exception: a **district data manager** may create, reactivate
-  and revoke the unit grants of mentoring institute staff (see "Mentoring
-  institutes"). A data manager still *sees* the unit grants of their own
-  project in the grant list, as they already see its project and site grants.
+  the unit and cadre pickers, and by data managers within the limits below.
+- **Data managers grant inside their own subtree** (decision 2026-10-02). A
+  `data_manager` may create, reactivate and revoke grants of `interviewer`,
+  `coder`, `reviewer`, `coding_tester`, `collaborator` and
+  `collaborator_pii` at `org_unit` scope, on units inside their own subtree
+  (a project-scope `data_manager` grant covers the whole tree). Never
+  `data_manager`, `interview_supervisor`, `site_pi`, `project_pi` or `admin`,
+  and never on a unit above or outside their own. The cadre validation above
+  applies, and so does the mentor guard when the grantee is a mentoring
+  institute member (see "Mentoring institutes"). A data manager sees the unit
+  grants held inside their subtree in the grant list. Implementation tracked
+  in digitva-0wc.
 - `flask users grant` does not create unit grants; use the admin panel or the
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.
@@ -459,12 +465,10 @@ cannot widen its own access. A platform admin or the project's PI (admin grant
 interface) or a **district data manager** may write the grants, always inside
 the guard above. A data manager qualifies when they hold an active
 `data_manager` grant at the district unit or above it (a project-scope grant
-counts), in the same project. Through the data-manager grant interface they
-may touch only grants of institute members, at `org_unit` scope, with a
-mentor role, on a unit inside a district they manage; every other unit grant
-stays refused to data managers, and no other data-manager power changes.
-The data-manager grant list shows those mentor grants, and a unit data
-manager sees the unit grants held inside their subtree. A
+counts), in the same project. For an institute member, the guard narrows what
+a data manager may otherwise grant at unit scope (see "Unit-scoped grants"):
+only a mentor role, on a unit inside a district they manage. The data-manager
+grant list shows those mentor grants. A
 data manager who holds only unit-scope grants finds people through the
 user search, which returns only active staff of active institutes attached to
 a district they cover, with id, name, email, status and institute code (no
@@ -557,14 +561,22 @@ levels API, the exports, the panel and routing all read from it:
   district or the project root. An inactive fallback, or one belonging to
   another project, is ignored.
 - When there is no fallback either, the submission stays **unrouted** and
-  appears in the data manager's unrouted queue.
+  appears in the project's unrouted queue. Every `data_manager` of the
+  project, at any scope including `org_unit`, sees that queue and may route a
+  case to a unit inside their own subtree (decision 2026-10-02; the owner
+  accepted that a district data manager sees unrouted cases that may belong
+  to another district). In an organizational project the `project_pi` may
+  route too, across the whole project (see
+  [Access Control Model](access-control-model.md), `project_pi`).
+  Implementation tracked in digitva-0wc.
 - `va_submissions.org_unit_resolution` records how the unit was decided:
   `form_field`, `mapping_fallback` or `manual`.
 - Routing is **idempotent**: the same payload always yields the same unit, so
   re-running a sync rewrites nothing. A payload change re-routes the
   submission, so a corrected form moves the death to the right unit.
-- A **manual pin** by a data manager sets `manual` and is never overwritten by
-  a later sync. Clearing the pin hands the submission back to routing.
+- A **manual pin** by a data manager sets `manual`; a data manager pins only
+  to a unit inside their own subtree. A pin is never overwritten by a later
+  sync. Clearing the pin hands the submission back to routing.
 - A project with no organization tree is left alone entirely: its submissions
   stay unrouted, which is what unrouted means for it.
 - Web-intake submissions route by the same rules, since the web questionnaire
@@ -619,8 +631,10 @@ unit (`coding_enabled`, `coding_start_date`, `coding_end_date`,
   limit is enforced as two separate ceilings (site and unit) against the
   same allocation count, never merged into one number and never
   double-counted.
-- **Waivers:** `coding_tester` and PI waive unit gates exactly as they waive
-  site gates today, at the same project/site granularity.
+- **Waivers:** `coding_tester`, the project PI and the site PI waive unit
+  gates exactly as they waive site gates, at the same project/site
+  granularity. A unit-scoped `coding_tester` waives gates only within its own
+  subtree. A waiver lifts gates, never scope.
 - The on-screen reason a coder sees names the specific unit when a unit gate
   is what actually blocks coding (e.g. "Coding for Yelahanka PHC ended on
   ..."), not a site-level reason that would not be true for that submission.
@@ -660,11 +674,14 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
   A project without one keeps the form-and-site model exactly as before —
   this is what makes the change safe to add to a shared filter path.
 - An **unrouted** submission of a tree project is reached by no unit grant
-  until a data manager routes it. That is deliberate: attributing a death to
-  the wrong unit is worse than leaving it in the queue. A `project` grant
-  still reaches it (its scope is the whole project), and so does a
-  `project_site` grant when the submission's form is on that pair, subject to
-  the coding scope rule above for coding and reviewing.
+  for viewing, coding or reviewing until a data manager routes it. That is
+  deliberate: attributing a death to the wrong unit is worse than leaving it
+  in the queue. A `project` grant still reaches it (its scope is the whole
+  project), and so does a `project_site` grant when the submission's form is
+  on that pair, subject to the coding scope rule above for coding and
+  reviewing. The one exception is the unrouted queue itself: every
+  `data_manager` of the project, unit grants included, sees it in order to
+  route (see "Submission routing"; implementation tracked in digitva-0wc).
 - The check is applied in two places, because a list filter alone is not
   authorization: the pick list and dashboard counts filter by unit, and
   opening or being allocated one submission is gated separately
@@ -676,7 +693,9 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
   project and project_site rule, so the coder and reviewer validators, view
   pages, attachments, pick list, allocation, reviewing list and workflow
   history agree.
-- `coding_tester` is exempt, as it is from the site coding gates.
+- `coding_tester` waives coding gates (site and unit), not scope. A tester
+  codes only submissions its grants reach under the rules above; a unit
+  tester reaches only its own subtree.
 
 ## Not yet implemented (later phases of the plan)
 

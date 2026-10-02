@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-02
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -54,7 +54,7 @@ what each role may reach.
 | `data_manager` | `data_manager` | `project`, `project_site` | Manages data pipeline within assigned scope |
 | `collaborator` | `collaborator` | `project`, `project_site`, `org_unit` | Read-only viewer, personal data redacted |
 | `collaborator_pii` | `collaborator_pii` | `project`, `project_site`, `org_unit` | Same reach as `collaborator`; personal data not redacted |
-| `coding_tester` | `coding_tester` | `project`, `project_site` | Exercises coding routes without affecting real workflow counts |
+| `coding_tester` | `coding_tester` | `project`, `project_site`, `org_unit` | Exercises coding routes without affecting real workflow counts; waives coding gates (site and unit), never scope |
 | `interviewer` | `interviewer` | `project_site` | Web intake — records submissions for their site |
 
 ### Admin bypass

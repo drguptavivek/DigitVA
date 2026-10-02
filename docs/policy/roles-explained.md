@@ -108,7 +108,8 @@ block, used only where a state has it.
 - Can see every screen, for every district in the project.
 - Can set up the project, its districts and its facilities.
 - Can give people their roles.
-- Can do everything a District Programme Manager can do, in every district.
+- Can do everything a District Programme Manager and a field supervisor can
+  do, in every district.
 - Cannot code or review deaths unless also given that role.
 
 **Field supervisor** (CMO or Civil Surgeon for the district, Senior Medical

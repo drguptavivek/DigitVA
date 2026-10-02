@@ -694,6 +694,108 @@ For example:
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)
 
+### Viewer route reach and export redaction
+
+Policy: `docs/policy/access-control-model.md`, `collaborator` and
+`collaborator_pii`, and "Redaction rules for viewer-reachable surfaces". The
+owner decision of 2026-10-02 that viewers may open a single submission
+read-only (`digitva-0wc`) is not built yet; the list below is what runs
+today.
+
+#### Viewer routes (wired 2026-09-19)
+
+Route wiring (2026-09-19, design record `.tasks/viewer-pii-roles.md`) put
+`role_required("collaborator", "collaborator_pii")` (both spellings gate on the same check,
+`VaUsers.is_viewer()`, since the two roles have identical reach) into the
+read-only data-management surfaces that go through
+`data_management_service.dm_scope_filter` and are already redaction-safe:
+
+- `GET /data-management/` (dashboard), `/data-management/dashboard` (KPI
+  shell)
+- `GET /api/v1/data-management/submissions`, `/filter-options`, `/kpi`
+
+That is the complete list — five routes.
+
+Deliberately **not** widened, and still `data_manager`/`admin` only:
+
+- every POST/PUT/DELETE in `app/routes/data_management.py` and
+  `app/routes/api/data_management.py` (sync, screening, upstream-change
+  resolution, org-unit correction, user and grant management) — writes
+- `GET /data-management/view/<va_sid>` (submission detail) — renders the
+  ~1300-line `renderpartial` route in `app/routes/va_form.py`, which is not
+  yet redaction-safe for a viewer (see `.tasks/viewer-pii-roles.md`, "Two
+  surfaces still unredacted"); wiring it needs its own change
+- `GET /data-management/cod-buckets` (COD bucket reporting) — the page is
+  only a shell; every value on it is fetched from
+  `app/routes/api/cod_buckets.py` (`/schemes`, `/aggregates`,
+  `/export.csv`), all three `data_manager`/`admin` only. Granting the page
+  alone would give a viewer a screen that 403s on every fetch. Opening the
+  API is a separate widening — `export.csv` emits staff identity with no
+  redaction path — so it needs its own review rather than arriving as a
+  side effect of granting the page
+- `GET /data-management/submissions/<va_sid>/odk-edit` — an edit-adjacent
+  affordance (a link into ODK Central's own editor), not a read
+- `GET /api/v1/data-management/coder-daily-stats` and
+  `/submissions/export.csv` — both carry staff identity (`coder_name`;
+  the `*_by` user ids). Their services now redact for a viewer (table
+  below), but neither route is wired to viewers
+- `GET /api/v1/data-management/submissions/unrouted` and
+  `/project-site-submissions` — each resolves data-manager scope through its
+  own helper (`_dm_submission_scope_filter()`, which includes unit grants,
+  and a direct `get_data_manager_projects()`/`get_data_manager_project_sites()`
+  read, respectively), not `dm_scope_filter`
+- the whole `dm_kpi/*` analytics blueprint and `/api/v1/analytics/*` — these
+  resolve data-manager scope, unit grants included, through `dm_kpi_scope.py`
+  / `_mv_scope_filter`, not `dm_scope_filter`, and several surface coder/reviewer
+  performance data by name with no redaction
+
+`dm_scope_filter` (and the `_dm_scope_pairs` it calls) now resolves
+`collaborator`/`collaborator_pii` grants at all three scope types:
+
+- `project` / `project_site` — exactly like `data_manager`, via
+  `VaUsers.get_viewer_projects()` / `get_viewer_project_sites()`
+- `org_unit` — reuses `org_grant_service.scope_unit_ids_for_roles()` (no
+  ltree logic reimplemented) but **bridges the granted unit to its whole
+  project** rather than to a site, because a unit does not name one. That
+  makes `dm_scope_filter` alone coarser than the grant for an org_unit
+  viewer, so it **fails open**: a caller that forgets the question serves
+  the whole project. Every caller must therefore decide explicitly.
+  `dm_scoped_forms` and `dm_filter_options` carry no personal data, but a
+  project's site roster, its ODK project/form ids and its distinct value
+  lists are still more than an org_unit grant conveys, so both narrow
+  themselves to forms and submissions the user can actually see (an
+  `EXISTS` on a visible submission, and a `VaSubmissions` join,
+  respectively). A plain `data_manager` never reaches that branch and keeps
+  the original queries unchanged. For the two callers that
+  enumerate actual submissions (`dm_submissions_page`,
+  `_dm_submission_query_parts`, behind the submissions API and the
+  dashboard), a second condition
+  (`dm_submission_org_unit_condition`) is ANDed in alongside it, restricting
+  by `VaSubmissions.org_unit_id`; combined, the net effect is the correct
+  grain — visible if inside a direct project/project_site grant, or inside
+  the project **and** the submission's own unit is granted.
+
+#### Redaction coverage of the data-management exports
+
+As of 2026-09-19 these surfaces consult `should_redact_pii` and blank staff
+identity for a viewer who must not see it:
+
+| Surface | Redacted |
+| --- | --- |
+| `dm_submissions_page` | `va_data_collector`, `coded_by` |
+| `dm_submissions_export_csv` | the `*_by` user ids (`dm_review_by`, `initial_assess_by`, `coder_review_by`, `reviewer_review_by`, `final_assess_by`, `reviewer_final_assess_by`) |
+| `dm_coded_cod_snapshot_export_csv` | `coder_name`, `reviewer_name`, `nqa_name`, `social_autopsy_name`, `active_coder_assigned_name`, `active_reviewer_assigned_name` |
+| `dm_coder_daily_statistics` | all rows — see below |
+| `_dm_search_condition` | the collector, coder and reviewer name clauses |
+
+The policy rules "empty the column, never drop it" and "coder daily statistics
+return no rows" are what the `dm_submissions_export_csv` and
+`dm_coder_daily_statistics` rows above implement.
+
+The three SmartVA exports (`input`, `results`, `likelihoods`) emit no
+staff-identity column; the input export's payload already passes through
+`_filter_export_payload`.
+
 ### Closed projects resolve no grant
 
 Every resolver that turns a grant into access requires the grant's project to

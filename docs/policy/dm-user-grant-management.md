@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-10-02
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -67,9 +67,33 @@ the project that contains their site.
 Admins bypass all scope restrictions. They can assign grants at any project or
 site level through this interface.
 
+## Unit-scoped grants (organizational projects)
+
+Decision 2026-10-02. In an organizational (unit-tree) project a data-manager
+may create, reactivate and revoke grants at `org_unit` scope, on units inside
+their own subtree (a project-scoped data-manager covers the whole tree), for
+these roles only:
+
+- `interviewer`
+- `coder`
+- `reviewer`
+- `coding_tester`
+- `collaborator`
+- `collaborator_pii`
+
+Never `data_manager`, `interview_supervisor`, `site_pi`, `project_pi` or
+`admin`, and never on a unit above or outside their own. Cadre validation
+applies as for any unit grant, and the mentor guard still applies when the
+grantee is a mentoring institute member (see
+[Organization Model Policy](organization-model.md), "Unit-scoped grants" and
+"Mentoring institutes"). The project and project-site rules below are
+unchanged.
+
+Implementation tracked in digitva-0wc.
+
 ## Assignable Roles
 
-Data-managers may only assign these roles:
+At project and project-site scope, data-managers may only assign these roles:
 
 - `coder`
 - `coding_tester`
@@ -84,6 +108,9 @@ Data-managers may **not** assign:
 - `collaborator`
 
 ## Grant Lifecycle
+
+The role lists in this section apply at project and project-site scope; unit
+grants follow "Unit-scoped grants (organizational projects)" above.
 
 ### Creation
 

@@ -378,6 +378,60 @@ class NonTreeProjectsAreUntouchedTests(BaseTestCase):
         }
         self.assertIn(sid, offered)
 
+    def test_the_area_page_needs_form_access_on_a_project_without_a_tree(self):
+        """The unit check passes every no-tree submission; the form check must not."""
+        now = datetime.now(UTC)
+        sid = "csn-area-no-grant"
+        if db.session.get(VaSubmissions, sid) is None:
+            db.session.add(VaSubmissions(
+                va_sid=sid, va_form_id=self.FORM_ID, va_submission_date=now,
+                va_odk_updatedat=now, va_data_collector="Collector",
+                va_instance_name=sid, va_uniqueid_real=sid, va_uniqueid_masked=sid,
+                va_consent="yes", va_narration_language="English",
+                va_deceased_age=42, va_deceased_gender="male",
+                va_summary=[], va_catcount={}, va_category_list=[],
+            ))
+        grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == self.base_coder_user.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.coder,
+            VaUserAccessGrants.project_site_id == self.project_site_id,
+        ))
+        if grant is None:
+            grant = VaUserAccessGrants(
+                user_id=self.base_coder_user.user_id,
+                role=VaAccessRoles.coder,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=self.project_site_id,
+                grant_status=VaStatuses.deactive,
+            )
+            db.session.add(grant)
+        grant.grant_status = VaStatuses.deactive
+        # A form under the base coder grant, so the coder role gate opens and
+        # the refusal below can only come from the form check.
+        self._ensure_base_research_project_and_site()
+        base_form = "BASE01BS0199"
+        if db.session.get(VaForms, base_form) is None:
+            db.session.add(VaForms(
+                form_id=base_form, project_id=self.BASE_PROJECT_ID,
+                site_id=self.BASE_SITE_ID, odk_form_id="AREA_BASE_FORM",
+                odk_project_id="93", form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now, form_updated_at=now,
+            ))
+        db.session.commit()
+        self.assertIsNotNone(db.session.get(VaSubmissions, sid))
+        self.assertTrue(self.base_coder_user.is_coder())
+        self.assertNotIn(self.FORM_ID, self.base_coder_user.get_coder_va_forms())
+
+        self._login(str(self.base_coder_user.user_id))
+        refused = self.client.get(f"/coding/area/{sid}")
+        self.assertEqual(refused.status_code, 403)
+
+        grant.grant_status = VaStatuses.active
+        db.session.commit()
+        allowed = self.client.get(f"/coding/area/{sid}")
+        self.assertEqual(allowed.status_code, 200)
+
 
 class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
     """Opening one submission directly is gated, not just the list."""

@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2908 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2924 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
@@ -36,13 +36,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    - `digitva-m5r` **owner decision**: DM KPI panels (`/api/v1/analytics/dm-kpi/*`)
      fail closed for unit grants (site-keyed aggregates, no unit column), so a
      unit-only DM sees them empty. Real unit totals need an additive migration.
-   - `digitva-7xq` project/site coder and reviewer grants are refused per
-     submission on tree projects (`codeable_unit_ids` reads unit grants only);
-     `workflow.get_events` lets them through, so the paths disagree.
-   - Unit-only DMs cannot run whole-form sync or preview (ODK counts cannot be
-     split by unit); single-submission refresh works.
-   - `digitva-d5s` partly done (coder waivers keyed on project+site; site PI
-     and `excluded_sites` still site-only), `digitva-ck9`, `digitva-iv7`,
+   - Project and project_site coder/reviewer grants on tree projects count
+     as top-of-tree (owner 2026-10-02, `docs/policy/organization-model.md`
+     "Coding scope"); site checks key on (project, site) pairs.
+   - `digitva-blp` verify: `/coding/area/<sid>` content partials may 403 for
+     coders and reviewers (`_validate_vadata` is DM-only); browser check as a
+     view_only coder first.
+   - `digitva-7ai` unescaped LIKE in admin and CLI user searches;
      `digitva-6qy` query cost.
    - Mentors excluded from district headcounts and listed apart: UI belongs to
      `digitva-nk1` (`mentors_for_unit` exists).

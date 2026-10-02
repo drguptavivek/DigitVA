@@ -426,6 +426,14 @@ def area_view_submission(va_sid):
         va_permission_abortwithflash("Submission not found.", 404)
 
     role = VaAccessRoles.reviewer if _prefers_reviewer_area() else VaAccessRoles.coder
+    # The unit check alone passes every submission of a project with no
+    # tree, so the form check comes first, as on the other view pages.
+    if not (
+        current_user.is_admin()
+        or current_user.has_va_form_access(submission.va_form_id, role.value)
+        or tester_covers_submission(current_user, va_sid, submission.va_form_id)
+    ):
+        va_permission_abortwithflash("You do not have access to view this submission.", 403)
     if not submission_within_org_view_scope(current_user, va_sid, role):
         va_permission_abortwithflash(
             "This submission belongs to a unit outside your area.", 403

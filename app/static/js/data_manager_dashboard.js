@@ -515,7 +515,11 @@
         this.eGui.innerHTML = '—';
         return;
       }
-      if (state === 'finalized_upstream_changed') {
+      if (CONFIG.viewOnly) {
+        // Viewers open the read-only area view; no data-manager actions.
+        this.eGui.innerHTML = `
+          <a href="/coding/area/${encodeURIComponent(sid)}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>`;
+      } else if (state === 'finalized_upstream_changed') {
         const formId = params.data ? params.data.va_uniqueid_masked : '';
         this.eGui.innerHTML = `
           <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>

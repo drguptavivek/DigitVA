@@ -36,21 +36,12 @@ from flask import abort, current_app, g, redirect, send_file, stream_with_contex
 
 from app import db, cache as flask_cache
 from app.models import (
-    VaAccessRoles,
-    VaAllocations,
-    VaCoderReview,
-    VaFinalAssessments,
     VaForms,
     VaProjectMaster,
-    VaStatuses,
     VaSubmissions,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services.odk_retirement_service import MISSING_IN_ODK
-from app.services.org_grant_service import (
-    submission_within_org_scope,
-    submission_within_org_view_scope,
-)
 
 log = logging.getLogger(__name__)
 
@@ -233,80 +224,36 @@ def invalidate_attachment_record(storage_name: str) -> None:
 # Authorization
 # ---------------------------------------------------------------------------
 
-def _user_holds_submission(user_id, va_sid: str) -> bool:
-    """Coder-scope entitlement: active allocation, or the user's own active
-    coder outcome on this submission (the same rule the coder ``vaview`` page
-    applies through ``va_permission_ensureviewable``)."""
-    allocation_exists = sa.exists().where(
-        VaAllocations.va_sid == va_sid,
-        VaAllocations.va_allocated_to == user_id,
-        VaAllocations.va_allocation_status == VaStatuses.active,
-    )
-    final_exists = sa.exists().where(
-        VaFinalAssessments.va_sid == va_sid,
-        VaFinalAssessments.va_finassess_by == user_id,
-        VaFinalAssessments.va_finassess_status == VaStatuses.active,
-    )
-    review_exists = sa.exists().where(
-        VaCoderReview.va_sid == va_sid,
-        VaCoderReview.va_creview_by == user_id,
-        VaCoderReview.va_creview_status == VaStatuses.active,
-    )
-    return bool(
-        db.session.scalar(
-            sa.select(sa.or_(allocation_exists, final_exists, review_exists))
-        )
-    )
-
-
-def _data_manager_reaches(user, va_form_id: str, va_sid: str) -> bool:
-    """Data-manager scope over this one submission (a unit grant: its subtree)."""
-    row = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
-        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
-        .where(VaSubmissions.va_sid == va_sid, VaForms.form_id == va_form_id)
-    ).first()
-    return row is not None and user.has_data_manager_submission_access(
-        row.project_id, row.site_id, row.org_unit_id
-    )
-
-
 def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> bool:
-    """Role matrix for attachment delivery — see docs/policy/attachment-storage.md.
+    """Whether *user* may receive an attachment of this submission.
+
+    Attachments are part of viewing a submission, so the rule is the
+    ``VIEW`` scope (``authz.READ_ATTACHMENTS``), evaluated against the
+    submission's current routing: an old allocation or coder outcome grants
+    nothing once the case is re-routed out of the user's scope (digitva-ck9).
+    The legacy ``permission`` dict stays as a fall-through until stage 7 of
+    digitva-0wc. See docs/policy/attachment-storage.md.
 
     Evaluated fresh on every delivery; the result is never cached. Possession
     of a storage_name token grants nothing on its own.
     """
     if not va_form_id or not va_sid:
         return False
-    if user.is_admin():
-        return True
-    if _data_manager_reaches(user, va_form_id, va_sid):
-        return True
-    if user.is_site_pi(va_form_id):
-        return True
-    # Reviewer access follows the reviewer validator: the form, then the
-    # submission's own routed unit (a form spans several units).
-    if user.is_reviewer(va_form_id) and submission_within_org_scope(
-        user, va_sid, VaAccessRoles.reviewer
-    ):
-        return True
-    if user.is_coder(va_form_id) or user.is_coding_tester(va_form_id):
-        # Holding it is not enough: an old allocation or outcome must not
-        # outlive re-routing out of the coder's unit (digitva-ck9). Same unit
-        # rule as the coder ``view_submission`` route. Imported here:
-        # coder_workflow_service imports app.utils, which imports this module.
-        from app.services.coder_workflow_service import tester_covers_submission
+    # Imported here: authz pulls in services that import app.utils, which
+    # imports this module.
+    from app.services.authz import READ_ATTACHMENTS, can, redacts_pii
 
-        return _user_holds_submission(user.user_id, va_sid) and (
-            tester_covers_submission(user, va_sid, va_form_id)
-            or submission_within_org_view_scope(user, va_sid, VaAccessRoles.coder)
-        )
+    # A plain viewer sees no personal data, and attachments (document
+    # photos, narration audio) carry it with no field-level flag; the
+    # rendered page withholds them, so a guessed filename must not fetch
+    # them either, whichever path below would grant it.
+    if can(user, READ_ATTACHMENTS, va_sid):
+        return not redacts_pii(user)
     for legacy_role, va_forms in (user.permission or {}).items():
         if legacy_role in _SCOPED_LEGACY_ROLES:
             continue
         if va_form_id in va_forms:
-            return True
+            return not redacts_pii(user)
     return False
 
 

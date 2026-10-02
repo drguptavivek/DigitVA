@@ -1,21 +1,15 @@
 """Submission-detail rendering: subject PII redaction and its cache key.
 
-Covers the surface .tasks/viewer-pii-roles.md calls out as still open — the
-category-data render inside ``app/routes/va_form.py::renderpartial`` (reached
-today via ``view_submission`` -> ``render_va_coding_page`` for a
-data_manager/admin viewer; a plain ``collaborator`` cannot reach this route
-yet, since wiring collaborator access is a separate, not-yet-done task — see
-``app/decorators/va_validate_permissions.py::_validate_vadata``, which still
-requires ``has_data_manager_submission_access``).
+Stage 2 of digitva-0wc opened this render to viewers: collaborator and
+collaborator_pii open one submission read-only through ``/coding/area/<sid>``
+(action ``vaarea``), and the ``vadata`` validator is ``VIEW``. The
+``Viewer*`` tests below exercise that path with real viewer grants and no
+patching; the older tests keep the data-manager stand-in described next.
 
-Because the route itself is not reachable by ``collaborator`` today, these
-tests exercise the real render path as a ``data_manager`` (who can reach it)
-and patch ``should_redact_pii`` at its call site in ``app.routes.va_form`` to
-stand in for the redaction decision a wired-up collaborator viewer would get.
-This proves the redaction logic itself is correct now, so it is already
-right the moment the route is opened up — the same approach
-``tests/services/test_viewer_pii_redaction.py`` uses for the dashboard and
-search surfaces.
+The older tests below render as a ``data_manager`` and patch
+``should_redact_pii`` at its call site in ``app.routes.va_form`` to stand in
+for each redaction decision, so the redaction logic and its cache key are
+tested independently of who may reach the route.
 
 Fixture note (docs/policy/test-harness.md, "Seeding a project: the dual-table
 trap"): ``va_forms.project_id``/``va_sites.project_id`` key to
@@ -27,7 +21,8 @@ trap"): ``va_forms.project_id``/``va_sites.project_id`` key to
 ``_ensure_base_research_project_and_site()``, matching
 ``tests/services/test_runtime_form_sync_service.py``.
 """
-from datetime import datetime, timezone
+import uuid
+from datetime import UTC, datetime, timezone
 from unittest.mock import patch
 
 import sqlalchemy as sa
@@ -58,6 +53,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
     VA_SID = "uuid:pii-render-test-1"
     PII_VALUE = "Jane Realname Actual"
     PUBLIC_VALUE = "SomePublicSymptomValue"
+    STAFF_VALUE = "Interviewer Staffname Actual"
 
     @classmethod
     def setUpClass(cls):
@@ -118,6 +114,9 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         for field_id, is_pii, label, order in (
             ("PiiField1", True, "Deceased Real Name", 1),
             ("PublicField1", False, "Public Symptom", 2),
+            # Staff identity: not is_pii, but withheld from a plain
+            # collaborator like the submissions export withholds it.
+            ("SubmitterName", False, "Submitted By", 3),
         ):
             if db.session.scalar(
                 sa.select(MasFieldDisplayConfig).where(
@@ -178,6 +177,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
                 payload_data={
                     "PiiField1": cls.PII_VALUE,
                     "PublicField1": cls.PUBLIC_VALUE,
+                    "SubmitterName": cls.STAFF_VALUE,
                 },
                 source_updated_at=now,
                 created_by_role="vasystem",
@@ -346,3 +346,333 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
             second.get_data(as_text=True),
             "unredacted render was served the earlier redacted cache entry",
         )
+
+    # ------------------------------------------------------------------
+    # Viewers on the real path (digitva-0wc stage 2)
+    # ------------------------------------------------------------------
+
+    def _viewer(self, role):
+        user = self._make_user(
+            f"pii.render.{role.value}.{uuid.uuid4().hex[:6]}@test.local", "PiiViewer123"
+        )
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=role,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        return str(user.user_id)
+
+    def _viewer_partial(self, action):
+        return self.client.get(
+            f"/vaform/{self.VA_SID}/cat1",
+            query_string={"action": action, "actiontype": "vaview"},
+        )
+
+    def _fresh_cache(self):
+        from app import cache as flask_cache
+
+        flask_cache.clear()
+        self.addCleanup(flask_cache.clear)
+
+    def test_viewer_collaborator_gets_the_submission_redacted(self):
+        self._fresh_cache()
+        # Present first: the data manager sees all three values.
+        self._login(self.dm_user_id)
+        full = self._viewer_partial("vadata").get_data(as_text=True)
+        for value in (self.PII_VALUE, self.STAFF_VALUE, self.PUBLIC_VALUE):
+            self.assertIn(value, full)
+
+        self._login(self._viewer(VaAccessRoles.collaborator))
+        for action in ("vaarea", "vadata"):
+            with self.subTest(action=action):
+                response = self._viewer_partial(action)
+                self.assertEqual(response.status_code, 200)
+                body = response.get_data(as_text=True)
+                self.assertIn(self.PUBLIC_VALUE, body)
+                self.assertNotIn(self.PII_VALUE, body)
+                self.assertNotIn(self.STAFF_VALUE, body)
+
+    def test_viewer_collaborator_pii_sees_personal_data_and_staff_identity(self):
+        self._fresh_cache()
+        self._login(self._viewer(VaAccessRoles.collaborator_pii))
+        response = self._viewer_partial("vaarea")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for value in (self.PII_VALUE, self.STAFF_VALUE, self.PUBLIC_VALUE):
+            self.assertIn(value, body)
+
+    def test_viewer_collaborator_on_an_unconfirmed_form_type_gets_no_payload(self):
+        from app.services.field_mapping_service import get_mapping_service
+
+        self._fresh_cache()
+        self.addCleanup(get_mapping_service().clear_cache)
+        viewer_id = self._viewer(VaAccessRoles.collaborator)
+        self._login(viewer_id)
+        self.assertIn(self.PUBLIC_VALUE, self._viewer_partial("vaarea").get_data(as_text=True))
+
+        pii_row = db.session.scalar(
+            sa.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == self.form_type_id,
+                MasFieldDisplayConfig.field_id == "PiiField1",
+            )
+        )
+        pii_row.category_code = None
+        pii_row.subcategory_code = None
+        pii_row.odk_label = None
+        pii_row.is_custom = True
+        db.session.flush()
+        self.assertFalse(get_mapping_service().is_pii_set_confirmed(self.FORM_TYPE_CODE))
+        self._fresh_cache()
+        get_mapping_service().clear_cache()
+
+        response = self._viewer_partial("vaarea")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for value in (self.PUBLIC_VALUE, self.PII_VALUE, self.STAFF_VALUE):
+            self.assertNotIn(value, body)
+
+    def test_viewer_shell_is_read_only_with_area_hints(self):
+        self._login(self._viewer(VaAccessRoles.collaborator))
+        response = self.client.get(f"/coding/area/{self.VA_SID}")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("read-only mode", body)
+        self.assertIn("action=vaarea", body)
+        self.assertIn('href="/data-management/"', body)
+        for write_affordance in ("Data Triage", "vadmtriage", 'id="dm-accept-upstream-btn"', "odk-edit"):
+            self.assertNotIn(write_affordance, body)
+
+    def test_viewer_outside_scope_is_refused(self):
+        from app.models import VaProjectMaster
+
+        now = datetime.now(UTC)
+        if db.session.get(VaProjectMaster, "PIIOT1") is None:
+            db.session.add(VaProjectMaster(
+                project_id="PIIOT1", project_code="PIIOT1",
+                project_name="PII Out Of Scope", project_nickname="PiiOut",
+                project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now,
+            ))
+            db.session.flush()
+        user = self._make_user(f"pii.render.out.{uuid.uuid4().hex[:6]}@test.local", "PiiViewer123")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.collaborator_pii,
+            scope_type=VaAccessScopeTypes.project,
+            project_id="PIIOT1",
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertTrue(user.is_viewer())  # the role gate opens; scope decides
+        self._login(str(user.user_id))
+        self.assertEqual(self.client.get(f"/coding/area/{self.VA_SID}").status_code, 403)
+        for action in ("vaarea", "vadata"):
+            with self.subTest(action=action):
+                self.assertEqual(self._viewer_partial(action).status_code, 403)
+
+    # ------------------------------------------------------------------
+    # Reading is VIEW; every write partial asks its own write action
+    # ------------------------------------------------------------------
+
+    def test_coder_area_partials_load(self):
+        """digitva-blp: the area rendering's partials returned 403 to a coder
+        (the vadata validator was data-manager only), so the page stayed on
+        "Loading...". A coder in viewing scope sees the data, PII included."""
+        self._fresh_cache()
+        self._login(str(self.base_coder_user.user_id))
+        for action in ("vaarea", "vadata"):
+            with self.subTest(action=action):
+                response = self._viewer_partial(action)
+                self.assertEqual(response.status_code, 200)
+                body = response.get_data(as_text=True)
+                self.assertIn(self.PUBLIC_VALUE, body)
+                self.assertIn(self.PII_VALUE, body)
+
+    def test_admin_reads_the_read_only_partials(self):
+        """F11: admin opened the shells but every read partial refused."""
+        self._login(self.base_admin_id)
+        self.assertEqual(self._viewer_partial("vadata").status_code, 200)
+
+    def test_data_manager_still_opens_the_triage_panel(self):
+        self._login(self.dm_user_id)
+        response = self.client.get(
+            f"/vaform/{self.VA_SID}/vadmtriage",
+            query_string={"action": "vadata", "actiontype": "vaview"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_viewer_reaches_no_write_partial(self):
+        """Widening the read to viewers must not widen any write: each write
+        partial requires its own action in the handler (design section 2.4)."""
+        for role in (VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii):
+            self._login(self._viewer(role))
+            # Present: the viewer may read this submission.
+            self.assertEqual(self._viewer_partial("vadata").status_code, 200)
+            headers = self._csrf_headers()
+            for partial, action in (
+                ("vadmtriage", "vadata"),
+                ("vainitialasses", "vadata"),
+                ("vafinalasses", "vadata"),
+                ("vacoderreview", "vadata"),
+                ("vareviewform", "vadata"),
+                ("vausernote", "vadata"),
+                ("vausernote", "vaarea"),
+            ):
+                with self.subTest(role=role.value, partial=partial, action=action):
+                    response = self.client.post(
+                        f"/vaform/{self.VA_SID}/{partial}",
+                        query_string={"action": action, "actiontype": "vaview"},
+                        data={"va_dmreview_reason": "other", "va_note_content": "x"},
+                        headers=headers,
+                    )
+                    self.assertEqual(response.status_code, 403)
+            with self.subTest(role=role.value, partial="vadmtriage", method="GET"):
+                response = self.client.get(
+                    f"/vaform/{self.VA_SID}/vadmtriage",
+                    query_string={"action": "vadata", "actiontype": "vaview"},
+                )
+                self.assertEqual(response.status_code, 403)
+
+    def test_read_only_renderings_refuse_the_coding_forms_on_get(self):
+        """A read-only page has no coding forms. Their GET passed on VIEW
+        alone and ran the DORIS prefill on the raw payload (Sex, DateBirth,
+        DateDeath, EstimatedAge) for a plain collaborator."""
+        self._fresh_cache()
+        self._login(self._viewer(VaAccessRoles.collaborator))
+        # Present: the viewer reads this submission and its read partials.
+        for partial in ("cat1", "workflow_history", "vausernote"):
+            with self.subTest(partial=partial):
+                response = self.client.get(
+                    f"/vaform/{self.VA_SID}/{partial}",
+                    query_string={"action": "vaarea", "actiontype": "vaview"},
+                )
+                self.assertEqual(response.status_code, 200)
+        with patch("app.routes.va_form._is_doris", return_value=True), patch(
+            "app.routes.va_form.doris_prefill_from_payload", return_value=({}, {})
+        ) as prefill:
+            for action in ("vaarea", "vadata"):
+                for partial in ("vainitialasses", "vafinalasses", "vacoderreview", "vareviewform"):
+                    with self.subTest(action=action, partial=partial):
+                        response = self.client.get(
+                            f"/vaform/{self.VA_SID}/{partial}",
+                            query_string={"action": action, "actiontype": "vaview"},
+                        )
+                        self.assertEqual(response.status_code, 403)
+        prefill.assert_not_called()
+
+    def test_doris_prefill_skips_a_redacting_viewer(self):
+        """Defense in depth: the prefill reads interview facts from the raw
+        payload, so a viewer the render redacts never gets it."""
+        import importlib
+
+        # app.routes re-exports the blueprint under the module's name.
+        va_form_routes = importlib.import_module("app.routes.va_form")
+
+        submission = db.session.get(VaSubmissions, self.VA_SID)
+        prefilled = ({"Sex": "female"}, {"Sex": "payload"})
+        with self.app.test_request_context(), patch.object(
+            va_form_routes, "_is_doris", return_value=True
+        ), patch.object(
+            va_form_routes, "doris_prefill_from_payload", return_value=prefilled
+        ) as prefill:
+            # Present: a viewer entitled to PII gets the prefill.
+            with patch.object(va_form_routes, "should_redact_pii", return_value=False):
+                self.assertEqual(va_form_routes._doris_initial(None, submission, "doris"), prefilled)
+            with patch.object(va_form_routes, "should_redact_pii", return_value=True):
+                self.assertEqual(va_form_routes._doris_initial(None, submission, "doris"), ({}, {}))
+        self.assertEqual(prefill.call_count, 1)
+
+    def test_a_saved_certificate_loses_its_administrative_data_for_a_redacting_viewer(self):
+        import importlib
+
+        va_form_routes = importlib.import_module("app.routes.va_form")
+        saved = {
+            "AdministrativeData": {"Sex": "female", "DateDeath": "2026-01-02"},
+            "MedicalData": {"CauseA": "X"},
+        }
+        with self.app.test_request_context():
+            with patch.object(va_form_routes, "should_redact_pii", return_value=False):
+                full, _ = va_form_routes._doris_initial(saved, None, "doris")
+            self.assertIn("AdministrativeData", full)
+            with patch.object(va_form_routes, "should_redact_pii", return_value=True):
+                redacted, _ = va_form_routes._doris_initial(saved, None, "doris")
+        self.assertNotIn("AdministrativeData", redacted)
+        self.assertEqual(redacted["MedicalData"], {"CauseA": "X"})
+        self.assertIn("AdministrativeData", saved)  # the stored certificate is untouched
+
+    def test_invalidating_section_cache_drops_the_redacted_entry_too(self):
+        from app import cache as flask_cache
+        from app.routes.va_form import (
+            _invalidate_section_data_cache,
+            _section_data_cache_key,
+        )
+
+        self._fresh_cache()
+        key = _section_data_cache_key(self.VA_SID, "cat1")
+        for cache_key in (key, f"{key}:nopii"):
+            flask_cache.set(cache_key, {"stale": True})
+            self.assertIsNotNone(flask_cache.get(cache_key))
+        _invalidate_section_data_cache(self.VA_SID)
+        self.assertIsNone(flask_cache.get(key))
+        self.assertIsNone(flask_cache.get(f"{key}:nopii"))
+
+    def test_triage_post_follows_triage_scope_not_the_role(self):
+        """The vadmtriage POST checked is_data_manager() with no scope: a data
+        manager of another pair who could read this submission (here through
+        a viewer grant) could also triage it. TRIAGE is scoped to the
+        submission."""
+        from app.models import VaProjectMaster, VaSiteMaster
+
+        now = datetime.now(UTC)
+        if db.session.get(VaProjectMaster, "PIIOT1") is None:
+            db.session.add(VaProjectMaster(
+                project_id="PIIOT1", project_code="PIIOT1",
+                project_name="PII Out Of Scope", project_nickname="PiiOut",
+                project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now,
+            ))
+        if db.session.get(VaSiteMaster, "PIO1") is None:
+            db.session.add(VaSiteMaster(
+                site_id="PIO1", site_name="PII Out Site", site_abbr="PIO1",
+                site_status=VaStatuses.active,
+                site_registered_at=now, site_updated_at=now,
+            ))
+        db.session.flush()
+        other_pair = VaProjectSites(
+            project_id="PIIOT1", site_id="PIO1",
+            project_site_status=VaStatuses.active,
+            project_site_registered_at=now, project_site_updated_at=now,
+        )
+        db.session.add(other_pair)
+        db.session.flush()
+        other_dm = self._make_user(f"pii.render.dm2.{uuid.uuid4().hex[:6]}@test.local", "PiiDm2123")
+        db.session.add(VaUserAccessGrants(
+            user_id=other_dm.user_id,
+            role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=other_pair.project_site_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.add(VaUserAccessGrants(
+            user_id=other_dm.user_id,
+            role=VaAccessRoles.collaborator_pii,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertTrue(other_dm.is_data_manager())
+        self._login(str(other_dm.user_id))
+        # Present: the read passes, so the refusal below is TRIAGE's.
+        self.assertEqual(self._viewer_partial("vadata").status_code, 200)
+        response = self.client.post(
+            f"/vaform/{self.VA_SID}/vadmtriage",
+            query_string={"action": "vadata", "actiontype": "vaview"},
+            data={"va_dmreview_reason": "other"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 403)
+

@@ -395,15 +395,24 @@ def _prefers_reviewer_area() -> bool:
 
 
 @coding.get("/area/<va_sid>")
-@role_required("coder", "coding_tester", "reviewer", "admin")
+@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
 def area_view_submission(va_sid):
     """Read-only view of one submission the user may view.
 
     VIEW alone, whichever track listed it, so every overview row opens
-    (F17); the ``role`` the link carries does not narrow it.
+    (F17); the ``role`` the link carries does not narrow it. Viewers
+    (collaborator, collaborator_pii) open one submission here from the data
+    grid; the partials redact personal data for a plain collaborator
+    (va_form.renderpartial, ``should_redact_pii``).
     """
     _require_or_abort(Action.VIEW, va_sid)
     submission = db.session.get(VaSubmissions, va_sid)
-    # vadata is the read-only rendering the data manager already uses; the
-    # coder back-link keeps the viewer inside their own dashboard.
-    return render_va_coding_page(submission, "vadata", "vaview", "coder")
+    # vaarea: the data manager's categories without triage or a workflow
+    # panel. The back-link returns the user to a dashboard they can open.
+    if current_user.can_access_coding_dashboard():
+        back_role = "coder"
+    elif current_user.is_reviewer():
+        back_role = "reviewer"
+    else:
+        back_role = "viewer"
+    return render_va_coding_page(submission, "vaarea", "vaview", back_role)

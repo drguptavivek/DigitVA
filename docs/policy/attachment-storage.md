@@ -3,7 +3,7 @@ title: Attachment Storage and Delivery Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Attachment Storage and Delivery Policy
@@ -164,15 +164,20 @@ every request after `@role_required` has established authentication, active
 status, and role. Ownership (`va_sid`, `va_form_id`) must resolve first; an
 unknown attachment is `404`, never served by filename.
 
-| Role | Rule |
+| Who | Rule |
 |---|---|
-| `admin` (global grant) | Allowed. |
-| `data_manager` | Allowed when the form is within the data-manager project or project-site scope. |
-| `site_pi` | Allowed when the form is within the site-PI project-site scope. |
-| `reviewer` | Allowed when the form is within the reviewer scope. Reviewer section views are read-only per form (the reviewer `vaview` validator requires form access only), so attachment delivery follows the same scope rather than an allocation. |
-| `coder` / `coding_tester` | Allowed only for a submission the user **holds**: an active allocation to that user, or the user's own active coder outcome (`va_final_assessments` or `va_coder_review`). This mirrors the coder `vaview` rule in `va_permission_ensureviewable`. On a project with an organization tree the submission must also still sit in the coder's viewing scope (`submission_within_org_view_scope`), or, for a tester, be covered by their grant (`tester_covers_submission`), so access ends when the submission is re-routed out of the coder's unit. Form-level coder access alone is refused. |
-| `project_pi` | No submission-view surface exists for this role; attachment delivery is refused unless another scope above applies. |
-| Legacy `permission` dict | Keys other than `coder`, `reviewer`, `sitepi` grant access to the listed forms, matching `VaUsers.has_va_form_access`. The scoped keys are ignored here because their grants are evaluated through access grants. |
+| Anyone who may view the submission | Allowed: the `VIEW` scope of the authorization module (`authz.can(user, READ_ATTACHMENTS, va_sid)`, an alias of `VIEW`). That is admin; data managers, coders, coding testers and reviewers in their viewing scope; site PIs on their pair; project PIs on their project; `collaborator_pii` in their scope. Attachments are part of viewing a submission, so they follow the page, not an allocation. |
+| Plain `collaborator` | Refused, even in scope. Attachments (document photos, narration audio) carry personal data with no field-level flag, and a plain viewer sees no personal data. |
+| Re-routed submission | Decided by current routing. A unit grant reaches a submission only while its `org_unit_id` sits in the grant's subtree, so an old allocation or coder outcome grants nothing once the case is re-routed out (digitva-ck9). |
+| Legacy `permission` dict | Keys other than `coder`, `reviewer`, `sitepi` grant access to the listed forms, matching `VaUsers.has_va_form_access`, except that a redacting viewer is still refused. Kept until stage 7 of digitva-0wc removes the fall-through. |
+
+The route's role gate admits `coder`, `coding_tester`, `reviewer`,
+`data_manager`, `site_pi`, `project_pi`, `collaborator`, `collaborator_pii`
+and `admin`; the legacy `/media` route has the same gate. A plain
+`collaborator` passes the role gate but is refused every attachment by the
+service (`redacts_pii`), so a guessed filename or legacy token fetches nothing;
+the submission render also strips the PII set and the export's omitted fields
+(narration images and audio, `SubmitterName`).
 
 The decision is never cached, never inferred from a token, and never moved
 into templates. Denials are logged with user id, submission id, and form id;

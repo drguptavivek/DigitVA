@@ -1,7 +1,14 @@
 import os
 import uuid
+
 from flask import url_for
 from app import db, limiter
+from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaStatuses,
+    VaUserAccessGrants,
+)
 from app.models.va_users import VaUsers
 from tests.base import BaseTestCase
 
@@ -24,7 +31,10 @@ class MediaAccessTests(BaseTestCase):
         self.assertIn("/valogin", response.location)
 
     def test_path_traversal_protection(self):
-        """Verify that path traversal attempts are blocked."""
+        """Verify that path traversal attempts are blocked.
+
+        The user holds an admin grant so the route's role gate (the
+        attachment roles) opens and the path validation is what answers."""
         # Create and login a user
         email = f"test.media.{uuid.uuid4().hex[:8]}@example.com"
         user = VaUsers(
@@ -40,6 +50,13 @@ class MediaAccessTests(BaseTestCase):
         )
         user.set_password("password")
         db.session.add(user)
+        db.session.flush()
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.admin,
+            scope_type=VaAccessScopeTypes.global_scope,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         
         self._login_via_form(email, "password")

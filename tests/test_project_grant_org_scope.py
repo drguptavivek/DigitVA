@@ -185,13 +185,15 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
             allocate_pick_form(self.user, "csc-routed")
         self.assertIn("outside your coding scope", str(ctx.exception))
 
-    def test_a_view_only_project_reviewer_keeps_attachment_access_only_when_coding(self):
-        # Reviewer attachments follow the reviewing (coding) scope.
+    def test_a_view_only_project_reviewer_keeps_attachment_access(self):
+        # Attachments follow VIEW, the wider right (digitva-0wc stage 2,
+        # F7/F12): a reviewer who may not review above the scope level still
+        # views the submission, attachments included.
         self._wide_grant("project", VaAccessRoles.reviewer)
         self.assertTrue(can_access_submission_attachment(
             self.user, va_form_id=self.FORM_ID, va_sid="csc-routed"))
         self._configure("view_only")
-        self.assertFalse(can_access_submission_attachment(
+        self.assertTrue(can_access_submission_attachment(
             self.user, va_form_id=self.FORM_ID, va_sid="csc-routed"))
 
     # -- the pair key ------------------------------------------------------

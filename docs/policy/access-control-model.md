@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Access Control Model
@@ -158,7 +158,11 @@ May:
 - view data
 - view reporting
 - open a single submission read-only, within scope, with personal data
-  redacted (implementation tracked in digitva-0wc)
+  redacted (implementation tracked in digitva-0wc). The read-only renderings
+  (`vadata`, `vaarea`) load the category sections plus an allowlist of other
+  partials (workflow history, the viewer's own note); the coding forms, which
+  carry the DORIS prefill and prior certificates, are refused, and the DORIS
+  prefill is skipped for any redacting viewer
 
 May not:
 

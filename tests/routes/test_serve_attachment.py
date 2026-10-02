@@ -10,10 +10,13 @@ Covers the security contract (Option B — auth-first):
   5. Authenticated + no form access → 403
   6. Authenticated + valid token + file missing on disk → 404
   7. Authenticated + valid token + file present → 200
-  8. Submission-level matrix (docs/policy/attachment-storage.md):
-     admin → 200 without allocation; coder → active allocation or own coder
-     outcome, else 403; reviewer with form access → 200; a deterministically
-     derivable legacy token grants nothing on its own
+  8. Submission-level matrix (docs/policy/attachment-storage.md): the VIEW
+     scope (digitva-0wc stage 2, F12). Admin, a coder, coding tester or
+     reviewer in viewing scope and collaborator_pii → 200, plain collaborator →
+     403 (no personal data)
+     without an allocation; outside viewing scope → 403 whatever the user
+     holds; a deterministically derivable legacy token grants nothing on its
+     own
   9. Attachment bytes carry Cache-Control: private, no-store
 
 Route URL: /vaform/attachment/<storage_name>  (va_form blueprint, prefix /vaform)
@@ -21,7 +24,7 @@ Route URL: /vaform/attachment/<storage_name>  (va_form blueprint, prefix /vaform
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from unittest.mock import patch
 import sqlalchemy as sa
 
@@ -290,16 +293,19 @@ class ServeAttachmentTests(BaseTestCase):
         ))
         db.session.flush()
 
-    def _grant_reviewer(self, user):
+    def _grant(self, user, role, project_id=None, site_id=None):
+        """A project_site grant on the base pair, or on (project_id, site_id)."""
+        project_id = project_id or self.BASE_PROJECT_ID
+        site_id = site_id or self.BASE_SITE_ID
         project_site_id = db.session.scalar(
             sa.select(VaProjectSites.project_site_id).where(
-                VaProjectSites.project_id == self.BASE_PROJECT_ID,
-                VaProjectSites.site_id == self.BASE_SITE_ID,
+                VaProjectSites.project_id == project_id,
+                VaProjectSites.site_id == site_id,
             )
         )
         db.session.add(VaUserAccessGrants(
             user_id=user.user_id,
-            role=VaAccessRoles.reviewer,
+            role=role,
             scope_type=VaAccessScopeTypes.project_site,
             project_site_id=project_site_id,
             notes="attachment route test",
@@ -307,15 +313,50 @@ class ServeAttachmentTests(BaseTestCase):
         ))
         db.session.flush()
 
-    def test_coder_with_form_access_but_no_allocation_is_refused(self):
-        # base_coder_user holds a coder grant for BASE_SITE_ID → form access,
-        # but no allocation for this submission (plan Finding 1).
-        storage_name = self._make_storage_name()
-        self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
-        self._login(str(self.base_coder_user.user_id))
+    def _grant_reviewer(self, user):
+        self._grant(user, VaAccessRoles.reviewer)
 
-        response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 403)
+    def _coder_elsewhere(self):
+        """A coder whose only grant is a pair of another project: the role gate
+        opens, the submission is outside their viewing scope."""
+        from app.models import VaSiteMaster
+
+        now = datetime.now(UTC)
+        if db.session.get(VaProjectMaster, "SAOTH1") is None:
+            db.session.add(VaProjectMaster(
+                project_id="SAOTH1", project_code="SAOTH1",
+                project_name="Attachment Other Project", project_nickname="SAOther",
+                project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now,
+            ))
+        if db.session.get(VaSiteMaster, "SAO1") is None:
+            db.session.add(VaSiteMaster(
+                site_id="SAO1", site_name="Attachment Other Site", site_abbr="SAO1",
+                site_status=VaStatuses.active,
+                site_registered_at=now, site_updated_at=now,
+            ))
+        db.session.flush()
+        db.session.add(VaProjectSites(
+            project_id="SAOTH1", site_id="SAO1",
+            project_site_status=VaStatuses.active,
+            project_site_registered_at=now, project_site_updated_at=now,
+        ))
+        db.session.flush()
+        user = self._make_user(f"coder.else.{uuid.uuid4().hex[:6]}@test.local", "CoderElse123")
+        self._grant(user, VaAccessRoles.coder, "SAOTH1", "SAO1")
+        return user
+
+    def _served_to(self, user, storage_name=None):
+        if storage_name is None:
+            storage_name = self._make_storage_name()
+            self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
+        self._login(str(user.user_id))
+        return self.client.get(self._url(storage_name)).status_code
+
+    def test_coder_in_viewing_scope_is_served_without_allocation(self):
+        # F12: attachments follow VIEW. base_coder_user's pair grant covers
+        # this submission; no allocation and no outcome are needed any more.
+        self.assertEqual(self._served_to(self.base_coder_user), 200)
 
     def test_coder_with_active_allocation_is_served(self):
         storage_name = self._make_storage_name()
@@ -326,14 +367,14 @@ class ServeAttachmentTests(BaseTestCase):
         response = self.client.get(self._url(storage_name))
         self.assertEqual(response.status_code, 200)
 
-    def test_coder_with_inactive_allocation_is_refused(self):
-        storage_name = self._make_storage_name()
-        self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
-        self._allocate(self.base_coder_user, status=VaStatuses.deactive)
-        self._login(str(self.base_coder_user.user_id))
-
-        response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 403)
+    def test_an_allocation_grants_nothing_outside_viewing_scope(self):
+        # Holding the case is not a right of its own: a coder outside the
+        # submission's viewing scope is refused even with an active allocation
+        # (an old allocation must not outlive re-routing, digitva-ck9).
+        coder = self._coder_elsewhere()
+        self.assertEqual(self._served_to(coder), 403)
+        self._allocate(coder)
+        self.assertEqual(self._served_to(coder), 403)
 
     def test_coder_with_own_active_coder_review_is_served(self):
         # Mirrors the coder ``vaview`` page rule (va_permission_ensureviewable).
@@ -351,30 +392,6 @@ class ServeAttachmentTests(BaseTestCase):
         response = self.client.get(self._url(storage_name))
         self.assertEqual(response.status_code, 200)
 
-    def test_allocation_on_another_submission_does_not_transfer(self):
-        other = VaSubmissions(
-            va_sid=str(uuid.uuid4()),
-            va_form_id=self.FORM_ID,
-            va_data_collector="Test Collector",
-            va_consent="yes",
-            va_narration_language="English",
-            va_deceased_age=50,
-            va_deceased_gender="female",
-            va_uniqueid_masked="SA002",
-            va_summary=[],
-            va_catcount={},
-            va_category_list=[],
-        )
-        db.session.add(other)
-        db.session.flush()
-        storage_name = self._make_storage_name()
-        self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
-        self._allocate(self.base_coder_user, va_sid=other.va_sid)
-        self._login(str(self.base_coder_user.user_id))
-
-        response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 403)
-
     def test_legacy_deterministic_token_grants_nothing_on_its_own(self):
         # Legacy backfill tokens are uuid5(va_sid, filename): derivable from two
         # values a coder already sees. Possession must not equal authorization.
@@ -391,10 +408,11 @@ class ServeAttachmentTests(BaseTestCase):
         )
         db.session.add(row)
         db.session.flush()
-        self._login(str(self.base_coder_user.user_id))
 
-        response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 403)
+        # Present: someone in viewing scope gets it; absent: a coder outside
+        # scope who derived the same token does not.
+        self.assertEqual(self._served_to(self.base_coder_user, storage_name), 200)
+        self.assertEqual(self._served_to(self._coder_elsewhere(), storage_name), 403)
 
     def test_reviewer_with_form_access_is_served_read_only(self):
         reviewer = self._make_user(
@@ -428,10 +446,38 @@ class ServeAttachmentTests(BaseTestCase):
             "va_form_id": self.FORM_ID,
         }, timeout=60)
         self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
-        self._login(str(self.base_coder_user.user_id))
 
-        response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self._served_to(self._coder_elsewhere(), storage_name), 403)
+
+    def test_coding_tester_without_a_coder_grant_passes_the_role_gate(self):
+        # F12: coding_tester was missing from the route's role list.
+        tester = self._make_user(f"tester.{uuid.uuid4().hex[:6]}@test.local", "Tester123")
+        self._grant(tester, VaAccessRoles.coding_tester)
+        self.assertEqual(self._served_to(tester), 200)
+
+    def test_a_viewer_with_pii_in_scope_is_served(self):
+        viewer = self._make_user(f"viewer.pii.{uuid.uuid4().hex[:6]}@test.local", "Viewer123")
+        self._grant(viewer, VaAccessRoles.collaborator_pii)
+        self.assertEqual(self._served_to(viewer), 200)
+
+    def test_a_plain_viewer_in_scope_gets_no_attachment(self):
+        # Attachments carry personal data with no field flag; a plain viewer
+        # sees none, so a guessed filename must not fetch one.
+        viewer = self._make_user(f"viewer.plain.{uuid.uuid4().hex[:6]}@test.local", "Viewer123")
+        self._grant(viewer, VaAccessRoles.collaborator)
+        from app.services.authz import READ_ATTACHMENTS, can
+        self.assertTrue(can(viewer, READ_ATTACHMENTS, self.submission.va_sid))
+        self.assertEqual(self._served_to(viewer), 403)
+
+    def test_viewer_outside_scope_is_refused(self):
+        self._coder_elsewhere()  # seeds the other pair
+        viewer = self._make_user(f"viewer.else.{uuid.uuid4().hex[:6]}@test.local", "Viewer123")
+        self._grant(viewer, VaAccessRoles.collaborator_pii, "SAOTH1", "SAO1")
+        self.assertEqual(self._served_to(viewer), 403)
+
+    def test_project_pi_is_served(self):
+        # F8: the role gate admitted project_pi, the service had no branch.
+        self.assertEqual(self._served_to(self.base_project_pi_user), 200)
 
     # ------------------------------------------------------------------
     # Legacy /media route uses the same matrix and rejects unknown ownership
@@ -442,7 +488,7 @@ class ServeAttachmentTests(BaseTestCase):
         response = self.client.get(f"/vaform/media/{self.FORM_ID}/{uuid.uuid4().hex}.jpg")
         self.assertEqual(response.status_code, 404)
 
-    def test_legacy_media_route_refuses_unallocated_coder(self):
+    def test_legacy_media_route_follows_viewing_scope(self):
         filename = f"legacy_{uuid.uuid4().hex[:6]}.jpg"
         path = self._write_file(filename)
         db.session.add(VaSubmissionAttachments(
@@ -455,15 +501,22 @@ class ServeAttachmentTests(BaseTestCase):
             last_downloaded_at=datetime.now(timezone.utc),
         ))
         db.session.flush()
-        self._login(str(self.base_coder_user.user_id))
-
+        self._login(str(self._coder_elsewhere().user_id))
         response = self.client.get(f"/vaform/media/{self.FORM_ID}/{filename}")
         self.assertEqual(response.status_code, 403)
 
-        self._allocate(self.base_coder_user)
+        self._login(str(self.base_coder_user.user_id))
         response = self.client.get(f"/vaform/media/{self.FORM_ID}/{filename}")
         self.assertEqual(response.status_code, 200)
         self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+
+    def test_legacy_media_route_has_the_attachment_role_gate(self):
+        # F12: /media was login_required only. A user with no role never
+        # reaches the lookup.
+        nobody = self._make_user(f"nobody.{uuid.uuid4().hex[:6]}@test.local", "Nobody123")
+        self._login(str(nobody.user_id))
+        response = self.client.get(f"/vaform/media/{self.FORM_ID}/{uuid.uuid4().hex}.jpg")
+        self.assertEqual(response.status_code, 403)
 
     # ------------------------------------------------------------------
     # 10. Store-first delivery with Central self-heal (plan Phase 4a)

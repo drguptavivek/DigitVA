@@ -87,8 +87,16 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair
+    from flask_login import current_user
+    from app.services.authz import Action, can
 
-    if va_action in {"vacode", "vadata"}:
+    # A coding session repairs its payload before the coder works on it. A
+    # read-only opening repairs only for someone who may sync the submission,
+    # so a viewer never queues a repair job (digitva-0wc F3).
+    if va_action == "vacode" or (
+        va_action in {"vadata", "vaarea"}
+        and can(current_user, Action.SYNC_SUBMISSION, submission.va_sid)
+    ):
         try:
             cache_key = f"open-repair-queued:{submission.va_sid}:{va_action}"
             if not flask_cache.get(cache_key):

@@ -39,6 +39,7 @@
 <script>
 window.DM_DASHBOARD_CONFIG = {
   csrfToken: {{ csrf_token()|tojson }},
+  viewOnly: {{ (view_only or false)|tojson }},
   chartJsSrc: {{ (url_for('static', filename='vendor/chartjs/chart.umd.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
   tomSelectSrc: {{ (url_for('static', filename='vendor/tom-select/tom-select.complete.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
   mermaidSrc: {{ (url_for('static', filename='vendor/mermaid/mermaid.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }}

@@ -49,6 +49,7 @@ from app.models import (
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services import attachment_service, coding_search_telemetry_service
+from app.services.authz import Action, AuthzError, require
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -66,6 +67,7 @@ from app.services.cod_entry_mode import (
 )
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
+from app.services.data_management_service import CSV_EXPORT_OMIT_PAYLOAD_FIELDS
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
     is_demo_training_submission,
@@ -183,7 +185,9 @@ def _invalidate_section_data_cache(va_sid: str) -> None:
     _pd = _pv.payload_data if _pv else None
     visible = get_visible_category_codes(_pd, sub.va_form_id)
     for _partial in visible:
-        flask_cache.delete(_section_data_cache_key(va_sid, _partial))
+        _key = _section_data_cache_key(va_sid, _partial)
+        flask_cache.delete(_key)
+        flask_cache.delete(f"{_key}:nopii")
 
 
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
@@ -350,8 +354,16 @@ def _doris_initial(saved_certificate, submission, project_mode) -> tuple[dict, d
     facts, not SmartVA output, so masked Step 1 shows them too.
     """
     if saved_certificate is not None:
-        return copy.deepcopy(saved_certificate), {}
+        certificate = copy.deepcopy(saved_certificate)
+        if should_redact_pii(current_user) and isinstance(certificate, dict):
+            # AdministrativeData holds the deceased's Sex, DateBirth,
+            # DateDeath and age; a plain viewer keeps the cause chain only.
+            certificate.pop("AdministrativeData", None)
+        return certificate, {}
     if submission is None or not _is_doris(project_mode):
+        return {}, {}
+    if should_redact_pii(current_user):
+        # The prefill is the deceased's Sex, DateBirth, DateDeath and age.
         return {}, {}
     version = get_active_payload_version(submission.va_sid)
     return doris_prefill_from_payload(version.payload_data if version else None)
@@ -589,6 +601,58 @@ def _data_manager_reason_label(reason_code: str) -> str:
     return label_map.get(reason_code, reason_code)
 
 
+# Partials whose POST writes a coder-attributed record (Step 1, the final COD,
+# coder Not Codeable). Each also requires the coder's active allocation below.
+_CODING_WRITE_PARTIALS = frozenset({"vainitialasses", "vafinalasses", "vacoderreview"})
+
+# The read-only renderings (validator ``_validate_read_only``) and the
+# non-category partials they may load. Anything else under these actions,
+# including a future non-category partial, is refused: fail closed.
+_READ_ONLY_ACTIONS = frozenset({"vadata", "vaarea"})
+_READ_ONLY_EXTRA_PARTIALS = frozenset({"workflow_history", "vausernote"})
+
+
+def _require_partial_write(va_sid, va_partial, va_action, va_actiontype) -> None:
+    """Authorize a writing partial by its own write action.
+
+    The validator proves only the rendering the request names (``VIEW`` for
+    ``vadata`` and ``vaarea``), so a partial that writes asks authz for its
+    write action here: someone who may read a submission cannot triage, code,
+    review or annotate it through the shared endpoint. Read partials need
+    nothing more. Workflow checks (allocation, state) stay in each branch.
+    Design: .tasks/digitva-0wc-design.md section 2.4.
+
+    - ``vadmtriage``: TRIAGE, on GET as well, since the panel is the triage
+      form and its GET reconciles the workflow state.
+    - ``vainitialasses``, ``vafinalasses``, ``vacoderreview`` POST: CODE, or
+      RECODE for ``varecode``; admin demo coding is its own path, as in
+      ``_validate_vacode``.
+    - ``vareviewform`` POST: REVIEW.
+    - ``vausernote`` POST: a private note, saved only from the coding or
+      reviewing page that offers the panel, then VIEW.
+    """
+    if va_partial == "vadmtriage":
+        action = Action.TRIAGE
+    elif request.method != "POST":
+        return
+    elif va_partial in _CODING_WRITE_PARTIALS:
+        if va_actiontype == "vademo_start_coding" and current_user.is_admin():
+            return
+        action = Action.RECODE if va_actiontype == "varecode" else Action.CODE
+    elif va_partial == "vareviewform":
+        action = Action.REVIEW
+    elif va_partial == "vausernote":
+        if va_action not in {"vacode", "vareview"}:
+            va_permission_abortwithflash("Notes are saved from a coding or review session.", 403)
+        action = Action.VIEW
+    else:
+        return
+    try:
+        require(current_user, action, va_sid)
+    except AuthzError as e:
+        va_permission_abortwithflash(e.message, e.status_code)
+
+
 @va_form.route("/<va_sid>/<va_partial>", methods=["GET", "POST"])
 @login_required
 @va_validate_permissions()
@@ -607,6 +671,7 @@ def renderpartial(va_sid, va_partial):
     va_actiontype = request.values.get("actiontype", "")
     if va_partial == "vainitialasses" and not _is_masked(project_mode):
         va_partial = "vafinalasses"
+    _require_partial_write(va_sid, va_partial, va_action, va_actiontype)
     _active_version = get_active_payload_version(va_sid) if va_submission else None
     va_payload_data = _active_version.payload_data if _active_version else None
     _form_type_code = va_get_form_type_code_for_form(
@@ -653,10 +718,7 @@ def renderpartial(va_sid, va_partial):
             success_message = None
 
             if request.method == "POST":
-                # Defense-in-depth: the route is already guarded by @role_required("data_manager"),
-                # but vadmtriage POSTs arrive via the shared va_form endpoint, so we re-check here.
-                if not current_user.is_data_manager():
-                    abort(403)
+                # TRIAGE was required for this submission by _require_partial_write.
                 if submission_workflow not in DATA_MANAGER_TRIAGE_ALLOWED_STATES:
                     return render_template(
                         "va_formcategory_partials/category_data_manager_triage.html",
@@ -865,10 +927,16 @@ def renderpartial(va_sid, va_partial):
                     )
                     _render_payload_data = {}
                 else:
+                    # The confirmed PII set plus what the submissions export
+                    # omits for every role: staff identity (SubmitterName),
+                    # the instance identifiers and the narration image and
+                    # audio fields, whose tokens must not render for a plain
+                    # collaborator. Same rule as _filter_export_payload.
+                    _withheld_fields = _pii_status.field_ids | CSV_EXPORT_OMIT_PAYLOAD_FIELDS
                     _render_payload_data = {
                         field_id: value
                         for field_id, value in va_payload_data.items()
-                        if field_id not in _pii_status.field_ids
+                        if field_id not in _withheld_fields
                     }
             summary_items = build_submission_summary(
                 _form_type_code,
@@ -1116,6 +1184,10 @@ def renderpartial(va_sid, va_partial):
             **masked_reviewer_doris,
         ))
         return _apply_partial_cache_policy(response, va_partial, va_action)
+    if va_action in _READ_ONLY_ACTIONS and va_partial not in _READ_ONLY_EXTRA_PARTIALS:
+        # A read-only page has no coding forms: their GET renders the DORIS
+        # prefill and prior certificates from the raw payload (PII).
+        va_permission_abortwithflash("This view is read-only.", 403)
     if va_partial == "vareviewform":
         # Narrative Quality Assessment (NQA) — supporting artifact only.
         #
@@ -2068,8 +2140,16 @@ def renderpartial(va_sid, va_partial):
 
 
 
+# Everyone who may view a submission may receive its attachments; the
+# submission-level VIEW check is attachment_service's. Role names stay
+# literal so role_required's decoration-time validation can vouch for them.
+
+
 @va_form.route('/attachment/<path:storage_name_raw>')
-@role_required("coder", "reviewer", "data_manager", "site_pi", "project_pi", "admin")
+@role_required(
+    "coder", "coding_tester", "reviewer", "data_manager", "site_pi",
+    "project_pi", "collaborator", "collaborator_pii", "admin",
+)
 def serve_attachment(storage_name_raw):
     """Serve an attachment by opaque storage_name token.
 
@@ -2103,7 +2183,10 @@ def serve_attachment(storage_name_raw):
 
 
 @va_form.route('/media/<va_form_id>/<va_filename>')
-@login_required
+@role_required(
+    "coder", "coding_tester", "reviewer", "data_manager", "site_pi",
+    "project_pi", "collaborator", "collaborator_pii", "admin",
+)
 def serve_media(va_form_id, va_filename):
     # DEPRECATED: use /attachment/<storage_name> for new attachments.
     # Kept for backward compatibility during migration (storage_name IS NULL rows).

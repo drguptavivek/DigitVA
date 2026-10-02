@@ -114,6 +114,8 @@ class VaUsers(UserMixin, db.Model):
             return url_for("sitepi.dashboard")
         if self.is_interviewer():
             return url_for("intake.dashboard")
+        if self.is_viewer():
+            return url_for("data_management.dashboard")
         return url_for("va_main.va_index")
 
     @property

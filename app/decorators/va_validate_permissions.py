@@ -79,16 +79,25 @@ def _has_coding_role() -> bool:
     return current_user.is_coder() or current_user.is_coding_tester()
 
 
+def _require(action, sid: str) -> None:
+    """``authz.require``, refusing with a flash the way allocation errors do."""
+    from app.services.authz import AuthzError, require
+
+    try:
+        require(current_user, action, sid)
+    except AuthzError as e:
+        va_permission_abortwithflash(e.message, e.status_code)
+
+
 def _require_coding_scope(actiontype, sid: str | None) -> None:
     """One authz check for a coding action on one submission.
 
     VIEW for ``vaview``, RECODE for ``varecode``, CODE for the rest; no
     submission (the start / resume shells) means nothing to check yet.
-    Refusals flash the way allocation errors do.
     """
     if not sid:
         return
-    from app.services.authz import Action, AuthzError, require
+    from app.services.authz import Action
 
     if actiontype == "vaview":
         action = Action.VIEW
@@ -96,10 +105,7 @@ def _require_coding_scope(actiontype, sid: str | None) -> None:
         action = Action.RECODE
     else:
         action = Action.CODE
-    try:
-        require(current_user, action, sid)
-    except AuthzError as e:
-        va_permission_abortwithflash(e.message, e.status_code)
+    _require(action, sid)
 
 
 def _validate_vacode(actiontype, sid, partial):
@@ -274,36 +280,26 @@ def _validate_vasitepi(actiontype, sid, partial):
         va_permission_abortwithflash("Unknown SitePI dashboard action requested.", 404)
 
 
-def _validate_vadata(actiontype, sid, partial):
-    from app.models import VaForms
+def _validate_read_only(actiontype, sid, partial):
+    """``vadata`` (the data-manager rendering) and ``vaarea`` (the area and
+    viewer rendering): opening the submission read-only needs ``VIEW``.
 
-    form = db.session.execute(
-        sa.select(
-            VaSubmissions.va_form_id,
-            VaSubmissions.org_unit_id,
-            VaForms.project_id,
-            VaForms.site_id,
-        )
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .where(VaSubmissions.va_sid == sid)
-    ).mappings().first()
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not current_user.has_data_manager_submission_access(
-        form["project_id"], form["site_id"], form["org_unit_id"]
-    ):
-        va_permission_abortwithflash(
-            "You do not have data-manager access to this submission.", 403
-        )
+    Read partials need nothing more. The one write partial these renderings
+    reach, the data-manager triage panel, requires ``TRIAGE`` in its own
+    handler (``va_form._require_partial_write``), so widening the read to
+    every viewer does not widen the write. Design: digitva-0wc section 2.4.
+    """
+    from app.services.authz import Action
+
+    _require(Action.VIEW, sid)
     if actiontype != "vaview":
-        va_permission_abortwithflash(
-            "Unknown data-manager action requested.", 404
-        )
+        va_permission_abortwithflash("Unknown read-only action requested.", 404)
 
 
 _ACTION_VALIDATORS = {
     "vacode": _validate_vacode,
     "vareview": _validate_vareview,
     "vasitepi": _validate_vasitepi,
-    "vadata": _validate_vadata,
+    "vadata": _validate_read_only,
+    "vaarea": _validate_read_only,
 }

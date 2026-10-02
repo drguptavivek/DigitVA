@@ -16,8 +16,6 @@ import sqlalchemy as sa
 
 from app import db, cache as flask_cache
 from app.models import (
-    VaAllocation,
-    VaAllocations,
     VaForms,
     VaResearchProjects,
     VaSites,
@@ -30,102 +28,64 @@ from tests.base import BaseTestCase
 
 
 def _fake_user(**overrides):
-    """Minimal VaUsers stand-in for exercising the role matrix without a DB."""
-    base = dict(
-        user_id=uuid.uuid4(),
-        permission={},
-        is_admin=lambda: False,
-        is_site_pi=lambda form=None: False,
-        is_reviewer=lambda form=None: False,
-        is_coder=lambda form=None: False,
-        is_coding_tester=lambda form=None: False,
-    )
+    """Minimal VaUsers stand-in: the matrix asks authz, then the legacy dict."""
+    base = dict(user_id=uuid.uuid4(), permission={})
     base.update(overrides)
     return SimpleNamespace(**base)
 
 
 class AuthorizationMatrixTests(TestCase):
+    """Attachments follow VIEW (digitva-0wc stage 2, F12); who holds VIEW is
+    the authz matrix's (tests/authz) and the route tests'."""
+
     FORM = "FORM01"
     SID = "sid-1"
 
-    def _allowed(
-        self, user, holds=False, dm_reaches=False, in_unit=True,
-        in_view_scope=True, tester_covers=False,
-    ):
-        with patch.object(svc, "_user_holds_submission", return_value=holds), patch.object(
-            svc, "_data_manager_reaches", return_value=dm_reaches
-        ), patch.object(svc, "submission_within_org_scope", return_value=in_unit), patch.object(
-            svc, "submission_within_org_view_scope", return_value=in_view_scope
-        ), patch(
-            "app.services.coder_workflow_service.tester_covers_submission",
-            return_value=tester_covers,
+    def _allowed(self, user, view=False, redacts=False):
+        with patch("app.services.authz.can", return_value=view) as can, patch(
+            "app.services.authz.redacts_pii", return_value=redacts
         ):
-            return svc.can_access_submission_attachment(
+            allowed = svc.can_access_submission_attachment(
                 user, va_form_id=self.FORM, va_sid=self.SID
             )
+        return allowed, can
 
     def test_unresolved_ownership_is_denied_for_everyone(self):
-        admin = _fake_user(is_admin=lambda: True)
+        admin = _fake_user()
         self.assertFalse(svc.can_access_submission_attachment(admin, va_form_id=self.FORM, va_sid=""))
         self.assertFalse(svc.can_access_submission_attachment(admin, va_form_id="", va_sid=self.SID))
 
-    def test_admin_allowed(self):
-        self.assertTrue(self._allowed(_fake_user(is_admin=lambda: True)))
+    def test_view_scope_decides(self):
+        from app.services.authz import READ_ATTACHMENTS
 
-    def test_data_manager_scope_allowed(self):
-        # Decided per submission (a unit grant reaches its subtree only), not
-        # per form: see _data_manager_reaches.
-        self.assertTrue(self._allowed(_fake_user(), dm_reaches=True))
-        self.assertFalse(self._allowed(_fake_user(), dm_reaches=False))
+        user = _fake_user()
+        allowed, can = self._allowed(user, view=True)
+        self.assertTrue(allowed)
+        can.assert_called_once_with(user, READ_ATTACHMENTS, self.SID)
+        self.assertFalse(self._allowed(user, view=False)[0])
 
-    def test_site_pi_scope_allowed(self):
-        self.assertTrue(self._allowed(_fake_user(is_site_pi=lambda form=None: form == self.FORM)))
-
-    def test_reviewer_form_scope_allowed_without_allocation(self):
-        user = _fake_user(is_reviewer=lambda form=None: form == self.FORM)
-        self.assertTrue(self._allowed(user, holds=False))
-
-    def test_reviewer_outside_the_submissions_unit_denied(self):
-        # A form spans several units; the submission's own unit decides.
-        user = _fake_user(is_reviewer=lambda form=None: form == self.FORM)
-        self.assertFalse(self._allowed(user, holds=False, in_unit=False))
-
-    def test_coder_requires_submission_entitlement(self):
-        user = _fake_user(is_coder=lambda form=None: form == self.FORM)
-        self.assertFalse(self._allowed(user, holds=False))
-        self.assertTrue(self._allowed(user, holds=True))
-
-    def test_coding_tester_requires_submission_entitlement(self):
-        user = _fake_user(is_coding_tester=lambda form=None: form == self.FORM)
-        self.assertFalse(self._allowed(user, holds=False))
-        self.assertTrue(self._allowed(user, holds=True))
-
-    def test_coder_holding_a_submission_outside_their_unit_denied(self):
-        # digitva-ck9: the old allocation survives re-routing; the unit check does not.
-        user = _fake_user(is_coder=lambda form=None: form == self.FORM)
-        self.assertFalse(self._allowed(user, holds=True, in_view_scope=False))
-
-    def test_coding_tester_covering_the_submission_skips_the_coder_unit_check(self):
-        user = _fake_user(is_coding_tester=lambda form=None: form == self.FORM)
-        self.assertTrue(self._allowed(user, holds=True, in_view_scope=False, tester_covers=True))
-        self.assertFalse(self._allowed(user, holds=True, in_view_scope=False, tester_covers=False))
-
-    def test_coder_on_other_form_denied(self):
-        user = _fake_user(is_coder=lambda form=None: form == "OTHER")
-        self.assertFalse(self._allowed(user, holds=True))
+    def test_a_redacting_viewer_in_view_scope_is_denied(self):
+        # Attachments carry personal data with no field flag; a plain viewer
+        # sees none of it.
+        self.assertFalse(self._allowed(_fake_user(), view=True, redacts=True)[0])
 
     def test_legacy_non_scoped_permission_dict_allowed(self):
         user = _fake_user(permission={"collab": [self.FORM]})
-        self.assertTrue(self._allowed(user))
+        self.assertTrue(self._allowed(user)[0])
+
+    def test_legacy_permission_dict_denies_a_redacting_viewer(self):
+        user = _fake_user(permission={"collab": [self.FORM]})
+        # Present: the same legacy entry allows a viewer who is not redacted.
+        self.assertTrue(self._allowed(user, redacts=False)[0])
+        self.assertFalse(self._allowed(user, redacts=True)[0])
+
+    def test_legacy_permission_dict_for_another_form_denied(self):
+        user = _fake_user(permission={"collab": ["OTHER"]})
+        self.assertFalse(self._allowed(user)[0])
 
     def test_legacy_scoped_permission_dict_keys_ignored(self):
         user = _fake_user(permission={"coder": [self.FORM], "reviewer": [self.FORM], "sitepi": [self.FORM]})
-        self.assertFalse(self._allowed(user, holds=True))
-
-    def test_project_pi_without_other_scope_denied(self):
-        # No project-PI submission view exists; the matrix does not add one.
-        user = _fake_user(get_project_pi_projects=lambda: {"P1"})
-        self.assertFalse(self._allowed(user))
+        self.assertFalse(self._allowed(user)[0])
 
 
 class LocalPresenceTests(TestCase):
@@ -331,19 +291,6 @@ class AttachmentServiceDbTests(BaseTestCase):
         self.assertEqual(svc.resolve_attachment_record(name).local_path, "/x/y.jpg")
         svc.invalidate_attachment_record(name)
         self.assertIsNone(flask_cache.get(f"att:{name}"))
-
-    def test_user_holds_submission_via_allocation(self):
-        sub = self._submission()
-        self.assertFalse(svc._user_holds_submission(self.base_coder_user.user_id, sub.va_sid))
-        db.session.add(VaAllocations(
-            va_sid=sub.va_sid,
-            va_allocated_to=self.base_coder_user.user_id,
-            va_allocation_for=VaAllocation.coding,
-            va_allocation_status=VaStatuses.active,
-        ))
-        db.session.flush()
-        self.assertTrue(svc._user_holds_submission(self.base_coder_user.user_id, sub.va_sid))
-        self.assertFalse(svc._user_holds_submission(self.base_admin_user.user_id, sub.va_sid))
 
     def test_present_files_by_submission_is_bulk_and_disk_backed(self):
         sub_present = self._submission()

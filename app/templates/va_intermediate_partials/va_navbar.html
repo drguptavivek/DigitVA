@@ -82,6 +82,13 @@
         Data Manager
       </a>
     </li>
+  {% elif current_user.is_authenticated and current_user.is_viewer() %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('data_management.dashboard') }}">
+        <i class="fa-solid fa-folder-open me-1"></i>
+        Data
+      </a>
+    </li>
   {% endif %}
 
   {% if current_user.is_authenticated and current_user.is_data_manager() %}

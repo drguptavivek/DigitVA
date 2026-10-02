@@ -2,6 +2,7 @@
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -250,7 +251,10 @@ class TestDorisInitialCertificate(unittest.TestCase):
         from app.routes.va_form import _doris_initial
 
         saved = {"ICDVersion": "ICD11", "AdministrativeData": {"Sex": 2}}
-        certificate, provenance = _doris_initial(saved, None, "masked_doris")
+        # A coder, entitled to personal data (a redacting viewer's copy
+        # drops AdministrativeData: test_va_form_pii_redaction).
+        with patch("app.routes.va_form.should_redact_pii", return_value=False):
+            certificate, provenance = _doris_initial(saved, None, "masked_doris")
         self.assertEqual(certificate, saved)
         self.assertIsNot(certificate, saved)
         self.assertEqual(provenance, {})

@@ -331,6 +331,9 @@ def dashboard():
         smartva_missing_submissions=kpi["smartva_missing_submissions"],
         # Whole-form sync needs a project or site grant (dm_form_in_scope).
         can_sync_forms=current_user.has_direct_data_manager_scope(),
+        # A viewer's row link opens the read-only area view; the data-manager
+        # view, ODK edit and upstream-change actions are not theirs.
+        view_only=not (current_user.is_admin() or current_user.is_data_manager()),
     )
 
 

@@ -18,7 +18,7 @@
     <div>
       {% if back_dashboard_role == 'reviewer' %}
         {% set _back_url = url_for('reviewing.dashboard') %}
-      {% elif back_dashboard_role == 'data_manager' %}
+      {% elif back_dashboard_role in ('data_manager', 'viewer') %}
         {% set _back_url = url_for('data_management.dashboard') %}
       {% else %}
         {% set _back_url = url_for('coding.dashboard') %}
@@ -41,6 +41,12 @@
       If Reviewer COD is not submitted within <b>1 hour</b>, this assignment is released, saved NQA/SA entries are reverted,
       and the form returns to the reviewer pool.
     </li>
+  </ol>
+  {% elif va_action == "vaarea" %}
+  <p><b>Verbal Autopsy Submission (read-only)</b></p>
+  <ol class="mb-0">
+    <li>This submission is open in read-only mode; nothing on this page changes it.</li>
+    <li>Use the category list to move between sections of the interview.</li>
   </ol>
   {% elif va_action == "vadata" %}
   <p><b>Verbal Autopsy Data Manager Review</b></p>

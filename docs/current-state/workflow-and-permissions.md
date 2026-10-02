@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Workflow And Permissions
@@ -698,8 +698,38 @@ Grant scope is resolved back to forms and submissions as follows:
 Policy: `docs/policy/access-control-model.md`, `collaborator` and
 `collaborator_pii`, and "Redaction rules for viewer-reachable surfaces". The
 owner decision of 2026-10-02 that viewers may open a single submission
-read-only (`digitva-0wc`) is not built yet; the list below is what runs
-today.
+read-only is built by `digitva-0wc` stage 2 (next subsection).
+
+#### Opening one submission read-only (digitva-0wc stage 2)
+
+- `GET /coding/area/<va_sid>` admits `collaborator` and `collaborator_pii`
+  besides coder, coding tester, reviewer and admin, and requires
+  `authz.require(user, VIEW, va_sid)`. It renders action `vaarea`: the data
+  manager's categories (`show_to_site_pi_datamanager`) with no workflow
+  panel and no triage panel, read-only hints, and a back-link to the
+  dashboard the user can open (`data_management.dashboard` for a viewer).
+  The data-management grid links a viewer's rows there (`viewOnly` in
+  `DM_DASHBOARD_CONFIG`) and shows no Edit or View Changes button; the
+  navbar shows a "Data" entry and `VaUsers.landing_url` lands a viewer on
+  the dashboard.
+- The `vadata` and `vaarea` partial validators require `VIEW`. Every write
+  partial in `va_form.renderpartial` requires its own action in
+  `_require_partial_write`: `vadmtriage` TRIAGE (GET and POST), Step 1,
+  final COD and coder Not Codeable CODE (RECODE for `varecode`),
+  `vareviewform` REVIEW, `vausernote` only from a coding or reviewing
+  session.
+- Redaction: for a viewer `should_redact_pii` decides, the section render
+  strips the confirmed PII set plus `CSV_EXPORT_OMIT_PAYLOAD_FIELDS`
+  (`SubmitterName`, instance identifiers, narration images and audio), and
+  an unconfirmed PII set withholds the whole payload. `collaborator_pii`
+  sees everything.
+- Attachments (both routes) and `GET /api/v1/workflow/events/<va_sid>`
+  follow `VIEW`, the legacy `permission` dict as a fall-through until
+  stage 7.
+- Opening `vadata` or `vaarea` queues the open-submission repair only for a
+  user with `SYNC_SUBMISSION`; a coding session (`vacode`) still queues it.
+
+The list below is the data-management reach, unchanged by stage 2.
 
 #### Viewer routes (wired 2026-09-19)
 
@@ -720,10 +750,9 @@ Deliberately **not** widened, and still `data_manager`/`admin` only:
 - every POST/PUT/DELETE in `app/routes/data_management.py` and
   `app/routes/api/data_management.py` (sync, screening, upstream-change
   resolution, org-unit correction, user and grant management) — writes
-- `GET /data-management/view/<va_sid>` (submission detail) — renders the
-  ~1300-line `renderpartial` route in `app/routes/va_form.py`, which is not
-  yet redaction-safe for a viewer (see `.tasks/viewer-pii-roles.md`, "Two
-  surfaces still unredacted"); wiring it needs its own change
+- `GET /data-management/view/<va_sid>` (submission detail) — the data
+  manager's rendering with the triage panel and upstream-change actions;
+  viewers open the same submission through `/coding/area/<va_sid>` instead
 - `GET /data-management/cod-buckets` (COD bucket reporting) — the page is
   only a shell; every value on it is fetched from
   `app/routes/api/cod_buckets.py` (`/schemes`, `/aggregates`,

@@ -211,6 +211,59 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         response = self.client.get("/data-management/")
 
         self.assertEqual(response.status_code, 200)
+        # digitva-0wc stage 2: the grid's row link opens the read-only area
+        # view for a viewer, and the navbar offers the data page.
+        body = response.get_data(as_text=True)
+        self.assertIn("viewOnly: true", body)
+        self.assertIn('href="/data-management/"', body)
+
+    def test_data_manager_grid_is_not_view_only(self):
+        self._create_analytics_mvs("vca_dashdm")
+        user = self._get_or_make_user("vca.dm.dash@test.local", "VcaDmDash123")
+        project_site_id = db.session.scalar(
+            sa.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == self.PROJECT,
+                VaProjectSites.site_id == self.SITE,
+            )
+        )
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=project_site_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._login(str(user.user_id))
+
+        response = self.client.get("/data-management/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("viewOnly: false", response.get_data(as_text=True))
+
+    def test_viewer_lands_on_the_data_page(self):
+        user = self._make_viewer(
+            VaAccessRoles.collaborator, "vca.collab.landing@test.local", "VcaCollabLanding123"
+        )
+        with self.app.test_request_context():
+            self.assertEqual(user.landing_url(), "/data-management/")
+
+    def test_viewers_open_one_submission_read_only(self):
+        """Owner decision (access-control-model.md "collaborator"): a viewer
+        opens a single submission read-only within scope, through the area
+        rendering. The data-manager view below stays refused."""
+        for role, key in (
+            (VaAccessRoles.collaborator, "collab"),
+            (VaAccessRoles.collaborator_pii, "collabpii"),
+        ):
+            with self.subTest(role=role.value):
+                user = self._make_viewer(
+                    role, f"vca.{key}.areaview@test.local", "VcaCollabAreaView123"
+                )
+                self._login(str(user.user_id))
+                response = self.client.get(f"/coding/area/{self.SID}")
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("read-only mode", response.get_data(as_text=True))
 
     def test_collaborator_pii_reaches_dashboard_page(self):
         self._create_analytics_mvs("vca_dashpii")
@@ -507,9 +560,9 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_collaborator_refused_on_submission_detail_view(self):
-        """Deliberately not widened: view_submission renders the ~1300-line
-        renderpartial route, which is not yet redaction-safe for a viewer
-        (.tasks/viewer-pii-roles.md, "Two surfaces still unredacted")."""
+        """The data-manager view stays data-manager only: it carries the
+        triage panel and upstream-change actions. Viewers open the same
+        submission through /coding/area/<sid> (digitva-0wc stage 2)."""
         user = self._make_viewer(
             VaAccessRoles.collaborator, "vca.collab.viewsub@test.local", "VcaCollabViewSub123"
         )

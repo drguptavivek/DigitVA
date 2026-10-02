@@ -46,7 +46,7 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
+from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_sync", __name__)
 log = logging.getLogger(__name__)
@@ -158,8 +158,8 @@ def sync_latency():
     Time frames: Today, 7d.
     Source: va_submissions JOIN va_forms scoped by site_id.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"p50": None, "p90": None, "p99": None, "count": 0})
 
     range_param = request.args.get("range", "7d")
@@ -187,13 +187,13 @@ def sync_latency():
                     ) AS p99
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND s.va_created_at >= :cutoff
                   AND s.va_submission_date IS NOT NULL
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
         ).mappings().first()
 
         def _fmt(val):
@@ -232,8 +232,8 @@ def attachment_health():
       Rate: N / D × 100.
       Time frame: Snapshot.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"c14": {}, "d_sh_01": {}})
 
     def compute():
@@ -247,7 +247,7 @@ def attachment_health():
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state IS NOT NULL
@@ -266,7 +266,7 @@ def attachment_health():
                     COUNT(*) FILTER (WHERE att_count = 0) AS missing
                 FROM with_attachments
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         total_c14 = c14["total"] or 0

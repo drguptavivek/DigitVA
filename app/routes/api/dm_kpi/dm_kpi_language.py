@@ -30,7 +30,7 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids, dm_project_site_pairs
+from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_project_site_pairs, dm_scope
 
 bp = Blueprint("dm_kpi_language", __name__)
 log = logging.getLogger(__name__)
@@ -68,8 +68,8 @@ def language_gap():
     Returns: Per-language table with pending count, coders available,
     gap flag (bool), predicted days to clear.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"languages": [], "gap_languages": [], "bottleneck": None})
 
     def compute():
@@ -80,7 +80,7 @@ def language_gap():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
@@ -89,13 +89,17 @@ def language_gap():
                 GROUP BY s.va_narration_language
                 ORDER BY pending_count DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         # Step 2: Coders per language (DM-scoped)
-        # Resolve project_ids from DM's site_ids
+        # Coder grants are project-keyed; a unit grant's project counts here
+        # because this returns counts per language, never who the coders are.
         pairs = dm_project_site_pairs()
-        project_ids = sorted({pid for pid, _sid in pairs})
+        project_ids = sorted(
+            {pid for pid, _sid in pairs}
+            | current_user.get_org_unit_projects("data_manager")
+        )
 
         coders_by_lang = db.session.execute(
             sa.text("""
@@ -124,7 +128,7 @@ def language_gap():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
@@ -132,7 +136,7 @@ def language_gap():
                   AND s.va_narration_language IS NOT NULL
                 GROUP BY s.va_narration_language
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
         ).mappings().all()
 
         rate_map = {r["va_narration_language"]: round(float(r["daily_rate"]), 1) for r in daily_rate_by_lang}
@@ -189,8 +193,8 @@ def language_distribution():
     Also reports: Trend over time (monthly).
     Source: va_submissions JOIN va_forms.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"distribution": [], "monthly": []})
 
     def compute():
@@ -201,7 +205,7 @@ def language_distribution():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND s.va_narration_language IS NOT NULL
@@ -210,7 +214,7 @@ def language_distribution():
                 GROUP BY s.va_narration_language
                 ORDER BY count DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         # Monthly trend
@@ -223,7 +227,7 @@ def language_distribution():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND s.va_narration_language IS NOT NULL
@@ -232,7 +236,7 @@ def language_distribution():
                 GROUP BY TO_CHAR(s.va_created_at, 'YYYY-MM'), s.va_narration_language
                 ORDER BY month DESC, count DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         return {
@@ -268,8 +272,8 @@ def language_missing():
     Source: va_submissions JOIN va_forms.
     Actionable: These forms cannot be language-matched to coders.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"missing_count": 0, "unmapped_count": 0, "total_coding_pool": 0, "rate": 0.0})
 
     def compute():
@@ -280,12 +284,12 @@ def language_missing():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         # Missing (NULL or empty)
@@ -295,13 +299,13 @@ def language_missing():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         # Unmapped (not in map_language_aliases)
@@ -314,7 +318,7 @@ def language_missing():
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
@@ -324,7 +328,7 @@ def language_missing():
                           SELECT alias FROM map_language_aliases
                       )
                 """),
-                {**IN_ODK_BIND, "site_ids": site_ids},
+                {**IN_ODK_BIND, **scope.params},
             ).scalar() or 0
         except Exception:
             log.warning("map_language_aliases table not found; skipping unmapped check")

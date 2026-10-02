@@ -17,6 +17,12 @@ Design notes:
   If not set, the endpoint returns burndown_available=false but still
   provides predicted_days and mean_daily_rate.
 
+  The aggregates are site-keyed and cover the direct sites only. For a DM
+  with unit-scope grants, the coded figures read from them (C-16 rate, C-18
+  achieved line) add the unit part live, restricted to submissions outside
+  the direct sites, so no submission is counted twice. Without aggregates
+  the live queries cover the whole scope in one WHERE.
+
 Submissions retired from ODK are excluded from every count, list,
 grouping and average below (docs/policy/odk-retired-submissions.md).
 """
@@ -35,9 +41,10 @@ from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    DmScope,
     cached_kpi,
     dm_project_site_pairs,
-    dm_site_ids,
+    dm_scope,
 )
 
 bp = Blueprint("dm_kpi_burndown", __name__)
@@ -93,8 +100,8 @@ def burndown():
                   behind schedule.
       Time frame: Daily series from project start to target date.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({
             "mean_daily_rate": 0,
             "predicted_days": None,
@@ -117,7 +124,7 @@ def burndown():
                 WHERE site_id = ANY(:site_ids)
                   AND snapshot_date >= :from_date
             """),
-            {"site_ids": site_ids, "from_date": date.today() - timedelta(days=7)},
+            {"site_ids": scope.site_ids, "from_date": date.today() - timedelta(days=7)},
         ).mappings().first()
 
         has_aggregates = agg_row and (agg_row["days_with_data"] or 0) > 0
@@ -125,23 +132,15 @@ def burndown():
         if has_aggregates:
             total_coded_7d = agg_row["total_coded"] or 0
             days_with_data = agg_row["days_with_data"] or 1
+            if scope.unit_ids:
+                # Unit part outside the direct sites, live.
+                total_coded_7d += _coded_since(
+                    scope.unit_only_sql(), scope.params, seven_days_ago
+                )
             mean_daily_rate = round(total_coded_7d / 7.0, 1)
         else:
             # Live fallback
-            total_coded_7d = db.session.execute(
-                sa.text(f"""
-                    SELECT COUNT(*) AS cnt
-                    FROM va_submission_workflow_events e
-                    JOIN va_submissions s ON s.va_sid = e.va_sid
-                    JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
-                      AND {_IN_ODK_SQL}
-                      AND {_NOT_DUPLICATE_SQL}
-                      AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-                      AND e.event_created_at >= :cutoff
-                """),
-                {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
-            ).scalar() or 0
+            total_coded_7d = _coded_since(scope.sql(), scope.params, seven_days_ago)
             mean_daily_rate = round(total_coded_7d / 7.0, 1)
 
         # --- C-17: Pending count for prediction ---
@@ -151,7 +150,7 @@ def burndown():
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state IN (
@@ -159,7 +158,7 @@ def burndown():
                       'smartva_pending', 'screening_pending', 'attachment_sync_pending'
                   )
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         predicted_days = None
@@ -180,7 +179,7 @@ def burndown():
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_users u ON u.user_id = e.actor_user_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
@@ -189,7 +188,7 @@ def burndown():
                 GROUP BY e.actor_user_id, u.name
                 ORDER BY coded_7d DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
         ).mappings().all()
 
         # Per-language rate
@@ -202,7 +201,7 @@ def burndown():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
@@ -211,13 +210,17 @@ def burndown():
                 GROUP BY s.va_narration_language
                 ORDER BY coded_7d DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
         ).mappings().all()
 
         # --- C-18: Burndown ---
         # Check if any project has a target completion date
+        # Project metadata only: a unit grant's own project supplies its target.
         pairs = dm_project_site_pairs()
-        project_ids = sorted({pid for pid, _sid in pairs})
+        project_ids = sorted(
+            {pid for pid, _sid in pairs}
+            | current_user.get_org_unit_projects("data_manager")
+        )
 
         target_date = None
         if project_ids:
@@ -249,11 +252,11 @@ def burndown():
                     SELECT COUNT(*) AS cnt
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                 """),
-                {**IN_ODK_BIND, "site_ids": site_ids},
+                {**IN_ODK_BIND, **scope.params},
             ).scalar() or 0
 
             # First submission date
@@ -262,11 +265,11 @@ def burndown():
                     SELECT MIN(DATE(va_created_at)) AS d
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                 """),
-                {**IN_ODK_BIND, "site_ids": site_ids},
+                {**IN_ODK_BIND, **scope.params},
             ).scalar()
 
             if first_date and total_forms > 0:
@@ -285,7 +288,9 @@ def burndown():
                     current += timedelta(days=1)
 
                 # Achieved line from aggregates
-                if has_aggregates:
+                if scope.unit_ids:
+                    achieved = _achieved_with_units(scope, has_aggregates, total_forms)
+                elif has_aggregates:
                     agg_rows = db.session.execute(
                         sa.text("""
                             SELECT
@@ -302,7 +307,7 @@ def burndown():
                             ) sub
                             ORDER BY snapshot_date
                         """),
-                        {"site_ids": site_ids},
+                        {"site_ids": scope.site_ids},
                     ).mappings().all()
 
                     for r in agg_rows:
@@ -342,3 +347,73 @@ def burndown():
         }
 
     return jsonify(cached_kpi("burndown", compute))
+
+
+def _coded_since(scope_sql: str, scope_params: dict, cutoff: datetime) -> int:
+    """Live count of coder_finalized / recode_finalized events since *cutoff*."""
+    return db.session.execute(
+        sa.text(f"""
+            SELECT COUNT(*) AS cnt
+            FROM va_submission_workflow_events e
+            JOIN va_submissions s ON s.va_sid = e.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            WHERE {scope_sql}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+              AND e.transition_id IN ('coder_finalized', 'recode_finalized')
+              AND e.event_created_at >= :cutoff
+        """),
+        {**IN_ODK_BIND, **scope_params, "cutoff": cutoff},
+    ).scalar() or 0
+
+
+def _achieved_with_units(scope: DmScope, has_aggregates: bool, total_forms: int) -> list[dict]:
+    """C-18 achieved line for a DM holding unit-scope grants.
+
+    Daily coded counts come from the aggregates for the direct sites (when
+    they exist) plus live events for the rest: the unit part outside the
+    direct sites, or the whole scope when there are no aggregates. The two
+    parts are disjoint, so the cumulative line counts each event once.
+    """
+    daily: dict[date, int] = {}
+    if has_aggregates:
+        rows = db.session.execute(
+            sa.text("""
+                SELECT snapshot_date AS d, SUM(coded_count) AS cnt
+                FROM va_daily_kpi_aggregates
+                WHERE site_id = ANY(:site_ids)
+                GROUP BY snapshot_date
+            """),
+            {"site_ids": scope.site_ids},
+        ).mappings().all()
+        for r in rows:
+            daily[r["d"]] = daily.get(r["d"], 0) + (r["cnt"] or 0)
+
+    live_sql = scope.unit_only_sql() if has_aggregates else scope.sql()
+    rows = db.session.execute(
+        sa.text(f"""
+            SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt
+            FROM va_submission_workflow_events e
+            JOIN va_submissions s ON s.va_sid = e.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            WHERE {live_sql}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+              AND e.transition_id IN ('coder_finalized', 'recode_finalized')
+            GROUP BY DATE(e.event_created_at)
+        """),
+        {**IN_ODK_BIND, **scope.params},
+    ).mappings().all()
+    for r in rows:
+        daily[r["d"]] = daily.get(r["d"], 0) + r["cnt"]
+
+    achieved = []
+    cumulative = 0
+    for d in sorted(daily):
+        cumulative += daily[d]
+        achieved.append({
+            "date": str(d),
+            "cumulative_coded": cumulative,
+            "remaining_achieved": max(total_forms - cumulative, 0),
+        })
+    return achieved

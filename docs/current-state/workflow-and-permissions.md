@@ -674,10 +674,11 @@ For example:
   `dm_submission_org_unit_condition`), the MV-backed KPI cards and
   `/api/v1/analytics/*` (`_mv_scope_filter(scope_unit_ids=...)`), COD bucket
   reports, the unrouted queue, sync and per-submission actions
-  (`has_data_manager_submission_access(..., org_unit_id)`). Two limits: the
-  `/api/v1/analytics/dm-kpi/*` panels are site-keyed and leave unit grants
-  out (fail closed), and a unit data manager pins a submission only to a unit
-  inside their subtree
+  (`has_data_manager_submission_access(..., org_unit_id)`), and the
+  `/api/v1/analytics/dm-kpi/*` panels (`dm_kpi_scope.DmScope`: direct site
+  OR submission unit in the subtree; site-keyed aggregates plus a live unit
+  part outside the direct sites). One limit: a unit data manager pins a
+  submission only to a unit inside their subtree
 - the narrowing is applied in the shared availability filter
   (`coder_workflow_service._org_unit_scope_filter`, used by the pick list,
   random allocation and the dashboard counts) **and** per submission when one

@@ -1,27 +1,38 @@
 """Shared DM scope helpers for KPI endpoints.
 
-All KPI endpoints use these to resolve the current data-manager's visible
-site_ids and build scoped sub-queries.  The key design decision:
+All KPI endpoints use these to resolve the current data-manager's scope and
+build scoped sub-queries.  The key design decisions:
 
 - **Site-project attribution uses current `va_project_sites` active membership**,
   not the frozen `va_forms.project_id`.
-- **DM scoping uses `site_id` resolved from current `va_project_sites`**.
+- **Direct DM scoping uses `site_id` resolved from current `va_project_sites`**.
   The `project_id` column in `va_daily_kpi_aggregates` is audit data,
   not the access gate.
 - A DM sees **all rows for their currently-owned site_ids**, regardless of
   which project owned those sites historically.
-- **Unit-scope data_manager grants are left out, deliberately (fail closed).**
-  Every figure here is keyed by site (``va_daily_kpi_aggregates`` has no unit
-  column, and the live queries filter ``f.site_id``), and a unit grant covers
-  part of a site. Resolving it to its site would show the DM other districts'
-  work. Until these queries gain a unit grain (digitva-djd stage 2 report), a
-  unit-only DM sees an empty KPI panel here; the MV-backed dashboard cards and
-  ``/api/v1/analytics/*`` already count their subtree.
+- **Unit-scope data_manager grants count their subtree, per submission.** A
+  unit grant covers part of a site, so it is never resolved to a site: a live
+  query passes a row when its form's site is in the direct scope OR the
+  submission's ``org_unit_id`` is in the DM's unit subtree
+  (``DmScope.sql``). Each row is tested once in one WHERE, so a submission
+  both in a direct site and in the subtree is counted once.
+- **Aggregate panels** (daily grid, burndown, backlog trend) read the
+  site-keyed ``va_daily_kpi_aggregates`` for the direct sites only, and add
+  the unit part live from the raw tables with ``DmScope.unit_only_sql``
+  (in the subtree AND not in a direct site), so the two parts are disjoint
+  and nothing is double-counted. A DM without unit grants gets exactly the
+  queries it got before unit grants existed.
+- Coder counts keyed by coder grant project (utilization denominator, coders
+  per language) include a unit grant's project; they are counts only. The
+  coder roster names coders, so it stays on the direct projects: a unit grant
+  never resolves to its whole project (docs/policy/access-control-model.md).
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from dataclasses import dataclass
 
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
@@ -77,13 +88,85 @@ def dm_project_site_pairs() -> set[tuple[str, str]]:
     return pairs
 
 
+@dataclass(frozen=True)
+class DmScope:
+    """The current DM's KPI scope: direct site_ids plus a unit subtree.
+
+    ``unit_ids`` are string UUIDs of every active unit under the DM's
+    unit-scope data_manager grants; they are bound as an array parameter and
+    cast to ``uuid[]`` in SQL, never interpolated.
+    """
+
+    site_ids: list[str]
+    unit_ids: list[str]
+
+    def __bool__(self) -> bool:
+        return bool(self.site_ids or self.unit_ids)
+
+    def sql(self, form: str = "f", sub: str = "s") -> str:
+        """WHERE fragment for live queries joining va_forms *form* and va_submissions *sub*.
+
+        Without unit grants this is exactly the pre-unit site filter.
+        """
+        if not self.unit_ids:
+            return f"{form}.site_id = ANY(:site_ids)"
+        return (
+            f"({form}.site_id = ANY(:site_ids)"
+            f" OR {sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[])))"
+        )
+
+    def unit_only_sql(self, form: str = "f", sub: str = "s") -> str:
+        """The unit part minus the direct sites, for adding live figures to
+        site-keyed aggregates without counting a submission twice."""
+        return (
+            f"{sub}.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
+            f" AND NOT COALESCE({form}.site_id = ANY(:site_ids), FALSE)"
+        )
+
+    @property
+    def params(self) -> dict:
+        """Bind parameters matching ``sql`` / ``unit_only_sql``."""
+        if not self.unit_ids:
+            return {"site_ids": self.site_ids}
+        return {"site_ids": self.site_ids, "unit_ids": self.unit_ids}
+
+    def digest(self) -> str:
+        """Short stable hash of the scope, for cache keys."""
+        raw = "|".join(self.site_ids) + "#" + "|".join(self.unit_ids)
+        return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+_SCOPE_ENVIRON_KEY = "digitva.dm_kpi_scope"
+
+
+def dm_scope() -> DmScope:
+    """Resolve the current DM's KPI scope once per request.
+
+    Memoized in the WSGI environ, not ``flask.g``: the app context (and so
+    ``g``) can outlive a request, which would hand one user's scope to the
+    next.
+    """
+    cached = request.environ.get(_SCOPE_ENVIRON_KEY)
+    if cached is not None and cached[0] == current_user.user_id:
+        return cached[1]
+    scope = DmScope(
+        site_ids=dm_site_ids(),
+        unit_ids=sorted(str(u) for u in current_user.get_data_manager_org_unit_ids()),
+    )
+    request.environ[_SCOPE_ENVIRON_KEY] = (current_user.user_id, scope)
+    return scope
+
+
 # ---------------------------------------------------------------------------
 # Caching helpers (same pattern as analytics.py)
 # ---------------------------------------------------------------------------
 
 def _cache_key(suffix: str) -> str:
+    """Per user and per scope: a grant change, or two DMs with different
+    units, never share an entry. The digest sits after the user id so
+    ``bust_dm_kpi_cache``'s ``dm_kpi:{uid}:*`` pattern still matches."""
     qs = request.query_string.decode()
-    return f"dm_kpi:{current_user.user_id}:{suffix}:{qs}"
+    return f"dm_kpi:{current_user.user_id}:{dm_scope().digest()}:{suffix}:{qs}"
 
 
 def cached_kpi(key: str, compute_fn, timeout: int = _CACHE_TTL):

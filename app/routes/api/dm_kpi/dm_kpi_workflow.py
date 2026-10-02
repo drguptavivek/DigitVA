@@ -29,7 +29,7 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
+from app.routes.api.dm_kpi.dm_kpi_scope import DmScope, cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_workflow", __name__)
 log = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ DM_ACTIONS: dict[str, str] = {
 # Shared base query: state counts grouped by workflow_state
 # ---------------------------------------------------------------------------
 
-def _state_counts(site_ids: list[str]) -> dict[str, int]:
+def _state_counts(scope: DmScope) -> dict[str, int]:
     """Return {workflow_state: count} for the DM's scoped submissions."""
     rows = db.session.execute(
         sa.text(f"""
@@ -149,17 +149,17 @@ def _state_counts(site_ids: list[str]) -> dict[str, int]:
             FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = ANY(:site_ids)
+            WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
             GROUP BY w.workflow_state
         """),
-        {**IN_ODK_BIND, "site_ids": site_ids},
+        {**IN_ODK_BIND, **scope.params},
     ).mappings().all()
     return {r["state"]: r["count"] for r in rows}
 
 
-def _coder_finalized_24h_split(site_ids: list[str]) -> dict:
+def _coder_finalized_24h_split(scope: DmScope) -> dict:
     """Return within_24h and beyond_24h counts for coder_finalized."""
     row = db.session.execute(
         sa.text(f"""
@@ -173,12 +173,12 @@ def _coder_finalized_24h_split(site_ids: list[str]) -> dict:
             FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = ANY(:site_ids)
+            WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
               AND w.workflow_state = 'coder_finalized'
         """),
-        {**IN_ODK_BIND, "site_ids": site_ids},
+        {**IN_ODK_BIND, **scope.params},
     ).mappings().first()
     return {
         "within_24h": row["within_24h"] or 0,
@@ -203,14 +203,14 @@ def flowchart():
             → Coded [within 24h / beyond 24h]
                 → Reviewed
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"total_synced": 0, "stages": {}})
 
     def compute():
-        counts = _state_counts(site_ids)
+        counts = _state_counts(scope)
         total = sum(counts.values())
-        split = _coder_finalized_24h_split(site_ids)
+        split = _coder_finalized_24h_split(scope)
 
         # Counts per group
         consent_refused = counts.get("consent_refused", 0)
@@ -288,8 +288,8 @@ def state_velocity():
     Uses a CTE on va_submission_workflow_events to compute per-transition
     durations, then aggregates per previous_state.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"range_days": 30, "states": []})
 
     range_days = min(int(request.args.get("days", 30)), 90)
@@ -308,7 +308,7 @@ def state_velocity():
                     FROM va_submission_workflow_events cur
                     JOIN va_submissions s ON s.va_sid = cur.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND cur.event_created_at >= :cutoff
@@ -348,7 +348,7 @@ def state_velocity():
                 GROUP BY previous_state
                 ORDER BY avg_seconds DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
         ).mappings().all()
 
         states = []
@@ -382,8 +382,8 @@ def stagnation():
     Submissions stuck in non-terminal states beyond configurable thresholds.
     Returns per-state counts with age buckets and alert levels.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"alerts": [], "total_stagnant_gt_48h": 0, "total_stagnant_gt_7d": 0})
 
     def compute():
@@ -416,14 +416,14 @@ def stagnation():
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = ANY(:non_terminal)
                 GROUP BY w.workflow_state
                 ORDER BY gt_7d DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "non_terminal": non_terminal},
+            {**IN_ODK_BIND, **scope.params, "non_terminal": non_terminal},
         ).mappings().all()
 
         alerts = []
@@ -497,8 +497,8 @@ def daily_transitions():
     How many submissions entered each state per day over the trailing window.
     Extends C-19 inflow/outflow to all states.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"days": []})
 
     days = min(int(request.args.get("days", 7)), 90)
@@ -515,14 +515,14 @@ def daily_transitions():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.event_created_at >= :cutoff
                 GROUP BY DATE(e.event_created_at), e.current_state
                 ORDER BY day ASC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
         ).mappings().all()
 
         # Pivot into per-day dicts

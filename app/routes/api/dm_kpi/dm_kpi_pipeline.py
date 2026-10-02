@@ -39,7 +39,7 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
+from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_pipeline", __name__)
 log = logging.getLogger(__name__)
@@ -64,8 +64,8 @@ def pending_rate():
     Time frames: Snapshot.
     Meaning: What fraction of the eligible pipeline has NOT been coded yet.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"pending": 0, "coding_pool": 0, "rate": 0.0})
 
     def compute():
@@ -82,11 +82,11 @@ def pending_rate():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         pool = row["coding_pool"] or 0
@@ -110,8 +110,8 @@ def pipeline_aging():
     Scope: CODING-POOL.
     Time frame: Snapshot.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"gt_48h": 0, "gt_7d": 0, "gt_30d": 0})
 
     def compute():
@@ -124,12 +124,12 @@ def pipeline_aging():
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = 'ready_for_coding'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         return {
@@ -156,8 +156,8 @@ def time_to_code():
     Exclusions: Demo sessions (demo_started transition).
     Time frames: 7d.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"min": None, "max": None, "p50": None, "p90": None, "count": 0})
 
     range_param = request.args.get("range", "7d")
@@ -185,7 +185,7 @@ def time_to_code():
                     ON e1.va_sid = e2.va_sid AND e1.transition_id = 'coding_started'
                 JOIN va_submissions s ON s.va_sid = e2.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
@@ -195,7 +195,7 @@ def time_to_code():
                       WHERE d.va_sid = e2.va_sid AND d.transition_id = 'demo_started'
                   )
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
         ).mappings().first()
 
         def _fmt(val):
@@ -230,8 +230,8 @@ def review_rate():
           reviewed immediately. Denominator excludes coder_finalized
           forms less than 24h old.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"reviewed": 0, "eligible": 0, "rate": 0.0})
 
     def compute():
@@ -242,7 +242,7 @@ def review_rate():
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND (
@@ -271,7 +271,7 @@ def review_rate():
                     (SELECT COUNT(*) FROM coded) AS eligible,
                     (SELECT COUNT(*) FROM with_review) AS reviewed
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         eligible = row["eligible"] or 0 if row else 0
@@ -316,8 +316,8 @@ def upstream_changes():
       Scope: CODED.
       Time frames: 7d, cumulative.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({})
 
     def compute():
@@ -328,12 +328,12 @@ def upstream_changes():
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = 'finalized_upstream_changed'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         # C-11: % forms with upstream changes (cumulative)
@@ -344,7 +344,7 @@ def upstream_changes():
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state IN (
@@ -362,7 +362,7 @@ def upstream_changes():
                     )) AS with_upstream
                 FROM coded c
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         total_coded = upstream_pct["total_coded"] or 0 if upstream_pct else 0
@@ -379,13 +379,13 @@ def upstream_changes():
                 FROM va_submission_upstream_changes uc
                 JOIN va_submissions s ON s.va_sid = uc.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND uc.resolved_at IS NOT NULL
                   AND uc.resolved_at >= :cutoff
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
         ).scalar()
 
         # D-WT-04: reopen rate (7d)
@@ -399,12 +399,12 @@ def upstream_changes():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.event_created_at >= :cutoff
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
         ).mappings().first()
 
         reopened = reopen["reopened"] or 0 if reopen else 0
@@ -439,8 +439,8 @@ def inflow_outflow():
     Display: Side-by-side per day, last 7d.
     Actionable: If inflow consistently exceeds outflow, backlog will grow.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"data": []})
 
     days = min(int(request.args.get("days", 7)), 90)
@@ -460,7 +460,7 @@ def inflow_outflow():
                     FROM va_submission_workflow_events e
                     JOIN va_submissions s ON s.va_sid = e.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND e.transition_id IN (
@@ -476,7 +476,7 @@ def inflow_outflow():
                 GROUP BY day
                 ORDER BY day DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
+            {**IN_ODK_BIND, **scope.params, "from_date": from_date},
         ).mappings().all()
 
         return {
@@ -506,8 +506,8 @@ def site_bottleneck():
     Time frame: Snapshot.
     Actionable: The site at the top of this list is the bottleneck.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"sites": []})
 
     def compute():
@@ -524,7 +524,7 @@ def site_bottleneck():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                 GROUP BY f.site_id
@@ -536,7 +536,7 @@ def site_bottleneck():
                     )), 0
                 )) DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         return {
@@ -566,8 +566,8 @@ def reviewer_throughput():
     Time frames: Today, 7d, cumulative.
     Scope: CODED.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"today": 0, "last_7d": 0, "cumulative": 0})
 
     def compute():
@@ -584,12 +584,12 @@ def reviewer_throughput():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id = 'reviewer_finalized'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids, "today": today_start, "seven_d": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, "today": today_start, "seven_d": seven_days_ago},
         ).mappings().first()
 
         return {
@@ -612,8 +612,8 @@ def backlog_trend():
             live fallback from va_submission_workflow.
     Display: Line chart, default 90-day window.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"data": [], "source": "none"})
 
     days = min(int(request.args.get("days", 90)), 365)
@@ -621,15 +621,15 @@ def backlog_trend():
     def compute():
         from_date = date.today() - timedelta(days=days - 1)
 
-        # Try aggregates first
+        # Try aggregates first (site-keyed: the direct sites only)
         has_aggregates = False
         try:
-            has_aggregates = bool(db.session.scalar(
+            has_aggregates = bool(scope.site_ids) and bool(db.session.scalar(
                 sa.text("""
                     SELECT COUNT(*) FROM va_daily_kpi_aggregates
                     WHERE site_id = ANY(:site_ids) AND snapshot_date >= :from_date
                 """),
-                {"site_ids": list(site_ids), "from_date": from_date},
+                {"site_ids": scope.site_ids, "from_date": from_date},
             ))
         except Exception as e:
             # Table doesn't exist yet (migration not run) — fall back to live
@@ -645,31 +645,26 @@ def backlog_trend():
                     GROUP BY snapshot_date
                     ORDER BY snapshot_date
                 """),
-                {"site_ids": site_ids, "from_date": from_date},
+                {"site_ids": scope.site_ids, "from_date": from_date},
             ).mappings().all()
 
-            return {
-                "data": [
-                    {"date": str(r["date"]), "pending": r["pending"] or 0}
-                    for r in rows
-                ],
-                "source": "aggregates",
-            }
+            data = [
+                {"date": str(r["date"]), "pending": r["pending"] or 0}
+                for r in rows
+            ]
+            if scope.unit_ids:
+                # The unit part has no history: add today's live count for the
+                # subtree outside the direct sites (disjoint, no double count).
+                today = str(date.today())
+                unit_pending = _ready_for_coding_count(scope.unit_only_sql(), scope.params)
+                if data and data[-1]["date"] == today:
+                    data[-1]["pending"] += unit_pending
+                else:
+                    data.append({"date": today, "pending": unit_pending})
+            return {"data": data, "source": "aggregates"}
 
         # Live fallback (current snapshot only — no historical depth)
-        current_pending = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS pending
-                FROM va_submission_workflow w
-                JOIN va_submissions s ON s.va_sid = w.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND w.workflow_state = 'ready_for_coding'
-            """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
-        ).scalar() or 0
+        current_pending = _ready_for_coding_count(scope.sql(), scope.params)
 
         return {
             "data": [{"date": str(date.today()), "pending": current_pending}],
@@ -677,3 +672,20 @@ def backlog_trend():
         }
 
     return jsonify(cached_kpi(f"backlog_trend:{days}", compute))
+
+
+def _ready_for_coding_count(scope_sql: str, scope_params: dict) -> int:
+    """Live count of in-ODK submissions in ready_for_coding under *scope_sql*."""
+    return db.session.execute(
+        sa.text(f"""
+            SELECT COUNT(*) AS pending
+            FROM va_submission_workflow w
+            JOIN va_submissions s ON s.va_sid = w.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            WHERE {scope_sql}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+              AND w.workflow_state = 'ready_for_coding'
+        """),
+        {**IN_ODK_BIND, **scope_params},
+    ).scalar() or 0

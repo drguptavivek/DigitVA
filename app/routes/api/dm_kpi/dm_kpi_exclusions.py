@@ -39,7 +39,7 @@ from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services import not_analysable
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
+from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_exclusions", __name__)
 log = logging.getLogger(__name__)
@@ -84,8 +84,8 @@ def exclusion_rates():
       Denominator: COUNT of ALL-SYNCED.
       Rate: N / D × 100.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({})
 
     def compute():
@@ -105,11 +105,11 @@ def exclusion_rates():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         reason_rows = db.session.execute(
@@ -119,13 +119,13 @@ def exclusion_rates():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 {not_analysable.PAYLOAD_JOIN_SQL}
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND w.workflow_state = 'consent_refused'
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                 GROUP BY 1
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).all()
 
         all_synced = row["all_synced"] or 0
@@ -187,8 +187,8 @@ def exclusion_breakdown():
       Screening rejected).
       Time frame: Cumulative.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"coder_reasons": [], "dm_reasons": [], "by_actor": {}})
 
     def compute():
@@ -199,14 +199,14 @@ def exclusion_breakdown():
                 FROM va_coder_review cr
                 JOIN va_submissions s ON s.va_sid = cr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND cr.va_creview_status = 'active'
                 GROUP BY cr.va_creview_reason
                 ORDER BY count DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         # DM reason breakdown
@@ -216,14 +216,14 @@ def exclusion_breakdown():
                 FROM va_data_manager_review dr
                 JOIN va_submissions s ON s.va_sid = dr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND dr.va_dmreview_status = 'active'
                 GROUP BY dr.va_dmreview_reason
                 ORDER BY count DESC
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         # D-QG-03: Exclusions by actor
@@ -232,11 +232,11 @@ def exclusion_breakdown():
                 SELECT COUNT(*) AS cnt FROM va_data_manager_review dr
                 JOIN va_submissions s ON s.va_sid = dr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids) AND dr.va_dmreview_status = 'active'
+                WHERE {scope.sql()} AND dr.va_dmreview_status = 'active'
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         coder_count = db.session.execute(
@@ -244,11 +244,11 @@ def exclusion_breakdown():
                 SELECT COUNT(*) AS cnt FROM va_coder_review cr
                 JOIN va_submissions s ON s.va_sid = cr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids) AND cr.va_creview_status = 'active'
+                WHERE {scope.sql()} AND cr.va_creview_status = 'active'
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         screening_rejected = db.session.execute(
@@ -257,12 +257,12 @@ def exclusion_breakdown():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id = 'screening_rejected'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         return {
@@ -304,8 +304,8 @@ def blocked_forms():
     Time frame: Snapshot.
     Actionable: DM's "to-do list" — each blockage has a clear action.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"breakdown": [], "total_blocked": 0})
 
     def compute():
@@ -326,12 +326,12 @@ def blocked_forms():
                     FROM va_submission_workflow w
                     JOIN va_submissions s ON s.va_sid = w.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
+                    WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                       AND w.workflow_state = '{state}'
                 """),
-                {**IN_ODK_BIND, "site_ids": site_ids},
+                {**IN_ODK_BIND, **scope.params},
             ).scalar() or 0
             if count > 0:
                 breakdown.append({
@@ -348,13 +348,13 @@ def blocked_forms():
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
         if missing_lang > 0:
             breakdown.append({
@@ -371,13 +371,13 @@ def blocked_forms():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND s.va_odk_reviewstate = 'hasIssues'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
         if odk_issues > 0:
             breakdown.append({
@@ -394,7 +394,7 @@ def blocked_forms():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state NOT IN (
@@ -410,7 +410,7 @@ def blocked_forms():
                       OR s.va_odk_reviewstate = 'hasIssues'
                   )
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         return {
@@ -440,8 +440,8 @@ def nqa_sa_rates():
       Same pattern as D-QG-07 but for va_social_autopsy_analyses and
       social_autopsy_enabled flag.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"nqa": {}, "social_autopsy": {}})
 
     def compute():
@@ -470,7 +470,7 @@ def nqa_sa_rates():
                                      LIMIT 1),
                                     f.project_id
                                 )
-                            WHERE f.site_id = ANY(:site_ids)
+                            WHERE {scope.sql()}
                               AND {_IN_ODK_SQL}
                               AND {_NOT_DUPLICATE_SQL}
                               AND w.workflow_state IN (
@@ -493,7 +493,7 @@ def nqa_sa_rates():
                             (SELECT COUNT(*) FROM coded_in_enabled_projects) AS denominator,
                             (SELECT COUNT(*) FROM with_assessment) AS numerator
                     """),
-                    {**IN_ODK_BIND, "site_ids": site_ids},
+                    {**IN_ODK_BIND, **scope.params},
                 ).mappings().first()
 
                 denom = row["denominator"] or 0 if row else 0
@@ -524,8 +524,8 @@ def odk_issues():
     Time frame: Cumulative.
     Source: va_submissions JOIN va_forms.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"count": 0, "total": 0, "rate": 0.0})
 
     def compute():
@@ -536,11 +536,11 @@ def odk_issues():
                     COUNT(*) FILTER (WHERE s.va_odk_reviewstate = 'hasIssues') AS has_issues
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         total = row["total"] or 0

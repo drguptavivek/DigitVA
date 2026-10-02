@@ -440,11 +440,18 @@ Coverage is decided per submission by its routed unit
 subtree and is reached only through a project or site grant. A unit grant
 resolves to the forms under its subtree (a form with a submission routed
 there, or whose ODK mapping falls back to a unit there), never to its whole
-project. Implemented in stage 2 of `digitva-djd`. One exception remains: the
-`/api/v1/analytics/dm-kpi/*` panels are keyed by site (daily aggregates and
-site-filtered queries), so they leave unit grants out rather than show other
-districts' figures (fail closed) until they gain a unit grain. Likewise,
-whole-form operations need a project or site grant: a form spans several
+project. Implemented in stage 2 of `digitva-djd`. The
+`/api/v1/analytics/dm-kpi/*` panels count the same subtree per submission
+(`digitva-m5r`): a row counts when its form's site is in the manager's
+project or site scope or its submission's unit is in the subtree, tested once,
+so a mixed manager sees the union with nothing counted twice. The site-keyed
+daily aggregates (daily grid, burndown, backlog trend) still serve the direct
+sites; the unit part is added live from the raw tables, limited to
+submissions outside those sites. Coder counts keyed by coder grant project
+(utilization, coders per language) include a unit grant's project, but the
+coder roster, which names coders, stays on project and site grants, since a
+unit grant never resolves to its whole project. Whole-form
+operations need a project or site grant: a form spans several
 units, and ODK-side counts cannot be narrowed to one, so a unit-only data
 manager refreshes single submissions but neither syncs nor previews a whole
 form, and sees other managers' sync runs only on forms a project or site

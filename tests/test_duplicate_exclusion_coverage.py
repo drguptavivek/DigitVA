@@ -57,6 +57,7 @@ COVERED_HELPERS = frozenset({
     "services/data_management_service.py::_dm_submission_query_parts",
     "services/sitepi_reporting_service.py::_workflow_kpis",
     "routes/api/analytics.py::_dm_scope_filter",
+    "routes/api/dm_kpi/dm_kpi_pipeline.py::_ready_for_coding_count",
 })
 
 _WRITER = "writer of workflow state; readers exclude the submission, writers keep it consistent"

@@ -36,7 +36,7 @@ from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
     dm_project_site_pairs,
-    dm_site_ids,
+    dm_scope,
 )
 
 bp = Blueprint("dm_kpi_coders", __name__)
@@ -63,9 +63,14 @@ def coder_utilization():
     Time frame: Snapshot.
     Actionable: <70% → coders idle; >95% → coders saturated.
     """
-    site_ids = dm_site_ids()
+    scope = dm_scope()
+    # Coder grants are keyed by project; a unit grant's project counts here
+    # because this returns counts only, never who the coders are.
     pairs = dm_project_site_pairs()
-    project_ids = sorted({pid for pid, _sid in pairs})
+    project_ids = sorted(
+        {pid for pid, _sid in pairs}
+        | current_user.get_org_unit_projects("data_manager")
+    )
 
     if not project_ids:
         return jsonify({"active_count": 0, "total_coders": 0, "rate": 0.0})
@@ -93,12 +98,12 @@ def coder_utilization():
                 FROM va_allocations a
                 JOIN va_submissions s ON s.va_sid = a.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND a.va_allocation_status = 'active'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
         rate = round(active_coders / total_coders * 100, 1) if total_coders > 0 else 0.0
@@ -135,8 +140,8 @@ def coder_output():
     D-LC-04 — Coder Output by Language:
       Same data as C-24, sliceable by coder, language, project, site.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"heatmap": [], "per_coder": [], "total": 0})
 
     range_param = request.args.get("range", "cumulative")
@@ -148,7 +153,7 @@ def coder_output():
 
         # Build WHERE clause for date range
         date_filter = ""
-        params: dict = {**IN_ODK_BIND, "site_ids": site_ids}
+        params: dict = {**IN_ODK_BIND, **scope.params}
         if cutoff:
             date_filter = "AND fa.va_finassess_createdat >= :cutoff"
             params["cutoff"] = cutoff
@@ -165,7 +170,7 @@ def coder_output():
                 JOIN va_submissions s ON s.va_sid = fa.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_users u ON u.user_id = fa.va_finassess_by
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND fa.va_finassess_status = 'active'
@@ -224,9 +229,11 @@ def coder_roster():
     Time frame: Cumulative.
     Note: Policy-only definition, exposed as data for the DM dashboard.
     """
+    # Coders are listed by direct project only (a unit grant never resolves to
+    # its whole project); total_coded counts the DM's whole scope.
     pairs = dm_project_site_pairs()
     project_ids = sorted({pid for pid, _sid in pairs})
-    site_ids = dm_site_ids()
+    scope = dm_scope()
 
     if not project_ids:
         return jsonify({"coders": []})
@@ -245,7 +252,7 @@ def coder_roster():
                         FROM va_final_assessments fa
                         JOIN va_submissions s2 ON s2.va_sid = fa.va_sid
                         JOIN va_forms f2 ON f2.form_id = s2.va_form_id
-                        WHERE f2.site_id = ANY(:site_ids)
+                        WHERE {scope.sql("f2", "s2")}
                           AND {_IN_ODK_SQL_S2}
                           AND {_NOT_DUPLICATE_SQL_S2}
                           AND fa.va_finassess_by = u.user_id
@@ -269,7 +276,7 @@ def coder_roster():
                 GROUP BY u.user_id, u.name, u.email, u.vacode_language, g.project_id
                 ORDER BY u.name
             """),
-            {**IN_ODK_BIND, "project_ids": project_ids, "site_ids": site_ids},
+            {**IN_ODK_BIND, "project_ids": project_ids, **scope.params},
         ).mappings().all()
 
         return {
@@ -305,8 +312,8 @@ def coder_reviewer_disagreement():
     Source: va_final_assessments JOIN va_reviewer_final_assessments on va_sid.
     Time frame: Cumulative.
     """
-    site_ids = dm_site_ids()
-    if not site_ids:
+    scope = dm_scope()
+    if not scope:
         return jsonify({"total_reviewed": 0, "disagreements": 0, "rate": 0.0})
 
     def compute():
@@ -321,13 +328,13 @@ def coder_reviewer_disagreement():
                 JOIN va_reviewer_final_assessments rf ON rf.va_sid = fa.va_sid
                 JOIN va_submissions s ON s.va_sid = fa.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE f.site_id = ANY(:site_ids)
+                WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND fa.va_finassess_status = 'active'
                   AND rf.va_rfinassess_status = 'active'
             """),
-            {**IN_ODK_BIND, "site_ids": site_ids},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().first()
 
         total = row["total_reviewed"] or 0 if row else 0

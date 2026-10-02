@@ -17,11 +17,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2842 passed on 2026-10-01; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2880 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
-> (`npx jest`: 66 pass). Dev DB head: `c4a9e7d2b6f1`. Use `bd`; commit in the
+> (`npx jest`: 66 pass). Dev DB head: `d7e3a1c9b5f2`. Use `bd`; commit in the
 > repo's voice and push. Owner wants second opinions from a read-only Fable
 > agent (`bd memories advisor`). Ask the owner one question at a time, in
 > plain terms.
@@ -29,25 +29,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 ## Next, ranked
 
 1. `digitva-eiw` + `digitva-djd` mentor institutes and unit-scoped roles.
-   Owner design is final (full text in both beads' notes). Stage 1 landed:
+   Owner design is final (full text in both beads' notes). Stages 1 and 1b landed (institute admin role `is_admin` on the staff map,
+   district DM grants to mentor staff via the `unit_data_manager` gate, API +
+   CLI only, no UI):
    `mas_mentor_institute`, `map_mentor_institute_org_unit` (to depth-1
    district units), `map_mentor_institute_user`, `flask mentor-institute ...`,
    grant guard `check_mentor_grant` (member: org_unit grant inside an attached
    district's subtree, roles coder/reviewer/coding_tester/collaborator_pii
    only), `site_pi` refused at org_unit (CHECK + validator; classical projects
-   keep it at project_site), policy baselines written. Next, give each to a
+   keep it at project_site), policy baselines written. Next, give stage 2 to a
    fresh code-writer with its whole scope:
-   - **Stage 1b** (with these review fixes): a district `data_manager` may
-     give grants to staff of institutes attached to their district (still
-     inside the guard); new `mentor_institute` admin creates/removes only
-     their institute's staff accounts, never grants (an institute cannot
-     widen its own access); platform admin creates institutes and attaches
-     districts. Fixes: `add_member` warning undercounts active mentor-role
-     grants outside the attached subtree; `DEFAULT_TYPICAL_ROLES[("district",
-     "CS")]` in `organization_service.py:136` still lists `site_pi`; guard runs
-     before the permission check in admin grant create (info leak); CLI passes
-     no actor (audit `actor=-`); add tests for the import path, the data
-     manager create route and the warning count. No admin UI yet.
    - **Stage 2**: `data_manager` and `coding_tester` at unit scope cover the
      grant's subtree on every surface, incl. KPI/analytics, unrouted queue and
      sync (owner: no hidden pages). Plan from the 2026-10-01 Plan agent:
@@ -57,7 +48,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
      `coder_workflow_service.py:~719` and `_within_coding_org_scope` must
      become unit-scoped; one `_coding_waivers` helper replacing four copies of
      the PI/tester waiver; `_get_granted_va_forms` is project-wide for unit
-     grants (fail-open). Follow-ups `digitva-d5s` (waivers key on site_id
+     grants (fail-open). Also: make `is_data_manager` and the DM page/grant list work for a
+     unit-only DM so they see and manage their district's mentor grants (the
+     page is unreachable for them today); extend search parity tests. Follow-ups
+     `digitva-d5s` (waivers key on site_id
      only) and `digitva-6qy` (query cost).
    - Mentors are excluded from district staff headcounts and listed apart
      (rule in `docs/policy/people-and-roles-page.md`; `mentors_for_unit`

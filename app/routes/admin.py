@@ -1017,7 +1017,7 @@ def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=N
     )
 
     if sid:
-        query = query.where(VaSubmissionsAuditlog.va_sid.ilike(f"%{sid}%"))
+        query = query.where(VaSubmissionsAuditlog.va_sid.icontains(sid, autoescape=True))
     if project_id:
         query = query.where(VaForms.project_id == project_id)
     if site_id:
@@ -1038,7 +1038,7 @@ def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=N
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
     )
     if sid:
-        count_query = count_query.where(VaSubmissionsAuditlog.va_sid.ilike(f"%{sid}%"))
+        count_query = count_query.where(VaSubmissionsAuditlog.va_sid.icontains(sid, autoescape=True))
     if project_id:
         count_query = count_query.where(VaForms.project_id == project_id)
     if site_id:
@@ -2116,9 +2116,11 @@ def admin_users():
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
         
     if query:
-        pattern = f"%{query}%"
         stmt = stmt.where(
-            sa.or_(VaUsers.email.ilike(pattern), VaUsers.name.ilike(pattern))
+            sa.or_(
+                VaUsers.email.icontains(query, autoescape=True),
+                VaUsers.name.icontains(query, autoescape=True),
+            )
         )
         
     users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25 if not master else None)).all()
@@ -3160,8 +3162,8 @@ def admin_form_type_fields_search(form_type_code):
             MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
             MasFieldDisplayConfig.is_active == True,
             sa.or_(
-                MasFieldDisplayConfig.field_id.ilike(f"%{search}%"),
-                MasFieldDisplayConfig.short_label.ilike(f"%{search}%"),
+                MasFieldDisplayConfig.field_id.icontains(search, autoescape=True),
+                MasFieldDisplayConfig.short_label.icontains(search, autoescape=True),
             ),
         )
         .order_by(MasFieldDisplayConfig.field_id)
@@ -3818,8 +3820,8 @@ def admin_panel_field_mapping_fields():
     if search:
         query = query.where(
             sa.or_(
-                MasFieldDisplayConfig.field_id.ilike(f"%{search}%"),
-                MasFieldDisplayConfig.short_label.ilike(f"%{search}%"),
+                MasFieldDisplayConfig.field_id.icontains(search, autoescape=True),
+                MasFieldDisplayConfig.short_label.icontains(search, autoescape=True),
             )
         )
 

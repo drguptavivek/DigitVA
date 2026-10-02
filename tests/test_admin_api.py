@@ -2177,6 +2177,24 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertFalse(_is_interrupted_sync_error("Cancelled by admin."))
 
+    def test_user_search_matches_wildcards_literally(self):
+        """``%`` and ``_`` in the query are text, not LIKE wildcards (digitva-7ai)."""
+        sfx = uuid.uuid4().hex[:8]
+        literal = self._create_user(f"pct%{sfx}@example.com")
+        self._create_user(f"plain{sfx}@example.com")
+        self._login(self.admin_user_id)
+
+        def emails(query):
+            resp = self.client.get(
+                "/admin/api/users", query_string={"query": query, "master": "1"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            return {u["email"] for u in resp.get_json()["users"]}
+
+        self.assertIn(literal.email, emails(f"%{sfx}"))
+        self.assertNotIn(f"plain{sfx}@example.com", emails(f"%{sfx}"))
+        self.assertEqual(emails(f"_lain{sfx}"), set())
+
 
 class AdminWebFormLocalesApiTests(BaseTestCase):
     """GET /admin/api/web-form-locales — the bundled questionnaire's languages.

@@ -43,7 +43,7 @@ def _get_user_by_email(email: str) -> VaUsers | None:
 @click.option("--query", required=True, help="Case-insensitive name or email fragment.")
 def search_users(query):
     """Search users by email or display name."""
-    term = f"%{query.strip()}%"
+    term = query.strip()
     rows = db.session.execute(
         sa.select(
             VaUsers.email,
@@ -53,8 +53,8 @@ def search_users(query):
         )
         .where(
             sa.or_(
-                VaUsers.email.ilike(term),
-                VaUsers.name.ilike(term),
+                VaUsers.email.icontains(term, autoescape=True),
+                VaUsers.name.icontains(term, autoescape=True),
             )
         )
         .order_by(VaUsers.email)

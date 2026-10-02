@@ -49,13 +49,21 @@ what each role may reach.
 | `admin` | `admin` | `global` | Full system access, bypasses all ABAC checks |
 | `project_pi` | `project_pi` | `project` | Manages a project (users, settings) |
 | `site_pi` | `site_pi` | `project_site` | Views data for their assigned sites |
-| `coder` | `coder` | `project`, `project_site` | Codes VA forms within assigned scope |
-| `reviewer` | `reviewer` | `project`, `project_site` | Reviews coded forms within assigned scope |
-| `data_manager` | `data_manager` | `project`, `project_site` | Manages data pipeline within assigned scope |
+| `coder` | `coder` | `project`, `project_site`, `org_unit` | Codes VA forms within assigned scope |
+| `reviewer` | `reviewer` | `project`, `project_site`, `org_unit` | Reviews coded forms within assigned scope |
+| `data_manager` | `data_manager` | `project`, `project_site`, `org_unit` | Manages data pipeline within assigned scope |
 | `collaborator` | `collaborator` | `project`, `project_site`, `org_unit` | Read-only viewer, personal data redacted |
 | `collaborator_pii` | `collaborator_pii` | `project`, `project_site`, `org_unit` | Same reach as `collaborator`; personal data not redacted |
 | `coding_tester` | `coding_tester` | `project`, `project_site`, `org_unit` | Exercises coding routes without affecting real workflow counts; waives coding gates (site and unit), never scope |
-| `interviewer` | `interviewer` | `project_site` | Web intake — records submissions for their site |
+| `interviewer` | `interviewer` | `project`, `project_site`, `org_unit` | Web intake — records submissions within assigned scope |
+| `interview_supervisor` | `interview_supervisor` | `org_unit` | Supervises web intake cases in its unit subtree; never assigns |
+
+The **In-charge** of a district project (District, Block or PHC in-charge;
+see `access-control-model.md`, "In-charge") is decided but not built, and its
+identifier is `site_pi` held at `org_unit` (shown as "In-charge"; needs a
+`role_scope` CHECK migration), with every `data_manager` power in its subtree. Until then
+in-charges hold `interview_supervisor`. Implementation tracked in
+digitva-0wc.
 
 ### Admin bypass
 
@@ -77,7 +85,9 @@ def role_required(*roles):
 
 Supported role strings are exactly the keys of `_ROLE_METHODS`: `"admin"`,
 `"coder"`, `"coding_tester"`, `"reviewer"`, `"data_manager"`, `"site_pi"`,
-`"project_pi"`, `"interviewer"`.
+`"project_pi"`, `"interviewer"`, `"interview_supervisor"`, `"collaborator"`,
+`"collaborator_pii"`, and `"mentor_institute_admin"`, which is not a grant
+role but a flag on an institute membership.
 
 ### Role-name validation (at decoration time)
 
@@ -212,17 +222,22 @@ logout).
 |---|---|
 | `user_id` | FK to `VaUsers` |
 | `role` | `VaAccessRoles` enum |
-| `scope_type` | `global` / `project` / `project_site` |
-| `project_id` | Set when `scope_type` is `project` or `project_site` |
-| `project_site_id` | Set when `scope_type` is `project_site` |
+| `scope_type` | `global` / `project` / `project_site` / `org_unit` |
+| `project_id` | Set only when `scope_type` is `project` |
+| `project_site_id` | Set only when `scope_type` is `project_site` |
+| `org_unit_id` | Set only when `scope_type` is `org_unit`; the grant's project is the unit's project |
+| `cadre_id` | Optional; allowed only when `scope_type` is `org_unit` (descriptive, validated on write) |
 | `grant_status` | `active` / `inactive` |
+
+The `scope_shape`, `role_scope` and `cadre_scope` CHECK constraints on
+`va_user_access_grants` enforce these shapes.
 
 ### ABAC check methods (on `VaUsers` model)
 
 | Method | ABAC check | Layer |
 |---|---|---|
 | `has_va_form_access(form_id, role)` | User's grants cover this form's project/site for this role | Form-level |
-| `has_data_manager_submission_access(project_id, site_id)` | DM's grants cover this project or project-site pair | Submission-level |
+| `has_data_manager_submission_access(project_id, site_id, org_unit_id=None)` | DM's grants cover this project or project-site pair, or a unit grant's subtree holds the submission's routed unit (`org_unit_id`; an unrouted submission is reached through a direct grant only) | Submission-level |
 | `has_data_manager_form_access(form_id)` | Resolves form → (project, site) → checks submission access | Form-level |
 | `get_coder_va_forms()` | Set of form IDs user can code | Role+scope |
 | `get_reviewer_va_forms()` | Set of form IDs user can review | Role+scope |

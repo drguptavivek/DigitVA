@@ -96,7 +96,8 @@ In a district project, a role is given for a place in the health system: the
 whole project, a district, a block, or a PHC. A role for the district covers
 every CHC, PHC and sub-centre in it. A role for one PHC covers that PHC and
 its sub-centres, but not the neighbouring PHC and not the district above.
-There is no site PI; the project lead covers every district.
+Each level has an in-charge: the CMO or Civil Surgeon for the district, the
+Senior Medical Officer for a block, the Medical Officer for a PHC.
 
 ![Who works at each level of a district project](diagrams/district-roles.svg)
 
@@ -107,17 +108,29 @@ block, used only where a state has it.
 **Project lead** (State nodal officer or principal investigator)
 - Can see every screen, for every district in the project.
 - Can set up the project, its districts and its facilities.
-- Can give people their roles.
-- Can do everything a District Programme Manager and a field supervisor can
-  do, in every district.
+- Can give people their roles, including data manager at any level.
+- Can do everything a District Programme Manager and an in-charge can do,
+  in every district.
 - Cannot code or review deaths unless also given that role.
 
-**Field supervisor** (CMO or Civil Surgeon for the district, Senior Medical
-Officer for a block, Medical Officer for a PHC)
-- Can see every death registered and every interview in their area.
-- Can sort out problems an interviewer has flagged.
-- Can cancel or reopen a case, and mark duplicates.
-- Cannot interview, code or review unless also given that role.
+**In-charge** (District in-charge: CMO or Civil Surgeon; Block in-charge:
+Senior Medical Officer of the CHC; PHC in-charge: Medical Officer of the PHC)
+- Can see every screen for their own area, with names and other personal
+  details.
+- Can oversee field work in their area: see every death registered and every
+  interview, sort out problems an interviewer has flagged, cancel or reopen a
+  case, and mark duplicates.
+- Can do everything a data manager can do in their area: check incoming
+  cases, mark a case as not fit for coding, bring in the latest interviews,
+  place a death at the right facility, and give people roles.
+- Can make someone a data manager at their own level or below, in their own
+  area: the District in-charge can add the District Programme Manager.
+- Cannot code or review deaths unless also given that role.
+- Cannot interview unless also given that role.
+- Cannot see or act outside their own area.
+
+This is planned and not built yet. Today the in-charges hold the field
+supervision role only.
 
 **Data manager** (District Programme Manager for the district, Block
 Programme Manager for a block)
@@ -128,10 +141,16 @@ Programme Manager for a block)
   project, and place them at the right facility in their own area.
 - Can bring in the latest version of a single interview.
 - Can give staff in their area the role of interviewer, coder, reviewer,
-  coding tester or viewer.
+  coding tester or viewer, at their own level or below.
+- Can make someone a data manager only below their own level: a District
+  Programme Manager can add a Block Programme Manager, but not another
+  district data manager.
 - Cannot code or review deaths.
-- Cannot make anyone a data manager, field supervisor, project lead or
-  administrator, or give a role outside their own area.
+- Cannot make anyone an in-charge, project lead or administrator, or give a
+  role outside their own area.
+
+Giving roles this way is planned and not built yet. Today a data manager
+gives only the coder, coding tester and data manager roles.
 
 **Coder** (Medical Officer)
 - Can assign the cause of death for deaths at their own facility and below
@@ -172,7 +191,7 @@ linked to the districts it supports.
   doctor's.
 - Are listed separately from district staff and not counted in the
   district's staff numbers.
-- Cannot manage data, supervise field work or interview.
+- Cannot manage data, be an in-charge or interview.
 - Need a separate account for any work they also do for the district.
 
 **College admin**

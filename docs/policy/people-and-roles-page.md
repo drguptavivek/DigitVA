@@ -3,7 +3,7 @@ title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
 status: proposed
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # People and Roles Page
@@ -42,7 +42,7 @@ part of one team.
   keep applying to death-linked views.
 - **Emails, deactivated users, deactivated grants and global admins** are
   shown to admins, project PIs, data managers, site PIs, interview
-  supervisors and reviewers (owner, 2026-10-01), within what each may see.
+  supervisors (in-charges) and reviewers (owner, 2026-10-01), within what each may see.
   Other viewers (interviewers, coders, coding testers, plain and PII
   collaborators) see name, cadre, unit and capabilities of active people
   only.
@@ -65,15 +65,15 @@ the page never decides access itself.
 |---|---|
 | Report deaths | `interviewer` (and `death_reporter` once it exists); `data_manager` does not register deaths (`app/routes/intake.py`, register routes are interviewer-only) |
 | Interview | `interviewer` |
-| Supervise | `interview_supervisor`, `data_manager` |
+| Supervise | `interview_supervisor` (held by the in-charges until the In-charge role is built), `data_manager`; in an organizational project also the In-charge and the `project_pi` (decision 2026-10-02, see [Access Control Model](access-control-model.md); implementation tracked in digitva-0wc) |
 | Code | `coder` |
 | Review | `reviewer` |
 | Test code | `coding_tester` |
 | Manage data | `data_manager` |
 | Sees personal details | **per person, not per row**: shown once on the person, true unless all their active grants, across every active project, are plain `collaborator` (`should_redact_pii`, `app/services/viewer_pii_service.py`) |
 | Read-only view | `collaborator`, `collaborator_pii` |
-| Site lead | `site_pi`, which exists at `project_site` scope only (classical projects); organizational projects have none, the project PI covers every district |
-| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at project or site scope only (`app/routes/data_management.py`) |
+| Site lead | `site_pi` at `project_site` scope (classical projects). In an organizational project the oversight duty at a unit is the **In-charge** (District, Block or PHC in-charge; decision 2026-10-02, `site_pi` held at `org_unit`, see [Access Control Model](access-control-model.md), "In-charge"; implementation tracked in digitva-0wc) |
+| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants"; implementation tracked in digitva-0wc |
 
 ## Cell legend
 
@@ -170,8 +170,11 @@ selected unit's path, not per row. No per-row queries.
   grants.
 
 - Dormant flag default: 90 days.
-- `site_pi` is not held at unit scope (see [Access Control Model](access-control-model.md)):
-  in an organizational project the Site lead duty belongs to the project PI.
+- `site_pi` is not held at unit scope today (database `role_scope` CHECK).
+  Superseded 2026-10-02: in an organizational project the Site lead duty at a
+  unit belongs to the **In-charge** of that level, and the project PI covers
+  the whole project (see [Access Control Model](access-control-model.md),
+  "In-charge"; implementation tracked in digitva-0wc).
 - **Headcount excludes mentoring institute staff.** A district's staff
   headcount counts only people whose grants sit in the district's own tree.
   A member of a mentoring institute (`map_mentor_institute_user`, active) is

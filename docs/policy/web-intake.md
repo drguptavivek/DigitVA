@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # Web Intake Policy
@@ -378,7 +378,15 @@ a place for names, phone numbers or addresses).
   `interview_supervisor` grant; one grant per user x role x unit already allows
   that alongside their `coder` grant. All other roles (`reviewer`,
   `collaborator`, `collaborator_pii`, `coding_tester`, `site_pi`, `project_pi`)
-  confer nothing: explicit authorization, no silent widening.
+  confer nothing: explicit authorization, no silent widening. **Decided
+  2026-10-02, not built:** in an organizational project the **In-charge** of
+  each level (District in-charge: CMO or Civil Surgeon; Block in-charge: SMO,
+  CHC; PHC in-charge: MO, PHC) supervises the cases in their own area, and the
+  `project_pi` supervises across the whole project (see
+  [Access Control Model](access-control-model.md), "In-charge" and
+  `project_pi`). Until the In-charge role is built an in-charge supervises
+  through an `interview_supervisor` grant, and the `project_pi` confers
+  nothing here. Implementation tracked in digitva-0wc.
 - **Reach (item 10).** A unit grant covers its unit and everything beneath it,
   as all unit grants do. Confirmed (owner, 2026-09-30, item 17): the
   `interview_supervisor` grant alone gives the supervisor views of that reach,

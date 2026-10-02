@@ -10,12 +10,23 @@ last_updated: 2026-10-02
 
 ## Purpose
 
-Data-managers may create users and manage coder, coding-tester, and
-data-manager grants within their own scope, without requiring admin or
-project-PI intervention.
+Data-managers may create users and manage grants within their own scope,
+without requiring admin or project-PI intervention. What they may grant
+depends on the project's kind:
+
+- **Site projects** (today's rule, unchanged): `coder`, `coding_tester` and
+  `data_manager` grants at their own project or project-site scope.
+- **District (organizational) projects** (decision 2026-10-02): other data
+  managers strictly below their own level, and interviewer, coder, reviewer,
+  coding-tester and viewer grants at any level of their subtree.
 
 This policy governs the `/data-management/users` page and its supporting API
-endpoints.
+endpoints. The rule for who creates which grants is in
+[Access Control Model](access-control-model.md), "Who creates which grants".
+The district-project rule is implementation tracked in digitva-0wc; until it
+lands the page applies the site-project rule in every project, plus
+mentor-role unit grants for mentoring institute staff in a district the data
+manager covers.
 
 ## Route Family
 
@@ -29,9 +40,9 @@ All routes live under the existing `data_management` blueprint:
 | `/data-management/api/project-sites` | GET | Accessible project-sites |
 | `/data-management/api/users` | GET | User search |
 | `/data-management/api/users` | POST | Create user |
-| `/data-management/api/access-grants` | GET | List coder/coding_tester/data_manager grants in scope |
-| `/data-management/api/access-grants` | POST | Create or reactivate grant |
-| `/data-management/api/access-grants/<id>/toggle` | POST | Activate/deactivate grant |
+| `/data-management/api/access-grants` | GET | List the grants the data-manager may manage (see "Visibility") |
+| `/data-management/api/access-grants` | POST | Create or reactivate a grant the data-manager may create |
+| `/data-management/api/access-grants/<id>/toggle` | POST | Activate/deactivate a grant the data-manager may manage |
 
 ## Eligible Roles
 
@@ -40,11 +51,21 @@ These routes accept:
 - `data_manager` — scoped by their own grant
 - `admin` — full access, bypasses scope restrictions
 
+In a district project the project PI and the in-charges also create
+`data_manager` grants, under their own rules in
+[Access Control Model](access-control-model.md), "Who creates which grants";
+this page serves data managers and admins. Implementation tracked in
+digitva-0wc.
+
 ## Scope Rules
 
 A data-manager's own grants determine what they can assign.
 
-### Project-scoped data-manager
+### Site projects
+
+Today's rule, unchanged.
+
+#### Project-scoped data-manager
 
 May assign grants at:
 
@@ -52,7 +73,7 @@ May assign grants at:
   data-manager grant
 - **project-site level** — for any site within those projects
 
-### Site-scoped data-manager
+#### Site-scoped data-manager
 
 May assign grants at:
 
@@ -62,63 +83,61 @@ May assign grants at:
 A site-scoped data-manager **may not** assign project-level grants, even for
 the project that contains their site.
 
-### Admin
+#### Assignable roles (site projects)
 
-Admins bypass all scope restrictions. They can assign grants at any project or
-site level through this interface.
-
-## Unit-scoped grants (organizational projects)
-
-Decision 2026-10-02. In an organizational (unit-tree) project a data-manager
-may create, reactivate and revoke grants at `org_unit` scope, on units inside
-their own subtree (a project-scoped data-manager covers the whole tree), for
-these roles only:
-
-- `interviewer`
-- `coder`
-- `reviewer`
-- `coding_tester`
-- `collaborator`
-- `collaborator_pii`
-
-Never `data_manager`, `interview_supervisor`, `site_pi`, `project_pi` or
-`admin`, and never on a unit above or outside their own. Cadre validation
-applies as for any unit grant, and the mentor guard still applies when the
-grantee is a mentoring institute member (see
-[Organization Model Policy](organization-model.md), "Unit-scoped grants" and
-"Mentoring institutes"). The project and project-site rules below are
-unchanged.
-
-Implementation tracked in digitva-0wc.
-
-## Assignable Roles
-
-At project and project-site scope, data-managers may only assign these roles:
+Data-managers may only assign:
 
 - `coder`
 - `coding_tester`
 - `data_manager`
 
-Data-managers may **not** assign:
+Data-managers may **not** assign `admin`, `project_pi`, `site_pi`,
+`reviewer`, `collaborator`, `collaborator_pii` or `interviewer`.
 
-- `admin`
-- `project_pi`
-- `site_pi`
-- `reviewer`
-- `collaborator`
+### District (organizational) projects
+
+Decision 2026-10-02. Implementation tracked in digitva-0wc.
+
+Each grant has a **subtree**: a `project` grant covers the whole project, a
+`project_site` grant its (project, site) pair, an `org_unit` grant its unit
+and every unit beneath it. One rule applies to every data manager of a
+district project, whatever the scope of their grant:
+
+- `data_manager` grants only **strictly below** their own grant, inside their
+  subtree;
+- `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
+  `collaborator_pii` grants at **any level** inside their subtree, their own
+  level included.
+
+So a project-scoped data-manager assigns `data_manager` at project-site or
+any unit level but never at project level; a unit-scoped data-manager assigns
+`data_manager` only on units beneath their own unit; a site-scoped
+data-manager assigns no `data_manager` grant, since nothing lies below a
+project-site grant. Never on a unit above or outside their own.
+
+Data-managers may **not** assign `admin`, `project_pi`, `site_pi`,
+`interview_supervisor` or In-charge grants.
+
+Cadre validation applies to every unit grant, and the mentor guard applies
+when the grantee is a mentoring institute member (see
+[Organization Model Policy](organization-model.md), "Unit-scoped grants" and
+"Mentoring institutes").
+
+### Admin
+
+Admins bypass all scope restrictions. They can assign grants at any project or
+site level through this interface.
 
 ## Grant Lifecycle
-
-The role lists in this section apply at project and project-site scope; unit
-grants follow "Unit-scoped grants (organizational projects)" above.
 
 ### Creation
 
 When a data-manager creates a grant:
 
 1. The target user must be active.
-2. The role must be `coder`, `coding_tester`, or `data_manager`.
-3. The scope must fall within the data-manager's own grant scope.
+2. The role must be assignable for the project's kind (see "Scope Rules").
+3. The scope must fall within the data-manager's own scope; in a district
+   project, for `data_manager`, strictly below their own grant.
 4. If an inactive grant with the same user + role + scope already exists, it
    must be reactivated rather than creating a duplicate.
 5. The grant status must be set to `active`.
@@ -127,8 +146,7 @@ When a data-manager creates a grant:
 
 A data-manager may toggle grants that:
 
-- have role `coder`, `coding_tester`, or `data_manager`
-- fall within their scope
+- they could create under "Scope Rules" (role and scope both)
 - are not the current user's own `data_manager` grant
 
 A data-manager may **not** toggle grants with other roles or grants outside
@@ -152,22 +170,29 @@ A data-manager may create new users. Created users:
 Creating a user through this interface also requires an initial grant payload:
 
 - project selection first (project must be in DM-manageable scope)
-- role: `coder`, `coding_tester`, or `data_manager`
-- scope: `project_site` for site-scoped DMs, `project_site` or `project` for
-  project-scoped DMs
-- target site/project must be inside the DM's own manageable scope
+- role and scope: any the DM may assign under "Scope Rules" (site projects:
+  `project_site` for site-scoped DMs, `project_site` or `project` for
+  project-scoped DMs)
+- target project, site or unit must be inside the DM's own scope
 
 ## Visibility
 
 ### Grant listing
 
-Data-managers see only:
+A data-manager lists the grants they may manage under "Scope Rules", within
+their own scope:
 
-- grants with role `coder`, `coding_tester`, or `data_manager`
-- grants within their own scope (project or project-site)
+- site projects: `coder`, `coding_tester` and `data_manager` grants
+- district projects (implementation tracked in digitva-0wc): grants of
+  `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
+  `collaborator_pii` anywhere inside their subtree, and `data_manager` grants
+  strictly below their own
+- for a mentoring institute member, the mentor grants inside a district they
+  manage (see [Organization Model Policy](organization-model.md),
+  "Mentoring institutes")
 
-They do not see `admin`, `project_pi`, `site_pi`, `reviewer`, or `collaborator`
-grants, even within their scope.
+They do not see `admin`, `project_pi`, `site_pi`, `interview_supervisor` or
+In-charge grants, nor any grant outside their scope.
 
 From the user-details modal, a `Manage Grants` action navigates to the grants
 tab and pre-applies the selected user's email as the grants-table text filter.
@@ -184,6 +209,7 @@ The details panel includes:
 - in-scope active grant breakdown by:
   - project-level grants
   - project-site-level grants
+  - unit-level grants (organizational projects)
 - resend verification action (for unverified users)
 - email update action only for users created by the same data-manager
 - language update action for data-managers/admins

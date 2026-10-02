@@ -91,8 +91,42 @@ May:
 - view reporting for assigned project-site scope
 - perform oversight actions allowed by workflow policy
 
-A user may hold `site_pi` grants for many project-site pairs. `site_pi` is
-not used in organizational (unit-tree) projects; see "Role To Scope Rules".
+A user may hold `site_pi` grants for many project-site pairs.
+
+### In-charge (organizational projects)
+
+Decision 2026-10-02. An organizational (unit-tree) project has one
+**In-charge** role, held at every level of the tree: the **District
+in-charge** (CMO or Civil Surgeon) on a district unit, the **Block in-charge**
+(Senior Medical Officer, CHC) on a block unit, and the **PHC in-charge**
+(Medical Officer, PHC) on a PHC unit. It replaces both the "District lead"
+recorded earlier the same day and the display name "field supervisor" for
+`interview_supervisor`. Within their own unit subtree every in-charge:
+
+- sees every screen, with personal data: the data-management dashboard,
+  grid, KPIs and submission view, the coder and reviewer views, the area
+  view, intake supervision and the site PI report
+- oversees field work, as `interview_supervisor` does today: views intake
+  cases, resolves flags, cancels or reopens a case and marks duplicates (see
+  [Web Intake Policy](web-intake.md), "Supervisors")
+- has every power of a `data_manager` in that subtree: triage and Not
+  Codeable, screening, sync, route and pin, the unrouted queue, upstream
+  change resolution, and the grants a data manager may give
+- creates `data_manager` grants on their own unit and on units beneath it
+  (see "Who creates which grants")
+
+Coding and reviewing still require a `coder` or `reviewer` grant. Mentoring
+institute members may never hold the role; cadre validation applies as for
+any unit grant.
+
+The In-charge is the `site_pi` role held at `org_unit` scope, shown as
+"In-charge" (decision 2026-10-02). This needs a migration lifting the
+`role_scope` CHECK that today keeps `site_pi` at `project_site`, and the
+grant validator must accept it; classical projects keep `site_pi` at
+`project_site` unchanged.
+
+Implementation tracked in digitva-0wc. Until it lands an in-charge holds an
+`interview_supervisor` grant and has only its powers.
 
 ### `data_manager`
 
@@ -104,6 +138,9 @@ May:
 - open submissions in read-only mode
 - document that a submission is not codeable from a data-management perspective
 - view reporting and workflow context needed to diagnose submission quality issues
+- create grants within their own scope, as set out in "Who creates which
+  grants": today's rule in site projects; in district projects the subtree
+  rule (implementation tracked in digitva-0wc)
 
 May not:
 
@@ -404,10 +441,10 @@ The system must not infer broader access from missing values or partial keys.
 
 - `admin` uses `global`
 - `project_pi` uses `project`
-- `site_pi` uses `project_site` only. It is **never held at `org_unit`
-  scope**: in an organizational project the site PI duty is the `project_pi`'s,
-  who covers every district; classical (site-based) projects keep `site_pi` at
-  `project_site`. The database `role_scope` CHECK enforces it.
+- `site_pi` uses `project_site` (database `role_scope` CHECK). In an
+  organizational project the oversight duty at a unit is the **In-charge**
+  (see "In-charge"): `site_pi` held at `org_unit`, which needs a migration
+  of the `role_scope` CHECK. Implementation tracked in digitva-0wc.
 - `data_manager` uses `project`, `project_site` or `org_unit`
 - `collaborator` uses `project`, `project_site` or `org_unit`
 - `collaborator_pii` uses `project`, `project_site` or `org_unit`
@@ -418,7 +455,9 @@ The system must not infer broader access from missing values or partial keys.
   [Web Intake Policy](web-intake.md))
 - `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
   it supervises web intake cases in the unit's subtree, as do `data_manager`
-  grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors")
+  grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors").
+  Its holders are displayed as **In-charges**; the In-charge's wider powers
+  are decided but not built (see "In-charge")
 
 A unit grant of `data_manager` or `coding_tester` covers the grant's whole
 unit subtree on **every surface** (worklists, KPI and analytics, sync, the
@@ -475,6 +514,59 @@ be defined at the unit's level, a `coder` grant requires a cadre that may
 code at that level, and an `interview_supervisor` grant a cadre that may
 supervise interviews there. Cadre rules live in
 [Organization Model Policy](organization-model.md).
+
+## Who creates which grants
+
+`admin` creates every grant. The `project_pi` sets up the project and grants
+roles in it (see [Organization Model Policy](organization-model.md),
+"Spreadsheet setup"). Data managers follow the rule for the project's kind.
+
+### Site projects
+
+Today's rule, unchanged. A `data_manager` creates `coder`, `coding_tester`
+and `data_manager` grants at their own scope: a project-scope data manager
+at `project` or `project_site` scope in that project, a site-scope data
+manager at their own (project, site) pair only. They never create
+`admin`, `project_pi`, `site_pi`, `reviewer`, `collaborator`,
+`collaborator_pii` or `interviewer` grants. See
+[Data-Manager User and Grant Management](dm-user-grant-management.md).
+
+### District (organizational) projects
+
+Decision 2026-10-02; replaces the data-manager role list recorded earlier the
+same day. Implementation tracked in digitva-0wc.
+
+A grant's **subtree** is what it covers: a `project` grant covers the whole
+project, a `project_site` grant its (project, site) pair, an `org_unit` grant
+its unit and every unit beneath it. "Strictly below" means inside the subtree
+but not at the grant's own level: below a `project` grant are its sites and
+every unit of its tree; below an `org_unit` grant are its descendant units;
+below a `project_site` grant there is nothing.
+
+- `project_pi` creates `data_manager` grants at any level of their project.
+- An **In-charge** creates `data_manager` grants at their own level and on
+  units beneath it, within their own area (the District in-charge creates the
+  District Programme Manager).
+- A `data_manager` creates:
+  - `data_manager` grants only strictly below their own grant, inside their
+    own subtree;
+  - `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
+    `collaborator_pii` grants at any level inside their own subtree, their own
+    level included.
+- The same rule applies to every data manager of a district project, whatever
+  the grant's scope. A project-scope data manager's subtree is the whole
+  project.
+- No data manager creates In-charge, `interview_supervisor`, `site_pi`,
+  `project_pi` or `admin` grants, and none grants above or outside their own
+  subtree.
+- Cadre validation and the mentoring-institute guard apply to every grant
+  written this way.
+
+The same powers cover reactivating and revoking those grants, and a data
+manager sees, in the grant list, every grant they may manage. Until this
+lands a data manager in a district project follows the site-project rule,
+plus mentor-role unit grants for mentoring institute staff (see
+[Organization Model Policy](organization-model.md), "Mentoring institutes").
 
 ## Closed Projects
 
@@ -617,19 +709,22 @@ Recommended shape:
 - `role`
 - `scope_type`
 - `project_id`
-- `site_id`
+- `project_site_id`
 - `org_unit_id`
 - `cadre_id`
 
-Rules:
+Rules (database `scope_shape` CHECK; exactly one target column is set):
 
-- `scope_type = global` is valid only for global roles such as `admin`
+- `scope_type = global` is valid only for global roles such as `admin`, and
+  leaves every target column empty
 - `scope_type = project` requires `project_id`
-- `scope_type = project_site` requires both `project_id` and `site_id`
+- `scope_type = project_site` requires `project_site_id` (the
+  `va_project_sites` row, which names both project and site) and leaves
+  `project_id` NULL; the project is read from the mapping
 - `scope_type = org_unit` requires `org_unit_id` and must leave `project_id`
   and `project_site_id` empty; the project is read from the unit
 - `cadre_id` is valid only when `scope_type = org_unit`
-- `site_id = NULL` must not imply project-wide access unless `scope_type = project`
+- a NULL target must not imply project-wide access unless `scope_type = project`
 - exactly one active grant per user × role × scope target
 
 This is preferred over loosely structured JSON.

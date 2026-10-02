@@ -30,8 +30,9 @@ below win.
 
 Nobody in DigitVA simply *has* permissions. Permission is handed out one record
 at a time, and each record says three things: **who** (a person with a login),
-**what job** (the role: coder, reviewer, data manager, site PI, project PI,
-admin), and **where** (the scope — the boundary that job applies inside).
+**what job** (the role: interviewer, coder, reviewer, coding tester, data
+manager, viewer, viewer with names, in-charge, site PI, project PI, admin),
+and **where** (the scope — the boundary that job applies inside).
 
 The system never infers. If no record says a person may do something, they may
 not. Access is not inherited from a job title, from seniority, from being
@@ -379,10 +380,15 @@ The rule and the shared predicate that implements it live in
   reachable set and ignores the flag entirely.
 - Roles accepted at unit scope: `collaborator`, `collaborator_pii`, `coder`,
   `coding_tester`, `reviewer`, `data_manager`, `interviewer`,
-  `interview_supervisor`. **Not `site_pi`**: it is held at `project_site`
-  scope only (database `role_scope` CHECK, refused by the validator); in an
-  organizational project the project PI covers every district.
-  `admin` stays global and `project_pi` stays project-scoped.
+  `interview_supervisor`. `site_pi` is refused at `org_unit` by the
+  `role_scope` CHECK. Each unit level has an **In-charge** (District, Block
+  or PHC in-charge; decision 2026-10-02, see
+  [Access Control Model](access-control-model.md), "In-charge"). The In-charge
+  is `site_pi` held at `org_unit` (shown as "In-charge"), with every data
+  manager power in its subtree; allowing it needs a migration of the
+  `role_scope` CHECK. Implementation tracked in digitva-0wc. The
+  mentor guard forbids it to mentoring institute members. `admin` stays
+  global and `project_pi` stays project-scoped.
 - A unit grant carries no `project_id` or `project_site_id`. The grant's
   project is the unit's project, and every project filter resolves it that way.
 - One cadre per person per unit (decision 2026-09-18): a grant carries a single
@@ -402,18 +408,30 @@ The rule and the shared predicate that implements it live in
   grant's resolved scope without touching the grant rows. Reactivating the
   unit restores them.
 - Unit-scoped grants are created from the **admin user panel**, which carries
-  the unit and cadre pickers, and by data managers within the limits below.
-- **Data managers grant inside their own subtree** (decision 2026-10-02). A
-  `data_manager` may create, reactivate and revoke grants of `interviewer`,
-  `coder`, `reviewer`, `coding_tester`, `collaborator` and
-  `collaborator_pii` at `org_unit` scope, on units inside their own subtree
-  (a project-scope `data_manager` grant covers the whole tree). Never
-  `data_manager`, `interview_supervisor`, `site_pi`, `project_pi` or `admin`,
-  and never on a unit above or outside their own. The cadre validation above
-  applies, and so does the mentor guard when the grantee is a mentoring
-  institute member (see "Mentoring institutes"). A data manager sees the unit
-  grants held inside their subtree in the grant list. Implementation tracked
-  in digitva-0wc.
+  the unit and cadre pickers, and by the project PI, in-charges and data
+  managers within the limits below.
+- **Who creates which grants** (decision 2026-10-02; replaces the
+  data-manager role list recorded earlier the same day). The rule lives in
+  [Access Control Model](access-control-model.md), "Who creates which
+  grants". In a tree project:
+  - the project PI creates `data_manager` grants at any level of the project;
+  - an In-charge creates `data_manager` grants on their own unit and on
+    units beneath it (the District in-charge creates the District Programme
+    Manager);
+  - a `data_manager` creates `data_manager` grants only on units strictly
+    below their own unit, inside their own subtree, and creates
+    `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
+    `collaborator_pii` grants at any level inside their own subtree, their
+    own unit included. A project-scope `data_manager` grant's subtree is the
+    whole project. The same powers cover reactivating and revoking;
+  - no data manager creates In-charge, `interview_supervisor`, `site_pi`,
+    `project_pi` or `admin` grants, or grants on a unit above or
+    outside their own.
+  The cadre validation above applies, and so does the mentor guard when the
+  grantee is a mentoring institute member (see "Mentoring institutes"). A
+  data manager sees every grant they may manage in the grant list.
+  Site projects keep today's rule (see the Access Control Model).
+  Implementation tracked in digitva-0wc.
 - `flask users grant` does not create unit grants; use the admin panel or the
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.

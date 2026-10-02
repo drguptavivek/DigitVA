@@ -5,7 +5,7 @@ direction: down
 classes: {
   level: {style: {fill: "#FAFAFA"; stroke: "#BDBDBD"; border-radius: 8; font-size: 18}}
   lead: {style: {fill: "#EDE7F6"; stroke: "#5E35B1"; border-radius: 6}}
-  sup: {style: {fill: "#FFF3E0"; stroke: "#E65100"; border-radius: 6}}
+  incharge: {style: {fill: "#FFF3E0"; stroke: "#E65100"; border-radius: 6}}
   dm: {style: {fill: "#E3F2FD"; stroke: "#1565C0"; border-radius: 6}}
   doc: {style: {fill: "#E8F5E9"; stroke: "#2E7D32"; border-radius: 6}}
   int: {style: {fill: "#E0F7FA"; stroke: "#00838F"; border-radius: 6}}
@@ -23,7 +23,7 @@ project: "Project (State)" {
 district: "District (District Hospital)" {
   class: level
   grid-columns: 5
-  cmo: "CMO or Civil Surgeon\nfield supervisor" {class: sup}
+  cmo: "CMO or Civil Surgeon\nDistrict in-charge" {class: incharge}
   dpm: "District Programme Manager\ndata manager" {class: dm}
   epi: "District Epidemiologist\nviewer with names" {class: view}
   mo: "Medical Officer\ncoder or reviewer" {class: doc}
@@ -33,7 +33,7 @@ district: "District (District Hospital)" {
 block: "Block (CHC)" {
   class: level
   grid-columns: 4
-  smo: "Senior Medical Officer\nreviewer and field supervisor" {class: sup}
+  smo: "Senior Medical Officer\nBlock in-charge (also reviewer)" {class: incharge}
   bpm: "Block Programme Manager\ndata manager" {class: dm}
   mo: "Medical Officer\ncoder" {class: doc}
   sn: "Staff Nurse\ninterviewer" {class: int}
@@ -42,7 +42,7 @@ block: "Block (CHC)" {
 phc: "PHC" {
   class: level
   grid-columns: 2
-  mo: "Medical Officer\ncoder and field supervisor" {class: doc}
+  mo: "Medical Officer\nPHC in-charge (also coder)" {class: incharge}
   cho: "Community Health Officer\ninterviewer" {class: int}
 }
 

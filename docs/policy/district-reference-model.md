@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-02
 ---
 
 # District Reference Model
@@ -109,16 +109,16 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 |---|---|---|---|
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
-| DH | CS | `interview_supervisor` | whole district. No `site_pi` at a unit: in an organizational project the site PI duty is the project PI's, who covers every district |
+| DH | CS (or CMO) | District in-charge; `interview_supervisor` until it is built | whole district. The In-charge is `site_pi` held at the unit (decision 2026-10-02), with every data manager power in its area (see [Access Control Model](access-control-model.md), "In-charge"); implementation tracked in digitva-0wc |
 | DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is interviewer-only) |
 | DH | DEPI | `collaborator_pii` | read-only with personal details |
 | DH | MO | `coder`, or `reviewer` | whole district |
 | DH | SN | `interviewer` | facility deaths at the DH |
-| CHC | SMO | `interview_supervisor`, `reviewer` | the block |
+| CHC | SMO | Block in-charge (`interview_supervisor` until it is built), `reviewer` | the block |
 | CHC | MO | `coder` | the block |
 | CHC | BPM | `data_manager` | the block |
 | CHC | SN | `interviewer` | facility deaths at the CHC |
-| PHC-AAM | MO | `interview_supervisor`, `coder` | its SC-AAMs |
+| PHC-AAM | MO | PHC in-charge (`interview_supervisor` until it is built), `coder` | its SC-AAMs |
 | SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
 | SC-AAM | ANM, MPW | none yet; `death_reporter` proposed | report deaths only |
 | Village | ASHA | none yet; `death_reporter` proposed | report deaths only |
@@ -129,12 +129,19 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 | Who | Create accounts | Give roles | Limits |
 |---|---|---|---|
 | Admin | ✓ | every role, every scope | none |
-| Project PI | existing users only | every role except `admin` and `project_pi`, unit grants included | own project only |
-| Data manager | ✓ | `coder`, `coding_tester`, `data_manager` | project or site scope only; refuses unit grants |
+| Project PI | existing users only | every role except `admin` and `project_pi`, unit grants included; `data_manager` at any level | own project only |
+| In-charge (district, block, PHC) | – | `data_manager` | their own unit and units beneath it |
+| Data manager | ✓ | `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
 | Everyone else | – | – | – |
 
-So interviewer grants for CHOs at SC-AAMs are given by an admin or the
-project PI, not by a district or block data manager.
+Decision 2026-10-02 (see [Access Control Model](access-control-model.md),
+"Who creates which grants", district projects); the In-charge and data-manager rows are
+implementation tracked in digitva-0wc. Until then a data manager grants only
+`coder`, `coding_tester` and `data_manager` at project or site scope and
+refuses unit grants other than mentor-role grants for mentoring institute
+staff in a district they manage, so interviewer grants for CHOs at SC-AAMs are still
+given by an admin or the project PI. Cadre validation and the mentor guard
+apply to every grant.
 
 ## Mentoring institutes
 

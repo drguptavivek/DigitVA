@@ -415,6 +415,8 @@ Scope model:
 - data-manager access is granted at:
   - `project`
   - `project_site`
+  - `org_unit` (organizational projects): the unit and its whole subtree, on
+    every data-management surface (see "Current effective model" below)
 
 Current runtime behavior:
 
@@ -620,24 +622,23 @@ Implementation note:
 
 ### Current source of truth
 
-Permissions are stored on the user record in:
+Grants are stored in `va_user_access_grants`: one row per user, role and
+scope (`global`, `project`, `project_site` or `org_unit`), with `cadre_id` on
+unit grants. Scope targets resolve through `va_project_master`,
+`va_site_master`, `va_project_sites` and `mas_org_unit`. Every role resolves
+from this table.
 
-- `va_users.permission`
-
-This is a JSONB structure.
-
-An additive grants table also now exists in schema:
-
-- `va_project_master`
-- `va_site_master`
-- `va_project_sites`
-- `va_user_access_grants`
-
-Important:
-
-- coder authorization in the current dev environment now resolves from `va_user_access_grants`
-- site PI authorization in the current dev environment now resolves from `va_user_access_grants`
-- reviewer authorization in the current dev environment now resolves from `va_user_access_grants`
+Legacy residue: `va_users.permission`, a NOT NULL JSONB column of
+form-centric permissions, still exists. It is read only as a fallback for
+roles other than coder, reviewer and site PI, in
+`VaUsers.has_va_form_access` and `get_all_accessible_va_forms`
+(`app/models/va_users.py`), `app/routes/api/workflow.py` and
+`app/services/attachment_service.py`. Account creation (admin, data-manager,
+CLI, project user import, seed) writes `{}`. The legacy shell helpers
+`app/services/va_user/va_user_01_create.py` and `va_user_02_update.py`
+(imported in `run.py`) and the test-data seed (`app/commands/seed.py`) write
+only `coder`, `reviewer` or `sitepi` keys, which the fallback skips, so no
+current writer grants access through it.
 
 ### Current permission helpers
 
@@ -652,9 +653,7 @@ The user model provides helpers such as:
 
 ### Current effective model
 
-Permissions are currently mixed during transition.
-
-For example:
+Grant scope is resolved back to forms and submissions as follows:
 
 - coder access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - site PI access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`

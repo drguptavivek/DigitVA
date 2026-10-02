@@ -98,49 +98,7 @@ every CHC, PHC and sub-centre in it. A role for one PHC covers that PHC and
 its sub-centres, but not the neighbouring PHC and not the district above.
 There is no site PI; the project lead covers every district.
 
-```mermaid
-block-beta
-  columns 6
-  L0["Project<br/>State"] PL["Project lead<br/>sees and manages<br/>every district"] space:4
-  space:6
-  L1["District<br/>District Hospital"] CMO["CMO or Civil Surgeon<br/>field supervisor"] DPM["District Programme<br/>Manager<br/>data manager"] EPI["District<br/>Epidemiologist<br/>viewer with names"] DMO["Medical Officer<br/>coder or reviewer"] DSN["Staff Nurse<br/>interviewer"]
-  space:6
-  L2["Block<br/>CHC"] SMO["Senior Medical Officer<br/>reviewer and<br/>field supervisor"] BPM["Block Programme<br/>Manager<br/>data manager"] BMO["Medical Officer<br/>coder"] BSN["Staff Nurse<br/>interviewer"] space
-  space:6
-  L3["PHC"] PMO["Medical Officer<br/>coder and<br/>field supervisor"] PCHO["Community Health<br/>Officer<br/>interviewer"] space:3
-  space:6
-  L4["Sub-centre"] SCHO["Community Health<br/>Officer<br/>interviewer"] ANM["ANM, MPW<br/>no role yet"] space:3
-  space:6
-  L5["Village"] ASHA["ASHA<br/>no role yet"] space:4
-  space:6
-  MC["Medical college<br/>outside the chain,<br/>linked to districts"] MEN["Mentors<br/>coder, reviewer,<br/>coding tester or<br/>viewer with names"] CAD["College admin<br/>adds and removes<br/>its own staff"] space:3
-
-  L0 --> L1
-  L1 --> L2
-  L2 --> L3
-  L3 --> L4
-  L4 --> L5
-
-  classDef level fill:#EEEEEE,stroke:#9E9E9E,color:#222,font-weight:bold
-  classDef lead fill:#EDE7F6,stroke:#5E35B1,color:#222
-  classDef sup fill:#FFF3E0,stroke:#E65100,color:#222
-  classDef dm fill:#E3F2FD,stroke:#1565C0,color:#222
-  classDef doc fill:#E8F5E9,stroke:#2E7D32,color:#222
-  classDef int fill:#E0F7FA,stroke:#00838F,color:#222
-  classDef view fill:#F3F3F3,stroke:#555555,color:#222
-  classDef none fill:#FAFAFA,stroke:#9E9E9E,color:#555
-  classDef mentor fill:#FFFDE7,stroke:#F9A825,color:#222
-  class L0,L1,L2,L3,L4,L5 level
-  class MC mentor
-  class PL lead
-  class CMO,SMO sup
-  class DPM,BPM dm
-  class DMO,BMO,PMO doc
-  class DSN,BSN,PCHO,SCHO int
-  class EPI view
-  class ANM,ASHA none
-  class MEN,CAD mentor
-```
+![Who works at each level of a district project](diagrams/district-roles.svg)
 
 A role given at a level covers that level and everything below it, never the
 level above. Taluka or sub-district is an optional level between district and

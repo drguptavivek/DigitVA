@@ -1,0 +1,75 @@
+# Who works at each level of a district project.
+# Render: d2 --layout elk docs/policy/diagrams/district-roles.d2 docs/policy/diagrams/district-roles.svg
+direction: down
+
+classes: {
+  level: {style: {fill: "#FAFAFA"; stroke: "#BDBDBD"; border-radius: 8; font-size: 18}}
+  lead: {style: {fill: "#EDE7F6"; stroke: "#5E35B1"; border-radius: 6}}
+  sup: {style: {fill: "#FFF3E0"; stroke: "#E65100"; border-radius: 6}}
+  dm: {style: {fill: "#E3F2FD"; stroke: "#1565C0"; border-radius: 6}}
+  doc: {style: {fill: "#E8F5E9"; stroke: "#2E7D32"; border-radius: 6}}
+  int: {style: {fill: "#E0F7FA"; stroke: "#00838F"; border-radius: 6}}
+  view: {style: {fill: "#F3F3F3"; stroke: "#555555"; border-radius: 6}}
+  none: {style: {fill: "#FFFFFF"; stroke: "#9E9E9E"; stroke-dash: 4; font-color: "#666666"; border-radius: 6}}
+  mentor: {style: {fill: "#FFFDE7"; stroke: "#F9A825"; border-radius: 6}}
+}
+
+project: "Project (State)" {
+  class: level
+  grid-columns: 1
+  lead: "Project lead\nsees and manages every district" {class: lead}
+}
+
+district: "District (District Hospital)" {
+  class: level
+  grid-columns: 5
+  cmo: "CMO or Civil Surgeon\nfield supervisor" {class: sup}
+  dpm: "District Programme Manager\ndata manager" {class: dm}
+  epi: "District Epidemiologist\nviewer with names" {class: view}
+  mo: "Medical Officer\ncoder or reviewer" {class: doc}
+  sn: "Staff Nurse\ninterviewer" {class: int}
+}
+
+block: "Block (CHC)" {
+  class: level
+  grid-columns: 4
+  smo: "Senior Medical Officer\nreviewer and field supervisor" {class: sup}
+  bpm: "Block Programme Manager\ndata manager" {class: dm}
+  mo: "Medical Officer\ncoder" {class: doc}
+  sn: "Staff Nurse\ninterviewer" {class: int}
+}
+
+phc: "PHC" {
+  class: level
+  grid-columns: 2
+  mo: "Medical Officer\ncoder and field supervisor" {class: doc}
+  cho: "Community Health Officer\ninterviewer" {class: int}
+}
+
+subcentre: "Sub-centre" {
+  class: level
+  grid-columns: 2
+  cho: "Community Health Officer\ninterviewer" {class: int}
+  anm: "ANM, MPW\nno role yet" {class: none}
+}
+
+village: "Village" {
+  class: level
+  grid-columns: 1
+  asha: "ASHA\nno role yet" {class: none}
+}
+
+college: "Medical college (outside the chain)" {
+  class: level
+  style: {fill: "#FFFDE7"; stroke: "#F9A825"; stroke-dash: 5}
+  grid-columns: 1
+  mentors: "Mentors (faculty, residents)\ncoder, reviewer, coding tester\nor viewer with names" {class: mentor}
+  admin: "College admin\nadds and removes its own staff" {class: mentor}
+}
+
+project -> district
+district -> block
+block -> phc
+phc -> subcentre
+subcentre -> village
+college -> district: supports {style: {stroke-dash: 4; stroke: "#F9A825"}}

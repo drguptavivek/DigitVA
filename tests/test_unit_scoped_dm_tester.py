@@ -163,12 +163,12 @@ class UnitCodingTesterTests(UnitScopeFixture, BaseTestCase):
 
 
 class CodingWaiverTests(BaseTestCase):
-    """_coding_waivers keys every waiver on the (project, site) pair."""
+    """coding_gate_waivers keys every waiver on the (project, site) pair."""
 
     def test_site_pi_waiver_does_not_cross_projects(self):
-        from app.services.coder_workflow_service import _CodingWaivers
+        from app.services.authz import CodingWaivers
 
-        waivers = _CodingWaivers(
+        waivers = CodingWaivers(
             pi_projects=frozenset(),
             pi_pairs=frozenset({("P1", "S1")}),
             tester_projects=frozenset(),

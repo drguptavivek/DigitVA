@@ -11,7 +11,7 @@ from app import db
 from app.models import VaStatuses, VaUserAccessGrants
 from app.services.authz import GrantTarget, Reason, can_grant, grant_list_filter
 from app.services.org_grant_service import validate_org_unit_grant
-from app.services.organization_service import OrganizationError
+from app.services.organization_service import OrganizationError, list_cadres
 from tests.authz.fixture import CL, PS, SP, TA, TB, AuthzFixtureMixin, P, R, U
 from tests.base import BaseTestCase
 
@@ -134,20 +134,27 @@ class CanGrantTests(AuthzFixtureMixin, BaseTestCase):
         self.assertIs(decision.reason, Reason.NO_ROLE)
 
     def test_cadre_and_mentor_refusals_still_apply_after_a_true_decision(self):
-        # Cadre: a coder unit grant needs a cadre that may code there.
+        p1 = self.units["P1"].org_unit_id
+        cadres = {c.cadre_code: c for c in list_cadres(TA)}
+        # Cadre: can_grant allows a coder at P1; the write-time cadre check
+        # still refuses it without a cadre that may code there, and passes
+        # with one (so the refusal is the cadre rule's, not something else).
         self.assertTrue(can_grant(self.users["dm_c1"], self._target(R.coder, U, "P1")))
-        with self.assertRaises(OrganizationError):
-            validate_org_unit_grant(role=R.coder, org_unit_id=self.units["P1"].org_unit_id)
-        # Mentor guard: an institute member may not hold data_manager.
+        with self.assertRaisesRegex(OrganizationError, "requires a cadre"):
+            validate_org_unit_grant(role=R.coder, org_unit_id=p1)
+        validate_org_unit_grant(role=R.coder, org_unit_id=p1, cadre_id=cadres["MO"].cadre_id)
+        # Mentor guard: can_grant allows a DM grant at P1 for an institute
+        # member; the guard still refuses it, and the same grant passes for a
+        # grantee outside the institute.
         mentor = self.users["mentor"]
         self.assertTrue(can_grant(
             self.users["dm_ta"], self._target(R.data_manager, U, "P1"), grantee_id=mentor.user_id
         ))
-        with self.assertRaises(OrganizationError):
-            validate_org_unit_grant(
-                role=R.data_manager, org_unit_id=self.units["P1"].org_unit_id,
-                user_id=mentor.user_id,
-            )
+        with self.assertRaisesRegex(OrganizationError, "mentoring institute"):
+            validate_org_unit_grant(role=R.data_manager, org_unit_id=p1, user_id=mentor.user_id)
+        validate_org_unit_grant(
+            role=R.data_manager, org_unit_id=p1, user_id=self.users["nobody"].user_id
+        )
 
     def test_grant_list_filter_lists_exactly_what_can_grant_allows(self):
         grantee = self._get_or_make_user("authz.grantee@test.local", "AuthzTest123")

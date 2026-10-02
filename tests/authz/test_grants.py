@@ -11,7 +11,6 @@ from app.services.authz import (
     invalidate,
     resolve_grants,
 )
-from app.services.coder_workflow_service import _coding_waivers
 from tests.authz.fixture import DM, TA, USERS, AuthzFixtureMixin, P, R
 from tests.base import BaseTestCase
 
@@ -96,16 +95,24 @@ class EffectiveRolesTests(AuthzFixtureMixin, BaseTestCase):
 class CodingGateWaiverTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_same_waivers_as_the_original(self):
+        # The original (coder_workflow_service._coding_waivers, deleted in
+        # stage 1) was these five VaUsers getters; compare against them.
         checked = 0
         for key in USERS:
             if key == "incharge_c1":
                 continue
             with self.subTest(user=key):
                 user = self.users[key]
-                old, new = _coding_waivers(user), coding_gate_waivers(user)
-                for field in ("pi_projects", "pi_pairs", "tester_projects",
-                              "tester_pairs", "tester_unit_ids"):
-                    self.assertEqual(getattr(new, field), getattr(old, field), field)
+                new = coding_gate_waivers(user)
+                old = {
+                    "pi_projects": user.get_project_pi_projects(),
+                    "pi_pairs": user.get_site_pi_project_site_pairs(),
+                    "tester_projects": user.get_coding_tester_projects(),
+                    "tester_pairs": user.get_coding_tester_project_site_pairs(),
+                    "tester_unit_ids": user.get_coding_tester_org_unit_ids(),
+                }
+                for field, expected in old.items():
+                    self.assertEqual(getattr(new, field), frozenset(expected), field)
                     checked += bool(getattr(new, field))
         self.assertGreater(checked, 3)  # some user holds each kind of waiver
 

@@ -256,6 +256,10 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     if action not in RULES:
         raise ValueError(f"{action!r} has no submission predicate")
     g = _grants if _grants is not None else resolve_grants(user)
+    if g.is_admin and action is Action.LIST_UNROUTED:
+        # The queue is the unrouted cases only, admin included: the bypass
+        # lifts the project limit, never the queue's own shape.
+        return VaSubmissions.org_unit_id.is_(None)
     if g.is_admin and action in ADMIN_BYPASS:
         return sa.true()
     clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]

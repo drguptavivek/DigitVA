@@ -6,9 +6,10 @@ Public interface: ``can``, ``require``, ``scope_filter``, ``can_grant`` and
 redaction rule, unchanged). Every answer is derived from one per-request
 ``ResolvedGrants`` and the ``RULES`` table.
 
-Stage 0: nothing in the app calls this package yet; the old helpers in
-org_grant_service, coder_workflow_service and VaUsers stay authoritative
-until the stages in .tasks/digitva-0wc-design.md move their callers here.
+Stage 1: the coding screens (coder pool, pick, recode, coder view, area
+overview and the ``vacode`` partial validator) call this package. Every
+other caller still uses the old helpers in org_grant_service and VaUsers
+until the stages in .tasks/digitva-0wc-design.md move it here.
 """
 
 from app.services.authz.actions import (

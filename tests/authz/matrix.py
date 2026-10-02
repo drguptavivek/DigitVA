@@ -33,6 +33,9 @@ MATRIX = [
     ("admin", A.LIST_DATA, "sp-1", True),            # D 2.2 / bead 4in: admin sees the DM grid
     ("admin", A.SYNC_FORM, "form:ta1", True),
     ("admin", A.LIST_UNROUTED, "proj:AZTA01", True),
+    ("admin", A.LIST_UNROUTED, "ta-unr", True),      # the bypass lifts the project limit...
+    ("admin", A.LIST_UNROUTED, "ta-p1", False),      # ...never the queue's shape: routed is out
+    ("admin", A.LIST_UNROUTED, "sp-1", True),        # a site project's case is unrouted by construction
     ("admin", A.CODE, "ta-p1", NO_ROLE),             # D 2.2: admin codes demo only
     ("admin", A.REVIEW, "ta-p1", NO_ROLE),
     ("admin", A.SUPERVISE_INTAKE, "case:P1", NO_ROLE),  # D 9.9: no intake bypass

@@ -1,8 +1,8 @@
 """Coding gate waivers (digitva-0wc, design 1.5).
 
-Copied from ``coder_workflow_service._CodingWaivers`` / ``_coding_waivers``
-(the originals stay until stage 1 moves their callers here) and fed from
-``ResolvedGrants`` instead of five ``VaUsers.get_*`` calls. Gates are
+Moved from ``coder_workflow_service._CodingWaivers`` / ``_coding_waivers``
+(deleted in stage 1) and fed from ``ResolvedGrants`` instead of five
+``VaUsers.get_*`` calls. Gates are
 separate from scope by policy (access-control-model.md, "Role To Scope
 Rules"; organization-model.md, "Per-unit coding gates"): a waiver lifts the
 enabled flag, date window and daily limit, never scope, so it is

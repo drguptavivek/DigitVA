@@ -79,59 +79,43 @@ def _has_coding_role() -> bool:
     return current_user.is_coder() or current_user.is_coding_tester()
 
 
-def _within_coding_org_scope(sid: str | None, form_id: str | None) -> bool:
-    """Unit-scope gate for a coding action on one submission."""
+def _require_coding_scope(actiontype, sid: str | None) -> None:
+    """One authz check for a coding action on one submission.
+
+    VIEW for ``vaview``, RECODE for ``varecode``, CODE for the rest; no
+    submission (the start / resume shells) means nothing to check yet.
+    Refusals flash the way allocation errors do.
+    """
     if not sid:
-        return True
-    from app.models import VaAccessRoles
-    from app.services.coder_workflow_service import tester_covers_submission
-    from app.services.org_grant_service import submission_within_org_scope
+        return
+    from app.services.authz import Action, AuthzError, require
 
-    if form_id and tester_covers_submission(current_user, sid, form_id):
-        return True
-    return submission_within_org_scope(current_user, sid, VaAccessRoles.coder)
-
-
-def _within_viewing_org_scope(sid: str | None) -> bool:
-    """Unit-scope gate for a read-only view of one submission."""
-    if not sid:
-        return True
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import submission_within_org_view_scope
-
-    return submission_within_org_view_scope(current_user, sid, VaAccessRoles.coder)
-
-
-def _has_coding_form_access(form_id: str | None) -> bool:
-    if not form_id:
-        return False
-    return (
-        current_user.has_va_form_access(form_id, "coder")
-        or current_user.is_coding_tester(form_id)
-    )
+    if actiontype == "vaview":
+        action = Action.VIEW
+    elif actiontype == "varecode":
+        action = Action.RECODE
+    else:
+        action = Action.CODE
+    try:
+        require(current_user, action, sid)
+    except AuthzError as e:
+        va_permission_abortwithflash(e.message, e.status_code)
 
 
 def _validate_vacode(actiontype, sid, partial):
     form_id = db.session.scalar(
         sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
     )
-    # Organization-tree projects narrow form access to the coder's own units.
-    # Checked once here so it covers every coding action, rather than per
-    # branch where a new action could miss it. No-op for projects without a
-    # tree. Policy: docs/policy/organization-model.md.
-    #
-    # Viewing is the wider right: a grant above the project's coding scope
-    # level codes nothing but still oversees its subtree read-only, so a view
-    # is checked against the viewable set rather than the codeable one.
-    if actiontype == "vaview":
-        if not _within_viewing_org_scope(sid):
-            va_permission_abortwithflash(
-                "This submission belongs to a unit outside your area.", 403
-            )
-    elif not _within_coding_org_scope(sid, form_id):
-        va_permission_abortwithflash(
-            "This submission belongs to a unit outside your coding scope.", 403
-        )
+    # Admin demo coding is its own path (start_demo_allocation); admin holds
+    # no CODE bypass, so it returns before the scope check.
+    if actiontype == "vademo_start_coding" and current_user.is_admin():
+        return
+    # Scope is checked once here, for every coding action, so a new action
+    # cannot miss it: form, project-site and unit scope are all authz's.
+    # Viewing is the wider right (a grant above the coding scope level still
+    # oversees its subtree), so ``vaview`` asks VIEW, not CODE.
+    # Policy: docs/policy/organization-model.md.
+    _require_coding_scope(actiontype, sid)
     if actiontype == "vastartcoding":
         if not _has_coding_role():
             va_permission_abortwithflash(
@@ -152,20 +136,12 @@ def _validate_vacode(actiontype, sid, partial):
         if partial:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "varecode":
-        if not _has_coding_form_access(form_id):
-            va_permission_abortwithflash(
-                "You do not have coder access for this VA form.", 403
-            )
         if not partial:
             va_permission_ensurenoactiveallocation("coding")
             va_permission_validaterecodelimits(sid)
         else:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vapickcoding":
-        if not _has_coding_form_access(form_id):
-            va_permission_abortwithflash(
-                "You do not have coder access for this VA form.", 403
-            )
         if current_user.vacode_formcount >= 200:
             va_permission_abortwithflash(
                 "You have reached your yearly limit of 200 coded VA forms.", 403
@@ -198,8 +174,6 @@ def _validate_vacode(actiontype, sid, partial):
         if is_confirmed_duplicate(sid):
             va_permission_abortwithflash(DUPLICATE_MESSAGE, 409)
     elif actiontype == "vademo_start_coding":
-        if current_user.is_admin():
-            return
         if not _has_coding_role():
             va_permission_abortwithflash(
                 "Coder access is required for demo project coding.", 403
@@ -211,10 +185,6 @@ def _validate_vacode(actiontype, sid, partial):
             )
         va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vaview":
-        if not _has_coding_form_access(form_id):
-            va_permission_abortwithflash(
-                "You do not have coder access to view this VA form.", 403
-            )
         va_permission_ensureviewable(sid)
     else:
         va_permission_abortwithflash("Unknown coding action requested.", 404)

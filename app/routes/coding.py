@@ -1,3 +1,5 @@
+import dataclasses
+
 import sqlalchemy as sa
 from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms, VaAccessRoles
@@ -10,26 +12,27 @@ from app.services.coder_dashboard_service import (
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
+from app.services.authz import (
+    Action,
+    AuthzError,
+    coding_gate_waivers,
+    require,
+    resolve_grants,
+    scope_filter,
+)
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
-from app.services.odk_retirement_service import submission_is_in_odk
-from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
-from app.services.org_grant_service import submission_within_org_view_scope
 from app.services.coder_workflow_service import (
     AllocationError,
     AllocationResult,
-    _coding_waivers,
-    _narration_language_filter,
-    _tr01_cutoff_filter,
+    _available_submission_filters,
     allocate_random_form,
     allocate_pick_form,
     start_recode_allocation,
     start_demo_allocation,
     get_active_coding_allocation,
     get_pick_available_forms,
-    _org_unit_scope_filter,
-    tester_covers_submission,
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
@@ -46,55 +49,33 @@ def _handle_allocation_error(e: AllocationError):
     va_permission_abortwithflash(e.message, e.status_code)
 
 
+def _require_or_abort(action: Action, va_sid: str) -> None:
+    """``authz.require``, refusing with a flash the way allocation errors do."""
+    try:
+        require(current_user, action, va_sid)
+    except AuthzError as e:
+        va_permission_abortwithflash(e.message, e.status_code)
+
+
 @coding.get("/")
 @role_required("coder", "coding_tester", "admin")
 def dashboard():
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     if va_form_access:
-        narration_language_filter = _narration_language_filter(current_user)
         random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
-        total_filters = [
-            VaSubmissions.va_form_id.in_(va_form_access),
-            VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-            submission_is_in_odk(),
-            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-        ]
-        if narration_language_filter is not None:
-            total_filters.append(narration_language_filter)
-        # Organization-tree projects are limited to the coder's own units, so
-        # the dashboard counts match what the pick list actually offers.
-        org_unit_filter = _org_unit_scope_filter(current_user)
-        if org_unit_filter is not None:
-            total_filters.append(org_unit_filter)
-        tr01_cutoff_filter = _tr01_cutoff_filter(current_user)
-        if tr01_cutoff_filter is not None:
-            total_filters.append(tr01_cutoff_filter)
-        va_total_forms = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissions)
-            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-            .where(sa.and_(*total_filters))
-        )
-        va_random_ready_forms = 0
-        if random_form_ids:
-            random_filters = [
-                VaSubmissions.va_form_id.in_(random_form_ids),
-                VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-                submission_is_in_odk(),
-                not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-            ]
-            if narration_language_filter is not None:
-                random_filters.append(narration_language_filter)
-            if org_unit_filter is not None:
-                random_filters.append(org_unit_filter)
-            if tr01_cutoff_filter is not None:
-                random_filters.append(tr01_cutoff_filter)
-            va_random_ready_forms = db.session.scalar(
+
+        # The pool's own filters (state, ODK, duplicates, language, coding
+        # scope, TR01), so the counts match what the pool and pick list offer.
+        def _count_ready(form_ids):
+            return db.session.scalar(
                 sa.select(sa.func.count())
                 .select_from(VaSubmissions)
                 .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-                .where(sa.and_(*random_filters))
+                .where(sa.and_(*_available_submission_filters(form_ids, user=current_user)))
             )
+
+        va_total_forms = _count_ready(va_form_access)
+        va_random_ready_forms = _count_ready(random_form_ids) if random_form_ids else 0
         pick_ready_rows = get_pick_available_forms(current_user, pick_form_ids)
         va_forms_completed = get_coder_completed_count(current_user.user_id, va_form_access)
         va_forms = get_coder_completed_history(current_user.user_id, va_form_access)
@@ -143,7 +124,7 @@ def dashboard():
             .order_by(VaResearchProjects.project_id, VaSites.site_id)
         ).all()
 
-        waivers = _coding_waivers(current_user)
+        waivers = coding_gate_waivers(current_user)
 
         def _coding_status(r):
             # Site-level status: a unit tester's waiver is per submission and
@@ -220,15 +201,31 @@ def dashboard():
     )
 
 
-def _has_org_unit_area():
-    """Whether this user oversees any organization units, in either role."""
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import viewable_unit_ids
+# The coding-track roles whose grants make up a user's area, per track.
+_AREA_ROLES = {
+    "coder": frozenset({VaAccessRoles.coder, VaAccessRoles.coding_tester}),
+    "reviewer": frozenset({VaAccessRoles.reviewer}),
+}
 
-    return bool(
-        viewable_unit_ids(current_user.user_id, VaAccessRoles.coder)
-        or viewable_unit_ids(current_user.user_id, VaAccessRoles.reviewer)
-    )
+
+def _area_grants(track: str | None = None):
+    """The user's grants that make up their area, as a ``ResolvedGrants``.
+
+    Real coder / coding_tester / reviewer grants (one track, or both) on
+    organization-tree projects, at any scope: a project or pair grant is the
+    top of the tree (F2). Not admin's bypass and not the demo-training
+    virtual grants: neither is an area someone oversees.
+    """
+    g = resolve_grants(current_user)
+    roles = _AREA_ROLES[track] if track else _AREA_ROLES["coder"] | _AREA_ROLES["reviewer"]
+    return dataclasses.replace(g, is_admin=False, grants=tuple(
+        x for x in g.of(roles, virtual=False) if g.has_tree(x.project_id)
+    ))
+
+
+def _has_org_unit_area():
+    """Whether this user oversees any part of an organization tree, in either track."""
+    return bool(_area_grants().grants)
 
 
 @coding.post("/start")
@@ -296,20 +293,10 @@ def demo():
 @coding.get("/view/<va_sid>")
 @role_required("coder", "coding_tester", "admin")
 def view_submission(va_sid):
+    # The same VIEW the ``vaview`` partial validator requires (F4); the
+    # partials add the coder's own-outcome check (design 2.4).
+    _require_or_abort(Action.VIEW, va_sid)
     form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    # A unit tester reaches only the submissions of their own subtree.
-    tester_covers = tester_covers_submission(current_user, va_sid, form.va_form_id)
-    if not (current_user.has_va_form_access(form.va_form_id, "coder") or tester_covers):
-        va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
-    # A form spans several units: apply the coder ``vaview`` validator's
-    # per-submission rule before rendering the shell.
-    if not (
-        tester_covers
-        or submission_within_org_view_scope(current_user, va_sid, VaAccessRoles.coder)
-    ):
-        va_permission_abortwithflash("This submission belongs to a unit outside your area.", 403)
     return render_va_coding_page(form, "vacode", "vaview", "coder")
 
 
@@ -329,24 +316,27 @@ AREA_OVERVIEW_MAX_ROWS = 200
 @coding.get("/area")
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def area_overview():
-    """Submissions in the units this user's grants cover, read-only."""
-    from app.models import MasOrgUnit, VaAccessRoles, VaFinalAssessments
-    from app.services.org_grant_service import codeable_unit_ids, viewable_unit_ids
+    """Submissions this user's coding-track grants let them view, read-only."""
+    from app.models import MasOrgUnit, VaFinalAssessments
 
-    role = VaAccessRoles.reviewer if _prefers_reviewer_area() else VaAccessRoles.coder
-    viewable = viewable_unit_ids(current_user.user_id, role)
-    if not viewable:
+    track = "reviewer" if _prefers_reviewer_area() else "coder"
+    area = _area_grants(track)
+    if not area.grants:
         return render_template(
             "va_frontpages/va_area_overview.html",
             rows=[],
-            role=role.value,
+            role=track,
             codeable_count=0,
-            viewable_count=0,
+            has_area=False,
             truncated=False,
         )
 
-    codeable = codeable_unit_ids(current_user.user_id, role)
-
+    # Rows: VIEW over the area grants (routed or not, F2). "Codeable" is the
+    # track's own work action over all of the user's grants.
+    viewable = scope_filter(current_user, Action.VIEW, _grants=area)
+    codeable = scope_filter(
+        current_user, Action.REVIEW if track == "reviewer" else Action.CODE
+    )
     authoritative = (
         sa.select(
             VaFinalAssessments.va_sid.label("va_sid"),
@@ -368,76 +358,52 @@ def area_overview():
             MasOrgUnit.unit_name,
             VaSubmissionWorkflow.workflow_state,
             authoritative.c.coded_at,
+            sa.case((codeable, True), else_=False).label("is_codeable"),
         )
         .select_from(VaSubmissions)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-        .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
         .outerjoin(authoritative, authoritative.c.va_sid == VaSubmissions.va_sid)
-        .where(
-            VaSubmissions.org_unit_id.in_(sorted(viewable)),
-            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-        )
-        .order_by(MasOrgUnit.path, VaSubmissions.va_submission_date.desc())
+        .where(viewable, not_confirmed_duplicate_condition(VaSubmissions.va_sid))
+        .order_by(MasOrgUnit.path.asc().nulls_last(), VaSubmissions.va_submission_date.desc())
         .limit(AREA_OVERVIEW_MAX_ROWS + 1)
     )
     records = db.session.execute(stmt).mappings().all()
     truncated = len(records) > AREA_OVERVIEW_MAX_ROWS
-
-    rows = []
-    for record in records[:AREA_OVERVIEW_MAX_ROWS]:
-        row = dict(record)
-        # "Codeable here" is what separates oversight from work: a viewer sees
-        # every row, and may open the ones inside their coding scope.
-        row["is_codeable"] = record["org_unit_id"] in codeable
-        rows.append(va_render_serialisedates(row, ["va_submission_date"]))
-
+    rows = [
+        va_render_serialisedates(dict(record), ["va_submission_date"])
+        for record in records[:AREA_OVERVIEW_MAX_ROWS]
+    ]
     return render_template(
         "va_frontpages/va_area_overview.html",
         rows=rows,
-        role=role.value,
-        codeable_count=len(codeable),
-        viewable_count=len(viewable),
+        role=track,
+        codeable_count=sum(1 for row in rows if row["is_codeable"]),
+        has_area=True,
         truncated=truncated,
     )
 
 
 def _prefers_reviewer_area() -> bool:
     """Show the reviewer's area to someone who only holds reviewer grants."""
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import viewable_unit_ids
-
     requested = (request.args.get("role") or "").strip().lower()
-    if requested in {"coder", "reviewer"}:
+    if requested in _AREA_ROLES:
         return requested == "reviewer"
-    if viewable_unit_ids(current_user.user_id, VaAccessRoles.coder):
+    if _area_grants("coder").grants:
         return False
-    return bool(viewable_unit_ids(current_user.user_id, VaAccessRoles.reviewer))
+    return bool(_area_grants("reviewer").grants)
 
 
 @coding.get("/area/<va_sid>")
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def area_view_submission(va_sid):
-    """Read-only view of one submission inside the user's area."""
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import submission_within_org_view_scope
+    """Read-only view of one submission the user may view.
 
+    VIEW alone, whichever track listed it, so every overview row opens
+    (F17); the ``role`` the link carries does not narrow it.
+    """
+    _require_or_abort(Action.VIEW, va_sid)
     submission = db.session.get(VaSubmissions, va_sid)
-    if not submission:
-        va_permission_abortwithflash("Submission not found.", 404)
-
-    role = VaAccessRoles.reviewer if _prefers_reviewer_area() else VaAccessRoles.coder
-    # The unit check alone passes every submission of a project with no
-    # tree, so the form check comes first, as on the other view pages.
-    if not (
-        current_user.is_admin()
-        or current_user.has_va_form_access(submission.va_form_id, role.value)
-        or tester_covers_submission(current_user, va_sid, submission.va_form_id)
-    ):
-        va_permission_abortwithflash("You do not have access to view this submission.", 403)
-    if not submission_within_org_view_scope(current_user, va_sid, role):
-        va_permission_abortwithflash(
-            "This submission belongs to a unit outside your area.", 403
-        )
     # vadata is the read-only rendering the data manager already uses; the
     # coder back-link keeps the viewer inside their own dashboard.
     return render_va_coding_page(submission, "vadata", "vaview", "coder")

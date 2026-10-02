@@ -307,11 +307,41 @@ def get_coder_demo_history(user_id) -> list[dict]:
 
 
 def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> list[str]:
-    """Return recently finalized SIDs that are eligible for recode."""
+    """Return recently finalized SIDs that are eligible for recode.
+
+    The same rule ``recode_limit_error`` applies when the recode starts
+    (digitva-h67s), in SQL so the list stays one query: the user's own
+    active final within 24 hours, and at most one final or coder review of
+    theirs (any status) on the submission in those 24 hours, so a case
+    already re-coded once is not offered again.
+    """
     if not accessible_form_ids:
         return []
 
     recent_window = sa.text("interval '24 hours'")
+    # Aliased: the outer query joins both tables for the active rows.
+    window_final = sa.orm.aliased(VaFinalAssessments, name="window_final")
+    window_review = sa.orm.aliased(VaCoderReview, name="window_review")
+    finals_in_window = (
+        sa.select(sa.func.count())
+        .where(
+            window_final.va_sid == VaSubmissions.va_sid,
+            window_final.va_finassess_by == user_id,
+            window_final.va_finassess_createdat + recent_window > sa.func.now(),
+        )
+        .correlate(VaSubmissions)
+        .scalar_subquery()
+    )
+    reviews_in_window = (
+        sa.select(sa.func.count())
+        .where(
+            window_review.va_sid == VaSubmissions.va_sid,
+            window_review.va_creview_by == user_id,
+            window_review.va_creview_createdat + recent_window > sa.func.now(),
+        )
+        .correlate(VaSubmissions)
+        .scalar_subquery()
+    )
     stmt = (
         sa.select(VaSubmissions.va_sid)
         .select_from(VaSubmissions)
@@ -343,6 +373,8 @@ def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> li
             VaFinalAssessments.va_finassess_createdat + recent_window
             > sa.func.now(),
             VaCoderReview.va_creview_id.is_(None),
+            # recode_limit_error: "already re-coded once in the last 24 hours".
+            finals_in_window + reviews_in_window <= 1,
         )
     )
     return db.session.scalars(stmt).all()

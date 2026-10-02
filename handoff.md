@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2975 passed on 2026-10-02, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2984 passed on 2026-10-03, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
@@ -39,9 +39,14 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `.tasks/digitva-0wc-design.md` (package `app/services/authz/`: `can`,
    `require`, `scope_filter`, `can_grant`; stages 0-7). **Stage 0
    committed** (module, 236-row matrix, single-source and shadow tests, lh1h
-   fix; no callers yet). Next: stage 1 (coding), plus two small module fixes
-   from the stage 0 review (admin LIST_UNROUTED bypass must keep
-   `org_unit_id IS NULL`; can_grant cadre/mentor refusal tests).
+   fix; no callers yet). **Stage 1 (coding)
+   committed**. Next: stage 2 (attachments, events, partials, viewers, area
+   view = blp). Carry into later
+   stages: admin unrouted queue = tree projects only (stage 3); TR01 cutoff
+   and language in pick validators; Recode list should also apply RECODE
+   scope; remove `ready_for_coding` source in `mark_coder_step1_saved`; EXPLAIN the
+   area overview ORDER BY for project-wide grants; gate the open-submission
+   repair job on SYNC_SUBMISSION (stage 2).
    Demo projects stay open to coding and reviewing (owner). Update this line as each stage
    lands. Owner decisions 2026-10-02 (all in the bead notes, written into
    `docs/policy/access-control-model.md` / `organization-model.md`, marked

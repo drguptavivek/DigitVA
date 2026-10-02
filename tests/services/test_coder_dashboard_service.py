@@ -31,6 +31,9 @@ from app.services.workflow.definition import (
 from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
+from app.utils.va_permission.va_permission_05_validaterecodelimits import (
+    recode_limit_error,
+)
 from tests.base import BaseTestCase
 
 
@@ -441,3 +444,44 @@ class TestCoderDashboardService(BaseTestCase):
             sid,
             get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID]),
         )
+
+    def test_recodeable_sids_follow_the_once_in_24_hours_rule(self):
+        """digitva-h67s: the Recode button shows only when a recode would start.
+
+        A case the coder finalized, re-coded and finalized again within 24
+        hours is refused by ``recode_limit_error``; the list must not offer it.
+        """
+        once = "uuid:coderdash-recode-once"
+        twice = "uuid:coderdash-recode-twice"
+        for sid in (once, twice):
+            self._add_submission(sid)
+        superseded = VaFinalAssessments(
+            va_sid=twice,
+            va_finassess_by=self.dashboard_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.deactive,
+        )
+        db.session.add_all([
+            VaFinalAssessments(
+                va_sid=sid,
+                va_finassess_by=self.dashboard_user.user_id,
+                va_conclusive_cod="R99",
+                va_finassess_status=VaStatuses.active,
+            )
+            for sid in (once, twice)
+        ] + [superseded])
+        db.session.commit()
+        for sid in (once, twice):
+            set_submission_workflow_state(
+                sid,
+                WORKFLOW_CODER_FINALIZED,
+                by_user_id=self.dashboard_user.user_id,
+                by_role="vacoder",
+            )
+        db.session.commit()
+
+        self.assertIsNone(recode_limit_error(self.dashboard_user, once))
+        self.assertIn("once in the last 24 hours", recode_limit_error(self.dashboard_user, twice))
+        recodeable = get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID])
+        self.assertIn(once, recodeable)
+        self.assertNotIn(twice, recodeable)

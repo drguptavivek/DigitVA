@@ -34,9 +34,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    scoped grants; no schema change except the In-charge CHECK below). Every
    screen, partial, attachment and API calls it. Input: the audit of how each
    screen decides access today, `.tasks/digitva-0wc-access-matrix-current.md`
-   (F1, F6, F9 fixed in `74c114e1`; F2-F5, F7, F8, F10-F19 open). Next step: a
-   read-only Fable design pass (interface, staged migration of callers), then
-   writers. Owner decisions 2026-10-02 (all in the bead notes, written into
+   (F1, F6, F9 fixed in `74c114e1`; F2-F5, F7, F8, F10-F19 open). Progress:
+   policy written (`4fcd984e`); **design pass running** (Fable, read-only),
+   output to be saved as `.tasks/digitva-0wc-design.md`; then stage 1 to a
+   writer. Update this line as each stage lands. Owner decisions 2026-10-02 (all in the bead notes, written into
    `docs/policy/access-control-model.md` / `organization-model.md`, marked
    "Implementation tracked in digitva-0wc"):
    - **In-charge** at every level of a district project (District = CMO or

@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (2923 passed on 2026-10-02; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (2949 passed on 2026-10-02, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
@@ -28,24 +28,39 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. Unit-scoped roles follow-ups (stages 1, 1b and 2 of `digitva-eiw` /
-   `digitva-djd` landed; unit DM, tester, coder and reviewer grants reach
-   only their subtree, per submission on `VaSubmissions.org_unit_id`;
-   `is_data_manager` includes unit grants, the `unit_data_manager` gate is
-   gone):
-   - `digitva-m5r` **owner decision**: DM KPI panels (`/api/v1/analytics/dm-kpi/*`)
-     fail closed for unit grants (site-keyed aggregates, no unit column), so a
-     unit-only DM sees them empty. Real unit totals need an additive migration.
-   - Project and project_site coder/reviewer grants on tree projects count
-     as top-of-tree (owner 2026-10-02, `docs/policy/organization-model.md`
-     "Coding scope"); site checks key on (project, site) pairs.
-   - `digitva-blp` verify: `/coding/area/<sid>` content partials may 403 for
-     coders and reviewers (`_validate_vadata` is DM-only); browser check as a
-     view_only coder first.
-   - `digitva-7ai` unescaped LIKE in admin and CLI user searches;
-     `digitva-6qy` query cost.
-   - Mentors excluded from district headcounts and listed apart: UI belongs to
-     `digitva-nk1` (`mentors_for_unit` exists).
+1. `digitva-0wc` **authorization module** (owner priority). One module with a
+   small interface, `can(user, action, submission)` and `scope_filter(user,
+   action)` (SQL predicate for lists), over the existing grants (RBAC with
+   scoped grants; no schema change except the In-charge CHECK below). Every
+   screen, partial, attachment and API calls it. Input: the audit of how each
+   screen decides access today, `.tasks/digitva-0wc-access-matrix-current.md`
+   (F1, F6, F9 fixed in `74c114e1`; F2-F5, F7, F8, F10-F19 open). Next step: a
+   read-only Fable design pass (interface, staged migration of callers), then
+   writers. Owner decisions 2026-10-02 (all in the bead notes, written into
+   `docs/policy/access-control-model.md` / `organization-model.md`, marked
+   "Implementation tracked in digitva-0wc"):
+   - **In-charge** at every level of a district project (District = CMO or
+     Civil Surgeon, Block = SMO, PHC = MO): the `site_pi` role allowed at
+     `org_unit` (migration lifting the `role_scope` CHECK; mentors still
+     refused). All data manager powers in their area, plus field-work
+     supervision, every screen with PII, and creating data managers at their
+     own level and below.
+   - **project_pi in district projects**: every screen, acts as data manager
+     and supervisor across the project; codes/reviews only with a grant.
+   - **Data manager grants, district projects only**: create DMs strictly
+     below their level; create interviewer, coder, reviewer, coding_tester,
+     viewers anywhere in their subtree. Site projects keep today's rule.
+   - **Viewers** (`collaborator`, `collaborator_pii`, so mentors) open one
+     submission read-only in scope; plain viewer redacted.
+   - **Unrouted queue**: every DM of the project sees it, routes only into
+     their own subtree (owner accepted the cross-district visibility).
+   - Absorbs `digitva-blp` (area view partials refuse coders/reviewers;
+     confirmed in the browser), `digitva-lh1h` (DM KPI and DM scope match
+     bare site ids across projects), `digitva-38lp`, `digitva-h67s`.
+   - Plain-language guide: `docs/policy/roles-explained.md` with the D2
+     diagram `docs/policy/diagrams/district-roles.d2` (render:
+     `d2 --layout elk <d2> <svg>`; d2 installed via Homebrew). Rewrite
+     `/help/user-roles` from it when the module lands.
 2. `digitva-6zq` verify: an active demo-training project may make
    `is_coder`/`is_reviewer`/`is_coding_tester` true for every user
    (`_get_granted_va_forms` unions demo forms). Policy opens demo projects
@@ -54,6 +69,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    method and client IP (trusted proxy header only), IP wiped after 210
    days by a beat task, plus `va_users.last_signed_in_at` (additive
    migration) set on web sign-in and device session open.
+3b. `digitva-04u4` job title per person: free text, display only, public
+   (not personal data, visible to every role), distinct from cadre; additive
+   column on `va_users`. Policy line first.
 4. `digitva-nk1` People & roles page, also the access audit page. Policy is
    complete with owner decisions: `docs/policy/people-and-roles-page.md`
    (status proposed; mark active when building). Blocked by `ci8` for the
@@ -122,10 +140,14 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 - A direct start refused at consent with no identity stores a `refused` submission
   and closes its case `cancelled` (the identity constraint allows no other
   closed state without one); it counts under Not analysable in DM KPIs.
-- Data managers give unit grants only to mentor-institute staff (inside the
-  mentor guard); CHO interviewer grants come from an admin or project PI. A
+- Built today (until `digitva-0wc`): data managers give unit grants only to
+  mentor-institute staff (inside the mentor guard); CHO interviewer grants
+  come from an admin or project PI. Policy now states the wider 2026-10-02
+  rules. A
   mentor-institute member who also holds district work needs a second
   account (guard refuses mixed grants).
+- Deploy: bump `STATIC_ASSET_VERSION` with `74c114e1`; `reviewing.start` is
+  now POST with CSRF, and a cached old reviewer dashboard script gets 405.
 - Unit-only DMs now count as privileged: second-factor enforcement applies to
   them (TST001 DPM/BPM) once `AUTH_FACTOR_ENFORCE_FROM` is set.
 - A TST001 built before 2026-10-01 (level codes `dh`/`sc`) needs the one-off

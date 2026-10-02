@@ -116,15 +116,13 @@ class ReviewingRoutesTests(BaseTestCase):
         self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
         self._login(self.base_reviewer_id)
 
-        with patch(
-            "app.routes.reviewing.render_va_coding_page",
-            return_value="reviewer-page",
-        ) as render_page:
-            response = self.client.get(f"/reviewing/start/{sid}")
+        response = self.client.post(
+            f"/reviewing/start/{sid}", headers=self._csrf_headers()
+        )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_data(as_text=True), "reviewer-page")
-        render_page.assert_called_once()
+        # Post/redirect/get: a refresh lands on resume, not on another start.
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/reviewing/resume"))
 
         allocation = db.session.scalar(
             db.select(VaAllocations).where(
@@ -338,6 +336,33 @@ class ReviewingRoutesTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn(sid, response.get_data(as_text=True))
 
+    def test_reviewing_start_changes_nothing_on_get_or_without_csrf(self):
+        sid = "uuid:reviewer-route-start-get"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._login(self.base_reviewer_id)
+
+        get_response = self.client.get(f"/reviewing/start/{sid}")
+        no_token = self.client.post(f"/reviewing/start/{sid}")
+
+        self.assertEqual(get_response.status_code, 405)
+        self.assertEqual(no_token.status_code, 400)
+        self.assertIsNone(
+            db.session.scalar(
+                db.select(VaAllocations.va_sid).where(
+                    VaAllocations.va_sid == sid,
+                    VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                )
+            )
+        )
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_REVIEWER_ELIGIBLE,
+        )
+
     def test_reviewing_dashboard_keeps_retired_submission_under_active_review(self):
         sid = "uuid:reviewer-dashboard-retired-in-session"
         self._add_submission(sid, WORKFLOW_REVIEWER_CODING_IN_PROGRESS)
@@ -359,7 +384,9 @@ class ReviewingRoutesTests(BaseTestCase):
         db.session.commit()
         self._login(self.base_reviewer_id)
 
-        response = self.client.get(f"/reviewing/start/{sid}")
+        response = self.client.post(
+            f"/reviewing/start/{sid}", headers=self._csrf_headers()
+        )
 
         self.assertEqual(response.status_code, 409)
         self.assertIsNone(

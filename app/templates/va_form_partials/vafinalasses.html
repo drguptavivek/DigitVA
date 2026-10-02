@@ -44,13 +44,7 @@
 </script>
 {% endif %}
 {% else %}
-{% if session_timed_out %}
-<div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
-  <i class="fas fa-clock me-1"></i>
-  Your coding session had expired, but your initial assessment has been saved successfully.
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-{% elif step1_resaved %}
+{% if step1_resaved %}
 <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
   <i class="fas fa-check-circle me-1"></i>
   Updated Responses

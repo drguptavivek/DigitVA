@@ -166,7 +166,8 @@
 
 <script id="va-context" type="application/json">
   {{ {
-    "activeAllocationSid": va_has_allocation
+    "activeAllocationSid": va_has_allocation,
+    "csrfToken": csrf_token()
   } | tojson }}
 </script>
 <script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

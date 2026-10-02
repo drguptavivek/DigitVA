@@ -10,6 +10,7 @@ from flask import current_app
 
 from app import db
 from app.models import (
+    VaAccessRoles,
     VaAllocation,
     VaAllocations,
     VaFinalAssessments,
@@ -48,6 +49,7 @@ from app.services.icd_coding_value import (
     validate_coding_value_for_submission,
 )
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
+from app.services.org_grant_service import submission_within_org_scope
 from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
 )
@@ -232,6 +234,23 @@ def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) ->
     )
 
 
+def _require_reviewer_access(user, submission: VaSubmissions) -> None:
+    """Reviewer access to the submission's form and its reviewing scope.
+
+    Every reviewer entry point (start, Step 1, final) checks both, so a
+    reviewer cannot allocate or complete a review outside their units.
+    ``submission_within_org_scope`` is a no-op on projects without a tree.
+    """
+    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
+        raise ReviewerCodingError("Reviewer access is required.", 403)
+    if not submission_within_org_scope(
+        user, submission.va_sid, VaAccessRoles.reviewer
+    ):
+        raise ReviewerCodingError(
+            "This submission belongs to a unit outside your reviewing scope.", 403
+        )
+
+
 def get_active_reviewing_allocation(user_id) -> str | None:
     return db.session.scalar(
         sa.select(VaAllocations.va_sid).where(
@@ -250,8 +269,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
-        raise ReviewerCodingError("Reviewer access is required.", 403)
+    _require_reviewer_access(user, submission)
     if submission.va_narration_language not in user.vacode_language:
         raise ReviewerCodingError(
             f"Your profile does not support reviewing forms in {submission.va_narration_language}.",
@@ -339,8 +357,7 @@ def submit_reviewer_final_cod(
     )
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
-        raise ReviewerCodingError("Reviewer access is required.", 403)
+    _require_reviewer_access(user, submission)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(
@@ -578,8 +595,7 @@ def submit_reviewer_initial_cod(
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
-        raise ReviewerCodingError("Reviewer access is required.", 403)
+    _require_reviewer_access(user, submission)
     project = get_project_for_submission(va_sid)
     if project is None:
         raise ReviewerCodingError("Project not found.", 404)

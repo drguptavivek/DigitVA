@@ -13,7 +13,7 @@ from app.models import (
     VaSubmissions,
 )
 from flask_login import current_user
-from flask import Blueprint, render_template
+from flask import Blueprint, redirect, render_template, url_for
 from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation
@@ -203,16 +203,16 @@ def dashboard():
     )
 
 
-@reviewing.get("/start/<va_sid>")
+@reviewing.post("/start/<va_sid>")
 @role_required("reviewer")
 def start(va_sid):
+    # POST (CSRF-checked) because it allocates and moves the workflow; the
+    # redirect keeps a browser refresh from re-firing it.
     try:
-        result = start_reviewer_coding(current_user, va_sid)
+        start_reviewer_coding(current_user, va_sid)
     except ReviewerCodingError as exc:
         va_permission_abortwithflash(exc.message, exc.status_code)
-
-    form = db.session.get(VaSubmissions, result.va_sid)
-    return render_va_coding_page(form, "vareview", result.actiontype, "reviewer")
+    return redirect(url_for("reviewing.resume"))
 
 
 @reviewing.get("/resume")

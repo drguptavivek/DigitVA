@@ -67,6 +67,9 @@ from app.services.workflow.transitions import (
     reset_demo_state,
     system_actor,
 )
+from app.utils.va_permission.va_permission_05_validaterecodelimits import (
+    recode_limit_error,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +638,30 @@ def _require_submission_exists(va_sid: str):
     return row
 
 
+def _require_coder_access(user, va_sid: str) -> VaSubmissions:
+    """Return the submission once *user* may code it, else raise AllocationError.
+
+    Coder (or coding tester) access to its form, and the submission inside the
+    user's coding scope. Organization-tree projects narrow form access to the
+    coder's own units; ``submission_within_org_scope`` is a no-op elsewhere.
+    """
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_scope
+
+    form = db.session.get(VaSubmissions, va_sid)
+    if not form:
+        raise AllocationError("Submission not found.", 404)
+    if not (user.has_va_form_access(form.va_form_id, "coder") or user.is_coding_tester(form.va_form_id)):
+        raise AllocationError("You do not have coder access for this VA form.")
+    if not tester_covers_submission(user, va_sid, form.va_form_id) and not submission_within_org_scope(
+        user, va_sid, VaAccessRoles.coder
+    ):
+        raise AllocationError(
+            "This submission belongs to a unit outside your coding scope."
+        )
+    return form
+
+
 def _create_coding_allocation(
     va_sid: str,
     user,
@@ -789,22 +816,7 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
         raise AllocationError("You already have an active coding allocation.")
 
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        raise AllocationError("Submission not found.", 404)
-    if not (user.has_va_form_access(form.va_form_id, "coder") or user.is_coding_tester(form.va_form_id)):
-        raise AllocationError("You do not have coder access for this VA form.")
-
-    # Organization-tree projects narrow form access to the coder's own units.
-    from app.models import VaAccessRoles
-    from app.services.org_grant_service import submission_within_org_scope
-
-    if not tester_covers_submission(user, va_sid, form.va_form_id) and not submission_within_org_scope(
-        user, va_sid, VaAccessRoles.coder
-    ):
-        raise AllocationError(
-            "This submission belongs to a unit outside your coding scope."
-        )
+    form = _require_coder_access(user, va_sid)
 
     sub_row = _require_submission_exists(va_sid)
     if get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:
@@ -848,7 +860,12 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
 def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     """Start a recode episode and create an allocation.
 
-    Raises AllocationError if outside the recode window.
+    Only the coder whose final COD is authoritative may recode, once, within
+    24 hours, while they still hold coder access to the form and the
+    submission is inside their coding scope. An existing live allocation on the
+    same submission resumes without re-checking: it was checked when created.
+
+    Raises AllocationError when any of those fails.
     """
     from datetime import timedelta
 
@@ -870,6 +887,8 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
         raise AllocationError("You already have an active coding allocation.")
 
+    _require_coder_access(user, va_sid)
+
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
     if is_confirmed_duplicate(va_sid):
@@ -887,6 +906,11 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     authoritative_final = get_authoritative_final_assessment(va_sid)
     if not authoritative_final:
         raise AllocationError("Only coder-finalized submissions can be reopened for recode.")
+    if authoritative_final.va_finassess_by != user.user_id:
+        raise AllocationError("You can only re-code VA forms you initially coded.")
+    limit_error = recode_limit_error(user, va_sid)
+    if limit_error:
+        raise AllocationError(limit_error)
     cutoff = (
         datetime.now(authoritative_final.va_finassess_createdat.tzinfo)
         - timedelta(hours=24)

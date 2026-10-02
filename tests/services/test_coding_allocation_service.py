@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
     VaAllocations,
     VaAllocation,
     VaCodingEpisode,
@@ -25,6 +27,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaUserAccessGrants,
 )
 from app.services.coding_allocation_service import (
     cleanup_expired_demo_coding_artifacts,
@@ -940,6 +943,21 @@ class TestCodingAllocationService(BaseTestCase):
         """
         sid = "uuid:recode-retired"
         recode_user = self._make_user("recode.retired@test.local", "RecodeRetired123")
+        # A coder of the form, so the refusal is the retirement check's.
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=recode_user.user_id,
+                role=VaAccessRoles.coder,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=db.session.scalar(
+                    db.select(VaProjectSites.project_site_id).where(
+                        VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                        VaProjectSites.site_id == self.BASE_SITE_ID,
+                    )
+                ),
+                grant_status=VaStatuses.active,
+            )
+        )
         self._add_submission(sid)
         db.session.flush()
 

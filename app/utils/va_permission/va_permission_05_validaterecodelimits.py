@@ -6,11 +6,23 @@ from app.utils.va_permission.va_permission_01_abortwithflash import va_permissio
 
 
 def va_permission_validaterecodelimits(sid):
+    message = recode_limit_error(current_user, sid)
+    if message:
+        va_permission_abortwithflash(message, 403)
+
+
+def recode_limit_error(user, sid) -> str | None:
+    """Why *user* may not recode *sid*, or None when they may.
+
+    The ownership and 24-hour rule shared by the ``varecode`` validator and
+    ``start_recode_allocation``: only the coder who finalized (or reviewed)
+    the submission, once, within 24 hours of finalisation.
+    """
     review = (
         db.session.execute(
             sa.select(VaCoderReview.va_sid
             ).where(
-                (VaCoderReview.va_creview_by == current_user.user_id)
+                (VaCoderReview.va_creview_by == user.user_id)
                 & (VaCoderReview.va_sid == sid)
                 & (VaCoderReview.va_creview_status == VaStatuses.active)
             )
@@ -23,7 +35,7 @@ def va_permission_validaterecodelimits(sid):
             sa.select(
                 VaFinalAssessments.va_sid
             ).where(
-                (VaFinalAssessments.va_finassess_by == current_user.user_id)
+                (VaFinalAssessments.va_finassess_by == user.user_id)
                 & (VaFinalAssessments.va_sid == sid)
                 & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
             )
@@ -32,14 +44,12 @@ def va_permission_validaterecodelimits(sid):
         .first()
     )
     if not ((review and review["va_sid"]) or (final and final["va_sid"])):
-        va_permission_abortwithflash(
-            "You can only re-code VA forms you initially coded.", 403
-        )
+        return "You can only re-code VA forms you initially coded."
     review24hours = (
         db.session.execute(
             sa.select(VaCoderReview.va_sid
             ).where(
-                (VaCoderReview.va_creview_by == current_user.user_id)
+                (VaCoderReview.va_creview_by == user.user_id)
                 & (VaCoderReview.va_sid == sid)
                 & (
                     VaCoderReview.va_creview_createdat
@@ -56,7 +66,7 @@ def va_permission_validaterecodelimits(sid):
             sa.select(
                 VaFinalAssessments.va_sid
             ).where(
-                (VaFinalAssessments.va_finassess_by == current_user.user_id)
+                (VaFinalAssessments.va_finassess_by == user.user_id)
                 & (VaFinalAssessments.va_sid == sid)
                 & (
                     VaFinalAssessments.va_finassess_createdat
@@ -69,12 +79,10 @@ def va_permission_validaterecodelimits(sid):
         .all()
     )
     if len(review24hours + final24hours) > 1:
-        va_permission_abortwithflash(
-            "You have already re-coded this VA form once in the last 24 hours.", 403
-        )
+        return "You have already re-coded this VA form once in the last 24 hours."
     recent_final = db.session.scalars(
         sa.select(VaFinalAssessments.va_sid).where(
-            (VaFinalAssessments.va_finassess_by == current_user.user_id)
+            (VaFinalAssessments.va_finassess_by == user.user_id)
             & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
             & (
                 VaFinalAssessments.va_finassess_createdat
@@ -85,7 +93,7 @@ def va_permission_validaterecodelimits(sid):
     ).all()
     recent_review = db.session.scalars(
         sa.select(VaCoderReview.va_sid).where(
-            (VaCoderReview.va_creview_by == current_user.user_id)
+            (VaCoderReview.va_creview_by == user.user_id)
             & (VaCoderReview.va_creview_status == VaStatuses.active)
             & (
                 VaCoderReview.va_creview_createdat + sa.text("interval '24 hours'")
@@ -94,6 +102,5 @@ def va_permission_validaterecodelimits(sid):
         )
     ).all()
     if sid not in recent_final + recent_review:
-        va_permission_abortwithflash(
-            "Re-coding is only allowed within 24 hours of VA form finalisation.", 403
-        )
+        return "Re-coding is only allowed within 24 hours of VA form finalisation."
+    return None

@@ -12,6 +12,7 @@
   const rows = JSON.parse(rawDataEl.textContent || '[]');
   const context = JSON.parse(contextEl.textContent || '{}');
   const activeAllocationSid = context.activeAllocationSid || '';
+  const csrfToken = context.csrfToken || '';
   let gridApi = null;
 
   const filterDefs = [
@@ -257,17 +258,20 @@
         return;
       }
 
+      // Starting QA allocates the form, so it is a CSRF-checked POST.
       this.eGui.innerHTML = `
         ${viewButton}
-        <a href="/reviewing/start/${sid}"
-           class="btn btn-sm btn-primary py-0 px-2 reviewer-initiate-qa">Initiate QA</a>`;
+        <form method="POST" action="/reviewing/start/${sid}" class="d-inline reviewer-initiate-qa">
+          <input type="hidden" name="csrf_token">
+          <button type="submit" class="btn btn-sm btn-primary py-0 px-2">Initiate QA</button>
+        </form>`;
 
-      const initiateLink = this.eGui.querySelector('.reviewer-initiate-qa');
-      initiateLink.addEventListener('click', (evt) => {
+      const initiateForm = this.eGui.querySelector('.reviewer-initiate-qa');
+      initiateForm.elements.csrf_token.value = csrfToken;
+      initiateForm.addEventListener('submit', (evt) => {
         evt.preventDefault();
-        const href = initiateLink.href;
         window.confirmDialog('Are you sure you want to initiate QA for this form?').then((ok) => {
-          if (ok) window.location.href = href;
+          if (ok) initiateForm.submit();
         });
       });
     }

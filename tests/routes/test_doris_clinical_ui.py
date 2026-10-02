@@ -24,7 +24,7 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("form_error_messages", final)
         self.assertIn("form.va_finassess_remark.data", final)
         # Unmasked coding is one step, so SmartVA shows before the certificate.
-        unmasked = final[: final.index("{% else %}\n{% if session_timed_out %}")]
+        unmasked = final[: final.index("{% else %}\n{% if step1_resaved %}")]
         reviewer = (ROOT / "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html").read_text(encoding="utf-8")
         reviewer_form = reviewer[reviewer.index('id="reviewerUnmaskedFinalForm"'):]
         self.assertLess(reviewer_form.index("_smartva_summary.html"), reviewer_form.index("doris_role='reviewer'"))

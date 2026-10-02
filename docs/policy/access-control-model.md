@@ -529,6 +529,15 @@ Workflow-specific constraints may include:
 
 These constraints narrow access further, but they do not replace role and scope checks.
 
+Each check runs where the action is performed (the service entry point), so
+every route to it, HTML or JSON, enforces the same rule. Starting a recode,
+a review, or a reviewer Step 1 / final checks form access and the
+submission's coding scope for that role; a recode also requires the caller
+to be the coder of the authoritative final, within its window. A write made
+in a role's name (coder Step 1, coder not-codeable, reviewer NQA) requires
+the caller to hold that role's active allocation for the submission; the
+validator of a caller-chosen `action` is not enough.
+
 ## Examples
 
 ### Example 1

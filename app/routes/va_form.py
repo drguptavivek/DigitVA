@@ -113,6 +113,7 @@ from app.services.viewer_pii_service import should_redact_pii
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE, WhoIcdApiUnavailable
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SCREENING_PENDING,
@@ -136,6 +137,7 @@ from app.services.workflow.transitions import (
 from app.utils import (
     va_get_form_type_code_for_form,
     va_permission_abortwithflash,
+    va_permission_ensureallocation,
     va_render_processcategorydata,
 )
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
@@ -1132,6 +1134,9 @@ def renderpartial(va_sid, va_partial):
         # - NQA DOES persist across recode attempts
         # - NQA artifacts created via demo coding are cleaned up on demo expiry
         form = VaReviewerReviewForm()
+        if request.method == "POST":
+            # NQA is the reviewer's session artifact: only while holding it.
+            va_permission_ensureallocation(va_sid, "reviewing")
         if form.validate_on_submit():
             _, active_payload_version = get_submission_with_current_payload(
                 va_sid,
@@ -1230,6 +1235,18 @@ def renderpartial(va_sid, va_partial):
             events=events,
         )
     if va_partial == "vainitialasses":
+        if request.method == "POST":
+            # Step 1 writes a coder-attributed row and moves the workflow, so
+            # only the coder holding this submission's coding allocation saves
+            # it, whichever action's validator admitted the request.
+            if va_action != "vacode":
+                va_permission_abortwithflash("Only the assigned coder can save Step 1.", 403)
+            va_permission_ensureallocation(va_sid, "coding")
+            if get_submission_workflow_state(va_sid) not in {
+                WORKFLOW_CODING_IN_PROGRESS,
+                WORKFLOW_CODER_STEP1_SAVED,
+            }:
+                va_permission_abortwithflash("This submission is not open for Step 1.", 409)
         form = VaInitialAssessmentForm()
         save_clicked = form.va_save_assessment.data
         not_codeable_clicked = form.va_not_codeable.data
@@ -1350,7 +1367,6 @@ def renderpartial(va_sid, va_partial):
                 )
             )
             current_state = get_submission_workflow_state(va_sid)
-            session_timed_out = (current_state == WORKFLOW_READY_FOR_CODING)
             step1_resaved = (current_state == WORKFLOW_CODER_STEP1_SAVED)
             try:
                 mark_coder_step1_saved(
@@ -1383,7 +1399,7 @@ def renderpartial(va_sid, va_partial):
                 if project_mode == "masked_doris"
                 else {}
             )
-            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out, step1_resaved=step1_resaved, project_mode=project_mode, **step2_context)
+            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, step1_resaved=step1_resaved, project_mode=project_mode, **step2_context)
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)
@@ -1954,6 +1970,10 @@ def renderpartial(va_sid, va_partial):
                 form=form,
                 form_error_messages=error_messages or [],
             )
+        if request.method == "POST":
+            # Not codeable releases the coder's allocation below; without one
+            # there is nothing to release and nobody to attribute it to.
+            va_permission_ensureallocation(va_sid, "coding")
         if form.validate_on_submit():
             gen_uuid = uuid.uuid4()
             other_reason = form.va_creview_other.data.strip() or None

@@ -551,7 +551,7 @@ Decision 2026-10-02; replaces the data-manager role list recorded earlier the
 same day. Implemented in digitva-0wc stage 6: every grant write (the
 data-manager users page, the admin panel, the project users import) asks
 `authz.can_grant`, and the grant lists (the data-manager users page and the
-admin panel's grant and orphaned-grant lists for a project PI) are
+admin panel's grant list for a project PI) are
 `authz.grant_list_filter`. A non-admin is refused before the unit and cadre
 are validated, so a unit outside their scope, or one that does not exist,
 gets the same 403 (digitva-xd1q).

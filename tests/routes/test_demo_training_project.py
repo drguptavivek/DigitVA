@@ -24,6 +24,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.authz import Action, can
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     start_reviewer_coding,
@@ -268,8 +269,8 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
 
     def test_a_user_who_codes_nowhere_cannot_reach_the_demo_project(self):
         no_role = db.session.get(VaUsers, self.demo_no_role_user.user_id)
-        self.assertFalse(no_role.is_coder(self.DEMO_FORM_ID))
-        self.assertFalse(no_role.is_reviewer(self.DEMO_FORM_ID))
+        self.assertFalse(can(no_role, Action.CODE, self.DEMO_SID))
+        self.assertFalse(can(no_role, Action.REVIEW, self.DEMO_SID))
         self._login(self.demo_no_role_user_id)
         response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
         self.assertNotEqual(response.status_code, 200)
@@ -398,7 +399,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
     def test_plain_user_can_start_reviewing_demo_case_without_grant(self):
         self._demo_final_save()
         plain_user = db.session.get(VaUsers, self.demo_plain_user.user_id)
-        self.assertTrue(plain_user.is_reviewer(self.DEMO_FORM_ID))
+        self.assertTrue(can(plain_user, Action.REVIEW, self.DEMO_SID))
 
         result = start_reviewer_coding(plain_user, self.DEMO_SID)
 

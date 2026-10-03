@@ -21,8 +21,6 @@ from app.utils import (
     va_permission_ensureviewable,
     va_permission_ensurenotreviewed,
     va_permission_ensurereviewed,
-    va_permission_ensurecoded,
-    va_permission_reviewedonce,
 )
 
 
@@ -225,24 +223,6 @@ def _validate_vareview(actiontype, sid, partial):
         va_permission_abortwithflash("Unknown reviewing action requested.", 404)
 
 
-def _validate_vasitepi(actiontype, sid, partial):
-    form_id = db.session.scalar(
-        sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
-    )
-    if not current_user.is_site_pi(form_id):
-        va_permission_abortwithflash(
-            "VA Site PI access is required for this operation.", 403
-        )
-    if actiontype == "varecode":
-        va_permission_ensurecoded(sid)
-    elif actiontype == "varereview":
-        va_permission_reviewedonce(sid)
-    elif actiontype == "vaview":
-        pass
-    else:
-        va_permission_abortwithflash("Unknown SitePI dashboard action requested.", 404)
-
-
 def _validate_read_only(actiontype, sid, partial):
     """``vadata`` (the data-manager rendering) and ``vaarea`` (the area and
     viewer rendering): opening the submission read-only needs ``VIEW``.
@@ -262,7 +242,6 @@ def _validate_read_only(actiontype, sid, partial):
 _ACTION_VALIDATORS = {
     "vacode": _validate_vacode,
     "vareview": _validate_vareview,
-    "vasitepi": _validate_vasitepi,
     "vadata": _validate_read_only,
     "vaarea": _validate_read_only,
 }

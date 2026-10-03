@@ -191,7 +191,7 @@ class UnitCodingTesterTests(UnitScopeFixture, BaseTestCase):
         self._sub("csc-alloc-in", unit=phc_a)
         self._sub("csc-alloc-above", unit=chc)
         tester = self._user_with("unit.tester.alloc@test.local", VaAccessRoles.coding_tester, phc_a)
-        self.assertTrue(tester.is_coding_tester(self.FORM_ID))
+        self.assertTrue(authz.can(tester, authz.Action.CODE, "csc-alloc-in"))
 
         with self.assertRaises(AllocationError) as ctx:
             allocate_pick_form(tester, "csc-alloc-above")
@@ -373,7 +373,7 @@ class CrossUnitSubmissionScopeTests(UnitScopeFixture, BaseTestCase):
 
         phc_a, _ = self._seed()
         reviewer = self._user_with("x.reviewer.att@test.local", VaAccessRoles.reviewer, phc_a)
-        self.assertTrue(reviewer.is_reviewer(self.FORM_ID))
+        self.assertTrue(authz.can(reviewer, authz.Action.REVIEW, "csc-x-mine"))
         self.assertTrue(can_access_submission_attachment(
             reviewer, va_form_id=self.FORM_ID, va_sid="csc-x-mine"))
         self.assertFalse(can_access_submission_attachment(

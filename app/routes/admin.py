@@ -2591,56 +2591,6 @@ def admin_access_grants():
     return jsonify({"grants": [_serialize_grant(row) for row in rows]})
 
 
-@admin.get("/api/access-grants/orphaned")
-@role_required("admin", "project_pi")
-def admin_orphaned_grants():
-    project_id_expression = _grant_project_id_expression()
-    site_id_expression = _grant_site_id_expression()
-    
-    stmt = (
-        sa.select(
-            VaUserAccessGrants.grant_id,
-            VaUserAccessGrants.user_id,
-            VaUserAccessGrants.role,
-            VaUserAccessGrants.scope_type,
-            VaUserAccessGrants.project_site_id,
-            VaUserAccessGrants.org_unit_id,
-            VaUserAccessGrants.grant_status,
-            VaUserAccessGrants.notes,
-            VaUsers.email,
-            VaUsers.name,
-            project_id_expression.label("resolved_project_id"),
-            site_id_expression.label("resolved_site_id"),
-            *_grant_org_unit_columns(),
-        )
-        .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
-        .outerjoin(
-            VaProjectSites,
-            VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
-        )
-        .where(
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-            sa.or_(
-                VaProjectSites.project_site_id == None,
-                VaProjectSites.project_site_status == VaStatuses.deactive
-            ),
-            _grant_list_condition(),
-        )
-    )
-
-    project_id = request.args.get("project_id")
-    if project_id:
-        if not _may_list_project(project_id):
-            return _json_error("You do not have access to that project.", 403)
-        stmt = stmt.where(project_id_expression == project_id)
-        
-    rows = db.session.execute(
-        stmt.order_by(project_id_expression, site_id_expression, VaUsers.email)
-    ).all()
-    return jsonify({"grants": [_serialize_grant(row) for row in rows]})
-
-
 @admin.post("/api/access-grants")
 @role_required("admin", "project_pi")
 def admin_create_access_grant():

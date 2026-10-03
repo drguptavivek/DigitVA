@@ -34,7 +34,6 @@ class CategoryRenderingService:
     ROLE_BY_ACTION = {
         "vacode": "coder",
         "vareview": "reviewer",
-        "vasitepi": "site_pi",
         "vadata": "data_manager",
         # The read-only area and viewer rendering: the data manager's
         # categories, no workflow panel and no triage.
@@ -44,7 +43,6 @@ class CategoryRenderingService:
     ROLE_VISIBILITY_COLUMN = {
         "coder": "show_to_coder",
         "reviewer": "show_to_reviewer",
-        "site_pi": "show_to_site_pi_datamanager",
         "data_manager": "show_to_site_pi_datamanager",
         "viewer": "show_to_site_pi_datamanager",
     }

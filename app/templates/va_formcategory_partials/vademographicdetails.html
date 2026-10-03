@@ -105,14 +105,6 @@
     </div>
   {% endif %}
   <div class="card-footer d-flex justify-content-between">
-    {% if va_action == "vasitepi" %}
-    <button class="btn btn-secondary" hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_previouscategory, action=va_action, actiontype=va_actiontype) }}"
-      hx-target="#form-content"
-      hx-swap="innerHTML"
-      hx-indicator="#loading-s-respiratory-cardiac">
-      <i class="fas fa-arrow-left me-2"></i>Previous Category
-    </button>
-    {% endif %}
     <button class="btn btn-primary" id="next-category-btn" hx-ext="preload" preload="mouseover" hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_nextcategory, action=va_action, actiontype=va_actiontype) }}"
       hx-target="#form-content"
       hx-swap="innerHTML"

@@ -27,7 +27,7 @@ from app.routes.api.workflow import _may_read_events
 from app.services import org_unit_routing_service as routing
 from app.services import organization_service as org
 from app.services.attachment_service import can_access_submission_attachment
-from app.services.authz import Action, can, scope_filter
+from app.services.authz import Action, Reason, can, scope_filter
 from app.services.coder_workflow_service import (
     AllocationError,
     allocate_pick_form,
@@ -180,7 +180,8 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
     def test_a_view_only_project_coder_is_offered_and_allocated_nothing(self):
         self._configure("view_only")
         self._wide_grant("project", VaAccessRoles.coder)
-        self.assertTrue(self.user.is_coder(self.FORM_ID))
+        # The grant reaches the form; the coding scope makes it view-only.
+        self.assertIs(can(self.user, Action.CODE, "csc-routed").reason, Reason.VIEW_ONLY)
         self.assertEqual(self._pick(), set())
         with self.assertRaises(AllocationError) as ctx:
             allocate_pick_form(self.user, "csc-routed")

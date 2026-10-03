@@ -12,7 +12,8 @@ Scope is the caller's job: ``team`` transitions trust that the caller already
 confirmed the actor may reach the case (``web_intake_service.get_death``).
 Supervisor-only moves check scope here, through ``is_interview_supervisor_for``
 (digitva-vzk.5), and their audit rows name the grant and cadre relied on
-(``supervising_grant``, decision 15; digitva-vzk.8).
+(``supervising_grant``, decision 15; digitva-vzk.8). The supervision rule
+itself is ``authz.supervision`` (``Action.SUPERVISE_INTAKE``).
 This module only decides *which kind* of actor a transition needs.
 """
 from __future__ import annotations
@@ -20,25 +21,17 @@ from __future__ import annotations
 import logging
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy.orm import Session
 
 from app import db
 from app.models import (
     MapCaseTransition,
-    MasOrgLevel,
-    MasOrgUnit,
-    VaAccessRoles,
-    VaAccessScopeTypes,
     VaDeathRegister,
-    VaProjectSites,
-    VaStatuses,
     VaSubmissionWorkflow,
-    VaUserAccessGrants,
     VaUsers,
 )
 from app.models.va_web_intake import CASE_FLAGS
-from app.services.authz.actions import SUPERVISING_ROLES
-from app.services.org_grant_service import active_project_condition
+from app.services.authz import supervision
 from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
 
 __all__ = [
@@ -128,162 +121,28 @@ _FLAGGABLE = {
 _REASON_MAX = 200
 
 
-# authz.SUPERVISING_ROLES (site_pi counts at a unit only: the In-charge),
-# plus project_pi on a tree project. Sorted so the SQL is stable.
-_SUPERVISING_ROLES = (*sorted(SUPERVISING_ROLES, key=lambda r: r.value), VaAccessRoles.project_pi)
-# Every data-manager power, as authz.ResolvedGrants.is_dm_grant: data_manager,
-# the In-charge and project_pi on a tree project.
-_DM_SHAPED_ROLES = (VaAccessRoles.data_manager, VaAccessRoles.site_pi, VaAccessRoles.project_pi)
-
-
-def _covering_grants(user: VaUsers, roles: tuple[VaAccessRoles, ...]) -> list[sa.Select]:
-    """The one source of supervisory reach: *user*'s grants of *roles* that
-    cover the ``VaDeathRegister`` row the selects are correlated with.
-
-    Each select yields ``(grant_id, cadre_id, depth, role_rank)``. A unit
-    grant reaches its unit's subtree (same ltree join as
-    ``org_grant_service.scope_unit_ids``, on the case's unit and project);
-    ``depth`` is its unit's depth, so the deepest unit is the narrowest. A
-    ``data_manager`` project-site grant (depth 0) or project grant (depth -1)
-    reaches that whole project-site or project, and a ``project_pi`` grant on
-    a tree project (depth -1) its whole project. ``site_pi`` reaches only
-    through a unit grant (the In-charge) and ranks with
-    ``interview_supervisor`` at equal depth. Active grants, units, project
-    sites and projects only (closed-project dormancy via
-    ``active_project_condition``). ``supervised_case_condition`` asks
-    whether any select has a row; ``_grant_for`` picks one.
-    """
-    granted = aliased(MasOrgUnit, name="sup_granted_unit")
-    covered = aliased(MasOrgUnit, name="sup_covered_unit")
-    role_rank = sa.case(
-        (VaUserAccessGrants.role.in_((VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi)), 0),
-        else_=1,
-    )
-    live = (
-        VaUserAccessGrants.user_id == user.user_id,
-        VaUserAccessGrants.grant_status == VaStatuses.active,
-    )
-    selects = [
-        sa.select(
-            VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
-            sa.func.nlevel(granted.path).label("depth"), role_rank.label("role_rank"),
-        )
-        .select_from(VaUserAccessGrants)
-        .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
-        .join(
-            covered,
-            sa.and_(
-                covered.project_id == granted.project_id,
-                sa.text("sup_covered_unit.path <@ sup_granted_unit.path"),
-            ),
-        )
-        .where(
-            *live,
-            VaUserAccessGrants.role.in_(roles),
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            granted.is_active.is_(True),
-            covered.is_active.is_(True),
-            active_project_condition(granted.project_id),
-            covered.org_unit_id == VaDeathRegister.org_unit_id,
-            covered.project_id == VaDeathRegister.project_id,
-        )
-    ]
-    if VaAccessRoles.data_manager in roles:
-        data_manager = (*live, VaUserAccessGrants.role == VaAccessRoles.data_manager)
-        selects.append(
-            sa.select(
-                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
-                sa.literal_column("0").label("depth"), role_rank.label("role_rank"),
-            )
-            .select_from(VaUserAccessGrants)
-            .join(VaProjectSites, VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id)
-            .where(
-                *data_manager,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-                VaProjectSites.project_site_status == VaStatuses.active,
-                active_project_condition(VaProjectSites.project_id),
-                VaProjectSites.project_id == VaDeathRegister.project_id,
-                VaProjectSites.site_id == VaDeathRegister.site_id,
-            )
-        )
-        selects.append(
-            sa.select(
-                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
-                sa.literal_column("-1").label("depth"), role_rank.label("role_rank"),
-            )
-            .where(
-                *data_manager,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-                active_project_condition(VaUserAccessGrants.project_id),
-                VaUserAccessGrants.project_id == VaDeathRegister.project_id,
-            )
-        )
-    if VaAccessRoles.project_pi in roles:
-        selects.append(
-            sa.select(
-                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
-                sa.literal_column("-1").label("depth"), role_rank.label("role_rank"),
-            )
-            .where(
-                *live,
-                VaUserAccessGrants.role == VaAccessRoles.project_pi,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-                active_project_condition(VaUserAccessGrants.project_id),
-                VaUserAccessGrants.project_id == VaDeathRegister.project_id,
-                sa.exists().where(
-                    MasOrgLevel.project_id == VaUserAccessGrants.project_id,
-                    MasOrgLevel.is_active.is_(True),
-                ),
-            )
-        )
-    return selects
-
-
 def supervised_case_condition(user: VaUsers):
     """SQL condition on ``VaDeathRegister``: the cases *user* supervises.
 
-    Decisions 15-17 (.tasks/2026-09-28-interviewer-worklist.md): an
-    ``interview_supervisor`` unit grant reaches its unit's subtree on its own
-    (no interviewer grant needed); a ``data_manager`` grant supervises through
-    its own scope; so does an In-charge (``site_pi`` at a unit) through its
-    subtree and a ``project_pi`` on a tree project through the whole project
-    (digitva-0wc). No other role confers supervision, and admin has no
-    bypass. The listing,
-    ``is_interview_supervisor_for`` and ``supervising_grant`` share
-    ``_covering_grants``.
+    The rule is ``authz.supervision`` (``Action.SUPERVISE_INTAKE``); the
+    listing, ``is_interview_supervisor_for`` and ``supervising_grant`` all
+    ask it.
     """
-    return sa.or_(*(select.exists() for select in _covering_grants(user, _SUPERVISING_ROLES)))
-
-
-def _grant_for(user: VaUsers, case: VaDeathRegister, roles: tuple[VaAccessRoles, ...]):
-    """The narrowest of *user*'s *roles* grants covering *case*, or None.
-
-    Returns a row ``(grant_id, cadre_id)``. Narrowest: the unit grant at the
-    deepest unit, then a project-site grant, then a project grant; at equal
-    depth ``interview_supervisor`` or ``site_pi`` before ``data_manager`` or
-    ``project_pi``, then the lowest
-    grant id, so the choice is deterministic.
-    """
-    if case.death_id is None:
-        return None
-    covering = sa.union_all(
-        *(select.where(VaDeathRegister.death_id == case.death_id) for select in _covering_grants(user, roles))
-    ).subquery()
-    return db.session.execute(
-        sa.select(covering.c.grant_id, covering.c.cadre_id)
-        .order_by(covering.c.depth.desc(), covering.c.role_rank, covering.c.grant_id)
-        .limit(1)
-    ).first()
+    return supervision.supervised_case_condition(user)
 
 
 def supervising_grant(user: VaUsers, case: VaDeathRegister):
     """The grant *user* supervises *case* through, as ``(grant_id, cadre_id)``,
-    or None. What a supervisor action's audit row names (decision 15)."""
-    return _grant_for(user, case, _SUPERVISING_ROLES)
+    or None (an unsaved case). What a supervisor action's audit row names
+    (decision 15)."""
+    if case.death_id is None:
+        return None
+    return supervision.supervising_grant(user.user_id, case)
 
 
 def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
-    """Whether *user* supervises interviews over *case* (``supervised_case_condition``).
+    """Whether *user* supervises interviews over *case* (``authz``
+    ``SUPERVISE_INTAKE``).
 
     Every supervisor-only action in this module asks this one predicate.
     """
@@ -309,10 +168,11 @@ def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
 
 def _data_manager_grant(actor: VaUsers, case: VaDeathRegister):
     """The actor's narrowest data-manager shaped grant over *case*, or None:
-    what confirming an already coded duplicate relies on (decisions 10, 14).
-    An In-charge and a project_pi on a tree project hold every data-manager
-    power (access-control-model.md, "In-charge")."""
-    return _grant_for(actor, case, _DM_SHAPED_ROLES)
+    what confirming an already coded duplicate relies on (decisions 10, 14;
+    ``authz.supervision.dm_shaped_grant``)."""
+    if case.death_id is None:
+        return None
+    return supervision.dm_shaped_grant(actor.user_id, case)
 
 
 def identity_complete(case: VaDeathRegister) -> bool:

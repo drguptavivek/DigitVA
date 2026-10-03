@@ -66,7 +66,7 @@ class ResolveGrantsTests(AuthzFixtureMixin, BaseTestCase):
             db.session.flush()
             self.assertIs(resolve_grants(user), first)  # memo holds within the request
             invalidate(user.user_id)
-            self.assertTrue(resolve_grants(user).holds(R.data_manager))
+            self.assertTrue(any(resolve_grants(user).of((R.data_manager,))))
         # Outside a request nothing is cached.
         self.assertIsNot(resolve_grants(user), resolve_grants(user))
 

@@ -101,7 +101,7 @@ SUBMISSION_ACTIONS = frozenset({
 
 # Admin reaches every project, closed ones included, for these. Coding and
 # reviewing are not bypassed (admin codes demo only, through its own path),
-# and intake supervision has no admin bypass today (case_transition_service).
+# and intake supervision has no admin bypass (authz.supervision).
 ADMIN_BYPASS = frozenset(Action) - {
     Action.CODE,
     Action.RECODE,
@@ -151,9 +151,3 @@ DM_TREE_ASSIGNABLE = frozenset({
 })
 # Never written by a project_pi.
 PI_NEVER_ASSIGNS = frozenset({VaAccessRoles.admin, VaAccessRoles.project_pi})
-
-GRANT_RULES = {
-    "site_dm": DM_SITE_ASSIGNABLE,
-    "tree_dm": DM_TREE_ASSIGNABLE,
-    "project_pi_never": PI_NEVER_ASSIGNS,
-}

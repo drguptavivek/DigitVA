@@ -183,17 +183,12 @@ class VaUsers(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
-    def is_coder(self, va_form=None):
-        coder_va_form = self.get_coder_va_forms()
-        if va_form:
-            return va_form in coder_va_form
-        return bool(coder_va_form) or self._holds_unit_grant("coder")
+    def is_coder(self):
+        """Role gate only; which submissions the user codes is authz's."""
+        return bool(self.get_coder_va_forms()) or self._holds_unit_grant("coder")
 
-    def is_interviewer(self, va_form=None):
-        interviewer_va_form = self.get_interviewer_va_forms()
-        if va_form:
-            return va_form in interviewer_va_form
-        if interviewer_va_form:
+    def is_interviewer(self):
+        if self.get_interviewer_va_forms():
             return True
         # Unit-scoped grants do not resolve to va_forms (see
         # _get_granted_va_forms), but web intake supports them: the project,
@@ -223,27 +218,20 @@ class VaUsers(UserMixin, db.Model):
 
         return "interview_supervisor" in effective_roles(self)
 
-    def is_coding_tester(self, va_form=None):
-        tester_forms = self.get_coding_tester_va_forms()
-        if va_form:
-            return va_form in tester_forms
-        return bool(tester_forms) or self._holds_unit_grant("coding_tester")
+    def is_coding_tester(self):
+        """Role gate only; which submissions the user codes is authz's."""
+        return bool(self.get_coding_tester_va_forms()) or self._holds_unit_grant("coding_tester")
 
-    def is_site_pi(self, va_form=None):
-        """With *va_form*: the form is under one of the user's site_pi pairs.
-        Without: the role gate, as ``authz.effective_roles`` says (a live
-        site_pi grant on a pair or a unit, the In-charge). Scope is authz's."""
-        if va_form:
-            return va_form in self.get_site_pi_va_forms()
+    def is_site_pi(self):
+        """The role gate, as ``authz.effective_roles`` says (a live site_pi
+        grant on a pair or a unit, the In-charge). Scope is authz's."""
         from app.services.authz import effective_roles
 
         return "site_pi" in effective_roles(self)
 
-    def is_reviewer(self, va_form=None):
-        reviewer_va_form = self.get_reviewer_va_forms()
-        if va_form:
-            return va_form in reviewer_va_form
-        return bool(reviewer_va_form) or self._holds_unit_grant("reviewer")
+    def is_reviewer(self):
+        """Role gate only; which submissions the user reviews is authz's."""
+        return bool(self._get_granted_va_forms("reviewer")) or self._holds_unit_grant("reviewer")
 
     def _holds_unit_grant(self, role: str) -> bool:
         """Holds a live unit grant of *role* (role gate only, never scope).
@@ -366,12 +354,6 @@ class VaUsers(UserMixin, db.Model):
 
     def get_coding_tester_va_forms(self):
         return self._get_granted_va_forms("coding_tester")
-
-    def get_site_pi_va_forms(self):
-        return self._get_granted_va_forms("site_pi")
-
-    def get_reviewer_va_forms(self):
-        return self._get_granted_va_forms("reviewer")
 
     def get_data_manager_va_forms(self):
         return self._get_granted_va_forms("data_manager")

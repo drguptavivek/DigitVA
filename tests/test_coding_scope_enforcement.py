@@ -475,7 +475,7 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
         # and the refusal below is the unit check's, not the form check's.
         self._submission("csc-inside", unit=phc_a)
         self._submission("csc-outside", unit=phc_b)
-        self.assertTrue(self.base_coder_user.is_coder(self.FORM_ID))
+        self.assertTrue(can(self.base_coder_user, Action.CODE, "csc-inside"))
 
         with self.assertRaises(AllocationError) as ctx:
             allocate_pick_form(self.base_coder_user, "csc-outside")
@@ -508,7 +508,7 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
 
         submission.org_unit_id = phc_b.org_unit_id
         db.session.commit()
-        self.assertTrue(user.is_coder(self.FORM_ID))
+        self.assertTrue(can(user, Action.CODE, "csc-anchor"))
         self.assertFalse(can_access_submission_attachment(
             user, va_form_id=self.FORM_ID, va_sid="csc-attach"))
 

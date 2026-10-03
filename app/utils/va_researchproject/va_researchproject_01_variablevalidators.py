@@ -1,4 +1,8 @@
-from app.utils.va_user.va_user_02_variablevalidators import fail
+def fail(reason):
+    """Print a shell helper's validation failure and return False."""
+    print(f"Failed [{reason}]")
+    return False
+
 
 def validate_project_code(project_code):
     if project_code and len(project_code) > 6:

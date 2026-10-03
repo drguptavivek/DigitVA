@@ -58,12 +58,6 @@ def is_method_not_allowed_ban_enabled() -> bool:
     return bool(current_app.config.get("METHOD_NOT_ALLOWED_BAN_ENABLED", True))
 
 
-def is_tracked_method(method: str | None) -> bool:
-    if not method:
-        return False
-    return method.upper() in _tracked_methods()
-
-
 def get_temporary_ban(ip_address: str | None) -> dict[str, Any] | None:
     normalized_ip = _normalize_ip(ip_address)
     if not normalized_ip or not is_method_not_allowed_ban_enabled():
@@ -89,10 +83,6 @@ def get_temporary_ban(ip_address: str | None) -> dict[str, Any] | None:
         "banned_at": int(payload.get("banned_at", now)),
         "expires_at": expires_at,
     }
-
-
-def is_ip_temporarily_banned(ip_address: str | None) -> bool:
-    return get_temporary_ban(ip_address) is not None
 
 
 def record_method_not_allowed_abuse(

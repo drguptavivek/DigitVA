@@ -152,7 +152,6 @@ EXEMPT = {
     "tasks/sync_tasks.py::_refresh_batch_plan_after_enrichment": _SYNC,
     "tasks/sync_tasks.py::refresh_submission_analytics_mv_task": _MV_DDL,
     "utils/va_permission/va_permission_07_ensurenotreviewed.py::va_permission_ensurenotreviewed": _ONE_ROW,
-    "utils/va_permission/va_permission_10_reviewedonce.py::va_permission_reviewedonce": _ONE_ROW,
 }
 
 

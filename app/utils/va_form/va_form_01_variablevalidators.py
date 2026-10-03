@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 from app.models import VaResearchProjects, VaSites, VaForms
-from app.utils.va_user.va_user_02_variablevalidators import fail
+from app.utils.va_researchproject.va_researchproject_01_variablevalidators import fail
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries
 

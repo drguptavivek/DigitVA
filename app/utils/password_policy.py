@@ -1,24 +1,17 @@
-"""Shared password strength validator.
+"""Password breach check (Have I Been Pwned, k-anonymity range API).
 
-Rules:
-  - Minimum 8 characters
-  - At least one uppercase letter (A-Z)
-  - At least one digit (0-9)
-  - At least one special character (!@#$%^&*()_+-=[]{}|;':",.<>?/`~\\)
-
-Returns a list of unmet rule strings (empty = valid).
+Passwords are server-generated (docs/policy/account-onboarding-and-passwords.md),
+so there is no strength validator; every generated password is checked here
+(docs/policy/password-breach-checks.md).
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
 import hashlib
-import re
 
 import requests
 from flask import current_app, has_app_context
-
-_SPECIAL = r"[!@#$%^&*()\-_=+\[\]{}|;':\",./<>?`~\\]"
 
 _HIBP_RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 _HIBP_USER_AGENT = "DigitVA password breach checks"
@@ -27,18 +20,6 @@ _HIBP_DEFAULT_TIMEOUT_SECONDS = 5.0
 BREACH_CHECK_UNAVAILABLE_MESSAGE = (
     "Password breach check is temporarily unavailable. Please try again."
 )
-
-RULES = [
-    (lambda p: len(p) >= 12,         "at least 12 characters"),
-    (lambda p: bool(re.search(r"[A-Z]", p)),   "at least one uppercase letter"),
-    (lambda p: bool(re.search(r"\d", p)),       "at least one digit"),
-    (lambda p: bool(re.search(_SPECIAL, p)),    "at least one special character"),
-]
-
-
-def validate_password_strength(password: str) -> list[str]:
-    """Return a list of unmet rule descriptions. Empty list means password is valid."""
-    return [msg for check, msg in RULES if not check(password)]
 
 
 def _password_breach_check_enabled() -> bool:
@@ -92,13 +73,3 @@ def password_breach_error_message(password: str) -> str | None:
             return "Password has been found in known breach data. Choose a different password."
     return None
 
-
-def password_error_message(password: str) -> str | None:
-    """Return a single human-readable error string, or None if valid."""
-    failures = validate_password_strength(password)
-    if not failures:
-        breach_error = password_breach_error_message(password)
-        if breach_error:
-            return breach_error
-        return None
-    return "Password must have " + ", ".join(failures) + "."

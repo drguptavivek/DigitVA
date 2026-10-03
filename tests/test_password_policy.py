@@ -15,7 +15,7 @@ class PasswordPolicyTests(TestCase):
     def tearDown(self):
         password_policy._hibp_range_query.cache_clear()
 
-    def test_password_error_message_rejects_breached_password(self):
+    def test_breached_password_is_rejected(self):
         password = "DigitVA-Breached-Password-123!"
         sha1_hex = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
         prefix, suffix = sha1_hex[:5], sha1_hex[5:]
@@ -26,7 +26,7 @@ class PasswordPolicyTests(TestCase):
         with self.app.app_context(), patch(
             "app.utils.password_policy.requests.get", return_value=mock_response
         ) as mock_get:
-            error = password_policy.password_error_message(password)
+            error = password_policy.password_breach_error_message(password)
 
         self.assertEqual(
             error,
@@ -36,26 +36,23 @@ class PasswordPolicyTests(TestCase):
         self.assertIn(f"/range/{prefix}", mock_get.call_args.args[0])
         self.assertEqual(mock_get.call_args.kwargs["headers"]["Add-Padding"], "true")
 
-    def test_password_error_message_skips_breach_lookup_for_weak_password(self):
+    def test_empty_password_skips_breach_lookup(self):
         with self.app.app_context(), patch(
             "app.utils.password_policy.requests.get"
         ) as mock_get:
-            error = password_policy.password_error_message("short")
+            error = password_policy.password_breach_error_message("")
 
-        self.assertEqual(
-            error,
-            "Password must have at least 12 characters, at least one uppercase letter, at least one digit, at least one special character.",
-        )
+        self.assertIsNone(error)
         mock_get.assert_not_called()
 
-    def test_password_error_message_returns_retryable_error_when_hibp_unavailable(self):
+    def test_returns_retryable_error_when_hibp_unavailable(self):
         with self.app.app_context(), patch(
             "app.utils.password_policy.requests.get",
             side_effect=password_policy.requests.RequestException("boom"),
         ):
-            error = password_policy.password_error_message("DigitVA-Healthy-Password-123!")
+            error = password_policy.password_breach_error_message("DigitVA-Healthy-Password-123!")
 
         self.assertEqual(
             error,
-            "Password breach check is temporarily unavailable. Please try again.",
+            password_policy.BREACH_CHECK_UNAVAILABLE_MESSAGE,
         )

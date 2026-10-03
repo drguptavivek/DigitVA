@@ -27,6 +27,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services.authz import Action, can
 from app.services.coder_workflow_service import (
     AllocationError,
     allocate_pick_form,
@@ -79,7 +80,7 @@ class CodingAuthzStageOneTests(CodingScopeFixtureMixin, BaseTestCase):
 
     def test_a_project_tester_on_a_tree_project_gets_the_pool(self):
         tester = self._user("tester.project", (VaAccessRoles.coding_tester, "project"))
-        self.assertTrue(tester.is_coding_tester(self.FORM_ID))
+        self.assertTrue(can(tester, Action.CODE, "csc-s1-unrouted"))
 
         # Exempt from the scope level, and a project grant reaches unrouted.
         expected = {"csc-s1-phc", "csc-s1-chc", "csc-s1-unrouted"}

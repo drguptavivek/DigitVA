@@ -33,7 +33,6 @@ table. Policy: docs/policy/access-control-model.md.
 
 from app.services.authz.actions import (
     DEMO_VIRTUAL_ROLES,
-    GRANT_RULES,
     READ_ATTACHMENTS,
     READ_EVENTS,
     RULES,
@@ -49,7 +48,6 @@ from app.services.authz.grant_writes import (
 )
 from app.services.authz.grants import (
     Grant,
-    ProjectSettings,
     ResolvedGrants,
     invalidate,
     resolve_grants,
@@ -71,7 +69,6 @@ from app.services.viewer_pii_service import should_redact_pii as redacts_pii
 
 __all__ = [
     "DEMO_VIRTUAL_ROLES",
-    "GRANT_RULES",
     "READ_ATTACHMENTS",
     "READ_EVENTS",
     "RULES",
@@ -82,7 +79,6 @@ __all__ = [
     "Grant",
     "GrantTarget",
     "Lens",
-    "ProjectSettings",
     "Reason",
     "ResolvedGrants",
     "active_pair",

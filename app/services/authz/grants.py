@@ -114,9 +114,6 @@ class ResolvedGrants:
                 continue
             yield grant
 
-    def holds(self, role: VaAccessRoles, scope_type: VaAccessScopeTypes | None = None) -> bool:
-        return any(self.of((role,), scope_types=None if scope_type is None else (scope_type,)))
-
     def has_tree(self, project_id: str) -> bool:
         settings = self.projects.get(project_id)
         return bool(settings and settings.has_tree)
@@ -138,18 +135,6 @@ class ResolvedGrants:
         if grant.is_wide:
             return False
         return grant.unit_depth is not None and grant.unit_depth >= settings.scope_depth
-
-    def wide_projects(self, roles, *, coding: bool) -> frozenset[str]:
-        return frozenset(
-            g.project_id for g in self.of(roles, scope_types=(_P,))
-            if not coding or self.codes(g)
-        )
-
-    def wide_pairs(self, roles, *, coding: bool) -> frozenset[tuple[str, str]]:
-        return frozenset(
-            (g.project_id, g.site_id) for g in self.of(roles, scope_types=(_PS,))
-            if not coding or self.codes(g)
-        )
 
     def unit_grant_ids(self, roles, *, coding: bool) -> frozenset[uuid.UUID]:
         return frozenset(

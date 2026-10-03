@@ -46,7 +46,7 @@ class TestNarrationLegacyFinalCod(unittest.TestCase):
 
     def test_other_renderings_hide_final_cod(self):
         self.assertIn(FINAL_COD, self._render("vacode"))
-        for action in ("vaarea", "vadata", "vasitepi", "vareview"):
+        for action in ("vaarea", "vadata", "vareview"):
             with self.subTest(action=action):
                 rendered = self._render(action)
                 self.assertIn("Free text", rendered)

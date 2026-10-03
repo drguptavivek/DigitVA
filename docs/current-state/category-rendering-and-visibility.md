@@ -3,15 +3,15 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-10-03
 ---
 
 # Category Rendering And Visibility
 
 ## Purpose
 
-This document maps the current category rendering path used by the coding and site PI
-UI:
+This document maps the current category rendering path used by the coding,
+reviewing, data-manager (`vadata`) and area/viewer (`vaarea`) renderings:
 
 - which route serves each category
 - which partial renders it
@@ -49,7 +49,7 @@ Current route behavior:
   [`app/utils/va_mapping/va_mapping_02_fieldcoder.py`](../../app/utils/va_mapping/va_mapping_02_fieldcoder.py)
   but now bridge in DB-backed categories that are visible in category config and
   missing from the static dict
-- site PI view uses DB-backed site-PI mappings from
+- the data-manager and area/viewer renderings use the DB-backed mappings from
   [`app/services/field_mapping_service.py`](../../app/services/field_mapping_service.py)
   via `get_fieldsitepi()`
 - category partial selection now branches by `mas_category_display_config.render_mode`
@@ -179,10 +179,9 @@ rules above.
 - Partial:
   [`app/templates/va_formcategory_partials/vainterviewdetails.html`](../../app/templates/va_formcategory_partials/vainterviewdetails.html)
 - Mapping source:
-  - site PI: DB-backed `get_fieldsitepi()`
-  - coder/reviewer: not reachable through normal nav because coder mapping has no
-    `vainterviewdetails` entry and the left nav hides it unless `va_action ==
-    "vasitepi"`
+  - data manager and area/viewer (`vadata`, `vaarea`): DB-backed `get_fieldsitepi()`
+  - coder/reviewer: the static coder mapping has no `vainterviewdetails` entry;
+    the DB mapping is bridged in only when the category is visible to that role
 - Partial sections:
   - `interview`
   - `va_interviewer`
@@ -193,7 +192,10 @@ rules above.
   - `va_respondent`: `Id10007`, `Id10007a`, `Id10007b`, `Id10008`, `Id10009`
 - Conditions to appear in left nav:
   - `vainterviewdetails` must be present in `va_category_list`
-  - `va_action` must be `vasitepi`
+  - the category must be visible to the rendering's role
+    (`show_to_site_pi_datamanager` for `vadata` and `vaarea`; `show_to_coder` /
+    `show_to_reviewer` otherwise). The `vasitepi` rendering was removed on
+    2026-10-03 (digitva-a00o)
 - Effective trigger rule:
   - any surviving field in `va_interviewer`, `interview`, or `va_respondent`
 

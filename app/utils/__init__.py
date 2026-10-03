@@ -21,17 +21,6 @@ from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries
 from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
 
-from app.utils.va_user.va_user_01_rolesenum import VaRoles
-from app.utils.va_user.va_user_02_variablevalidators import (
-    fail,
-    validate_email_format,
-    validate_password_strength,
-    validate_permissions_exist,
-    validate_landing_page,
-    validate_email_uniqueness,
-    validate_languages_exist,
-    validate_permissions,
-)
 
 from app.utils.va_form.va_form_01_variablevalidators import (
     validate_form_id,
@@ -53,8 +42,6 @@ from app.utils.va_permission.va_permission_05_validaterecodelimits import va_per
 from app.utils.va_permission.va_permission_06_ensureviewable import va_permission_ensureviewable
 from app.utils.va_permission.va_permission_07_ensurenotreviewed import va_permission_ensurenotreviewed
 from app.utils.va_permission.va_permission_08_ensurereviewed import va_permission_ensurereviewed
-from app.utils.va_permission.va_permission_09_ensurecoded import va_permission_ensurecoded
-from app.utils.va_permission.va_permission_10_reviewedonce import va_permission_reviewedonce
 
 from app.utils.va_render.va_render_01_categoryneighbours import va_render_categoryneighbours
 from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
@@ -86,16 +73,6 @@ __all__ = [
     "va_smartva_prepdata",
     "va_smartva_runsmartva",
     "va_smartva_formatsmartvaresult",
-    "VaRoles",
-    "va_user_permissionvalidator",
-    "fail",
-    "validate_email_format",
-    "validate_password_strength",
-    "validate_permissions_exist",
-    "validate_landing_page",
-    "validate_email_uniqueness",
-    "validate_languages_exist",
-    "validate_permissions",
     "validate_form_id",
     "validate_project_id",
     "validate_site_id",
@@ -113,8 +90,6 @@ __all__ = [
     "va_permission_ensureviewable",
     "va_permission_ensurenotreviewed",
     "va_permission_ensurereviewed",
-    "va_permission_ensurecoded",
-    "va_permission_reviewedonce",
     "va_render_categoryneighbours",
     "va_mapping_fieldsitepi",
     "va_mapping_fieldcoder",

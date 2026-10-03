@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-03
 ---
 
 # Admin And Setup Model
@@ -589,7 +589,6 @@ Important shell operations include:
 - `va_db_initialise_researchprojects()`
 - `va_db_initialise_researchsites()`
 - `va_db_initialise_vaforms()`
-- `va_db_initialise_vausers()`
 - `va_mapping_icd()`
 - `va_mapping_fieldsitepi()`
 - `va_mapping_fieldcoder()`
@@ -641,7 +640,11 @@ The shell helper `va_initialise_platform()` currently performs:
 4. load ICD codes
 5. generate mapping Python modules from spreadsheets
 6. perform ODK sync
-7. initialize users
+
+It creates no users: the legacy user initialiser and the `va_user_create` /
+`va_user_update` / `va_user_delete` shell helpers were removed (digitva-a00o).
+Create accounts with `flask seed run` (the default admin), `flask users
+create`, or the admin UI; every password is server-generated.
 
 This reflects the current one-project-first bootstrap model.
 
@@ -669,7 +672,6 @@ The admin UI supports:
 
 Underlying service functions remain available for shell-based operations:
 
-- `va_user_create`
 - `va_form_addform`
 - `va_site_addsite`
 - `va_researchproject_addproject`

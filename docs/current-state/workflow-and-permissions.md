@@ -642,11 +642,11 @@ form-centric permissions, still exists but is never read: the attachment
 and event-history fall-throughs and `VaUsers.has_va_form_access` were
 deleted once production was found to hold only coder and sitepi keys, which
 they already ignored (digitva-d3y5). Account creation (admin, data-manager,
-CLI, project user import, seed) writes `{}`. The legacy shell helpers
-`app/services/va_user/va_user_01_create.py` and `va_user_02_update.py`
-(imported in `run.py`) and the test-data seed (`app/commands/seed.py`) write
-only `coder`, `reviewer` or `sitepi` keys, which the fallback skips, so no
-current writer grants access through it.
+CLI, project user import, seed) writes `{}`. The legacy shell helpers that
+wrote form keys into it (`va_user_create`, `va_user_update`, the
+`va_db_initialise_vausers` initialiser) were removed in digitva-a00o; the
+test-data seed (`app/commands/seed.py`) still writes `coder` keys, which
+nothing reads, so no current writer grants access through it.
 
 ### Current permission helpers
 
@@ -661,9 +661,11 @@ device unit list and the area dashboard), `coding_gate_waivers` and
 The user model keeps role-gate predicates (`is_coder()`, `is_reviewer()`,
 `is_site_pi()`, `is_data_manager()`, `is_viewer()` and friends, used by
 `role_required._ROLE_METHODS` and the templates; `is_data_manager`,
-`is_site_pi` and `is_interview_supervisor` read `effective_roles`) and the
-form getters (`get_coder_va_forms()`, `get_reviewer_va_forms()`, ...) that
-answer which forms to offer. Neither decides one submission.
+`is_site_pi` and `is_interview_supervisor` read `effective_roles`; none takes
+a form argument since digitva-a00o) and the form getters
+(`get_coder_va_forms()`, `get_coding_tester_va_forms()`, ...) that answer
+which forms to offer. Neither decides one submission: form- or
+submission-level reach is `authz.can` / `scope_filter`.
 
 ### Current effective model
 
@@ -728,9 +730,11 @@ Grant scope is resolved back to forms and submissions as follows:
 - web intake supervision: `interview_supervisor` (unit grants only),
   `data_manager` grants, the In-charge (`site_pi` at a unit, its subtree) and
   `project_pi` on a tree project (the whole project) supervise the cases in
-  their scope through one predicate,
+  their scope through one rule, `app/services/authz/supervision.py`
+  (`authz.can(user, SUPERVISE_INTAKE, case)`; the worklist condition
+  `supervised_case_condition`), which
   `case_transition_service.is_interview_supervisor_for` /
-  `supervised_case_condition` (no admin bypass). The audit row names the
+  `supervised_case_condition` delegate to (no admin bypass). The audit row names the
   narrowest grant; at equal depth `interview_supervisor` and `site_pi` rank
   before `data_manager` and `project_pi`. Confirming an already coded
   duplicate needs a data-manager shaped grant (`data_manager`, In-charge, tree
@@ -1167,8 +1171,7 @@ Current baseline:
   and an unknown one, never the unit or cadre message; after it allows, the
   cadre check (`validate_org_unit_grant`) and the mentor guard run unchanged,
   and every write calls `authz.invalidate` for the grantee
-- the admin panel's grant list and orphaned-grant list
-  (`/admin/api/access-grants`, `/admin/api/access-grants/orphaned`) filter on
+- the admin panel's grant list (`/admin/api/access-grants`) filters on
   `authz.grant_list_filter` (every grant for an admin; for a project PI the
   grants it may write, so not other `project_pi` grants); the `project_id`
   narrowing is allowed for a project where the caller holds a grant-writing

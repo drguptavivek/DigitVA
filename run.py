@@ -9,9 +9,6 @@ from app.services.va_db_initialise.va_db_initialise_02_researchsites import (
 from app.services.va_db_initialise.va_db_initialise_03_vaforms import (
     va_db_initialise_vaforms,
 )
-from app.services.va_db_initialise.va_db_initialise_04_vausers import (
-    va_db_initialise_vausers,
-)
 from app.services.va_form.va_form_01_addform import va_form_addform
 from app.services.va_form.va_form_02_updateform import va_form_updateform
 from app.services.va_form.va_form_03_deleteform import va_form_deleteform
@@ -36,9 +33,6 @@ from app.services.va_site.va_site_01_addsite import va_site_addsite
 from app.services.va_site.va_site_02_updatesite import va_site_updatesite
 from app.services.va_site.va_site_03_deletesite import va_site_deletesite
 from app.services.va_data_sync.va_data_sync_01_odkcentral import va_data_sync_odkcentral
-from app.services.va_user.va_user_01_create import va_user_create
-from app.services.va_user.va_user_02_update import va_user_update
-from app.services.va_user.va_user_03_delete import va_user_delete
 
 app = create_app()
 
@@ -80,7 +74,6 @@ def make_shell_context():
         va_mapping_info()
         va_mapping_flip()
         va_data_sync_odkcentral()
-        va_db_initialise_vausers()
 
     def va_updateall_maps():
         va_mapping_icd()
@@ -105,7 +98,6 @@ def make_shell_context():
         "va_db_initialise_researchprojects": va_db_initialise_researchprojects,
         "va_db_initialise_researchsites": va_db_initialise_researchsites,
         "va_db_initialise_vaforms": va_db_initialise_vaforms,
-        "va_db_initialise_vausers": va_db_initialise_vausers,
         "va_form_addform": va_form_addform,
         "va_form_updateform": va_form_updateform,
         "va_form_deleteform": va_form_deleteform,
@@ -123,9 +115,6 @@ def make_shell_context():
         "va_site_addsite": va_site_addsite,
         "va_site_updatesite": va_site_updatesite,
         "va_site_deletesite": va_site_deletesite,
-        "va_user_create": va_user_create,
-        "va_user_update": va_user_update,
-        "va_user_delete": va_user_delete,
         "va_initialise_platform": va_initialise_platform,
         "va_updateall_maps": va_updateall_maps,
         "va_initiate_datasync": va_initiate_datasync

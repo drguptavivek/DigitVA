@@ -101,10 +101,12 @@ class TestCategoryRenderingService(BaseTestCase):
             ["vademographicdetails", "vanarrationanddocuments", "vacodassessment"],
         )
 
-    def test_site_pi_nav_includes_interview_when_visible(self):
+    def test_area_viewer_nav_includes_interview_when_visible(self):
+        # vaarea reads the shared show_to_site_pi_datamanager column and adds
+        # no workflow item.
         nav = get_category_rendering_service().get_category_nav(
             "TEST_RENDERING_FORM",
-            "vasitepi",
+            "vaarea",
             ["vainterviewdetails", "vademographicdetails"],
         )
 

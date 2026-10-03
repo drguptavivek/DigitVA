@@ -3,7 +3,7 @@ title: Category Navigation Visibility Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-10-03
 ---
 
 # Category Navigation Visibility Policy
@@ -66,7 +66,9 @@ Examples:
 Current baseline:
 
 - show only when `vainterviewdetails` is present in the live visible category set
-- and only when `va_action == "vasitepi"`
+- and only when the category is visible to the rendering's role
+  (`show_to_site_pi_datamanager` for the data-manager and area/viewer
+  renderings); the `vasitepi` rendering no longer exists
 
 ### Narration and documents
 

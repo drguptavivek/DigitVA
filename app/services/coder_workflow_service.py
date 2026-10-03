@@ -92,15 +92,6 @@ def _narration_language_filter(user):
     return sa.func.lower(VaSubmissions.va_narration_language).in_(normalized)
 
 
-def _tr01_cutoff_filter(user):
-    """Limit TR01 site submissions by date without restricting other forms."""
-    if not user or not user.is_coder(va_form="UNSW01TR0101"):
-        return None
-    return sa.or_(
-        VaSubmissions.va_form_id != "UNSW01TR0101",
-        sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
-    )
-
 def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
     """Return ready-pool counts for the coder dashboard.
 
@@ -200,9 +191,6 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
                 sa.select(VaForms.form_id).where(VaForms.project_id == project_id)
             )
         )
-    tr01_filter = _tr01_cutoff_filter(user)
-    if tr01_filter is not None:
-        filters.append(tr01_filter)
     return filters
 
 

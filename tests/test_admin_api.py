@@ -769,41 +769,6 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(self_toggle.status_code, 400)
 
-    def test_orphaned_grants_api(self):
-        self._login(self.admin_user_id)
-        headers = self._csrf_headers()
-
-        # Create a project and site
-        prj_resp = self.client.post("/admin/api/projects", json={
-            "project_id": "ORPH01", "project_name": "Orphan", "project_nickname": "ORPH"
-        }, headers=headers)
-        site_resp = self.client.post("/admin/api/sites", json={
-            "site_id": "OR01", "site_name": "Orphan Site", "site_abbr": "ORPH"
-        }, headers=headers)
-        
-        # Create a mapping
-        map_resp = self.client.post("/admin/api/project-sites", json={
-            "project_id": "ORPH01", "site_id": "OR01"
-        }, headers=headers)
-        ps_id = map_resp.get_json()["project_site"]["project_site_id"]
-        
-        # Create a grant
-        grant_resp = self.client.post("/admin/api/access-grants", json={
-            "user_id": self.target_id,
-            "role": "reviewer",
-            "scope_type": "project_site",
-            "project_site_id": ps_id
-        }, headers=headers)
-        
-        # Deactivate mapping
-        self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
-        
-        # Fetch orphaned
-        orphaned_resp = self.client.get("/admin/api/access-grants/orphaned")
-        self.assertEqual(orphaned_resp.status_code, 200)
-        grants = orphaned_resp.get_json()["grants"]
-        self.assertTrue(any(g["project_site_id"] == ps_id for g in grants))
-
     def test_odk_connections_crud(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

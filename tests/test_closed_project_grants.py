@@ -43,7 +43,12 @@ from tests.base import BaseTestCase
 
 def _dm_projects(user):
     """Projects the user holds a project-scope data_manager grant on."""
-    return resolve_grants(user).wide_projects((VaAccessRoles.data_manager,), coding=False)
+    return {
+        g.project_id
+        for g in resolve_grants(user).of(
+            (VaAccessRoles.data_manager,), scope_types=(VaAccessScopeTypes.project,)
+        )
+    }
 
 
 class ClosedProjectGrantResolutionTests(BaseTestCase):

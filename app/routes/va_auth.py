@@ -70,7 +70,6 @@ MOBILE_FORGOT_MESSAGE = (
     "new sign-in code, then use \"I have a code\" on the sign-in page."
 )
 PASSWORD_EMAILED_MESSAGE = "Your password has been emailed to you."
-INVALID_LINK_MESSAGE = "This link is invalid or has expired."
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
 
 # docs/policy/authentication-factors.md section 1: five failed second-factor

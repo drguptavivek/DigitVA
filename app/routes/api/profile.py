@@ -8,7 +8,6 @@ from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import AuthWebauthnCredential
-from app.models.mas_languages import MasLanguages
 from app.services import totp_service
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
@@ -105,25 +104,6 @@ def get_profile():
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/profile/languages  — available language choices
-# ---------------------------------------------------------------------------
-
-@bp.get("/languages")
-@login_required
-def get_languages():
-    """Return available VA language options."""
-    languages = db.session.scalars(
-        sa.select(MasLanguages)
-        .where(MasLanguages.is_active == True)
-        .order_by(MasLanguages.language_name)
-    ).all()
-    return jsonify({
-        "languages": [{"code": l.language_code, "name": l.language_name} for l in languages],
-        "selected": current_user.vacode_language or [],
-    })
-
-
-# ---------------------------------------------------------------------------
 # POST /api/v1/profile/password/generate  — a new generated password
 # ---------------------------------------------------------------------------
 # Nobody chooses a password (docs/policy/account-onboarding-and-passwords.md
@@ -169,33 +149,6 @@ def generate_password():
         })
     response.headers["Cache-Control"] = "no-store"
     return response
-
-
-# ---------------------------------------------------------------------------
-# PATCH /api/v1/profile/language  — update VA language preferences
-# ---------------------------------------------------------------------------
-
-@bp.patch("/language")
-@login_required
-def update_language():
-    """Update the current user's VA coding language preferences."""
-    body = request.get_json(silent=True) or {}
-    languages = body.get("languages")
-
-    if not isinstance(languages, list) or not languages:
-        return _error("At least one language must be selected.")
-
-    # Validate codes against available languages
-    valid_codes = set(db.session.scalars(
-        sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
-    ).all())
-    invalid = [c for c in languages if c not in valid_codes]
-    if invalid:
-        return _error(f"Invalid language codes: {invalid}")
-
-    current_user.vacode_language = languages
-    db.session.commit()
-    return jsonify({"message": "Languages updated successfully.", "languages": languages})
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,7 @@ from app.services.authz.actions import (
     Reason,
 )
 from app.services.authz.grants import Grant, ResolvedGrants, resolve_grants
+from app.services.authz.supervision import supervising_grant
 
 _R = VaAccessRoles
 _P = VaAccessScopeTypes.project
@@ -533,27 +534,17 @@ def _can_site_pi_report(g: ResolvedGrants, target) -> Decision:
 
 
 def _can_supervise(g: ResolvedGrants, case) -> Decision:
-    """interview_supervisor, data_manager or In-charge at a unit whose
-    subtree holds the case; data_manager on its pair or project; project_pi
-    on a tree project. No admin bypass (case_transition_service)."""
-    unit_holders = list(g.of(
-        (_R.interview_supervisor, _R.data_manager, _R.site_pi), scope_types=(_U,)
-    ))
-    wide_dm = list(g.of((_R.data_manager,), scope_types=(_P, _PS)))
-    tree_pi = [x for x in g.of((_R.project_pi,)) if g.has_tree(x.project_id)]
-    if not (unit_holders or wide_dm or tree_pi):
-        return _deny(Reason.NO_ROLE)
-    project_id, site_id = case.project_id, case.site_id
-    if any(x.project_id == project_id for x in tree_pi):
+    """``supervision.supervising_grant`` decides; no admin bypass. The
+    holders below only choose the refusal message (NO_ROLE when *g* holds
+    no role that could ever supervise)."""
+    if supervising_grant(g.user_id, case) is not None:
         return _ALLOWED
-    for x in wide_dm:
-        if x.project_id == project_id and (x.scope_type == _P or x.site_id == site_id):
-            return _ALLOWED
-    if case.org_unit_id is not None and unit_holders:
-        unit = _unit_row(case.org_unit_id)
-        if unit is not None and any(x.covers_unit(project_id, unit.path) for x in unit_holders):
-            return _ALLOWED
-    return _deny(Reason.OUT_OF_SCOPE)
+    holds = any(g.of(
+        (_R.interview_supervisor, _R.data_manager, _R.site_pi), scope_types=(_U,)
+    )) or any(g.of((_R.data_manager,), scope_types=(_P, _PS))) or any(
+        g.has_tree(x.project_id) for x in g.of((_R.project_pi,))
+    )
+    return _deny(Reason.OUT_OF_SCOPE if holds else Reason.NO_ROLE)
 
 
 # ---------------------------------------------------------------------------

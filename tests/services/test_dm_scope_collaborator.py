@@ -108,8 +108,8 @@ class ViewerScopeHelperTests(BaseTestCase):
         self.assertTrue(user.is_viewer())
         # data_manager-only helpers are unaffected.
         self.assertEqual(
-            resolve_grants(user).wide_projects((VaAccessRoles.data_manager,), coding=False),
-            set(),
+            list(resolve_grants(user).of((VaAccessRoles.data_manager,))),
+            [],
         )
 
     def test_get_viewer_project_sites_from_collaborator_pii(self):

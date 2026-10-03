@@ -29,7 +29,7 @@ every generated password is checked the same way and regenerated on a hit.
 
 ## Baseline Rules
 
-- password strength validation remains mandatory
+- password strength is a property of the server generator; there is no strength validator for chosen passwords, since nobody chooses one
 - breached passwords must be rejected using the Have I Been Pwned password range API and k-anonymity lookup
 - the application must not transmit the full password to the breach service
 - the application must not use breach checking as a login challenge or substitute for rate limiting

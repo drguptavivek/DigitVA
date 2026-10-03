@@ -750,8 +750,8 @@ class InstituteAdminTests(Stage1bBase):
         self.assertTrue(boss.is_mentor_institute_admin())
         self.assertFalse(boss.is_admin())
         self.assertFalse(boss.is_data_manager())
-        self.assertFalse(resolve_grants(boss).holds(
-            VaAccessRoles.data_manager, VaAccessScopeTypes.org_unit))
+        self.assertFalse(any(resolve_grants(boss).of(
+            (VaAccessRoles.data_manager,), scope_types=(VaAccessScopeTypes.org_unit,))))
         self.assertTrue(db.session.get(VaUserAccessGrants, grant.grant_id).grant_status
                         == VaStatuses.active)
 

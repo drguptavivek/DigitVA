@@ -56,9 +56,6 @@ ATTACHMENT_PRESENT_MARKER = "__attachment_present__"
 AUDIT_FILENAME = "audit.csv"
 ORPHAN_DIRNAME = ".orphaned"
 
-# Legacy permission-dict keys that are role-scoped elsewhere; any other key in
-# the dict is a non-scoped legacy grant (mirrors VaUsers.has_va_form_access).
-_SCOPED_LEGACY_ROLES = {"coder", "reviewer", "sitepi"}
 
 # ---------------------------------------------------------------------------
 # Readiness vocabularies (Phase 2 columns on va_submission_attachments)
@@ -231,8 +228,8 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     ``VIEW`` scope (``authz.READ_ATTACHMENTS``), evaluated against the
     submission's current routing: an old allocation or coder outcome grants
     nothing once the case is re-routed out of the user's scope (digitva-ck9).
-    The legacy ``permission`` dict stays as a fall-through until a
-    production row count (digitva-d3y5). See docs/policy/attachment-storage.md.
+    The legacy ``permission`` column grants nothing (digitva-d3y5). See
+    docs/policy/attachment-storage.md.
 
     Evaluated fresh on every delivery; the result is never cached. Possession
     of a storage_name token grants nothing on its own.
@@ -247,15 +244,7 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     # photos, narration audio) carry it with no field-level flag; the
     # rendered page withholds them, so a guessed filename must not fetch
     # them either, whichever path below would grant it.
-    if can(user, READ_ATTACHMENTS, va_sid):
-        return not redacts_pii(user)
-    # Legacy permission JSONB fall-through; delete after digitva-d3y5's count.
-    for legacy_role, va_forms in (user.permission or {}).items():
-        if legacy_role in _SCOPED_LEGACY_ROLES:
-            continue
-        if va_form_id in va_forms:
-            return not redacts_pii(user)
-    return False
+    return can(user, READ_ATTACHMENTS, va_sid) and not redacts_pii(user)
 
 
 # ---------------------------------------------------------------------------

@@ -69,23 +69,11 @@ class AuthorizationMatrixTests(TestCase):
         # sees none of it.
         self.assertFalse(self._allowed(_fake_user(), view=True, redacts=True)[0])
 
-    def test_legacy_non_scoped_permission_dict_allowed(self):
-        user = _fake_user(permission={"collab": [self.FORM]})
-        self.assertTrue(self._allowed(user)[0])
-
-    def test_legacy_permission_dict_denies_a_redacting_viewer(self):
-        user = _fake_user(permission={"collab": [self.FORM]})
-        # Present: the same legacy entry allows a viewer who is not redacted.
-        self.assertTrue(self._allowed(user, redacts=False)[0])
-        self.assertFalse(self._allowed(user, redacts=True)[0])
-
-    def test_legacy_permission_dict_for_another_form_denied(self):
-        user = _fake_user(permission={"collab": ["OTHER"]})
-        self.assertFalse(self._allowed(user)[0])
-
-    def test_legacy_scoped_permission_dict_keys_ignored(self):
-        user = _fake_user(permission={"coder": [self.FORM], "reviewer": [self.FORM], "sitepi": [self.FORM]})
-        self.assertFalse(self._allowed(user)[0])
+    def test_a_legacy_permission_dict_grants_nothing(self):
+        # digitva-d3y5: the column is kept but never consulted.
+        for permission in ({"collab": [self.FORM]}, {"coder": [self.FORM], "sitepi": [self.FORM]}):
+            with self.subTest(permission=permission):
+                self.assertFalse(self._allowed(_fake_user(permission=permission))[0])
 
 
 class LocalPresenceTests(TestCase):

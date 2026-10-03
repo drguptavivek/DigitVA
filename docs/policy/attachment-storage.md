@@ -169,7 +169,7 @@ unknown attachment is `404`, never served by filename.
 | Anyone who may view the submission | Allowed: the `VIEW` scope of the authorization module (`authz.can(user, READ_ATTACHMENTS, va_sid)`, an alias of `VIEW`). That is admin; data managers, coders, coding testers and reviewers in their viewing scope; site PIs on their pair; project PIs on their project; `collaborator_pii` in their scope. Attachments are part of viewing a submission, so they follow the page, not an allocation. |
 | Plain `collaborator` | Refused, even in scope. Attachments (document photos, narration audio) carry personal data with no field-level flag, and a plain viewer sees no personal data. |
 | Re-routed submission | Decided by current routing. A unit grant reaches a submission only while its `org_unit_id` sits in the grant's subtree, so an old allocation or coder outcome grants nothing once the case is re-routed out (digitva-ck9). |
-| Legacy `permission` dict | Keys other than `coder`, `reviewer`, `sitepi` grant access to the listed forms, matching `VaUsers.has_va_form_access`, except that a redacting viewer is still refused. Kept until stage 7 of digitva-0wc removes the fall-through. |
+| Legacy `permission` dict | Grants nothing; the column is kept but never read (digitva-d3y5). |
 
 The route's role gate admits `coder`, `coding_tester`, `reviewer`,
 `data_manager`, `site_pi`, `project_pi`, `collaborator`, `collaborator_pii`

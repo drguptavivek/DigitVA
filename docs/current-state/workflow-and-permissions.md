@@ -638,12 +638,10 @@ unit grants. Scope targets resolve through `va_project_master`,
 from this table.
 
 Legacy residue: `va_users.permission`, a NOT NULL JSONB column of
-form-centric permissions, still exists. It is read only as a fallback for
-roles other than coder, reviewer and site PI, in
-`app/routes/api/workflow.py` (event history) and
-`app/services/attachment_service.py` (attachments); `VaUsers.has_va_form_access`
-now holds only that same fallback and has no app caller. All three wait for
-a production row count before deletion (digitva-d3y5). Account creation (admin, data-manager,
+form-centric permissions, still exists but is never read: the attachment
+and event-history fall-throughs and `VaUsers.has_va_form_access` were
+deleted once production was found to hold only coder and sitepi keys, which
+they already ignored (digitva-d3y5). Account creation (admin, data-manager,
 CLI, project user import, seed) writes `{}`. The legacy shell helpers
 `app/services/va_user/va_user_01_create.py` and `va_user_02_update.py`
 (imported in `run.py`) and the test-data seed (`app/commands/seed.py`) write
@@ -773,8 +771,7 @@ read-only is built by `digitva-0wc` stage 2 (next subsection).
   an unconfirmed PII set withholds the whole payload. `collaborator_pii`
   sees everything.
 - Attachments (both routes) and `GET /api/v1/workflow/events/<va_sid>`
-  follow `VIEW`, the legacy `permission` dict as a fall-through until
-  stage 7.
+  follow `VIEW`.
 - Opening `vadata` or `vaarea` queues the open-submission repair only for a
   user with `SYNC_SUBMISSION`; a coding session (`vacode`) still queues it.
 

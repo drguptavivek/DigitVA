@@ -59,10 +59,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    writers see managed people without contact details). Open from stage 6:
    
    **Stage 7 committed** (digitva-0wc stays open only for `digitva-26pg`) (old helpers and shadow test
-   deleted; authz is the single source; xd1q fixed). The legacy
-   `permission` fall-through stays: dev holds only coder/sitepi keys, which
-   it ignores, so it grants nothing there; run the key query on production
-   and delete it (`digitva-d3y5`). `org_grant_service.project_wide_grant_exists`
+   deleted; authz is the single source; xd1q fixed). The legacy `permission` fall-through is deleted (column kept). `org_grant_service.project_wide_grant_exists`
    stays only for web_intake_service (Expo-session file); switch it to
    `authz.reachable_unit_ids` once that lands. Field staff without email:
    `digitva-l7c2` (owner decision). Dev DB head: `e2b7c4d9a1f3`.
@@ -70,13 +67,17 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    in this checkout (client API/static host, mobile/, app/__init__.py,
    additive draft locale fields and tests): commit only stage files by name.
    Expo preview `/app/`: English/Hindi UI, shared dark/light form theme,
-   left sidebar/phone rail, login handoff and server collection drafts; coding/review still link to existing workspaces (.4).
-   Expo: 84 Jest tests, TypeScript and separate web/Android JS exports pass.
+   left sidebar/phone rail, login handoff and server collection drafts; coding/review links hidden until Expo screens exist (.4).
+   Expo: 87 Jest tests plus 4 focused reload-recovery tests, TypeScript and separate web/Android JS exports pass.
    Compact language icon, linked UI/form language and web logo are in place.
    Section dots select directly; separate fly-out uses the theme; authorized
    interviewer prefill preserves saved answers. Settings uses the shared shell
    (left navigation/header, optional footer). Clearing the last section answer
    now sends an explicit empty section. Refresh old loaded previews.
+   `digitva-p6fs.10`: browser startup waits for bootstrap; sign-in keeps the
+   current app route/query. Authorized seeded-account browser check passed:
+   sign-in returns to Settings; Settings reload retains session/left rail;
+   saved Hindi interview resumes with its existing interviewer answer.
    P1 `digitva-p6fs.9`: enforce locked prefill at intake PATCH/submit on server
    (existing UI locks can be bypassed); dev preview only, no production-ready claim.
    Browser synthetic TST001 registration, Hindi save/resume and theme checked;

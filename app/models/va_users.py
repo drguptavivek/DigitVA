@@ -386,24 +386,6 @@ class VaUsers(UserMixin, db.Model):
             or self.get_viewer_org_unit_ids()
         )
 
-    def has_va_form_access(self, va_form, role=None):
-        """The legacy ``permission`` JSONB only: never consulted for a
-        grant-backed role. Scope questions are ``app.services.authz``'s.
-
-        No app caller remains; kept with the attachment and workflow-event
-        fall-throughs until a production row count (digitva-d3y5).
-        """
-        # Legacy permission JSONB fall-through; delete after digitva-d3y5's count.
-        # coder, reviewer and sitepi keys are grant-backed and never count.
-        scoped = {"coder", "reviewer", "sitepi"}
-        if role:
-            return role not in scoped and va_form in self.permission.get(role, ())
-        return any(
-            va_form in va_forms
-            for legacy_role, va_forms in self.permission.items()
-            if legacy_role not in scoped
-        )
-
     def _get_granted_va_forms(self, role: str) -> set[str]:
         from app.models import (
             MapProjectSiteOdk,

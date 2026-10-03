@@ -250,9 +250,7 @@ Every scope decision runs through one package; the old per-role helpers on
 templates; `is_data_manager`, `is_site_pi` and `is_interview_supervisor` read
 `effective_roles`. The `get_*_va_forms` getters (and `is_coder(form)` and
 friends) answer form-level questions only, such as which forms to offer; a
-decision about one submission is `require`/`can`. The legacy
-`permission` JSONB is still read as a fall-through for attachments and
-workflow events until a production row count (digitva-d3y5).
+decision about one submission is `require`/`can`. The legacy `permission` JSONB column is kept but never read (digitva-d3y5: production holds only coder and sitepi keys, which were already ignored).
 
 These checks run inside route handlers and services as defense-in-depth.
 They are NOT replaced by `@role_required()`.

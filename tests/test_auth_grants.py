@@ -263,7 +263,6 @@ class AuthGrantResolutionTests(BaseTestCase):
         self.assertEqual(user.get_coder_va_forms(), set())
         self.assertFalse(user.is_coder())
         self.assertFalse(user.is_coder(self.form_a))
-        self.assertFalse(user.has_va_form_access(self.form_a))
 
     def test_generic_access_does_not_cross_role_or_scope_boundaries(self):
         user = self._create_user("test.auth.coder@example.com")

@@ -787,9 +787,7 @@ The scope check is one package, `app/services/authz/` (`can`/`require`,
 `scope_filter`, `can_grant`/`grant_list_filter`, `effective_roles`,
 `reachable_unit_ids`), the single source for every role and scope decision
 in this document. Workflow checks (allocation, state, language, the recode
-window) stay with the workflow services. The legacy `permission` JSONB is
-still read as a fall-through for attachments and workflow events until a
-production row count (digitva-d3y5).
+window) stay with the workflow services. The legacy `permission` JSONB column is kept but never read (digitva-d3y5: production holds only coder and sitepi keys, which were already ignored).
 
 ## API And CSRF Baseline
 

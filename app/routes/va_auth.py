@@ -155,7 +155,19 @@ def _clear_preauth() -> None:
     session.pop("preauth", None)
 
 
-def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool) -> None:
+def _web_sign_in_failed(user, reason: str) -> None:
+    """Audit a refused web sign-in and commit: the account (only when it
+    exists and is active) and the reason, never the typed identifier. The
+    same write happens for a known and an unknown identifier."""
+    record_security_event(
+        user_id=user.user_id if user is not None and user.is_active else None,
+        event_type="web_sign_in_failed",
+        detail={"reason": reason},
+    )
+    db.session.commit()
+
+
+def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: str) -> None:
     """Finish sign-in exactly once, shared by the password and passkey
     paths: drop every session key issued before authentication (the pre-auth
     state included), give the authenticated session a new ID, and record the
@@ -167,8 +179,11 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool) -> None:
     the password path passes True, the passkey path False (a passkey
     sign-in needs no nudge to use a passkey).
 
+    ``method`` (``password``, ``second_factor``, ``passkey``,
+    ``factor_reset``) goes into the ``web_sign_in`` audit event.
+
     Caller is responsible for every check that must pass first (active,
-    verified email, maintenance) and for the redirect afterwards.
+    verified email, maintenance), for the commit and for the redirect.
     """
     has_passkey = db.session.scalar(
         sa.select(
@@ -187,6 +202,7 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool) -> None:
     if nudge_if_no_passkey and not has_passkey:
         session["passkey_nudge"] = True
     current_app.session_interface.regenerate(session)
+    record_security_event(user_id=user.user_id, event_type="web_sign_in", detail={"method": method})
 
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
@@ -287,10 +303,12 @@ def va_login_password():
             or not user.check_password(form.password.data)
             or not user.is_active
         ):
+            _web_sign_in_failed(user, "invalid_credentials")
             flash(INVALID_LOGIN_MESSAGE, "primary")
             return redirect(_password_step_url(next_url))
 
         if not user.sign_in_verified:
+            _web_sign_in_failed(user, "email_unverified")
             if user.is_mobile_only:
                 # Unreachable in practice (a mobile-only password comes only
                 # from redeeming a code), kept so the check is never skipped.
@@ -300,6 +318,7 @@ def va_login_password():
             return redirect(_password_step_url(next_url))
 
         if not user.is_admin() and should_block_non_admin_after_cutoff():
+            _web_sign_in_failed(user, "maintenance")
             flash(
                 "Site is under maintenance. Only admin login is allowed right now.",
                 "warning",
@@ -316,8 +335,10 @@ def va_login_password():
             session["preauth"] = preauth
             return redirect(_second_factor_step_url(next_url))
 
-        _complete_login(user, remember=form.remember_me.data, nudge_if_no_passkey=True)
-
+        _complete_login(
+            user, remember=form.remember_me.data, nudge_if_no_passkey=True, method="password"
+        )
+        db.session.commit()
         return redirect(next_url or current_user.landing_url())
     return render_template(
         "va_frontpages/va_login_password.html",
@@ -394,6 +415,7 @@ def va_login_second_factor():
 
         if not verified:
             db.session.rollback()
+            _web_sign_in_failed(user, "second_factor_invalid")
             failures = preauth.get("second_factor_failures", 0) + 1
             if failures >= SECOND_FACTOR_MAX_FAILURES:
                 _clear_preauth()
@@ -423,7 +445,9 @@ def va_login_second_factor():
             return redirect(_second_factor_step_url(next_url))
 
         remember = bool(preauth.get("remember"))
-        _complete_login(user, remember=remember, nudge_if_no_passkey=not has_passkey)
+        _complete_login(
+            user, remember=remember, nudge_if_no_passkey=not has_passkey, method="second_factor"
+        )
         db.session.commit()
         return redirect(next_url or current_user.landing_url())
 
@@ -507,6 +531,7 @@ def va_login_passkey_verify():
             credential, credential_public_key=stored.public_key
         )
     except PasskeyVerificationError:
+        _web_sign_in_failed(user, "passkey_invalid")
         return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
 
     # Signature-counter policy (section 2): 0/0 is fine (synced passkeys);
@@ -551,7 +576,7 @@ def va_login_passkey_verify():
         db.session.rollback()
         return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
 
-    _complete_login(user, remember=False, nudge_if_no_passkey=False)
+    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="passkey")
     db.session.commit()
 
     return jsonify({"redirect": next_url or current_user.landing_url()})
@@ -585,7 +610,8 @@ def va_login_redeem_code():
     data manager issued (any account, docs/policy/account-onboarding-and-
     passwords.md section 6). On a match the server generates a password and shows it once,
     on this response only (no-store; a refresh re-posts a spent code and
-    fails). A wrong identifier and a wrong code get the same answer. Public by
+    fails). The form requires the terms box and a redemption records the
+    acceptance (policy 5.2). A wrong identifier and a wrong code get the same answer. Public by
     design, CAPTCHA-gated and rate-limited per IP and per number; the person
     then signs in normally, so every factor rule still applies.
     """
@@ -613,6 +639,10 @@ def va_login_redeem_code():
             return render_template(
                 "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
             )
+        if result is not None:
+            # The form required the terms box (onboarding policy 5.2), so the
+            # person can use the app straight away.
+            accounts.accept_terms(result[0], via="sign_in_code")
         db.session.commit()
         if result is None:
             flash(INVALID_SIGN_IN_CODE_MESSAGE, "primary")
@@ -766,7 +796,7 @@ def factor_reset(token):
     if not user.email_verified:
         user.email_verified = True
     user.bump_session_version()
-    _complete_login(user, remember=False, nudge_if_no_passkey=False)
+    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="factor_reset")
     # Set after _complete_login: it calls session.clear() first.
     session["factor_setup_forced"] = True
     db.session.commit()

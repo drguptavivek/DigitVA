@@ -45,17 +45,7 @@ def _drop_database():
 class ActiveFinalAssessmentUniquenessTest(unittest.TestCase):
     def test_upgrade_adds_partial_unique_constraints_for_each_role(self):
         from app import db
-        from app.models import (
-            VaFinalAssessments,
-            VaForms,
-            VaResearchProjects,
-            VaReviewerFinalAssessments,
-            VaSites,
-            VaStatuses,
-            VaSubmissionPayloadVersion,
-            VaSubmissions,
-            VaUsers,
-        )
+        from app.models import VaStatuses
         from tests.base import create_app_without_celery_takeover
 
         _drop_database()
@@ -88,137 +78,106 @@ class ActiveFinalAssessmentUniquenessTest(unittest.TestCase):
                     ]["unique"]
                 )
 
+                # Insert through the tables as they stand at REVISION, not the
+                # app's models: a later column (va_users.mobile_login,
+                # va_final_assessments.is_tester) does not exist yet here.
+                meta = sa.MetaData()
+
+                def insert(table, **values):
+                    t = sa.Table(table, meta, autoload_with=db.engine)
+                    model = db.metadata.tables.get(table)
+                    # Required columns the model fills in Python, limited to
+                    # those that exist at this revision.
+                    for column in t.columns:
+                        if (column.name in values or column.nullable
+                                or column.server_default is not None
+                                or model is None or column.name not in model.c):
+                            continue
+                        default = model.c[column.name].default
+                        if default is not None and default.is_scalar:
+                            values[column.name] = default.arg
+                        elif default is not None and default.is_callable:
+                            values[column.name] = default.arg(None)
+                    db.session.execute(sa.insert(t).values(**values))
+
                 project_id = "UNIQ01"
                 site_id = "UQ01"
                 form_id = "UNIQFORM001"
+                sid = "uuid:constraint-final"
+                user_id = uuid4()
+                payload_id = uuid4()
                 now = datetime.now(UTC).replace(tzinfo=None)
-                user = VaUsers(
-                    user_id=uuid4(),
-                    name="Constraint Test",
-                    email="constraint-test@example.test",
-                    password="unused",
-                    vacode_language=["English"],
-                    permission={},
-                    landing_page="coder",
-                    user_status=VaStatuses.active,
-                    user_created_at=now,
-                    user_updated_at=now,
+                active = VaStatuses.active.name
+                insert(
+                    "va_users", user_id=user_id, name="Constraint Test",
+                    email="constraint-test@example.test", password="unused",
+                    vacode_language=["English"], permission={}, landing_page="coder",
+                    user_status=active, user_created_at=now, user_updated_at=now,
                 )
-                db.session.add_all(
-                    [
-                        VaResearchProjects(
-                            project_id=project_id,
-                            project_code=project_id,
-                            project_name="Constraint test",
-                            project_nickname="Constraint test",
-                            project_status=VaStatuses.active,
-                            project_registered_at=now,
-                            project_updated_at=now,
-                        ),
-                        VaSites(
-                            site_id=site_id,
-                            project_id=project_id,
-                            site_name="Constraint site",
-                            site_abbr=site_id,
-                            site_status=VaStatuses.active,
-                            site_registered_at=now,
-                            site_updated_at=now,
-                        ),
-                        user,
-                    ]
+                insert(
+                    "va_research_projects", project_id=project_id, project_code=project_id,
+                    project_name="Constraint test", project_nickname="Constraint test",
+                    project_status=active, project_registered_at=now, project_updated_at=now,
                 )
-                db.session.flush()
-                db.session.add(
-                    VaForms(
-                        form_id=form_id,
-                        project_id=project_id,
-                        site_id=site_id,
-                        odk_form_id="CONSTRAINT_FORM",
-                        odk_project_id="1",
-                        form_type="WHO_2022_VA",
-                        form_status=VaStatuses.active,
-                        form_registered_at=now,
-                        form_updated_at=now,
+                if sa.inspect(db.engine).has_table("va_site_master"):
+                    insert(
+                        "va_site_master", site_id=site_id, site_abbr=site_id,
+                        site_name="Constraint site", site_status=active,
+                        site_registered_at=now, site_updated_at=now,
                     )
+                insert(
+                    "va_sites", site_id=site_id, project_id=project_id,
+                    site_name="Constraint site", site_abbr=site_id, site_status=active,
+                    site_registered_at=now, site_updated_at=now,
                 )
-                submission = VaSubmissions(
-                    va_sid="uuid:constraint-final",
-                    va_form_id=form_id,
-                    va_data_collector="test",
-                    va_uniqueid_masked="constraint-final",
-                    va_consent="yes",
-                    va_narration_language="English",
-                    va_deceased_age=42,
-                    va_deceased_gender="male",
-                    va_summary=[],
-                    va_catcount={},
-                    va_category_list=[],
-                    va_created_at=now,
-                    va_updated_at=now,
+                insert(
+                    "va_forms", form_id=form_id, project_id=project_id, site_id=site_id,
+                    odk_form_id="CONSTRAINT_FORM", odk_project_id="1",
+                    form_type="WHO_2022_VA", form_status=active,
+                    form_registered_at=now, form_updated_at=now,
                 )
-                db.session.add(submission)
-                db.session.flush()
-                payload = VaSubmissionPayloadVersion(
-                    va_sid=submission.va_sid,
-                    payload_fingerprint="constraint-fingerprint",
-                    payload_data={},
-                    version_status="active",
-                    created_by_role="vasystem",
-                    version_created_at=now,
+                insert(
+                    "va_submissions", va_sid=sid, va_form_id=form_id,
+                    va_data_collector="test", va_uniqueid_masked="constraint-final",
+                    va_consent="yes", va_narration_language="English",
+                    va_deceased_age=42, va_deceased_gender="male", va_summary=[],
+                    va_catcount={}, va_category_list=[], va_created_at=now, va_updated_at=now,
                 )
-                db.session.add(payload)
-                db.session.flush()
-                submission.active_payload_version_id = payload.payload_version_id
-                db.session.flush()
-
-                coder = VaFinalAssessments(
-                    va_sid=submission.va_sid,
-                    payload_version_id=payload.payload_version_id,
-                    va_finassess_by=user.user_id,
-                    va_conclusive_cod="A00",
-                    va_finassess_status=VaStatuses.active,
-                    va_finassess_createdat=now,
-                    va_finassess_updatedat=now,
+                insert(
+                    "va_submission_payload_versions", payload_version_id=payload_id,
+                    va_sid=sid, payload_fingerprint="constraint-fingerprint",
+                    payload_data={}, version_status="active",
+                    created_by_role="vasystem", version_created_at=now,
                 )
-                db.session.add(coder)
                 db.session.commit()
 
-                duplicate_coder = VaFinalAssessments(
-                    va_sid=submission.va_sid,
-                    payload_version_id=payload.payload_version_id,
-                    va_finassess_by=user.user_id,
-                    va_conclusive_cod="A01",
-                    va_finassess_status=VaStatuses.active,
-                    va_finassess_createdat=now,
-                    va_finassess_updatedat=now,
-                )
-                db.session.add(duplicate_coder)
+                def final(cod):
+                    insert(
+                        "va_final_assessments", va_finassess_id=uuid4(), va_sid=sid,
+                        payload_version_id=payload_id, va_finassess_by=user_id,
+                        va_conclusive_cod=cod, va_finassess_status=active,
+                        va_finassess_createdat=now, va_finassess_updatedat=now,
+                    )
+
+                def reviewer_final(cod):
+                    insert(
+                        "va_reviewer_final_assessments", va_rfinassess_id=uuid4(), va_sid=sid,
+                        payload_version_id=payload_id, va_rfinassess_by=user_id,
+                        va_conclusive_cod=cod, va_rfinassess_status=active,
+                        va_rfinassess_createdat=now, va_rfinassess_updatedat=now,
+                    )
+
+                final("A00")
+                db.session.commit()
                 with self.assertRaises(sa.exc.IntegrityError):
+                    final("A01")
                     db.session.flush()
                 db.session.rollback()
 
-                reviewer = VaReviewerFinalAssessments(
-                    va_sid=submission.va_sid,
-                    payload_version_id=payload.payload_version_id,
-                    va_rfinassess_by=user.user_id,
-                    va_conclusive_cod="A00",
-                    va_rfinassess_status=VaStatuses.active,
-                    va_rfinassess_createdat=now,
-                    va_rfinassess_updatedat=now,
-                )
-                db.session.add(reviewer)
+                reviewer_final("A00")
                 db.session.commit()
-                duplicate_reviewer = VaReviewerFinalAssessments(
-                    va_sid=submission.va_sid,
-                    payload_version_id=payload.payload_version_id,
-                    va_rfinassess_by=user.user_id,
-                    va_conclusive_cod="A01",
-                    va_rfinassess_status=VaStatuses.active,
-                    va_rfinassess_createdat=now,
-                    va_rfinassess_updatedat=now,
-                )
-                db.session.add(duplicate_reviewer)
                 with self.assertRaises(sa.exc.IntegrityError):
+                    reviewer_final("A01")
                     db.session.flush()
                 db.session.rollback()
                 db.session.remove()

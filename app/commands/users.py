@@ -252,6 +252,7 @@ def create_user(
     user.set_password(secrets.token_urlsafe(32))
     db.session.add(user)
     db.session.flush()
+    accounts.record_account_created(user, via="cli")
 
     printed = None
     try:
@@ -311,8 +312,12 @@ def reset_password(email, mobile, onboarded):
         db.session.rollback()
         click.echo(exc.message)
         raise SystemExit(1)
-    if onboarded is not None:
-        user.pw_reset_t_and_c = onboarded
+    if onboarded:
+        from app.services.user_account_service import accept_terms
+
+        accept_terms(user, via="cli")
+    elif onboarded is not None:
+        user.pw_reset_t_and_c = False
     db.session.commit()
 
     click.echo(f"Password reset for: {label}")

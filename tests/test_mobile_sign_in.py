@@ -119,7 +119,7 @@ class MobileSignInTestBase(BaseTestCase):
 
     def _redeem(self, number, code, ip="127.0.0.1"):
         return self.client.post(
-            REDEEM, data={"mobile": number, "code": code, **self._captcha()},
+            REDEEM, data={"mobile": number, "code": code, "accept_terms": "y", **self._captcha()},
             headers=self._csrf_headers(), environ_overrides={"REMOTE_ADDR": ip},
         )
 

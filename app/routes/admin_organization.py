@@ -665,7 +665,8 @@ def admin_org_import_users(project_id):
                     # Opening the verification link emails the password
                     # (account-onboarding-and-passwords.md section 5.1).
                     if send_verification_email(
-                        user, generate_token(user.user_id, "email_verify")
+                        user, generate_token(user.user_id, "email_verify"),
+                        actor_user_id=actor_user_id, commit=False,
                     ):
                         invitations_queued += 1
                     else:
@@ -673,6 +674,8 @@ def admin_org_import_users(project_id):
                 except Exception:
                     log.exception("project users invitation failed | project=%s user_id=%s", project_id, user.user_id)
                     invite_warnings.append(f"Invitation for {user.email} could not be queued; resend from Users.")
+            # One commit for the loop's verification_email_sent events.
+            db.session.commit()
     log.info("project users import | project=%s by=%s rows=%s new_users=%s",
              project_id, actor_user_id, len(plan), len(new_users) + len(sign_in_codes))
     # New mobile-only accounts' first sign-in codes, shown once (section

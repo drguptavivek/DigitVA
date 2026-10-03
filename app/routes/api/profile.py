@@ -1,6 +1,6 @@
 """User profile JSON API — /api/v1/profile/"""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request, session
@@ -12,8 +12,12 @@ from app.services import totp_service
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
     PasskeyVerificationError,
+    base64url_to_bytes,
+    build_authentication_options,
     build_registration_options,
+    clear_authentication_challenge,
     clear_registration_challenge,
+    verify_authentication,
     verify_registration,
 )
 
@@ -26,6 +30,17 @@ REAUTH_TTL = timedelta(minutes=10)
 
 def _error(message: str, status_code: int = 400):
     return jsonify({"error": message}), status_code
+
+
+#: Reauthentication by passkey failed, whatever the reason.
+PASSKEY_REAUTH_FAILED_MESSAGE = "That passkey could not be verified."
+
+#: Profile generate for an account whose email is not yet verified: a
+#: password goes only to a verified email (onboarding policy sections 1, 6).
+EMAIL_UNVERIFIED_GENERATE_MESSAGE = (
+    "Verify your email address first; your new password will then be emailed "
+    "to you. Or ask your data manager for a sign-in code."
+)
 
 
 def _rate_limit_key():
@@ -115,17 +130,22 @@ def get_profile():
 def generate_password():
     """A new server-generated password, after a reauthentication within the
     last ten minutes (authentication-factors.md section 7). An account with a
-    verified email gets it by email and this response carries no password;
-    any other account (no email, or one still awaiting verification) sees it
-    once in this response. The old password stops working and every session
-    ends, this one included: the page sends the person to sign in again."""
+    verified email gets it by email and this response carries no password; a
+    mobile-only account (no email) sees it once in this response. An account
+    whose email is still awaiting verification is refused (409
+    ``email_unverified``): a password never goes to an unverified address
+    nor, for an email account, onto the screen (onboarding policy section 6).
+    The old password stops working and every session ends, this one
+    included: the page sends the person to sign in again."""
     from app.services import mobile_sign_in_service
     from app.services import user_account_service as accounts
 
     reauth_error = _require_reauth()
     if reauth_error:
         return reauth_error
-    by_email = bool(current_user.email and current_user.email_verified)
+    if current_user.email and not current_user.email_verified:
+        return jsonify({"error": EMAIL_UNVERIFIED_GENERATE_MESSAGE, "code": "email_unverified"}), 409
+    by_email = bool(current_user.email)
     try:
         if by_email:
             accounts.email_new_password(
@@ -180,8 +200,9 @@ def update_timezone():
 @bp.patch("/interviewer")
 @login_required
 def update_interviewer_profile():
-    """Set or clear the year of birth and sex web intake prefills and locks
-    into WHO Id10010a / Id10010b (digitva-vzk.3). An omitted key keeps its
+    """Set or clear the year of birth and sex (digitva-vzk.3). Web intake
+    prefills and locks the sex into WHO Id10010b; the year of birth no longer
+    feeds Id10010a (digitva-q219). An omitted key keeps its
     value; null or blank clears it. Values are never logged."""
     body = request.get_json(silent=True) or {}
     try:
@@ -216,6 +237,94 @@ def reauth():
         return _error("Incorrect password.", 403)
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({"message": "Reauthenticated."})
+
+
+@bp.post("/reauth/passkey/options")
+@login_required
+@limiter.limit("5 per minute", key_func=_rate_limit_key)
+def reauth_passkey_options():
+    """WebAuthn request options for reauthenticating with a passkey
+    (authentication-factors.md section 7: password or passkey). The same
+    discoverable-credential options as sign-in; verify checks the owner."""
+    return jsonify(build_authentication_options())
+
+
+@bp.post("/reauth/passkey")
+@login_required
+@limiter.limit("5 per minute", key_func=_rate_limit_key)
+def reauth_passkey():
+    """Verify a passkey assertion from the signed-in user's own passkey and
+    refresh the reauthentication window. Mirrors the sign-in passkey check
+    (app/routes/va_auth.py ``va_login_passkey_verify``): the credential must
+    be this user's, the signature-counter rule and the atomic counter update
+    are the same. Any failure answers 403 with one message."""
+    body = request.get_json(silent=True)
+    credential = body.get("credential") if isinstance(body, dict) else None
+    if not isinstance(credential, dict):
+        clear_authentication_challenge()
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    try:
+        raw_id = base64url_to_bytes(credential.get("rawId") or credential.get("id") or "")
+    except Exception:
+        clear_authentication_challenge()
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    stored = db.session.scalar(
+        sa.select(AuthWebauthnCredential).where(
+            AuthWebauthnCredential.credential_id == raw_id,
+            AuthWebauthnCredential.user_id == current_user.user_id,
+        )
+    )
+    if stored is None:
+        clear_authentication_challenge()
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    try:
+        verified = verify_authentication(credential, credential_public_key=stored.public_key)
+    except PasskeyVerificationError:
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    if stored.sign_count > 0 and verified.new_sign_count <= stored.sign_count:
+        record_security_event(
+            user_id=current_user.user_id,
+            event_type="counter_regression",
+            detail={"credential_prefix": credential_id_prefix(stored.credential_id)},
+        )
+        db.session.commit()
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    result = db.session.execute(
+        sa.update(AuthWebauthnCredential)
+        .where(
+            AuthWebauthnCredential.id == stored.id,
+            AuthWebauthnCredential.sign_count == stored.sign_count,
+        )
+        .values(sign_count=verified.new_sign_count, last_used_at=datetime.now(UTC))
+    )
+    if result.rowcount != 1:
+        db.session.rollback()
+        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+    db.session.commit()
+    session["auth_verified_at"] = datetime.now(UTC).isoformat()
+    return jsonify({"message": "Reauthenticated."})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/profile/terms  — accept the terms of use (JSON)
+# ---------------------------------------------------------------------------
+
+@bp.post("/terms")
+@login_required
+@limiter.limit("5 per minute", key_func=_rate_limit_key)
+def accept_terms():
+    """The app's terms screen for a browser session (onboarding policy 5.4):
+    records the acceptance exactly as the web terms page does. Body
+    ``{"accept_terms": true}``; anything else is 400. Exempt from the terms
+    gate (``force_password_update``); CSRF via ``X-CSRFToken``."""
+    from app.services.user_account_service import accept_terms as record_acceptance
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("accept_terms") is not True:
+        return jsonify({"error": "Please accept the terms of use.", "code": "invalid_request"}), 400
+    record_acceptance(current_user._get_current_object(), via="api")
+    db.session.commit()
+    return jsonify({"message": "Terms accepted.", "terms_accepted": True})
 
 
 # ---------------------------------------------------------------------------

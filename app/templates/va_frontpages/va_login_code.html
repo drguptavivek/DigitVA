@@ -52,6 +52,14 @@
                   <div class="text-danger small">{{ error }}</div>
                 {% endfor %}
               </div>
+              {% include "va_form_partials/_terms_of_use.html" %}
+              <div class="form-check mb-3">
+                {{ form.accept_terms(class="form-check-input") }}
+                {{ form.accept_terms.label(class="form-check-label") }}
+                {% for error in form.accept_terms.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
               <div id="captcha-status" class="form-text mb-3" role="status"></div>
               <div class="d-grid">
                 {{ form.submit(class="btn btn-primary btn-lg", disabled=True) }}

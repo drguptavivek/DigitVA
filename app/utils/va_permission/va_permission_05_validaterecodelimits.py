@@ -51,6 +51,8 @@ def recode_limit_error(user, sid) -> str | None:
             ).where(
                 (VaCoderReview.va_creview_by == user.user_id)
                 & (VaCoderReview.va_sid == sid)
+                # Tester output is never a coding of the case (digitva-ggc3).
+                & VaCoderReview.is_tester.is_(False)
                 & (
                     VaCoderReview.va_creview_createdat
                     + sa.text("interval '24 hours'")
@@ -68,6 +70,7 @@ def recode_limit_error(user, sid) -> str | None:
             ).where(
                 (VaFinalAssessments.va_finassess_by == user.user_id)
                 & (VaFinalAssessments.va_sid == sid)
+                & VaFinalAssessments.is_tester.is_(False)
                 & (
                     VaFinalAssessments.va_finassess_createdat
                     + sa.text("interval '24 hours'")

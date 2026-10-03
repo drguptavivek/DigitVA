@@ -215,18 +215,36 @@ def send_factor_reset_link_email(user, token: str) -> None:
     )
 
 
-def send_verification_email(user, token: str) -> bool:
-    """Dispatch an email-verification email via Celery."""
+def send_verification_email(user, token: str, *, actor_user_id=None, commit: bool = True) -> bool:
+    """Queue an email-verification email via Celery. Returns False, sending
+    nothing, when there is no address, delivery is off or the recipient is
+    suppressed; callers must not report a send then.
+
+    A queued send is audited (``verification_email_sent``, actor only, no
+    address or token), committed before the email is queued so a send never
+    goes unrecorded. Every caller sends after its own commit, and the public
+    resend form commits nothing else; a batch caller passes ``commit=False``
+    and commits once after its loop.
+    """
     verify_url = f"{_email_link_base_url()}/vaauth/verify-email/{token}"
 
     if not _should_attempt_email_delivery(user.email):
         return False
 
+    from app import db
+    from app.services.security_event_service import record_security_event
+
+    to, name = user.email, user.name
+    record_security_event(
+        user_id=user.user_id, actor_user_id=actor_user_id, event_type="verification_email_sent"
+    )
+    if commit:
+        db.session.commit()
     _dispatch_email.delay(
-        to=user.email,
+        to=to,
         subject="Verify Your DigitVA Email",
         template_name="emails/verify_email",
-        context={"name": user.name, "verify_url": verify_url},
+        context={"name": name, "verify_url": verify_url},
     )
     return True
 

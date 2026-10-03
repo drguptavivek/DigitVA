@@ -619,7 +619,8 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10010` / `Id10010c` interviewer name and id | signed-in user (`digitva-dyk`) | yes; `Id10010` only when the name meets its letters-and-spaces constraint, else editable |
 | `Id10002` / `Id10003` HIV / malaria area | district presets (`digitva-dhc`, done) | yes |
 | `Id10017` / `Id10018` given name, surname; `Id10019` sex | case | no |
-| `Id10021` date of birth, or age group and age fields | case: date of birth; else `age_years` 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years); 0 is not prefilled (days or months cannot be told) | no |
+| `Id10021` date of birth | case `date_of_birth` (sends no age: the form calculates it) | no |
+| `age_group` and its age field | case `age_years` when there is no exact date of birth: 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years, `age_child_years`); 0 is not prefilled (days or months cannot be told) | yes (`digitva-q219`): `age_group` with `age_adult`, or with `age_child_unit` and `age_child_years`; nothing age-related when the case has no prefilled age |
 | `Id10022` = yes, `Id10023_a` (with a date of birth) or `Id10023_b` date of death | case | no |
 | `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices (see below) | no |
 | `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit, root first, then "; " and the case address | no |
@@ -627,15 +628,19 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10051` = yes | set whenever `Id10055` or `Id10057` is (they are asked only then) | no |
 | `Id10007` respondent name | case informant name | no |
 | `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
-| `Id10010a` / `Id10010b` interviewer age / sex | user-profile `year_of_birth` (age = interview year in the user's timezone minus it) and `sex` (`digitva-vzk.3`) | yes; `Id10010b` only when the profile has a sex |
+| `Id10010b` interviewer sex | user-profile `sex` (`digitva-vzk.3`) | yes, when the profile has a sex |
 | `abha_number` / `abha_address` | case | yes (unchanged) |
-| `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills beside it (`digitva-tld2`) | no |
+| `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills (and locks) beside it (`digitva-tld2`) | no |
+
+`Id10010a` interviewer age is not prefilled or locked (owner decision
+2026-10-03, `digitva-q219`); the interviewer answers it.
 
 Rules as built:
 
 - **Locked prefill is enforced on the server** (`digitva-p6fs.9`). The
-  locked set and values come from the draft's stored prefill, computed by
-  the server when the draft started (`_locked_answers`); the client's
+  locked set and values are recomputed by the server from the case and the
+  draft's owner at each save and submit (`_draft_locked_answers`), never
+  read from the stored prefill, so a corrected registration wins; the client's
   `lockedQuestionNames` only drives the read-only display and is never
   read back. On every draft save, a locked answer a section carries, or
   carried in its last save, is set to its authoritative value; on submit
@@ -644,6 +649,13 @@ Rules as built:
   **overwrites rather than refuses**: an offline device interview may hold
   a stale locked value (a profile edit, an age crossing a year), and a
   refusal would strand a completed interview the interviewer cannot fix.
+  A draft saved before a lock existed (no `lockedQuestionNames`, `{}`, or
+  an older list) therefore gets today's locks; the stored row is not
+  rewritten. An exact date of birth captured in the interview wins over the
+  registered age (owner decision 2026-10-03): the interview talks to the
+  family, so its date is the better record. `age_group` is asked only when
+  `Id10020` or `Id10022` is not yes, so the locked age is then irrelevant and
+  dropped at submission, and the age comes from that date.
   Unlocked answers keep their saved-answer semantics (an unchanged answer
   stays, a cleared one is cleared).
 - **Name split**: the first word of the case name is the given name
@@ -659,8 +671,6 @@ Rules as built:
   clinic, dispensary, nursing home, facility), hospital, home (home, house,
   residence). No match leaves the question unanswered; never `other` by
   default.
-- **`Id10010a`**: 99 (WHO's "prefer not to disclose") when the profile has
-  no year of birth or the age falls outside the constraint (18 to 89).
 - **Direct start**: no case fields yet, so only the interviewer, presets,
   and `Id10057` / `Id10055` from the org path.
 - Only name, sex and date of death flow back to the case; parents' names,
@@ -669,7 +679,7 @@ Rules as built:
   prefilled parents' names are dropped as irrelevant at submission.
 - Year of birth and sex are optional, set in Profile or by an admin (the
   admin master list shows them; the user search a project PI calls does
-  not), and never logged. `Id10010a` / `Id10010b` are registered PII fields
+  not), and never logged; year of birth no longer prefills anything. `Id10010a` / `Id10010b` are registered PII fields
   (`app/services/pii_field_registry.py`).
 
 ### The list

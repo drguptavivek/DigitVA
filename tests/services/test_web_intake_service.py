@@ -360,9 +360,10 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.prefill["deceased"]["surname"], "Devi")
         self.assertEqual(draft.prefill["deceased"]["sex"], "female")
         self.assertEqual(draft.prefill["answers"]["abha_number"], "12345678901234")
-        # Besides the interviewer's own questions (digitva-vzk.3), only ABHA.
+        # Besides the interviewer's own questions (digitva-vzk.3) and the
+        # registered age (digitva-q219), only ABHA.
         self.assertEqual(
-            set(draft.prefill["lockedQuestionNames"]) - {"Id10010", "Id10010a", "Id10010b", "Id10010c"},
+            set(draft.prefill["lockedQuestionNames"]) - {"Id10010", "Id10010b", "Id10010c", "age_group", "age_adult"},
             {"abha_number"},
         )
 
@@ -1300,8 +1301,9 @@ class WebIntakeServiceTests(BaseTestCase):
             {k: prefill["answers"].get(k) for k in ("Id10020", "dob_precision", "dob_month_year", "dob_year")},
             {"Id10020": "no", "dob_precision": "year", "dob_month_year": None, "dob_year": "1950-01-01"},
         )
-        # The age still prefills beside it; neither is locked.
+        # The age still prefills beside it and is locked; the partial date is not.
         self.assertEqual(prefill["deceased"]["ageInYears"], 74)
+        self.assertIn("age_adult", prefill["lockedQuestionNames"])
         self.assertFalse({"dob_precision", "dob_year", "Id10020"} & set(prefill["lockedQuestionNames"]))
 
         exact = self._register_death(date_of_birth="1950-07-12")
@@ -1324,8 +1326,8 @@ class WebIntakeServiceTests(BaseTestCase):
     # ── locked prefill enforced on the server (digitva-p6fs.9) ──────────────
 
     def _locked_case_draft(self):
-        """A draft whose prefill locks the interviewer, both area presets and
-        ABHA; returns (draft, the authoritative locked values)."""
+        """A draft whose prefill locks the interviewer, both area presets,
+        ABHA and the registered age; returns (draft, the authoritative locked values)."""
         from app.services import organization_service as org
 
         self.interviewer.name = "Field Worker"
@@ -1338,17 +1340,17 @@ class WebIntakeServiceTests(BaseTestCase):
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
         )
         authoritative = {
-            "Id10010": "Field Worker", "Id10010a": 40, "Id10010b": "female",
+            "Id10010": "Field Worker", "Id10010b": "female",
             "Id10010c": str(self.interviewer.user_id), "Id10002": "high", "Id10003": "low",
-            "abha_number": "12345678901234",
+            "abha_number": "12345678901234", "age_group": "adult", "age_adult": 62,
         }
         self.assertEqual(set(draft.prefill["lockedQuestionNames"]), set(authoritative))
         return draft, authoritative
 
     _TAMPERED = {
-        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010": "Someone Else", "Id10010b": "male",
         "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl", "Id10003": "high",
-        "abha_number": "99999999999999",
+        "abha_number": "99999999999999", "age_group": "child", "age_adult": 30,
     }
 
     def test_draft_save_overwrites_tampered_locked_answers(self):
@@ -1389,11 +1391,13 @@ class WebIntakeServiceTests(BaseTestCase):
             with self.subTest(name=name):
                 self.assertEqual(payload[name], value)
 
-    def test_a_draft_without_locked_names_is_left_alone(self):
+    def test_a_draft_without_locked_names_is_recomputed_not_rewritten(self):
+        self.interviewer.name = "Field Worker"
         draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID)
         draft.prefill = {}  # a draft started before lockedQuestionNames existed
         intake_svc.save_draft_sections(draft, sections={"interviewer": {"Id10010": "Anyone"}})
-        self.assertEqual(draft.sections[0].data, {"Id10010": "Anyone"})
+        self.assertEqual(draft.sections[0].data, {"Id10010": "Field Worker"})
+        self.assertEqual(draft.prefill, {})
         self.assertEqual(intake_svc._locked_answers({}), {})
         self.assertEqual(
             intake_svc._locked_answers({"lockedQuestionNames": ["Id10010", "Id10002"], "interviewer": {}}), {},

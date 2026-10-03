@@ -27,6 +27,11 @@ class VaCoderReview(db.Model):
     )
     va_creview_reason: so.Mapped[str] = so.mapped_column(sa.String(32), nullable=False)
     va_creview_other: so.Mapped[Optional[str]] = so.mapped_column(sa.Text, nullable=True)
+    # coding_tester output (digitva-ggc3): stored deactive and never the
+    # case's result; left out of every coder, DM and burndown count.
+    is_tester: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
     va_creview_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,

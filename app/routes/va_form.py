@@ -49,7 +49,7 @@ from app.models import (
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services import attachment_service, coding_search_telemetry_service
-from app.services.authz import Action, AuthzError, require
+from app.services.authz import Action, AuthzError, codes_as_tester, require
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -66,6 +66,7 @@ from app.services.cod_entry_mode import (
     smartva_icd11_alternatives as _smartva_icd11_alternatives,
 )
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
+from app.services.coding_allocation_service import return_tester_coding_to_pool
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.data_management_service import CSV_EXPORT_OMIT_PAYLOAD_FIELDS
 from app.services.demo_project_service import (
@@ -193,6 +194,24 @@ def _invalidate_section_data_cache(va_sid: str) -> None:
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     """Return the demo artifact expiry timestamp for demo coding saves."""
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
+
+
+_TESTER_SAVED_MESSAGE = (
+    "Test coding saved. It does not count as a result; "
+    "the case has returned to the coding pool."
+)
+
+
+def _is_tester_coding(va_sid: str, va_actiontype: str) -> bool:
+    """True when this save is coding_tester output (digitva-ggc3).
+
+    Demo saves (an expiry) keep the demo path; otherwise authz decides: only
+    the tester lane reaches the case. Tester output is stored deactive with
+    ``is_tester`` and the case returns to the coding pool.
+    """
+    if _demo_expiry_for_actiontype(va_sid, va_actiontype) is not None:
+        return False
+    return codes_as_tester(current_user, va_sid)
 
 
 def _nqa_blocks_final(va_sid, va_action, project) -> bool:
@@ -1425,6 +1444,7 @@ def renderpartial(va_sid, va_partial):
                 va_iniassess_id=gen_uuid,
                 va_sid=va_sid,
                 va_iniassess_by=current_user.user_id,
+                is_tester=_is_tester_coding(va_sid, va_actiontype),
                 **step1_fields,
             )
             db.session.add(new_review)
@@ -1878,6 +1898,7 @@ def renderpartial(va_sid, va_partial):
                     va_initial_assess.va_antecedent_cod if va_initial_assess else None,
                     _smartva_icd11_alternatives(smartva),
                 )
+            tester_output = _is_tester_coding(va_sid, va_actiontype)
             existing_active_finals = db.session.scalars(
                 sa.select(VaFinalAssessments).where(
                     VaFinalAssessments.va_sid == va_sid,
@@ -1908,11 +1929,42 @@ def renderpartial(va_sid, va_partial):
                 va_finassess_remark=(form1.va_finassess_remark.data or "").strip()
                 or None,
                 demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
+                is_tester=tester_output,
+                va_finassess_status=(
+                    VaStatuses.deactive if tester_output else VaStatuses.active
+                ),
                 # va_rreview=form.va_rreview.data,
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
                 # va_rreview_remark=form.va_rreview_remark.data.strip() or None,
             )
             db.session.add(new_review1)
+
+            if tester_output:
+                # Tester output never becomes the case's result: no coder
+                # final is superseded, the authority and any recode episode
+                # stay, and the case returns to the pool (digitva-ggc3).
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="c",
+                        va_audit_action="final cod submitted by coding tester (not counted)",
+                        va_audit_entityid=gen_uuid,
+                    )
+                )
+                db.session.flush()
+                return_tester_coding_to_pool(
+                    active_allocation, reason="tester_final_cod_submitted"
+                )
+                db.session.commit()
+                bust_coder_dashboard_cache(current_user.user_id)
+                flash(_TESTER_SAVED_MESSAGE, "success")
+                if request.headers.get("HX-Request"):
+                    response = jsonify(success=True)
+                    response.headers["HX-Redirect"] = url_for("coding.dashboard")
+                    return response
+                return redirect(url_for("coding.dashboard"))
 
             for existing_final in existing_active_finals:
                 existing_final.va_finassess_status = VaStatuses.deactive
@@ -2049,13 +2101,52 @@ def renderpartial(va_sid, va_partial):
         if form.validate_on_submit():
             gen_uuid = uuid.uuid4()
             other_reason = form.va_creview_other.data.strip() or None
+            tester_output = _is_tester_coding(va_sid, va_actiontype)
             new_coder_review = VaCoderReview(
                 va_creview_id = gen_uuid,
                 va_sid = va_sid,
                 va_creview_by = current_user.user_id,
                 va_creview_reason = form.va_creview_reason.data,
-                va_creview_other = other_reason
+                va_creview_other = other_reason,
+                is_tester = tester_output,
+                va_creview_status = (
+                    VaStatuses.deactive if tester_output else VaStatuses.active
+                ),
             )
+            if tester_output:
+                # A tester's not-codeable report is tester output: the case
+                # is not excluded, ODK is not flagged, and it returns to the
+                # coding pool (digitva-ggc3).
+                va_has_allocation = db.session.scalar(
+                    sa.select(VaAllocations).where(
+                        VaAllocations.va_sid == va_sid,
+                        VaAllocations.va_allocated_to == current_user.user_id,
+                        VaAllocations.va_allocation_for == VaAllocation.coding,
+                        VaAllocations.va_allocation_status == VaStatuses.active,
+                    )
+                )
+                db.session.add(new_coder_review)
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="c",
+                        va_audit_action="not codeable reported by coding tester (not counted)",
+                        va_audit_entityid=gen_uuid,
+                    )
+                )
+                return_tester_coding_to_pool(
+                    va_has_allocation, reason="tester_not_codeable_submitted"
+                )
+                db.session.commit()
+                bust_coder_dashboard_cache(current_user.user_id)
+                flash(_TESTER_SAVED_MESSAGE, "success")
+                if request.headers.get("HX-Request"):
+                    response = jsonify(success=True)
+                    response.headers["HX-Redirect"] = url_for("coding.dashboard")
+                    return response
+                return redirect(url_for("coding.dashboard"))
             db.session.add(
                 VaSubmissionsAuditlog(
                     va_sid = va_sid,

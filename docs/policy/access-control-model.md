@@ -383,6 +383,12 @@ Rules:
 
 - its coding does not count toward results or real workflow counts (see
   [Auth Decorator and RBAC Gating Policy](auth-decorator-rbac.md))
+- tester output is stored marked as tester output and never becomes the
+  case's result: when a tester finishes coding a real submission, the
+  submission returns to the coding pool (`ready_for_coding`) for a real
+  coder; tester output is left out of every coder, DM and burndown count and
+  never makes a case reviewer-eligible (owner decision 2026-10-03,
+  `digitva-ggc3`)
 - it waives coding gates — site gates and per-unit gates — but **never
   scope**: a tester codes only submissions its grants cover, and a unit
   tester waives gates only within its own subtree (see

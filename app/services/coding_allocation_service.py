@@ -41,6 +41,8 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_FINALIZED,
 )
 from app.services.workflow.transitions import (
+    coder_actor,
+    mark_tester_coding_returned,
     reset_demo_state,
     reset_incomplete_first_pass,
     reset_incomplete_recode,
@@ -151,6 +153,36 @@ def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str
             va_audit_byrole="vasystem",
             va_audit_operation="d",
             va_audit_action=audit_action,
+        )
+    )
+
+
+def return_tester_coding_to_pool(record: VaAllocations, *, reason: str) -> None:
+    """Close a coding_tester's session on a real submission (digitva-ggc3).
+
+    The caller has already written the tester's outcome (final COD or
+    not-codeable report) deactive with ``is_tester`` set. Here the tester's
+    Step 1 draft, NQA and social autopsy analysis are deactivated, the
+    allocation is released and the case goes back to ``ready_for_coding``
+    through ``mark_tester_coding_returned``. No coder result is touched: no
+    final is superseded, the final-COD authority and any recode episode stay
+    as they were. Does not commit.
+    """
+    cause = "tester coding"
+    record.va_allocation_status = VaStatuses.deactive
+    _deactivate_stale_initial_assessments(record, cause)
+    _deactivate_first_pass_analysis_artifacts(record, cause)
+    mark_tester_coding_returned(
+        record.va_sid, reason=reason, actor=coder_actor(record.va_allocated_to)
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=record.va_allocation_id,
+            va_audit_byrole="vacoder",
+            va_audit_by=record.va_allocated_to,
+            va_audit_operation="d",
+            va_audit_action="allocated form released from coding tester; returned to coding pool",
         )
     )
 

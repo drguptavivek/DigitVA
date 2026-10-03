@@ -25,7 +25,9 @@ def force_password_change():
         return redirect(url_for("coding.dashboard"))
     form = VaForcePasswordChangeForm()
     if form.validate_on_submit():
-        current_user.pw_reset_t_and_c = True
+        from app.services.user_account_service import accept_terms
+
+        accept_terms(current_user._get_current_object(), via="web")
         db.session.commit()
         flash("Terms accepted successfully.", "success")
         return redirect(url_for("coding.dashboard"))

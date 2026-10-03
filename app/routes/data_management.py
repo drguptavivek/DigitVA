@@ -48,7 +48,11 @@ from app.services import organization_service as org
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
-from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile
+from app.services.user_account_service import (
+    PHONE_CANONICAL,
+    VERIFICATION_NOT_SENT_MESSAGE,
+    canonical_mobile,
+)
 from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
@@ -814,7 +818,8 @@ def manage_create_user():
 
     try:
         new_user = accounts.create_invited_user(
-            fields, other={"created_by_user_id": str(current_user.user_id)}
+            fields, via="data_manager", actor_user_id=current_user.user_id,
+            other={"created_by_user_id": str(current_user.user_id)},
         )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
@@ -840,7 +845,7 @@ def manage_create_user():
     db.session.commit()
     authz.invalidate(new_user.user_id)
 
-    accounts.send_invitation(new_user)
+    accounts.send_invitation(new_user, actor_user_id=current_user.user_id)
 
     body = {"user": _serialize_user(new_user)}
     if code:
@@ -930,10 +935,12 @@ def manage_resend_verification(target_user_id):
         from app.services.email_service import send_verification_email
 
         verify_token = generate_token(user.user_id, "email_verify")
-        send_verification_email(user, verify_token)
+        sent = send_verification_email(user, verify_token, actor_user_id=current_user.user_id)
     except Exception as exc:
         log.exception("Resend verification failed for user_id=%s: %s", user.user_id, exc)
         return _json_error("Failed to send verification email.", 500)
+    if not sent:
+        return _json_error(VERIFICATION_NOT_SENT_MESSAGE, 400)
     return jsonify({"message": "Verification email sent."})
 
 
@@ -1050,7 +1057,7 @@ def manage_update_user(target_user_id):
             from app.services.email_service import send_verification_email
 
             verify_token = generate_token(target_user.user_id, "email_verify")
-            send_verification_email(target_user, verify_token)
+            send_verification_email(target_user, verify_token, actor_user_id=current_user.user_id)
         except Exception:
             pass
 

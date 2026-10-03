@@ -7,8 +7,9 @@ Baseline: docs/policy/authentication-factors.md section 8. Run from a shell
 in the app container -- container shell access is the safeguard, there is no
 further authorization check. Does the same reset as the admin UI action
 (app/routes/admin.py:admin_reset_user_factors), with ``actor_user_id`` NULL
-and ``detail["via"] = "cli"``, then emails a single-use magic link that leads
-into the existing set-password flow. Never creates users or changes roles;
+and ``detail["via"] = "cli"``, then emails a single-use magic link that signs
+the person in and sends them to add a passkey or TOTP; it sets no password
+(app/routes/va_auth.py ``factor_reset``). Never creates users or changes roles;
 never prints an existing secret. The link is printed only if email delivery
 fails, and only then -- never logged as a matter of course.
 """

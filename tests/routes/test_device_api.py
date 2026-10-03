@@ -253,8 +253,10 @@ class DeviceApiTests(BaseTestCase):
     def test_sign_in_returns_the_contract_token_shape(self):
         _device, tokens = self._session()
         self.assertEqual(
-            set(tokens), {"access_token", "access_expires_at", "refresh_token", "refresh_expires_at", "user"}
+            set(tokens), {"access_token", "access_expires_at", "refresh_token", "refresh_expires_at", "user",
+             "terms_required"}
         )
+        self.assertIs(tokens["terms_required"], False)
         self.assertEqual(tokens["user"]["user_id"], str(self.interviewer.user_id))
         self.assertEqual(tokens["user"]["email"], "device.interviewer@test.local")
         row = db.session.scalar(sa.select(AuthDeviceSession).where(
@@ -337,7 +339,6 @@ class DeviceApiTests(BaseTestCase):
         user = self.teammate
         cases = [
             ("email_verified", False, "email_unverified"),
-            ("pw_reset_t_and_c", False, "password_change_required"),
         ]
         for attribute, value, code in cases:
             original = getattr(user, attribute)
@@ -360,7 +361,7 @@ class DeviceApiTests(BaseTestCase):
         ).order_by(AuthSecurityEvent.occurred_at)).all()
         self.assertEqual(
             [e.detail["reason"] for e in events],
-            ["email_unverified", "password_change_required", "maintenance", "second_factor_required"],
+            ["email_unverified", "maintenance", "second_factor_required"],
         )
         for event in events:
             self.assertEqual(set(event.detail), {"device_id", "reason"})
@@ -1007,14 +1008,14 @@ class DeviceApiTests(BaseTestCase):
     # ── locked prefill and partial birth dates (digitva-p6fs.9, tld2) ──────
 
     _TAMPERED = {
-        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010": "Someone Else", "Id10010b": "male",
         "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl",
         "abha_number": "99999999999999",
     }
 
     def _locked_case(self):
         """A case at a unit with an HIV preset and ABHA, interviewed by a
-        profile that locks name, age and sex; returns (case, authoritative)."""
+        profile that locks name and sex; returns (case, authoritative)."""
         from app.services import organization_service as org
 
         self.interviewer.name = "Device Worker"
@@ -1024,7 +1025,7 @@ class DeviceApiTests(BaseTestCase):
         org.set_unit_va_presets(self.PROJECT_ID, d1.org_unit_id, hiv_mortality="high", malaria_mortality=None)
         death = self._web_case(org_unit_id=str(d1.org_unit_id), abha_number="12345678901234")
         return death, {
-            "Id10010": "Device Worker", "Id10010a": 35, "Id10010b": "male",
+            "Id10010": "Device Worker", "Id10010b": "male",
             "Id10010c": str(self.interviewer.user_id), "Id10002": "high", "abha_number": "12345678901234",
         }
 

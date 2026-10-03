@@ -403,9 +403,11 @@ class ProfileGenerateTests(OnboardingTestBase):
         db.session.refresh(user)
         self.assertTrue(user.check_password(PASSWORD))
 
-    def test_unverified_email_sees_the_password_once_instead(self):
+    def test_unverified_email_is_refused_not_shown(self):
         """A mobile account with an email still awaiting verification is
-        never mailed a password at that unproven address."""
+        never mailed a password at that unproven address, nor shown one: an
+        email account gets passwords by email only (policy section 6,
+        digitva-9an9)."""
         user = self._email_user(verified=False, phone=_number())
         user.mobile_verified_at = datetime.now(UTC)
         db.session.commit()
@@ -414,9 +416,9 @@ class ProfileGenerateTests(OnboardingTestBase):
             sess["auth_verified_at"] = datetime.now(UTC).isoformat()
         with _mailbox() as send:
             response = self.client.post(self.URL, headers=self._csrf_headers())
-        self.assertEqual(response.status_code, 200)
-        self.assertRegex(response.get_json()["password"], PASSWORD_RE)
-        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["code"], "email_unverified")
+        self.assertNotIn("password", response.get_json())
         send.assert_not_called()
 
 

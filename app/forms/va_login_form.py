@@ -70,6 +70,11 @@ class RedeemCodeForm(FlaskForm):
     code = StringField(
         "Code:", validators=[DataRequired(message="Code is required."), Length(max=32)]
     )
+    # Redeeming records the acceptance (account-onboarding-and-passwords.md 5.2).
+    accept_terms = BooleanField(
+        "I accept the terms of use above.",
+        validators=[DataRequired(message="Please accept the terms of use.")],
+    )
     captcha_salt = HiddenField(validators=[DataRequired()])
     captcha_difficulty = HiddenField(validators=[DataRequired()])
     captcha_expires = HiddenField(validators=[DataRequired()])

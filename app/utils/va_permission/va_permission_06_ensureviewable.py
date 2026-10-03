@@ -10,14 +10,22 @@ def va_permission_ensureviewable(sid):
         sa.select(VaFinalAssessments.va_sid)
         .where(
             (VaFinalAssessments.va_finassess_by == current_user.user_id)
-            & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
+            # A tester's own test codings are stored deactive and stay
+            # viewable from their history (digitva-ggc3).
+            & sa.or_(
+                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                VaFinalAssessments.is_tester.is_(True),
+            )
         )
     ).all()
     review_ids = db.session.scalars(
         sa.select(VaCoderReview.va_sid)
         .where(
             (VaCoderReview.va_creview_by == current_user.user_id)
-            & (VaCoderReview.va_creview_status == VaStatuses.active)
+            & sa.or_(
+                VaCoderReview.va_creview_status == VaStatuses.active,
+                VaCoderReview.is_tester.is_(True),
+            )
         )
     ).all()
     if sid not in final_ids + review_ids:

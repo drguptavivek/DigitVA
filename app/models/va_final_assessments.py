@@ -73,6 +73,11 @@ class VaFinalAssessments(db.Model):
     va_finassess_remark: so.Mapped[Optional[str]] = so.mapped_column(
         sa.Text, nullable=True
     )
+    # coding_tester output (digitva-ggc3): stored deactive and never the
+    # case's result; left out of every coder, DM and burndown count.
+    is_tester: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
     va_finassess_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,

@@ -2208,7 +2208,9 @@ def admin_create_user():
         fields = accounts.validate_new_user_payload(
             request.get_json(silent=True) or {}, allow_mobile_only=True
         )
-        new_user = accounts.create_invited_user(fields)
+        new_user = accounts.create_invited_user(
+            fields, via="admin", actor_user_id=current_user.user_id
+        )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
 
@@ -2218,7 +2220,7 @@ def admin_create_user():
     if new_user.is_mobile_only:
         code = mobile_sign_in_service.issue_code(new_user, actor_user_id=current_user.user_id)
     db.session.commit()
-    accounts.send_invitation(new_user)
+    accounts.send_invitation(new_user, actor_user_id=current_user.user_id)
 
     body = {"user": _serialize_user(new_user)}
     if code:
@@ -2334,7 +2336,7 @@ def admin_update_user(target_user_id):
             from app.services.email_service import send_verification_email
 
             verify_token = generate_token(target_user.user_id, "email_verify")
-            send_verification_email(target_user, verify_token)
+            send_verification_email(target_user, verify_token, actor_user_id=current_user.user_id)
         except Exception:
             pass
 
@@ -2350,17 +2352,23 @@ def admin_resend_verification(target_user_id):
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
         return _json_error("User not found.", 404)
+    if target_user.is_mobile_only:
+        return _json_error("This account has no email; issue a sign-in code instead.", 400)
     if target_user.email_verified:
         return _json_error("User email is already verified.", 400)
+
+    from app.services.user_account_service import VERIFICATION_NOT_SENT_MESSAGE
 
     try:
         from app.services.token_service import generate_token
         from app.services.email_service import send_verification_email
 
         token = generate_token(target_user.user_id, "email_verify")
-        send_verification_email(target_user, token)
+        sent = send_verification_email(target_user, token, actor_user_id=current_user.user_id)
     except Exception:
         return _json_error("Failed to send verification email.", 500)
+    if not sent:
+        return _json_error(VERIFICATION_NOT_SENT_MESSAGE, 400)
 
     return jsonify({"message": "Verification email sent."})
 

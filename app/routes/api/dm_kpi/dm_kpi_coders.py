@@ -56,7 +56,9 @@ def coder_utilization():
     """KPI: C-21 — Coder Utilization Rate.
 
     Numerator: COUNT of coders with at least one active allocation
-               (va_allocations where va_allocation_status = 'active').
+               (va_allocations where va_allocation_status = 'active'),
+               holders of an active coder grant only (a coding_tester's
+               session is not counted).
     Denominator: COUNT of all active coders in DM's scope
                  (va_user_access_grants where role='coder', grant_status='active').
     Rate: N / D × 100.
@@ -96,11 +98,22 @@ def coder_utilization():
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND a.va_allocation_status = 'active'
+                  -- Coders only, as the denominator: a coding_tester's
+                  -- session is not coder utilization (digitva-ggc3).
+                  AND EXISTS (
+                      SELECT 1
+                      FROM va_user_access_grants g
+                      {GRANT_PROJECT_JOINS}
+                      WHERE g.user_id = a.va_allocated_to
+                        AND g.role = 'coder'
+                        AND g.grant_status = 'active'
+                        AND {GRANT_PROJECT_SQL} = f.project_id
+                  )
             """),
             {**IN_ODK_BIND, **scope.params},
         ).scalar() or 0
 
-        rate = round(active_coders / total_coders * 100, 1) if total_coders > 0 else 0.0
+        rate =round(active_coders / total_coders * 100, 1) if total_coders > 0 else 0.0
 
         return {
             "active_count": active_coders,

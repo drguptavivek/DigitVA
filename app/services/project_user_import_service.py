@@ -26,7 +26,12 @@ from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
-from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile, mask_mobile
+from app.services.user_account_service import (
+    PHONE_CANONICAL,
+    canonical_mobile,
+    mask_mobile,
+    record_account_created,
+)
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
 MAX_BYTES = 1024 * 1024
@@ -297,6 +302,7 @@ def apply(project_id, plan, *, actor_user_id):
             user.set_password(secrets.token_urlsafe(32))
             db.session.add(user)
             db.session.flush()
+            record_account_created(user, via="project_import", actor_user_id=actor_user_id)
             new_users[item["identity"]] = user
             if user.email is None:
                 sign_in_codes.append({

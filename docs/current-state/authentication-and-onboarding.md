@@ -152,13 +152,15 @@ sequenceDiagram
 2. The creator hands the code over in person or by phone. It is valid 72
    hours, works once, and five wrong attempts void it.
 3. The person opens `/vaauth/valogin/code` ("I have a code"), enters the
-   mobile number and code, and solves the CAPTCHA.
+   mobile number and code, ticks "I accept the terms of use above"
+   (required), and solves the CAPTCHA.
 4. On a match the server generates a password, bumps the session version,
-   sets `mobile_verified_at`, and shows the password once on that response
+   sets `mobile_verified_at`, records the terms acceptance
+   (`terms_accepted`, `via: sign_in_code`), and shows the password once on that response
    ("Write this down. It will not be shown again.", `no-store`). A refresh
    re-posts a spent code and fails.
-5. The person signs in on the web with the mobile number and password and
-   accepts the terms. Only then does device sign-in work (section 6.5).
+5. The person signs in, on the web or in the app, with the mobile number
+   and password; the terms are already accepted (section 6.5).
 
 ```mermaid
 sequenceDiagram
@@ -170,14 +172,14 @@ sequenceDiagram
     S-->>Creator: 201 {user, sign_in_code} (no-store, shown once)
     Creator-->>P: code, in person or by phone
     P->>S: GET /vaauth/valogin/captcha-challenge (via page script)
-    P->>S: POST /vaauth/valogin/code {mobile, code, captcha_*}
+    P->>S: POST /vaauth/valogin/code {mobile, code, accept_terms, captcha_*}
     alt identifier and code match a live code
-        S->>S: generate password, bump session version, mobile_verified_at=now
+        S->>S: generate password, bump session version, mobile_verified_at=now, accept terms
         S-->>P: 200 page showing the password once (no-store)
     else any mismatch
         S-->>P: 200 page "That email or mobile number and code do not match."
     end
-    P->>S: web sign-in (mobile + password) then accept terms
+    P->>S: sign in, web or app (mobile + password)
 ```
 
 ### 2.3 Account with both email and mobile
@@ -363,19 +365,33 @@ a dismissible passkey banner (`session["passkey_nudge"]`,
 
 `force_password_update` runs on every request for a signed-in session.
 While `pw_reset_t_and_c` is false, every endpoint except `static`,
-`profile.force_password_change`, `va_auth.va_logout`, `va_auth.va_login`,
-`va_auth.forgot_password`, `va_auth.reset_password`, `va_auth.verify_email`
-and `va_auth.resend_verification` answers **302 to
-`/profile/force-password-change`**, JSON API paths included (the name is
-historical; no password changes there). The page posts `accept_terms`
-(required checkbox) and `csrf_token`; success sets `pw_reset_t_and_c =
-True`, flashes "Terms accepted successfully." and redirects to
-`/coding/` (`coding.dashboard`), not to `next`. POST is limited to 5 per
-minute.
+`profile.force_password_change`, `api_v1.profile_api.accept_terms`,
+`va_auth.va_logout`, `va_auth.va_login`, `va_auth.forgot_password`,
+`va_auth.reset_password`, `va_auth.verify_email` and
+`va_auth.resend_verification` is held:
+
+- a page answers **302 to `/profile/force-password-change`** (the name is
+  historical; no password changes there);
+- a JSON path (`/api/`, `/admin/api/`, `/data-management/api/`,
+  `/intake/api/`) answers **403**
+  `{"error": "terms_required", "code": "terms_required", "redirect_url": "/profile/force-password-change"}`
+  with `Cache-Control: no-store`, never a redirect;
+- `/api/v1/client/bootstrap` keeps its older code: 403
+  `{"error": "password_change_required", "code": "password_change_required", "redirect_url": ...}`.
+
+The page posts `accept_terms` (required checkbox) and `csrf_token`; success
+records the acceptance (`accept_terms`: `pw_reset_t_and_c = True` and a
+`terms_accepted` event, `via: web`), flashes "Terms accepted successfully."
+and redirects to `/coding/` (`coding.dashboard`), not to `next`. POST is
+limited to 5 per minute. The JSON equivalents are `POST /api/v1/profile/terms`
+(browser session, section 8.3) and `POST /api/v1/device/terms` (device
+token, section 6.5); they record acceptance the same way (`via: api`,
+`via: device`). Accepting when already accepted changes and records nothing.
 
 `pw_reset_t_and_c` is false on every new account and is set false again by
-the reset-link POST (section 5.2). Code redemption and Profile generate do
-not change it. This gate runs before the factor gate.
+the reset-link POST (section 5.2). Code redemption sets it (the code page
+requires the terms box); Profile generate does not change it. This gate
+runs before the factor gate.
 
 ### 3.6 Sessions, remember, logout, session version
 
@@ -424,7 +440,9 @@ Responses: 200 `{"sign_in_code": "123456", "expires_in_hours": 72}`,
 ### 4.2 Redeeming: `GET|POST /vaauth/valogin/code`
 
 Form fields: `mobile` (holds an email **or** a mobile number, max 128),
-`code` (max 32), and the five `captcha_*` fields (same CAPTCHA as 3.1).
+`code` (max 32), `accept_terms` (required checkbox; without it the form is
+refused with "Please accept the terms of use." and nothing is read or
+written), and the five `captcha_*` fields (same CAPTCHA as 3.1).
 Limits: 10 per minute per IP and 10 per hour per identifier (canonical
 mobile, or lower-cased email).
 
@@ -438,8 +456,9 @@ mobile, or lower-cased email).
   code's counter under a row lock; the fifth voids it
   (`mobile_code_voided`, reason `too_many_attempts`).
 - A match marks the code redeemed, sets the password, bumps the session
-  version, sets `mobile_verified_at` if unset, and records
-  `mobile_code_redeemed` and `password_generated` (`path: sign_in_code`).
+  version, sets `mobile_verified_at` if unset, accepts the terms, and
+  records `mobile_code_redeemed`, `password_generated` (`path:
+  sign_in_code`) and `terms_accepted` (`via: sign_in_code`).
 - The response renders the password once with `Cache-Control: no-store` and
   `Pragma: no-cache`, plus a "Continue to sign in" link. The page offers no
   passkey (the person is not signed in); it points to Profile after sign-in.
@@ -520,13 +539,23 @@ usable for 10 minutes. The terms gate still applies afterwards. The admin
 "Reset sign-in factors" action (`POST /admin/api/users/<id>/reset-factors`)
 does the same clearing and bump but sends a notice without a link.
 
-### 5.6 Reauthentication: `POST /api/v1/profile/reauth`
+### 5.6 Reauthentication: `POST /api/v1/profile/reauth` (password or passkey)
 
-JSON `{"password": "..."}`. Wrong or missing: 403 `{"error": "Incorrect
-password."}`. Success sets `auth_verified_at` and returns
-`{"message": "Reauthenticated."}`. 5 per minute per user. Password only:
-there is no passkey reauthentication endpoint. A sign-in also opens the
-window. The window is 10 minutes (`REAUTH_TTL`); endpoints that need it
+Password: JSON `{"password": "..."}`. Wrong or missing: 403 `{"error":
+"Incorrect password."}`. Success sets `auth_verified_at` and returns
+`{"message": "Reauthenticated."}`. 5 per minute per user.
+
+Passkey: `POST /api/v1/profile/reauth/passkey/options` returns WebAuthn
+request options (the same discoverable-credential options as sign-in,
+user verification required); then `POST /api/v1/profile/reauth/passkey`
+with `{"credential": {...}}`. The credential must be one of the signed-in
+user's own passkeys; the signature-counter rule and atomic counter update
+are those of passkey sign-in (a regression records `counter_regression`).
+Success sets `auth_verified_at` and returns `{"message":
+"Reauthenticated."}`; any failure is 403 `{"error": "That passkey could not
+be verified."}`. Both 5 per minute per user, `X-CSRFToken`.
+
+A sign-in also opens the window. The window is 10 minutes (`REAUTH_TTL`); endpoints that need it
 answer 401 `{"error": "reauth_required"}` outside it.
 
 ### 5.7 Profile "Generate a new password": `POST /api/v1/profile/password/generate`
@@ -536,8 +565,12 @@ Signed in, `X-CSRFToken`, empty body, needs the reauthentication window,
 
 - Account with a verified email: password emailed;
   200 `{"message": "Your new password has been emailed to you."}`.
-- Any other account (mobile-only, or an email still unverified):
+- Mobile-only account (no email):
   200 `{"password": "...", "message": "Write this down. It will not be shown again."}`.
+- Account with an email still awaiting verification: 409
+  `{"error": "Verify your email address first; ...", "code": "email_unverified"}`;
+  nothing changes, nothing is shown or mailed (a password never goes to an
+  unverified address).
 - Either way the old password and every session end, this one included:
   the client must send the person to sign in again.
 - Breach-check outage or email failure: 503 `{"error": <message>}`, nothing
@@ -582,7 +615,6 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 | device revoked or project inactive | 403 `device_revoked` |
 | unknown identifier (timing equalised), wrong password, inactive account, or mobile-only account that never redeemed a code | 401 `invalid_credentials` "Invalid email or password." |
 | not `sign_in_verified` | 403 `email_unverified` |
-| terms not accepted (`pw_reset_t_and_c` false) | 403 `password_change_required` "Sign in on the website once and accept the terms before signing in here." |
 | non-admin after the maintenance cutoff | 403 `maintenance` |
 | `needs_second_factor`: 5 or more `second_factor_invalid` failures in the last 15 minutes since the last device sign-in | 429 `second_factor_locked` |
 | `needs_second_factor`, no `otp` or a wrong one | 401 `second_factor_required` (the fifth wrong one records `second_factor_lockout`) |
@@ -590,7 +622,9 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 
 Every refusal after the device check is audited as `device_session_failed`
 with the device id and reason only. Success records
-`device_session_opened`.
+`device_session_opened`. Pending terms do **not** refuse sign-in: the token
+response says `terms_required: true` and the app shows its terms screen
+(section 6.5).
 
 ### 6.3 Token responses
 
@@ -602,9 +636,13 @@ with the device id and reason only. Success records
   "access_expires_at": "<ISO 8601>",
   "refresh_token": "<opaque>",
   "refresh_expires_at": "<ISO 8601>",
-  "user": {"user_id": "<uuid>", "name": "<display name>", "email": "<email or null>"}
+  "user": {"user_id": "<uuid>", "name": "<display name>", "email": "<email or null>"},
+  "terms_required": false
 }
 ```
+
+`terms_required` is true while the account has not accepted the terms
+(section 6.5); it is read from the account at each sign-in and refresh.
 
 `user.email` is `null` for a mobile-only account. The access token lives 15
 minutes. The refresh token rotates on every use; its expiry slides by
@@ -640,16 +678,32 @@ withdrawn interviewer can still sign out) revokes the session
 revokes the device and every session on it, answering
 `{"device_id", "sessions_ended"}`.
 
-### 6.5 What `password_change_required` means
+### 6.5 Terms acceptance in the app (`terms_required`)
 
-It means only "terms not accepted": the code is kept for the app contract,
-and no password change exists. It is returned whenever `pw_reset_t_and_c`
-is false, which is the case for every new account until its first web
-sign-in, and again after a reset-link password (section 5.2). Code
-redemption does not set the flag, so a newly onboarded mobile-only person
-must sign in once on the website (`/vaauth/valogin`) and accept the terms
-before the app's sign-in succeeds. The app shows the message and a link to
-the website; it does not retry with another password.
+`pw_reset_t_and_c` is false on every new account until it accepts the
+terms, and again after a reset-link password (section 5.2). Redeeming a
+sign-in code accepts them (section 4.2), so a newly onboarded mobile-only
+person usually arrives with them accepted. When they are pending:
+
+1. `POST /sessions` succeeds (201) with `"terms_required": true`.
+2. Every bearer endpoint except `DELETE /sessions/current` and
+   `POST /terms` answers 403
+   `{"error": "Accept the terms of use to continue.", "code": "terms_required"}`.
+3. The app shows its own terms screen and, on acceptance, calls
+   `POST /api/v1/device/terms` with the bearer token and body
+   `{"accept_terms": true}` (no CSRF on the device API). Answers: 200
+   `{"message": "Terms accepted.", "terms_accepted": true}`; 400
+   `invalid_request` for any other body; 401 `unauthorized` without a live
+   token. 5 per minute. It records `terms_accepted` (`via: device`), as the
+   web page does.
+4. The same access token then works: the gate reads the account on every
+   request, so no re-sign-in or refresh is needed.
+
+`password_change_required` is no longer returned by device sign-in (it
+remains only on `/api/v1/client/bootstrap`, section 7). An app build that
+still waits for it will instead get tokens and then `terms_required` on its
+first data call: the app must handle `terms_required` (contract change,
+digitva-9an9).
 
 ### 6.6 Factor rules on the device
 
@@ -660,9 +714,9 @@ the website; it does not retry with another password.
 - Device lockout is counted per account from the audit trail (5 failures in
   15 minutes since the last successful device sign-in), separately from the
   web flow's per-pre-auth counter.
-- The enrolment-enforcement redirect (section 3.4) and the terms redirect
-  never run on `/api/v1/device/`; the terms gate is applied at device
-  sign-in instead.
+- The enrolment-enforcement redirect (section 3.4) and the cookie terms
+  gate never run on `/api/v1/device/`; the device blueprint applies its own
+  terms gate (section 6.5).
 
 ## 7. Browser client bootstrap: `GET /api/v1/client/bootstrap`
 
@@ -696,9 +750,11 @@ response (errors and redirects included) is `Cache-Control: no-store`.
   `capabilities` come from `authz.effective_roles`: `intake` = interviewer,
   `coding` = coder or coding_tester, `reviewing` = reviewer. They are
   navigation hints; every workflow API checks scope itself.
-- Terms not accepted (working-tree change in `force_password_update`): 403
-  `{"code": "password_change_required", "redirect_url": "/profile/force-password-change"}`
-  for this endpoint only; every other endpoint still answers the 302.
+- Terms not accepted (`force_password_update`): 403
+  `{"error": "password_change_required", "code": "password_change_required", "redirect_url": "/profile/force-password-change"}`
+  for this endpoint (older code kept for the client); every other JSON
+  endpoint answers `terms_required` (section 3.5). The client accepts with
+  `POST /api/v1/profile/terms` (section 8.3).
 - Factor setup required (working-tree change in `enforce_factor_setup`):
   403 `{"error": "factor_setup_required", "code": "factor_setup_required", "redirect_url": "/profile/#passkeys-card"}`
   for this endpoint only.
@@ -708,7 +764,7 @@ response (errors and redirects included) is `Cache-Control: no-store`.
 
 Until this ships, the HEAD behaviour for a browser client is: no bootstrap
 endpoint; `/api/v1/profile/` gives the signed-in user (section 8); the
-terms gate answers JSON calls with a 302 to an HTML page.
+terms gate answers JSON calls with 403 `terms_required` (section 3.5).
 
 ## 8. API reference
 
@@ -738,33 +794,38 @@ terms gate answers JSON calls with a 302 to an HTML page.
 | POST `/vaauth/valogin` | form: `email`, `captcha_salt`, `captcha_difficulty`, `captcha_expires`, `captcha_signature`, `captcha_solution`, `csrf_token` | 302 `/vaauth/valogin/password`; bad CAPTCHA: 200 form | 10/min per IP; 20/hour per identifier (lower-cased email or `mobile:<canonical>`) | same redirect for every identifier | none |
 | GET `/vaauth/valogin/captcha-challenge` | none | 200 `{salt, difficulty, expires, signature}` | default | n/a | none |
 | GET `/vaauth/valogin/password` | pre-auth session | form "Signing in as ..."; no pre-auth: 302 login | default | identical page for every identifier | none |
-| POST `/vaauth/valogin/password` | form: `password`, `remember_me`, `csrf_token` | 302 next/landing, or 302 second factor, or 302 back with flash | 10/min per IP; 20/hour per pre-auth identifier | unknown, wrong password and inactive give one message; dummy hash for unknown | none |
+| POST `/vaauth/valogin/password` | form: `password`, `remember_me`, `csrf_token` | 302 next/landing, or 302 second factor, or 302 back with flash | 10/min per IP; 20/hour per pre-auth identifier | unknown, wrong password and inactive give one message; dummy hash for unknown | `web_sign_in` (`method: password`); `web_sign_in_failed` (`reason`: `invalid_credentials`, `email_unverified`, `maintenance`; account id only when it exists and is active) |
 | POST `/vaauth/valogin/passkey/options` | JSON `{}`, `X-CSRFToken` | 200 WebAuthn request options; 400 `{"error": "Please sign in again."}` | 10/min per IP; 20/hour per pre-auth identifier | identical for every identifier, no `allowCredentials` | none |
-| POST `/vaauth/valogin/passkey/verify` | JSON `{"credential": {...}}`, `X-CSRFToken` | 200 `{"redirect"}`; 400 `{"error"}` | same | wrong account, unknown credential and bad signature give one message | `counter_regression` |
-| GET/POST `/vaauth/valogin/second-factor` | form: `code`, `csrf_token` | 302 next/landing; 302 back; 302 login on lockout | POST 10/min per IP; 20/hour per pre-auth identifier | n/a (after a correct password) | `second_factor_lockout`, `recovery_code_used` |
+| POST `/vaauth/valogin/passkey/verify` | JSON `{"credential": {...}}`, `X-CSRFToken` | 200 `{"redirect"}`; 400 `{"error"}` | same | wrong account, unknown credential and bad signature give one message | `counter_regression`, `web_sign_in` (`passkey`), `web_sign_in_failed` (`passkey_invalid`) |
+| GET/POST `/vaauth/valogin/second-factor` | form: `code`, `csrf_token` | 302 next/landing; 302 back; 302 login on lockout | POST 10/min per IP; 20/hour per pre-auth identifier | n/a (after a correct password) | `second_factor_lockout`, `recovery_code_used`, `web_sign_in` (`second_factor`), `web_sign_in_failed` (`second_factor_invalid`) |
 | POST `/vaauth/valogout` | form or `X-CSRFToken` | 302 `/` | default | n/a | none |
 | GET `/vaauth/site-maintenance-status` | none | 200 `{"maintenance": {...} or null}` | default | n/a | none |
-| GET/POST `/vaauth/valogin/code` | form: `mobile` (email or mobile), `code`, `captcha_*`, `csrf_token` | 200 password page (`no-store`, `Pragma: no-cache`); 200 form with flash | POST 10/min per IP; 10/hour per identifier | unknown identifier, inactive, no code, wrong code: one message; password generated before lookup | `mobile_code_redeemed`, `password_generated` (`sign_in_code`), `mobile_code_voided` (`too_many_attempts`) |
+| GET/POST `/vaauth/valogin/code` | form: `mobile` (email or mobile), `code`, `accept_terms` (required), `captcha_*`, `csrf_token` | 200 password page (`no-store`, `Pragma: no-cache`); 200 form with flash | POST 10/min per IP; 10/hour per identifier | unknown identifier, inactive, no code, wrong code: one message; password generated before lookup | `mobile_code_redeemed`, `password_generated` (`sign_in_code`), `terms_accepted` (`sign_in_code`), `mobile_code_voided` (`too_many_attempts`) |
 | GET/POST `/vaauth/forgot-password` | form: `email` (email or mobile) | 302 back with flash | POST 3/hour per IP | one message per identifier kind | none |
 | GET/POST `/vaauth/reset-password/<token>` | form: `csrf_token` | GET page; POST 302 login; invalid: 200 page `token_valid=False`; CSRF fail: 400 | POST 5/min per IP | n/a | `password_generated` (`password_reset`) |
 | GET/POST `/vaauth/verify-email/<token>` | form: `csrf_token` | GET page; POST 302 login with flash | POST 5/min per IP | n/a | `email_verified`, `password_generated` (`email_verification`) when a first password is sent |
-| GET/POST `/vaauth/resend-verification` | form: `email` | 302 back with flash | POST 3/hour per IP | one message for every email; mobile gets the code advice | none |
-| GET/POST `/vaauth/factor-reset/<token>` | form: `csrf_token` | POST 302 `/profile/#passkeys-card` (signed in) | POST 5/min per IP | n/a | none at this step (the CLI recorded `factor_reset`) |
-| GET/POST `/profile/force-password-change` | signed in; form: `accept_terms`, `csrf_token` | 302 `/coding/` | POST 5/min | n/a | none |
+| GET/POST `/vaauth/resend-verification` | form: `email` | 302 back with flash | POST 3/hour per IP | one message for every email; mobile gets the code advice | `verification_email_sent` when a link is queued |
+| GET/POST `/vaauth/factor-reset/<token>` | form: `csrf_token` | POST 302 `/profile/#passkeys-card` (signed in) | POST 5/min per IP | n/a | `web_sign_in` (`factor_reset`; the CLI recorded `factor_reset`) |
+| GET/POST `/profile/force-password-change` | signed in; form: `accept_terms`, `csrf_token` | 302 `/coding/` | POST 5/min | n/a | `terms_accepted` (`web`) |
 
 ### 8.3 Profile JSON (`/api/v1/profile`, signed in, cookie session)
 
-All mutating calls need `X-CSRFToken`. These use `login_required`, so an
-unauthenticated call answers **302 to `/vaauth/valogin?next=...`** (HTML),
-not a JSON 401 (`login.login_view = "va_auth.va_login"`). "Reauth" means the 10-minute window
+All mutating calls need `X-CSRFToken`. These use `login_required`; a
+signed-out call answers **401 `{"error": "Authentication required."}`**
+(the app's `unauthorized_handler` answers JSON on every API path; pages
+still redirect to `/vaauth/valogin?next=...`). With pending terms every
+route here except `POST /terms` answers 403 `terms_required` (section 3.5). "Reauth" means the 10-minute window
 (else 401 `{"error": "reauth_required"}`). Per-user limits key on the
 signed-in user id.
 
 | Method, path | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- |
 | GET `/` | none | `{user_id, name, email (may be null), mobile_only, languages, timezone, year_of_birth, sex}` | default | none |
-| POST `/password/generate` | none; reauth | 200 `{message}` or `{password, message}` (`no-store`); 503 `{error}` | 5/hour per user | `password_generated` (`profile`) |
+| POST `/password/generate` | none; reauth | 200 `{message}` (verified email) or `{password, message}` (mobile-only) (`no-store`); 409 `{error, code: "email_unverified"}`; 503 `{error}` | 5/hour per user | `password_generated` (`profile`) |
 | POST `/reauth` | `{"password"}` | 200 `{message}`; 403 `{"error": "Incorrect password."}` | 5/min per user | none |
+| POST `/reauth/passkey/options` | none | WebAuthn request options | 5/min per user | none |
+| POST `/reauth/passkey` | `{"credential"}` | 200 `{message}`; 403 `{"error": "That passkey could not be verified."}` | 5/min per user | `counter_regression` on a regression |
+| POST `/terms` | `{"accept_terms": true}` | 200 `{message, terms_accepted: true}`; 400 `{error, code: "invalid_request"}` | 5/min per user | `terms_accepted` (`api`) |
 | GET `/passkeys` | none | `{"passkeys": [{id, name, created_at, last_used_at, backed_up}]}` | default | none |
 | POST `/passkeys/options` | reauth | WebAuthn creation options (resident key and user verification required) | 10/min, 20/hour per user | none |
 | POST `/passkeys` | `{"credential", "name"?}`; reauth | `{message, passkey, recovery_codes?}`; 400 on failure or duplicate | 10/min, 20/hour per user | `passkey_registered`, `recovery_codes_generated` (first factor) |
@@ -789,6 +850,10 @@ privileged user after `AUTH_FACTOR_ENFORCE_FROM`.
 | POST `/sessions` | device id + secret | `{device_id, device_secret, email (email or mobile), password, otp?}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed`, `second_factor_lockout`, `recovery_code_used` |
 | POST `/sessions/refresh` | device id + secret + refresh token | `{refresh_token, device_id, device_secret, count?, unique_ids?, client_draft_ids?, client_death_ids?}` | 200 token response; refusals in 6.4 | 30/min per IP | `device_session_revoked` |
 | DELETE `/sessions/current` | Bearer | none | 204 | default | `device_session_revoked` (`signed_out`) |
+| POST `/terms` | Bearer | `{"accept_terms": true}` | 200 `{message, terms_accepted: true}`; 400 `invalid_request`; 401 `unauthorized` | 5/min | `terms_accepted` (`device`) |
+
+With pending terms every bearer route except `DELETE /sessions/current` and
+`POST /terms` answers 403 `terms_required` (section 6.5).
 
 Request bodies over 16 KB (256 KB on refresh) answer 413
 `payload_too_large`. Data endpoints (`/bootstrap`, `/units`, `/cases`,
@@ -803,24 +868,28 @@ All JSON, cookie session, `X-CSRFToken` on writes, `role_required` gates
 
 | Method, path | Who | Request | Response | Limits | Notes, audit |
 | --- | --- | --- | --- | --- | --- |
-| POST `/admin/api/users` | admin | `{email?, email_confirm?, name, phone?, languages[]}` | 201 `{user, sign_in_code?}` (`no-store`); 400 | default | email account: verification queued; mobile-only: code issued (`mobile_code_issued`) |
+| POST `/admin/api/users` | admin | `{email?, email_confirm?, name, phone?, languages[]}` | 201 `{user, sign_in_code?}` (`no-store`); 400 | default | `account_created` (`via: admin`, `mobile_only`); email account: verification queued (`verification_email_sent`); mobile-only: code issued (`mobile_code_issued`) |
 | PUT `/admin/api/users/<id>` | admin | any of `email`+`email_confirm`, `name`, `phone`, `year_of_birth`, `sex`, `status`, `languages` | 200 `{user}`; 400 (incl. `password` key refused) | default | email change bumps session version and sends a link; `phone` via `assign_phone` |
-| POST `/admin/api/users/<id>/resend-verification` | admin | none | `{message}`; 400 already verified; 500 | default | see section 11 item 8 |
+| POST `/admin/api/users/<id>/resend-verification` | admin | none | `{message}`; 400 mobile-only, already verified, or nothing sent ("Email delivery is off for this address; no verification email was sent."); 500 | default | `verification_email_sent` (actor) |
 | POST `/admin/api/users/<id>/send-password-reset` | admin | none | `{"message": "Password reset link sent."}`; 400 no verified email or delivery off; 500 | default | queues a reset link; the link generates the password |
 | POST `/admin/api/users/<id>/sign-in-code` | admin | none | `{sign_in_code, expires_in_hours: 72}` (`no-store`) | default | any account; `mobile_code_issued` |
 | POST `/admin/api/users/<id>/toggle` | admin | none | `{user_id, status}`; 400 for self | default | deactivation ends sessions via `is_active` |
 | POST `/admin/api/users/<id>/reset-factors` | admin | `{"reason"}` | `{message, user_id, email_sent}`; 400 self or no reason | default | `factor_reset` (`via: admin`); session version bump |
 | POST `/admin/api/projects/<project_id>/device-enrolments` | admin | `{expires_in_minutes?, max_uses?}` | 201 `{code, qr_payload, qr_svg, expires_at, max_uses}` | default | `device_enrolment_code_created` |
 | POST `/admin/api/devices/<device_id>/revoke` | admin | none | `{device_id, sessions_ended}` | default | `device_revoked` |
-| POST `/admin/api/organization/<project_id>/project-users/import` | admin, project_pi | multipart `file` (CSV/XLSX, 1 MB), `dry_run` (`"0"` to apply) | `{dry_run, rows, created_users, sign_in_codes: [{row, mobile (masked), name, sign_in_code}]}` (`no-store`) | default | new mobile-only rows admin only |
-| POST `/admin/api/mentor-institutes/<code>/staff` | admin, mentoring-institute admin | user fields as above | 201 `{staff, sign_in_code?}` (`no-store`) | 20/day per caller, admin exempt | mobile-only: platform admin only; "taken" refusals generic for non-admins |
-| POST `/data-management/api/users` | data-manager gate | user fields + `initial_role`, `initial_scope_type` (`project`, `project_site`, `org_unit`), `initial_project_id`, optional `initial_project_site_id`, `initial_org_unit_id`, `initial_cadre_id` | 201 `{user, sign_in_code?}` (`no-store`); 400; 403 grant refused | default | creates the account and one grant the caller may write |
+| POST `/admin/api/organization/<project_id>/project-users/import` | admin, project_pi | multipart `file` (CSV/XLSX, 1 MB), `dry_run` (`"0"` to apply) | `{dry_run, rows, created_users, sign_in_codes: [{row, mobile (masked), name, sign_in_code}]}` (`no-store`) | default | new mobile-only rows admin only; `account_created` (`via: project_import`) per new account |
+| POST `/admin/api/mentor-institutes/<code>/staff` | admin, mentoring-institute admin | user fields as above | 201 `{staff, sign_in_code?}` (`no-store`) | 20/day per caller, admin exempt | mobile-only: platform admin only; "taken" refusals generic for non-admins; `account_created` (`via: mentor_institute`) |
+| POST `/data-management/api/users` | data-manager gate | user fields + `initial_role`, `initial_scope_type` (`project`, `project_site`, `org_unit`), `initial_project_id`, optional `initial_project_site_id`, `initial_org_unit_id`, `initial_cadre_id` | 201 `{user, sign_in_code?}` (`no-store`); 400; 403 grant refused | default | creates the account and one grant the caller may write; `account_created` (`via: data_manager`) |
 | GET `/data-management/api/users/lookup` | data-manager gate | `?value=` full email or mobile | `{"users": [{user_id, name, email, status, posts}]}` | 10/min | active accounts only, no partial match |
 | PUT `/data-management/api/users/<id>` | data-manager gate | `email`+`email_confirm` and/or `languages` | 200 `{user}`; 403 email edit not allowed; 404 | default | email only for own never-signed-in accounts |
-| POST `/data-management/api/users/<id>/resend-verification` | data-manager gate | none | `{message}`; 400 mobile-only or verified; 404; 500 | default | |
+| POST `/data-management/api/users/<id>/resend-verification` | data-manager gate | none | `{message}`; 400 mobile-only, verified, or nothing sent (same message); 404; 500 | default | `verification_email_sent` (actor) |
 | POST `/data-management/api/users/<id>/sign-in-code` | data-manager gate | none | `{sign_in_code, expires_in_hours: 72}` (`no-store`); 404 when not allowed | 20/hour per caller | `may_issue_code` (section 4.1) |
 
-CLI (shell access is the safeguard): `flask users create` (email: link, or
+Every account creation records `account_created` (actor, `via`,
+`mobile_only`; never an identifier); every queued verification email
+records `verification_email_sent` (actor; never the address or token).
+
+CLI (shell access is the safeguard): `flask users create` (`account_created`, `via: cli`; email: link, or
 with `--email-verified` the password is emailed now; no email: password
 printed once and `mobile_verified_at` set), `flask users reset-password
 --email|--mobile [--onboarded|--require-password-change]` (prints a new
@@ -848,16 +917,18 @@ JSON:
 
 | Status, body | Where | Meaning |
 | --- | --- | --- |
-| 302 to `/profile/force-password-change` | any signed-in endpoint at HEAD, JSON included | terms not accepted; a client must not follow it as data (use `redirect: "manual"` or check `response.redirected`) |
+| 403 `{"error": "terms_required", "code": "terms_required", "redirect_url"}` | any signed-in JSON path (cookie session) except `POST /api/v1/profile/terms` | terms not accepted: show the terms, then `POST /api/v1/profile/terms` (pages still 302 to `/profile/force-password-change`) |
+| 403 `{"code": "terms_required"}` | `/api/v1/device/*` bearer calls except sign-out and `POST /terms` | terms not accepted: show the terms, then `POST /api/v1/device/terms` (section 6.5) |
+| 409 `{"code": "email_unverified"}` | profile password generate | the account's email is unverified: verify it first, or get a sign-in code |
 | 403 `{"error": "factor_setup_required"}` | API paths | privileged user must enrol a passkey or TOTP at `/profile/#passkeys-card` |
 | 401 `{"error": "Authentication required."}` | `role_required` APIs | not signed in, or inactive |
-| 302 to `/vaauth/valogin?next=...` | `login_required` APIs (`/api/v1/profile/*`) | not signed in |
+| 401 `{"error": "Authentication required."}` | `login_required` APIs (`/api/v1/profile/*` and every other API path) | not signed in |
 | 401 `{"error": "Site is under maintenance. ..."}` | any API | non-admin logged out by maintenance |
 | 401 `{"error": "reauth_required"}` | profile | reauthenticate (5.6) then retry |
 | 503 `{"error": ...}` | profile password generate | breach check or email unavailable |
 | 429 | anywhere | rate limit |
 | 403 + `Retry-After` | anywhere | temporary IP ban |
-| device codes | `/api/v1/device/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `password_change_required`, `maintenance`, `second_factor_required`, `second_factor_locked`, `no_interviewer_grant`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
+| device codes | `/api/v1/device/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `second_factor_required`, `second_factor_locked`, `no_interviewer_grant`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
 | working tree only | `/api/v1/client/bootstrap` | `authentication_required` (401), `password_change_required` (403 + `redirect_url`), `factor_setup_required` (403 + `redirect_url`) |
 
 ## 10. Things clients must never do
@@ -883,33 +954,41 @@ JSON:
 - Never wipe local interview data on any code except `session_revoked`;
   `session_ended`, `session_expired`, `refresh_reused` and
   `refresh_retry_race` mean "sign in again, keep data".
-- Never treat `password_change_required` as a password problem: send the
-  person to the website to accept the terms.
-- Never follow the terms-gate 302 from a JSON call as if it were data, and
-  never treat bootstrap capabilities as permission.
+- Never treat `terms_required` (or bootstrap's `password_change_required`)
+  as a password problem: show the terms and accept them through the JSON
+  endpoint (sections 3.5, 6.5); never send `accept_terms: true` without the
+  person's own tick.
+- Never treat bootstrap capabilities as permission.
 - Never put an identifier, code or password in a URL, query string or log.
 - After Profile "Generate a new password", sign the person in again: their
   own session has ended.
 
 ## 11. HEAD versus policy
 
-1. **Reauthentication** (authentication-factors section 7 says password or
-   passkey): only `POST /api/v1/profile/reauth` with a password exists; a
-   passkey refreshes the window only by signing in again.
+Items closed by digitva-9an9 are marked **Closed** and describe the
+working tree; they stay listed until that change is committed.
+
+1. **Closed: reauthentication by passkey** (authentication-factors
+   section 7): `POST /api/v1/profile/reauth/passkey/options` and
+   `POST /api/v1/profile/reauth/passkey` (section 5.6) beside the password
+   endpoint.
 2. **Privileged users** (policy: an active `admin` or `data_manager`
    grant): the code uses `is_admin() or is_data_manager()`, and
    `is_data_manager` is effective roles, so a unit `site_pi` (In-charge) and
    a `project_pi` on a tree project are privileged too (second factor,
-   enrolment enforcement, last-factor guard).
-3. **App sign-in after onboarding** (onboarding 5.2 step 4 and section 7
-   imply the person may sign in in the app at once): device sign-in refuses
-   403 `password_change_required` until the terms are accepted on the
-   website. Code redemption does not set the flag, and a reset link clears
-   it.
-4. **Profile generate** (onboarding section 6: email accounts by email,
-   mobile-only on screen): any account without a *verified* email sees the
-   password on screen, including an email account still awaiting
-   verification.
+   enrolment enforcement, last-factor guard). Left as is (owner caveat).
+3. **Closed: terms acceptance** (onboarding 5.2, 5.4): the code page
+   requires the terms box and redemption records acceptance; JSON accept
+   endpoints exist for a browser session (`POST /api/v1/profile/terms`) and
+   a device token (`POST /api/v1/device/terms`); JSON calls with pending
+   terms get 403 `terms_required`, not a redirect; device sign-in succeeds
+   with `terms_required: true` instead of refusing (sections 3.5, 4.2, 6.5).
+4. **Closed: profile generate** (onboarding section 6): an email account
+   still awaiting verification is refused 409 `email_unverified` (nothing
+   shown, nothing mailed); only a mobile-only account sees the password on
+   screen. Policy section 6 says "email accounts get it by email", but a
+   password never goes to an unverified address (principle 1, forgot-password
+   row), so refusal is the safe reading.
 5. **Code-redeemed screen** (onboarding 5.2 step 3 and mobile-sign-in
    section 3: "offers to add a passkey"): the page cannot (the person is not
    signed in); it tells them to add one from Profile after sign-in.
@@ -920,18 +999,23 @@ JSON:
    (admin or project_pi, mobile-only rows admin only); mentoring-institute
    staff (mobile-only by a platform admin only). No job title is recorded
    (`digitva-04u4` not built).
-7. **Audit** (onboarding section 9: account creation, verification sent and
-   completed, sessions ended): `auth_security_events` has no event for
-   account creation, verification sent, or web sign-in success or failure;
-   "sessions ended" is implied by `password_generated` and `factor_reset`.
-   Verification completed is `email_verified`.
-8. **Quirk:** `POST /admin/api/users/<id>/resend-verification` has no
-   mobile-only guard, and both resend endpoints ignore
-   `send_verification_email`'s `False` (no address, delivery off,
-   suppressed recipient); they answer "Verification email sent." although
-   nothing was sent.
-9. **Stale comment, not behaviour:** the `app/commands/auth.py` docstring
-   says the factor-reset link "leads into the existing set-password flow";
-   the link sets no password (section 5.5).
+7. **Closed: audit** (onboarding section 9): `account_created` (every
+   creation path, with `via` and `mobile_only`), `verification_email_sent`
+   (every queued verification email, with the actor), `web_sign_in`
+   (`method`) and `web_sign_in_failed` (`reason`; account id only when it
+   exists and is active), and `terms_accepted` (`via`). None carries an
+   identifier, password, code or token. "Sessions ended" is still implied by
+   `password_generated` and `factor_reset`; verification completed is
+   `email_verified`.
+8. **Closed: resend verification**: the admin endpoint refuses a
+   mobile-only account (400) like the data-manager one, and both answer 400
+   "Email delivery is off for this address; no verification email was
+   sent." when nothing was queued. The public form keeps one answer for
+   every email by design.
+9. **Closed: stale comment** in `app/commands/auth.py` (the factor-reset
+   link sets no password).
 10. **Browser bootstrap** ([Expo client policy](../policy/expo-client.md)):
     not at HEAD; it exists in the working tree only (section 7).
+11. **Closed: signed-out JSON**: `login_required` API routes, including
+    `/api/v1/profile/*`, answer 401 `{"error": "Authentication required."}`
+    instead of a 302 to the login page.

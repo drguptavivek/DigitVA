@@ -405,10 +405,9 @@ def open_session(*, device_id, device_secret, email, password, otp=None) -> tupl
         raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
     if not user.sign_in_verified:
         raise _refuse(device, user, "Verify your email address before signing in.", "email_unverified", 403)
-    if not user.pw_reset_t_and_c:
-        # The terms gate (code kept for the app contract): no password change exists.
-        raise _refuse(device, user, "Sign in on the website once and accept the terms before signing in here.",
-                      "password_change_required", 403)
+    # Pending terms do not refuse sign-in (onboarding policy 5.4): the
+    # tokens carry ``terms_required`` and the device API answers 403
+    # ``terms_required`` everywhere but sign-out and POST /terms until then.
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)
 
@@ -658,6 +657,7 @@ def serialize_tokens(issued: IssuedTokens, user: VaUsers) -> dict:
         "refresh_token": issued.refresh_token,
         "refresh_expires_at": issued.session.refresh_expires_at.isoformat(),
         "user": {"user_id": str(user.user_id), "name": user.name, "email": user.email},
+        "terms_required": not user.pw_reset_t_and_c,
     }
 
 

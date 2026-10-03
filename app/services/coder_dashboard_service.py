@@ -205,13 +205,19 @@ def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> lis
                 VaSubmissions.va_deceased_gender,
                 VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
                 sa.literal("VA Coding Completed").label("va_code_status"),
+                VaFinalAssessments.is_tester,
             )
             .select_from(VaFinalAssessments)
             .join(VaSubmissions, VaSubmissions.va_sid == VaFinalAssessments.va_sid)
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
             .where(
                 VaFinalAssessments.va_finassess_by == user_id,
-                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                # A tester's own test codings are stored deactive; they stay
+                # in their history, labelled, never in the KPIs (digitva-ggc3).
+                sa.or_(
+                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                    VaFinalAssessments.is_tester.is_(True),
+                ),
                 VaSubmissions.va_form_id.in_(scoped_form_ids),
                 view_scope,
             )
@@ -229,13 +235,17 @@ def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> lis
                 VaSubmissions.va_deceased_gender,
                 VaCoderReview.va_creview_createdat.label("va_coding_date"),
                 sa.literal("Not Codeable").label("va_code_status"),
+                VaCoderReview.is_tester,
             )
             .select_from(VaCoderReview)
             .join(VaSubmissions, VaSubmissions.va_sid == VaCoderReview.va_sid)
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
             .where(
                 VaCoderReview.va_creview_by == user_id,
-                VaCoderReview.va_creview_status == VaStatuses.active,
+                sa.or_(
+                    VaCoderReview.va_creview_status == VaStatuses.active,
+                    VaCoderReview.is_tester.is_(True),
+                ),
                 VaSubmissions.va_form_id.in_(scoped_form_ids),
                 view_scope,
             )
@@ -346,6 +356,8 @@ def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[
         .where(
             window_final.va_sid == VaSubmissions.va_sid,
             window_final.va_finassess_by == user_id,
+            # Tester output is never a coding of the case (digitva-ggc3).
+            window_final.is_tester.is_(False),
             window_final.va_finassess_createdat + recent_window > sa.func.now(),
         )
         .correlate(VaSubmissions)
@@ -356,6 +368,7 @@ def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[
         .where(
             window_review.va_sid == VaSubmissions.va_sid,
             window_review.va_creview_by == user_id,
+            window_review.is_tester.is_(False),
             window_review.va_creview_createdat + recent_window > sa.func.now(),
         )
         .correlate(VaSubmissions)

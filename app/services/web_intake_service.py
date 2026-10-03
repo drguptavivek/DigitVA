@@ -746,9 +746,6 @@ def pause_interview(user: VaUsers, death_id: object, *, reason: str,
 #: Id10010's own constraint (letters and spaces). A locked answer that fails
 #: its constraint would trap the interviewer, so a name outside it stays editable.
 _INTERVIEWER_NAME_RE = re.compile(r"[A-Za-z ]+")
-#: Id10010a's WHO convention for "prefer not to disclose"; the constraint is
-#: ``(. >= 18 and . < 90) or . = 99``.
-INTERVIEWER_AGE_UNDISCLOSED = 99
 
 #: Id10058 choices matched exactly, by value or English label.
 _PLACE_OF_DEATH_CHOICES = {
@@ -784,16 +781,6 @@ def _who_place_of_death(text: str | None) -> str | None:
     return None
 
 
-def _interviewer_age(user: VaUsers, at: datetime) -> int:
-    """Id10010a: the interview year (in the user's timezone) minus the
-    profile year of birth; 99 when no year is set or the age falls outside
-    the WHO constraint (18 to 89)."""
-    if user.year_of_birth is None:
-        return INTERVIEWER_AGE_UNDISCLOSED
-    age = _expression_now(user, at).year - user.year_of_birth
-    return age if 18 <= age < 90 else INTERVIEWER_AGE_UNDISCLOSED
-
-
 def _org_path_names(org_unit_id: uuid.UUID | None) -> list[str]:
     """Unit names from the tree root down to the unit (active units only),
     e.g. ["India", "Himachal Pradesh", "Solan", "Kandaghat"]. One query."""
@@ -816,7 +803,8 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     ``deceased`` and ``interviewer`` go through the package's
     ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
-    identity, area presets, ABHA). Everything else is an ordinary editable
+    name, sex and id, area presets, ABHA, and the case's registered age
+    fields). Everything else is an ordinary editable
     answer. Name split: the first word is the given name (Id10017), the rest
     the surname (Id10018).
 
@@ -829,12 +817,17 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     month the ODK date type stores for those appearances, never read back
     as known). Age, when also known, still prefills as below.
 
+    Age: the registered ``age_years`` is locked (``age_group`` and its age
+    field); the date of birth, exact or partial, stays editable. An exact
+    date of birth sends no age (the form calculates it), so nothing
+    age-related is locked then, nor for an age that is not prefilled.
+
     ``unit_parts`` is the unit's ``(presets, org path
     names)`` already resolved for a batch (``device_case_rows``); without it
     both are queried here.
     """
-    interviewer: dict = {"name": user.name, "id": str(user.user_id), "age": _interviewer_age(user, _utcnow())}
-    locked = {"Id10010a", "Id10010c"}
+    interviewer: dict = {"name": user.name, "id": str(user.user_id)}
+    locked = {"Id10010c"}
     if _INTERVIEWER_NAME_RE.fullmatch((user.name or "").strip()):
         locked.add("Id10010")
     if user.sex in USER_SEX_VALUES:
@@ -887,14 +880,18 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         if death.date_of_birth:
             deceased["dateOfBirth"] = death.date_of_birth.isoformat()
         elif death.age_years is not None and 12 <= death.age_years <= 119:
+            # ageInYears for prefill.ts (device and web clients); the same
+            # answers it derives, repeated so _locked_answers can restore them.
             deceased["ageInYears"] = death.age_years
+            age = {"age_group": "adult", "age_adult": death.age_years}
+            answers.update(age)
+            locked.update(age)
         elif death.age_years is not None and 1 <= death.age_years <= 11:
             # prefill.ts maps adults only. Age 0 is not prefilled: days
             # (neonate) or months (child) cannot be told from 0 years.
-            answers.update({
-                "Id10020": "no", "age_group": "child",
-                "age_child_unit": "years", "age_child_years": death.age_years,
-            })
+            age = {"age_group": "child", "age_child_unit": "years", "age_child_years": death.age_years}
+            answers.update({"Id10020": "no", **age})
+            locked.update(age)
         if not death.date_of_birth and death.date_of_birth_partial:
             partial = death.date_of_birth_partial
             answers["Id10020"] = "no"
@@ -914,7 +911,9 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
 
 #: Locked interviewer questions and the ``prefill["interviewer"]`` key each is
 #: filled from, as prefill.ts's addInterviewer maps them.
-_INTERVIEWER_ANSWER_KEYS = {"Id10010": "name", "Id10010a": "age", "Id10010b": "sex", "Id10010c": "id"}
+#: Id10010a (interviewer age) is not prefilled; leaving it out also stops a
+#: draft's stored lock list from enforcing it.
+_INTERVIEWER_ANSWER_KEYS = {"Id10010": "name", "Id10010b": "sex", "Id10010c": "id"}
 
 
 def _locked_answers(prefill: dict) -> dict:
@@ -943,6 +942,17 @@ def _locked_answers(prefill: dict) -> dict:
         if value not in (None, ""):
             out[name] = value
     return out
+
+
+def _draft_locked_answers(draft: VaWebIntakeDraft) -> dict:
+    """``_locked_answers`` for *draft*, always recomputed from the case and
+    the draft's owner, never from the stored prefill: a draft saved before a
+    lock existed (no ``lockedQuestionNames``, ``{}``, or an older list) gets
+    today's locks, and a corrected registration wins. Never written back."""
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    return _locked_answers(
+        _prefill_from_death(death, db.session.get(VaUsers, draft.user_id), draft.org_unit_id)
+    )
 
 
 def _enforce_locked(answers: dict, locked: dict, previous: dict | None = None) -> dict:
@@ -1173,7 +1183,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     existing = {row.section_name: row for row in draft.sections}
     # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
     # answer is put back, not refused (see submit_draft).
-    locked = _locked_answers(draft.prefill or {})
+    locked = _draft_locked_answers(draft)
     written = 0
     for name, answers in sections.items():
         if not isinstance(name, str) or not _SECTION_NAME_RE.match(name):
@@ -1420,13 +1430,13 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
     outcome = _interview_outcome(completion["data"], completion)
-    # Locked answers (interviewer identity, area presets, ABHA) are
+    # Locked answers (interviewer identity, area presets, ABHA, registered age) are
     # overwritten with the draft's server-computed prefill, added when the
     # client left them out, before relevance is derived or stripped. Overwrite,
     # not refuse: a device interview finished offline may hold a stale locked
-    # value (a profile edit, an age crossing a birthday year), and refusing
+    # value (a profile or case edit), and refusing
     # would strand a completed interview the interviewer cannot correct.
-    data = {**completion["data"], **_locked_answers(draft.prefill or {}), "interview_outcome": outcome}
+    data = {**completion["data"], **_draft_locked_answers(draft), "interview_outcome": outcome}
     consent = normalize_consent(data.get("Id10013"))
     _require_live_org_unit(draft)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None

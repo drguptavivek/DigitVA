@@ -134,7 +134,7 @@ def mentor_institute_create_staff(code):
     if user.is_mobile_only:
         code_for_holder = mobile_sign_in_service.issue_code(user, actor_user_id=current_user.user_id)
     db.session.commit()
-    accounts.send_invitation(user)
+    accounts.send_invitation(user, actor_user_id=current_user.user_id)
     link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
     body = {"staff": _serialize_staff(user, link)}
     if code_for_holder:

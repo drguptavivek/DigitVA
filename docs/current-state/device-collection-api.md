@@ -82,17 +82,22 @@ values). The device secret is compared with `hmac.compare_digest`.
   malformed number -- and a mobile-only account that never redeemed a code --
   gets the same timing-equalised `invalid_credentials` as an unknown email.
   Then: active, `sign_in_verified` (verified email or redeemed code), the
-  terms gate (`pw_reset_t_and_c`, code `password_change_required`), the
   maintenance cutoff, and a TOTP or recovery code when
   `totp_service.needs_second_factor`. Rate limits: 10/min per IP, 10/min per
   device, 20/hour per account (keyed on the canonical number for a mobile). Every refused
   sign-in is audited as `device_session_failed` with the device id and the
-  reason only (`invalid_credentials`, `email_unverified`,
-  `password_change_required`, `maintenance`, `second_factor_required`,
+  reason only (`invalid_credentials`, `email_unverified`, `maintenance`, `second_factor_required`,
   `second_factor_invalid`, `second_factor_locked`, `no_interviewer_grant`).
   Other security events: `device_enrolment_code_created`, `device_enrolled`,
   `device_session_opened`, `device_session_revoked`, `device_revoked`,
   `second_factor_lockout`.
+- **Pending terms do not refuse sign-in** (digitva-9an9; onboarding policy
+  5.4). The session opens and the token body carries `terms_required: true`
+  (refresh too); until `POST /terms` with `{"accept_terms": true}` records
+  acceptance (`terms_accepted`, via `device`), every bearer call except
+  `DELETE /sessions/current` and `POST /terms` answers 403 `terms_required`,
+  and a refresh does not record the outstanding-work report. Contract:
+  `docs/current-state/authentication-and-onboarding.md` section 6.5.
 - Second-factor lockout: `second_factor_invalid` failures for the account in
   the last 15 minutes, counted from the audit trail since its last
   `device_session_opened`. The fifth records `second_factor_lockout`
@@ -118,7 +123,7 @@ As the contract, with these additions (all additive):
 | Call | Notes |
 |---|---|
 | `POST /enroll` | 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
-| `POST /sessions` | Extra refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `password_change_required`, `maintenance`. A closed project answers 403 `device_revoked`. |
+| `POST /sessions` | Extra refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance` (pending terms no longer refuse: see above). A closed project answers 403 `device_revoked`. |
 | `POST /sessions/refresh` | Needs `device_id` + `device_secret` (else 401 `device_invalid`, nothing revoked). 401 `refresh_reused` / 409 `refresh_retry_race` (reuse, session revoked); 401 `session_revoked` (device or admin revoke, grant withdrawn, signed out); 401 `session_ended` (account changed or project closed; keeps data); 401 `session_expired` and 401 `refresh_invalid` revoke nothing. Optional `count`/`unique_ids`/`client_draft_ids`. |
 | `DELETE /sessions/current` | `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out. |
 | `GET /bootstrap` | `user`, `context` (the intake context filtered to the device's project), `form_options` (the `/api/v1/organization/<project>/form-options` body), `instrument_version` (the served bundle's manifest sha, `who_va_bundle_version`). No CSRF fields. |

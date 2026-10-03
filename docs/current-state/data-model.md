@@ -933,8 +933,12 @@ Key fields:
 - `doris_certificate`, `doris_result`, `codedit_result`,
   `cod_entry_mode_snapshot` (nullable JSONB, migration `b8e2d4f6a1c3`)
 - `va_iniassess_status`
+- `is_tester` (Boolean, default false, migration `c4e8a1f7d2b3`)
 
 Current behavior:
+
+- a `coding_tester`'s Step 1 row is stamped `is_tester` at write time and
+  deactivated when the tester finishes (`digitva-ggc3`)
 
 - masked DORIS (masked ICD-11) Step 1 stores the verified certificate and
   DORIS/CoDEdit envelopes here; `va_immediate_cod` is the first condition on
@@ -963,8 +967,16 @@ Key fields:
 - `va_finassess_remark`
 - `va_finassess_status`
 - `demo_expires_at`
+- `is_tester` (Boolean, default false, migration `c4e8a1f7d2b3`)
 
 Current behavior:
+
+- a `coding_tester`'s final COD on a real submission is written deactive with
+  `is_tester` true (`digitva-ggc3`): it never becomes the authority, never
+  supersedes a coder's active final, and every count that reads active rows
+  leaves it out. Rows from before `c4e8a1f7d2b3` default to false and are
+  not backfilled (grants keep no history, so old tester rows cannot be told
+  apart)
 
 - this table still stores the underlying coder final-COD records
 - multiple historical rows may now exist for the same submission across recode
@@ -1246,6 +1258,9 @@ Key fields:
 - `va_creview_reason`
 - `va_creview_other`
 - `va_creview_status`
+- `is_tester` (Boolean, default false, migration `c4e8a1f7d2b3`): a
+  `coding_tester`'s not-codeable report is written deactive with it set; the
+  case is not excluded and ODK is not flagged (`digitva-ggc3`)
 
 ### `va_data_manager_review`
 
@@ -1394,8 +1409,9 @@ Other important tables:
   `sex` (String(16), nullable, `female` | `male` | `undetermined`, checked by
   `VaUsers.set_interviewer_profile`, no CHECK) from migration `c5e2b7a9d4f6`
   (`digitva-vzk.3`): optional interviewer details, PII, set in Profile or by
-  an admin. Web intake prefills and locks `Id10010a` (age at interview, 99
-  when unset) and `Id10010b` from them.
+  an admin. Web intake prefills and locks `Id10010b` from `sex`;
+  `year_of_birth` prefills nothing since `digitva-q219` (`Id10010a` is
+  answered in the interview).
 - `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
   admin-set target the DM burndown KPI projects against
   (`app/routes/api/dm_kpi/dm_kpi_burndown.py`), and the four web intake form

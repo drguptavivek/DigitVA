@@ -18,28 +18,27 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3223 passed, 7 min, on 2026-10-03). Narrow tasks to Sonnet/Luna, broad
-> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b7d4e9f2a6c1`. This backend
+> (3270 passed, 7 min, on 2026-10-03). Narrow tasks to Sonnet/Luna, broad
+> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `c4e8a1f7d2b3`. This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
 
 ## Next, ranked
 
-1. `digitva-q219` intake prefill: stop prefilling/locking interviewer age;
-   lock the deceased's age from registration (DOB stays editable); recompute
-   the locked list for drafts saved before it existed (owner approved
-   2026-10-03).
-2. `digitva-9an9` auth gaps (P1): terms box on the code page and an app terms
-   screen + JSON accept endpoint (owner approved; policy
-   `account-onboarding-and-passwords.md` 5.2/5.4); JSON 403 instead of a
-   redirect for pending terms; reauth by passkey; resend reporting success on
-   failed send; missing sign-in audit events.
-3. `digitva-5hmc` (P1) every app access through authz with a Redis grant
+1. `digitva-5hmc` (P1) every app access through authz with a Redis grant
    cache (policy written in `access-control-model.md`; attachments never
-   static). Route probe test first, then refuse in production.
-4. `digitva-ggc3` tester/demo provenance (review 10 #12, needs a
-   migration).
+   static). Route probe test first, then refuse in production. Touches every
+   route: run it alone.
+2. **Deploy order** `digitva-p6fs.25` (Expo session): the app's terms screen
+   and `terms_required` handling must ship before or with the 9an9 backend;
+   a current app build shows `terms_required` as an error.
+3. Branch `p6fs24-device-cases` (commit `4a648682`, another session's
+   `digitva-p6fs.24`) needs a rebase onto main (conflicts expected in
+   `api/device.py`, `device_auth_service.py`, `web_intake_service.py`,
+   `web-intake.md`), a full suite, then merge.
+4. `digitva-scwg` closed with this commit; run `tests/migrations` on its
+   own DB, never in the same run as the main suite (it breaks setup there).
 5. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
 6. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
@@ -61,7 +60,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 - Production DB is at `d3f1a7c92b64` (2026-09-17), about 77 migrations
   behind head and before org units exist; the release is one large upgrade.
-- Migrations to run (backup first): `e2b7c4d9a1f3` (In-charge = site_pi at
+- Migrations to run (backup first): `c4e8a1f7d2b3` (tester output flag, after the others), `e2b7c4d9a1f3` (In-charge = site_pi at
   a unit), `f3a8c1d6e2b9` (mobile sign-in, codes table, email nullable),
   `b7d4e9f2a6c1` (partial date of birth).
 - Every password is now server-generated; verification links sent before the

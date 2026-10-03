@@ -313,6 +313,18 @@ def state_velocity():
                       AND {_NOT_DUPLICATE_SQL}
                       AND cur.event_created_at >= :cutoff
                       AND cur.previous_state IS NOT NULL
+                      -- Tester runs are not workflow activity (digitva-ggc3):
+                      -- no event the tester wrote up to its return.
+                      -- ponytail: a user who coded the case for real before
+                      -- testing it loses those events too; lane-tag events
+                      -- if that ever matters.
+                      AND NOT EXISTS (
+                          SELECT 1 FROM va_submission_workflow_events tr
+                          WHERE tr.va_sid = cur.va_sid
+                            AND tr.transition_id = 'tester_coding_returned'
+                            AND tr.actor_user_id = cur.actor_user_id
+                            AND tr.event_created_at >= cur.event_created_at
+                      )
                 ),
                 transition_durations AS (
                     SELECT
@@ -519,6 +531,14 @@ def daily_transitions():
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.event_created_at >= :cutoff
+                  -- Tester runs are not workflow activity (digitva-ggc3).
+                  AND NOT EXISTS (
+                      SELECT 1 FROM va_submission_workflow_events tr
+                      WHERE tr.va_sid = e.va_sid
+                        AND tr.transition_id = 'tester_coding_returned'
+                        AND tr.actor_user_id = e.actor_user_id
+                        AND tr.event_created_at >= e.event_created_at
+                  )
                 GROUP BY DATE(e.event_created_at), e.current_state
                 ORDER BY day ASC
             """),

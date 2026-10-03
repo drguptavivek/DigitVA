@@ -134,6 +134,9 @@ TRANSITION_INCOMPLETE_RECODE_RESET = "incomplete_recode_reset"
 TRANSITION_INCOMPLETE_REVIEWER_RESET = "incomplete_reviewer_reset"
 TRANSITION_DEMO_RESET = "demo_reset"
 TRANSITION_DEMO_STARTED = "demo_started"
+# A coding_tester finished a real submission: its output is tester output and
+# the case returns to the pool (digitva-ggc3). Never counted as coded.
+TRANSITION_TESTER_CODING_RETURNED = "tester_coding_returned"
 
 
 @dataclass(frozen=True)
@@ -271,5 +274,10 @@ TRANSITIONS = {
         transition_id=TRANSITION_DEMO_STARTED,
         label="Demo Started",
         target_state=WORKFLOW_CODING_IN_PROGRESS,
+    ),
+    TRANSITION_TESTER_CODING_RETURNED: TransitionDefinition(
+        transition_id=TRANSITION_TESTER_CODING_RETURNED,
+        label="Tester Coding Returned To Pool",
+        target_state=WORKFLOW_READY_FOR_CODING,
     ),
 }

@@ -812,3 +812,30 @@ def reset_demo_state(
         reason=reason,
         actor=actor or system_actor(),
     )
+
+
+def mark_tester_coding_returned(
+    va_sid: str,
+    *,
+    actor: WorkflowActor,
+    reason: str = "tester_coding_finished",
+) -> TransitionResult:
+    """Return a submission a coding_tester finished to the coding pool.
+
+    Tester output never becomes the case's result (digitva-ggc3), so the
+    case goes back to ``ready_for_coding`` for a real coder instead of to
+    ``coder_finalized`` or ``not_codeable_by_coder``. A recode episode an
+    admin override opened stays open, as before the tester took the case.
+    """
+    return _apply_transition(
+        va_sid,
+        transition_id=wd.TRANSITION_TESTER_CODING_RETURNED,
+        target_state=wd.WORKFLOW_READY_FOR_CODING,
+        allowed_from=(
+            wd.WORKFLOW_CODING_IN_PROGRESS,
+            wd.WORKFLOW_CODER_STEP1_SAVED,
+        ),
+        allowed_actor_kinds=CODING_ACTOR_KINDS,
+        reason=reason,
+        actor=actor,
+    )

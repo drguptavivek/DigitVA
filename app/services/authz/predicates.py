@@ -297,6 +297,35 @@ def reaches(user, lens: Lens, va_sid, *, _grants: ResolvedGrants | None = None) 
     ))))
 
 
+def codes_as_tester(user, va_sid, *, _grants: ResolvedGrants | None = None) -> bool:
+    """Whether *user* codes *va_sid* in the coding_tester lane only (digitva-ggc3).
+
+    True when a real coding_tester grant reaches the submission and neither a
+    real coder grant nor a demo-training virtual grant does: a user who is
+    both coder and tester there codes as a coder, demo practice stays demo,
+    and an admin (no grant at all) is never a tester. Tester output is stored
+    as tester output and never becomes the case's result
+    (access-control-model.md, ``coding_tester``).
+    """
+    g = _grants if _grants is not None else resolve_grants(user)
+    coder, tester, virtual = _lens_groups(g, Lens.CODE_CODER)
+
+    def reached(groups) -> bool:
+        clauses = [
+            clause
+            for grants, active_form, active_pair in groups
+            if grants
+            for clause in _group_predicate(grants, active_form=active_form, active_pair=active_pair)
+        ]
+        if not clauses:
+            return False
+        return bool(db.session.scalar(sa.select(sa.exists().where(
+            VaSubmissions.va_sid == va_sid, sa.or_(*clauses),
+        ))))
+
+    return reached([tester]) and not reached([coder, virtual])
+
+
 def reachable_unit_ids(
     user, project_id: str, roles, *, _grants: ResolvedGrants | None = None
 ) -> set[uuid.UUID] | None:

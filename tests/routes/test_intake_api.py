@@ -534,7 +534,7 @@ class IntakeApiTests(BaseTestCase):
         )
 
     _TAMPERED = {
-        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010": "Someone Else", "Id10010b": "male",
         "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl",
         "abha_number": "99999999999999",
     }
@@ -560,7 +560,7 @@ class IntakeApiTests(BaseTestCase):
         ).get_json()["death"]
         draft = self._start_draft(death_id=death["death_id"])
         return draft, {
-            "Id10010": "Field Worker", "Id10010a": 45, "Id10010b": "female",
+            "Id10010": "Field Worker", "Id10010b": "female",
             "Id10010c": self.interviewer_id, "Id10002": "high", "abha_number": "12345678901234",
         }
 

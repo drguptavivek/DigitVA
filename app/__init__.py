@@ -247,6 +247,19 @@ def create_app(config_class=None):
 
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
+
+    @login.unauthorized_handler
+    def _login_required_unauthorized():
+        """``login_required`` on a JSON path answers 401 like role_required;
+        a page keeps Flask-Login's flash and redirect to the login page."""
+        from flask_login.utils import login_url
+
+        from app.decorators.role_required import API_PATH_PREFIXES
+
+        if request.path.startswith(API_PATH_PREFIXES):
+            return jsonify({"error": "Authentication required."}), 401
+        flash(login.login_message, login.login_message_category)
+        return redirect(login_url(login.login_view, next_url=request.url))
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
     
     # Initialize Celery
@@ -482,17 +495,27 @@ def create_app(config_class=None):
             'va_auth.reset_password',
             'va_auth.verify_email',
             'va_auth.resend_verification',
+            'api_v1.profile_api.accept_terms',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
+            from app.decorators.role_required import API_PATH_PREFIXES
+
+            # The browser Expo client already reads this older code; every
+            # other JSON path gets terms_required (onboarding policy 5.4).
             if request.endpoint == "api_v1.client_api.bootstrap":
-                response = jsonify({
-                    "code": "password_change_required",
-                    "redirect_url": url_for('profile.force_password_change'),
-                })
-                response.status_code = 403
-                response.headers["Cache-Control"] = "no-store"
-                return response
-            return redirect(url_for('profile.force_password_change'))
+                code = "password_change_required"
+            elif request.path.startswith(API_PATH_PREFIXES):
+                code = "terms_required"
+            else:
+                return redirect(url_for('profile.force_password_change'))
+            response = jsonify({
+                "error": code,
+                "code": code,
+                "redirect_url": url_for('profile.force_password_change'),
+            })
+            response.status_code = 403
+            response.headers["Cache-Control"] = "no-store"
+            return response
 
     # docs/policy/authentication-factors.md section 6: once
     # AUTH_FACTOR_ENFORCE_FROM has passed, a privileged user (admin or

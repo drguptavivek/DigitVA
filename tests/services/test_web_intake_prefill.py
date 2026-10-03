@@ -2,8 +2,8 @@
 
 One test per row of the prefill map in docs/policy/web-intake.md, for a
 registered case and a direct start, plus which answers are locked: only the
-interviewer's identity, age and sex, the area presets and ABHA. Everything
-else is an ordinary editable answer.
+interviewer's name, sex and id, the area presets, ABHA and the case's
+registered age (digitva-q219). Everything else is an ordinary editable answer.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -24,7 +24,8 @@ from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
 
-INTERVIEWER_LOCKS = {"Id10010", "Id10010a", "Id10010b", "Id10010c"}
+INTERVIEWER_LOCKS = {"Id10010", "Id10010b", "Id10010c"}
+ADULT_AGE_LOCKS = {"age_group", "age_adult"}
 
 
 class WebIntakePrefillTests(BaseTestCase):
@@ -170,12 +171,12 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertEqual(answers["Id10061"], "Mohan Lal")
         self.assertEqual(answers["Id10062"], "Kamla Devi")
         self.assertEqual(prefill["interviewer"], {
-            "name": "Meera Thakur", "id": str(self.interviewer.user_id), "age": 40, "sex": "female",
+            "name": "Meera Thakur", "id": str(self.interviewer.user_id), "sex": "female",
         })
 
-    def test_only_interviewer_presets_and_abha_are_locked(self):
+    def test_only_interviewer_presets_abha_and_age_are_locked(self):
         prefill = self._start(self._register(abha_number="12345678901234")).prefill
-        self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS | {"abha_number"})
+        self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS | ADULT_AGE_LOCKS | {"abha_number"})
         for editable in ("Id10007", "Id10051", "Id10055", "Id10057", "Id10058", "Id10061", "Id10062"):
             self.assertIn(editable, prefill["answers"])
             self.assertNotIn(editable, prefill["lockedQuestionNames"])
@@ -193,6 +194,8 @@ class WebIntakePrefillTests(BaseTestCase):
             {k: prefill["answers"][k] for k in ("Id10020", "age_group", "age_child_unit", "age_child_years")},
             {"Id10020": "no", "age_group": "child", "age_child_unit": "years", "age_child_years": 5},
         )
+        self.assertTrue({"age_group", "age_child_unit", "age_child_years"} <= set(prefill["lockedQuestionNames"]))
+        self.assertNotIn("Id10020", prefill["lockedQuestionNames"])
 
     def test_age_zero_is_not_prefilled(self):
         prefill = self._start(self._register(age_years=0)).prefill
@@ -227,9 +230,9 @@ class WebIntakePrefillTests(BaseTestCase):
     def test_prefill_applies_once_when_the_draft_is_created(self):
         death = self._register()
         draft = self._start(death)
-        self.interviewer.year_of_birth = None
+        self.interviewer.sex = None
         self.assertEqual(self._start(death).prefill, draft.prefill)
-        self.assertEqual(draft.prefill["interviewer"]["age"], 40)
+        self.assertEqual(draft.prefill["interviewer"]["sex"], "female")
 
     # ── parents' names ─────────────────────────────────────────────────────
 
@@ -264,21 +267,13 @@ class WebIntakePrefillTests(BaseTestCase):
         for text, expected in cases.items():
             self.assertEqual(intake_svc._who_place_of_death(text), expected, text)
 
-    # ── interviewer age, sex and lock ──────────────────────────────────────
+    # ── interviewer sex and lock ───────────────────────────────────────────
 
-    def test_interviewer_age_boundaries_and_undisclosed(self):
-        at = datetime(2026, 9, 30, 12, tzinfo=UTC)
-        for year_of_birth, expected in ((None, 99), (2008, 18), (2009, 99), (1937, 89), (1936, 99), (1986, 40)):
-            self.interviewer.year_of_birth = year_of_birth
-            self.assertEqual(intake_svc._interviewer_age(self.interviewer, at), expected, year_of_birth)
-
-    def test_no_profile_yob_or_sex_prefills_99_and_leaves_sex_asked(self):
-        self.interviewer.year_of_birth = None
+    def test_no_profile_sex_leaves_sex_asked(self):
         self.interviewer.sex = None
         prefill = self._start().prefill
-        self.assertEqual(prefill["interviewer"]["age"], 99)
+        self.assertIn("Id10010c", prefill["lockedQuestionNames"])
         self.assertNotIn("sex", prefill["interviewer"])
-        self.assertIn("Id10010a", prefill["lockedQuestionNames"])
         self.assertNotIn("Id10010b", prefill["lockedQuestionNames"])
 
     def test_name_outside_the_who_constraint_is_not_locked(self):

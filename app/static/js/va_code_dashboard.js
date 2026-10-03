@@ -233,8 +233,9 @@
           render: (d, _type, row) => {
             if (d === '__pending__') return '<span class="badge bg-warning text-dark">In Progress</span>';
             if (row.is_demo) return `<span class="badge bg-success">VA Coding Completed</span> <span class="badge bg-info text-dark" title="Demo codes are removed when their retention ends">Demo · until ${formatHistoryTime(row.demo_expires_at)}</span>`;
-            if (d === 'VA Coding Completed') return '<span class="badge bg-success">VA Coding Completed</span>';
-            return '<span class="badge bg-danger">Not Codeable</span>';
+            const testBadge = row.is_tester ? ' <span class="badge bg-secondary" title="Coding tester output: not a result, not counted">Test · not counted</span>' : '';
+            if (d === 'VA Coding Completed') return '<span class="badge bg-success">VA Coding Completed</span>' + testBadge;
+            return '<span class="badge bg-danger">Not Codeable</span>' + testBadge;
           }
         },
         { data: 'va_coding_date', title: 'VA Coding Date',

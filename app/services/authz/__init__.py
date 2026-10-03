@@ -17,7 +17,8 @@ workflow services.
   is the unit-subtree SELECT for raw-SQL and MV surfaces that cannot embed
   it, and ``active_pair`` the DM/viewer active (project, site) rule for
   rows that carry a form's pair; ``reaches`` asks one lens (a rendering
-  that belongs to one role).
+  that belongs to one role), ``codes_as_tester`` whether only the
+  coding_tester lane reaches a submission (its output is tester output).
 - ``can_grant(actor, GrantTarget)`` / ``grant_list_filter(actor)``: grant
   writes and the grant lists, one rule.
 - ``effective_roles(user)``: which ``role_required`` gates the user opens.
@@ -56,6 +57,7 @@ from app.services.authz.predicates import (
     AuthzError,
     Decision,
     can,
+    codes_as_tester,
     effective_roles,
     reachable_unit_ids,
     reaches,
@@ -84,6 +86,7 @@ __all__ = [
     "active_pair",
     "can",
     "can_grant",
+    "codes_as_tester",
     "coding_gate_waivers",
     "effective_roles",
     "grant_list_filter",

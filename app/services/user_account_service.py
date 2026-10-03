@@ -15,6 +15,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaStatuses, VaUsers
+from app.services.security_event_service import record_security_event
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,11 @@ class EmailInUseError(UserAccountError):
     to the requester translate it to a generic refusal."""
 
 
+#: Resend verification when nothing was queued (delivery off, recipient
+#: suppressed): said plainly, never "sent".
+VERIFICATION_NOT_SENT_MESSAGE = (
+    "Email delivery is off for this address; no verification email was sent."
+)
 MOBILE_IN_USE_MESSAGE = "This mobile number is already used by another account."
 MOBILE_REQUIRED_MESSAGE = (
     "An account without an email needs a 10-digit mobile number that no other "
@@ -172,14 +178,17 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
     }
 
 
-def create_invited_user(fields: dict, *, other: dict | None = None) -> VaUsers:
-    """Add (and flush) an active user.
+def create_invited_user(
+    fields: dict, *, via: str, actor_user_id=None, other: dict | None = None
+) -> VaUsers:
+    """Add (and flush) an active user and audit ``account_created``.
 
     Nobody chooses a password (account-onboarding-and-passwords.md section
     1): an email account gets a generated one by email when it verifies the
     address; a mobile-only account (``fields["email"]`` None) gets one by
     redeeming a sign-in code (mobile_sign_in_service.issue_code). The random
-    placeholder set here is never known to anyone.
+    placeholder set here is never known to anyone. *via* names the creating
+    path in the audit event (``admin``, ``data_manager``, ``mentor_institute``).
     Raises UserAccountError if a concurrent writer took the email or number.
     """
     from sqlalchemy.exc import IntegrityError
@@ -208,10 +217,32 @@ def create_invited_user(fields: dict, *, other: dict | None = None) -> VaUsers:
         if error is None:
             raise
         raise error from exc
+    record_account_created(user, via=via, actor_user_id=actor_user_id)
     return user
 
 
-def send_invitation(user: VaUsers) -> None:
+def record_account_created(user: VaUsers, *, via: str, actor_user_id=None) -> None:
+    """Audit a new account (onboarding policy section 9): path and whether it
+    is mobile-only, never an identifier. Caller commits."""
+    record_security_event(
+        user_id=user.user_id, actor_user_id=actor_user_id, event_type="account_created",
+        detail={"via": via, "mobile_only": user.is_mobile_only},
+    )
+
+
+def accept_terms(user: VaUsers, *, via: str) -> None:
+    """Record the person's acceptance of the terms of use (onboarding policy
+    5.2, 5.4): clears the terms gate (``pw_reset_t_and_c``) and audits
+    ``terms_accepted`` with the path (``web``, ``api``, ``device``,
+    ``sign_in_code``, ``cli``), since the flag itself keeps no time. A no-op when
+    already accepted. Caller commits."""
+    if user.pw_reset_t_and_c:
+        return
+    user.pw_reset_t_and_c = True
+    record_security_event(user_id=user.user_id, event_type="terms_accepted", detail={"via": via})
+
+
+def send_invitation(user: VaUsers, *, actor_user_id=None) -> None:
     """Queue the verification email; call after commit. Opening its link
     generates the password and emails it (section 5.1), so no second email
     goes now.
@@ -226,7 +257,9 @@ def send_invitation(user: VaUsers) -> None:
         from app.services.email_service import send_verification_email
         from app.services.token_service import generate_token
 
-        send_verification_email(user, generate_token(user.user_id, "email_verify"))
+        send_verification_email(
+            user, generate_token(user.user_id, "email_verify"), actor_user_id=actor_user_id
+        )
     except Exception as exc:
         log.warning("invitation email failed | user_id=%s | %s", user.user_id, type(exc).__name__)
 

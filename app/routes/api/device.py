@@ -43,6 +43,8 @@ csrf.exempt(bp)
 
 #: Endpoints reachable without a device session (they create one).
 _UNAUTHENTICATED = frozenset({"enroll", "open_session", "refresh_session"})
+#: Bearer endpoints open while the terms are pending (onboarding policy 5.4).
+_TERMS_EXEMPT = frozenset({"end_session", "accept_terms"})
 
 #: Request body caps: one interview upload; the outstanding-work report (up
 #: to OUTSTANDING_MAX_IDS case ids, draft UUIDs and registration UUIDs, about
@@ -120,6 +122,8 @@ def _require_device_session():
         return _error("Authentication required.", "unauthorized", 401)
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         return _error("Site is under maintenance.", "maintenance", 403)
+    if not user.pw_reset_t_and_c and endpoint not in _TERMS_EXEMPT:
+        return _error("Accept the terms of use to continue.", "terms_required", 403)
     return None
 
 
@@ -191,7 +195,8 @@ def refresh_session():
     issued, user = devices.refresh_session(
         p.get("refresh_token"), device_id=p.get("device_id"), device_secret=p.get("device_secret")
     )
-    if "count" in p:
+    # Pending terms refuse data calls (policy 5.4); the report is one.
+    if "count" in p and user.pw_reset_t_and_c:
         devices.record_outstanding(
             issued.session, p.get("count"), p.get("unique_ids"), p.get("client_draft_ids"), p.get("client_death_ids")
         )
@@ -212,6 +217,23 @@ def end_session():
     devices.end_session(g.device_session)
     db.session.commit()
     return "", 204
+
+
+@bp.post("/terms")
+@login_required
+@limiter.limit("5 per minute", key_func=lambda: str(g.device_session.user_id))
+def accept_terms():
+    """The app's terms screen (onboarding policy 5.4): records the acceptance
+    exactly as the web terms page does. Body ``{"accept_terms": true}``;
+    anything else is 400 ``invalid_request``. ``login_required`` like
+    sign-out: open to any signed-in account, before any role check."""
+    from app.services.user_account_service import accept_terms as record_acceptance
+
+    if _body().get("accept_terms") is not True:
+        return _error("Please accept the terms of use.", "invalid_request", 400)
+    record_acceptance(current_user._get_current_object(), via="device")
+    db.session.commit()
+    return jsonify({"message": "Terms accepted.", "terms_accepted": True})
 
 
 @bp.get("/bootstrap")

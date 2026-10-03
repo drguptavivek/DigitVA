@@ -53,6 +53,29 @@ Current coding tester gate rule:
   - `daily_coder_limit`
 - coding gate date checks use UTC date boundaries
 
+Current coding tester output rule (`digitva-ggc3`, security review 10 #12):
+
+- a save is tester output when it is not a demo save (no `demo_expires_at`)
+  and `authz.codes_as_tester(user, va_sid)` holds: a real `coding_tester`
+  grant reaches the submission and neither a real `coder` grant nor a
+  demo-training virtual grant does. A user holding both codes as a coder; an
+  admin with no grant is never a tester
+- the tester's final COD or not-codeable report is stored deactive with
+  `is_tester`; their Step 1, NQA and social autopsy rows are deactivated, the
+  allocation is released and the case moves `coding_in_progress` /
+  `coder_step1_saved -> ready_for_coding` through the
+  `tester_coding_returned` transition (coder actor). No coder final is
+  superseded; the final-COD authority and any open recode episode stay; no
+  ODK review state is written
+- because the row is deactive and the transition is not `coder_finalized` /
+  `recode_finalized`, tester output is absent from the coder dashboard KPIs,
+  DM coder output, burndown, daily KPI aggregates, analytics MVs, exports
+  and the 24-hour reviewer-eligibility sweep; DM coder utilization counts
+  only allocations held by coder-grant holders; the 24-hour recode-limit
+  counts ignore `is_tester` rows
+- the tester's own coder history still lists their test codings, badged
+  "Test · not counted"
+
 The current workflow is built around form-based permissions and per-submission
 allocation.
 

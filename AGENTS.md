@@ -17,7 +17,8 @@ The main session plans, decides, reviews results and commits. It delegates:
 - **Reads, audits, reviews: Sonnet or Haiku.** `code-reviewer`,
   `security-reviewer`, `auditor`, `Explore`. Read-only. Ask for verified
   findings with `file:line`, nothing speculative.
-- **Tests: one dedicated read-only Sonnet runner.** It runs pytest and reports
+- **Tests: one dedicated read-only runner (Sonnet or Luna, low effort).** The
+  main session keeps it for the whole session and sends it test orders. It runs pytest and reports
   exact counts and full tracebacks. It never edits. One runner at a time per
   test database, so runs do not terminate each other's connections: each
   concurrent agent gets its own `minerva_test_<name>`, dropped when its

@@ -15,12 +15,20 @@ USER_SEX_VALUES = ("female", "male", "undetermined")
 
 class VaUsers(UserMixin, db.Model):
     __tablename__ = "va_users"
+    # docs/policy/mobile-sign-in.md section 1: an account has an email, a
+    # sign-in mobile number, or both; never neither.
+    __table_args__ = (
+        sa.CheckConstraint(
+            "email IS NOT NULL OR mobile_login IS NOT NULL", name="email_or_mobile"
+        ),
+    )
     user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
     )
     name: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
-    email: so.Mapped[str] = so.mapped_column(
-        sa.String(128), unique=True, nullable=False, index=True
+    # Null for a mobile-only account (docs/policy/mobile-sign-in.md).
+    email: so.Mapped[str | None] = so.mapped_column(
+        sa.String(128), unique=True, nullable=True, index=True
     )
     password: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(256), nullable=False
@@ -40,6 +48,17 @@ class VaUsers(UserMixin, db.Model):
     email_verified: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False, nullable=False)
     phone: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(15), nullable=True
+    )
+    # The canonical 10-digit number used for sign-in: set only when ``phone``
+    # canonicalises and no other account holds it (user_account_service.
+    # assign_phone). ``phone`` stays the free text that was typed.
+    mobile_login: so.Mapped[str | None] = so.mapped_column(
+        sa.String(10), unique=True, nullable=True
+    )
+    # When a mobile-only account first redeemed a sign-in code: its
+    # equivalent of email_verified (mobile-sign-in.md section 2).
+    mobile_verified_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
     )
     other: so.Mapped[Optional[dict]] = so.mapped_column(JSONB, nullable=True)
     # Interviewer demographics (PII, optional; digitva-vzk.3). Web intake
@@ -75,6 +94,19 @@ class VaUsers(UserMixin, db.Model):
 
     def __repr__(self):
         return f"VA User -> {self.email} ({self.user_status}): {self.name}"
+
+    @property
+    def is_mobile_only(self) -> bool:
+        """No email: signs in by mobile number with a server-generated
+        password and may never choose one (mobile-sign-in.md section 3)."""
+        return self.email is None
+
+    @property
+    def sign_in_verified(self) -> bool:
+        """The login's "verified" check: a verified email, or a redeemed
+        sign-in code. Either is enough, so adding an email to a mobile-only
+        account that already redeemed a code does not lock its holder out."""
+        return bool(self.email_verified) or self.mobile_verified_at is not None
 
     def get_id(self) -> str:
         if self.auth_session_version:

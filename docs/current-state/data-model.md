@@ -558,6 +558,20 @@ Migration `d7a3c9e1f5b2` (digitva-kmk.1): `va_web_intake_drafts.client_draft_id`
 hold hashed enrolment codes, device secrets and tokens. See
 [Device Collection API](device-collection-api.md).
 
+Migration `f3a8c1d6e2b9` (digitva-l7c2, `docs/policy/mobile-sign-in.md`):
+`va_users.email` is nullable (still unique); `va_users.mobile_login`
+(`String(10)`, unique) is the canonical sign-in number, kept in step with the
+free-text `phone` by `user_account_service.assign_phone` and set only when
+no other account holds the number (as `mobile_login` or as the canonical
+form of its `phone`); `va_users.mobile_verified_at` records a mobile-only
+account's first redeemed code; CHECK `ck_va_users_email_or_mobile` requires
+one of email or `mobile_login`. `auth_mobile_codes` holds one-time sign-in
+codes (HMAC hash, issuer, issued/expiry times, failed attempts, redeemed or
+voided time). The migration backfilled `mobile_login` only for numbers held
+by exactly one account (dev 2026-10-03: 103 of 107 valid numbers; two shared
+numbers and four 9-digit numbers left for correction); its downgrade refuses
+while any account has no email.
+
 ## ICD Reference Master Table
 
 ### `mas_icd10_2019_2`

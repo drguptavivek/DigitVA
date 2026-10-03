@@ -1,7 +1,8 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+from wtforms.validators import DataRequired, EqualTo, ValidationError
 
+from app.forms.va_login_form import email_if_at
 from app.utils.password_policy import password_error_message
 
 
@@ -12,11 +13,14 @@ def strong_password(form, field):
 
 
 class ForgotPasswordForm(FlaskForm):
+    """Also the resend-verification form. A value without ``@`` is a mobile
+    number: those accounts reset through their data manager instead."""
+
     email = StringField(
-        "Email",
+        "Email or mobile number",
         validators=[
             DataRequired(message="Email is required."),
-            Email(message="Please enter a valid email address."),
+            email_if_at,
         ],
     )
     submit = SubmitField("Send Reset Link")

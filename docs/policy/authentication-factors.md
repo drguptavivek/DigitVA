@@ -3,13 +3,16 @@ title: Login Factors, Passkeys and TOTP
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-03
 ---
 
 # Login Factors, Passkeys and TOTP
 
 Baseline for the two-step login, passkeys (WebAuthn), TOTP, recovery codes,
-enrolment enforcement and factor recovery. Owner decisions of 2026-09-28;
+enrolment enforcement and factor recovery. Sign-in by mobile number, and the
+server-generated passwords of mobile-only accounts, are in
+[mobile-sign-in.md](mobile-sign-in.md); everything here applies to them
+unless that page says otherwise. Owner decisions of 2026-09-28;
 design record `.tasks/2026-09-28-passkey-login.md`; epic `digitva-sn1`,
 feature `digitva-sn1.1`.
 

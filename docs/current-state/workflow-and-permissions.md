@@ -969,6 +969,40 @@ is step 1 only:
    password page. Five failed attempts clear the pre-auth state, log
    `second_factor_lockout`, and redirect to the email step.
 
+**Sign-in by mobile number (digitva-l7c2).** Baseline
+`docs/policy/mobile-sign-in.md`. The email step's field is "Email or mobile
+number": a value with `@` is an email (unchanged); anything else is
+canonicalised (`user_account_service.canonical_mobile`: digits only, a
+leading `0` or `91` dropped, exactly ten digits left) and stored in the
+pre-auth state as `mobile` (empty for an invalid value) without a lookup.
+The password, passkey and second-factor steps resolve the account through
+`_preauth_user()`, which matches only `va_users.mobile_login` (unique), so an
+unknown, shared or malformed number gets the same second page and the same
+wrong-credentials result. The "verified" check is `VaUsers.sign_in_verified`:
+a verified email, or a redeemed sign-in code (`mobile_verified_at`).
+
+A **mobile-only account** (`email` NULL) never chooses a password. A data
+manager who may manage one of the person's grants (`authz.grant_list_filter`,
+i.e. `can_grant`), or an admin, issues a 6-digit code
+(`POST /data-management/api/users/<id>/sign-in-code`,
+`POST /admin/api/users/<id>/sign-in-code`, and automatically in the create
+response), shown once; `auth_mobile_codes` keeps only an HMAC hash under the
+factor key, 72-hour expiry, a new code voids the old, five wrong attempts void
+it. The person redeems it at `va_auth.va_login_redeem_code`
+(`/vaauth/valogin/code`, "I have a code" on the sign-in page; CAPTCHA, 10 per
+minute per IP and 10 per hour per number, one answer for a wrong number or
+code): the server generates a password (three words from
+`app/services/mobile_password_words.txt` plus four digits, about 45.8 bits,
+breach-checked; an outage changes nothing), bumps the session version and
+shows it once on a `no-store` response. The person then signs in normally.
+Signed in, they may ask for a new generated password after reauthentication
+(`POST /api/v1/profile/password/generate`); the chosen-password change, the
+email reset link and an admin-set password are refused for them, and
+"Forgot password" with a number says to ask the data manager. Audit events:
+`mobile_code_issued`, `mobile_code_voided`, `mobile_code_redeemed`,
+`mobile_password_regenerated` (never the code, password or number). The
+device API (`/api/v1/device/`) still signs in by email only.
+
 **TOTP and recovery codes** (`app/services/totp_service.py`). TOTP secrets
 are AES-256-GCM-encrypted at rest under a key derived (HKDF-SHA256) from
 `AUTH_FACTOR_ENCRYPTION_KEY`, bound to the owning user as associated data

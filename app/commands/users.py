@@ -5,7 +5,7 @@ Usage:
   flask users list
   flask users search --query="admin"
   flask users list-grants --email=user@example.com
-  flask users create --email=user@example.com --name="Example User" --password="Secret123"
+  flask users create --email=user@example.com --name="Example User" --password="Secret123" [--phone=9876543210]
   flask users reset-password --email=user@example.com --password="NewSecret123"
   flask users grant-admin --email=user@example.com
   flask users revoke-admin --email=user@example.com
@@ -23,6 +23,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.user_account_service import UserAccountError, assign_phone
 from app.utils.password_policy import password_error_message
 
 
@@ -182,6 +183,12 @@ def list_grants(email):
     help="Repeat to add one or more vacode languages.",
 )
 @click.option(
+    "--phone",
+    default="",
+    help="Optional phone; a 10-digit mobile number also becomes a sign-in number "
+    "and must be unique.",
+)
+@click.option(
     "--email-verified/--email-unverified",
     default=False,
     show_default=True,
@@ -194,6 +201,7 @@ def create_user(
     landing_page,
     timezone,
     languages,
+    phone,
     email_verified,
 ):
     """Create a user without assigning grants.
@@ -221,6 +229,11 @@ def create_user(
         timezone=timezone.strip(),
         user_status=VaStatuses.active,
     )
+    try:
+        assign_phone(user, phone)
+    except UserAccountError as exc:
+        click.echo(str(exc))
+        raise SystemExit(1)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()

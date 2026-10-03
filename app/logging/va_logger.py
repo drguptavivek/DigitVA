@@ -240,12 +240,13 @@ def _safe_current_user_email() -> str:
             raw_uid = str(user_id).rpartition(":")[0] or str(user_id)
             user = db.session.get(VaUsers, uuid.UUID(raw_uid))
             if user is not None:
-                return user.email
+                # Never the mobile number of a mobile-only account (PII).
+                return user.email or str(user.user_id)
         except Exception:
             return "anonymous"
     try:
         if current_user.is_authenticated:
-            return current_user.email
+            return current_user.email or str(current_user.user_id)
     except Exception:
         return "anonymous"
     return "anonymous"

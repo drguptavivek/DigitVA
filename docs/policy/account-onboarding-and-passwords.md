@@ -107,7 +107,7 @@ use "Forgot password" by email (section 6).
 | Account has a verified email | "Forgot password" takes email or mobile. A single-use link (existing `password_reset` token) goes to the verified email. Opening it generates a new password and emails it; the page says so and shows no password. The same message is shown whether or not the identifier exists. |
 | Mobile only | "Forgot password" with a mobile number says "Ask your data manager for a sign-in code", whether or not the number exists. The data manager issues a code; redeeming it shows a new password once (5.2). |
 | Signed in, wants a new one | Profile: "Generate a new password", after reauthentication (authentication-factors.md section 7). Email accounts get it by email; mobile-only accounts see it once on screen. |
-| Admin or data manager action | They can resend verification (email), issue a code (any account they may manage), or, admin only, reset factors. They never set or see a password. |
+| Admin or data manager action | They can resend verification (email), issue a code (only for someone all of whose grants they may manage; mobile-sign-in.md section 3), or, admin only, reset factors. They never set or see a password. |
 | Break-glass CLI | `flask users reset-password` generates the password and prints it once to the operator's terminal (shell access is the safeguard), and ends sessions. |
 
 Opening a reset link is required before anything changes: typing someone's

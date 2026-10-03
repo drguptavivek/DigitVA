@@ -24,6 +24,10 @@ _HIBP_RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 _HIBP_USER_AGENT = "DigitVA password breach checks"
 _HIBP_DEFAULT_TIMEOUT_SECONDS = 5.0
 
+BREACH_CHECK_UNAVAILABLE_MESSAGE = (
+    "Password breach check is temporarily unavailable. Please try again."
+)
+
 RULES = [
     (lambda p: len(p) >= 12,         "at least 12 characters"),
     (lambda p: bool(re.search(r"[A-Z]", p)),   "at least one uppercase letter"),
@@ -80,7 +84,7 @@ def password_breach_error_message(password: str) -> str | None:
     try:
         payload = _hibp_range_query(prefix)
     except requests.RequestException:
-        return "Password breach check is temporarily unavailable. Please try again."
+        return BREACH_CHECK_UNAVAILABLE_MESSAGE
 
     for line in payload.splitlines():
         candidate_suffix, _, _count = line.partition(":")

@@ -178,7 +178,9 @@ def begin_enrolment(user) -> dict:
         db.session.add(AuthTotp(user_id=user.user_id, secret_encrypted=encrypted))
     db.session.flush()
 
-    uri = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=_ISSUER)
+    uri = pyotp.TOTP(secret).provisioning_uri(
+        name=user.email or user.mobile_login or str(user.user_id), issuer_name=_ISSUER
+    )
     return {"secret": secret, "provisioning_uri": uri}
 
 
@@ -282,6 +284,12 @@ def _normalize_code(code: str) -> str:
 
 def _hash_code(normalized: str) -> str:
     return hmac.new(_recovery_hmac_key(), normalized.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def keyed_hash(value: str) -> str:
+    """HMAC-SHA256 of *value* under the factor key, as recovery codes are
+    stored; mobile sign-in codes use it too (mobile_sign_in_service)."""
+    return _hash_code(value)
 
 
 def has_recovery_codes(user_id) -> bool:

@@ -2153,6 +2153,8 @@ def _serialize_user(user, *, include_profile=False):
         "name": user.name,
         "status": user.user_status.value,
         "email_verified": bool(user.email_verified),
+        "mobile_only": user.is_mobile_only,
+        "mobile_verified": user.mobile_verified_at is not None,
         "phone": user.phone,
         "landing_page": user.landing_page,
         "languages": user.vacode_language or [],
@@ -2200,16 +2202,30 @@ def admin_create_user():
         return _json_error("Admin access required.", 403)
     from app.services import user_account_service as accounts
 
+    from app.services import mobile_sign_in_service
+
     try:
-        fields = accounts.validate_new_user_payload(request.get_json(silent=True) or {})
+        fields = accounts.validate_new_user_payload(
+            request.get_json(silent=True) or {}, allow_mobile_only=True
+        )
+        new_user = accounts.create_invited_user(fields)
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
 
-    new_user = accounts.create_invited_user(fields)
+    # docs/policy/mobile-sign-in.md section 3: a mobile-only account gets its
+    # first sign-in code now, shown once in this response.
+    code = None
+    if new_user.is_mobile_only:
+        code = mobile_sign_in_service.issue_code(new_user, actor_user_id=current_user.user_id)
     db.session.commit()
     accounts.send_invitation(new_user)
 
-    return jsonify({"user": _serialize_user(new_user)}), 201
+    body = {"user": _serialize_user(new_user)}
+    if code:
+        body["sign_in_code"] = code
+    response = jsonify(body)
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
 
 
 @admin.put("/api/users/<uuid:target_user_id>")
@@ -2243,6 +2259,8 @@ def admin_update_user(target_user_id):
                 return _json_error("Email already in use.", 400)
             target_user.email = new_email
             target_user.email_verified = False
+            # A new address must be proved again; old sessions end.
+            target_user.bump_session_version()
     
     if "name" in payload:
         name = (payload["name"] or "").strip()
@@ -2251,8 +2269,13 @@ def admin_update_user(target_user_id):
         target_user.name = name
         
     if "phone" in payload:
-        target_user.phone = (payload["phone"] or "").strip() or None
-        
+        from app.services import user_account_service as accounts
+
+        try:
+            accounts.assign_phone(target_user, payload["phone"])
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
+
     if "year_of_birth" in payload or "sex" in payload:
         try:
             target_user.set_interviewer_profile(
@@ -2269,6 +2292,12 @@ def admin_update_user(target_user_id):
             return _json_error("Invalid status.", 400)
             
     if payload.get("password"):
+        # docs/policy/mobile-sign-in.md section 3: nobody chooses a mobile-only
+        # account's password, an admin included; issue a sign-in code instead.
+        if target_user.is_mobile_only:
+            return _json_error(
+                "This account signs in by mobile number; issue a sign-in code instead.", 400
+            )
         from app.utils.password_policy import password_error_message
         pw_err = password_error_message(payload["password"])
         if pw_err:
@@ -2291,7 +2320,18 @@ def admin_update_user(target_user_id):
             return _json_error(f"Invalid language codes: {invalid}", 400)
         target_user.vacode_language = languages
         
-    db.session.commit()
+    from sqlalchemy.exc import IntegrityError
+
+    try:
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        from app.services.user_account_service import translate_integrity_error
+
+        error = translate_integrity_error(exc)
+        if error is None:
+            raise
+        return _json_error(str(error), 400)
 
     # If email changed, send a fresh verification link.
     if ("email" in payload or "email_confirm" in payload) and not target_user.email_verified:
@@ -2329,6 +2369,28 @@ def admin_resend_verification(target_user_id):
         return _json_error("Failed to send verification email.", 500)
 
     return jsonify({"message": "Verification email sent."})
+
+
+@admin.post("/api/users/<uuid:target_user_id>/sign-in-code")
+@role_required("admin")
+def admin_issue_sign_in_code(target_user_id):
+    """Issue a one-time sign-in code for a mobile-only account, shown once
+    (docs/policy/mobile-sign-in.md section 3)."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    from app.services import mobile_sign_in_service
+
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+    try:
+        code = mobile_sign_in_service.issue_code(target_user, actor_user_id=current_user.user_id)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    response = jsonify({"sign_in_code": code, "expires_in_hours": 72})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @admin.post("/api/users/<uuid:target_user_id>/toggle")

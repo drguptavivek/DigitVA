@@ -4,6 +4,7 @@ from app.models.auth_devices import (
     AuthDeviceSession,
 )
 from app.models.auth_factors import (
+    AuthMobileCode,
     AuthRecoveryCode,
     AuthSecurityEvent,
     AuthTotp,
@@ -117,6 +118,7 @@ __all__ = [
     "AuthDeviceSession",
     "AuthWebauthnCredential",
     "AuthTotp",
+    "AuthMobileCode",
     "AuthRecoveryCode",
     "AuthSecurityEvent",
     "VaStatuses",

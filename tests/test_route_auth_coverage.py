@@ -76,6 +76,11 @@ PUBLIC_BY_DESIGN = frozenset({
     # already verified the password and set second_factor_user_id on that
     # same state -- see docs/policy/authentication-factors.md section 3.
     "va_auth.va_login_second_factor",
+    # "I have a code": redeems a one-time code issued by a data manager and
+    # shows a server-generated password once. Cannot need a session (the
+    # holder has no password yet); CAPTCHA-gated and rate-limited per IP and
+    # per number (docs/policy/mobile-sign-in.md section 3).
+    "va_auth.va_login_redeem_code",
     # JSON GET issuing a signed proof-of-work challenge for the email step.
     # No user or session data; the challenge is meaningless without solving
     # it, and pow_captcha_service.verify_challenge is what a session

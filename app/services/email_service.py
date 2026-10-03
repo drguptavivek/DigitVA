@@ -78,6 +78,10 @@ def _mark_suppressed_email(to: str, exc: Exception) -> None:
 
 
 def _should_attempt_email_delivery(to: str) -> bool:
+    # A mobile-only account has no email and is never mailed
+    # (docs/policy/mobile-sign-in.md); every sender passes through here.
+    if not to:
+        return False
     if not _email_delivery_enabled():
         log.info("Email delivery disabled by config — skipping %s", to)
         return False

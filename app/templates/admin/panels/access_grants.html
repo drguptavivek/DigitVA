@@ -286,7 +286,7 @@
     var filtered = _allGrants.filter(function (g) {
       if (role && g.role !== role) return false;
       if (site && g.site_id !== site) return false;
-      if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
+      if (text && !(g.user_email || '').toLowerCase().includes(text) && !(g.user_name || '').toLowerCase().includes(text)) return false;
       return true;
     });
     renderTable(filtered);

@@ -81,7 +81,13 @@
         + ' data-id="' + esc(u.user_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
       var verifyBtn = '';
-      if (!u.email_verified) {
+      if (u.mobile_only) {
+        // docs/policy/mobile-sign-in.md section 3: no email to verify; the
+        // person gets a one-time sign-in code instead.
+        verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-issue-code-btn" '
+          + ' data-id="' + esc(u.user_id) + '" title="Issue sign-in code">'
+          + '<i class="fa-solid fa-mobile-screen"></i></button>';
+      } else if (!u.email_verified) {
         verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-warning user-resend-verify-btn" '
           + ' data-id="' + esc(u.user_id) + '" title="Resend verification email">'
           + '<i class="fa-solid fa-envelope"></i></button>';
@@ -95,14 +101,16 @@
       }
 
       var adminBadge = isAdmin ? ' <span class="badge text-bg-warning small">Admin</span>' : '';
-      var verifyBadge = u.email_verified
-        ? '<span class="badge text-bg-success">Verified</span>'
-        : '<span class="badge text-bg-warning text-dark">Unverified</span>';
+      var verifyBadge = u.mobile_only
+        ? '<span class="badge text-bg-info text-dark">Mobile</span>'
+        : (u.email_verified
+          ? '<span class="badge text-bg-success">Verified</span>'
+          : '<span class="badge text-bg-warning text-dark">Unverified</span>');
 
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + adminBadge + '</div>'
-        +   '<div class="small text-muted">' + esc(u.email) + '</div>'
+        +   '<div class="small text-muted">' + (u.email ? esc(u.email) : 'Signs in by mobile') + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
         + '<td class="align-middle py-2 small">' + esc((u.languages || []).join(', ')) + '</td>'
@@ -134,6 +142,20 @@
       editBtns[i].addEventListener('click', function() {
         var id = this.getAttribute('data-id');
         openEditForm(id);
+      });
+    }
+    var codeBtns = wrap.querySelectorAll('.user-issue-code-btn');
+    for (var c = 0; c < codeBtns.length; c++) {
+      codeBtns[c].addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+        apiJson('/admin/api/users/' + encodeURIComponent(btn.getAttribute('data-id')) + '/sign-in-code', 'POST')
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok) { showCode(null, res.data.error || 'Failed to issue a code.'); return; }
+            showCode(res.data.sign_in_code);
+          })
+          .catch(function () { btn.disabled = false; showCode(null, 'Network error.'); });
       });
     }
     var verifyBtns = wrap.querySelectorAll('.user-resend-verify-btn');
@@ -188,6 +210,18 @@
 
   var _pendingToggleId = null;
   var _toggleModal = null;
+
+  // A one-time sign-in code is shown once; the server keeps only its hash.
+  function showCode(code, error) {
+    var old = document.getElementById('user-code-box');
+    if (old) old.remove();
+    var html = code
+      ? '<div class="fw-semibold">One-time sign-in code: <code class="fs-5">' + esc(code) + '</code></div>'
+        + '<div>Give this code to the person; it expires in 72 hours. Any earlier code no longer works.</div>'
+      : esc(error);
+    document.getElementById('user-table-wrap').insertAdjacentHTML('beforebegin',
+      '<div id="user-code-box" class="alert ' + (code ? 'alert-info' : 'alert-danger') + ' small" role="status">' + html + '</div>');
+  }
 
   function promptToggle(userId, email, isActive) {
     var action = isActive ? 'Deactivate' : 'Activate';
@@ -328,9 +362,9 @@
 
     _editingId = userId;
     formTitle.textContent = 'Edit User';
-    emailInput.value = user.email;
+    emailInput.value = user.email || '';
     emailInput.disabled = false;
-    emailConfirmInput.value = user.email;
+    emailConfirmInput.value = user.email || '';
     emailConfirmInput.disabled = false;
     emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = user.name;
@@ -416,18 +450,29 @@
       data.sex = sexInput.value || null;
       data.email = emailInput.value.trim().toLowerCase();
       data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
-      if (!data.email) { errEl.textContent = 'Email is required.'; return; }
-      if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
-      if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      var editing = _users.find(function (u) { return u.user_id === _editingId; }) || {};
+      if (editing.mobile_only && !data.email && !data.email_confirm) {
+        // Leave a mobile-only account without an email.
+        delete data.email;
+        delete data.email_confirm;
+      } else {
+        if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+        if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+        if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      }
       if (!data.password) delete data.password;
     } else {
       url = '/admin/api/users';
       method = 'POST';
       data.email = emailInput.value.trim().toLowerCase();
       data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
-      if (!data.email) { errEl.textContent = 'Email is required.'; return; }
-      if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
-      if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      if (data.email || data.email_confirm) {
+        if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+        if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+        if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      } else if (!data.phone) {
+        errEl.textContent = 'Enter an email or a 10-digit mobile number.'; return;
+      }
       delete data.password;
     }
 
@@ -439,6 +484,7 @@
       btn.disabled = false;
       if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
       formContainer.classList.add('d-none');
+      if (res.data.sign_in_code) showCode(res.data.sign_in_code);
       loadUsers();
     }).catch(function () {
       btn.disabled = false;

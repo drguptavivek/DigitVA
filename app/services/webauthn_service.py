@@ -100,7 +100,9 @@ def build_registration_options(user, *, existing_credential_ids: list[bytes]):
         rp_id=_rp_id(),
         rp_name=_rp_name(),
         user_id=user.user_id.bytes,
-        user_name=user.email,
+        # A mobile-only account has no email; its number names the passkey on
+        # the person's own device (never sent anywhere else).
+        user_name=user.email or user.mobile_login or str(user.user_id),
         user_display_name=user.name,
         authenticator_selection=AuthenticatorSelectionCriteria(
             resident_key=ResidentKeyRequirement.REQUIRED,

@@ -6,7 +6,6 @@ Shared helpers live in app/services/data_management_service.py.
 """
 
 import logging
-import re
 import uuid
 
 import sqlalchemy as sa
@@ -49,6 +48,7 @@ from app.services import organization_service as org
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile
 from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
@@ -650,7 +650,7 @@ def manage_users():
         truncated = truncated or len(managed) > _USER_SEARCH_LIMIT
         for user in managed[:_USER_SEARCH_LIMIT]:
             found.setdefault(user.user_id, (user, []))
-        rows = sorted(found.values(), key=lambda row: row[0].email)
+        rows = sorted(found.values(), key=lambda row: (row[0].email or "", row[0].name))
         return jsonify({"users": [
             {
                 "user_id": str(u.user_id),
@@ -670,33 +670,6 @@ def manage_users():
 
 #: At most this many accounts for one mobile number (numbers are not unique).
 _LOOKUP_MOBILE_LIMIT = 5
-
-#: The stored phone, normalised in SQL exactly as ``_canonical_mobile`` does
-#: in Python: digits only, then a leading ``0`` or ``91`` in front of ten
-#: digits dropped.
-_PHONE_CANONICAL = sa.func.regexp_replace(
-    sa.func.regexp_replace(VaUsers.phone, "[^0-9]", "", "g"),
-    "^(0|91)([0-9]{10})$",
-    r"\2",
-)
-
-
-def _canonical_mobile(value):
-    """The ten-digit form of a typed mobile number, or None.
-
-    Keeps the digits only (spaces, dashes, brackets and ``+`` go), then drops
-    a trunk ``0`` (eleven digits) or the country code ``91`` (twelve digits).
-    Anything that is not then exactly ten digits is not a full number, so a
-    partial or padded number never matches. ``_PHONE_CANONICAL`` applies the
-    same rule to the stored phone.
-    """
-    digits = re.sub(r"[^0-9]", "", value)
-    if (len(digits) == 11 and digits.startswith("0")) or (
-        len(digits) == 12 and digits.startswith("91")
-    ):
-        digits = digits[-10:]
-    return digits if len(digits) == 10 else None
-
 
 def _lookup_posts(user_ids):
     """Active unit grants of *user_ids* as posts: unit and cadre, no role.
@@ -750,7 +723,7 @@ def manage_lookup_user():
     For a writer about to grant someone outside its area (policy:
     dm-user-grant-management.md, digitva-i0zb). ``value`` containing ``@``
     is an email, matched whole and case-insensitively (at most one); anything
-    else is a mobile number matched on ``_canonical_mobile`` (at most
+    else is a mobile number matched on ``canonical_mobile`` (at most
     ``_LOOKUP_MOBILE_LIMIT``). Active accounts only; no partial match.
 
     Returns ``{"users": [{user_id, name, email, status, posts}]}``, empty on
@@ -765,10 +738,10 @@ def manage_lookup_user():
     if "@" in value:
         stmt = stmt.where(sa.func.lower(VaUsers.email) == value.lower()).limit(1)
     else:
-        mobile = _canonical_mobile(value)
+        mobile = canonical_mobile(value)
         if mobile is None:
             return jsonify({"users": []})
-        stmt = stmt.where(_PHONE_CANONICAL == mobile).limit(_LOOKUP_MOBILE_LIMIT)
+        stmt = stmt.where(PHONE_CANONICAL == mobile).limit(_LOOKUP_MOBILE_LIMIT)
     users = db.session.scalars(stmt.order_by(VaUsers.email)).all()
     posts = _lookup_posts([u.user_id for u in users]) if users else {}
     # Job title joins these rows once the user model has one (digitva-04u4).
@@ -803,7 +776,7 @@ def manage_create_user():
     initial_project_id = (payload.get("initial_project_id") or "").strip() or None
 
     try:
-        fields = accounts.validate_new_user_payload(payload)
+        fields = accounts.validate_new_user_payload(payload, allow_mobile_only=True)
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
 
@@ -839,9 +812,12 @@ def manage_create_user():
     ):
         return _json_error(_GRANT_REFUSAL, 403)
 
-    new_user = accounts.create_invited_user(
-        fields, other={"created_by_user_id": str(current_user.user_id)}
-    )
+    try:
+        new_user = accounts.create_invited_user(
+            fields, other={"created_by_user_id": str(current_user.user_id)}
+        )
+    except accounts.UserAccountError as exc:
+        return _json_error(str(exc), 400)
     new_grant = VaUserAccessGrants(
         user_id=new_user.user_id,
         role=scope.role,
@@ -854,12 +830,24 @@ def manage_create_user():
         grant_status=VaStatuses.active,
     )
     db.session.add(new_grant)
+    # docs/policy/mobile-sign-in.md section 3: a mobile-only account gets its
+    # first sign-in code now, shown to the creator once in this response.
+    code = None
+    if new_user.is_mobile_only:
+        from app.services import mobile_sign_in_service
+
+        code = mobile_sign_in_service.issue_code(new_user, actor_user_id=current_user.user_id)
     db.session.commit()
     authz.invalidate(new_user.user_id)
 
     accounts.send_invitation(new_user)
 
-    return jsonify({"user": _serialize_user(new_user)}), 201
+    body = {"user": _serialize_user(new_user)}
+    if code:
+        body["sign_in_code"] = code
+    response = jsonify(body)
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
 
 
 @data_management.get("/api/users/<uuid:target_user_id>")
@@ -933,6 +921,8 @@ def manage_resend_verification(target_user_id):
     user = db.session.get(VaUsers, target_user_id)
     if not user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
+    if user.is_mobile_only:
+        return _json_error("This account has no email; issue a sign-in code instead.", 400)
     if user.email_verified:
         return _json_error("User email is already verified.", 400)
     try:
@@ -942,15 +932,44 @@ def manage_resend_verification(target_user_id):
         verify_token = generate_token(user.user_id, "email_verify")
         send_verification_email(user, verify_token)
     except Exception as exc:
-        log.exception("Resend verification failed for %s: %s", user.email, exc)
+        log.exception("Resend verification failed for user_id=%s: %s", user.user_id, exc)
         return _json_error("Failed to send verification email.", 500)
     return jsonify({"message": "Verification email sent."})
 
 
+@data_management.post("/api/users/<uuid:target_user_id>/sign-in-code")
+@role_required("data_manager", "admin")
+@limiter.limit("20 per hour")
+def manage_issue_sign_in_code(target_user_id):
+    """Issue a one-time sign-in code for a mobile-only account and return it
+    once (docs/policy/mobile-sign-in.md section 3). Allowed for admin and for
+    anyone who may manage one of the person's active grants; anyone else
+    gets the same 404 as an unknown account. Issuing voids the previous code.
+    """
+    from app.services import mobile_sign_in_service
+
+    user = db.session.get(VaUsers, target_user_id)
+    if not user or not mobile_sign_in_service.may_issue_code(current_user, target_user_id):
+        return _json_error("User not found.", 404)
+    try:
+        code = mobile_sign_in_service.issue_code(user, actor_user_id=current_user.user_id)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    response = jsonify({"sign_in_code": code, "expires_in_hours": 72})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
-    """DM can edit email only for users created by them; admins bypass."""
+    """A DM may set or change the email only of an account it created that
+    has never signed in (no verified email, no redeemed code); after that,
+    only an admin. Otherwise a DM could point someone's account at its own
+    mailbox and reset the password (security review 2026-10-03)."""
     if current_user.is_admin():
         return True
+    if target_user.email_verified or target_user.mobile_verified_at is not None:
+        return False
     other = target_user.other or {}
     created_by = other.get("created_by_user_id")
     return created_by == str(current_user.user_id)
@@ -977,7 +996,10 @@ def manage_update_user(target_user_id):
 
     if email_requested:
         if not _dm_can_edit_user_email(target_user):
-            return _json_error("You may update email only for users created by you.", 403)
+            return _json_error(
+                "You may update email only for users created by you who have not signed in yet.",
+                403,
+            )
         email = (email_raw or "").strip().lower()
         email_confirm = (email_confirm_raw or "").strip().lower()
         if not email or not email_confirm:
@@ -995,6 +1017,8 @@ def manage_update_user(target_user_id):
                 return _json_error("Email already in use.", 400)
             target_user.email = email
             target_user.email_verified = False
+            # A new address must be proved again; old sessions end.
+            target_user.bump_session_version()
             changed_email = True
 
     if languages_requested:

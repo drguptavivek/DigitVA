@@ -26,6 +26,7 @@ from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
+from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
 MAX_BYTES = 1024 * 1024
@@ -127,6 +128,19 @@ def prepare(project_id, rows, *, actor):
                                   VaUserAccessGrants.org_unit_id.in_([unit.org_unit_id for unit in units.values()])),
                        ))}
     mentor_members = member_user_ids(user.user_id for user in users.values())
+    # docs/policy/mobile-sign-in.md section 1: a new account's phone that is a
+    # valid mobile number becomes its sign-in number, so it must be unique:
+    # one query for every number in the file, plus repeats within the file.
+    file_mobiles = {canonical_mobile(row["phone"]) for row in rows} - {None}
+    taken_mobiles = set()
+    if file_mobiles:
+        for held in db.session.execute(
+            sa.select(VaUsers.mobile_login, PHONE_CANONICAL).where(sa.or_(
+                VaUsers.mobile_login.in_(file_mobiles), PHONE_CANONICAL.in_(file_mobiles)
+            ))
+        ):
+            taken_mobiles.update(held)
+    mobile_rows = {}
     # can_grant per distinct (role, unit): rows repeat targets, and each
     # decision locates its target with one query.
     permitted = {}
@@ -206,6 +220,11 @@ def prepare(project_id, rows, *, actor):
                     raise ProjectUserImportError("new user needs active language codes")
                 if len(row["phone"]) > 15:
                     raise ProjectUserImportError("phone is too long")
+                mobile = canonical_mobile(row["phone"])
+                if mobile and (
+                    mobile in taken_mobiles or mobile_rows.setdefault(mobile, email) != email
+                ):
+                    raise ProjectUserImportError("mobile number is already used by another account")
                 profile = (row["name"], tuple(languages), row["phone"])
                 if email in new_profiles and new_profiles[email] != profile:
                     raise ProjectUserImportError("new user profile differs from an earlier row")
@@ -214,6 +233,7 @@ def prepare(project_id, rows, *, actor):
             grant_key = (user.user_id, role, scope, unit.org_unit_id if unit else project_id) if user else None
             grant = existing_grants.get(grant_key)
             plan.append({"row": number, "email": email, "name": row["name"], "phone": row["phone"],
+                         "mobile": None if user else canonical_mobile(row["phone"]),
                          "languages": languages, "role": role, "unit": unit, "cadre": cadre,
                          "user": user, "grant": grant,
                          "action": "create_user" if not user else ("reactivate" if grant and grant.grant_status != VaStatuses.active else "update_cadre" if grant and unit and cadre and grant.cadre_id != cadre.cadre_id else "retain" if grant else "grant")})
@@ -232,6 +252,7 @@ def apply(project_id, plan, *, actor_user_id):
         user = item["user"] or new_users.get(item["email"])
         if user is None:
             user = VaUsers(email=item["email"], name=item["name"], phone=item["phone"] or None,
+                           mobile_login=item["mobile"],
                            user_status=VaStatuses.active, vacode_language=item["languages"],
                            permission={}, landing_page="coder", pw_reset_t_and_c=False,
                            email_verified=False, other={"created_by_user_id": str(actor_user_id)})

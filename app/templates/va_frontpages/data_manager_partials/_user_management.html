@@ -79,11 +79,11 @@
           <h6 class="card-title mb-3">Create User</h6>
           <div class="row g-2 align-items-start">
             <div class="col-sm-3">
-              <label class="form-label small mb-1">Email <span class="text-danger">*</span></label>
+              <label class="form-label small mb-1">Email</label>
               <input type="email" class="form-control form-control-sm" id="dm-user-email" placeholder="user@example.com">
             </div>
             <div class="col-sm-3">
-              <label class="form-label small mb-1">Confirm Email <span class="text-danger">*</span></label>
+              <label class="form-label small mb-1">Confirm Email</label>
               <input type="email" class="form-control form-control-sm" id="dm-user-email-confirm" placeholder="user@example.com">
             </div>
             <div class="col-sm-3">
@@ -91,8 +91,8 @@
               <input type="text" class="form-control form-control-sm" id="dm-user-name" placeholder="Full Name">
             </div>
             <div class="col-sm-3">
-              <label class="form-label small mb-1">Phone</label>
-              <input type="text" class="form-control form-control-sm" id="dm-user-phone" placeholder="+1234567890">
+              <label class="form-label small mb-1">Mobile number</label>
+              <input type="text" class="form-control form-control-sm" id="dm-user-phone" placeholder="10-digit mobile" inputmode="tel">
             </div>
             <div class="col-sm-3">
               <label class="form-label small mb-1">Initial Grant Project <span class="text-danger">*</span></label>
@@ -133,7 +133,7 @@
             <div class="col-12">
               <label class="form-label small mb-1">VA Languages <span class="text-danger">*</span></label>
               <select class="form-select form-select-sm" id="dm-user-languages" multiple></select>
-              <div class="form-text" style="font-size:0.7rem;">User receives an invite email + verification email; they set their own password.</div>
+              <div class="form-text" style="font-size:0.7rem;">Enter an email, a mobile number, or both. With an email the person receives an invite and a verification email and sets their own password. Without one they sign in with their mobile number: you get a one-time sign-in code to give them.</div>
             </div>
           </div>
           <div class="row g-2 mt-1">
@@ -147,6 +147,9 @@
           <div id="dm-user-form-error" class="text-danger small mt-2"></div>
         </div>
       </div>
+
+      {# One-time sign-in code, shown once after creating a mobile-only account #}
+      <div id="dm-sign-in-code-box" class="alert alert-info d-none small" role="status"></div>
 
       {# User search results #}
       <div id="dm-user-table-wrap"></div>
@@ -177,12 +180,18 @@
                   <input type="email" class="form-control form-control-sm" id="dm-user-edit-email-confirm" placeholder="confirm@example.com">
                 </div>
               </div>
+              <div id="dm-user-code-result" class="alert alert-info small mt-2 d-none" role="status"></div>
               <div id="dm-user-detail-error" class="text-danger mt-2"></div>
             </div>
             <div class="modal-footer py-2 d-flex justify-content-between">
-              <button type="button" class="btn btn-sm btn-outline-primary" id="dm-user-resend-verify-btn">
-                Resend Verification
-              </button>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="dm-user-resend-verify-btn">
+                  Resend Verification
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary d-none" id="dm-user-issue-code-btn">
+                  Issue sign-in code
+                </button>
+              </div>
               <div class="d-flex gap-2">
                 <button type="button" class="btn btn-sm btn-outline-primary" id="dm-user-manage-grants-btn">Manage Grants</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -485,6 +494,7 @@
     });
     document.getElementById('dm-user-submit-btn').addEventListener('click', submitUser);
     document.getElementById('dm-user-resend-verify-btn').addEventListener('click', resendVerificationForSelectedUser);
+    document.getElementById('dm-user-issue-code-btn').addEventListener('click', issueCodeForSelectedUser);
     document.getElementById('dm-user-update-email-btn').addEventListener('click', updateSelectedUserEmail);
     document.getElementById('dm-user-manage-grants-btn').addEventListener('click', openSelectedUserInGrantsTab);
     document.getElementById('dm-user-search-input').addEventListener('input', function () {
@@ -718,7 +728,7 @@
       return '<tr class="dm-user-row" data-user-id="' + esc(u.user_id) + '" style="cursor:pointer;">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
-        +   '<div class="small text-muted">' + esc(u.email) + '</div>'
+        +   '<div class="small text-muted">' + (u.email ? esc(u.email) : 'Signs in by mobile') + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
         + '<td class="align-middle py-2 small">' + esc((u.languages || []).join(', ')) + '</td>'
@@ -759,6 +769,8 @@
     errEl.textContent = '';
     document.getElementById('dm-user-edit-email').value = '';
     document.getElementById('dm-user-edit-email-confirm').value = '';
+    document.getElementById('dm-user-code-result').classList.add('d-none');
+    document.getElementById('dm-user-issue-code-btn').classList.add('d-none');
     $('#dm-user-edit-languages').val([]).trigger('change');
     if (!_userDetailModal) _userDetailModal = new bootstrap.Modal(document.getElementById('dm-user-detail-modal'));
     _userDetailModal.show();
@@ -796,24 +808,29 @@
         : '<div class="text-muted fst-italic mb-0">No active site-level grants in your scope.</div>';
       body.innerHTML =
         '<div><strong>Name:</strong> ' + esc(u.name) + '</div>'
-        + '<div><strong>Email:</strong> ' + esc(u.email) + '</div>'
+        + '<div><strong>Email:</strong> ' + (u.email ? esc(u.email) : '<span class="text-muted">None (signs in by mobile)</span>') + '</div>'
         + '<div><strong>Languages:</strong> ' + esc((u.languages || []).join(', ')) + '</div>'
         + '<div><strong>Status:</strong> ' + statusBadge + '</div>'
-        + '<div><strong>Email Verification:</strong> ' + verifyBadge + '</div>'
+        + (u.mobile_only
+            ? '<div><strong>Sign-in code redeemed:</strong> ' + (u.mobile_verified ? 'Yes' : 'Not yet') + '</div>'
+            : '<div><strong>Email Verification:</strong> ' + verifyBadge + '</div>')
         + '<hr class="my-2">'
         + '<div class="fw-semibold mb-1">Project Grants</div>'
         + projectGrantHtml
         + '<div class="fw-semibold mb-1">Project-Site Grants</div>'
         + siteGrantHtml;
       $('#dm-user-edit-languages').val(u.languages || []).trigger('change');
-      document.getElementById('dm-user-resend-verify-btn').disabled = !!u.email_verified;
+      document.getElementById('dm-user-resend-verify-btn').disabled = !!u.email_verified || !!u.mobile_only;
+      document.getElementById('dm-user-issue-code-btn').classList.toggle('d-none', !u.mobile_only);
     }).catch(function () {
       body.innerHTML = '<div class="text-danger">Network error.</div>';
     });
   }
 
   function openSelectedUserInGrantsTab() {
-    if (!_selectedUserId || !_selectedUserEmail) return;
+    if (!_selectedUserId) return;
+    // A mobile-only account has no email: label and filter by name.
+    var who = _selectedUserEmail || _selectedUserName;
     if (_userDetailModal) _userDetailModal.hide();
 
     var grantsTabBtn = document.getElementById('dm-grants-tab');
@@ -823,19 +840,45 @@
 
     document.getElementById('dm-ag-project-select').value = '';
     document.getElementById('dm-ag-filter-role').value = '';
-    document.getElementById('dm-ag-filter-text').value = _selectedUserEmail;
+    document.getElementById('dm-ag-filter-text').value = who;
 
     var form = document.getElementById('dm-ag-form-container');
     form.classList.remove('d-none');
-    selectGrantUser(
-      _selectedUserId,
-      _selectedUserEmail + ' (' + (_selectedUserName || _selectedUserEmail) + ')'
-    );
+    selectGrantUser(_selectedUserId, who + ' (' + (_selectedUserName || who) + ')');
 
     loadGrants();
     if (window.showAppToast) {
-      window.showAppToast('Grants filtered for ' + _selectedUserEmail + '.', 'info', { timeoutMs: 3500 });
+      window.showAppToast('Grants filtered for ' + who + '.', 'info', { timeoutMs: 3500 });
     }
+  }
+
+  // The code is shown once; the server keeps only its hash.
+  var CODE_HANDOVER_NOTE = 'Give this code to the person; it expires in 72 hours.';
+
+  function codeHtml(code) {
+    return '<div class="fw-semibold">One-time sign-in code: <code class="fs-5">' + esc(code) + '</code></div>'
+      + '<div>' + esc(CODE_HANDOVER_NOTE) + ' They choose "I have a code" on the sign-in page.</div>';
+  }
+
+  function issueCodeForSelectedUser() {
+    if (!_selectedUserId) return;
+    var btn = this;
+    var errEl = document.getElementById('dm-user-detail-error');
+    var box = document.getElementById('dm-user-code-result');
+    errEl.textContent = '';
+    box.classList.add('d-none');
+    btn.disabled = true;
+    apiJson('/data-management/api/users/' + encodeURIComponent(_selectedUserId) + '/sign-in-code', 'POST')
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed to issue a code.'; return; }
+        box.innerHTML = codeHtml(res.data.sign_in_code) + '<div class="text-muted">Any earlier code no longer works.</div>';
+        box.classList.remove('d-none');
+      })
+      .catch(function () {
+        btn.disabled = false;
+        errEl.textContent = 'Network error.';
+      });
   }
 
   function resendVerificationForSelectedUser() {
@@ -931,9 +974,13 @@
       initial_cadre_id: document.getElementById('dm-user-initial-cadre').value,
       languages: $('#dm-user-languages').val(),
     };
-    if (!data.email) { errEl.textContent = 'Email is required.'; return; }
-    if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
-    if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+    if (data.email || data.email_confirm) {
+      if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+      if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+      if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+    } else if (!data.phone) {
+      errEl.textContent = 'Enter an email or a mobile number.'; return;
+    }
     if (!data.name) { errEl.textContent = 'Name is required.'; return; }
     if (!data.initial_project_id) { errEl.textContent = 'Initial grant project is required.'; return; }
     if (!data.initial_role) { errEl.textContent = 'Initial grant role is required.'; return; }
@@ -956,6 +1003,14 @@
       btn.disabled = false;
       if (!res.ok) { errEl.textContent = res.data.error || 'Failed to create user.'; return; }
       document.getElementById('dm-user-form-container').classList.add('d-none');
+      var codeBox = document.getElementById('dm-sign-in-code-box');
+      if (res.data.sign_in_code) {
+        codeBox.innerHTML = '<div>Account created for ' + esc(res.data.user && res.data.user.name) + '.</div>'
+          + codeHtml(res.data.sign_in_code);
+        codeBox.classList.remove('d-none');
+      } else {
+        codeBox.classList.add('d-none');
+      }
       resetUserForm();
       loadUsers();
     }).catch(function () {
@@ -1124,7 +1179,7 @@
     var filtered = _allGrants.filter(function (g) {
       if (_selectedGrantUserId && g.user_id !== _selectedGrantUserId) return false;
       if (role && g.role !== role) return false;
-      if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
+      if (text && !(g.user_email || '').toLowerCase().includes(text) && !(g.user_name || '').toLowerCase().includes(text)) return false;
       return true;
     });
     renderGrantsTable(filtered);
@@ -1231,8 +1286,8 @@
       }
       list.innerHTML = users.map(function (u) {
         return '<button type="button" class="list-group-item list-group-item-action py-1 small"'
-          + ' data-uid="' + esc(u.user_id) + '" data-label="' + esc(u.email + ' (' + u.name + ')') + '">'
-          + esc(u.email) + ' <span class="text-muted">— ' + esc(u.name) + '</span></button>';
+          + ' data-uid="' + esc(u.user_id) + '" data-label="' + esc((u.email || u.name) + ' (' + u.name + ')') + '">'
+          + esc(u.email || 'Signs in by mobile') + ' <span class="text-muted">— ' + esc(u.name) + '</span></button>';
       }).join('')
         + (res.data.truncated
           ? '<div class="list-group-item disabled small text-muted">' + esc(TRUNCATED_NOTE) + '</div>'

@@ -97,6 +97,7 @@ def get_profile():
         "user_id": current_user.user_id,
         "name": current_user.name,
         "email": current_user.email,
+        "mobile_only": current_user.is_mobile_only,
         "languages": current_user.vacode_language or [],
         "timezone": current_user.timezone,
         "year_of_birth": current_user.year_of_birth,
@@ -131,7 +132,11 @@ def get_languages():
 @login_required
 @limiter.limit("5 per minute")
 def update_password():
-    """Change the current user's password."""
+    """Change the current user's password. Refused for a mobile-only
+    account, which never chooses one (docs/policy/mobile-sign-in.md
+    section 3); it asks for a generated one instead (below)."""
+    if current_user.is_mobile_only:
+        return _error("Your password is generated for you. Ask for a new one instead.", 403)
     body = request.get_json(silent=True) or {}
     current_pw = body.get("current_password", "")
     new_pw = body.get("new_password", "")
@@ -152,6 +157,41 @@ def update_password():
     current_user.set_password(new_pw)
     db.session.commit()
     return jsonify({"message": "Password updated successfully."})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/profile/password/generate  — new generated password (mobile)
+# ---------------------------------------------------------------------------
+
+@bp.post("/password/generate")
+@login_required
+@limiter.limit("5 per hour", key_func=_rate_limit_key)
+def generate_password():
+    """A new server-generated password for a mobile-only account, shown once
+    in this response (docs/policy/mobile-sign-in.md section 3). Needs a
+    reauthentication within the last ten minutes, like a factor change
+    (authentication-factors.md section 7). The old password stops working
+    and every session ends, this one included: the page sends the person to
+    sign in again with the new password."""
+    from app.services import mobile_sign_in_service
+
+    if not current_user.is_mobile_only:
+        return _error("Only accounts that sign in by mobile number get generated passwords.", 403)
+    reauth_error = _require_reauth()
+    if reauth_error:
+        return reauth_error
+    try:
+        password = mobile_sign_in_service.regenerate_password(current_user)
+    except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
+        db.session.rollback()
+        return _error(exc.message, 503)
+    db.session.commit()
+    response = jsonify({
+        "password": password,
+        "message": "Write this down. It will not be shown again.",
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-03
 ---
 
 # CLI Reference
@@ -40,7 +40,7 @@ Detailed policy: [`docs/policy/user-management-cli.md`](../policy/user-managemen
 | `users revoke-admin --email=...` | Deactivate global admin grant. |
 | `users set-status --email=... --status=active\|deactive` | Activate or deactivate a user. |
 
-Additional `users create` options: `--landing-page` (default: `coder`), `--timezone` (default: `Asia/Kolkata`), `--language` (repeatable), `--email-verified/--email-unverified`.
+Additional `users create` options: `--landing-page` (default: `coder`), `--timezone` (default: `Asia/Kolkata`), `--language` (repeatable), `--phone` (a 10-digit mobile number also becomes the sign-in number and must be unique; see `docs/policy/mobile-sign-in.md`), `--email-verified/--email-unverified`.
 
 ---
 

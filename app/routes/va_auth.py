@@ -5,20 +5,33 @@ from app.models import AuthWebauthnCredential, VaUsers
 from app.forms import (
     EmailStepForm,
     PasswordStepForm,
+    RedeemCodeForm,
     SecondFactorForm,
     ForgotPasswordForm,
     ResetPasswordForm,
 )
 import sqlalchemy as sa
 import uuid
-from flask import Blueprint, current_app, render_template, redirect, url_for, flash, session, request, jsonify
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.services import totp_service
+from app.services import mobile_sign_in_service, totp_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.security_event_service import credential_id_prefix, record_security_event
+from app.services.user_account_service import canonical_mobile
 from app.services.site_maintenance_service import (
     get_active_site_maintenance,
     serialize_site_maintenance,
@@ -35,11 +48,17 @@ from app.services.webauthn_service import (
 va_auth = Blueprint("va_auth", __name__)
 
 # docs/policy/authentication-factors.md section 1: pre-auth state is bound to
-# one email, allows one outstanding challenge, and expires 5 minutes after
-# the email step.
+# one email (or, docs/policy/mobile-sign-in.md section 2, one canonical
+# mobile number), allows one outstanding challenge, and expires 5 minutes
+# after the email step.
 PREAUTH_TTL = timedelta(minutes=5)
 INVALID_LOGIN_MESSAGE = "Invalid email or password. Please, re-check and login again."
 INVALID_SECOND_FACTOR_MESSAGE = "Invalid code. Please try again."
+INVALID_SIGN_IN_CODE_MESSAGE = "That mobile number and code do not match. Please check and try again."
+MOBILE_RESET_MESSAGE = (
+    "If you sign in with a mobile number, ask your data manager for a new "
+    "sign-in code, then use \"I have a code\" on the sign-in page."
+)
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
 
 # docs/policy/authentication-factors.md section 1: five failed second-factor
@@ -48,15 +67,32 @@ SECOND_FACTOR_MAX_FAILURES = 5
 
 
 def _preauth_email_key_func():
-    """Per-account limiter key for the password step: the pre-auth email, not
-    a form field an attacker controls."""
-    return (_preauth_state() or {}).get("email") or ""
+    """Per-account limiter key for the password step: the pre-auth email or
+    mobile number, not a form field an attacker controls."""
+    state = _preauth_state() or {}
+    if state.get("email"):
+        return state["email"]
+    return f"mobile:{state.get('mobile') or ''}"
+
+
+def _login_identifier_key_func(field: str = "email"):
+    """Per-identifier limiter key for a posted email or mobile number: a
+    mobile number keys on its canonical form, so spacing or a ``+91`` prefix
+    does not buy a fresh bucket."""
+    value = (request.form.get(field) or "").strip()
+    if "@" in value:
+        return value.lower()
+    return f"mobile:{canonical_mobile(value) or value}"
 
 
 def _preauth_state() -> dict | None:
-    """The current pre-auth state if present and not expired, else None."""
+    """The current pre-auth state if present and not expired, else None.
+    Names either an ``email`` or a ``mobile`` (canonical, or "" for a value
+    that is not a 10-digit number, which then matches no account)."""
     state = session.get("preauth")
-    if not isinstance(state, dict) or not state.get("email") or not state.get("issued_at"):
+    if not isinstance(state, dict) or not state.get("issued_at"):
+        return None
+    if not state.get("email") and "mobile" not in state:
         return None
     try:
         issued_at = datetime.fromisoformat(state["issued_at"])
@@ -67,12 +103,41 @@ def _preauth_state() -> dict | None:
     return state
 
 
-def _set_preauth(email: str, next_url: str | None) -> None:
-    session["preauth"] = {
-        "email": email,
-        "issued_at": datetime.now(timezone.utc).isoformat(),
-        "next": next_url,
-    }
+def _set_preauth(identifier: str, next_url: str | None) -> None:
+    """Start pre-auth for a typed email or mobile number, without looking
+    the account up (the email step never branches on existence)."""
+    state = {"issued_at": datetime.now(timezone.utc).isoformat(), "next": next_url}
+    identifier = (identifier or "").strip()
+    if "@" in identifier:
+        state["email"] = identifier.lower()
+    else:
+        state["mobile"] = canonical_mobile(identifier) or ""
+    session["preauth"] = state
+
+
+def _preauth_user(preauth: dict):
+    """The account the pre-auth state names, or None. A mobile number
+    matches only a unique sign-in number (``mobile_login``); shared or
+    malformed numbers are never set there, so they match no one."""
+    if preauth.get("email"):
+        return db.session.scalar(sa.select(VaUsers).where(VaUsers.email == preauth["email"]))
+    if preauth.get("mobile"):
+        return db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.mobile_login == preauth["mobile"])
+        )
+    return None
+
+
+def _preauth_names(user, preauth: dict) -> bool:
+    """Whether the pre-auth state still names *user* (same email or number)."""
+    if preauth.get("email"):
+        return user.email == preauth["email"]
+    return bool(preauth.get("mobile")) and user.mobile_login == preauth["mobile"]
+
+
+def _preauth_display(preauth: dict) -> str:
+    """What the person typed, for "Signing in as" on their own page."""
+    return preauth.get("email") or preauth.get("mobile") or "your mobile number"
 
 
 def _clear_preauth() -> None:
@@ -115,10 +180,11 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool) -> None:
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
-@limiter.limit("20 per hour", methods=["POST"],
-               key_func=lambda: (request.form.get("email") or "").lower().strip())
+@limiter.limit("20 per hour", methods=["POST"], key_func=_login_identifier_key_func)
 def va_login():
-    """Step 1: email plus the proof-of-work CAPTCHA. Never looks the user up
+    """Step 1: email or mobile number plus the proof-of-work CAPTCHA. A value
+    with ``@`` is an email, anything else a mobile number (docs/policy/
+    mobile-sign-in.md section 2). Never looks the user up
     or branches on whether the account exists -- see docs/policy/
     authentication-factors.md section 1.
     """
@@ -158,7 +224,7 @@ def va_login():
             )
 
         next_url = _safe_next_url(request.args.get("next"))
-        _set_preauth((form.email.data or "").strip().lower(), next_url)
+        _set_preauth(form.email.data, next_url)
         password_url = url_for("va_auth.va_login_password")
         if next_url:
             password_url = url_for("va_auth.va_login_password", next=next_url)
@@ -200,9 +266,7 @@ def va_login_password():
             flash("Please sign in again.", "primary")
             return redirect(url_for("va_auth.va_login"))
 
-        user = db.session.scalar(
-            sa.select(VaUsers).where(VaUsers.email == preauth["email"])
-        )
+        user = _preauth_user(preauth)
         # Inactive accounts get the wrong-password response: no enumeration.
         if user is None:
             # Spend a hash check anyway so unknown emails take as long.
@@ -215,8 +279,13 @@ def va_login_password():
             flash(INVALID_LOGIN_MESSAGE, "primary")
             return redirect(_password_step_url(next_url))
 
-        if not user.email_verified:
-            flash("Please verify your email address before logging in.", "email_unverified")
+        if not user.sign_in_verified:
+            if user.is_mobile_only:
+                # Unreachable in practice (a mobile-only password comes only
+                # from redeeming a code), kept so the check is never skipped.
+                flash(INVALID_LOGIN_MESSAGE, "primary")
+            else:
+                flash("Please verify your email address before logging in.", "email_unverified")
             return redirect(_password_step_url(next_url))
 
         if not user.is_admin() and should_block_non_admin_after_cutoff():
@@ -242,7 +311,7 @@ def va_login_password():
     return render_template(
         "va_frontpages/va_login_password.html",
         form=form,
-        email=preauth["email"],
+        email=_preauth_display(preauth),
         next_url=next_url,
     )
 
@@ -287,7 +356,7 @@ def va_login_second_factor():
     user = db.session.scalar(
         sa.select(VaUsers).where(VaUsers.user_id == uuid.UUID(preauth["second_factor_user_id"]))
     )
-    if user is None or not user.is_active or user.email != preauth["email"]:
+    if user is None or not user.is_active or not _preauth_names(user, preauth):
         _clear_preauth()
         flash("Please sign in again.", "primary")
         return redirect(url_for("va_auth.va_login"))
@@ -350,7 +419,7 @@ def va_login_second_factor():
     return render_template(
         "va_frontpages/va_login_second_factor.html",
         form=form,
-        email=user.email,
+        email=_preauth_display(preauth),
         next_url=next_url,
         has_totp=has_totp,
         has_passkey=has_passkey,
@@ -402,9 +471,7 @@ def va_login_passkey_verify():
         clear_authentication_challenge()
         return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
 
-    preauth_user = db.session.scalar(
-        sa.select(VaUsers).where(VaUsers.email == preauth["email"])
-    )
+    preauth_user = _preauth_user(preauth)
     stored = db.session.scalar(
         sa.select(AuthWebauthnCredential).where(
             AuthWebauthnCredential.credential_id == raw_id
@@ -443,7 +510,7 @@ def va_login_passkey_verify():
         db.session.commit()
         return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
 
-    if not user.email_verified:
+    if not user.sign_in_verified:
         return jsonify(
             {"error": "Please verify your email address before logging in."}
         ), 400
@@ -495,6 +562,62 @@ def site_maintenance_status():
 
 
 # ---------------------------------------------------------------------------
+# Sign-in codes for mobile-only accounts (docs/policy/mobile-sign-in.md s.3)
+# ---------------------------------------------------------------------------
+
+@va_auth.route("/valogin/code", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+@limiter.limit("10 per hour", methods=["POST"],
+               key_func=lambda: _login_identifier_key_func("mobile"))
+def va_login_redeem_code():
+    """"I have a code": a mobile number plus the one-time code a data manager
+    issued. On a match the server generates a password and shows it once,
+    on this response only (no-store; a refresh re-posts a spent code and
+    fails). A wrong number and a wrong code get the same answer. Public by
+    design, CAPTCHA-gated and rate-limited per IP and per number; the person
+    then signs in normally, so every factor rule still applies.
+    """
+    if current_user.is_authenticated:
+        return redirect(current_user.landing_url())
+    form = RedeemCodeForm()
+    if form.validate_on_submit():
+        solved = verify_challenge(
+            salt=form.captcha_salt.data,
+            difficulty=form.captcha_difficulty.data,
+            expires=form.captcha_expires.data,
+            signature=form.captcha_signature.data,
+            solution=form.captcha_solution.data,
+        )
+        if not solved:
+            flash("We couldn't verify that request. Please try again.", "primary")
+            return render_template(
+                "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
+            )
+        try:
+            result = mobile_sign_in_service.redeem_code(form.mobile.data, form.code.data)
+        except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
+            db.session.rollback()
+            flash(exc.message, "warning")
+            return render_template(
+                "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
+            )
+        db.session.commit()
+        if result is None:
+            flash(INVALID_SIGN_IN_CODE_MESSAGE, "primary")
+            return render_template(
+                "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
+            )
+        _user, password = result
+        response = make_response(render_template(
+            "va_frontpages/va_login_code_password.html", password=password
+        ))
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return response
+    return render_template("va_frontpages/va_login_code.html", form=form)
+
+
+# ---------------------------------------------------------------------------
 # Forgot Password
 # ---------------------------------------------------------------------------
 
@@ -505,8 +628,13 @@ def forgot_password():
         return redirect(current_user.landing_url())
     form = ForgotPasswordForm()
     if form.validate_on_submit():
+        if "@" not in form.email.data:
+            # A mobile-only account cannot reset by email. Same answer for
+            # every number, known or not (mobile-sign-in.md section 3).
+            flash(MOBILE_RESET_MESSAGE, "info")
+            return redirect(url_for("va_auth.forgot_password"))
         user = db.session.scalar(
-            sa.select(VaUsers).where(VaUsers.email == form.email.data)
+            sa.select(VaUsers).where(VaUsers.email == form.email.data.strip().lower())
         )
         if user:
             _send_password_reset(user)
@@ -546,7 +674,9 @@ def reset_password(token):
             return redirect(url_for("va_auth.forgot_password"))
 
         user = db.session.get(VaUsers, uid)
-        if not user:
+        # A mobile-only account never chooses its password (mobile-sign-in.md
+        # section 3); no reset link is ever mailed to one, so refuse any.
+        if not user or user.is_mobile_only:
             flash("User not found.", "danger")
             return redirect(url_for("va_auth.forgot_password"))
 
@@ -704,8 +834,11 @@ def resend_verification():
         return redirect(current_user.landing_url())
     form = ForgotPasswordForm()
     if form.validate_on_submit():
+        if "@" not in form.email.data:
+            flash(MOBILE_RESET_MESSAGE, "info")
+            return redirect(url_for("va_auth.resend_verification"))
         user = db.session.scalar(
-            sa.select(VaUsers).where(VaUsers.email == form.email.data)
+            sa.select(VaUsers).where(VaUsers.email == form.email.data.strip().lower())
         )
         if user and not user.email_verified:
             _send_email_verification(user)

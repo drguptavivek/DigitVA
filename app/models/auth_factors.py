@@ -8,7 +8,7 @@ audit trail, used by the login flow, enrolment enforcement, the admin
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -106,6 +106,58 @@ class AuthRecoveryCode(db.Model):
 
     def __repr__(self) -> str:
         return f"<AuthRecoveryCode {self.id} user_id={self.user_id} used={self.used_at is not None}>"
+
+
+class AuthMobileCode(db.Model):
+    """A one-time sign-in code for a mobile-only account, stored only as a
+    keyed hash (docs/policy/mobile-sign-in.md section 3). At most one is live
+    per user: issuing a new code voids the old; five wrong attempts, or
+    redeeming it, end it."""
+
+    __tablename__ = "auth_mobile_codes"
+    # At most one live code per person, even under concurrent issuers.
+    __table_args__ = (
+        sa.Index(
+            "ix_auth_mobile_codes_live_user",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text("redeemed_at IS NULL AND voided_at IS NULL"),
+        ),
+    )
+
+    id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_users.user_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    code_hash: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    issued_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_users.user_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    issued_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    expires_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime(timezone=True), nullable=False)
+    failed_attempts: so.Mapped[int] = so.mapped_column(
+        sa.Integer, nullable=False, default=0, server_default="0"
+    )
+    redeemed_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    voided_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+
+    def __repr__(self) -> str:
+        return f"<AuthMobileCode {self.id} user_id={self.user_id}>"
 
 
 class AuthSecurityEvent(db.Model):

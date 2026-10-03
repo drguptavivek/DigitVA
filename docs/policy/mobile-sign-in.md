@@ -60,8 +60,14 @@ passes a short numeric code to the person instead.
   mobile-only account, or later from the person's details panel, the page
   shows a **one-time numeric code** (6 digits) once. The issuer gives it to
   the person in person or by phone. It expires after 72 hours, is stored
-  only as a hash, and issuing a new one voids the old. Who may issue: anyone
-  who may manage one of the person's grants (`can_grant`), and admin.
+  only as a hash, and issuing a new one voids the old. Who may issue: an admin,
+  or someone who may manage **every** active grant the person holds
+  (`can_grant`); nobody but an admin issues a code for an admin, a project
+  PI, a data manager, an In-charge (`site_pi`), or anyone holding a grant
+  the issuer could not write. Privileged accounts (authentication-factors.md
+  section 3) get their codes from an admin. A code lets its
+  redeemer sign in as the person, so partial authority over them is not
+  enough.
 - **Redeeming it.** On the sign-in page the person chooses "I have a code",
   enters their mobile number and the code. If both match, the server
   generates a new password and shows it **once**, on that screen only, with
@@ -82,6 +88,13 @@ passes a short numeric code to the person instead.
   number and a wrong code give the same answer.
 - **Audit** records who issued a code and when, and when it was redeemed,
   never the code or the password.
+
+- **Changing the email of a mobile account.** A data manager may set or
+  change the email only on an account that has never signed in. After
+  that only an admin can, and any email change clears verification, ends
+  the person's sessions and sends a verification link to the new address.
+  Otherwise an issuer could point the account at their own mailbox and
+  take it over through "Forgot password".
 
 ## 4. Not changing
 

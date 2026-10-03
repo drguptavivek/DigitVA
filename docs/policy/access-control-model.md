@@ -796,8 +796,15 @@ window) stay with the workflow services. The legacy `permission` JSONB column is
   decided by `app/services/authz/`. Role gates (`role_required`) read
   `authz.effective_roles`; object and list access use `can`/`require`/
   `scope_filter`. The only exceptions are a reviewed, named public list:
-  sign-in, sign-out, password reset and verification links, static assets,
-  health checks and the public landing/help pages. Each entry states why.
+  sign-in, sign-out, password reset and verification links, the app's own
+  static assets (CSS, JavaScript, fonts, icons, images shipped with the
+  code), health checks and the public landing/help pages. Each entry states
+  why. **VA interview attachments are never static and never public**:
+  photos, documents, narration audio and any other file belonging to a
+  submission are served only through the attachment and media routes,
+  which decide with authz (`READ_ATTACHMENTS`) on every request; they must
+  not be placed under, or reachable from, the static path or any public
+  URL.
 - **Fail closed.** A non-public endpoint that completes without consulting
   authz is a defect. Tests probe every registered route with a user holding
   no grants and with each role, and fail if any non-public endpoint skips

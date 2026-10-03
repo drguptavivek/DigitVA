@@ -11,8 +11,11 @@ last_updated: 2026-10-03
 Field staff such as ANM and ASHA often have no email address of their own.
 Owner decision 2026-10-03 (digitva-l7c2): such a person signs in with their
 mobile number, so long as that number is present and unique. This page is
-the baseline; [authentication-factors.md](authentication-factors.md) still
-governs everything not said here.
+the baseline for the mobile-number details; onboarding and passwords for
+every account are in
+[account-onboarding-and-passwords.md](account-onboarding-and-passwords.md),
+and [authentication-factors.md](authentication-factors.md) still governs
+everything not said here.
 
 ## 1. Identity
 
@@ -42,8 +45,9 @@ governs everything not said here.
   A mobile number that matches no account, or matches a number shared by
   two accounts, gets the same page and the wrong-credentials result, never a
   message saying which.
-- A mobile-only account is "verified" when its holder first redeems a code
-  (section 3); the verified-email check applies to email accounts.
+- A mobile number becomes usable for sign-in when its holder first redeems
+  a code (section 3), or when the account's email is verified (onboarding
+  policy section 5.1).
 
 ## 3. Server-generated password, released by a one-time code
 

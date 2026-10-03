@@ -3,7 +3,7 @@ title: Password Breach Check Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-08
+last_updated: 2026-10-03
 ---
 
 # Password Breach Check Policy
@@ -22,7 +22,10 @@ This policy applies to any flow where an operator or user sets a password that w
 - admin password edit
 - CLI password reset / create flows that accept a user-entered password
 
-Login verification itself is unchanged.
+Login verification itself is unchanged. Since 2026-10-03 passwords are
+server-generated
+([account-onboarding-and-passwords.md](account-onboarding-and-passwords.md));
+every generated password is checked the same way and regenerated on a hit.
 
 ## Baseline Rules
 

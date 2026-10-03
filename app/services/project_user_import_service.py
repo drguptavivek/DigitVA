@@ -22,6 +22,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_languages import MasLanguages
+from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
@@ -73,12 +74,17 @@ def parse_csv(stream):
     return parse_upload(stream, "users.csv")
 
 
-def prepare(project_id, rows, *, is_admin):
+def prepare(project_id, rows, *, actor):
     """Resolve all users, roles and scopes without writing; return an apply plan.
 
-    Raises ProjectUserImportError with row numbers. Existing user profiles are
+    *actor* is the importing user: every row's grant must pass
+    ``authz.can_grant`` for them (an admin writes anything; a project PI any
+    role but admin and project_pi in their project). Raises
+    ProjectUserImportError with row numbers. Existing user profiles are
     ignored; profile fields are used only when an admin creates a new account.
     """
+    actor_grants = authz.resolve_grants(actor)
+    is_admin = actor_grants.is_admin
     project = db.session.get(VaProjectMaster, project_id)
     if not project or project.project_status != VaStatuses.active:
         raise ProjectUserImportError("Active project not found.")
@@ -121,6 +127,9 @@ def prepare(project_id, rows, *, is_admin):
                                   VaUserAccessGrants.org_unit_id.in_([unit.org_unit_id for unit in units.values()])),
                        ))}
     mentor_members = member_user_ids(user.user_id for user in users.values())
+    # can_grant per distinct (role, unit): rows repeat targets, and each
+    # decision locates its target with one query.
+    permitted = {}
     plan = []
     seen = set()
     new_profiles = {}
@@ -166,6 +175,16 @@ def prepare(project_id, rows, *, is_admin):
                         raise ProjectUserImportError(
                             f"{role.value} needs a cadre permitted to {permits} at this unit's level"
                         )
+            target_key = (role, unit.org_unit_id if unit else None)
+            if target_key not in permitted:
+                permitted[target_key] = bool(authz.can_grant(actor, authz.GrantTarget(
+                    role=role,
+                    scope_type=VaAccessScopeTypes.org_unit if unit else VaAccessScopeTypes.project,
+                    project_id=None if unit else project_id,
+                    org_unit_id=unit.org_unit_id if unit else None,
+                ), _grants=actor_grants))
+            if not permitted[target_key]:
+                raise ProjectUserImportError("you are not permitted to grant this role here")
             key = (email, role, unit_code)
             if key in seen:
                 raise ProjectUserImportError("duplicate email, role and scope")

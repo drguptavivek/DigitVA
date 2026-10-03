@@ -100,8 +100,9 @@ def _locate(target: GrantTarget) -> _Where | None:
     return None
 
 
-def _writers(g: ResolvedGrants) -> list[Grant]:
-    """The actor's grants that confer any grant-writing power."""
+def writer_grants(g: ResolvedGrants) -> list[Grant]:
+    """The actor's grants that confer any grant-writing power: project_pi,
+    data_manager at any scope, site_pi at a unit (the In-charge)."""
     return [
         x for x in g.grants
         if not x.virtual and (
@@ -166,7 +167,7 @@ def can_grant(
     g = _grants if _grants is not None else resolve_grants(actor)
     if g.is_admin:
         return _ALLOWED
-    writers = _writers(g)
+    writers = writer_grants(g)
     if not writers:
         return _deny(Reason.NO_ROLE)
     if target.role in PI_NEVER_ASSIGNS or target.scope_type == VaAccessScopeTypes.global_scope:
@@ -249,7 +250,7 @@ def grant_list_filter(actor, *, _grants: ResolvedGrants | None = None) -> sa.Col
     g = _grants if _grants is not None else resolve_grants(actor)
     if g.is_admin:
         return sa.true()
-    clauses = [_list_clause(g, x) for x in _writers(g)]
+    clauses = [_list_clause(g, x) for x in writer_grants(g)]
     if not clauses:
         return sa.false()
     not_own_dm = sa.not_(sa.and_(_G.role == _R.data_manager, _G.user_id == g.user_id))

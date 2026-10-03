@@ -17,6 +17,7 @@ from functools import wraps
 from app import db
 from app.decorators import role_required
 from app.models import (
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -39,8 +40,10 @@ from app.routes.admin import (
     _serialize_projects,
     _serialize_user,
 )
+from app.services import authz
 from app.services import mentor_institute_service as mentors
-from app.services.org_grant_service import scope_unit_ids_select, validate_org_unit_grant
+from app.services import organization_service as org
+from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
@@ -49,7 +52,8 @@ from app.services.data_management_service import (
     dm_grant_scope,
     dm_scoped_forms,
 )
-from app.services.authz import Action, AuthzError, require
+from app.services.authz import Action, AuthzError, GrantTarget, require
+from app.services.authz.actions import DM_SITE_ASSIGNABLE, DM_TREE_ASSIGNABLE
 from app.services.cod_bucket_mapping_service import (
     default_reporting_scheme_code,
     list_cod_bucket_schemes,
@@ -67,29 +71,67 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-_UNIT_GRANT_REFUSAL = (
-    "Unit-scoped grants are managed from the admin user panel, except for "
-    "mentoring institute staff inside districts you manage."
-)
+_R = VaAccessRoles
+_P = VaAccessScopeTypes.project
+_PS = VaAccessScopeTypes.project_site
+_U = VaAccessScopeTypes.org_unit
+
+#: The roles this interface writes and lists, for every caller (admin
+#: included): what a data manager assigns in either project kind. Who may
+#: write which role where is ``authz.can_grant``'s; site_pi,
+#: interview_supervisor, project_pi and admin stay on the admin panel.
+_DM_INTERFACE_ROLES = DM_SITE_ASSIGNABLE | DM_TREE_ASSIGNABLE
+_DM_INTERFACE_ROLE_LIST = sorted(_DM_INTERFACE_ROLES, key=lambda r: r.value)
+
+#: One message for every refusal, so it never says whether the grantee is a
+#: mentoring institute member (the guard runs only after this passes).
+_GRANT_REFUSAL = "You may not manage this grant."
 
 
-def _dm_can_manage_unit_grant(user, role, org_unit_id, target_user_id):
-    """Unit grants are the admin panel's, with one exception: a data manager
-    covering the unit's district (unit grant at or above it, or project scope)
-    may manage a mentoring institute member's mentor-role grant there. One
-    message for every refusal so it does not reveal who is a member.
-    """
-    if user.is_admin():
-        return False, _UNIT_GRANT_REFUSAL
-    unit = db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None
-    if (
-        unit is None
-        or role not in mentors.MENTOR_ROLES
-        or target_user_id not in mentors.member_user_ids([target_user_id])
-        or not mentors.dm_covers_mentor_unit(user.user_id, unit)
-    ):
-        return False, _UNIT_GRANT_REFUSAL
-    return True, None
+def _grant_target(role, scope_type, project_id, project_site_id, org_unit_id):
+    return GrantTarget(
+        role=role,
+        scope_type=scope_type,
+        project_id=project_id if scope_type == _P else None,
+        project_site_id=project_site_id if scope_type == _PS else None,
+        org_unit_id=org_unit_id if scope_type == _U else None,
+    )
+
+
+def _may_write(target, grantee_id) -> bool:
+    """Whether the current user may create, reactivate or revoke *target* here."""
+    return target.role in _DM_INTERFACE_ROLES and bool(
+        authz.can_grant(current_user, target, grantee_id=grantee_id)
+    )
+
+
+def _writer_role() -> str:
+    """The role recorded as the actor of a grant write in the audit log."""
+    g = authz.resolve_grants(current_user)
+    if g.is_admin:
+        return "admin"
+    held = {x.role for x in authz.writer_grants(g)}
+    return next(
+        (r.value for r in (_R.project_pi, _R.site_pi, _R.data_manager) if r in held),
+        "data_manager",
+    )
+
+
+def _assignable_roles(g, writers):
+    """The interface roles some writer grant of the actor may assign somewhere."""
+    if g.is_admin:
+        return _DM_INTERFACE_ROLES
+    roles = set()
+    for x in writers:
+        if x.role == _R.project_pi:
+            roles |= _DM_INTERFACE_ROLES
+        elif not g.has_tree(x.project_id):
+            roles |= DM_SITE_ASSIGNABLE
+        else:
+            roles |= DM_TREE_ASSIGNABLE
+            if x.scope_type != _PS:  # nothing lies below a pair
+                roles.add(_R.data_manager)
+    return roles
 
 
 def _mentor_guard_error(user_id, role, org_unit_id=None, cadre_id=None):
@@ -112,105 +154,45 @@ def _mentor_guard_error(user_id, role, org_unit_id=None, cadre_id=None):
     return None
 
 
-def _dm_can_manage_scope(
-    user, role, scope_type, resolved_project_id, project_site_id,
-    org_unit_id=None, target_user_id=None,
-):
-    """Return (ok, error_message) for whether *user* can create/toggle a grant."""
-    if scope_type == VaAccessScopeTypes.org_unit:
-        return _dm_can_manage_unit_grant(user, role, org_unit_id, target_user_id)
-    if user.is_admin():
-        if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
-            return False, "Only coder, coding_tester, or data_manager roles may be assigned from this interface."
-        return True, None
-    if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
-        return False, "Data-managers may only assign coder, coding_tester, or data_manager roles."
-
-    dm_projects = user.get_data_manager_projects()
-    dm_site_pairs = user.get_data_manager_project_sites()
-
-    if scope_type == VaAccessScopeTypes.project:
-        if resolved_project_id not in dm_projects:
-            return False, "You do not have access to assign grants at project level for this project."
-        return True, None
-
-    if scope_type == VaAccessScopeTypes.project_site:
-        ps = db.session.get(VaProjectSites, project_site_id)
-        if not ps or ps.project_site_status != VaStatuses.active:
-            return False, "Active project-site mapping not found."
-        # Project-scoped DM covers all sites in their project
-        if ps.project_id in dm_projects:
-            return True, None
-        # Site-scoped DM covers only their specific sites
-        if (ps.project_id, ps.site_id) in dm_site_pairs:
-            return True, None
-        return False, "You do not have access to assign grants for this site."
-
-    return False, "Invalid scope type."
+def _listed_grants_condition():
+    """The grants these pages list: interface roles the actor may manage."""
+    return sa.and_(
+        VaUserAccessGrants.role.in_(_DM_INTERFACE_ROLE_LIST),
+        authz.grant_list_filter(current_user),
+    )
 
 
-def _dm_grant_filter(project_id_expression):
-    """SQLAlchemy WHERE clause limiting grants to the DM's managed scope.
+def _is_wide_writer() -> bool:
+    """Admin, or a project/pair data manager or project PI: the full user
+    search and any account. A unit writer (unit data manager, In-charge)
+    reaches only the people it manages."""
+    g = authz.resolve_grants(current_user)
+    return g.is_admin or any(x.scope_type in (_P, _PS) for x in authz.writer_grants(g))
 
-    Project grant: every grant in the project. Site grant: grants on that
-    project-site. Unit grant: unit grants held inside its subtree (seeing them
-    is not managing them; ``_dm_can_manage_scope`` decides that).
-    """
-    if current_user.is_admin():
-        return sa.true()
-    dm_projects = current_user.get_data_manager_projects()
-    dm_site_pairs = current_user.get_data_manager_project_sites()
 
-    conditions = [
-        sa.and_(
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            VaUserAccessGrants.org_unit_id.in_(
-                scope_unit_ids_select(current_user.user_id, [VaAccessRoles.data_manager])
-            ),
+def _managed_user_condition():
+    """Accounts holding an active grant the current user may manage."""
+    return VaUsers.user_id.in_(
+        sa.select(VaUserAccessGrants.user_id).where(
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            _listed_grants_condition(),
         )
-    ]
-    if dm_projects:
-        conditions.append(project_id_expression.in_(sorted(dm_projects)))
-    if dm_site_pairs:
-        conditions.append(
-            VaUserAccessGrants.project_site_id.in_(
-                sa.select(VaProjectSites.project_site_id).where(
-                    sa.tuple_(VaProjectSites.project_id, VaProjectSites.site_id).in_(
-                        sorted(dm_site_pairs)
-                    ),
-                    VaProjectSites.project_site_status == VaStatuses.active,
-                )
-            )
-        )
-    return sa.or_(*conditions)
-
-
-#: Roles listed on the data-manager grant pages: the three a data manager
-#: assigns, plus the mentor roles on unit grants of mentoring institute staff
-#: (which a district data manager also manages).
-_DM_LISTED_ROLES = (VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager)
-
-
-def _dm_listed_grant_condition():
-    return sa.or_(
-        VaUserAccessGrants.role.in_(_DM_LISTED_ROLES),
-        sa.and_(
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            VaUserAccessGrants.role.in_(list(mentors.MENTOR_ROLES)),
-            VaUserAccessGrants.user_id.in_(mentors.active_member_ids_select()),
-        ),
     )
 
 
 def _dm_may_see_user(target_user_id) -> bool:
-    """Whose account a data manager may open or edit on these pages.
+    """Whose account the current user may open or edit on these pages.
 
-    Admins and project/site data managers keep the reach they always had. A
-    data manager holding only unit grants sees the mentoring institute staff
-    of districts they cover and no one else (the same people their user
-    search returns).
+    A wide writer (``_is_wide_writer``) keeps the reach project and site data
+    managers always had. A unit writer sees the holders of grants it may
+    manage, plus the mentoring institute staff of districts it covers (the
+    same people its user search returns).
     """
-    if current_user.is_admin() or current_user.has_direct_data_manager_scope():
+    if _is_wide_writer():
+        return True
+    if db.session.scalar(sa.select(sa.exists().where(
+        VaUsers.user_id == target_user_id, _managed_user_condition()
+    ))):
         return True
     staff, _ = mentors.dm_visible_mentor_staff(
         current_user.user_id, "", True, user_id=target_user_id
@@ -221,10 +203,12 @@ def _dm_may_see_user(target_user_id) -> bool:
 def require_dm_scope(f):
     """Structural authz gate for grant mutation endpoints.
 
-    Runs _dm_can_manage_scope() before the handler so the check is
-    structurally unskippable, then the mentoring-institute guard. Two paths:
+    Asks ``authz.can_grant`` (behind the interface role list) before the
+    handler so the check is structurally unskippable, then the
+    mentoring-institute guard. Two paths:
 
-    - Toggle (grant_id in URL kwargs): loads grant from DB, resolves scope.
+    - Toggle (grant_id in URL kwargs): the stored grant's role and scope; a
+      non-admin never revokes their own data_manager grant here.
     - Create (no grant_id): resolves scope from JSON payload and stores the
       parsed values in g.dm_scope so the handler avoids re-parsing.
     """
@@ -238,28 +222,25 @@ def require_dm_scope(f):
             grant = db.session.get(VaUserAccessGrants, grant_id)
             if not grant:
                 return _json_error("Grant not found.", 404)
-            if grant.scope_type == VaAccessScopeTypes.project:
-                resolved_project_id = grant.project_id
-            elif grant.scope_type == VaAccessScopeTypes.project_site:
-                ps = db.session.get(VaProjectSites, grant.project_site_id)
-                resolved_project_id = ps.project_id if ps else None
-            elif grant.scope_type == VaAccessScopeTypes.org_unit:
-                unit = db.session.get(MasOrgUnit, grant.org_unit_id)
-                resolved_project_id = unit.project_id if unit else None
-            else:
-                return _json_error("Invalid scope type.", 400)
-            ok, err = _dm_can_manage_scope(
-                current_user, grant.role, grant.scope_type,
-                resolved_project_id, grant.project_site_id,
-                org_unit_id=grant.org_unit_id, target_user_id=grant.user_id,
+            if (
+                not current_user.is_admin()
+                and grant.role == _R.data_manager
+                and grant.user_id == current_user.user_id
+            ):
+                return _json_error(
+                    "You cannot revoke your own data_manager grant from this interface.", 400
+                )
+            ok = _may_write(
+                _grant_target(grant.role, grant.scope_type, grant.project_id,
+                              grant.project_site_id, grant.org_unit_id),
+                grant.user_id,
             )
             if ok and grant.grant_status != VaStatuses.active:
                 # Reactivating is a write: the mentor guard (and, for a unit
                 # grant, the cadre rule) run after the permission check.
                 guard_error = _mentor_guard_error(
                     grant.user_id, grant.role,
-                    grant.org_unit_id
-                    if grant.scope_type == VaAccessScopeTypes.org_unit else None,
+                    grant.org_unit_id if grant.scope_type == _U else None,
                     grant.cadre_id,
                 )
         else:
@@ -274,18 +255,15 @@ def require_dm_scope(f):
                 scope = _resolve_scope_from_payload(payload)
             except ValueError as exc:
                 return _json_error(str(exc), 400)
-            role = scope.role
-            scope_type = scope.scope_type
-            resolved_project_id = scope.project_id
-            project_site_id = scope.project_site_id
-            ok, err = _dm_can_manage_scope(
-                current_user, role, scope_type, resolved_project_id, project_site_id,
-                org_unit_id=scope.org_unit_id, target_user_id=target_id,
+            ok = _may_write(
+                _grant_target(scope.role, scope.scope_type, scope.project_id,
+                              scope.project_site_id, scope.org_unit_id),
+                target_id,
             )
             if ok:
                 guard_error = _mentor_guard_error(
-                    target_id, role,
-                    scope.org_unit_id if scope_type == VaAccessScopeTypes.org_unit else None,
+                    target_id, scope.role,
+                    scope.org_unit_id if scope.scope_type == _U else None,
                     scope.cadre_id,
                 )
             # Store parsed scope on g so the handler doesn't need to re-parse.
@@ -293,10 +271,9 @@ def require_dm_scope(f):
 
         if not ok:
             log.warning(
-                "Grant scope denied: user=%s path=%s reason=%s",
-                current_user.get_id(), request.path, err,
+                "Grant scope denied: user=%s path=%s", current_user.get_id(), request.path
             )
-            return _json_error(err, 403)
+            return _json_error(_GRANT_REFUSAL, 403)
         if guard_error:
             return _json_error(guard_error, 400)
 
@@ -456,11 +433,11 @@ def user_management():
 @role_required("data_manager", "admin")
 def manage_bootstrap():
     """Return CSRF token and scope context for the management JS."""
-    is_admin = current_user.is_admin()
-    dm_projects = sorted(current_user.get_data_manager_projects())
-    dm_site_pairs = current_user.get_data_manager_project_sites()
+    grants = authz.resolve_grants(current_user)
+    writers = authz.writer_grants(grants)
+    is_admin = grants.is_admin
     # Admins are treated as project-scoped (can assign at project or site level)
-    is_project_scoped = is_admin or bool(dm_projects)
+    is_project_scoped = is_admin or any(x.scope_type == _P for x in writers)
 
     return jsonify({
         "csrf_header_name": "X-CSRFToken",
@@ -469,59 +446,56 @@ def manage_bootstrap():
             "user_id": str(current_user.user_id),
             "email": current_user.email,
             "name": current_user.name,
+            "is_admin": is_admin,
             "is_project_scoped": is_project_scoped,
-            "managed_project_ids": dm_projects,
+            "managed_project_ids": sorted({x.project_id for x in writers if x.scope_type == _P}),
             "managed_site_pairs": [
                 {"project_id": pid, "site_id": sid}
-                for pid, sid in sorted(dm_site_pairs)
+                for pid, sid in sorted({(x.project_id, x.site_id) for x in writers
+                                        if x.scope_type == _PS})
             ],
         },
-        "allowed_roles": ["coder", "coding_tester", "data_manager"],
+        "allowed_roles": sorted(r.value for r in _assignable_roles(grants, writers)),
     })
 
 
 @data_management.get("/api/projects")
 @role_required("data_manager", "admin")
 def manage_projects():
-    """Projects the data-manager can manage."""
-    dm_projects = current_user.get_data_manager_projects()
-    dm_site_pairs = current_user.get_data_manager_project_sites()
-    # Union of project IDs from project-, site- and unit-scoped grants
-    all_project_ids = (
-        dm_projects
-        | {pid for pid, _ in dm_site_pairs}
-        | current_user.get_org_unit_projects("data_manager")
-    )
-    # Admins see all projects
-    if current_user.is_admin():
-        stmt = (
-            sa.select(VaProjectMaster)
-            .where(VaProjectMaster.project_status == VaStatuses.active)
-            .order_by(VaProjectMaster.project_id)
-        )
-        projects = db.session.scalars(stmt).all()
-        return jsonify({"projects": _serialize_projects(projects)})
-    if not all_project_ids:
-        return jsonify({"projects": []})
+    """Projects the current user may write grants in, each with ``has_tree``
+    (an active organization level: the unit scope applies)."""
     stmt = (
         sa.select(VaProjectMaster)
-        .where(
-            VaProjectMaster.project_status == VaStatuses.active,
-            VaProjectMaster.project_id.in_(list(all_project_ids)),
-        )
+        .where(VaProjectMaster.project_status == VaStatuses.active)
         .order_by(VaProjectMaster.project_id)
     )
+    grants = authz.resolve_grants(current_user)
+    if not grants.is_admin:
+        project_ids = sorted({x.project_id for x in authz.writer_grants(grants)})
+        if not project_ids:
+            return jsonify({"projects": []})
+        stmt = stmt.where(VaProjectMaster.project_id.in_(project_ids))
     projects = db.session.scalars(stmt).all()
-    return jsonify({"projects": _serialize_projects(projects)})
+    tree_ids = set(db.session.scalars(
+        sa.select(MasOrgLevel.project_id).distinct().where(
+            MasOrgLevel.project_id.in_([p.project_id for p in projects]),
+            MasOrgLevel.is_active.is_(True),
+        )
+    ))
+    serialized = _serialize_projects(projects)
+    for item in serialized:
+        item["has_tree"] = item["project_id"] in tree_ids
+    return jsonify({"projects": serialized})
 
 
 @data_management.get("/api/project-sites")
 @role_required("data_manager", "admin")
 def manage_project_sites():
-    """Project-sites within the data-manager's scope."""
+    """Project-sites the current user may write grants on: every site of a
+    project they hold a project-scope writer grant in, and their own pairs."""
     project_id = request.args.get("project_id")
-    dm_projects = current_user.get_data_manager_projects()
-    dm_site_pairs = current_user.get_data_manager_project_sites()
+    grants = authz.resolve_grants(current_user)
+    writers = authz.writer_grants(grants)
 
     stmt = (
         sa.select(
@@ -549,21 +523,19 @@ def manage_project_sites():
         stmt = stmt.where(VaProjectSites.project_id == project_id)
 
     # Admins see all project-sites.
-    if not current_user.is_admin():
-        # Filter to DM's accessible sites
+    if not grants.is_admin:
+        projects = sorted({x.project_id for x in writers if x.scope_type == _P})
+        pairs = sorted({(x.project_id, x.site_id) for x in writers if x.scope_type == _PS})
         conditions = []
-        if dm_projects:
-            conditions.append(VaProjectSites.project_id.in_(list(dm_projects)))
-        if dm_site_pairs:
-            pair_clauses = [
-                sa.and_(VaProjectSites.project_id == pid, VaProjectSites.site_id == sid)
-                for pid, sid in dm_site_pairs
-            ]
-            conditions.append(sa.or_(*pair_clauses))
-        if conditions:
-            stmt = stmt.where(sa.or_(*conditions))
-        else:
+        if projects:
+            conditions.append(VaProjectSites.project_id.in_(projects))
+        if pairs:
+            conditions.append(
+                sa.tuple_(VaProjectSites.project_id, VaProjectSites.site_id).in_(pairs)
+            )
+        if not conditions:
             return jsonify({"project_sites": []})
+        stmt = stmt.where(sa.or_(*conditions))
 
     rows = db.session.execute(
         stmt.order_by(VaProjectSites.project_id, VaProjectSites.site_id)
@@ -571,8 +543,75 @@ def manage_project_sites():
     return jsonify({"project_sites": [_serialize_project_site(r) for r in rows]})
 
 
+@data_management.get("/api/organization")
+@role_required("data_manager", "admin")
+def manage_organization():
+    """Unit and cadre pickers for one district project.
+
+    ``units``: the active units the current user may write grants on (all of
+    them for an admin or a project-scope writer, the subtree of each unit
+    writer grant, none for a pair writer); ``cadres`` and ``level_cadres``
+    let the page offer only cadres defined at a unit's level, as the
+    validator requires. 403 when the user writes no grant in the project.
+    """
+    project_id = (request.args.get("project_id") or "").strip()
+    grants = authz.resolve_grants(current_user)
+    writers = [x for x in authz.writer_grants(grants) if x.project_id == project_id]
+    if not (grants.is_admin or writers):
+        return _json_error("You do not have access to that project.", 403)
+
+    stmt = (
+        sa.select(
+            MasOrgUnit.org_unit_id, MasOrgUnit.unit_code, MasOrgUnit.unit_name,
+            MasOrgUnit.org_level_id, MasOrgLevel.level_code, MasOrgLevel.depth,
+        )
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True))
+        .order_by(MasOrgUnit.path)
+    )
+    if not (grants.is_admin or any(x.scope_type == _P for x in writers)):
+        unit_ids = [x.org_unit_id for x in writers if x.scope_type == _U]
+        if not unit_ids:
+            return jsonify({"units": [], "cadres": [], "level_cadres": []})
+        stmt = stmt.where(MasOrgUnit.org_unit_id.in_(authz.subtree_select(unit_ids)))
+    units = [
+        {
+            "org_unit_id": str(row.org_unit_id),
+            "unit_code": row.unit_code,
+            "unit_name": row.unit_name,
+            "org_level_id": str(row.org_level_id),
+            "level_code": row.level_code,
+            "depth": row.depth,
+        }
+        for row in db.session.execute(stmt)
+    ]
+    return jsonify({
+        "units": units,
+        "cadres": [org.serialize_cadre(c) for c in org.list_cadres(project_id)],
+        "level_cadres": org.list_level_cadres(project_id),
+    })
+
+
 #: Rows a data-manager user search returns; more matches set ``truncated``.
 _USER_SEARCH_LIMIT = 25
+
+
+def _search_users(stmt, query, include_inactive):
+    """Run a user search: *query* is a literal substring of email or name
+    (%, _ and \\ match themselves; autoescape sets its own ESCAPE character).
+    Returns up to ``_USER_SEARCH_LIMIT + 1`` rows so the caller can flag more."""
+    if not include_inactive:
+        stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+    if query:
+        stmt = stmt.where(
+            sa.or_(
+                VaUsers.email.icontains(query, autoescape=True),
+                VaUsers.name.icontains(query, autoescape=True),
+            )
+        )
+    return db.session.scalars(
+        stmt.order_by(VaUsers.email).limit(_USER_SEARCH_LIMIT + 1)
+    ).all()
 
 
 @data_management.get("/api/users")
@@ -586,13 +625,21 @@ def manage_users():
     """
     query = (request.args.get("query") or "").strip()
     include_inactive = request.args.get("include_inactive", "1") == "1"
-    if not (current_user.is_admin() or current_user.has_direct_data_manager_scope()):
-        # A unit-only data manager reaches this route to find the staff of
-        # mentoring institutes attached to districts they cover, and sees no
-        # one else and no contact details.
+    if not _is_wide_writer():
+        # A unit writer (unit data manager, In-charge) finds the holders of
+        # grants it may manage and the staff of mentoring institutes attached
+        # to districts it covers; no one else, and no contact details.
         staff, truncated = mentors.dm_visible_mentor_staff(
             current_user.user_id, query, include_inactive, limit=_USER_SEARCH_LIMIT
         )
+        found = {u.user_id: (u, codes) for u, codes in staff}
+        managed = _search_users(
+            sa.select(VaUsers).where(_managed_user_condition()), query, include_inactive
+        )
+        truncated = truncated or len(managed) > _USER_SEARCH_LIMIT
+        for user in managed[:_USER_SEARCH_LIMIT]:
+            found.setdefault(user.user_id, (user, []))
+        rows = sorted(found.values(), key=lambda row: row[0].email)
         return jsonify({"users": [
             {
                 "user_id": str(u.user_id),
@@ -601,38 +648,31 @@ def manage_users():
                 "status": u.user_status.value,
                 "institutes": codes,
             }
-            for u, codes in staff
-        ], "truncated": truncated})
-    stmt = sa.select(VaUsers)
-    if not include_inactive:
-        stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
-    if query:
-        # A literal substring: %, _ and \ in the query match themselves
-        # (autoescape sets its own ESCAPE character, so \ is literal too).
-        stmt = stmt.where(
-            sa.or_(
-                VaUsers.email.icontains(query, autoescape=True),
-                VaUsers.name.icontains(query, autoescape=True),
-            )
-        )
-    users = db.session.scalars(
-        stmt.order_by(VaUsers.email).limit(_USER_SEARCH_LIMIT + 1)
-    ).all()
+            for u, codes in rows[:_USER_SEARCH_LIMIT]
+        ], "truncated": truncated or len(rows) > _USER_SEARCH_LIMIT})
+    users = _search_users(sa.select(VaUsers), query, include_inactive)
     return jsonify({
         "users": [_serialize_user(u) for u in users[:_USER_SEARCH_LIMIT]],
         "truncated": len(users) > _USER_SEARCH_LIMIT,
     })
 
 
+#: create-user payload key -> the grant payload key it stands for.
+_INITIAL_SCOPE_KEYS = {
+    "initial_project_id": "project_id",
+    "initial_project_site_id": "project_site_id",
+    "initial_org_unit_id": "org_unit_id",
+    "initial_cadre_id": "cadre_id",
+}
+
+
 @data_management.post("/api/users")
 @role_required("data_manager", "admin")
 def manage_create_user():
-    """Create a new user (data-manager scoped)."""
+    """Create a new user with one initial grant the current user may write."""
     from app.services import user_account_service as accounts
 
     payload = request.get_json(silent=True) or {}
-    initial_role_value = payload.get("initial_role")
-    initial_scope_value = payload.get("initial_scope_type")
     initial_project_id = (payload.get("initial_project_id") or "").strip() or None
 
     try:
@@ -640,62 +680,51 @@ def manage_create_user():
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
 
-    if not initial_role_value or not initial_scope_value:
+    if not payload.get("initial_role") or not payload.get("initial_scope_type"):
         return _json_error("initial_role and initial_scope_type are required.", 400)
     if not initial_project_id:
         return _json_error("initial_project_id is required.", 400)
-    if initial_role_value not in {r.value for r in VaAccessRoles}:
-        return _json_error("Invalid initial_role.", 400)
-    if initial_scope_value not in {s.value for s in VaAccessScopeTypes}:
+    scope_type = payload.get("initial_scope_type")
+    if scope_type not in {_P.value, _PS.value, _U.value}:
         return _json_error("Invalid initial_scope_type.", 400)
-    role = VaAccessRoles(initial_role_value)
-    scope_type = VaAccessScopeTypes(initial_scope_value)
-
-    resolved_project_id = None
-    project_site_id = None
-    if scope_type == VaAccessScopeTypes.project:
-        resolved_project_id = initial_project_id
-    elif scope_type == VaAccessScopeTypes.project_site:
-        raw_psid = payload.get("initial_project_site_id")
-        if not raw_psid:
-            return _json_error("initial_project_site_id is required for site scope.", 400)
-        try:
-            project_site_id = uuid.UUID(raw_psid)
-        except (ValueError, TypeError):
-            return _json_error("Invalid initial_project_site_id.", 400)
-        ps = db.session.get(VaProjectSites, project_site_id)
-        if not ps or ps.project_site_status != VaStatuses.active:
-            return _json_error("Active project-site mapping not found.", 404)
-        if ps.project_id != initial_project_id:
-            return _json_error("initial_project_site_id does not belong to initial_project_id.", 400)
-        resolved_project_id = ps.project_id
-    else:
-        return _json_error("Invalid initial_scope_type.", 400)
-
-    ok, err = _dm_can_manage_scope(
-        current_user,
-        role,
-        scope_type,
-        resolved_project_id,
-        project_site_id,
-    )
-    if not ok:
-        return _json_error(err, 403)
+    # The initial grant is parsed exactly as a grant payload: project scope
+    # names the project, the others their own pair or unit.
+    grant_payload = {"role": payload.get("initial_role"), "scope_type": scope_type}
+    for initial_key, key in _INITIAL_SCOPE_KEYS.items():
+        if key == "project_id" and scope_type != _P.value:
+            continue
+        if payload.get(initial_key):
+            grant_payload[key] = payload[initial_key]
+    try:
+        scope = _resolve_scope_from_payload(grant_payload)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    if scope.project_id != initial_project_id:
+        return _json_error("The initial grant scope does not belong to initial_project_id.", 400)
+    if not _may_write(
+        _grant_target(scope.role, scope.scope_type, scope.project_id,
+                      scope.project_site_id, scope.org_unit_id),
+        None,
+    ):
+        return _json_error(_GRANT_REFUSAL, 403)
 
     new_user = accounts.create_invited_user(
         fields, other={"created_by_user_id": str(current_user.user_id)}
     )
     new_grant = VaUserAccessGrants(
         user_id=new_user.user_id,
-        role=role,
-        scope_type=scope_type,
-        project_id=resolved_project_id if scope_type == VaAccessScopeTypes.project else None,
-        project_site_id=project_site_id,
+        role=scope.role,
+        scope_type=scope.scope_type,
+        project_id=scope.project_id if scope.scope_type == _P else None,
+        project_site_id=scope.project_site_id,
+        org_unit_id=scope.org_unit_id,
+        cadre_id=scope.cadre_id,
         notes="auto-created with user",
         grant_status=VaStatuses.active,
     )
     db.session.add(new_grant)
     db.session.commit()
+    authz.invalidate(new_user.user_id)
 
     accounts.send_invitation(new_user)
 
@@ -736,8 +765,7 @@ def manage_user_detail(target_user_id):
         .where(
             VaUserAccessGrants.user_id == target_user_id,
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            _dm_listed_grant_condition(),
-            _dm_grant_filter(project_id_expression),
+            _listed_grants_condition(),
         )
         .order_by(
             project_id_expression.asc(),
@@ -752,9 +780,14 @@ def manage_user_detail(target_user_id):
         g for g in serialized_grants if g["scope_type"] == VaAccessScopeTypes.project_site.value
     ]
 
+    user_json = _serialize_user(user)
+    if not _is_wide_writer():
+        # Unit writers open managed people without contact details (policy).
+        for key in ("phone", "landing_page", "is_admin"):
+            user_json.pop(key, None)
     return jsonify(
         {
-            "user": _serialize_user(user),
+            "user": user_json,
             "grants": serialized_grants,
             "project_grants": project_grants,
             "project_site_grants": project_site_grants,
@@ -870,8 +903,8 @@ def manage_update_user(target_user_id):
 @data_management.get("/api/access-grants")
 @role_required("data_manager", "admin")
 def manage_access_grants():
-    """List coder/coding_tester/data_manager grants within the DM's scope,
-    plus the mentor-role unit grants of mentoring institute staff there."""
+    """List the active grants the current user may manage (``can_grant``),
+    of the roles this interface writes."""
     project_id_expression = _grant_project_id_expression()
     site_id_expression = _grant_site_id_expression()
 
@@ -898,8 +931,7 @@ def manage_access_grants():
         )
         .where(
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            _dm_listed_grant_condition(),
-            _dm_grant_filter(project_id_expression),
+            _listed_grants_condition(),
         )
     )
 
@@ -922,7 +954,7 @@ def manage_access_grants():
 @role_required("data_manager", "admin")
 @require_dm_scope
 def manage_create_access_grant():
-    """Create a coder/coding_tester/data_manager grant within the DM's scope."""
+    """Create or reactivate a grant the current user may write (``can_grant``)."""
     # Scope already validated by @require_dm_scope; retrieve parsed values from g.
     scope = g.dm_scope
     role, scope_type = scope.role, scope.scope_type
@@ -1000,12 +1032,13 @@ def manage_create_access_grant():
         db.session.add(grant)
 
     db.session.commit()
+    authz.invalidate(user_id)
 
     from app.logging.va_logger import log_grant_action
     log_grant_action(
         action="grant_reactivated" if (status_code == 200) else "grant_created",
         actor_user_id=current_user.user_id,
-        actor_role="data_manager",
+        actor_role=_writer_role(),
         target_user_id=user_id,
         grant_id=grant.grant_id,
         role=role.value,
@@ -1047,31 +1080,25 @@ def manage_create_access_grant():
 @role_required("data_manager", "admin")
 @require_dm_scope
 def manage_toggle_access_grant(grant_id):
-    """Toggle (activate/deactivate) a coder/coding_tester/data_manager grant."""
-    # Scope already validated by @require_dm_scope; load grant for the update.
+    """Toggle (activate/deactivate) a grant the current user may manage."""
+    # Scope (and the own-data_manager-grant refusal) already checked by
+    # @require_dm_scope; load grant for the update.
     grant = db.session.get(VaUserAccessGrants, grant_id)
     if not grant:
         return _json_error("Grant not found.", 404)
-    if (
-        not current_user.is_admin()
-        and grant.role == VaAccessRoles.data_manager
-        and grant.user_id == current_user.user_id
-    ):
-        return _json_error(
-            "You cannot revoke your own data_manager grant from this interface.", 400
-        )
 
     new_status = (
         VaStatuses.deactive if grant.grant_status == VaStatuses.active else VaStatuses.active
     )
     grant.grant_status = new_status
     db.session.commit()
+    authz.invalidate(grant.user_id)
 
     from app.logging.va_logger import log_grant_action
     log_grant_action(
         action="grant_toggled_inactive" if new_status == VaStatuses.deactive else "grant_toggled_active",
         actor_user_id=current_user.user_id,
-        actor_role="data_manager",
+        actor_role=_writer_role(),
         target_user_id=grant.user_id,
         grant_id=grant.grant_id,
         role=grant.role.value,

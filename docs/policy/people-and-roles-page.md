@@ -3,7 +3,7 @@ title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
 status: proposed
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # People and Roles Page
@@ -73,7 +73,7 @@ the page never decides access itself.
 | Sees personal details | **per person, not per row**: shown once on the person, true unless all their active grants, across every active project, are plain `collaborator` (`should_redact_pii`, `app/services/viewer_pii_service.py`) |
 | Read-only view | `collaborator`, `collaborator_pii` |
 | Site lead | `site_pi` at `project_site` scope (classical projects). In an organizational project the oversight duty at a unit is the **In-charge** (District, Block or PHC in-charge; decision 2026-10-02, `site_pi` held at `org_unit`, see [Access Control Model](access-control-model.md), "In-charge"; implementation tracked in digitva-0wc) |
-| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants"; implementation tracked in digitva-0wc |
+| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants" (digitva-0wc stage 6) |
 
 ## Cell legend
 

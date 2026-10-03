@@ -253,7 +253,7 @@ class InterviewSupervisorTests(BaseTestCase):
             base.update(kw)
             return base
 
-        plan = user_import.prepare(self.PROJECT_ID, [row()], is_admin=True)
+        plan = user_import.prepare(self.PROJECT_ID, [row()], actor=self.base_admin_user)
         self.assertEqual(plan[0]["role"], VaAccessRoles.interview_supervisor)
         for bad, message in (
             (row(org_unit_code="", cadre_code=""), "requires an organization unit"),
@@ -261,7 +261,7 @@ class InterviewSupervisorTests(BaseTestCase):
             (row(org_unit_code="SC1"), "permitted to supervise interviews"),
         ):
             with self.assertRaisesRegex(user_import.ProjectUserImportError, message):
-                user_import.prepare(self.PROJECT_ID, [bad], is_admin=True)
+                user_import.prepare(self.PROJECT_ID, [bad], actor=self.base_admin_user)
 
     # ── the predicate ──────────────────────────────────────────────────────
 
@@ -765,8 +765,8 @@ class InterviewSupervisorTests(BaseTestCase):
             base.update(kw)
             return base
 
-        plan = user_import.prepare(self.PROJECT_ID, [row()], is_admin=True)
+        plan = user_import.prepare(self.PROJECT_ID, [row()], actor=self.base_admin_user)
         self.assertEqual(plan[0]["role"], VaAccessRoles.site_pi)
         self.assertEqual(plan[0]["unit"].org_unit_id, self.c1.org_unit_id)
         with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
-            user_import.prepare(self.PROJECT_ID, [row(org_unit_code="")], is_admin=True)
+            user_import.prepare(self.PROJECT_ID, [row(org_unit_code="")], actor=self.base_admin_user)

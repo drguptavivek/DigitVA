@@ -16,7 +16,10 @@ grid, exports, KPIs, triage, sync, the unrouted queue and pinning. Stage 4:
 reviewing (dashboard, start, Step 1, final, the view page, the ``vareview``
 validator and the reviewer branches of the NQA, SO, ICD and DORIS APIs).
 Stage 5: the site PI report (``SITE_PI_REPORT``, pairs and units) and the
-``is_site_pi`` / ``is_interview_supervisor`` role gates.
+``is_site_pi`` / ``is_interview_supervisor`` role gates. Stage 6: every
+grant write (the data-manager users page, the admin panel's project_pi
+branch, the project users import) asks ``can_grant``, and the grant lists
+use ``grant_list_filter``.
 ``subtree_select`` is the unit-subtree SELECT for the raw-SQL and MV
 surfaces that cannot embed ``scope_filter``.
 """
@@ -31,7 +34,12 @@ from app.services.authz.actions import (
     Lens,
     Reason,
 )
-from app.services.authz.grant_writes import GrantTarget, can_grant, grant_list_filter
+from app.services.authz.grant_writes import (
+    GrantTarget,
+    can_grant,
+    grant_list_filter,
+    writer_grants,
+)
 from app.services.authz.grants import (
     Grant,
     ProjectSettings,
@@ -80,4 +88,5 @@ __all__ = [
     "resolve_grants",
     "scope_filter",
     "subtree_select",
+    "writer_grants",
 ]

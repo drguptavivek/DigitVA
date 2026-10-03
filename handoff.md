@@ -54,16 +54,25 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    rendering by reviewer reach; area link). **Stage 5 committed**
    (migration `e2b7c4d9a1f3`, applied to dev: site_pi at org_unit = the
    In-charge, with every DM power, intake supervision and the unit site PI
-   report; project_pi supervises tree projects). Next: stage 6 (grant
-   writes through can_grant; in-charges and DMs create grants per the
-   district rule). Dev DB head: `e2b7c4d9a1f3`.
-   A parallel Expo-client session has uncommitted work in this checkout
-   (app/routes/api/client.py, expo_client.py, mobile/, app/__init__.py):
-   commit only stage files by name. `digitva-bibk`: reference model still
+   report; project_pi supervises tree projects). **Stage 6 implemented, in
+   verification** (grant writes through can_grant/grant_list_filter; DMs,
+   in-charges and project_pi create grants per the district rule; unit
+   writers see managed people without contact details). Open from stage 6:
+   `digitva-i0zb` (owner: how a unit DM adds an existing account),
+   `digitva-xd1q` (400-before-403 oracle). Dev DB head: `e2b7c4d9a1f3`.
+   A parallel Expo-client session (`digitva-p6fs`) has uncommitted work
+   in this checkout (client API/static host, mobile/, app/__init__.py,
+   additive draft locale fields and tests): commit only stage files by name.
+   Expo preview `/app/`: English/Hindi UI, shared dark/light form theme,
+   left sidebar/phone rail, login handoff and server collection drafts; coding/review still link to existing workspaces (.4).
+   Expo: 78 Jest tests, TypeScript and separate web/Android JS exports pass.
+   Browser synthetic TST001 registration, Hindi save/resume and theme checked;
+   left rail tested at 391px without overflow, drawer Escape/focus return checked.
+   Focused backend: 73 passed, 20 subtests; latest broad run: 3068 passed,
+   33 failures confined to unfinished stage-6 grant-write tests. Device/APK
+   and full browser submission acceptance remain `digitva-p6fs.5`. `digitva-bibk`: reference model still
    suggests interview_supervisor for in-charges. `digitva-8126`: stale migration
-   test. Until stage 6, project_pi and
-   in-charges reach the grant pages, which read old helpers (empty, writes
-   refused). `digitva-26pg`: unit DM
+   test. `digitva-26pg`: unit DM
    KPI/analytics/COD counts still include deactivated-pair forms. Known: through the widened DM gate, project_pi on a tree
    project reaches the stage-6 grant pages, which read old helpers (empty,
    writes refused) until stage 6. Carry into later

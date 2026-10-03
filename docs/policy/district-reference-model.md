@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # District Reference Model
@@ -130,18 +130,15 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 |---|---|---|---|
 | Admin | ✓ | every role, every scope | none |
 | Project PI | existing users only | every role except `admin` and `project_pi`, unit grants included; `data_manager` at any level | own project only |
-| In-charge (district, block, PHC) | – | `data_manager` | their own unit and units beneath it |
+| In-charge (district, block, PHC) | ✓ | `data_manager` on their own unit and below; the data manager's six roles anywhere in their area | their own unit and units beneath it |
 | Data manager | ✓ | `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
 | Everyone else | – | – | – |
 
 Decision 2026-10-02 (see [Access Control Model](access-control-model.md),
-"Who creates which grants", district projects); the In-charge and data-manager rows are
-implementation tracked in digitva-0wc. Until then a data manager grants only
-`coder`, `coding_tester` and `data_manager` at project or site scope and
-refuses unit grants other than mentor-role grants for mentoring institute
-staff in a district they manage, so interviewer grants for CHOs at SC-AAMs are still
-given by an admin or the project PI. Cadre validation and the mentor guard
-apply to every grant.
+"Who creates which grants", district projects), implemented in digitva-0wc
+stage 6: a block data manager gives interviewer grants for CHOs at SC-AAMs
+from the data-manager users page. Cadre validation and the mentor guard apply
+to every grant.
 
 ## Mentoring institutes
 

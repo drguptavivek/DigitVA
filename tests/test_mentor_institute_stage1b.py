@@ -110,18 +110,31 @@ class DataManagerMentorGrantTests(Stage1bBase):
             self._dm_post(self._unit_body(member, "reviewer", d1)).status_code, 200
         )
 
-    def test_dm_refused_for_non_members_other_roles_other_scopes_and_districts(self):
+    def test_district_dm_rule_for_members_and_non_members(self):
+        """digitva-0wc stage 6, district rule (owner 2026-10-02): a district DM
+        writes the six roles anywhere in its subtree for anyone, and DMs
+        strictly below; the mentor guard then narrows a member's grants.
+        Before stage 6 the non-member and interviewer cases were refused 403
+        because the DM page wrote only mentor-role unit grants for members."""
         d1, d2, chc, one, two = self._two_institutes()
         dm = self._dm_at("dm.d01@test.local", d1)
         outsider = self._get_or_make_user("outsider@test.local", "x")
         self._login(str(dm.user_id))
 
-        refused = {
-            "non-member": self._unit_body(outsider, "reviewer", chc),
+        non_member = self._dm_post(self._unit_body(outsider, "reviewer", chc))
+        self.assertEqual(non_member.status_code, 201, non_member.get_json())
+        # Allowed by the rule, refused by the guard (400, after authorization).
+        for label, body in {
             "dm role": self._unit_body(one, "data_manager", chc),
             "interviewer": self._unit_body(one, "interviewer", chc),
+        }.items():
+            with self.subTest(label):
+                response = self._dm_post(body)
+                self.assertEqual(response.status_code, 400, response.get_json())
+        refused = {
             # two is a member of an institute attached to D02 but this DM does not manage D02
             "other district": self._unit_body(two, "reviewer", d2),
+            "non-member other district": self._unit_body(outsider, "reviewer", d2),
             "project scope": {
                 "user_id": str(one.user_id), "role": "reviewer",
                 "scope_type": "project", "project_id": self.P1,
@@ -132,12 +145,15 @@ class DataManagerMentorGrantTests(Stage1bBase):
                 response = self._dm_post(body)
                 self.assertEqual(response.status_code, 403, response.get_json())
         # The refusal never says whether the target is a member.
-        messages = {self._dm_post(refused[k]).get_json()["error"] for k in ("non-member", "dm role")}
+        messages = {
+            self._dm_post(refused[k]).get_json()["error"]
+            for k in ("other district", "non-member other district")
+        }
         self.assertEqual(len(messages), 1)
         self.assertEqual(
             db.session.scalar(
                 sa.select(sa.func.count()).select_from(VaUserAccessGrants).where(
-                    VaUserAccessGrants.user_id.in_([outsider.user_id, one.user_id, two.user_id])
+                    VaUserAccessGrants.user_id.in_([one.user_id, two.user_id])
                 )
             ),
             0,
@@ -150,12 +166,17 @@ class DataManagerMentorGrantTests(Stage1bBase):
         response = self._dm_post(self._unit_body(member, "reviewer", chc))
         self.assertEqual(response.status_code, 403)
 
-    def test_a_dm_below_the_district_does_not_cover_it(self):
+    def test_a_dm_below_the_district_writes_member_grants_in_its_own_subtree_only(self):
+        """Stage 6: a CHC DM writes the six roles in its own subtree, so a
+        member's reviewer grant at the CHC (inside the attached district) is
+        written; before stage 6 it needed a DM covering the district."""
         d1, _, chc, member = self._setup_one()
         dm_chc = self._dm_at("dm.c01@test.local", chc)
         self._login(str(dm_chc.user_id))
         response = self._dm_post(self._unit_body(member, "reviewer", chc))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        above = self._dm_post(self._unit_body(member, "reviewer", d1))
+        self.assertEqual(above.status_code, 403)
 
     def test_project_scope_dm_covers_every_district_and_the_guard_still_applies(self):
         d1, d2, _, member = self._setup_one()
@@ -193,15 +214,20 @@ class DataManagerMentorGrantTests(Stage1bBase):
         db.session.commit()
         self.assertEqual(self._dm_toggle(grant.grant_id).status_code, 400)
 
-    def test_dm_cannot_toggle_a_non_members_unit_grant(self):
-        d1, _, chc, _ = self._setup_one()
+    def test_a_non_members_unit_grant_is_toggled_by_a_dm_above_it_only(self):
+        """Stage 6: the district rule covers everyone's grants in the DM's
+        subtree, not only members' (before stage 6 this was 403)."""
+        d1, d2, chc, _ = self._setup_one()
         outsider = self._get_or_make_user("outsider@test.local", "x")
         grant = self._grant(
             outsider, VaAccessRoles.reviewer, VaAccessScopeTypes.org_unit, unit=chc
         )
+        stranger = self._dm_at("dm.d02@test.local", d2)
+        self._login(str(stranger.user_id))
+        self.assertEqual(self._dm_toggle(grant.grant_id).status_code, 403)
         dm = self._dm_at("dm.d01@test.local", d1)
         self._login(str(dm.user_id))
-        self.assertEqual(self._dm_toggle(grant.grant_id).status_code, 403)
+        self.assertEqual(self._dm_toggle(grant.grant_id).status_code, 200)
 
     def _search(self, query=""):
         response = self.client.get("/data-management/api/users", query_string={"query": query})
@@ -371,11 +397,20 @@ class DataManagerMentorGrantTests(Stage1bBase):
                 db.session.refresh(grant)
                 self.assertEqual(grant.grant_status, VaStatuses.active)
 
-    def test_admin_stays_refused_on_the_data_manager_interface(self):
-        d1, _, _, member = self._setup_one()
+    def test_admin_on_the_data_manager_interface_writes_its_roles_only(self):
+        """Stage 6: the page writes unit grants, so an admin's unit grant goes
+        through (the guard still applies); roles outside the page's list stay
+        refused. Before stage 6 the page refused every unit grant to admins."""
+        d1, d2, _, member = self._setup_one()
         self._login(str(self.base_admin_id))
         self.assertEqual(
-            self._dm_post(self._unit_body(member, "reviewer", d1)).status_code, 403
+            self._dm_post(self._unit_body(member, "reviewer", d1)).status_code, 201
+        )
+        self.assertEqual(
+            self._dm_post(self._unit_body(member, "reviewer", d2)).status_code, 400
+        )
+        self.assertEqual(
+            self._dm_post(self._unit_body(member, "site_pi", d1)).status_code, 403
         )
 
 
@@ -398,8 +433,8 @@ class ImportAndWarningTests(Stage1bBase):
             ("non-mentor role", row("interviewer", "C01")),
         ):
             with self.subTest(label), self.assertRaises(user_import.ProjectUserImportError):
-                user_import.prepare(self.P1, [bad], is_admin=True)
-        plan = user_import.prepare(self.P1, [row("reviewer", "C01")], is_admin=True)
+                user_import.prepare(self.P1, [bad], actor=self.base_admin_user)
+        plan = user_import.prepare(self.P1, [row("reviewer", "C01")], actor=self.base_admin_user)
         self.assertEqual(len(plan), 1)
 
     def test_add_member_warning_counts_grants_outside_the_attached_subtrees(self):

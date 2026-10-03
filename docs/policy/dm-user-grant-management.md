@@ -1,9 +1,9 @@
 ---
 title: Data-Manager User and Grant Management Policy
 doc_type: policy
-status: draft
+status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -23,10 +23,9 @@ depends on the project's kind:
 This policy governs the `/data-management/users` page and its supporting API
 endpoints. The rule for who creates which grants is in
 [Access Control Model](access-control-model.md), "Who creates which grants".
-The district-project rule is implementation tracked in digitva-0wc; until it
-lands the page applies the site-project rule in every project, plus
-mentor-role unit grants for mentoring institute staff in a district the data
-manager covers.
+Every write on this page asks `authz.can_grant` (digitva-0wc stage 6); the
+page offers only the roles below, so `site_pi`, `interview_supervisor`,
+`project_pi` and `admin` grants stay on the admin panel for everyone.
 
 ## Route Family
 
@@ -38,6 +37,7 @@ All routes live under the existing `data_management` blueprint:
 | `/data-management/api/bootstrap` | GET | CSRF token and scope context |
 | `/data-management/api/projects` | GET | Accessible projects |
 | `/data-management/api/project-sites` | GET | Accessible project-sites |
+| `/data-management/api/organization` | GET | Unit and cadre pickers for a district project: the units the caller may grant on, the project's cadres and level-cadre grid |
 | `/data-management/api/users` | GET | User search |
 | `/data-management/api/users` | POST | Create user |
 | `/data-management/api/access-grants` | GET | List the grants the data-manager may manage (see "Visibility") |
@@ -49,13 +49,11 @@ All routes live under the existing `data_management` blueprint:
 These routes accept:
 
 - `data_manager` — scoped by their own grant
-- `admin` — full access, bypasses scope restrictions
-
-In a district project the project PI and the in-charges also create
-`data_manager` grants, under their own rules in
-[Access Control Model](access-control-model.md), "Who creates which grants";
-this page serves data managers and admins. Implementation tracked in
-digitva-0wc.
+- in a district project, the In-charge (`site_pi` at a unit) and the
+  `project_pi`, who pass the data-manager role gate there
+  (`authz.effective_roles`) and write grants under their own rules in
+  [Access Control Model](access-control-model.md), "Who creates which grants"
+- `admin` — any scope, within the roles this page writes
 
 ## Scope Rules
 
@@ -96,7 +94,7 @@ Data-managers may **not** assign `admin`, `project_pi`, `site_pi`,
 
 ### District (organizational) projects
 
-Decision 2026-10-02. Implementation tracked in digitva-0wc.
+Decision 2026-10-02, implemented in digitva-0wc stage 6.
 
 Each grant has a **subtree**: a `project` grant covers the whole project, a
 `project_site` grant its (project, site) pair, an `org_unit` grant its unit
@@ -125,8 +123,9 @@ when the grantee is a mentoring institute member (see
 
 ### Admin
 
-Admins bypass all scope restrictions. They can assign grants at any project or
-site level through this interface.
+Admins bypass all scope restrictions. They can assign the roles this page
+writes at any project, site or unit through this interface; other roles go
+through the admin panel.
 
 ## Grant Lifecycle
 
@@ -183,13 +182,11 @@ A data-manager lists the grants they may manage under "Scope Rules", within
 their own scope:
 
 - site projects: `coder`, `coding_tester` and `data_manager` grants
-- district projects (implementation tracked in digitva-0wc): grants of
-  `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
-  `collaborator_pii` anywhere inside their subtree, and `data_manager` grants
-  strictly below their own
-- for a mentoring institute member, the mentor grants inside a district they
-  manage (see [Organization Model Policy](organization-model.md),
-  "Mentoring institutes")
+- district projects: grants of `interviewer`, `coder`, `reviewer`,
+  `coding_tester`, `collaborator` and `collaborator_pii` anywhere inside their
+  subtree, and `data_manager` grants strictly below their own (for an
+  In-charge, at their own level too)
+- never their own `data_manager` grant, which they may not revoke
 
 They do not see `admin`, `project_pi`, `site_pi`, `interview_supervisor` or
 In-charge grants, nor any grant outside their scope.
@@ -201,6 +198,16 @@ It also preselects that user in the new-grant form.
 ### User listing
 
 Data-managers may search users (up to 25 results) and open per-user details.
+Who they find depends on their grants:
+
+- a project or project-site writer (`data_manager` at project or site scope,
+  `project_pi`) and an admin search every account, as before;
+- a unit writer (a `data_manager` at a unit, an In-charge) finds and opens
+  only the holders of grants it may manage and the staff of mentoring
+  institutes attached to districts it covers, with no contact details. To
+  grant someone who holds no grant in its area it creates the account, or
+  asks a project-level data manager or the project PI.
+
 The details panel includes:
 
 - account status (`active` / `deactive`)

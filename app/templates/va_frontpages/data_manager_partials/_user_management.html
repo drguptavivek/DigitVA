@@ -92,9 +92,6 @@
               <label class="form-label small mb-1">Initial Grant Role <span class="text-danger">*</span></label>
               <select class="form-select form-select-sm" id="dm-user-initial-role" disabled>
                 <option value="">-- select --</option>
-                <option value="coder">Coder</option>
-                <option value="coding_tester">Coding Tester</option>
-                <option value="data_manager">Data Manager</option>
               </select>
             </div>
             <div class="col-sm-3">
@@ -107,6 +104,18 @@
               <label class="form-label small mb-1">Initial Grant Site <span class="text-danger">*</span></label>
               <select class="form-select form-select-sm" id="dm-user-initial-site" disabled>
                 <option value="">-- select --</option>
+              </select>
+            </div>
+            <div class="col-sm-3" id="dm-user-initial-unit-wrap" style="display:none;">
+              <label class="form-label small mb-1">Initial Grant Unit <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-initial-unit">
+                <option value="">-- select --</option>
+              </select>
+            </div>
+            <div class="col-sm-3" id="dm-user-initial-cadre-wrap" style="display:none;">
+              <label class="form-label small mb-1">Cadre</label>
+              <select class="form-select form-select-sm" id="dm-user-initial-cadre">
+                <option value="">-- select unit first --</option>
               </select>
             </div>
             <div class="col-12">
@@ -191,9 +200,6 @@
           </div>
           <select id="dm-ag-filter-role" class="form-select form-select-sm" style="max-width:150px;">
             <option value="">All roles</option>
-            <option value="coder">Coder</option>
-            <option value="coding_tester">Coding Tester</option>
-            <option value="data_manager">Data Manager</option>
           </select>
         </div>
         <button class="btn btn-sm btn-primary" id="dm-ag-show-form-btn">
@@ -228,9 +234,6 @@
               <label class="form-label small mb-1">Role <span class="text-danger">*</span></label>
               <select id="dm-ag-role" class="form-select form-select-sm">
                 <option value="">-- select --</option>
-                <option value="coder">Coder</option>
-                <option value="coding_tester">Coding Tester</option>
-                <option value="data_manager">Data Manager</option>
               </select>
             </div>
 
@@ -247,6 +250,21 @@
               <select id="dm-ag-site" class="form-select form-select-sm">
                 <option value="">-- select --</option>
               </select>
+            </div>
+
+            <div class="col-sm-4 d-none" id="dm-ag-unit-field">
+              <label class="form-label small mb-1">Unit <span class="text-danger">*</span></label>
+              <select id="dm-ag-unit" class="form-select form-select-sm">
+                <option value="">-- select --</option>
+              </select>
+            </div>
+
+            <div class="col-sm-4 d-none" id="dm-ag-cadre-field">
+              <label class="form-label small mb-1">Cadre</label>
+              <select id="dm-ag-cadre" class="form-select form-select-sm">
+                <option value="">-- select unit first --</option>
+              </select>
+              <div class="form-text small">A coder needs a cadre allowed to code at the unit's level.</div>
             </div>
 
             <div class="col-12">
@@ -319,11 +337,98 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── roles, scopes and the organization pickers ─────────────────────────────
+  //
+  // The server decides who may write which grant (authz.can_grant); these
+  // lists only offer what the bootstrap says the user may assign somewhere,
+  // and the unit scope only in a project with an organization tree.
+
+  var ROLE_NAMES = {
+    coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager',
+    reviewer: 'Reviewer', interviewer: 'Interviewer', collaborator: 'Viewer',
+    collaborator_pii: 'Viewer (with PII)'
+  };
+  var _projectHasTree = {};
+  var _orgCache = {};
+
+  function populateRoleSelects() {
+    var opts = ((_state && _state.allowed_roles) || []).map(function (r) {
+      return '<option value="' + esc(r) + '">' + esc(ROLE_NAMES[r] || r) + '</option>';
+    }).join('');
+    document.getElementById('dm-user-initial-role').innerHTML = '<option value="">-- select --</option>' + opts;
+    document.getElementById('dm-ag-role').innerHTML = '<option value="">-- select --</option>' + opts;
+    document.getElementById('dm-ag-filter-role').innerHTML = '<option value="">All roles</option>' + opts;
+  }
+
+  function rememberProjects(projects) {
+    projects.forEach(function (p) { _projectHasTree[p.project_id] = !!p.has_tree; });
+  }
+
+  function scopeOptionsHtml(projectId) {
+    var u = (_state && _state.user) || {};
+    var html = '<option value="">-- select --</option>';
+    if (u.is_project_scoped || (u.managed_site_pairs || []).length) {
+      html += '<option value="project_site">Site-level</option>';
+    }
+    if (u.is_project_scoped) html += '<option value="project">Project-level</option>';
+    if (projectId && _projectHasTree[projectId]) html += '<option value="org_unit">Unit-level</option>';
+    return html;
+  }
+
+  function loadOrganization(projectId) {
+    if (!_orgCache[projectId]) {
+      _orgCache[projectId] = apiJson('/data-management/api/organization?project_id=' + encodeURIComponent(projectId))
+        .then(function (res) { return res.ok ? res.data : { units: [], cadres: [], level_cadres: [] }; });
+    }
+    return _orgCache[projectId];
+  }
+
+  function fillUnitSelect(sel, org) {
+    if (!org.units.length) {
+      sel.innerHTML = '<option value="">-- no units you may grant on --</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">-- select unit --</option>'
+      + org.units.map(function (u) {
+        var indent = new Array(Math.max(0, (u.depth || 1) - 1) + 1).join('\u00a0\u00a0');
+        return '<option value="' + esc(u.org_unit_id) + '">'
+          + indent + esc(u.unit_code) + ' - ' + esc(u.unit_name) + ' (' + esc(u.level_code) + ')</option>';
+      }).join('');
+  }
+
+  // Cadres defined at the unit's level; for a coder only those allowed to code
+  // there (the rule org_grant_service.validate_org_unit_grant enforces).
+  function fillCadreSelect(sel, org, unitId, role) {
+    var unit = org.units.filter(function (u) { return u.org_unit_id === unitId; })[0];
+    if (!unit) { sel.innerHTML = '<option value="">-- select unit first --</option>'; return; }
+    var coding = role === 'coder';
+    var names = {};
+    org.cadres.forEach(function (c) { names[c.cadre_id] = c.cadre_name; });
+    var allowed = org.level_cadres.filter(function (lc) {
+      return lc.org_level_id === unit.org_level_id && lc.is_active && (!coding || lc.can_code_va_form);
+    });
+    if (!allowed.length) {
+      sel.innerHTML = '<option value="">-- none defined at ' + esc(unit.level_code) + ' --</option>';
+      return;
+    }
+    sel.innerHTML = (coding ? '' : '<option value="">-- none --</option>')
+      + allowed.map(function (lc) {
+        return '<option value="' + esc(lc.cadre_id) + '">' + esc(lc.cadre_code)
+          + (names[lc.cadre_id] ? ' - ' + esc(names[lc.cadre_id]) : '') + '</option>';
+      }).join('');
+  }
+
+  function scopeLabelOf(g) {
+    if (g.unit_code) return g.unit_code + (g.unit_name ? ' - ' + g.unit_name : '');
+    return g.site_id || 'Project-level';
+  }
+
   // ── bootstrap ──────────────────────────────────────────────────────────────
   apiJson('/data-management/api/bootstrap').then(function (res) {
     if (!res.ok) { console.error('Bootstrap failed', res.data); return; }
     _state = res.data;
     _csrfToken = _state.csrf_token || '';
+    populateRoleSelects();
     initUsersTab();
     initGrantsTab();
   });
@@ -354,6 +459,8 @@
     loadUsers();
     document.getElementById('dm-user-initial-project').addEventListener('change', onInitialProjectChanged);
     document.getElementById('dm-user-initial-scope').addEventListener('change', onInitialScopeChanged);
+    document.getElementById('dm-user-initial-role').addEventListener('change', fillInitialCadres);
+    document.getElementById('dm-user-initial-unit').addEventListener('change', fillInitialCadres);
     onInitialScopeChanged();
 
     document.getElementById('dm-user-show-form-btn').addEventListener('click', function () {
@@ -416,16 +523,8 @@
   }
 
   function populateInitialScopeOptions() {
-    var sel = document.getElementById('dm-user-initial-scope');
-    var isProjectScoped = _state && _state.user && _state.user.is_project_scoped;
-    if (isProjectScoped) {
-      sel.innerHTML = '<option value="">-- select --</option>'
-        + '<option value="project_site">Site-level</option>'
-        + '<option value="project">Project-level</option>';
-      return;
-    }
-    sel.innerHTML = '<option value="">-- select --</option>'
-      + '<option value="project_site">Site-level</option>';
+    var projectId = document.getElementById('dm-user-initial-project').value;
+    document.getElementById('dm-user-initial-scope').innerHTML = scopeOptionsHtml(projectId);
   }
 
   function onInitialScopeChanged() {
@@ -436,6 +535,29 @@
     if (scope !== 'project_site') {
       document.getElementById('dm-user-initial-site').value = '';
     }
+    var unitScope = scope === 'org_unit';
+    document.getElementById('dm-user-initial-unit-wrap').style.display = unitScope ? '' : 'none';
+    document.getElementById('dm-user-initial-cadre-wrap').style.display = unitScope ? '' : 'none';
+    if (!unitScope) return;
+    var projectId = document.getElementById('dm-user-initial-project').value;
+    var unitSel = document.getElementById('dm-user-initial-unit');
+    unitSel.innerHTML = '<option value="">Loading...</option>';
+    loadOrganization(projectId).then(function (org) {
+      fillUnitSelect(unitSel, org);
+      fillInitialCadres();
+    });
+  }
+
+  function fillInitialCadres() {
+    var projectId = document.getElementById('dm-user-initial-project').value;
+    if (!projectId || document.getElementById('dm-user-initial-scope').value !== 'org_unit') return;
+    loadOrganization(projectId).then(function (org) {
+      fillCadreSelect(
+        document.getElementById('dm-user-initial-cadre'), org,
+        document.getElementById('dm-user-initial-unit').value,
+        document.getElementById('dm-user-initial-role').value
+      );
+    });
   }
 
   function resetInitialGrantControls() {
@@ -446,6 +568,8 @@
     document.getElementById('dm-user-initial-scope').value = '';
     document.getElementById('dm-user-initial-site').value = '';
     document.getElementById('dm-user-initial-site-wrap').style.display = 'none';
+    document.getElementById('dm-user-initial-unit-wrap').style.display = 'none';
+    document.getElementById('dm-user-initial-cadre-wrap').style.display = 'none';
     populateInitialScopeOptions();
   }
 
@@ -460,7 +584,7 @@
     roleSel.disabled = false;
     scopeSel.disabled = false;
     roleSel.value = '';
-    scopeSel.value = '';
+    populateInitialScopeOptions();
     loadUserGrantSites(projectId);
     onInitialScopeChanged();
   }
@@ -469,6 +593,7 @@
     apiJson('/data-management/api/projects').then(function (res) {
       if (!res.ok) return;
       var projects = (res.data && res.data.projects) || [];
+      rememberProjects(projects);
       var sel = document.getElementById('dm-user-initial-project');
       sel.innerHTML = '<option value="">-- select project --</option>'
         + projects.map(function (p) {
@@ -717,6 +842,8 @@
       initial_scope_type: document.getElementById('dm-user-initial-scope').value,
       initial_project_id: document.getElementById('dm-user-initial-project').value,
       initial_project_site_id: document.getElementById('dm-user-initial-site').value,
+      initial_org_unit_id: document.getElementById('dm-user-initial-unit').value,
+      initial_cadre_id: document.getElementById('dm-user-initial-cadre').value,
       languages: $('#dm-user-languages').val(),
     };
     if (!data.email) { errEl.textContent = 'Email is required.'; return; }
@@ -731,6 +858,9 @@
     }
     if (data.initial_scope_type === 'project_site' && !data.initial_project_site_id) {
       errEl.textContent = 'Initial grant site is required.'; return;
+    }
+    if (data.initial_scope_type === 'org_unit' && !data.initial_org_unit_id) {
+      errEl.textContent = 'Initial grant unit is required.'; return;
     }
     if (!data.languages || !data.languages.length) {
       errEl.textContent = 'At least one language is required.'; return;
@@ -773,15 +903,16 @@
       document.getElementById('dm-ag-form-container').classList.add('d-none');
       resetGrantForm();
     });
-    document.getElementById('dm-ag-scope').addEventListener('change', function () {
-      document.getElementById('dm-ag-site-field').style.visibility =
-        this.value === 'project_site' ? 'visible' : 'hidden';
-    });
+    document.getElementById('dm-ag-scope').addEventListener('change', onGrantScopeChanged);
+    document.getElementById('dm-ag-role').addEventListener('change', fillGrantCadres);
+    document.getElementById('dm-ag-unit').addEventListener('change', fillGrantCadres);
     document.getElementById('dm-ag-submit-btn').addEventListener('click', submitGrant);
     document.getElementById('dm-ag-revoke-confirm-btn').addEventListener('click', confirmRevoke);
 
     // Project filter
     document.getElementById('dm-ag-project-select').addEventListener('change', function () {
+      populateScopeOptions();
+      onGrantScopeChanged();
       loadGrants();
     });
     // Search filter
@@ -821,25 +952,47 @@
     });
   }
 
+  // Scopes the user may write somewhere; the unit scope once the project
+  // filter names a project with an organization tree.
   function populateScopeOptions() {
-    // If project-scoped, allow both project and project_site
-    // If site-scoped only, only project_site
     if (!_state) return;
-    var scopeSel = document.getElementById('dm-ag-scope');
-    var isProjectScoped = _state.user.is_project_scoped;
-    if (isProjectScoped) {
-      scopeSel.innerHTML = '<option value="">-- select --</option>'
-        + '<option value="project_site">Site-level</option>'
-        + '<option value="project">Project-level</option>';
-    } else {
-      scopeSel.innerHTML = '<option value="">-- select --</option>'
-        + '<option value="project_site">Site-level</option>';
-    }
+    var projectId = document.getElementById('dm-ag-project-select').value;
+    document.getElementById('dm-ag-scope').innerHTML = scopeOptionsHtml(projectId);
+  }
+
+  function onGrantScopeChanged() {
+    var scope = document.getElementById('dm-ag-scope').value;
+    document.getElementById('dm-ag-site-field').style.visibility =
+      scope === 'project_site' ? 'visible' : 'hidden';
+    var unitScope = scope === 'org_unit';
+    document.getElementById('dm-ag-unit-field').classList.toggle('d-none', !unitScope);
+    document.getElementById('dm-ag-cadre-field').classList.toggle('d-none', !unitScope);
+    if (!unitScope) return;
+    var projectId = document.getElementById('dm-ag-project-select').value;
+    var unitSel = document.getElementById('dm-ag-unit');
+    unitSel.innerHTML = '<option value="">Loading...</option>';
+    loadOrganization(projectId).then(function (org) {
+      fillUnitSelect(unitSel, org);
+      fillGrantCadres();
+    });
+  }
+
+  function fillGrantCadres() {
+    var projectId = document.getElementById('dm-ag-project-select').value;
+    if (!projectId || document.getElementById('dm-ag-scope').value !== 'org_unit') return;
+    loadOrganization(projectId).then(function (org) {
+      fillCadreSelect(
+        document.getElementById('dm-ag-cadre'), org,
+        document.getElementById('dm-ag-unit').value,
+        document.getElementById('dm-ag-role').value
+      );
+    });
   }
 
   function loadProjects() {
     apiJson('/data-management/api/projects').then(function (res) {
       _projects = (res.data && res.data.projects) || [];
+      rememberProjects(_projects);
       var sel = document.getElementById('dm-ag-project-select');
       sel.innerHTML = '<option value="">All projects</option>'
         + _projects.map(function (p) {
@@ -892,13 +1045,13 @@
     renderGrantsTable(filtered);
   }
 
-  var ROLE_LABEL = { coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager', site_pi: 'Site PI' };
+  var ROLE_LABEL = Object.assign({ site_pi: 'Site PI' }, ROLE_NAMES);
   // site_pi held at a unit is the In-charge (access-control-model.md, "In-charge").
   function roleLabel(g) {
     if (g.role === 'site_pi' && g.scope_type === 'org_unit') return 'In-charge';
     return ROLE_LABEL[g.role] || g.role;
   }
-  var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary' };
+  var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary', reviewer: 'success', collaborator: 'info', collaborator_pii: 'info' };
   function isProtectedSelfDmGrant(g) {
     if (!_state || !_state.user || _state.user.is_admin) return false;
     return g.role === 'data_manager' && g.user_id === _state.user.user_id;
@@ -912,7 +1065,7 @@
     }
     var rows = grants.map(function (g) {
       var color = ROLE_COLOR[g.role] || 'secondary';
-      var scopeLabel = g.site_id ? esc(g.site_id) : 'Project-level';
+      var scopeLabel = esc(scopeLabelOf(g));
       var protectedSelfGrant = isProtectedSelfDmGrant(g);
       var actionCell = protectedSelfGrant
         ? '<span class="text-muted small" title="Your own data_manager grant cannot be revoked here.">Protected</span>'
@@ -957,7 +1110,7 @@
     if (g) {
       body.innerHTML = 'Revoke <strong>' + esc(roleLabel(g)) + '</strong> for '
         + '<strong>' + esc(g.user_name || g.user_email) + '</strong>'
-        + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>' : ' (project level)') + '?';
+        + (g.site_id || g.unit_code ? ' at <strong>' + esc(scopeLabelOf(g)) + '</strong>' : ' (project level)') + '?';
     }
     _pendingRevokeId = grantId;
     if (!_revokeModal) _revokeModal = new bootstrap.Modal(document.getElementById('dm-ag-revoke-modal'));
@@ -1037,6 +1190,8 @@
     document.getElementById('dm-ag-scope').value = '';
     document.getElementById('dm-ag-notes').value = '';
     document.getElementById('dm-ag-site-field').style.visibility = 'hidden';
+    document.getElementById('dm-ag-unit-field').classList.add('d-none');
+    document.getElementById('dm-ag-cadre-field').classList.add('d-none');
     document.getElementById('dm-ag-form-error').textContent = '';
     hideUserResults();
     applyFilters();
@@ -1066,6 +1221,12 @@
       var projectId = document.getElementById('dm-ag-project-select').value;
       if (!projectId) { errEl.textContent = 'Select a project from the filter above first.'; return; }
       body.project_id = projectId;
+    } else if (scope === 'org_unit') {
+      var unitVal = document.getElementById('dm-ag-unit').value;
+      if (!unitVal) { errEl.textContent = 'Select a unit.'; return; }
+      body.org_unit_id = unitVal;
+      var cadreVal = document.getElementById('dm-ag-cadre').value;
+      if (cadreVal) body.cadre_id = cadreVal;
     }
 
     var btn = this;

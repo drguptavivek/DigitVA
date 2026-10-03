@@ -431,7 +431,8 @@ The rule and the shared predicate that implements it live in
   grantee is a mentoring institute member (see "Mentoring institutes"). A
   data manager sees every grant they may manage in the grant list.
   Site projects keep today's rule (see the Access Control Model).
-  Implementation tracked in digitva-0wc.
+  Implemented in digitva-0wc stage 6 (`authz.can_grant`); the data-manager
+  users page carries the unit and cadre pickers for tree projects.
 - `flask users grant` does not create unit grants; use the admin panel or the
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.

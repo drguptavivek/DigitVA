@@ -504,10 +504,14 @@ class OrgUnitGrantApiTests(BaseTestCase):
         self.assertEqual(allowed.status_code, 200, allowed.get_json())
         self.assertEqual(allowed.get_json()["status"], "deactive")
 
-    def test_data_manager_grant_interface_refuses_unit_scope(self):
-        """Even for an admin: that interface knows projects and sites, not units."""
+    def test_data_manager_grant_interface_writes_unit_grants_within_its_roles(self):
+        """digitva-0wc stage 6: the data-manager interface knows units now
+        (district rule), so an admin writes unit grants there, cadre rule
+        included; roles outside the page's list stay on the admin panel.
+        Before stage 6 every unit grant was refused here, admin included."""
         chc, cadres = self._tree()
         self._login(str(self.base_admin_id))
+        url = "/data-management/api/access-grants"
         for role, extra in (
             ("reviewer", {}),
             ("coder", {"cadre_id": str(cadres["SMO"].cadre_id)}),
@@ -519,18 +523,23 @@ class OrgUnitGrantApiTests(BaseTestCase):
                 "org_unit_id": str(chc.org_unit_id),
             }
             body.update(extra)
-            response = self.client.post(
-                "/data-management/api/access-grants",
-                json=body,
-                headers=self._csrf_headers(),
-            )
-            self.assertEqual(response.status_code, 403, response.get_json())
-            self.assertIn("admin user panel", response.get_json()["error"])
+            response = self.client.post(url, json=body, headers=self._csrf_headers())
+            self.assertEqual(response.status_code, 201, response.get_json())
+        no_cadre = self.client.post(url, json={
+            "user_id": str(self.base_admin_user.user_id), "role": "coder",
+            "scope_type": "org_unit", "org_unit_id": str(chc.org_unit_id),
+        }, headers=self._csrf_headers())
+        self.assertEqual(no_cadre.status_code, 400, no_cadre.get_json())
+        refused = self.client.post(url, json={
+            "user_id": str(self.base_coder_user.user_id), "role": "site_pi",
+            "scope_type": "org_unit", "org_unit_id": str(chc.org_unit_id),
+        }, headers=self._csrf_headers())
+        self.assertEqual(refused.status_code, 403, refused.get_json())
         self.assertEqual(
             db.session.scalar(
                 sa.select(sa.func.count())
                 .select_from(VaUserAccessGrants)
                 .where(VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit)
             ),
-            0,
+            2,
         )

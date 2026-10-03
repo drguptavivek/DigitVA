@@ -1281,6 +1281,27 @@ def _resolve_scope_from_payload(payload, user_id=None):
     )
 
 
+def _project_pi_may_write(role, scope_type, project_id, project_site_id, org_unit_id):
+    """The admin panel's non-admin branch: ``authz.can_grant`` decides.
+
+    The panel's caller is a project_pi, so this is their rule (any role but
+    admin and project_pi, anywhere in their project); any other writer grant
+    the caller holds (data_manager, In-charge) counts as it does on the
+    data-manager page. The own-grant refusal is the data-manager page's, so
+    no grantee is passed.
+    """
+    from app.services import authz
+
+    return bool(authz.can_grant(current_user, authz.GrantTarget(
+        role=role,
+        scope_type=scope_type,
+        project_id=project_id if scope_type == VaAccessScopeTypes.project else None,
+        project_site_id=project_site_id
+        if scope_type == VaAccessScopeTypes.project_site else None,
+        org_unit_id=org_unit_id if scope_type == VaAccessScopeTypes.org_unit else None,
+    )))
+
+
 def _project_access_filter(project_id_expression):
     if current_user.is_authenticated and current_user.is_admin():
         return sa.true()
@@ -2523,7 +2544,8 @@ def admin_create_access_grant():
     if not current_user.is_admin():
         if role in {VaAccessRoles.admin, VaAccessRoles.project_pi}:
             return _json_error("Project PI may not manage admin or project_pi grants.", 403)
-        if not _current_user_can_manage_project(resolved_project_id):
+        if not _project_pi_may_write(role, scope_type, resolved_project_id,
+                                     project_site_id, scope.org_unit_id):
             return _json_error("You do not have access to that project.", 403)
 
     try:
@@ -2595,6 +2617,9 @@ def admin_create_access_grant():
         db.session.add(grant)
 
     db.session.commit()
+    from app.services import authz
+
+    authz.invalidate(user_id)
 
     from app.logging.va_logger import log_grant_action
     log_grant_action(
@@ -2661,9 +2686,8 @@ def admin_toggle_access_grant(grant_id):
     if not current_user.is_admin():
         if grant.role in {VaAccessRoles.admin, VaAccessRoles.project_pi}:
             return _json_error("Project PI may not manage admin or project_pi grants.", 403)
-        if not resolved_project_id or not _current_user_can_manage_project(
-            resolved_project_id
-        ):
+        if not _project_pi_may_write(grant.role, grant.scope_type, grant.project_id,
+                                     grant.project_site_id, grant.org_unit_id):
             return _json_error("This operation is not permitted for this resource.", 403)
 
     new_status = (
@@ -2691,6 +2715,9 @@ def admin_toggle_access_grant(grant_id):
             return _json_error(str(exc), 400)
     grant.grant_status = new_status
     db.session.commit()
+    from app.services import authz
+
+    authz.invalidate(grant.user_id)
 
     from app.logging.va_logger import log_grant_action
     log_grant_action(

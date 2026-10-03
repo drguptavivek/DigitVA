@@ -522,7 +522,7 @@ def _build_test_project(org, user_import) -> dict:
         for number, (email, role, unit_code, cadre_code) in enumerate(grant_specs, start=1)
     ]
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
-    plan = user_import.prepare(TEST_PROJECT_ID, rows, is_admin=True)
+    plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
     _new_users, audit = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
     summary["grants"] = f"{len(audit)} written, {len(plan) - len(audit)} already in place"
     summary["audit"] = audit

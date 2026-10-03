@@ -1053,14 +1053,31 @@ Current baseline:
 
 - `admin` may manage all admin API resources
 - `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
-- `data_manager` may create users and manage coder/coding_tester/data_manager grants within their own grant scope via `/data-management/users`
-- unit-scoped grants are created from the admin Access Grants panel; the
-  data-manager grant endpoints refuse `org_unit` scope, admins included,
-  except a district data manager's mentor-role grants to mentoring institute
-  staff (`docs/policy/organization-model.md`, "Mentoring institutes"). A
-  data manager holding only unit grants searches and opens only that staff,
-  and cannot create users
-- `admin` may also use the data-manager user management interface with full scope access
+- grant writes go through `authz.can_grant` (digitva-0wc stage 6,
+  `app/services/authz/grant_writes.py`): the data-manager users page
+  (`require_dm_scope` and `manage_create_user` in
+  `app/routes/data_management.py`), the admin panel's non-admin branch
+  (`_project_pi_may_write` in `app/routes/admin.py`) and the project users
+  import (`project_user_import_service.prepare`, one decision per distinct
+  role and unit). After it allows, the cadre check
+  (`validate_org_unit_grant`) and the mentor guard run unchanged, and every
+  write calls `authz.invalidate` for the grantee
+- `/data-management/users` serves data managers, In-charges and, in district
+  projects, the `project_pi` (all pass the data-manager role gate through
+  `authz.effective_roles`). It writes and lists `coder`, `coding_tester`,
+  `data_manager`, `reviewer`, `interviewer`, `collaborator` and
+  `collaborator_pii` only, admins included; who may write which, where, is
+  the district or site rule in `docs/policy/access-control-model.md`, "Who
+  creates which grants". The grant list is `authz.grant_list_filter`; a
+  non-admin never revokes their own `data_manager` grant there (400). Every
+  refusal returns one message, so it does not reveal mentoring institute
+  membership
+- the page offers a unit scope for district projects, with unit and cadre
+  pickers fed by `/data-management/api/organization` (the units the caller
+  may grant on); creating a user may start with a unit grant
+- user search: a project or site writer (or admin) searches every account; a
+  unit writer finds only holders of grants it may manage plus the mentoring
+  institute staff of districts it covers (slim rows, no phone)
 - browser-originated mutating admin API requests require the `X-CSRFToken` header
 
 ## Important Current-State Limitation

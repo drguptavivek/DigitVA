@@ -11,9 +11,10 @@ API), which also deactivates the person's mentor grants inside the institute's
 districts.
 
 An institute admin (``map_mentor_institute_user.is_admin``) creates and
-removes their own institute's staff only; they never give grants. A district
-data manager may write the grants of members inside the districts they manage
-(``dm_covers_mentor_unit``); the guard still applies.
+removes their own institute's staff only; they never give grants. Who may
+write a member's grant is ``authz.can_grant`` (the district rule: a data
+manager writes the mentor roles anywhere in their own subtree); the guard
+still narrows it at write time.
 
 Policy: docs/policy/organization-model.md, "Mentoring institutes".
 Platform-admin management is enforced by the callers (``flask mentor-institute``);
@@ -448,7 +449,9 @@ def holds_unit_data_manager(user_id) -> bool:
 def dm_covers_mentor_unit(dm_user_id, unit: MasOrgUnit) -> bool:
     """May this data manager give mentor grants on *unit*?
 
-    True when they hold an active data_manager grant at project scope in the
+    No caller since digitva-0wc stage 6: ``authz.can_grant`` decides grant
+    writes, and the guard narrows them. Kept until stage 7 deletes it with
+    the other old helpers. True when they hold an active data_manager grant at project scope in the
     unit's project, or at a unit that is the unit's district-level ancestor
     (or the district itself) or above it. A grant lower down, at a CHC say,
     does not cover the district.

@@ -17,7 +17,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from app import db
 from app.decorators import role_required
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
-from app.services import org_grant_service
+from app.services import authz, org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
 
@@ -620,7 +620,7 @@ def admin_org_import_users(project_id):
     dry_run = request.form.get("dry_run", "1") != "0"
     try:
         rows = user_import.parse_upload(uploaded.stream, uploaded.filename)
-        plan = user_import.prepare(project_id, rows, is_admin=actor_role == "admin")
+        plan = user_import.prepare(project_id, rows, actor=current_user)
         preview = [{"row": item["row"], "email": item["email"],
                     "role": item["role"].value,
                     "scope": item["unit"].unit_code if item["unit"] else "whole project",
@@ -641,6 +641,7 @@ def admin_org_import_users(project_id):
 
     from app.logging.va_logger import log_grant_action
     for grant, action in changed_grants:
+        authz.invalidate(grant["user_id"])
         log_grant_action(
             action=action, actor_user_id=actor_user_id, actor_role=actor_role,
             target_user_id=grant["user_id"], grant_id=grant["grant_id"], role=grant["role"],

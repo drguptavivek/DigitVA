@@ -115,8 +115,9 @@ recorded earlier the same day and the display name "field supervisor" for
 - has every power of a `data_manager` in that subtree: triage and Not
   Codeable, screening, sync, route and pin, the unrouted queue, upstream
   change resolution, and the grants a data manager may give
-- creates `data_manager` grants on their own unit and on units beneath it
-  (see "Who creates which grants")
+- creates `data_manager` grants on their own unit and on units beneath it,
+  and the grants a data manager gives anywhere in their area (see "Who
+  creates which grants")
 
 Coding and reviewing still require a `coder` or `reviewer` grant. Mentoring
 institute members may never hold the role; cadre validation applies as for
@@ -133,9 +134,9 @@ an In-charge grant ranks with `interview_supervisor` at equal depth.
 Implemented in digitva-0wc stage 5: the screens, data-manager actions,
 intake supervision and the site PI report for the in-charge's own units.
 Single-submission sync only: whole-form sync stays with project and site
-data managers. The grant-creation powers above are tracked in digitva-0wc
-(stage 6). A person who holds only an `interview_supervisor` grant has
-only its powers.
+data managers. The grant-creation powers above are implemented in
+digitva-0wc stage 6. A person who holds only an `interview_supervisor`
+grant has only its powers.
 
 ### `data_manager`
 
@@ -149,7 +150,7 @@ May:
 - view reporting and workflow context needed to diagnose submission quality issues
 - create grants within their own scope, as set out in "Who creates which
   grants": today's rule in site projects; in district projects the subtree
-  rule (implementation tracked in digitva-0wc)
+  rule
 
 May not:
 
@@ -547,7 +548,9 @@ manager at their own (project, site) pair only. They never create
 ### District (organizational) projects
 
 Decision 2026-10-02; replaces the data-manager role list recorded earlier the
-same day. Implementation tracked in digitva-0wc.
+same day. Implemented in digitva-0wc stage 6: every grant write (the
+data-manager users page, the admin panel, the project users import) asks
+`authz.can_grant`, and the data-manager grant list is `authz.grant_list_filter`.
 
 A grant's **subtree** is what it covers: a `project` grant covers the whole
 project, a `project_site` grant its (project, site) pair, an `org_unit` grant
@@ -559,7 +562,8 @@ below a `project_site` grant there is nothing.
 - `project_pi` creates `data_manager` grants at any level of their project.
 - An **In-charge** creates `data_manager` grants at their own level and on
   units beneath it, within their own area (the District in-charge creates the
-  District Programme Manager).
+  District Programme Manager), and the six roles below anywhere in their area,
+  as a data manager does.
 - A `data_manager` creates:
   - `data_manager` grants only strictly below their own grant, inside their
     own subtree;
@@ -576,10 +580,8 @@ below a `project_site` grant there is nothing.
   written this way.
 
 The same powers cover reactivating and revoking those grants, and a data
-manager sees, in the grant list, every grant they may manage. Until this
-lands a data manager in a district project follows the site-project rule,
-plus mentor-role unit grants for mentoring institute staff (see
-[Organization Model Policy](organization-model.md), "Mentoring institutes").
+manager sees, in the grant list, every grant they may manage. Nobody revokes
+their own `data_manager` grant from the data-manager page.
 
 ## Closed Projects
 

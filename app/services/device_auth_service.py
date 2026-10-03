@@ -170,6 +170,17 @@ def has_interviewer_access(user: VaUsers, project_id: str) -> bool:
     return any(entry["project_id"] == project_id for entry in interviewer_context(user))
 
 
+def _session_access(user: VaUsers, project_id: str, multi_project: bool) -> bool:
+    """The sign-in and refresh grant check. An app that sends
+    ``multi_project: true`` needs an interviewer grant in any project; an
+    older app keeps the check against the enrolment project *project_id*."""
+    if not multi_project:
+        return has_interviewer_access(user, project_id)
+    from app.services.web_intake_service import interviewer_context
+
+    return bool(interviewer_context(user))
+
+
 # ---------------------------------------------------------------------------
 # Enrolment
 # ---------------------------------------------------------------------------
@@ -384,10 +395,12 @@ def _sign_in_user(identifier: str) -> VaUsers | None:
     return db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == mobile))
 
 
-def open_session(*, device_id, device_secret, email, password, otp=None) -> tuple[IssuedTokens, VaUsers]:
+def open_session(*, device_id, device_secret, email, password, otp=None,
+                 multi_project: bool = False) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
     with the device credential in place of the CAPTCHA). *email* is the
-    contract's field name; it holds an email or a mobile number. Raises
+    contract's field name; it holds an email or a mobile number.
+    *multi_project* widens the grant check (``_session_access``). Raises
     DeviceAuthError; a refused attempt is audited and committed. Caller
     commits a success."""
     device = _authenticate_device(device_id, device_secret)
@@ -436,7 +449,7 @@ def open_session(*, device_id, device_secret, email, password, otp=None) -> tupl
                 detail={"remaining": totp_service.remaining_recovery_code_count(user.user_id)},
             )
 
-    if not has_interviewer_access(user, device.project_id):
+    if not _session_access(user, device.project_id, multi_project):
         _sign_in_failed(device, user, "no_interviewer_grant")
         raise DeviceAuthError("You have no interviewer access in this device's project.", "no_interviewer_grant", 403)
 
@@ -467,7 +480,7 @@ def _revoke(session: AuthDeviceSession, reason: str) -> None:
     log.warning("device session revoked | session=%s | reason=%s", session.session_id, reason)
 
 
-def _session_still_allowed(session: AuthDeviceSession) -> tuple[bool, str]:
+def _session_still_allowed(session: AuthDeviceSession, multi_project: bool = False) -> tuple[bool, str]:
     """Whether a session may continue: device, project, account and grant."""
     device = db.session.get(AuthDevice, session.device_id)
     if device is None or device.revoked_at is not None:
@@ -477,7 +490,7 @@ def _session_still_allowed(session: AuthDeviceSession) -> tuple[bool, str]:
     user = db.session.get(VaUsers, session.user_id)
     if user is None or not user.is_active or (user.auth_session_version or 0) != session.user_session_version:
         return False, "account_changed"
-    if not has_interviewer_access(user, device.project_id):
+    if not _session_access(user, device.project_id, multi_project):
         return False, "grant_withdrawn"
     return True, ""
 
@@ -495,8 +508,11 @@ def _revoked_error(session: AuthDeviceSession) -> DeviceAuthError:
     return DeviceAuthError("This session has been revoked.", "session_revoked", 401)
 
 
-def refresh_session(refresh_token, *, device_id, device_secret) -> tuple[IssuedTokens, VaUsers]:
+def refresh_session(refresh_token, *, device_id, device_secret,
+                    multi_project: bool = False) -> tuple[IssuedTokens, VaUsers]:
     """Rotate a refresh token presented with its device's id and secret.
+    *multi_project* widens the grant check, as at sign-in; the flag is per
+    request, so a multi-project app sends it on every refresh.
 
     Refusals, none of which asks the app to wipe except ``session_revoked``:
     - 401 ``device_invalid``: device id/secret missing, wrong, or not the
@@ -551,7 +567,7 @@ def refresh_session(refresh_token, *, device_id, device_secret) -> tuple[IssuedT
         raise _revoked_error(session)
     if session.refresh_expires_at <= now or session.created_at + _session_max_age() <= now:
         raise DeviceAuthError("This session has expired; sign in again.", "session_expired", 401)
-    allowed, reason = _session_still_allowed(session)
+    allowed, reason = _session_still_allowed(session, multi_project)
     if not allowed:
         _revoke(session, reason)
         db.session.commit()

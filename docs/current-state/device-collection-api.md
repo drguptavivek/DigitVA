@@ -9,7 +9,8 @@ last_updated: 2026-10-03
 # Device Collection API (Path B server side)
 
 Server side of the Android collection app (beads `digitva-kmk.1`, hardened
-in `digitva-kmk.6`, offline cases in `digitva-kmk.4`). Policy:
+in `digitva-kmk.6`, offline cases in `digitva-kmk.4`, case detail, history
+and multi-project devices for the Expo app in `digitva-p6fs.24`). Policy:
 [Field Data Collection](../policy/field-data-collection.md) (Path B). Design
 and the API contract the app is built against:
 `.tasks/2026-09-30-android-collection-app.md`.
@@ -28,7 +29,8 @@ and the API contract the app is built against:
   `find_device_upload`, `serialize_device_upload`; offline cases:
   `device_case_filters`, `device_case_rows` / `device_case`,
   `get_device_case`, `find_device_registration`, `find_device_attempt`,
-  `serialize_case_ack`.
+  `serialize_case_ack`; detail and history: `get_case_detail`,
+  `serialize_case_detail`, `list_case_history`, `prefill_policy`.
 - UI: **Devices** card in the Setup home People section
   (`admin/panels/project_setup.html`), admin only.
 
@@ -126,12 +128,14 @@ As the contract, with these additions (all additive):
 | `POST /sessions` | Extra refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance` (pending terms no longer refuse: see above). A closed project answers 403 `device_revoked`. |
 | `POST /sessions/refresh` | Needs `device_id` + `device_secret` (else 401 `device_invalid`, nothing revoked). 401 `refresh_reused` / 409 `refresh_retry_race` (reuse, session revoked); 401 `session_revoked` (device or admin revoke, grant withdrawn, signed out); 401 `session_ended` (account changed or project closed; keeps data); 401 `session_expired` and 401 `refresh_invalid` revoke nothing. Optional `count`/`unique_ids`/`client_draft_ids`. |
 | `DELETE /sessions/current` | `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out. |
-| `GET /bootstrap` | `user`, `context` (the intake context filtered to the device's project), `form_options` (the `/api/v1/organization/<project>/form-options` body), `instrument_version` (the served bundle's manifest sha, `who_va_bundle_version`). No CSRF fields. |
+| `GET /bootstrap` | `user`, `context` (the intake context filtered to the device's project), `form_options` (the `/api/v1/organization/<project>/form-options` body), `instrument_version` (the served bundle's manifest sha, `who_va_bundle_version`), all for the enrolment project as before; plus `default_project_id` and `projects` (multi-project, below). No CSRF fields. |
 | `POST /submissions` | Accepts an optional `completion: {valid, issues}` beside `draft`; see below. |
 | `GET /units` | `units_payload` from `app/routes/api/organization.py` over `authz.reachable_unit_ids(user, project, {interviewer})`: the web picker's body. 403 when nothing is reachable. |
 | `GET /instruments/<code>/translations/<locale>` | `translations_response` from `app/routes/api/instruments.py`, only for `served_instrument_locales(project)` (the default form type's instrument, `available_locales`); else 404 `not_found`. |
 | `POST /outstanding` | Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
-| `GET /cases` | Offline cases, below. 120/min. |
+| `GET /cases` | Offline cases, below. 120/min. Optional `project_id`. |
+| `GET /cases/<death_id>` | Case detail with full contacts, below. 120/min. |
+| `GET /history` | Case history, below. 120/min. |
 | `POST /deaths` | Offline registration, below. |
 | `POST /cases/<death_id>/attempts`, `/visit` | Offline attempts and visits, below. |
 | Admin `POST .../device-enrolments` | Also returns `qr_svg` (segno) and `max_uses`; `Cache-Control: no-store`. The QR server URL is `DEVICE_PUBLIC_URL` (default: scheme and host of `MAIL_BASE_URL`; set `http://10.0.2.2:8051` for an emulator). Outside debug/testing a plain-http URL other than localhost, 127.0.0.1 or 10.0.2.2 refuses the code (503, logged); checked when a code is issued, not at startup, so a bad value cannot stop the server. |
@@ -226,6 +230,106 @@ one section named `device`; then `submit_draft` with `intake_source =
   (with `death_id`), so `/submissions` always names a case that exists.
 - Known gap: an attempt's `attempted_at` (and the case's `last_contact_at`)
   is the sync time, not when it happened offline.
+
+## Case detail, history and multi-project devices (`digitva-p6fs.24`)
+
+Policy: [Field Data Collection](../policy/field-data-collection.md)
+("Offline contact details", "Multi-project devices") and
+[Web Intake](../policy/web-intake.md) ("Contact data and attempts"). No
+migration: no table or column changed.
+
+- **Project of a request.** `GET` calls take an optional `project_id` query
+  parameter, `POST` calls a `project_id` body field (`_requested_project_id`
+  / `_request_project` in the blueprint). Named: it must be a project of the
+  worker's `interviewer_context`, else 403 `project_forbidden` (alike for an
+  unknown and an ungranted project). Absent: the device's enrolment project
+  (`AuthDevice.project_id`), unchecked as before, so an older app is
+  unaffected. Applies to `/units`, `/cases`, `/history`, `/deaths`,
+  `/submissions`, `/cases/<id>/attempts`, `/cases/<id>/visit` and
+  `/instruments/<code>/translations/<locale>` (locales of that project).
+  Mutations still run `_require_scope` (site and unit of that project): a
+  site of another project is 403 `forbidden`. `/submissions` with a
+  `death_id` of another project than the resolved one is 404, as are
+  attempts and visits on such a case (`get_device_case`).
+- **Bootstrap `projects`.** One entry per authorized project: `project_id`,
+  `project_name`, `web_intake_mode`, `sites` (that project's context
+  entries), `form_options` (`form_options_payload`: `config_version`,
+  `enabled_extensions`, `languages`, `translation_versions`, ...) and
+  `prefill_policy` (`web_intake_service.prefill_policy`): `direct` (the
+  prefill a direct start with no unit gets: interviewer and its locked
+  questions), `units` (`{org_unit_id: {answers, lockedQuestionNames}}`, the
+  area answers and locked presets a direct start in that unit adds, for every
+  unit the worker may pick), `answer_fields` (`PREFILL_ANSWER_FIELDS`, WHO
+  question -> register column) and `locked_fields` (`PREFILL_LOCKED_FIELDS`).
+  All derived from `_prefill_from_death`, which uses the same constants and
+  stays the authority: locked answers are recomputed on upload. Not
+  described: name, sex, dates and age (sent as `prefill.deceased` and mapped
+  by the package), the age and partial-birth-date brackets and the
+  place-of-death keyword match (conditional; see the builder).
+  `default_project_id` is the enrolment project. When the worker no longer
+  holds an interviewer grant there (a `multi_project` session outlives it),
+  top-level `context` is `[]`, `form_options` and `default_project_id` are
+  `null`, and `projects` still lists the remaining projects;
+  `/instruments/<code>/translations/<locale>` without `project_id` then
+  answers 403 `project_forbidden`. An older app never sees this: its session
+  is revoked with that grant.
+- **`multi_project` flag.** `POST /sessions` and `POST /sessions/refresh`
+  accept `"multi_project": true`. With it the grant check (sign-in and every
+  refresh, `_session_access`) needs an interviewer grant in any project;
+  without it, the enrolment project as before, so losing that grant answers
+  `session_revoked` even when another project's grant remains. The flag is
+  per request, nothing is stored: a multi-project app sends it on every
+  refresh. The closed-enrolment-project check (`session_ended`) is
+  unchanged for both. A multi-project app drops a project's local data when
+  the project leaves bootstrap `projects`.
+- **Case detail.** `GET /cases/<death_id>` (`get_case_detail`, one query
+  over `_worklist_select` with `_worklist_scope`): visible exactly when the
+  worklist would list it (project-site from the intake context, unit grants
+  their subtrees with no-unit cases excluded, `draft_identity` for its
+  starter only), any state; with `project_id` also that project. Otherwise,
+  or a malformed id, 404 `not_found`. Body `{"case": ...}`:
+  `serialize_case_detail` (`death_id`, `unique_id`, `project_id`, `site_id`,
+  `org_unit_id`, `unit_name`, `source`, `state`, `details_pending`,
+  `pending_flag`, `deceased {name, sex, age_years, date_of_birth,
+  date_of_birth_partial, date_of_death, place_of_death}`,
+  `household_address {address, house_street, village_ward, landmark}`,
+  `informant {name, phone, phone_2}` in full, `remarks`, `next_visit_at`,
+  `last_contact_at`, `registered_by_me`, `started_by_me`, `my_draft_id`,
+  `va_sid` (null unless `started_by_me`), `created_at`, `updated_at`) plus `prefill` (as on `/cases`
+  rows) and `links {self, attempts, visit}`. No ABHA, parents' names, other
+  users' ids, client ids or duplicate ids. `Cache-Control: no-store`. The
+  browser twin is `GET /intake/api/cases/<death_id>` (cookie, interviewer):
+  the same body without `prefill`, links `self`, `attempts`, `visit`,
+  `start_interview` (`POST /intake/api/drafts`) and `form` when
+  `my_draft_id` is set.
+- **History.** `GET /history?project_id=&cursor=&limit=&state=`
+  (`list_case_history`): every case of the project in the worklist scope,
+  any state, `created_at` then `death_id` newest first, keyset cursor
+  (opaque), `limit` default 50 clamped to 1..200 (not a number: 400), `state`
+  comma-separated `CASE_STATES` (unknown: 400). Rows are
+  `serialize_history_row`: the worklist row (phones masked, no prefill) with
+  `va_sid` null unless `started_by_me`. `no-store`. Paging looks one row
+  ahead, so a last page of exactly `limit` rows already has `next_cursor`
+  null; ties on `created_at` are ordered by `death_id`. No index serves this
+  sort yet; the project filter bounds it. Follow-up (no migration in this
+  change): an index on `va_death_register (project_id, created_at,
+  death_id)`.
+- **Scope (`_worklist_scope`)**, shared by `/cases`, `/history`, the detail
+  and the web worklist: per project-site of the intake context, no unit
+  filter when a project grant or a site grant on that site exists, else the
+  subtrees of the worker's unit grants in that project (a sub-select per
+  project over `authz.subtree_select`; grants from the request-memoised
+  `authz.resolve_grants`). A wider grant beside a unit grant therefore sees
+  the whole site; before this change the unit grant narrowed it. The
+  blueprint computes `interviewer_context` once per request
+  (`_interviewer_context`, request environ) and passes it to the service.
+- **Expo integration.** Read bootstrap `projects`; send `project_id` on
+  every call for a project other than the default (always, to be safe);
+  send `multi_project: true` on sign-in and every refresh; keep the
+  `/cases` download per project and fetch `/cases/<id>` for each listed
+  case to hold its contacts offline, deleting a case's detail when it
+  leaves `/cases`, on logout and on `session_revoked`; show `/history`
+  online only; drop a project's local data when it leaves `projects`.
 
 ## Not built
 

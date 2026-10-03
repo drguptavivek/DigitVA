@@ -345,6 +345,19 @@ a place for names, phone numbers or addresses).
   continue or finish its interview. Every interviewer sees every case in their
   scope. Scope is the existing grant reach (project, project-site or unit
   subtree; see "Role gate vs scope").
+- **Who sees which cases** (owner, 2026-10-03, `digitva-p6fs.24`). The death
+  list (registrations and their contacts) is shared by every interviewer of a
+  unit. A worker may hold interviewer grants on several units, in one project
+  or across projects, and sees the deaths of each granted unit and its
+  subtree, each in its own project only. A site-level grant sees every death
+  of that project-site, a project-level grant every death of the project.
+  When grants overlap on one project-site the wider wins: a site or project
+  grant beside a unit grant sees the whole site, while the unit grant alone
+  still governs the project's other sites. Interview forms (answers) stay
+  their interviewer's own; the case's submission id (`va_sid`) is shown in
+  the single-case detail and the device history only to the worker who
+  started the case's interview. Worklist and device case download rows
+  still carry `va_sid` for every case.
 - **One shared draft per death**, replacing "only its author may edit". Each
   save records who saved it; the audit trail keeps every interviewer who
   worked on the case.
@@ -600,6 +613,24 @@ reused (it is legal only from `screening_pending`, `smartva_pending` and
   org unit.
 - Phones are validated (Indian mobile format) and **masked in lists**; shown in
   full only on the case page.
+- **Single-case detail** (owner, 2026-10-03, `digitva-p6fs.24`). One case's
+  detail (`GET /intake/api/cases/<death_id>` in the browser, `GET
+  /api/v1/device/cases/<death_id>` in the native app) shows the full contact
+  details: informant name, both full phones, the household address fields and
+  the remarks. Lists (worklist, device case download, device history,
+  supervision) stay masked. The detail never carries ABHA, the parents' names,
+  other users' ids or client ids, and is answered `Cache-Control: no-store`.
+  Its visibility is exactly the worklist's (team cases in scope, see "Who
+  sees which cases"; "details pending" for its starter only), in any state; a
+  case outside it, or an unknown id, is 404. `va_sid` is null unless the
+  caller started the case. The native app may keep the
+  detail of an active case offline under
+  [Field Data Collection](field-data-collection.md) ("Offline contact
+  details"); the browser keeps nothing.
+- **Projects on a native device** (owner, 2026-10-03). A native device may
+  work in every project the worker is an interviewer in; the browser
+  (PWA included) keeps server-side project access only, with no
+  multi-project persistence or offline storage.
 - **Contact attempts** record the outcome only (reached, no answer, wrong
   number, moved, refused), the next date and the user. No free-text notes:
   they would carry personal data.

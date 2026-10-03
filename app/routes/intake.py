@@ -8,7 +8,7 @@ Policy: docs/policy/web-intake.md
 import logging
 from secrets import token_hex
 
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, jsonify, render_template, request, session, url_for
 from flask_login import current_user
 from flask_wtf.csrf import generate_csrf
 
@@ -178,6 +178,33 @@ def api_worklist():
                 "next_cursor": result["next_cursor"],
             }
         )
+
+    return _handle(run)
+
+
+@intake.get("/api/cases/<death_id>")
+@role_required("interviewer")
+def api_case_detail(death_id):
+    """One case with its full contact details (the case page), visible
+    exactly as the worklist would list it, in any state; otherwise 404.
+    ``Cache-Control: no-store``. Starting or resuming the interview is
+    ``POST links.start_interview`` with the case's project, site and id."""
+
+    def run():
+        death, unit_name, my_draft_id = intake_svc.get_case_detail(current_user, death_id)
+        body = intake_svc.serialize_case_detail(current_user, death, unit_name, my_draft_id)
+        links = {
+            "self": url_for(".api_case_detail", death_id=death.death_id),
+            "attempts": url_for(".api_log_contact_attempt", death_id=death.death_id),
+            "visit": url_for(".api_set_visit", death_id=death.death_id),
+            "start_interview": url_for(".api_start_draft"),
+        }
+        if my_draft_id:
+            links["form"] = url_for(".form_page", draft_id=my_draft_id)
+        body["links"] = links
+        response = jsonify({"case": body})
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     return _handle(run)
 

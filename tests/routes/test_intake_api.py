@@ -8,6 +8,7 @@ The route layer is thin, so these cover what only it can decide:
     section -> submit, each committing its own step
   - WebIntakeError maps to its status code and rolls the session back
 """
+import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -197,6 +198,45 @@ class IntakeApiTests(BaseTestCase):
             [(self.PROJECT_ID, self.SITE_ID)],
         )
         self.assertEqual(body["context"][0]["web_intake_mode"], "both")
+
+    # ── case detail (digitva-p6fs.24) ──────────────────────────────────────
+
+    def test_case_detail_is_for_interviewers_in_scope_with_full_contacts(self):
+        url = f"/intake/api/cases/{uuid.uuid4()}"
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+        self._login(self.interviewer_id)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get("/intake/api/cases/not-a-uuid").status_code, 404)
+        created = self.client.post(
+            "/intake/api/deaths",
+            json=self._death_payload(informant_name="Mohan Das", informant_phone="9876543210",
+                                     address_village_ward="Ward 4", father_name="Hari Das"),
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        death_id = created.get_json()["death"]["death_id"]
+
+        response = self.client.get(f"/intake/api/cases/{death_id}")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        case = response.get_json()["case"]
+        self.assertEqual(case["informant"]["phone"], "9876543210")
+        self.assertEqual(case["informant"]["name"], "Mohan Das")
+        self.assertEqual(case["household_address"]["village_ward"], "Ward 4")
+        self.assertNotIn("Hari Das", response.get_data(as_text=True))
+        self.assertIsNone(case["my_draft_id"])
+        self.assertNotIn("form", case["links"])
+        self.assertEqual(case["links"]["start_interview"], "/intake/api/drafts")
+        self.assertEqual(case["links"]["visit"], f"/intake/api/cases/{death_id}/visit")
+
+        draft = self._start_draft(death_id=death_id)
+        case = self.client.get(f"/intake/api/cases/{death_id}").get_json()["case"]
+        self.assertEqual(case["my_draft_id"], draft["draft_id"])
+        self.assertEqual(case["links"]["form"], f"/intake/form/{draft['draft_id']}")
+        self.assertEqual(case["state"], "in_progress")
 
     # ── happy path ─────────────────────────────────────────────────────────
 

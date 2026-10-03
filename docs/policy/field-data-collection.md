@@ -106,8 +106,9 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   (unique, from a redeemed code or verified email; mobile-sign-in.md) and its
   password and, when the account has factors, a TOTP or recovery code
   ([Authentication Factors](authentication-factors.md)); a device session
-  requires an active `interviewer` grant in the enrolled project, checked
-  again at every refresh.
+  requires an active `interviewer` grant in the enrolled project (a
+  multi-project app: in at least one project, see "Multi-project devices"
+  below), checked again at every refresh.
 - **Tokens**: opaque, stored hashed; access 15 minutes; refresh rotated on
   every use and presented with the device secret; reuse of a retired refresh
   token revokes the session. Proposed C1: refresh lifetime 30 days, sliding,
@@ -170,11 +171,50 @@ stay debug-only and must not collect real interviews until C4 is settled.
 interviewer's worklist cases waiting for a visit (and their own in-progress
 ones) are downloaded into their encrypted store with each case's prefill,
 and replaced on every refresh, so a case the server no longer lists leaves
-the phone: no history is kept. Phones stay masked on the device. Deaths
+the phone: no history is kept. Deaths
 registered, contact attempts logged and visit dates set offline are queued
 with client ids, sent registrations first, and deleted on acknowledgement;
 pending registrations are part of the outstanding-work report.
 Attachments are not built yet.
+
+**Offline contact details** (owner, 2026-10-03, `digitva-p6fs.24`). This
+replaces the earlier "phones stay masked on the device". An authorized native
+worker may download the full contact details of an **active** case in their
+scope (one the case download lists: waiting for a visit, refused, or their
+own in progress) into their encrypted per-interviewer store: the informant's
+name, both full phone numbers, the household address fields (address, house
+or street, village or ward, landmark) and the remarks. They come only from the
+single-case detail call, never from a list. They are kept exactly like
+drafts: deleted when the case leaves the active download, on logout, and on
+`session_revoked` (device or administrative revoke, withdrawn grant). ABHA
+number and address and the father's and mother's names are never in a detail
+response (the existing case prefill keeps what it already carried). The case
+history is an online listing with masked phones; the app shows it and does
+not keep it, so the device still holds no history of past cases.
+
+**Multi-project devices** (owner, 2026-10-03). A native device may hold data
+for every project the signed-in worker is an interviewer in (the intake
+context), with no admin step; the enrolment project stays the default when a
+request names none. A multi-project app says so on sign-in and on every
+refresh, and its session then lasts while the worker has at least one
+authorized project; an app that does not say so keeps the enrolment-project
+check and its `session_revoked`. When a project drops out of the bootstrap's
+project list the app deletes that project's local data (drafts, cases,
+contact details), as it deletes a store on `session_revoked`. The browser
+(Path A, PWA included) is unchanged: no multi-project persistence and no
+offline storage. Once the enrolment project leaves the list, the bootstrap no
+longer serves its configuration (no default project) and translations need a
+named project.
+
+**Which cases a worker sees** (owner, 2026-10-03), on the device as in the
+browser ([Web Intake](web-intake.md), "Who sees which cases"): the death list
+and its contacts are shared by every worker of a unit; a worker granted on
+several units, in one project or several, sees each granted unit's subtree in
+its own project; a site grant sees that whole project-site and a project
+grant the whole project, and where a wider grant overlaps a unit grant the
+wider wins. Interview forms stay the worker's own: the submission id
+(`va_sid`) appears in a case's detail and in the history only for the worker
+who started its interview.
 
 ### Accepted risk: no retention ceiling
 

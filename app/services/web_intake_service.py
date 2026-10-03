@@ -52,6 +52,7 @@ from app.services import case_transition_service as cases
 from app.services import org_grant_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
+from app.services.authz import resolve_grants, subtree_select
 from app.services.case_transition_service import WebIntakeError
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -103,6 +104,10 @@ __all__ = [
     "serialize_death",
     "serialize_draft",
     "serialize_worklist_row",
+    "serialize_case_detail",
+    "get_case_detail",
+    "list_case_history",
+    "prefill_policy",
 ]
 
 INSTRUMENT_ID = "va_who_2022"
@@ -796,6 +801,18 @@ def _case_address(death: VaDeathRegister) -> str:
     return ", ".join(part.strip() for part in parts if part and part.strip())
 
 
+#: WHO question -> the death-register column ``_prefill_from_death`` answers
+#: it from, as an editable answer (Id10058 through ``_who_place_of_death``).
+PREFILL_ANSWER_FIELDS = {
+    "Id10058": "place_of_death",
+    "Id10007": "informant_name",
+    "Id10061": "father_name",
+    "Id10062": "mother_name",
+}
+#: Death-register columns prefilled as the same-named question and locked.
+PREFILL_LOCKED_FIELDS = ("abha_number", "abha_address")
+
+
 def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None,
                         unit_parts: tuple[dict, list[str]] | None = None) -> dict:
     """The draft's prefill, per the map in docs/policy/web-intake.md.
@@ -855,13 +872,10 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         # Id10055/Id10057 are asked only when Id10051 = yes.
         answers["Id10051"] = "yes"
     if death is not None:
-        place_of_death = _who_place_of_death(death.place_of_death)
-        for name, value in (
-            ("Id10058", place_of_death),
-            ("Id10007", death.informant_name),
-            ("Id10061", death.father_name),
-            ("Id10062", death.mother_name),
-        ):
+        for name, field in PREFILL_ANSWER_FIELDS.items():
+            value = getattr(death, field)
+            if name == "Id10058":
+                value = _who_place_of_death(value)
             if value:
                 answers[name] = value
     if death is not None and cases.identity_complete(death):
@@ -900,7 +914,8 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             else:
                 answers.update({"dob_precision": "year", "dob_year": f"{partial}-01-01"})
         prefill["deceased"] = deceased
-        for name, value in (("abha_number", death.abha_number), ("abha_address", death.abha_address)):
+        for name in PREFILL_LOCKED_FIELDS:
+            value = getattr(death, name)
             if value:
                 answers[name] = value
                 locked.add(name)
@@ -1898,25 +1913,34 @@ def _after_worklist_cursor(raw: str):
     )
 
 
-def _worklist_scope(user: VaUsers):
+def _worklist_scope(user: VaUsers, context: list[dict] | None = None):
     """SQL condition for the cases this interviewer's grants reach, or None.
 
-    The same reach as ``list_deaths``, across every project-site of
-    ``interviewer_context``: a project- or site-scoped grant sees the whole
-    project-site, a unit-scoped grant its units' subtrees only (a case with no
-    unit is outside every subtree).
+    Per project-site of ``interviewer_context`` (*context* when the caller
+    already has it): a project grant, or a site grant on that very site,
+    sees the whole project-site; otherwise the subtrees of the user's unit
+    grants in that project (a case with no unit is outside every subtree).
+    A wider grant wins over a unit grant on the same project-site
+    (docs/policy/web-intake.md, "Who sees which cases"). The subtrees stay
+    sub-selects, so the grants cost one memoised lookup however many
+    project-sites there are.
     """
+    wide: set[tuple[str, str | None]] = set()
+    unit_grants: dict[str, set[uuid.UUID]] = {}
+    for grant in resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False):
+        if grant.is_wide:
+            wide.add((grant.project_id, grant.site_id))  # site_id None: project grant
+        else:
+            unit_grants.setdefault(grant.project_id, set()).add(grant.org_unit_id)
     conditions = []
-    unit_ids = None
-    for entry in interviewer_context(user):
-        pair = sa.and_(
-            VaDeathRegister.project_id == entry["project_id"],
-            VaDeathRegister.site_id == entry["site_id"],
-        )
-        if entry["org_units"]:
-            if unit_ids is None:
-                unit_ids = sorted(org_grant_service.scope_unit_ids(user.user_id, VaAccessRoles.interviewer))
-            pair = sa.and_(pair, VaDeathRegister.org_unit_id.in_(unit_ids))
+    for entry in interviewer_context(user) if context is None else context:
+        project_id, site_id = entry["project_id"], entry["site_id"]
+        pair = sa.and_(VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id)
+        if (project_id, None) not in wide and (project_id, site_id) not in wide:
+            units = unit_grants.get(project_id)
+            if not units:
+                continue
+            pair = sa.and_(pair, VaDeathRegister.org_unit_id.in_(subtree_select(units)))
         conditions.append(pair)
     if not conditions:
         return None
@@ -1948,9 +1972,27 @@ def _mine_condition(user: VaUsers):
     )
 
 
+def _worklist_select(user: VaUsers):
+    """``SELECT (case, unit_name, my_draft_id)``: a worklist row, with the
+    caller's own resumable web draft. The caller adds the scope."""
+    my_draft = aliased(VaWebIntakeDraft)
+    return (
+        sa.select(VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id)
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
+        .outerjoin(
+            my_draft,
+            sa.and_(
+                my_draft.death_id == VaDeathRegister.death_id,
+                my_draft.status == "draft",
+                my_draft.user_id == user.user_id,
+            ),
+        )
+    )
+
+
 def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
                   cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
-                  extra_filters: list | None = None) -> dict:
+                  extra_filters: list | None = None, context: list[dict] | None = None) -> dict:
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
@@ -1962,12 +2004,13 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     first. Keyset-paged on (next_visit_at, updated_at, death_id).
     ``extra_filters`` (SQL conditions) narrow the scope further, counts
     included: the device case download (``device_case_filters``).
+    ``context``: the caller's ``interviewer_context``, if already computed.
     """
     for state in states or []:
         if state not in CASE_STATES:
             raise WebIntakeError(f"Unknown state {state!r}.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = _worklist_scope(user)
+    scope = _worklist_scope(user, context)
     if scope is None:
         return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}}
     base = [scope, *(extra_filters or [])]
@@ -1987,18 +2030,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         filters.append(VaDeathRegister.status.in_(states))
     if cursor:
         filters.append(_after_worklist_cursor(cursor))
-    my_draft = aliased(VaWebIntakeDraft)
     rows = db.session.execute(
-        sa.select(VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id)
-        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(
-            my_draft,
-            sa.and_(
-                my_draft.death_id == VaDeathRegister.death_id,
-                my_draft.status == "draft",
-                my_draft.user_id == user.user_id,
-            ),
-        )
+        _worklist_select(user)
         .where(*filters)
         .order_by(
             VaDeathRegister.next_visit_at.asc().nulls_last(),
@@ -2016,6 +2049,107 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
             {"death_id": str(row.death_id), "unique_id": row.unique_id}
         )
     return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible}
+
+
+def get_case_detail(user: VaUsers, death_id: object, *, project_id: str | None = None,
+                    context: list[dict] | None = None) -> tuple:
+    """One case as ``(case, unit_name, my_draft_id)``, visible exactly when the
+    worklist would list it (``_worklist_scope``), in any state; narrowed to
+    *project_id* when given. Unknown, out of scope or a malformed id: 404.
+    ``context``: the caller's ``interviewer_context``, if already computed."""
+    try:
+        death_uuid = uuid.UUID(str(death_id))
+    except ValueError:
+        raise WebIntakeError("Case not found.", 404) from None
+    scope = _worklist_scope(user, context)
+    if scope is None:
+        raise WebIntakeError("Case not found.", 404)
+    filters = [scope, VaDeathRegister.death_id == death_uuid]
+    if project_id is not None:
+        filters.append(VaDeathRegister.project_id == project_id)
+    row = db.session.execute(_worklist_select(user).where(*filters).limit(1)).first()
+    if row is None:
+        raise WebIntakeError("Case not found.", 404)
+    return tuple(row)
+
+
+def list_case_history(user: VaUsers, *, project_id: str, states: list[str] | None = None,
+                      cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
+                      context: list[dict] | None = None) -> dict:
+    """Every case of *project_id* in the caller's worklist scope, any state,
+    newest first (``created_at``, then ``death_id``), keyset-paged. Returns
+    ``{"cases": [(case, unit_name, my_draft_id), ...], "next_cursor"}``.
+    ``context``: the caller's ``interviewer_context``, if already computed.
+
+    ponytail: no (project_id, created_at) index; the project filter bounds the
+    sort. Add an index on ``(project_id, created_at, death_id)`` if a project
+    grows large.
+    """
+    for state in states or []:
+        if state not in CASE_STATES:
+            raise WebIntakeError(f"Unknown state {state!r}.")
+    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
+    scope = _worklist_scope(user, context)
+    if scope is None:
+        return {"cases": [], "next_cursor": None}
+    filters = [scope, VaDeathRegister.project_id == project_id]
+    if states:
+        filters.append(VaDeathRegister.status.in_(states))
+    if cursor:
+        at, last_id = _decode_cursor(cursor)
+        filters.append(sa.tuple_(VaDeathRegister.created_at, VaDeathRegister.death_id) < (at, last_id))
+    rows = db.session.execute(
+        _worklist_select(user)
+        .where(*filters)
+        .order_by(VaDeathRegister.created_at.desc(), VaDeathRegister.death_id.desc())
+        .limit(limit + 1)
+    ).all()
+    page = [tuple(row) for row in rows[:limit]]
+    next_cursor = _encode_cursor(page[-1][0].created_at, page[-1][0].death_id) if len(rows) > limit else None
+    return {"cases": page, "next_cursor": next_cursor}
+
+
+def prefill_policy(user: VaUsers, project_id: str) -> dict:
+    """The offline prefill the server applies in *project_id*, for an app that
+    builds a draft before it can reach the server. Derived from
+    ``_prefill_from_death``, which stays the authority: an upload's locked
+    answers are recomputed server-side whatever the app sent.
+
+    ``direct``: the prefill of a direct start with no unit (interviewer and
+    its locked questions). ``units``: ``{org_unit_id: {answers,
+    lockedQuestionNames}}``, the area part a direct start in that unit adds,
+    for every unit the caller may pick (``_reachable_unit_ids``; None means
+    every active unit). ``answer_fields``/``locked_fields``: which register
+    columns become which answers. Name, sex, dates and age go to
+    ``prefill.deceased`` and the package maps them; age and partial birth
+    date brackets and the place-of-death matching are conditional and not
+    described here.
+
+    ponytail: ``units`` grows with the reachable tree, as ``/units`` does.
+    """
+    direct = _prefill_from_death(None, user)
+    reachable = _reachable_unit_ids(user, project_id)
+    if reachable is None:
+        reachable = set(db.session.scalars(
+            sa.select(MasOrgUnit.org_unit_id).where(
+                MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True)
+            )
+        ).all())
+    parts = _unit_prefill_parts(reachable)
+    interviewer_locked = set(direct["lockedQuestionNames"])
+    units = {}
+    for unit_id, unit_parts in parts.items():
+        prefill = _prefill_from_death(None, user, unit_id, unit_parts)
+        units[str(unit_id)] = {
+            "answers": prefill["answers"],
+            "lockedQuestionNames": sorted(set(prefill["lockedQuestionNames"]) - interviewer_locked),
+        }
+    return {
+        "direct": direct,
+        "units": units,
+        "answer_fields": dict(PREFILL_ANSWER_FIELDS),
+        "locked_fields": list(PREFILL_LOCKED_FIELDS),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2279,6 +2413,68 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
+
+
+def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
+                          my_draft_id: uuid.UUID | None) -> dict:
+    """One case for the case page and the device detail: the worklist row's
+    case fields plus the full contact details (informant name, both phones,
+    household address, remarks). Never ABHA, parents' names, other users' ids
+    or client ids (docs/policy/web-intake.md, "Single-case detail"); the
+    submission id (``va_sid``) only to the case's starter, whose interview
+    it is."""
+    started_by_me = death.started_by_user_id == user.user_id
+    return {
+        "death_id": str(death.death_id),
+        "unique_id": death.unique_id,
+        "project_id": death.project_id,
+        "site_id": death.site_id,
+        "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
+        "unit_name": unit_name,
+        "source": death.source,
+        "state": death.status,
+        "details_pending": death.status == "draft_identity",
+        "pending_flag": death.pending_flag,
+        "deceased": {
+            "name": death.deceased_name,
+            "sex": death.deceased_sex,
+            "age_years": death.age_years,
+            "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
+            "date_of_birth_partial": death.date_of_birth_partial,
+            "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
+            "place_of_death": death.place_of_death,
+        },
+        "household_address": {
+            "address": death.address,
+            "house_street": death.address_house_street,
+            "village_ward": death.address_village_ward,
+            "landmark": death.address_landmark,
+        },
+        "informant": {
+            "name": death.informant_name,
+            "phone": death.informant_phone,
+            "phone_2": death.informant_phone_2,
+        },
+        "remarks": death.remarks,
+        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
+        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
+        "registered_by_me": death.registered_by == user.user_id,
+        "started_by_me": started_by_me,
+        "my_draft_id": str(my_draft_id) if my_draft_id else None,
+        "va_sid": death.va_sid if started_by_me else None,
+        "created_at": death.created_at.isoformat(),
+        "updated_at": death.updated_at.isoformat(),
+    }
+
+
+def serialize_history_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
+                          my_draft_id: uuid.UUID | None) -> dict:
+    """A ``/history`` row: the worklist row, with ``va_sid`` only for a case
+    the caller started (interview forms are their interviewer's own)."""
+    row = serialize_worklist_row(user, death, unit_name, my_draft_id)
+    if not row["started_by_me"]:
+        row["va_sid"] = None
+    return row
 
 
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,

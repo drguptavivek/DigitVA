@@ -15,6 +15,8 @@ in .tasks/digitva-0wc-design.md move it here. Stage 3: the data-manager
 grid, exports, KPIs, triage, sync, the unrouted queue and pinning. Stage 4:
 reviewing (dashboard, start, Step 1, final, the view page, the ``vareview``
 validator and the reviewer branches of the NQA, SO, ICD and DORIS APIs).
+Stage 5: the site PI report (``SITE_PI_REPORT``, pairs and units) and the
+``is_site_pi`` / ``is_interview_supervisor`` role gates.
 ``subtree_select`` is the unit-subtree SELECT for the raw-SQL and MV
 surfaces that cannot embed ``scope_filter``.
 """

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-03
 ---
 
 # Current Data Model
@@ -312,9 +312,10 @@ rows here keep the Project > Site > Form model.
 - check constraints: the scope shape, the role/scope pairs (`collaborator`,
   `collaborator_pii`, `coder`, `coding_tester`, `reviewer`, `data_manager`,
   `interviewer` may use `org_unit`; `interview_supervisor` may use **only**
-  `org_unit`; `site_pi` may use **only** `project_site`, migration
-  `c4a9e7d2b6f1`, created `NOT VALID` where legacy `site_pi` unit rows were
-  kept deactive), and `cadre_id` only on unit grants
+  `org_unit`; `site_pi` may use `project_site` or `org_unit`, the In-charge,
+  since migration `e2b7c4d9a1f3`, which reversed `c4a9e7d2b6f1`'s
+  tightening; the unit rows `c4a9e7d2b6f1` deactivated stay deactive), and
+  `cadre_id` only on unit grants
 - partial unique index `uq_va_user_access_grants_org_unit` on
   (`user_id`, `role`, `org_unit_id`); lookup index on
   (`org_unit_id`, `role`, `grant_status`)

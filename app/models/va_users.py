@@ -180,15 +180,16 @@ class VaUsers(UserMixin, db.Model):
         return self._get_granted_va_forms("interviewer")
 
     def is_interview_supervisor(self):
-        """Holds a live ``interview_supervisor`` grant (unit scope only).
+        """Role gate for intake supervision, as ``authz.effective_roles`` says:
+        an ``interview_supervisor`` unit grant, the In-charge (site_pi at a
+        unit) and project_pi on a tree project.
 
         Opens the role gate only: which cases the user supervises is
         ``case_transition_service.is_interview_supervisor_for``.
         """
-        from app.models import VaAccessRoles
-        from app.services.org_grant_service import granted_units
+        from app.services.authz import effective_roles
 
-        return bool(granted_units(self.user_id, VaAccessRoles.interview_supervisor))
+        return "interview_supervisor" in effective_roles(self)
 
     def is_coding_tester(self, va_form=None):
         tester_forms = self.get_coding_tester_va_forms()
@@ -197,10 +198,14 @@ class VaUsers(UserMixin, db.Model):
         return bool(tester_forms) or self._holds_unit_grant("coding_tester")
 
     def is_site_pi(self, va_form=None):
-        site_pi_va_form = self.get_site_pi_va_forms()
+        """With *va_form*: the form is under one of the user's site_pi pairs.
+        Without: the role gate, as ``authz.effective_roles`` says (a live
+        site_pi grant on a pair or a unit, the In-charge). Scope is authz's."""
         if va_form:
-            return va_form in site_pi_va_form
-        return bool(site_pi_va_form)
+            return va_form in self.get_site_pi_va_forms()
+        from app.services.authz import effective_roles
+
+        return "site_pi" in effective_roles(self)
 
     def is_reviewer(self, va_form=None):
         reviewer_va_form = self.get_reviewer_va_forms()

@@ -54,7 +54,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
     """Workflow and final-COD authority counts over the forms *scope_sql* selects.
 
-    *scope_sql* is a fixed predicate on ``va_forms f`` written by a caller in
+    *scope_sql* is a fixed predicate on ``va_submissions s`` / ``va_forms f`` written by a caller in
     this module, never user input; its values travel in *scope_params*. One
     query. Counts only, no staff or subject identity.
     """
@@ -203,52 +203,97 @@ def get_project_workflow_kpis(project_id: str) -> dict:
     )
 
 
+# The active units in the subtree of :org_unit_id (ltree, GiST
+# ix_mas_org_unit_path), as authz.subtree_select builds it for SQLAlchemy.
+_UNIT_SUBTREE_SQL = """(
+    SELECT covered.org_unit_id
+    FROM mas_org_unit anchor
+    JOIN mas_org_unit covered
+      ON covered.project_id = anchor.project_id
+     AND covered.path <@ anchor.path
+    WHERE anchor.org_unit_id = :org_unit_id
+      AND covered.is_active
+)"""
+
+# A district subtree is not a site: the unit report lists at most this many
+# submission rows, most recent workflow event first. The KPI cards still
+# count every submission.
+UNIT_SUBMISSION_ROW_LIMIT = 2000
+
+
 def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
     """Return workflow-aware reporting for one Site PI (project, site) pair.
 
     Every query keys on the pair: a site_id is shared across projects, and a
     PI of the site in one project sees nothing of it in another (digitva-d5s).
     """
-    kpis = _workflow_kpis(
+    return _dashboard_data(
         "f.project_id = :project_id AND f.site_id = :site_id",
-        {"project_id": project_id, "site_id": site_id},
+        """g.scope_type = :project_site_scope
+         AND g.project_site_id IN (
+             SELECT ps.project_site_id
+             FROM va_project_sites ps
+             WHERE ps.project_id = :project_id
+               AND ps.site_id = :site_id
+               AND ps.project_site_status = :active_status
+         )""",
+        {
+            "project_id": project_id,
+            "site_id": site_id,
+            "project_site_scope": VaAccessScopeTypes.project_site.value,
+        },
+        row_limit=None,
     )
+
+
+def get_sitepi_unit_dashboard_data(org_unit_id) -> dict:
+    """The site PI report for one unit: the same KPIs as the site report over
+    the submissions routed into the unit's subtree (digitva-0wc stage 5).
+
+    No site gate: a subtree spans sites, and only routing places a case in
+    it. The coder roster lists coder grants held on units of the subtree.
+    The caller authorizes the unit (``authz.can(user, SITE_PI_REPORT, ...)``).
+    """
+    return _dashboard_data(
+        f"s.org_unit_id IN {_UNIT_SUBTREE_SQL}",
+        f"g.scope_type = :org_unit_scope AND g.org_unit_id IN {_UNIT_SUBTREE_SQL}",
+        {
+            "org_unit_id": org_unit_id,
+            "org_unit_scope": VaAccessScopeTypes.org_unit.value,
+        },
+        row_limit=UNIT_SUBMISSION_ROW_LIMIT,
+    )
+
+
+def _dashboard_data(
+    scope_sql: str, coder_grant_sql: str, scope_params: dict, *, row_limit: int | None
+) -> dict:
+    """KPIs, coder roster and per-submission rows over one report scope.
+
+    *scope_sql* is a fixed predicate on ``va_submissions s`` / ``va_forms f``
+    and *coder_grant_sql* one on ``va_user_access_grants g``, both written by
+    the callers above, never user input; their values travel in
+    *scope_params*. *row_limit* caps the submission rows (None: every row).
+    """
+    kpis = _workflow_kpis(scope_sql, scope_params)
 
     coder_kpi_sql = sa.text(
         f"""
-        WITH site_forms AS (
-            SELECT form_id
-            FROM va_forms
-            WHERE project_id = :project_id
-              AND site_id = :site_id
-        ),
-        site_project_sites AS (
-            SELECT ps.project_site_id
-            FROM va_project_sites ps
-            WHERE ps.project_id = :project_id
-              AND ps.site_id = :site_id
-              AND ps.project_site_status = :active_status
-        )
         SELECT
             u.name AS coder_name,
             u.pw_reset_t_and_c AS onboarded,
             COALESCE(work.total_done, 0) AS total_done,
             COALESCE(review.total_errors, 0) AS total_errors
         FROM va_users u
-        JOIN va_user_access_grants g
-          ON g.user_id = u.user_id
-         AND g.role = :coder_role
-         AND g.scope_type = :project_site_scope
-         AND g.grant_status = :active_status
-         AND g.project_site_id IN (SELECT project_site_id FROM site_project_sites)
         LEFT JOIN (
             SELECT
                 fa.va_finassess_by AS user_id,
                 COUNT(*) AS total_done
             FROM va_final_assessments fa
             JOIN va_submissions s ON s.va_sid = fa.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE fa.va_finassess_status = :active_status
-              AND s.va_form_id IN (SELECT form_id FROM site_forms)
+              AND {scope_sql}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
             GROUP BY fa.va_finassess_by
@@ -259,12 +304,22 @@ def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
                 COUNT(*) AS total_errors
             FROM va_coder_review cr
             JOIN va_submissions s ON s.va_sid = cr.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE cr.va_creview_status = :active_status
-              AND s.va_form_id IN (SELECT form_id FROM site_forms)
+              AND {scope_sql}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
             GROUP BY cr.va_creview_by
         ) review ON review.user_id = u.user_id
+        -- EXISTS, not a join: a coder holding several grants in a subtree is one row.
+        WHERE EXISTS (
+            SELECT 1
+            FROM va_user_access_grants g
+            WHERE g.user_id = u.user_id
+              AND g.role = :coder_role
+              AND g.grant_status = :active_status
+              AND {coder_grant_sql}
+        )
         ORDER BY coder_name
         """
     )
@@ -273,11 +328,9 @@ def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
         coder_kpi_sql,
         {
             **IN_ODK_BIND,
-            "project_id": project_id,
-            "site_id": site_id,
+            **scope_params,
             "active_status": VaStatuses.active.value,
             "coder_role": VaAccessRoles.coder.value,
-            "project_site_scope": VaAccessScopeTypes.project_site.value,
         },
     ).mappings().all()
 
@@ -290,8 +343,7 @@ def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-            WHERE f.project_id = :project_id
-              AND f.site_id = :site_id
+            WHERE {scope_sql}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
         ),
@@ -339,14 +391,15 @@ def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
         JOIN authority ON authority.va_sid = ss.va_sid
         LEFT JOIN event_counts ec ON ec.va_sid = ss.va_sid
         ORDER BY ec.last_workflow_event_at DESC NULLS LAST, ss.va_sid
+        LIMIT :row_limit
         """
     )
     submission_rows = db.session.execute(
         submission_rows_sql,
         {
             **IN_ODK_BIND,
-            "project_id": project_id,
-            "site_id": site_id,
+            **scope_params,
+            "row_limit": row_limit,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "transition_coder_finalized": TRANSITION_CODER_FINALIZED,
             "transition_admin_override": TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
@@ -363,4 +416,5 @@ def get_sitepi_dashboard_data(project_id: str, site_id: str) -> dict:
         **kpis,
         "coder_kpis": list(coder_rows),
         "submission_rows": list(submission_rows),
+        "submission_row_limit": row_limit,
     }

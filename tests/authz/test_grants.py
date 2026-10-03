@@ -99,8 +99,6 @@ class CodingGateWaiverTests(AuthzFixtureMixin, BaseTestCase):
         # stage 1) was these five VaUsers getters; compare against them.
         checked = 0
         for key in USERS:
-            if key == "incharge_c1":
-                continue
             with self.subTest(user=key):
                 user = self.users[key]
                 new = coding_gate_waivers(user)

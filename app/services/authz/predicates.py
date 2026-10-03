@@ -287,8 +287,7 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     """SQL predicate on ``VaSubmissions``: the submissions *user* may *action*.
 
     ``sa.true()`` for an admin on a bypassed action, ``sa.false()`` when no
-    lens applies. ``_grants`` is a test seam (an In-charge grant cannot be
-    stored before the stage-5 migration).
+    lens applies. ``_grants`` is a test seam: a hand-built ``ResolvedGrants``.
     """
     if action not in RULES:
         raise ValueError(f"{action!r} has no submission predicate")

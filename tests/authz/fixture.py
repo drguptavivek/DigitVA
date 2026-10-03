@@ -12,13 +12,11 @@ Built once per class inside the class transaction (tests/base.py):
 * ``AZCL01`` closed site project; ``AZDM01`` demo-training site project.
 
 Submissions are keyed by short names (``SIDS``); users by role and scope
-(``USERS``). The In-charge (``site_pi`` at a unit) cannot be stored before
-the stage-5 migration lifts the role_scope CHECK, so ``incharge_c1`` is a
-``ResolvedGrants`` built by hand (``grants_for``).
+(``USERS``). ``incharge_c1`` is the In-charge: ``site_pi`` at a unit, a real
+grant row since the stage-5 migration lifted the role_scope CHECK.
 """
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -26,7 +24,6 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
-    MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -41,7 +38,7 @@ from app.models import (
 )
 from app.services import org_unit_routing_service as routing
 from app.services import organization_service as org
-from app.services.authz import Grant, ResolvedGrants, resolve_grants
+from app.services.authz import ResolvedGrants, resolve_grants
 
 R = VaAccessRoles
 P = VaAccessScopeTypes.project
@@ -131,8 +128,8 @@ USERS = {
     "mentor": [(R.coder, U, "P1"), (R.collaborator_pii, U, "D1")],
     "mixed": [(R.coder, U, "P1"), (R.collaborator, P, SP)],
     "closed_coder": [(R.coder, P, CL)],
-    # site_pi at a unit: built by hand, see grants_for.
-    "incharge_c1": [],
+    # The In-charge: site_pi at a unit.
+    "incharge_c1": [(R.site_pi, U, "C1")],
 }
 
 
@@ -262,21 +259,8 @@ class AuthzFixtureMixin:
         return self.users[key]
 
     def grants_for(self, key) -> ResolvedGrants:
-        """Resolved grants of *key*; the In-charge is built by hand."""
-        if key != "incharge_c1":
-            return resolve_grants(self.users[key])
-        base = resolve_grants(self.users["nobody"])
-        unit = db.session.get(MasOrgUnit, self.units["C1"].org_unit_id)
-        incharge = Grant(
-            role=R.site_pi, scope_type=U, project_id=TA, org_unit_id=unit.org_unit_id,
-            unit_depth=unit.level.depth, unit_path=str(unit.path),
-        )
-        projects = dict(base.projects)
-        projects.update(resolve_grants(self.users["dm_c1"]).projects)
-        return ResolvedGrants(
-            user_id=uuid.uuid4(), is_admin=False,
-            grants=(incharge, *base.grants), projects=projects,
-        )
+        """Resolved grants of *key*."""
+        return resolve_grants(self.users[key])
 
     def target(self, key):
         """Resolve a matrix target key to the object ``can`` takes."""

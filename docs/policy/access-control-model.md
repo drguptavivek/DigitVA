@@ -79,7 +79,7 @@ In an **organizational (unit-tree) project** the `project_pi` additionally:
 Implemented for the data-management screens and actions (dashboard, grid,
 KPIs, submission view, triage, sync, routing and pinning, the unrouted
 queue) in digitva-0wc stage 3; intake supervision and the site PI report
-are tracked in digitva-0wc (stage 5).
+(every site and the top-level units of the project) in stage 5.
 
 Coding and reviewing still require a `coder` or `reviewer` grant. In a site
 (non-tree) project the `project_pi` keeps only the powers in the first list.
@@ -123,13 +123,19 @@ institute members may never hold the role; cadre validation applies as for
 any unit grant.
 
 The In-charge is the `site_pi` role held at `org_unit` scope, shown as
-"In-charge" (decision 2026-10-02). This needs a migration lifting the
-`role_scope` CHECK that today keeps `site_pi` at `project_site`, and the
-grant validator must accept it; classical projects keep `site_pi` at
-`project_site` unchanged.
+"In-charge" (decision 2026-10-02). The `role_scope` CHECK allows it
+(migration `e2b7c4d9a1f3`) and the grant validator accepts it on a unit of a
+project with an organization tree only; a cadre is optional and, when
+given, must be defined at the unit's level. Classical projects keep
+`site_pi` at `project_site` unchanged. In an intake supervision audit row
+an In-charge grant ranks with `interview_supervisor` at equal depth.
 
-Implementation tracked in digitva-0wc. Until it lands an in-charge holds an
-`interview_supervisor` grant and has only its powers.
+Implemented in digitva-0wc stage 5: the screens, data-manager actions,
+intake supervision and the site PI report for the in-charge's own units.
+Single-submission sync only: whole-form sync stays with project and site
+data managers. The grant-creation powers above are tracked in digitva-0wc
+(stage 6). A person who holds only an `interview_supervisor` grant has
+only its powers.
 
 ### `data_manager`
 
@@ -448,10 +454,9 @@ The system must not infer broader access from missing values or partial keys.
 
 - `admin` uses `global`
 - `project_pi` uses `project`
-- `site_pi` uses `project_site` (database `role_scope` CHECK). In an
-  organizational project the oversight duty at a unit is the **In-charge**
-  (see "In-charge"): `site_pi` held at `org_unit`, which needs a migration
-  of the `role_scope` CHECK. Implementation tracked in digitva-0wc.
+- `site_pi` uses `project_site`, or `org_unit` in an organizational project,
+  where it is the **In-charge** (see "In-charge"; database `role_scope`
+  CHECK since migration `e2b7c4d9a1f3`)
 - `data_manager` uses `project`, `project_site` or `org_unit`
 - `collaborator` uses `project`, `project_site` or `org_unit`
 - `collaborator_pii` uses `project`, `project_site` or `org_unit`
@@ -463,8 +468,7 @@ The system must not infer broader access from missing values or partial keys.
 - `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
   it supervises web intake cases in the unit's subtree, as do `data_manager`
   grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors").
-  Its holders are displayed as **In-charges**; the In-charge's wider powers
-  are decided but not built (see "In-charge")
+  The In-charge is `site_pi` at `org_unit`, not this role (see "In-charge")
 
 A unit grant of `data_manager` or `coding_tester` covers the grant's whole
 unit subtree on **every surface** (worklists, KPI and analytics, sync, the

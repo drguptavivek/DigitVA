@@ -1,6 +1,6 @@
 {% if site_data %}
   <h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
-    <i class="fas fa-hospital me-2"></i> Site: {{ site_label }}
+    <i class="fas fa-hospital me-2"></i> {{ report_kind or 'Site' }}: {{ site_label }}
   </h3>
 
   <div class="row mb-4 g-3">
@@ -148,6 +148,9 @@
   <h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
     <i class="fas fa-wave-square me-2"></i> Submission Workflow Cycles
   </h3>
+  {% if site_data.submission_row_limit and site_data.submission_rows|length >= site_data.submission_row_limit %}
+    <p class="text-muted small">Showing the {{ site_data.submission_row_limit }} submissions with the most recent workflow events; the cards above count every submission.</p>
+  {% endif %}
   <div class="card shadow-sm border-0 rounded-3 mb-4">
     <div class="card-body">
       <div class="table-responsive">

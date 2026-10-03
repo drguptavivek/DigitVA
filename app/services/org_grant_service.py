@@ -26,6 +26,7 @@ from app.models import (
     MapOrgUnitCodingGate,
     MapOrgUnitVaPresets,
     MasCadre,
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -38,11 +39,12 @@ from app.services.organization_service import (
 )
 
 # Roles a unit-scoped grant may carry. Mirrors the
-# ck_va_user_access_grants_role_scope check constraint; admin stays global,
-# project_pi stays project-scoped and site_pi stays project_site-scoped (the
-# project PI covers every district of an organizational project).
+# ck_va_user_access_grants_role_scope check constraint; admin stays global and
+# project_pi project-scoped. site_pi at a unit is the In-charge
+# (access-control-model.md, "In-charge"), in a tree project only.
 ROLES_ALLOWING_ORG_UNIT = frozenset(
     {
+        VaAccessRoles.site_pi,
         VaAccessRoles.collaborator,
         VaAccessRoles.collaborator_pii,
         VaAccessRoles.coder,
@@ -100,15 +102,16 @@ def validate_org_unit_grant(
     meant for the operator when the combination is not allowed. Pass *user_id*
     (the grantee) to apply the mentoring-institute guard.
     """
-    if role == VaAccessRoles.site_pi:
-        raise OrganizationError(
-            "site_pi cannot be held at a unit: it is a project-site role. In an "
-            "organizational project the project PI covers every district."
-        )
     if role not in ROLES_ALLOWING_ORG_UNIT:
         raise OrganizationError(f"Role {role.value!r} cannot use org_unit scope.")
 
     unit = get_active_unit(org_unit_id)
+    if role == VaAccessRoles.site_pi and not db.session.scalar(sa.select(sa.exists().where(
+        MasOrgLevel.project_id == unit.project_id, MasOrgLevel.is_active.is_(True),
+    ))):
+        # The In-charge belongs to a tree (organization) project; a site
+        # project keeps site_pi on its (project, site) pairs.
+        raise OrganizationError("An In-charge (site_pi at a unit) needs an organization project.")
     if user_id is not None:
         from app.services.mentor_institute_service import check_mentor_grant
 

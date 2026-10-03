@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, aliased
 from app import db
 from app.models import (
     MapCaseTransition,
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -36,6 +37,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.va_web_intake import CASE_FLAGS
+from app.services.authz.actions import SUPERVISING_ROLES
 from app.services.org_grant_service import active_project_condition
 from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
 
@@ -126,7 +128,12 @@ _FLAGGABLE = {
 _REASON_MAX = 200
 
 
-_SUPERVISING_ROLES = (VaAccessRoles.interview_supervisor, VaAccessRoles.data_manager)
+# authz.SUPERVISING_ROLES (site_pi counts at a unit only: the In-charge),
+# plus project_pi on a tree project. Sorted so the SQL is stable.
+_SUPERVISING_ROLES = (*sorted(SUPERVISING_ROLES, key=lambda r: r.value), VaAccessRoles.project_pi)
+# Every data-manager power, as authz.ResolvedGrants.is_dm_grant: data_manager,
+# the In-charge and project_pi on a tree project.
+_DM_SHAPED_ROLES = (VaAccessRoles.data_manager, VaAccessRoles.site_pi, VaAccessRoles.project_pi)
 
 
 def _covering_grants(user: VaUsers, roles: tuple[VaAccessRoles, ...]) -> list[sa.Select]:
@@ -138,14 +145,20 @@ def _covering_grants(user: VaUsers, roles: tuple[VaAccessRoles, ...]) -> list[sa
     ``org_grant_service.scope_unit_ids``, on the case's unit and project);
     ``depth`` is its unit's depth, so the deepest unit is the narrowest. A
     ``data_manager`` project-site grant (depth 0) or project grant (depth -1)
-    reaches that whole project-site or project. Active grants, units, project
+    reaches that whole project-site or project, and a ``project_pi`` grant on
+    a tree project (depth -1) its whole project. ``site_pi`` reaches only
+    through a unit grant (the In-charge) and ranks with
+    ``interview_supervisor`` at equal depth. Active grants, units, project
     sites and projects only (closed-project dormancy via
     ``active_project_condition``). ``supervised_case_condition`` asks
     whether any select has a row; ``_grant_for`` picks one.
     """
     granted = aliased(MasOrgUnit, name="sup_granted_unit")
     covered = aliased(MasOrgUnit, name="sup_covered_unit")
-    role_rank = sa.case((VaUserAccessGrants.role == VaAccessRoles.interview_supervisor, 0), else_=1)
+    role_rank = sa.case(
+        (VaUserAccessGrants.role.in_((VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi)), 0),
+        else_=1,
+    )
     live = (
         VaUserAccessGrants.user_id == user.user_id,
         VaUserAccessGrants.grant_status == VaStatuses.active,
@@ -205,6 +218,24 @@ def _covering_grants(user: VaUsers, roles: tuple[VaAccessRoles, ...]) -> list[sa
                 VaUserAccessGrants.project_id == VaDeathRegister.project_id,
             )
         )
+    if VaAccessRoles.project_pi in roles:
+        selects.append(
+            sa.select(
+                VaUserAccessGrants.grant_id, VaUserAccessGrants.cadre_id,
+                sa.literal_column("-1").label("depth"), role_rank.label("role_rank"),
+            )
+            .where(
+                *live,
+                VaUserAccessGrants.role == VaAccessRoles.project_pi,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                active_project_condition(VaUserAccessGrants.project_id),
+                VaUserAccessGrants.project_id == VaDeathRegister.project_id,
+                sa.exists().where(
+                    MasOrgLevel.project_id == VaUserAccessGrants.project_id,
+                    MasOrgLevel.is_active.is_(True),
+                ),
+            )
+        )
     return selects
 
 
@@ -214,7 +245,10 @@ def supervised_case_condition(user: VaUsers):
     Decisions 15-17 (.tasks/2026-09-28-interviewer-worklist.md): an
     ``interview_supervisor`` unit grant reaches its unit's subtree on its own
     (no interviewer grant needed); a ``data_manager`` grant supervises through
-    its own scope. No other role confers supervision. The listing,
+    its own scope; so does an In-charge (``site_pi`` at a unit) through its
+    subtree and a ``project_pi`` on a tree project through the whole project
+    (digitva-0wc). No other role confers supervision, and admin has no
+    bypass. The listing,
     ``is_interview_supervisor_for`` and ``supervising_grant`` share
     ``_covering_grants``.
     """
@@ -226,7 +260,8 @@ def _grant_for(user: VaUsers, case: VaDeathRegister, roles: tuple[VaAccessRoles,
 
     Returns a row ``(grant_id, cadre_id)``. Narrowest: the unit grant at the
     deepest unit, then a project-site grant, then a project grant; at equal
-    depth ``interview_supervisor`` before ``data_manager``, then the lowest
+    depth ``interview_supervisor`` or ``site_pi`` before ``data_manager`` or
+    ``project_pi``, then the lowest
     grant id, so the choice is deterministic.
     """
     if case.death_id is None:
@@ -273,9 +308,11 @@ def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
 
 
 def _data_manager_grant(actor: VaUsers, case: VaDeathRegister):
-    """The actor's narrowest ``data_manager`` grant over *case*, or None: what
-    confirming an already coded duplicate relies on (decisions 10, 14)."""
-    return _grant_for(actor, case, (VaAccessRoles.data_manager,))
+    """The actor's narrowest data-manager shaped grant over *case*, or None:
+    what confirming an already coded duplicate relies on (decisions 10, 14).
+    An In-charge and a project_pi on a tree project hold every data-manager
+    power (access-control-model.md, "In-charge")."""
+    return _grant_for(actor, case, _DM_SHAPED_ROLES)
 
 
 def identity_complete(case: VaDeathRegister) -> bool:

@@ -233,12 +233,13 @@ class MentorInstituteTests(MentorBase):
 
     # -- site_pi -----------------------------------------------------------
 
-    def test_site_pi_refused_at_unit_scope_but_allowed_at_project_site(self):
+    def test_site_pi_allowed_at_unit_scope_and_at_project_site(self):
+        # site_pi at a unit is the In-charge (digitva-0wc stage 5); the
+        # mentor guard still refuses it to institute staff
+        # (tests/test_incharge_stage5.py).
         d1, _, _ = self._tree(self.P1)
         non_member = self._get_or_make_user("sitepi@test.local", "x")
-        with self.assertRaises(REFUSED) as ctx:
-            self._validate(non_member, VaAccessRoles.site_pi, d1)
-        self.assertIn("project-site role", str(ctx.exception))
+        self._validate(non_member, VaAccessRoles.site_pi, d1)
 
         now = datetime.now(UTC)
         if db.session.get(VaSiteMaster, "MN01") is None:
@@ -270,7 +271,7 @@ class MentorInstituteTests(MentorBase):
         )
         db.session.commit()  # the CHECK still allows site_pi at project_site
 
-    def test_database_refuses_a_site_pi_unit_grant(self):
+    def test_database_accepts_a_site_pi_unit_grant(self):
         d1, _, _ = self._tree(self.P1)
         user = self._get_or_make_user("sitepi.db@test.local", "x")
         db.session.add(
@@ -280,9 +281,7 @@ class MentorInstituteTests(MentorBase):
                 grant_status=VaStatuses.active,
             )
         )
-        with self.assertRaises(sa.exc.IntegrityError):
-            db.session.commit()
-        db.session.rollback()
+        db.session.commit()  # e2b7c4d9a1f3 lifted the role_scope CHECK
 
 
 class MentorGrantApiTests(MentorBase):

@@ -21,7 +21,7 @@
           </li>
         {% endif %}
 
-        {% if current_user.is_authenticated and current_user.is_site_pi() %}
+        {% if current_user.is_authenticated and (current_user.is_site_pi() or current_user.is_project_pi()) %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('sitepi.dashboard') }}">
               <i class="fa-solid fa-chart-line"></i>

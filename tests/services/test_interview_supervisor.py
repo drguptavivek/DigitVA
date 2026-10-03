@@ -666,3 +666,107 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(response.get_json()["death"]["pending_flag"], "duplicate")
         self.assertEqual(response.get_json()["death"]["status"], "submitted")
+
+    # ── the In-charge and project_pi (digitva-0wc stage 5) ─────────────────
+
+    def _user_with(self, key, role, **scope):
+        user = self._get_or_make_user(f"sup.{key}@test.local", "Supervise123")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=role, grant_status=VaStatuses.active, **scope,
+        ))
+        db.session.flush()
+        return user
+
+    def test_an_in_charge_supervises_its_subtree_and_not_the_siblings(self):
+        incharge = self._user_with("incharge", VaAccessRoles.site_pi,
+                                   scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.c1.org_unit_id)
+        in_subtree, sibling = self._register(unit=self.s1), self._register(unit=self.c2)
+        self.assertTrue(incharge.is_interview_supervisor())
+        self.assertTrue(cases.is_interview_supervisor_for(incharge, in_subtree))
+        self.assertFalse(cases.is_interview_supervisor_for(incharge, sibling))
+        listed = set(db.session.scalars(
+            sa.select(VaDeathRegister.death_id).where(cases.supervised_case_condition(incharge))
+        ))
+        self.assertIn(in_subtree.death_id, listed)
+        self.assertNotIn(sibling.death_id, listed)
+
+        self._login(str(incharge.user_id))
+        self.assertEqual(self.client.get("/intake/supervision").status_code, 200)
+
+    def test_an_in_charge_ranks_with_a_supervisor_at_equal_depth(self):
+        # Two grants on P1: an In-charge and a unit data manager. The In-charge
+        # ranks with interview_supervisor, before the data manager.
+        user = self._user_with("rank", VaAccessRoles.site_pi,
+                               scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.p1.org_unit_id)
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=VaAccessRoles.data_manager, grant_status=VaStatuses.active,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.p1.org_unit_id,
+        ))
+        db.session.flush()
+        incharge = self._grant_id(user, VaAccessRoles.site_pi, org_unit_id=self.p1.org_unit_id)
+        self.assertEqual(cases.supervising_grant(user, self._register()).grant_id, incharge)
+
+    def test_an_in_charge_confirms_a_coded_duplicate_as_a_data_manager_would(self):
+        incharge = self._user_with("incharge.dup", VaAccessRoles.site_pi,
+                                   scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.c1.org_unit_id)
+        kept = self._register()
+        coded = self._submitted_with_workflow("coder_finalized")
+        cases.flag_case(coded, actor=self.ian, kind="duplicate", duplicate_of=kept)
+        cases.resolve_flag(coded, actor=incharge, confirm=True)
+        row = self._audit_rows(coded)["confirm_duplicate"]
+        self.assertEqual(
+            row.authorizing_grant_id,
+            self._grant_id(incharge, VaAccessRoles.site_pi, org_unit_id=self.c1.org_unit_id),
+        )
+
+    def test_project_pi_on_a_tree_project_supervises_the_whole_project(self):
+        pi = self._user_with("pi.tree", VaAccessRoles.project_pi,
+                             scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID)
+        case = self._register(unit=self.c2)
+        self.assertTrue(pi.is_interview_supervisor())
+        self.assertTrue(cases.is_interview_supervisor_for(pi, case))
+        self.assertEqual(
+            cases.supervising_grant(pi, case).grant_id,
+            self._grant_id(pi, VaAccessRoles.project_pi, project_id=self.PROJECT_ID),
+        )
+        # SUP02 has no tree: its project_pi supervises nothing there.
+        other_pi = self._user_with("pi.site", VaAccessRoles.project_pi,
+                                   scope_type=VaAccessScopeTypes.project, project_id=self.OTHER_PROJECT_ID)
+        other = intake_svc.register_death(
+            self.ian, project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID,
+            deceased_name="Ravi", deceased_sex="male", date_of_death=_dod(),
+        )
+        self.assertFalse(other_pi.is_interview_supervisor())
+        self.assertFalse(cases.is_interview_supervisor_for(other_pi, other))
+        # The listing predicate agrees: the tree PI lists its project only.
+        listed = set(db.session.scalars(
+            sa.select(VaDeathRegister.death_id).where(cases.supervised_case_condition(pi))))
+        self.assertIn(case.death_id, listed)
+        self.assertNotIn(other.death_id, listed)
+        self.assertFalse(set(db.session.scalars(
+            sa.select(VaDeathRegister.death_id).where(cases.supervised_case_condition(other_pi)))))
+
+    def test_a_classical_site_pi_supervises_nothing(self):
+        # A pair site_pi is outside the supervising roles.
+        project_site_id = db.session.scalar(sa.select(VaProjectSites.project_site_id).filter_by(
+            project_id=self.PROJECT_ID, site_id=self.SITE_ID))
+        site_pi = self._user_with("sitepi.pair", VaAccessRoles.site_pi,
+                                  scope_type=VaAccessScopeTypes.project_site, project_site_id=project_site_id)
+        case = self._register()
+        self.assertTrue(site_pi.is_site_pi())
+        self.assertFalse(site_pi.is_interview_supervisor())
+        self.assertFalse(cases.is_interview_supervisor_for(site_pi, case))
+
+    def test_the_user_import_accepts_an_in_charge_with_a_unit_code_only(self):
+        def row(**kw):
+            base = {"email": "sup.ian@test.local", "name": "", "role": "site_pi",
+                    "org_unit_code": "SC1", "cadre_code": "", "language_codes": "", "phone": "",
+                    "_line_number": 2}
+            base.update(kw)
+            return base
+
+        plan = user_import.prepare(self.PROJECT_ID, [row()], is_admin=True)
+        self.assertEqual(plan[0]["role"], VaAccessRoles.site_pi)
+        self.assertEqual(plan[0]["unit"].org_unit_id, self.c1.org_unit_id)
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
+            user_import.prepare(self.PROJECT_ID, [row(org_unit_code="")], is_admin=True)

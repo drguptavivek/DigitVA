@@ -59,7 +59,7 @@
             <option value="coding_tester">Coding Tester</option>
             <option value="reviewer">Reviewer</option>
             <option value="data_manager">Data Manager</option>
-            <option value="site_pi">Site PI</option>
+            <option value="site_pi">Site PI (site) / In-charge (unit)</option>
             <option value="collaborator">Viewer</option>
             <option value="collaborator_pii">Viewer (with PII)</option>
             <option value="interview_supervisor">Interview Supervisor (unit only)</option>
@@ -297,12 +297,17 @@
   document.getElementById('ag-filter-site').addEventListener('change', applyFilters);
 
   var ROLE_LABEL = { coder:'Coder', coding_tester:'Coding Tester', reviewer:'Reviewer', data_manager:'Data Manager', site_pi:'Site PI', collaborator:'Viewer', collaborator_pii:'Viewer (with PII)', interview_supervisor:'Interview Supervisor', project_pi:'Project PI', admin:'Admin' };
+  // site_pi held at a unit is the In-charge (access-control-model.md, "In-charge").
+  function roleLabel(g) {
+    if (g.role === 'site_pi' && g.scope_type === 'org_unit') return 'In-charge';
+    return ROLE_LABEL[g.role] || g.role;
+  }
   var ROLE_COLOR = { coder:'primary', reviewer:'success', data_manager:'secondary', site_pi:'warning', collaborator:'info', collaborator_pii:'info', interview_supervisor:'warning', project_pi:'danger', admin:'dark' };
 
   function roleBadge(g) {
     var color = ROLE_COLOR[g.role] || 'secondary';
     return '<span class="badge text-bg-' + color + ' d-inline-flex align-items-center gap-1">'
-      + esc(ROLE_LABEL[g.role] || g.role)
+      + esc(roleLabel(g))
       + '<button type="button" class="btn-close btn-close-white ag-revoke-btn" style="font-size:0.5rem;"'
       + ' data-grant-id="' + esc(g.grant_id) + '" aria-label="Revoke"></button>'
       + '</span>';
@@ -481,7 +486,7 @@
     var g = _allGrants.filter(function (x) { return x.grant_id === grantId; })[0];
     var body = document.getElementById('ag-revoke-modal-body');
     if (g) {
-      body.innerHTML = 'Revoke <strong>' + esc(ROLE_LABEL[g.role] || g.role) + '</strong> for '
+      body.innerHTML = 'Revoke <strong>' + esc(roleLabel(g)) + '</strong> for '
         + '<strong>' + esc(g.user_name || g.user_email) + '</strong>'
         + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>'
            : g.scope_type === 'org_unit' ? ' at unit <strong>' + esc(g.unit_code || '') + '</strong> (and everything below it)'

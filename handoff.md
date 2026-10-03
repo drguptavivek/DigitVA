@@ -17,11 +17,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > `docs/current-state/test-project-tst001.md`). It is idempotent and
 > dev/staging only.
 > Tests: `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3032 passed on 2026-10-03, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
+> (3055 passed on 2026-10-03, one flaky admin test `digitva-bgyr`; `test_spelling_fold.py` can fail in a full run and passes alone). One pytest run per test database at a time.
 > Web form package: `cd vendor/who-va-2022 && npx vitest run` (791 pass);
 > rebuild the served bundle with `cd tooling/who-va-2022 && node build.mjs &&
 > node check.mjs`. Android app: `mobile/digitva-collect/README.md`
-> (`npx jest`: 66 pass). Dev DB head: `d7e3a1c9b5f2`. Use `bd`; commit in the
+> (`npx jest`: 66 pass). Dev DB head: `e2b7c4d9a1f3`. Use `bd`; commit in the
 > repo's voice and push. Owner wants second opinions from a read-only Fable
 > agent (`bd memories advisor`). Ask the owner one question at a time, in
 > plain terms.
@@ -51,8 +51,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    project-site). **Stage 4 (reviewing)
    committed** (reviewer dashboard, start, allocation, saves, NQA/SO/ICD/DORIS
    reviewer checks on REVIEW; view wider than review, F7; reviewer
-   rendering by reviewer reach; area link). Next: stage 5 (In-charge
-   migration, site PI report for units, supervision). `digitva-8126`: stale migration
+   rendering by reviewer reach; area link). **Stage 5 committed**
+   (migration `e2b7c4d9a1f3`, applied to dev: site_pi at org_unit = the
+   In-charge, with every DM power, intake supervision and the unit site PI
+   report; project_pi supervises tree projects). Next: stage 6 (grant
+   writes through can_grant; in-charges and DMs create grants per the
+   district rule). Dev DB head: `e2b7c4d9a1f3`.
+   A parallel Expo-client session has uncommitted work in this checkout
+   (app/routes/api/client.py, expo_client.py, mobile/, app/__init__.py):
+   commit only stage files by name. `digitva-bibk`: reference model still
+   suggests interview_supervisor for in-charges. `digitva-8126`: stale migration
    test. Until stage 6, project_pi and
    in-charges reach the grant pages, which read old helpers (empty, writes
    refused). `digitva-26pg`: unit DM

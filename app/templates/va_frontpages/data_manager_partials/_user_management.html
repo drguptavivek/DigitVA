@@ -572,7 +572,7 @@
       var projectGrantHtml = projectGrants.length
         ? '<ul class="mb-2 ps-3">'
           + projectGrants.map(function (g) {
-              return '<li><code>' + esc(g.project_id) + '</code> - ' + esc(ROLE_LABEL[g.role] || g.role) + '</li>';
+              return '<li><code>' + esc(g.project_id) + '</code> - ' + esc(roleLabel(g)) + '</li>';
             }).join('')
           + '</ul>'
         : '<div class="text-muted fst-italic mb-2">No active project-level grants in your scope.</div>';
@@ -580,7 +580,7 @@
         ? '<ul class="mb-0 ps-3">'
           + projectSiteGrants.map(function (g) {
               return '<li><code>' + esc(g.project_id) + ' / ' + esc(g.site_id || '') + '</code> - '
-                + esc(ROLE_LABEL[g.role] || g.role) + '</li>';
+                + esc(roleLabel(g)) + '</li>';
             }).join('')
           + '</ul>'
         : '<div class="text-muted fst-italic mb-0">No active site-level grants in your scope.</div>';
@@ -892,7 +892,12 @@
     renderGrantsTable(filtered);
   }
 
-  var ROLE_LABEL = { coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager' };
+  var ROLE_LABEL = { coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager', site_pi: 'Site PI' };
+  // site_pi held at a unit is the In-charge (access-control-model.md, "In-charge").
+  function roleLabel(g) {
+    if (g.role === 'site_pi' && g.scope_type === 'org_unit') return 'In-charge';
+    return ROLE_LABEL[g.role] || g.role;
+  }
   var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary' };
   function isProtectedSelfDmGrant(g) {
     if (!_state || !_state.user || _state.user.is_admin) return false;
@@ -922,7 +927,7 @@
         + '<td class="align-middle py-2 small">' + esc(g.project_id || '') + '</td>'
         + '<td class="align-middle py-2 small">' + scopeLabel + '</td>'
         + '<td class="align-middle py-2"><span class="badge text-bg-' + color + '">'
-        +   esc(ROLE_LABEL[g.role] || g.role)
+        +   esc(roleLabel(g))
         + '</span></td>'
         + '<td class="align-middle py-2 text-end">' + actionCell + '</td>'
         + '</tr>';
@@ -950,7 +955,7 @@
     var g = _allGrants.filter(function (x) { return x.grant_id === grantId; })[0];
     var body = document.getElementById('dm-ag-revoke-modal-body');
     if (g) {
-      body.innerHTML = 'Revoke <strong>' + esc(ROLE_LABEL[g.role] || g.role) + '</strong> for '
+      body.innerHTML = 'Revoke <strong>' + esc(roleLabel(g)) + '</strong> for '
         + '<strong>' + esc(g.user_name || g.user_email) + '</strong>'
         + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>' : ' (project level)') + '?';
     }

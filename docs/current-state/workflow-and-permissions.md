@@ -617,6 +617,15 @@ Implementation note:
   `app/services/sitepi_reporting_service.py`
 - that service is site-scoped through `va_forms.site_id` and no longer relies
   on the earlier mixed site/form assumptions
+- digitva-0wc stage 5: `get_sitepi_unit_dashboard_data(org_unit_id)` gives the
+  same KPIs over the submissions routed into a unit's subtree (no site gate;
+  the roster lists coder unit grants in the subtree; at most
+  `UNIT_SUBMISSION_ROW_LIMIT` submission rows, the cards count all).
+  `/sitepi` (gate `role_required("site_pi", "project_pi")`) offers each held
+  pair, each held In-charge unit, and to a `project_pi` every active site of
+  their projects plus the top-level units of a tree project; `/sitepi/data`
+  authorizes every selection with `authz.can(user, SITE_PI_REPORT, target)`
+  (values `<project>:<site>` or `unit:<uuid>`)
 
 ## Permissions Model
 
@@ -670,7 +679,7 @@ Grant scope is resolved back to forms and submissions as follows:
 - data-management surfaces ask the authorization module (`app/services/authz`,
   digitva-0wc stage 3). A data manager is whoever `authz.effective_roles`
   says: a `data_manager` grant at any scope, `site_pi` at a unit (the
-  In-charge; no such grant can be stored until stage 5) and `project_pi` on
+  In-charge, storable since stage 5) and `project_pi` on
   a tree project. `VaUsers.is_data_manager()` wraps it, so the role gate,
   navbar, `landing_url` and the sign-in factor rules follow. Reach:
   - the grid, exports and filter options: `authz.scope_filter(user,
@@ -711,10 +720,17 @@ Grant scope is resolved back to forms and submissions as follows:
   coding and reviewing action in `va_validate_permissions`)
 - projects with no organization tree are unaffected: the filter excludes
   nothing for them, so the form-and-site model is unchanged
-- web intake supervision: `interview_supervisor` (unit grants only) and
-  `data_manager` grants supervise the cases in their scope through one
-  predicate, `case_transition_service.is_interview_supervisor_for` /
-  `supervised_case_condition`; the role gate is `VaUsers.is_interview_supervisor()`
+- web intake supervision: `interview_supervisor` (unit grants only),
+  `data_manager` grants, the In-charge (`site_pi` at a unit, its subtree) and
+  `project_pi` on a tree project (the whole project) supervise the cases in
+  their scope through one predicate,
+  `case_transition_service.is_interview_supervisor_for` /
+  `supervised_case_condition` (no admin bypass). The audit row names the
+  narrowest grant; at equal depth `interview_supervisor` and `site_pi` rank
+  before `data_manager` and `project_pi`. Confirming an already coded
+  duplicate needs a data-manager shaped grant (`data_manager`, In-charge, tree
+  `project_pi`). The role gates `VaUsers.is_interview_supervisor()` and
+  `is_site_pi()` (no form argument) wrap `authz.effective_roles` since stage 5
   (`role_required("interview_supervisor")`), the API `/intake/api/supervision/`
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)

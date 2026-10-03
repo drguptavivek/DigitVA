@@ -278,6 +278,11 @@ MATRIX = [
     ("incharge_c1", A.SITE_PI_REPORT, "unit:D1", OUT),
     ("incharge_c1", A.SUPERVISE_INTAKE, "case:SC1", True),
     ("incharge_c1", A.SUPERVISE_INTAKE, "case:D2", OUT),
+    ("incharge_c1", A.SUPERVISE_INTAKE, "case:D1", OUT),      # above the grant
+    ("incharge_c1", A.SITE_PI_REPORT, "unit:C1", True),
+    ("incharge_c1", A.SITE_PI_REPORT, "pair:AZTA01/AZS1", OUT),  # a unit grant is not a site
+    ("incharge_c1", A.LIST_DATA, "ta-d1", False),
+    ("incharge_c1", A.VIEW, "ta-unr", UNROUTED),              # as a unit DM: the queue, not VIEW
     ("incharge_c1", A.CODE, "ta-p1", NO_ROLE),       # ACM: coding still requires a coder grant
     ("incharge_c1", A.REVIEW, "ta-p1", NO_ROLE),
 

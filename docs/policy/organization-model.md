@@ -380,13 +380,13 @@ The rule and the shared predicate that implements it live in
   reachable set and ignores the flag entirely.
 - Roles accepted at unit scope: `collaborator`, `collaborator_pii`, `coder`,
   `coding_tester`, `reviewer`, `data_manager`, `interviewer`,
-  `interview_supervisor`. `site_pi` is refused at `org_unit` by the
-  `role_scope` CHECK. Each unit level has an **In-charge** (District, Block
-  or PHC in-charge; decision 2026-10-02, see
-  [Access Control Model](access-control-model.md), "In-charge"). The In-charge
-  is `site_pi` held at `org_unit` (shown as "In-charge"), with every data
-  manager power in its subtree; allowing it needs a migration of the
-  `role_scope` CHECK. Implementation tracked in digitva-0wc. The
+  `interview_supervisor`, and `site_pi` as the **In-charge**. Each unit level
+  has an In-charge (District, Block or PHC in-charge; decision 2026-10-02,
+  see [Access Control Model](access-control-model.md), "In-charge"): `site_pi`
+  held at `org_unit` (shown as "In-charge"), with every data manager power in
+  its subtree, intake supervision and the site PI report for its units
+  (digitva-0wc stage 5; migration `e2b7c4d9a1f3` lifted the `role_scope`
+  CHECK). It is accepted only on a project with an organization tree. The
   mentor guard forbids it to mentoring institute members. `admin` stays
   global and `project_pi` stays project-scoped.
 - A unit grant carries no `project_id` or `project_site_id`. The grant's

@@ -382,8 +382,9 @@ def api_submit_draft(draft_id):
 # ---------------------------------------------------------------------------
 # Supervisor API (digitva-vzk.5). Kept at the end of the module on purpose.
 #
-# An interview_supervisor unit grant or a data_manager grant opens the gate;
-# which cases the caller supervises is decided per case by
+# The interview_supervisor or data_manager gate opens through
+# authz.effective_roles, so an In-charge (site_pi at a unit) and a project_pi
+# on a tree project pass it too; which cases the caller supervises is decided per case by
 # case_transition_service.is_interview_supervisor_for, and a case outside
 # that reach reads as 404. POSTs are CSRF-checked by the global CSRFProtect.
 # ---------------------------------------------------------------------------

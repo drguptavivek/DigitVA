@@ -143,9 +143,8 @@ def prepare(project_id, rows, *, is_admin):
             unit = units.get(unit_code) if unit_code else None
             if unit_code and (unit is None or not unit.is_active):
                 raise ProjectUserImportError("unit code is unknown or inactive")
-            if role == VaAccessRoles.site_pi:
-                raise ProjectUserImportError("site_pi cannot be held at a unit; the project PI covers every district")
-            if not unit and role == VaAccessRoles.interview_supervisor:
+            # site_pi in an organization project is the In-charge, held at a unit.
+            if not unit and role in (VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi):
                 raise ProjectUserImportError(f"{role.value} requires an organization unit")
             cadre_code = row["cadre_code"].upper()
             if cadre_code and not unit:

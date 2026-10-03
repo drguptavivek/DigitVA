@@ -35,7 +35,7 @@
   <tbody>
     <tr><td><a href="#role-admin">admin</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Demo only</td><td>&ndash;</td><td>&ndash;</td><td>Partly</td><td>Yes</td><td>Yes</td><td>Yes, all</td><td>global</td></tr>
     <tr><td><a href="#role-project_pi">project_pi</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>Own projects</td><td>project</td></tr>
-    <tr><td><a href="#role-site_pi">site_pi</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>site</td></tr>
+    <tr><td><a href="#role-site_pi">site_pi</a> (In-charge at a unit)</td><td>&ndash;</td><td>&ndash;</td><td>In-charge</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>In-charge</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>site, unit (In-charge)</td></tr>
     <tr><td><a href="#role-data_manager">data_manager</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Coders, testers, data managers</td><td>project, site, unit*</td></tr>
     <tr><td><a href="#role-collaborator">collaborator</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td><strong>No</strong></td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-collaborator_pii">collaborator_pii</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
@@ -69,7 +69,8 @@
   <p><strong>For:</strong> the principal investigator or programme lead of a project. <strong>Scope:</strong> one whole project.</p>
   <ul>
     <li><strong>Can:</strong> use the Admin panel (<code>/admin</code>) for their own projects: project-site settings, the Organization setup page (levels, units, cadres and the grid, workers, export and import), and access grants; give any role except admin and project_pi in their projects, including unit grants; import users from a spreadsheet, which attaches roles to people who already have an account. See the Area dashboard for the whole project. A project PI who also holds a coder grant is exempt from that project's coding on/off switch, date window and daily limit.</li>
-    <li><strong>Cannot:</strong> create new user accounts; give admin or project_pi grants; open the Data Manager dashboard; code, review, interview or supervise intake unless also granted those roles.</li>
+    <li><strong>Also:</strong> open the Site PI dashboard (<code>/sitepi</code>) for every site of their projects and, in an organization project, its top-level units. In an organization project a project PI also has every data-manager power over the whole project and supervises its web intake (<code>/intake/supervision</code>).</li>
+    <li><strong>Cannot:</strong> create new user accounts; give admin or project_pi grants; code, review or interview unless also granted those roles. In a site project, no data-manager actions and no intake supervision.</li>
     <li><strong>Personal details:</strong> yes, on any screen the person can open.</li>
     <li><strong>Granted by:</strong> an admin.</li>
   </ul>
@@ -77,14 +78,14 @@
 
 <section id="role-site_pi">
   <h3>site_pi</h3>
-  <p><strong>For:</strong> the lead investigator or officer for one site (for example the Civil Surgeon of a district). <strong>Scope:</strong> one site of a project, or an organization unit.</p>
+  <p><strong>For:</strong> the lead investigator or officer for one site. <strong>Scope:</strong> one site of a project, or, in an organization project, an organization unit, where the role is shown as <strong>In-charge</strong> (District in-charge, Block in-charge, PHC in-charge).</p>
   <ul>
-    <li><strong>Can:</strong> open the Site PI dashboard (<code>/sitepi</code>): totals of submissions, cases with an agreed cause of death, not-codeable cases, and each coder's completed and corrected work for their sites. See the Area dashboard. A site PI who also holds a coder grant is exempt from that site's coding switch, date window and daily limit.</li>
-    <li><strong>Cannot:</strong> change data, code, review, interview, supervise intake or manage users.</li>
+    <li><strong>Can (site):</strong> open the Site PI dashboard (<code>/sitepi</code>): totals of submissions, cases with an agreed cause of death, not-codeable cases, and each coder's completed and corrected work for their sites. See the Area dashboard. A site PI who also holds a coder grant is exempt from that site's coding switch, date window and daily limit.</li>
+    <li><strong>Can (In-charge, within their unit and everything below it):</strong> every screen with personal details; every data-manager power (the Data Manager dashboard, Not Codeable, screening, changes made in ODK, re-syncing one submission, placing unrouted submissions); supervise web intake (<code>/intake/supervision</code>); the Site PI dashboard for their unit.</li>
+    <li><strong>Cannot:</strong> code, review or interview without those grants. A site PI on a site cannot change data, supervise intake or manage users. An In-charge cannot re-sync a whole form. Staff of a mentoring institute can never be an In-charge.</li>
     <li><strong>Personal details:</strong> yes.</li>
     <li><strong>Granted by:</strong> an admin, or a project PI of the project.</li>
   </ul>
-  <div class="help-warning"><strong>Known gap:</strong> the Site PI dashboard reads only site grants. A site PI granted on an organization unit currently gets "No sites assigned" there; they still see the Area dashboard.</div>
 </section>
 
 <section id="role-data_manager">

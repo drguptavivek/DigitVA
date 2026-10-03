@@ -48,15 +48,26 @@
 <!-- Site Selection Dropdown -->
 <div class="row mb-4">
   <div class="col-md-6">
-    <label for="siteSelect" class="form-label"><strong>Select Site-Specific VA Form:</strong></label>
+    <label for="siteSelect" class="form-label"><strong>Select a site or unit:</strong></label>
     <select id="siteSelect" name="siteSelect" class="form-select"
             hx-get="{{ url_for('sitepi.sitepi_data') }}"
             hx-target="#siteContent"
             hx-trigger="change"
             hx-indicator="#loading">
-      {% for site_key, site_label in sitepi_sites %}
-        <option value="{{ site_key }}" {% if loop.first %}selected{% endif %}>{{ site_label }}</option>
-      {% endfor %}
+      {% if sitepi_sites %}
+        <optgroup label="Sites">
+          {% for site_key, site_label in sitepi_sites %}
+            <option value="{{ site_key }}" {% if loop.first %}selected{% endif %}>{{ site_label }}</option>
+          {% endfor %}
+        </optgroup>
+      {% endif %}
+      {% if sitepi_units %}
+        <optgroup label="Units (In-charge area)">
+          {% for unit_key, unit_label in sitepi_units %}
+            <option value="{{ unit_key }}" {% if loop.first and not sitepi_sites %}selected{% endif %}>{{ unit_label }}</option>
+          {% endfor %}
+        </optgroup>
+      {% endif %}
     </select>
   </div>
   <div class="col-md-6 d-flex align-items-end">
@@ -69,7 +80,7 @@
 
 <!-- Dynamic Content Area -->
 <div id="siteContent">
-  {% with site_data=default_site_data, site_label=default_site %}
+  {% with site_data=default_site_data, site_label=default_site, report_kind=default_kind %}
     {% include 'va_intermediate_partials/sitepi_dashboard_content.html' %}
   {% endwith %}
 </div>

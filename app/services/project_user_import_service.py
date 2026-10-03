@@ -26,7 +26,7 @@ from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.tabular_import_service import TabularImportError, parse_table
-from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile
+from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile, mask_mobile
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
 MAX_BYTES = 1024 * 1024
@@ -83,6 +83,11 @@ def prepare(project_id, rows, *, actor):
     role but admin and project_pi in their project). Raises
     ProjectUserImportError with row numbers. Existing user profiles are
     ignored; profile fields are used only when an admin creates a new account.
+
+    A row with no email names its person by mobile number (docs/policy/
+    account-onboarding-and-passwords.md section 2): an existing account whose
+    sign-in number it is, or -- admin only -- a new mobile-only account,
+    which needs a valid number no other account holds.
     """
     actor_grants = authz.resolve_grants(actor)
     is_admin = actor_grants.is_admin
@@ -92,10 +97,17 @@ def prepare(project_id, rows, *, actor):
     if project.project_structure_mode != "organization":
         raise ProjectUserImportError("This project is not in organization mode.")
 
-    emails = {(row["email"] or "").lower() for row in rows}
+    emails = {(row["email"] or "").strip().lower() for row in rows} - {""}
     users = {user.email.lower(): user for user in db.session.scalars(
         sa.select(VaUsers).where(sa.func.lower(VaUsers.email).in_(emails))
     )}
+    # Rows without an email: their people by sign-in number, one query.
+    row_mobiles = {canonical_mobile(row["phone"]) for row in rows
+                   if not (row["email"] or "").strip()} - {None}
+    users_by_mobile = {user.mobile_login: user for user in db.session.scalars(
+        sa.select(VaUsers).where(VaUsers.mobile_login.in_(row_mobiles))
+    )} if row_mobiles else {}
+    known_users = list(users.values()) + list(users_by_mobile.values())
     requested_units = {row["org_unit_code"].upper() for row in rows if row["org_unit_code"]}
     units = {unit.unit_code.upper(): unit for unit in db.session.scalars(
         sa.select(MasOrgUnit).where(MasOrgUnit.project_id == project_id,
@@ -123,11 +135,11 @@ def prepare(project_id, rows, *, actor):
     existing_grants = {(grant.user_id, grant.role, grant.scope_type,
                         grant.org_unit_id if grant.scope_type == VaAccessScopeTypes.org_unit else grant.project_id): grant
                        for grant in db.session.scalars(sa.select(VaUserAccessGrants).where(
-                           VaUserAccessGrants.user_id.in_([user.user_id for user in users.values()]),
+                           VaUserAccessGrants.user_id.in_([user.user_id for user in known_users]),
                            sa.or_(VaUserAccessGrants.project_id == project_id,
                                   VaUserAccessGrants.org_unit_id.in_([unit.org_unit_id for unit in units.values()])),
                        ))}
-    mentor_members = member_user_ids(user.user_id for user in users.values())
+    mentor_members = member_user_ids(user.user_id for user in known_users)
     # docs/policy/mobile-sign-in.md section 1: a new account's phone that is a
     # valid mobile number becomes its sign-in number, so it must be unique:
     # one query for every number in the file, plus repeats within the file.
@@ -151,9 +163,17 @@ def prepare(project_id, rows, *, actor):
     for row in rows:
         number = row["_line_number"]
         try:
-            email = row["email"].lower()
-            if len(email) > 128 or not EMAIL_RE.fullmatch(email):
-                raise ProjectUserImportError("invalid email")
+            email = row["email"].strip().lower()
+            mobile = canonical_mobile(row["phone"])
+            if email:
+                if len(email) > 128 or not EMAIL_RE.fullmatch(email):
+                    raise ProjectUserImportError("invalid email")
+                identity = email
+            elif mobile is None:
+                raise ProjectUserImportError(
+                    "a row without an email needs a valid 10-digit mobile number")
+            else:
+                identity = f"mobile:{mobile}"
             allowed_roles = [role for role in VaAccessRoles
                              if role != VaAccessRoles.admin and
                              (is_admin or role != VaAccessRoles.project_pi)]
@@ -199,11 +219,11 @@ def prepare(project_id, rows, *, actor):
                 ), _grants=actor_grants))
             if not permitted[target_key]:
                 raise ProjectUserImportError("you are not permitted to grant this role here")
-            key = (email, role, unit_code)
+            key = (identity, role, unit_code)
             if key in seen:
-                raise ProjectUserImportError("duplicate email, role and scope")
+                raise ProjectUserImportError("duplicate person, role and scope")
             seen.add(key)
-            user = users.get(email)
+            user = users.get(email) if email else users_by_mobile.get(mobile)
             if user and user.user_id in mentor_members:
                 check_mentor_grant(user.user_id, role, unit)
             if not is_admin and (not user or user.user_status != VaStatuses.active):
@@ -220,20 +240,22 @@ def prepare(project_id, rows, *, actor):
                     raise ProjectUserImportError("new user needs active language codes")
                 if len(row["phone"]) > 15:
                     raise ProjectUserImportError("phone is too long")
-                mobile = canonical_mobile(row["phone"])
                 if mobile and (
-                    mobile in taken_mobiles or mobile_rows.setdefault(mobile, email) != email
+                    mobile in taken_mobiles or mobile_rows.setdefault(mobile, identity) != identity
                 ):
                     raise ProjectUserImportError("mobile number is already used by another account")
                 profile = (row["name"], tuple(languages), row["phone"])
-                if email in new_profiles and new_profiles[email] != profile:
+                if identity in new_profiles and new_profiles[identity] != profile:
                     raise ProjectUserImportError("new user profile differs from an earlier row")
-                new_profiles[email] = profile
+                new_profiles[identity] = profile
             scope = VaAccessScopeTypes.org_unit if unit else VaAccessScopeTypes.project
             grant_key = (user.user_id, role, scope, unit.org_unit_id if unit else project_id) if user else None
             grant = existing_grants.get(grant_key)
-            plan.append({"row": number, "email": email, "name": row["name"], "phone": row["phone"],
-                         "mobile": None if user else canonical_mobile(row["phone"]),
+            plan.append({"row": number, "email": email or None, "identity": identity,
+                         # What the preview shows: never a whole mobile number.
+                         "display": email or mask_mobile(mobile),
+                         "name": row["name"], "phone": row["phone"],
+                         "mobile": None if user else mobile,
                          "languages": languages, "role": role, "unit": unit, "cadre": cadre,
                          "user": user, "grant": grant,
                          "action": "create_user" if not user else ("reactivate" if grant and grant.grant_status != VaStatuses.active else "update_cadre" if grant and unit and cadre and grant.cadre_id != cadre.cadre_id else "retain" if grant else "grant")})
@@ -245,11 +267,20 @@ def prepare(project_id, rows, *, actor):
 
 
 def apply(project_id, plan, *, actor_user_id):
-    """Write a validated plan in the caller's transaction; return new users and grants."""
+    """Write a validated plan in the caller's transaction.
+
+    Returns ``(invitations, audit, sign_in_codes)``: new email accounts to
+    send verification to, grant changes to log, and one first sign-in code
+    per new mobile-only account (``row``, masked ``mobile``, ``name``,
+    ``sign_in_code``) for the caller to show once and never log.
+    """
+    from app.services import mobile_sign_in_service
+
     new_users = {}
     changed_grants = []
+    sign_in_codes = []
     for item in plan:
-        user = item["user"] or new_users.get(item["email"])
+        user = item["user"] or new_users.get(item["identity"])
         if user is None:
             user = VaUsers(email=item["email"], name=item["name"], phone=item["phone"] or None,
                            mobile_login=item["mobile"],
@@ -259,7 +290,14 @@ def apply(project_id, plan, *, actor_user_id):
             user.set_password(secrets.token_urlsafe(32))
             db.session.add(user)
             db.session.flush()
-            new_users[item["email"]] = user
+            new_users[item["identity"]] = user
+            if user.email is None:
+                sign_in_codes.append({
+                    "row": item["row"], "mobile": mask_mobile(user.mobile_login),
+                    "name": user.name,
+                    "sign_in_code": mobile_sign_in_service.issue_code(
+                        user, actor_user_id=actor_user_id),
+                })
         grant = item["grant"]
         if grant is None:
             unit = item["unit"]
@@ -282,8 +320,8 @@ def apply(project_id, plan, *, actor_user_id):
     # Snapshot values before commit expires ORM state; invitation helpers need
     # only name, email and ID, and audit logging needs grant scalar fields.
     invitations = [SimpleNamespace(user_id=user.user_id, email=user.email, name=user.name)
-                   for user in new_users.values()]
+                   for user in new_users.values() if user.email]
     audit = [(dict(user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
                    scope_type=grant.scope_type.value, org_unit_id=grant.org_unit_id,
                    cadre_id=grant.cadre_id), action) for grant, action in changed_grants]
-    return invitations, audit
+    return invitations, audit, sign_in_codes

@@ -149,12 +149,16 @@ class SessionVersionTests(TwoStepLoginTestBase):
 
         before = self.user.auth_session_version
         token = generate_token(self.user.user_id, "password_reset")
-        resp = self.client.post(
-            f"/vaauth/reset-password/{token}",
-            data={"new_password": "BrandNewSecret789!", "confirm_password": "BrandNewSecret789!"},
-            headers=self._csrf_headers(),
-            follow_redirects=False,
-        )
+        from unittest.mock import patch
+
+        # The new password is generated and emailed (digitva-kmoy).
+        with patch("app.services.email_service.is_mail_configured", return_value=True), \
+                patch("app.services.email_service.mail.send"):
+            resp = self.client.post(
+                f"/vaauth/reset-password/{token}",
+                headers=self._csrf_headers(),
+                follow_redirects=False,
+            )
         self.assertEqual(resp.status_code, 302)
         db.session.refresh(self.user)
         self.assertEqual(self.user.auth_session_version, before + 1)

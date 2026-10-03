@@ -332,7 +332,7 @@ class RedeemCodeTests(MobileSignInTestBase):
         c = self._redeem("123", code)
         self.assertEqual({a.status_code, b.status_code, c.status_code}, {200})
         for response in (a, b, c):
-            self.assertIn(b"That mobile number and code do not match", response.data)
+            self.assertIn(b"That email or mobile number and code do not match", response.data)
             self.assertNotIn(b"generated-password", response.data)
 
     def test_expired_code_fails(self):
@@ -464,11 +464,15 @@ class RedeemCodeTests(MobileSignInTestBase):
         self.assertEqual(a, b)
         self.assertEqual(a, c)
 
-    def test_codes_are_only_for_mobile_only_accounts(self):
+    def test_codes_also_work_for_email_accounts(self):
+        """digitva-kmoy: any managed account may get a code, redeemed with
+        its email (account-onboarding-and-passwords.md section 6)."""
         user = self._make_user(f"emailonly.{uuid.uuid4().hex[:8]}@example.com", PASSWORD)
         db.session.commit()
-        with self.assertRaises(ValueError):
-            mobile.issue_code(user, actor_user_id=None)
+        code = self._issue(user)
+        redeemed, password = mobile.redeem_code(user.email, code)
+        self.assertEqual(redeemed.user_id, user.user_id)
+        self.assertRegex(password, PASSWORD_RE)
 
 
 class MobileAccountPasswordTests(MobileSignInTestBase):
@@ -478,7 +482,8 @@ class MobileAccountPasswordTests(MobileSignInTestBase):
         response = self.client.patch("/api/v1/profile/password", json={
             "current_password": PASSWORD, "new_password": "Another1Pass!x",
             "confirm_password": "Another1Pass!x"}, headers=self._csrf_headers())
-        self.assertEqual(response.status_code, 403)
+        # The endpoint is gone for everyone (digitva-kmoy).
+        self.assertIn(response.status_code, (404, 405))
         db.session.refresh(user)
         self.assertTrue(user.check_password(PASSWORD))
 
@@ -511,14 +516,19 @@ class MobileAccountPasswordTests(MobileSignInTestBase):
         self._forget_cached_user()
         self.assertNotEqual(self.client.get("/profile/").status_code, 200)
 
-    def test_regenerate_is_refused_for_email_accounts(self):
+    def test_regenerate_for_email_accounts_is_emailed_not_shown(self):
+        """digitva-kmoy: tests/test_account_onboarding.py covers the email."""
         user = self._make_user(f"regen.{uuid.uuid4().hex[:8]}@example.com", PASSWORD)
         db.session.commit()
         self._login(user.get_id())
         with self.client.session_transaction() as sess:
             sess["auth_verified_at"] = datetime.now(UTC).isoformat()
-        self.assertEqual(self.client.post("/api/v1/profile/password/generate",
-                                          headers=self._csrf_headers()).status_code, 403)
+        with patch("app.services.user_account_service.email_new_password") as emailed:
+            response = self.client.post("/api/v1/profile/password/generate",
+                                        headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("password", response.get_json())
+        emailed.assert_called_once()
 
     def test_no_email_is_sent_to_a_mobile_only_account(self):
         from app.services.email_service import send_password_reset_email, send_verification_email
@@ -655,8 +665,11 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         self.assertEqual(admin_route.status_code, 200)
         no_csrf = self.client.post(f"/data-management/api/users/{outside.user_id}/sign-in-code")
         self.assertEqual(no_csrf.status_code, 400)
-        email_user = self.users["reviewer_c1"]
-        self.assertEqual(issue(email_user).status_code, 400)
+        # Security review (digitva-kmoy): a verified email account resets by
+        # email; only an admin issues it a code.
+        self._as("dm_c1")
+        self.assertEqual(issue(self.users["reviewer_p1"]).status_code, 404)
+        self.assertEqual(issue(self.users["reviewer_ta"]).status_code, 404)
 
     def test_issue_code_refused_unless_every_grant_is_managed_and_unprivileged(self):
         """Security review 2026-10-03: managing one grant of a person is not
@@ -767,13 +780,12 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         fresh = _number()
         tag = uuid.uuid4().hex[:8]
         refused = runner.invoke(args=["users", "create", "--email", f"cli1.{tag}@example.com",
-                                      "--name", "Cli", "--password", "CliPassword123!",
-                                      "--phone", held])
+                                      "--name", "Cli", "--phone", held])
         self.assertNotEqual(refused.exit_code, 0)
         self.assertIn("already used", refused.output)
-        made = runner.invoke(args=["users", "create", "--email", f"cli2.{tag}@example.com",
-                                   "--name", "Cli", "--password", "CliPassword123!",
-                                   "--phone", fresh])
+        with patch("app.services.user_account_service.send_invitation"):
+            made = runner.invoke(args=["users", "create", "--email", f"cli2.{tag}@example.com",
+                                       "--name", "Cli", "--phone", fresh])
         self.assertEqual(made.exit_code, 0, made.output)
         user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == f"cli2.{tag}@example.com"))
         self.assertEqual(user.mobile_login, fresh)

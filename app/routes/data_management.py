@@ -941,10 +941,12 @@ def manage_resend_verification(target_user_id):
 @role_required("data_manager", "admin")
 @limiter.limit("20 per hour")
 def manage_issue_sign_in_code(target_user_id):
-    """Issue a one-time sign-in code for a mobile-only account and return it
-    once (docs/policy/mobile-sign-in.md section 3). Allowed for admin and for
-    anyone who may manage one of the person's active grants; anyone else
-    gets the same 404 as an unknown account. Issuing voids the previous code.
+    """Issue a one-time sign-in code for any account (redeemed with its email
+    or mobile number) and return it once (docs/policy/mobile-sign-in.md
+    section 3). Allowed for admin, and for anyone who may manage every one of
+    the person's active grants, none privileged (``may_issue_code``); anyone
+    else gets the same 404 as an unknown account. Issuing voids the previous
+    code.
     """
     from app.services import mobile_sign_in_service
 

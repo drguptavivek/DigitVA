@@ -2,7 +2,7 @@
 
 <p>
   The My Profile page at <code>/profile</code> lets you view your account information,
-  change your password, and update your display timezone. Access this page from the
+  get a new password, and update your display timezone. Access this page from the
   user menu in the navigation bar after logging in.
 </p>
 
@@ -15,60 +15,20 @@
   preferences via <code>PATCH /api/v1/profile/language</code>.
 </p>
 
-<h3>Changing Your Password</h3>
+<h3>Getting a New Password</h3>
 
 <p>
-  Use the "Change Password" card on the profile page to update your password. You must
-  provide:
+  Nobody chooses their own password. The "Password" card on the profile page has a
+  <strong>Generate a new password</strong> button. If you signed in more than ten
+  minutes ago, enter your current password first. If your account has a verified
+  email, the new password is emailed to you; otherwise it is shown once on the page.
+  Either way your old password stops working and you sign in again.
 </p>
-
-<ul>
-  <li><strong>Current password</strong> &mdash; to verify your identity</li>
-  <li><strong>New password</strong> &mdash; must meet strength requirements</li>
-  <li><strong>Confirm new password</strong> &mdash; must match the new password</li>
-</ul>
-
-<p>
-  Password changes are submitted via <code>PATCH /api/v1/profile/password</code>. The
-  endpoint is rate-limited to 5 requests per minute.
-</p>
-
-<h3>Password Strength Requirements</h3>
-
-<p>Your new password must satisfy all of the following rules:</p>
-
-<ul>
-  <li>At least 12 characters</li>
-  <li>At least one uppercase letter (A-Z)</li>
-  <li>At least one digit (0-9)</li>
-  <li>At least one special character</li>
-  <li>The new password must differ from your current password</li>
-</ul>
-
-<div class="help-tip">
-  If any rule is not met, the system tells you which requirements are missing. All
-  rules must pass before the password is accepted.
-</div>
-
-<h3>Breach Check (Have I Been Pwned)</h3>
-
-<p>
-  After your password passes the strength rules, DigitVA checks it against the
-  <strong>Have I Been Pwned (HIBP)</strong> breach database. If your chosen password
-  appears in known breach data, it will be rejected and you must choose a different one.
-</p>
-
-<div class="help-info">
-  <strong>Privacy:</strong> DigitVA never transmits your full password to the breach
-  service. Only the first 5 characters of the password's SHA-1 hash prefix are sent
-  to the HIBP k-anonymity API. No raw password, full hash, or account identity leaves
-  the application.
-</div>
 
 <div class="help-warning">
-  <strong>Service unavailable:</strong> If the breach check service cannot be reached,
-  the password change will fail with a retryable error. DigitVA does not silently
-  bypass the breach check. Try again in a few moments.
+  <strong>Service unavailable:</strong> every generated password is checked against
+  the Have I Been Pwned breach list. If that check cannot be reached, or the email
+  cannot be sent, nothing changes and you can try again in a few moments.
 </div>
 
 <h3>First Login: Terms and Conditions</h3>

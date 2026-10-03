@@ -981,27 +981,88 @@ unknown, shared or malformed number gets the same second page and the same
 wrong-credentials result. The "verified" check is `VaUsers.sign_in_verified`:
 a verified email, or a redeemed sign-in code (`mobile_verified_at`).
 
-A **mobile-only account** (`email` NULL) never chooses a password. A data
-manager who may manage one of the person's grants (`authz.grant_list_filter`,
-i.e. `can_grant`), or an admin, issues a 6-digit code
+**Generated passwords and onboarding (digitva-l7c2, digitva-kmoy).**
+Baseline `docs/policy/account-onboarding-and-passwords.md`. Nobody chooses a
+password: there is no chosen-password path left (the Profile change endpoint
+`PATCH /api/v1/profile/password` is gone, `PUT /admin/api/users/<id>` refuses
+a `password` key with 400, the reset and factor-reset pages have no password
+box, and the CLI has no `--password`). Every password comes from
+`mobile_sign_in_service.generate_password()` (three words from
+`app/services/mobile_password_words.txt` plus four digits, about 45.8 bits,
+breach-checked; a breach-check outage raises `PasswordGenerationUnavailable`
+before anything changes) through `set_new_password()` (sets the hash, bumps
+the session version, records `password_generated` with
+`detail={"path": "email_verification"|"password_reset"|"profile"|"cli"|"sign_in_code"}`).
+A password reaches its owner one of two ways:
+
+- **By email** (`user_account_service.email_new_password`): sent
+  *synchronously* by `email_service.send_password_email` (never queued, so it
+  never sits in the Celery broker), template `emails/new_password` carrying
+  only the password and the login page address. A send failure raises
+  `PasswordEmailFailed`; the caller rolls back so the old password keeps
+  working, and shows a retryable message. Paths: the **verification link**
+  (`va_auth.verify_email`; GET shows a "Verify my email" button and changes
+  nothing, the CSRF-protected POST sets `email_verified`, records
+  `email_verified` and, only when `has_usable_password()` is false -- no
+  terms accepted (`pw_reset_t_and_c`) and no code redeemed
+  (`mobile_verified_at`) -- emails a password; an account that already has
+  one keeps it), the **reset link** (`va_auth.reset_password`; GET shows an
+  "Email me a new password" button, POST emails a new one and resets
+  `pw_reset_t_and_c`; single use via the password-hash fingerprint; refused
+  for an account without an email), and Profile
+  `POST /api/v1/profile/password/generate` for an account with a verified
+  email (reauth within ten minutes; the response carries no password).
+  Account creation (`send_invitation`, admin, data manager, mentoring
+  institute, project import, CLI) queues only the verification email.
+- **On screen, once** (`no-store`): redeeming a sign-in code, and Profile
+  generate for an account without a verified email. `flask users
+  reset-password` and `flask users create` without an email print it once to
+  the operator's terminal.
+
+"Forgot password" (`va_auth.forgot_password`) takes an email or a mobile
+number, finds the account (`mobile_login` for a number) and queues the reset
+link only to a *verified* email; one message per kind of identifier whether
+or not anything matched, so typing an identifier never changes a password.
+`POST /admin/api/users/<id>/send-password-reset` (admin) queues the same
+link to a verified email -- never a password.
+
+**Sign-in codes.** A data manager may issue one only when the person has no
+verified email (mobile-only, or an email never verified), and they may manage
+*every* active grant the person holds and none is privileged
+(`may_issue_code`); an admin may issue for any account
 (`POST /data-management/api/users/<id>/sign-in-code`,
 `POST /admin/api/users/<id>/sign-in-code`, and automatically in the create
-response), shown once; `auth_mobile_codes` keeps only an HMAC hash under the
-factor key, 72-hour expiry, a new code voids the old, five wrong attempts void
-it. The person redeems it at `va_auth.va_login_redeem_code`
-(`/vaauth/valogin/code`, "I have a code" on the sign-in page; CAPTCHA, 10 per
-minute per IP and 10 per hour per number, one answer for a wrong number or
-code): the server generates a password (three words from
-`app/services/mobile_password_words.txt` plus four digits, about 45.8 bits,
-breach-checked; an outage changes nothing), bumps the session version and
-shows it once on a `no-store` response. The person then signs in normally.
-Signed in, they may ask for a new generated password after reauthentication
-(`POST /api/v1/profile/password/generate`); the chosen-password change, the
-email reset link and an admin-set password are refused for them, and
-"Forgot password" with a number says to ask the data manager. Audit events:
+response for a mobile-only account -- admin, data manager, mentoring
+institute staff and project import); shown once; `auth_mobile_codes` keeps
+only an HMAC hash under the factor key, 72-hour expiry, a new code voids the
+old, five wrong attempts void it. The person redeems it at
+`va_auth.va_login_redeem_code` (`/vaauth/valogin/code`, "I have a code";
+CAPTCHA, 10 per minute per IP and 10 per hour per identifier, one answer for
+a wrong identifier or code) with their **email or mobile number**; redemption
+generates a password, bumps the session version, sets `mobile_verified_at`
+(meaning "has redeemed a code") and shows the password once. Audit events:
 `mobile_code_issued`, `mobile_code_voided`, `mobile_code_redeemed`,
-`mobile_password_regenerated` (never the code, password or number). The
-device API (`/api/v1/device/`) still signs in by email only.
+`password_generated`, `email_verified` (never a code, password or number).
+Redeeming a code for an account with an email on file queues
+`emails/code_redeemed` to that address (no password, code or link). The
+`email_verify` token fingerprints the current email, so a link stops working
+once the email changes; `verify_email` refuses an inactive account with the
+invalid-link message. Mentoring-institute staff may be created mobile-only by
+a platform admin only.
+
+**Project user import** rows may omit the email: such a row names its person
+by mobile number -- an existing account whose `mobile_login` it is, or (admin
+only) a new mobile-only account, which needs a valid number no other account
+holds. The apply response returns each new mobile-only account's first code
+in `sign_in_codes` (masked number, `no-store`, never logged); new email
+accounts get the verification email only.
+
+**Device sign-in** (`device_auth_service.open_session`, `POST
+/api/v1/device/sessions`) reads the contract's `email` field as an email or a
+mobile number, resolved like the web login (`mobile_login` only); an unknown,
+shared or malformed number, and a mobile-only account that never redeemed a
+code, get the same `invalid_credentials`; the per-account rate-limit key uses
+the canonical number.
 
 **TOTP and recovery codes** (`app/services/totp_service.py`). TOTP secrets
 are AES-256-GCM-encrypted at rest under a key derived (HKDF-SHA256) from
@@ -1060,8 +1121,10 @@ reset invalidates it) and emails a single-use magic link **synchronously**
 (`send_factor_reset_link_email` — the CLI's contract is "print the link only
 if sending failed", which a queued Celery task cannot report). The link lands
 on `va_auth.factor_reset` (public by design, `PUBLIC_BY_DESIGN` in
-`tests/test_route_auth_coverage.py`): the existing `ResetPasswordForm`/
-password-breach-check flow, then `email_verified = True`,
+`tests/test_route_auth_coverage.py`): GET shows a "Continue" button and
+changes nothing; the POST sets no password (the existing one keeps working;
+the fresh sign-in leaves Profile "Generate a new password" open for ten
+minutes), then `email_verified = True`,
 `bump_session_version()`, `_complete_login()`, and
 `session["factor_setup_forced"] = True` so the redirect guard holds a
 privileged user on the factor-setup page even if `AUTH_FACTOR_ENFORCE_FROM`
@@ -1071,7 +1134,8 @@ Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`
 (all in use), `auth_security_events` (`passkey_registered`,
 `passkey_renamed`, `passkey_revoked`, `counter_regression`,
 `totp_enrolled`, `totp_removed`, `recovery_codes_generated`,
-`recovery_code_used`, `second_factor_lockout`, `factor_reset`) plus
+`recovery_code_used`, `second_factor_lockout`, `factor_reset`,
+`password_generated`, `email_verified` and the `mobile_code_*` events) plus
 `va_users.auth_session_version`.
 
 WebAuthn RP ID/origin: `config.py`'s `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`

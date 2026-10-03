@@ -403,6 +403,83 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(attempts[:20], [401] * 20)
         self.assertEqual(attempts[20], 429)
 
+    # ── sign-in by mobile number (digitva-kmoy) ───────────────────────────
+
+    @staticmethod
+    def _new_number():
+        return "9" + uuid.uuid4().int.__str__()[:9]
+
+    def _mobile_interviewer(self, *, redeemed=True):
+        from app.models import VaUsers
+
+        number = self._new_number()
+        user = VaUsers(
+            user_id=uuid.uuid4(), name="Mobile Interviewer", email=None, phone=number,
+            mobile_login=number, vacode_language=["English"], permission={},
+            landing_page="coder", pw_reset_t_and_c=True, email_verified=False,
+            mobile_verified_at=datetime.now(UTC) if redeemed else None,
+            user_status=VaStatuses.active,
+        )
+        user.set_password(PASSWORD)
+        db.session.add(user)
+        db.session.flush()
+        self._grant(user, self.PROJECT_ID)
+        db.session.commit()
+        return user
+
+    def test_sign_in_by_mobile_number_in_any_typed_format(self):
+        user = self._mobile_interviewer()
+        device = self._enrol()
+        for typed in (user.mobile_login, f"+91 {user.mobile_login[:5]} {user.mobile_login[5:]}"):
+            with self.subTest(typed=typed):
+                response = self._sign_in(device, email=typed)
+                self.assertEqual(response.status_code, 201, response.get_json())
+                self.assertEqual(response.get_json()["user"]["user_id"], str(user.user_id))
+
+    def test_email_account_with_a_unique_number_signs_in_by_either(self):
+        number = self._new_number()
+        self.teammate.phone = number
+        self.teammate.mobile_login = number
+        db.session.commit()
+        try:
+            device = self._enrol()
+            self.assertEqual(self._sign_in(device, email=f"0{number}").status_code, 201)
+            self.assertEqual(self._sign_in(device, email="device.teammate@test.local").status_code, 201)
+        finally:
+            self.teammate.phone = None
+            self.teammate.mobile_login = None
+            db.session.commit()
+
+    def test_unknown_shared_invalid_and_unredeemed_numbers_are_indistinguishable(self):
+        shared = self._new_number()
+        self.outsider.phone = f"+91{shared}"  # held only as free text, never a sign-in number
+        db.session.commit()
+        unredeemed = self._mobile_interviewer(redeemed=False)
+        device = self._enrol()
+        answers = set()
+        for typed in (self._new_number(), shared, "12345", "not a number", unredeemed.mobile_login):
+            with self.subTest(typed=typed):
+                response = self._sign_in(device, email=typed)
+                answers.add((response.status_code, json.dumps(response.get_json(), sort_keys=True)))
+        self.assertEqual(len(answers), 1, answers)
+        status, body = answers.pop()
+        self.assertEqual(status, 401)
+        self.assertEqual(json.loads(body)["code"], "invalid_credentials")
+        self.outsider.phone = None
+        db.session.commit()
+
+    def test_mobile_sign_in_is_rate_limited_on_the_canonical_number(self):
+        user = self._mobile_interviewer()
+        attempts = []
+        for n in range(21):
+            row, secret = devices.enrol_device(self._code(), device_name=f"m{n}", platform="android", app_version="1")
+            db.session.commit()
+            device = {"device_id": str(row.device_id), "device_secret": secret}
+            typed = user.mobile_login if n % 2 else f"+91 {user.mobile_login}"
+            attempts.append(self._sign_in_from(f"10.0.2.{n}", device, email=typed, password="wrong"))
+        self.assertEqual(attempts[:20], [401] * 20)
+        self.assertEqual(attempts[20], 429)
+
     # ── refresh ────────────────────────────────────────────────────────────
 
     def test_refresh_rotates_and_the_old_token_is_dead(self):

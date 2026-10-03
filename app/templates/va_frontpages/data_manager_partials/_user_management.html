@@ -133,7 +133,7 @@
             <div class="col-12">
               <label class="form-label small mb-1">VA Languages <span class="text-danger">*</span></label>
               <select class="form-select form-select-sm" id="dm-user-languages" multiple></select>
-              <div class="form-text" style="font-size:0.7rem;">Enter an email, a mobile number, or both. With an email the person receives an invite and a verification email and sets their own password. Without one they sign in with their mobile number: you get a one-time sign-in code to give them.</div>
+              <div class="form-text" style="font-size:0.7rem;">Enter an email, a mobile number, or both. With an email the person receives a verification email; opening it emails them their password. Without one they sign in with their mobile number: you get a one-time sign-in code to give them.</div>
             </div>
           </div>
           <div class="row g-2 mt-1">
@@ -821,7 +821,8 @@
         + siteGrantHtml;
       $('#dm-user-edit-languages').val(u.languages || []).trigger('change');
       document.getElementById('dm-user-resend-verify-btn').disabled = !!u.email_verified || !!u.mobile_only;
-      document.getElementById('dm-user-issue-code-btn').classList.toggle('d-none', !u.mobile_only);
+      // A verified email resets by email; only an admin issues it a code.
+      document.getElementById('dm-user-issue-code-btn').classList.toggle('d-none', !!u.email_verified);
     }).catch(function () {
       body.innerHTML = '<div class="text-danger">Network error.</div>';
     });

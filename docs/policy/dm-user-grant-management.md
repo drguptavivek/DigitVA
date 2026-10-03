@@ -157,11 +157,14 @@ this interface.
 A data-manager may create new users. Created users:
 
 - receive status `active`
-- must provide `email` and matching `email_confirm`
-- are created in invite mode (no operator-entered password)
-- receive both verification and password-setup emails; the password-setup email uses invite wording ("set your password") instead of reset wording
-- when they verify their email for the first time, they are redirected to the password setup page
-- after password setup, first login shows a terms-and-conditions-only gate
+- provide `email` and matching `email_confirm`, or a unique 10-digit mobile
+  number and no email (mobile-sign-in.md)
+- never get an operator-entered password: every password is generated
+  ([account-onboarding-and-passwords.md](account-onboarding-and-passwords.md))
+- with an email, receive a verification email only; pressing "Verify my
+  email" on its link emails them a generated password
+- without an email, get a one-time sign-in code shown to the creator once
+- first login shows a terms-and-conditions-only gate
 - start with `pw_reset_t_and_c=False` so onboarding gate remains in effect
 - must have at least one VA language selected
 - receive `landing_page="coder"` by default

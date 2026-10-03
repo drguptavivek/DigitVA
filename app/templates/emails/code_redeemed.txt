@@ -1,0 +1,9 @@
+Hello {{ name }},
+
+Your DigitVA password was changed using a sign-in code.
+
+If this wasn't you, contact your administrator.
+
+Thank You
+DigitVA Team
+AIIMS, New Delhi

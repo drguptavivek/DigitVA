@@ -257,7 +257,8 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(first.get_json()["created_users"], 1)
         self.assertEqual(first.get_json()["invitations_queued"], 1)
         verification.assert_called_once()
-        password.assert_called_once()
+        # digitva-kmoy: no reset link at creation; verifying emails the password.
+        password.assert_not_called()
         second = self._import_users(text, dry_run="0")
         self.assertEqual(second.status_code, 200, second.get_json())
         self.assertEqual(second.get_json()["changed_grants"], 0)

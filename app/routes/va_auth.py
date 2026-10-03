@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 from app import db, limiter
 from app.models import AuthWebauthnCredential, VaUsers
 from app.forms import (
+    ConfirmLinkForm,
     EmailStepForm,
     PasswordStepForm,
     RedeemCodeForm,
     SecondFactorForm,
     ForgotPasswordForm,
-    ResetPasswordForm,
 )
 import sqlalchemy as sa
 import uuid
@@ -31,6 +31,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app.services import mobile_sign_in_service, totp_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.security_event_service import credential_id_prefix, record_security_event
+from app.services import user_account_service as accounts
 from app.services.user_account_service import canonical_mobile
 from app.services.site_maintenance_service import (
     get_active_site_maintenance,
@@ -54,11 +55,22 @@ va_auth = Blueprint("va_auth", __name__)
 PREAUTH_TTL = timedelta(minutes=5)
 INVALID_LOGIN_MESSAGE = "Invalid email or password. Please, re-check and login again."
 INVALID_SECOND_FACTOR_MESSAGE = "Invalid code. Please try again."
-INVALID_SIGN_IN_CODE_MESSAGE = "That mobile number and code do not match. Please check and try again."
+INVALID_SIGN_IN_CODE_MESSAGE = (
+    "That email or mobile number and code do not match. Please check and try again."
+)
 MOBILE_RESET_MESSAGE = (
     "If you sign in with a mobile number, ask your data manager for a new "
     "sign-in code, then use \"I have a code\" on the sign-in page."
 )
+#: One answer for every mobile number typed into "Forgot password", whether
+#: it is unknown, mobile-only or has a verified email (policy section 6).
+MOBILE_FORGOT_MESSAGE = (
+    "If that number belongs to an account with a verified email, we've sent a "
+    "password reset link to that email. Otherwise ask your data manager for a "
+    "new sign-in code, then use \"I have a code\" on the sign-in page."
+)
+PASSWORD_EMAILED_MESSAGE = "Your password has been emailed to you."
+INVALID_LINK_MESSAGE = "This link is invalid or has expired."
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
 
 # docs/policy/authentication-factors.md section 1: five failed second-factor
@@ -570,10 +582,11 @@ def site_maintenance_status():
 @limiter.limit("10 per hour", methods=["POST"],
                key_func=lambda: _login_identifier_key_func("mobile"))
 def va_login_redeem_code():
-    """"I have a code": a mobile number plus the one-time code a data manager
-    issued. On a match the server generates a password and shows it once,
+    """"I have a code": an email or mobile number plus the one-time code a
+    data manager issued (any account, docs/policy/account-onboarding-and-
+    passwords.md section 6). On a match the server generates a password and shows it once,
     on this response only (no-store; a refresh re-posts a spent code and
-    fails). A wrong number and a wrong code get the same answer. Public by
+    fails). A wrong identifier and a wrong code get the same answer. Public by
     design, CAPTCHA-gated and rate-limited per IP and per number; the person
     then signs in normally, so every factor rule still applies.
     """
@@ -607,7 +620,18 @@ def va_login_redeem_code():
             return render_template(
                 "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
             )
-        _user, password = result
+        user, password = result
+        if user.email:
+            # Security review: the address on file hears of the change
+            # (no password, no code). Non-critical, so never blocks the page.
+            try:
+                from app.services.email_service import send_code_redeemed_notice
+
+                send_code_redeemed_notice(user)
+            except Exception as exc:
+                current_app.logger.warning(
+                    "code redeemed notice failed | user_id=%s | %s", user.user_id, type(exc).__name__
+                )
         response = make_response(render_template(
             "va_frontpages/va_login_code_password.html", password=password
         ))
@@ -624,81 +648,90 @@ def va_login_redeem_code():
 @va_auth.route("/forgot-password", methods=["GET", "POST"])
 @limiter.limit("3 per hour", methods=["POST"])
 def forgot_password():
+    """Email a single-use reset link to the account's *verified* email,
+    found by email or mobile number. Typing an identifier never changes a
+    password by itself: only opening the link and pressing its button does
+    (docs/policy/account-onboarding-and-passwords.md section 6). One answer
+    per kind of identifier, whether or not an account matches."""
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
     form = ForgotPasswordForm()
     if form.validate_on_submit():
-        if "@" not in form.email.data:
-            # A mobile-only account cannot reset by email. Same answer for
-            # every number, known or not (mobile-sign-in.md section 3).
-            flash(MOBILE_RESET_MESSAGE, "info")
-            return redirect(url_for("va_auth.forgot_password"))
-        user = db.session.scalar(
-            sa.select(VaUsers).where(VaUsers.email == form.email.data.strip().lower())
-        )
-        if user:
+        typed = form.email.data.strip()
+        if "@" in typed:
+            match = VaUsers.email == typed.lower()
+            message = (
+                "If that email address is registered, we've sent a password reset link. "
+                "Please check your inbox (and spam folder)."
+            )
+        else:
+            match = VaUsers.mobile_login == (canonical_mobile(typed) or "")
+            message = MOBILE_FORGOT_MESSAGE
+        user = db.session.scalar(sa.select(VaUsers).where(match))
+        if user is not None and user.email and user.email_verified:
             _send_password_reset(user)
-        # Always show the same message to prevent email enumeration
-        flash(
-            "If that email address is registered, we've sent a password reset link. "
-            "Please check your inbox (and spam folder).",
-            "info",
-        )
+        flash(message, "info")
         return redirect(url_for("va_auth.forgot_password"))
     return render_template("va_frontpages/va_forgot_password.html", form=form)
+
+
+def _link_user(token: str, purpose: str):
+    """The account a still-valid emailed link names, or None."""
+    from app.services.token_service import validate_token
+
+    user_id = validate_token(token, purpose)
+    if not user_id:
+        return None
+    try:
+        return db.session.get(VaUsers, uuid.UUID(user_id))
+    except (ValueError, TypeError):
+        return None
+
+
+def _confirm_page(template: str, token: str, *, valid: bool, status: int = 200, **context):
+    return render_template(
+        template, form=ConfirmLinkForm(), token=token, token_valid=valid, **context
+    ), status
+
+
+def _password_delivery_failed(exc, retry_url: str):
+    """Roll back a password change whose generation or email failed (the old
+    password, if any, keeps working) and send the person back to retry."""
+    db.session.rollback()
+    flash(exc.message, "warning")
+    return redirect(retry_url)
 
 
 @va_auth.route("/reset-password/<token>", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
 def reset_password(token):
+    """The reset link. GET shows a button and changes nothing (mail scanners
+    prefetch links); POST generates a new password, ends every session and
+    emails it -- the page shows no password and has no password box
+    (account-onboarding-and-passwords.md section 6). Single use: the token
+    fingerprints the password hash, which the POST changes."""
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
+    template = "va_frontpages/va_reset_password.html"
+    user = _link_user(token, "password_reset")
+    # A mobile-only account has no address to email (mobile-sign-in.md s.3).
+    if user is None or not user.email or not user.is_active:
+        return _confirm_page(template, token, valid=False)
+    if request.method == "GET":
+        return _confirm_page(template, token, valid=True)
+    if not ConfirmLinkForm().validate_on_submit():
+        return _confirm_page(template, token, valid=True, status=400)
 
-    from app.services.token_service import validate_token
-
-    user_id = validate_token(token, "password_reset")
-    if not user_id:
-        return render_template(
-            "va_frontpages/va_reset_password.html",
-            form=ResetPasswordForm(),
-            token=token,
-            token_valid=False,
-        )
-
-    form = ResetPasswordForm()
-    if form.validate_on_submit():
-        try:
-            uid = uuid.UUID(user_id)
-        except (ValueError, TypeError):
-            flash("Invalid reset link.", "danger")
-            return redirect(url_for("va_auth.forgot_password"))
-
-        user = db.session.get(VaUsers, uid)
-        # A mobile-only account never chooses its password (mobile-sign-in.md
-        # section 3); no reset link is ever mailed to one, so refuse any.
-        if not user or user.is_mobile_only:
-            flash("User not found.", "danger")
-            return redirect(url_for("va_auth.forgot_password"))
-
-        user.set_password(form.new_password.data)
-        user.pw_reset_t_and_c = False
-        # docs/policy/authentication-factors.md section 8: a password reset
-        # ends every existing session and remember cookie for this user.
-        user.bump_session_version()
-        db.session.commit()
-
-        flash(
-            "Your password has been reset successfully. Please log in with your new password.",
-            "success",
-        )
-        return redirect(url_for("va_auth.va_login"))
-
-    return render_template(
-        "va_frontpages/va_reset_password.html",
-        form=form,
-        token=token,
-        token_valid=True,
-    )
+    try:
+        accounts.email_new_password(user, path="password_reset")
+    except (mobile_sign_in_service.PasswordGenerationUnavailable,
+            accounts.PasswordEmailFailed) as exc:
+        return _password_delivery_failed(exc, url_for("va_auth.reset_password", token=token))
+    # Terms are accepted again at next sign-in, as after every reset.
+    user.pw_reset_t_and_c = False
+    db.session.commit()
+    flash(f"{PASSWORD_EMAILED_MESSAGE} Please sign in with it.", "success")
+    return redirect(url_for("va_auth.va_login"))
 
 
 # ---------------------------------------------------------------------------
@@ -708,122 +741,85 @@ def reset_password(token):
 @va_auth.route("/factor-reset/<token>", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
 def factor_reset(token):
-    """Land the break-glass CLI's single-use magic link: set a new password
-    (same policy checks as ``reset_password``), then sign the user straight
-    in and send them to the Profile factor-setup section. Public by design --
-    reachable only with a valid, unexpired, single-use token; see
-    ``PUBLIC_BY_DESIGN`` in tests/test_route_auth_coverage.py.
+    """Land the break-glass CLI's single-use magic link. GET shows a button
+    and changes nothing; POST verifies the email, ends every other session
+    (which also spends this and any other factor-reset token), signs the
+    user straight in and sends them to the Profile factor-setup section. No
+    password is chosen or changed here: the existing one keeps working, and
+    a fresh sign-in leaves Profile's "Generate a new password" open for ten
+    minutes. Public by design -- reachable only with a valid, unexpired,
+    single-use token; see ``PUBLIC_BY_DESIGN`` in tests/test_route_auth_coverage.py.
     """
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
+    template = "va_frontpages/va_reset_password.html"
+    action_url = url_for("va_auth.factor_reset", token=token)
+    user = _link_user(token, "factor_reset")
+    # login_user() refuses an inactive user silently: refuse here instead.
+    if user is None or not user.is_active:
+        return _confirm_page(template, token, valid=False, action_url=action_url)
+    if request.method == "GET":
+        return _confirm_page(template, token, valid=True, action_url=action_url, factor_reset=True)
+    if not ConfirmLinkForm().validate_on_submit():
+        return _confirm_page(template, token, valid=True, status=400,
+                             action_url=action_url, factor_reset=True)
 
-    from app.services.token_service import validate_token
-
-    user_id = validate_token(token, "factor_reset")
-    if not user_id:
-        return render_template(
-            "va_frontpages/va_reset_password.html",
-            form=ResetPasswordForm(),
-            token=token,
-            token_valid=False,
-        )
-
-    form = ResetPasswordForm()
-    if form.validate_on_submit():
-        # Re-validate: a long-open tab could submit after expiry, or after a
-        # later reset/password-change invalidated this same token.
-        user_id = validate_token(token, "factor_reset")
-        if not user_id:
-            flash("This link is invalid or has expired.", "danger")
-            return redirect(url_for("va_auth.va_login"))
-        try:
-            uid = uuid.UUID(user_id)
-        except (ValueError, TypeError):
-            flash("Invalid reset link.", "danger")
-            return redirect(url_for("va_auth.va_login"))
-
-        user = db.session.get(VaUsers, uid)
-        # login_user() below refuses an inactive user silently -- check here
-        # so the failure path is the same generic message, not a crash on
-        # current_user.landing_url() for an anonymous session.
-        if user is None or not user.is_active:
-            flash("This link is invalid or has expired.", "danger")
-            return redirect(url_for("va_auth.va_login"))
-
-        user.set_password(form.new_password.data)
-        if not user.email_verified:
-            user.email_verified = True
-        # docs/policy/authentication-factors.md section 8: using the link
-        # (like a password reset) ends every other existing session and
-        # remember cookie, and invalidates this and any other outstanding
-        # factor-reset token (token_service fingerprints the new version).
-        user.bump_session_version()
-        # The magic link plus a freshly-set password is proof enough to sign
-        # the user in immediately, same as the onboarding reset flow.
-        _complete_login(user, remember=False, nudge_if_no_passkey=False)
-        # Set after _complete_login: it calls session.clear() first.
-        session["factor_setup_forced"] = True
-        db.session.commit()
-
-        flash(
-            "Your password has been set. Please add a passkey or authenticator app.",
-            "success",
-        )
-        return redirect(url_for("profile.view") + "#passkeys-card")
-
-    return render_template(
-        "va_frontpages/va_reset_password.html",
-        form=form,
-        token=token,
-        token_valid=True,
-        action_url=url_for("va_auth.factor_reset", token=token),
+    if not user.email_verified:
+        user.email_verified = True
+    user.bump_session_version()
+    _complete_login(user, remember=False, nudge_if_no_passkey=False)
+    # Set after _complete_login: it calls session.clear() first.
+    session["factor_setup_forced"] = True
+    db.session.commit()
+    flash(
+        "You are signed in. Please add a passkey or authenticator app. If you "
+        "need a new password, use \"Generate a new password\" below now.",
+        "success",
     )
+    return redirect(url_for("profile.view") + "#passkeys-card")
 
 
 # ---------------------------------------------------------------------------
 # Email Verification
 # ---------------------------------------------------------------------------
 
-@va_auth.route("/verify-email/<token>", methods=["GET"])
-@limiter.limit("3 per minute")
+@va_auth.route("/verify-email/<token>", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
 def verify_email(token):
-    from app.services.token_service import validate_token
-
-    user_id = validate_token(token, "email_verify")
-    if not user_id:
+    """The verification link. GET shows a button and changes nothing; POST
+    marks the email verified and, for an account that has no usable password
+    yet, generates one and emails it to that address. An account that
+    already has one keeps it (account-onboarding-and-passwords.md 5.1, 5.3).
+    The page never shows a password. Reopening a used link does nothing.
+    """
+    user = _link_user(token, "email_verify")
+    if user is None or not user.is_active:
         flash(
             "This verification link is invalid or has expired. "
             "Please request a new one.",
             "danger",
         )
         return redirect(url_for("va_auth.va_login"))
-
-    try:
-        uid = uuid.UUID(user_id)
-    except (ValueError, TypeError):
-        flash("Invalid verification link.", "danger")
+    if user.email_verified:
+        flash("Your email is already verified. You can sign in.", "success")
         return redirect(url_for("va_auth.va_login"))
+    if request.method == "GET" or not ConfirmLinkForm().validate_on_submit():
+        return render_template("va_frontpages/va_verify_email.html", form=ConfirmLinkForm(), token=token)
 
-    user = db.session.get(VaUsers, uid)
-    if not user:
-        flash("User not found.", "danger")
-        return redirect(url_for("va_auth.va_login"))
-
-    if not user.email_verified:
-        user.email_verified = True
-        db.session.commit()
-
-    if not user.pw_reset_t_and_c:
-        from app.services.token_service import generate_token
-
-        reset_token = generate_token(user.user_id, "password_reset")
-        flash(
-            "Email verified successfully. Please set your password to continue.",
-            "success",
-        )
-        return redirect(url_for("va_auth.reset_password", token=reset_token))
-
-    flash("Email verified successfully! You can now log in.", "success")
+    needs_password = not accounts.has_usable_password(user)
+    user.email_verified = True
+    record_security_event(user_id=user.user_id, event_type="email_verified")
+    if needs_password:
+        try:
+            accounts.email_new_password(user, path="email_verification")
+        except (mobile_sign_in_service.PasswordGenerationUnavailable,
+                accounts.PasswordEmailFailed) as exc:
+            return _password_delivery_failed(exc, url_for("va_auth.verify_email", token=token))
+    db.session.commit()
+    if needs_password:
+        flash(f"Your email is verified. {PASSWORD_EMAILED_MESSAGE}", "success")
+    else:
+        flash("Your email is verified. You can sign in with your password.", "success")
     return redirect(url_for("va_auth.va_login"))
 
 

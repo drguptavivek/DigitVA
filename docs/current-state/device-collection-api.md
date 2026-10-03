@@ -75,10 +75,17 @@ values). The device secret is compared with `hmac.compare_digest`.
   request: a withdrawn grant ends the session at the next refresh, within the
   15-minute access lifetime. The check is `interviewer_context`, so it also
   requires the project's `web_intake_mode` to be on.
-- Sign-in mirrors the web password step: timing-equalised unknown email,
-  active, verified email, forced password change, maintenance cutoff, and a
-  TOTP or recovery code when `totp_service.needs_second_factor`. Rate limits:
-  10/min per IP, 10/min per device, 20/hour per account. Every refused
+- Sign-in mirrors the web password step. The body's `email` field (name
+  kept for the app contract) takes an email or a mobile number
+  (digitva-kmoy): a value without `@` is canonicalised and matches only a
+  unique sign-in number (`va_users.mobile_login`), so an unknown, shared or
+  malformed number -- and a mobile-only account that never redeemed a code --
+  gets the same timing-equalised `invalid_credentials` as an unknown email.
+  Then: active, `sign_in_verified` (verified email or redeemed code), the
+  terms gate (`pw_reset_t_and_c`, code `password_change_required`), the
+  maintenance cutoff, and a TOTP or recovery code when
+  `totp_service.needs_second_factor`. Rate limits: 10/min per IP, 10/min per
+  device, 20/hour per account (keyed on the canonical number for a mobile). Every refused
   sign-in is audited as `device_session_failed` with the device id and the
   reason only (`invalid_credentials`, `email_unverified`,
   `password_change_required`, `maintenance`, `second_factor_required`,

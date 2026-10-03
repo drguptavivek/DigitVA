@@ -17,7 +17,6 @@ from app.services.webauthn_service import (
     clear_registration_challenge,
     verify_registration,
 )
-from app.utils.password_policy import password_error_message
 
 bp = Blueprint("profile_api", __name__)
 
@@ -125,71 +124,49 @@ def get_languages():
 
 
 # ---------------------------------------------------------------------------
-# PATCH /api/v1/profile/password  — change password
+# POST /api/v1/profile/password/generate  — a new generated password
 # ---------------------------------------------------------------------------
-
-@bp.patch("/password")
-@login_required
-@limiter.limit("5 per minute")
-def update_password():
-    """Change the current user's password. Refused for a mobile-only
-    account, which never chooses one (docs/policy/mobile-sign-in.md
-    section 3); it asks for a generated one instead (below)."""
-    if current_user.is_mobile_only:
-        return _error("Your password is generated for you. Ask for a new one instead.", 403)
-    body = request.get_json(silent=True) or {}
-    current_pw = body.get("current_password", "")
-    new_pw = body.get("new_password", "")
-    confirm_pw = body.get("confirm_password", "")
-
-    if not current_pw or not new_pw or not confirm_pw:
-        return _error("All password fields are required.")
-    if not current_user.check_password(current_pw):
-        return _error("Incorrect current password.", 403)
-    if new_pw != confirm_pw:
-        return _error("New passwords do not match.")
-    if current_user.check_password(new_pw):
-        return _error("New password must differ from your current password.")
-    policy_error = password_error_message(new_pw)
-    if policy_error:
-        return _error(policy_error)
-
-    current_user.set_password(new_pw)
-    db.session.commit()
-    return jsonify({"message": "Password updated successfully."})
-
-
-# ---------------------------------------------------------------------------
-# POST /api/v1/profile/password/generate  — new generated password (mobile)
-# ---------------------------------------------------------------------------
+# Nobody chooses a password (docs/policy/account-onboarding-and-passwords.md
+# section 1), so there is no "change password" endpoint.
 
 @bp.post("/password/generate")
 @login_required
 @limiter.limit("5 per hour", key_func=_rate_limit_key)
 def generate_password():
-    """A new server-generated password for a mobile-only account, shown once
-    in this response (docs/policy/mobile-sign-in.md section 3). Needs a
-    reauthentication within the last ten minutes, like a factor change
-    (authentication-factors.md section 7). The old password stops working
-    and every session ends, this one included: the page sends the person to
-    sign in again with the new password."""
+    """A new server-generated password, after a reauthentication within the
+    last ten minutes (authentication-factors.md section 7). An account with a
+    verified email gets it by email and this response carries no password;
+    any other account (no email, or one still awaiting verification) sees it
+    once in this response. The old password stops working and every session
+    ends, this one included: the page sends the person to sign in again."""
     from app.services import mobile_sign_in_service
+    from app.services import user_account_service as accounts
 
-    if not current_user.is_mobile_only:
-        return _error("Only accounts that sign in by mobile number get generated passwords.", 403)
     reauth_error = _require_reauth()
     if reauth_error:
         return reauth_error
+    by_email = bool(current_user.email and current_user.email_verified)
     try:
-        password = mobile_sign_in_service.regenerate_password(current_user)
-    except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
+        if by_email:
+            accounts.email_new_password(
+                current_user, path="profile", actor_user_id=current_user.user_id
+            )
+        else:
+            password = mobile_sign_in_service.set_new_password(
+                current_user, path="profile", actor_user_id=current_user.user_id
+            )
+    except (mobile_sign_in_service.PasswordGenerationUnavailable,
+            accounts.PasswordEmailFailed) as exc:
         db.session.rollback()
         return _error(exc.message, 503)
     db.session.commit()
-    response = jsonify({
-        "password": password,
-        "message": "Write this down. It will not be shown again.",
-    })
+    if by_email:
+        response = jsonify({"message": "Your new password has been emailed to you."})
+    else:
+        response = jsonify({
+            "password": password,
+            "message": "Write this down. It will not be shown again.",
+        })
     response.headers["Cache-Control"] = "no-store"
     return response
 

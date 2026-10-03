@@ -1,6 +1,7 @@
 Hello {{ name }},
 
 Welcome to DigitVA! Please verify your email address to activate your account.
+If you do not have a DigitVA password yet, we will then email you one.
 
 Verify your email by visiting:
 {{ verify_url }}

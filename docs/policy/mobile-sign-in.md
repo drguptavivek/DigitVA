@@ -42,6 +42,9 @@ everything not said here.
 - Everything else in authentication-factors.md section 1 applies unchanged:
   the same second page for every value (known or not), passkey or password,
   second factor where required, rate limits per IP and per account, CAPTCHA.
+  The native app's device sign-in (field-data-collection.md) takes the same
+  email or mobile number with the same rules and the same indistinguishable
+  answer (digitva-kmoy).
   A mobile number that matches no account, or matches a number shared by
   two accounts, gets the same page and the wrong-credentials result, never a
   message saying which.
@@ -57,7 +60,10 @@ hygiene rules by construction. There is no SMS provider; the data manager
 passes a short numeric code to the person instead.
 
 - **Issuing a code.** When a data manager, In-charge or admin creates a
-  mobile-only account, or later from the person's details panel, the page
+  mobile-only account (on the web page, the project user import or as
+  mentoring-institute staff), or later from the person's details panel --
+  for an account without a verified email (mobile-only, or an email never
+  verified; an admin may issue for any account, digitva-kmoy) -- the page
   shows a **one-time numeric code** (6 digits) once. The issuer gives it to
   the person in person or by phone. It expires after 72 hours, is stored
   only as a hash, and issuing a new one voids the old. Who may issue: an admin,
@@ -65,11 +71,15 @@ passes a short numeric code to the person instead.
   (`can_grant`); nobody but an admin issues a code for an admin, a project
   PI, a data manager, an In-charge (`site_pi`), or anyone holding a grant
   the issuer could not write. Privileged accounts (authentication-factors.md
-  section 3) get their codes from an admin. A code lets its
+  section 3) get their codes from an admin, and so does any account with
+  a verified email, which resets by email instead. A code lets its
   redeemer sign in as the person, so partial authority over them is not
-  enough.
+  enough. When a code is redeemed for an account with any email on file,
+  that address is sent a short notice ("your password was changed using a
+  sign-in code; if this wasn't you, contact your administrator") carrying
+  no password and no code.
 - **Redeeming it.** On the sign-in page the person chooses "I have a code",
-  enters their mobile number and the code. If both match, the server
+  enters their email or mobile number and the code. If both match, the server
   generates a new password and shows it **once**, on that screen only, with
   a prompt to write it down or save it. The code then stops working. The
   same screen offers to add a passkey.
@@ -77,15 +87,17 @@ passes a short numeric code to the person instead.
   and type on a phone keypad (for example three short words and a 4-digit
   number), at least 16 characters, from a cryptographic random source,
   checked against the breach list (password-breach-checks.md). It is never
-  stored in clear, emailed, logged, or shown to the data manager.
+  stored in clear, logged, or shown to the data manager; an account with a
+  verified email gets later passwords by email
+  (account-onboarding-and-passwords.md section 6).
 - **Changing or forgetting it.** The person cannot set a password of their
   own. When signed in they may ask for a new generated password (after
   reauthentication); if they forget it, their data manager issues a new
   code. Either way the old password stops working and existing sessions
   end.
-- **Guessing.** Code attempts are rate-limited per IP and per mobile
-  number; five wrong codes void the code (a new one must be issued). A wrong
-  number and a wrong code give the same answer.
+- **Guessing.** Code attempts are rate-limited per IP and per identifier;
+  five wrong codes void the code (a new one must be issued). A wrong email
+  or number and a wrong code give the same answer.
 - **Audit** records who issued a code and when, and when it was redeemed,
   never the code or the password.
 

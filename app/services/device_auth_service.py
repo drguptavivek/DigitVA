@@ -63,6 +63,7 @@ from app.models import (
 from app.services import totp_service
 from app.services.security_event_service import record_security_event
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
+from app.services.user_account_service import canonical_mobile
 
 log = logging.getLogger(__name__)
 
@@ -370,25 +371,43 @@ def _issue(session: AuthDeviceSession) -> IssuedTokens:
     return IssuedTokens(access_token=access, refresh_token=refresh, session=session)
 
 
+def _sign_in_user(identifier: str) -> VaUsers | None:
+    """The account an email (contains ``@``) or mobile number names, as the
+    web login reads it (docs/policy/mobile-sign-in.md section 2): a number
+    matches only a unique sign-in number, so a shared, unknown or malformed
+    one matches no one."""
+    if "@" in identifier:
+        return db.session.scalar(sa.select(VaUsers).where(VaUsers.email == identifier.lower()))
+    mobile = canonical_mobile(identifier)
+    if mobile is None:
+        return None
+    return db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == mobile))
+
+
 def open_session(*, device_id, device_secret, email, password, otp=None) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
-    with the device credential in place of the CAPTCHA). Raises
+    with the device credential in place of the CAPTCHA). *email* is the
+    contract's field name; it holds an email or a mobile number. Raises
     DeviceAuthError; a refused attempt is audited and committed. Caller
     commits a success."""
     device = _authenticate_device(device_id, device_secret)
-    email = email.strip().lower() if isinstance(email, str) else ""
+    identifier = email.strip() if isinstance(email, str) else ""
     password = password if isinstance(password, str) else ""
-    user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email)) if email else None
+    user = _sign_in_user(identifier) if identifier else None
     if user is None:
-        # Spend a hash check anyway so unknown emails take as long.
+        # Spend a hash check anyway so unknown identifiers take as long.
         check_password_hash(_DUMMY_PASSWORD_HASH, password)
-    if user is None or not user.check_password(password) or not user.is_active:
+    # A mobile-only account that never redeemed a code has no password of
+    # its own: refused exactly like a wrong password, as on the web.
+    unredeemed = user is not None and user.is_mobile_only and not user.sign_in_verified
+    if user is None or not user.check_password(password) or not user.is_active or unredeemed:
         _sign_in_failed(device, user if user and user.is_active else None, "invalid_credentials")
         raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
-    if not user.email_verified:
+    if not user.sign_in_verified:
         raise _refuse(device, user, "Verify your email address before signing in.", "email_unverified", 403)
     if not user.pw_reset_t_and_c:
-        raise _refuse(device, user, "Change your password on the website before signing in.",
+        # The terms gate (code kept for the app contract): no password change exists.
+        raise _refuse(device, user, "Sign in on the website once and accept the terms before signing in here.",
                       "password_change_required", 403)
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)

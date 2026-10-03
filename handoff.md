@@ -37,9 +37,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    **Onboarding and sign-in** (owner priority): policy
    `docs/policy/account-onboarding-and-passwords.md` and
    `docs/policy/mobile-sign-in.md`. `digitva-l7c2` mobile sign-in committed
-   (migration `f3a8c1d6e2b9`, on dev; production needs it); then
-   `digitva-kmoy` (verify email, then email the generated password; owner
-   insists the email carries the password); then `digitva-j13l` (document
+   (migration `f3a8c1d6e2b9`, on dev; production needs it); `digitva-kmoy`
+   committed (every password server-generated; emailed after verification;
+   pre-deploy verification links stop working, resend them); next `digitva-j13l` (document
    onboarding, login and all authentication APIs for web and app).
    A parallel Expo-client session (`digitva-p6fs`) has uncommitted work
    in this checkout (client API/static host, mobile/, app/__init__.py,

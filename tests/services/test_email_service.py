@@ -38,28 +38,8 @@ class TestEmailService(BaseTestCase):
         self.assertEqual(msg.recipients, [user.email])
         self.assertEqual(msg.subject, "Verify Your DigitVA Email")
 
-    def test_send_password_reset_email_uses_invite_copy_for_new_users(self):
-        user = SimpleNamespace(email="new.user@example.com", name="New User")
-
-        with self.app.app_context(), patch(
-            "app.services.email_service._dispatch_email.delay"
-        ) as dispatch_delay:
-            from app.services.email_service import send_password_reset_email
-
-            send_password_reset_email(user, "token-123", invite_mode=True)
-
-        dispatch_delay.assert_called_once()
-        kwargs = dispatch_delay.call_args.kwargs
-        subject = kwargs["subject"]
-        template_name = kwargs["template_name"]
-        context = kwargs["context"]
-        self.assertEqual(subject, "Set Your DigitVA Password")
-        self.assertEqual(template_name, "emails/reset_password")
-        self.assertTrue(context["invite_mode"])
-        self.assertTrue(context["reset_url"].endswith("/vaauth/reset-password/token-123"))
-        self.assertTrue(context["reset_url"].startswith("http"))
-
-    def test_send_password_reset_email_keeps_reset_copy_for_existing_users(self):
+    def test_send_password_reset_email_queues_the_link_only(self):
+        """digitva-kmoy: no invite variant; the link carries no password."""
         user = SimpleNamespace(email="existing.user@example.com", name="Existing User")
 
         with self.app.app_context(), patch(
@@ -71,12 +51,11 @@ class TestEmailService(BaseTestCase):
 
         dispatch_delay.assert_called_once()
         kwargs = dispatch_delay.call_args.kwargs
-        subject = kwargs["subject"]
-        template_name = kwargs["template_name"]
-        context = kwargs["context"]
-        self.assertEqual(subject, "Reset Your DigitVA Password")
-        self.assertEqual(template_name, "emails/reset_password")
-        self.assertFalse(context["invite_mode"])
+        self.assertEqual(kwargs["subject"], "Reset Your DigitVA Password")
+        self.assertEqual(kwargs["template_name"], "emails/reset_password")
+        self.assertNotIn("invite_mode", kwargs["context"])
+        self.assertNotIn("password", kwargs["context"])
+        self.assertTrue(kwargs["context"]["reset_url"].endswith("/vaauth/reset-password/token-456"))
 
     def test_dispatch_email_does_not_retry_for_permanent_recipient_failure(self):
         recipient_error = smtplib.SMTPRecipientsRefused(

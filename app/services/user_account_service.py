@@ -175,9 +175,11 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
 def create_invited_user(fields: dict, *, other: dict | None = None) -> VaUsers:
     """Add (and flush) an active user.
 
-    An email account sets its own password via the invitation; a mobile-only
-    account (``fields["email"]`` None) gets its password from a sign-in code
-    (mobile_sign_in_service.issue_code), so its random one is never used.
+    Nobody chooses a password (account-onboarding-and-passwords.md section
+    1): an email account gets a generated one by email when it verifies the
+    address; a mobile-only account (``fields["email"]`` None) gets one by
+    redeeming a sign-in code (mobile_sign_in_service.issue_code). The random
+    placeholder set here is never known to anyone.
     Raises UserAccountError if a concurrent writer took the email or number.
     """
     from sqlalchemy.exc import IntegrityError
@@ -195,7 +197,7 @@ def create_invited_user(fields: dict, *, other: dict | None = None) -> VaUsers:
         email_verified=False,
         other=other,
     )
-    # Invite-only onboarding: user sets their own password via reset link.
+    # Unknown placeholder until verification or a code generates the real one.
     user.set_password(secrets.token_urlsafe(32))
     db.session.add(user)
     try:
@@ -210,24 +212,62 @@ def create_invited_user(fields: dict, *, other: dict | None = None) -> VaUsers:
 
 
 def send_invitation(user: VaUsers) -> None:
-    """Queue the verification and password-setup emails; call after commit.
+    """Queue the verification email; call after commit. Opening its link
+    generates the password and emails it (section 5.1), so no second email
+    goes now.
 
-    Non-critical: the user can request a resend or reset, so a failure is
-    logged without the address and swallowed. A mobile-only account gets no
-    email (email_service refuses an empty recipient anyway).
+    Non-critical: the creator can resend, so a failure is logged without the
+    address and swallowed. A mobile-only account gets no email (email_service
+    refuses an empty recipient anyway).
     """
     if not user.email:
         return
     try:
-        from app.services.email_service import (
-            send_password_reset_email,
-            send_verification_email,
-        )
+        from app.services.email_service import send_verification_email
         from app.services.token_service import generate_token
 
         send_verification_email(user, generate_token(user.user_id, "email_verify"))
-        send_password_reset_email(
-            user, generate_token(user.user_id, "password_reset"), invite_mode=True
-        )
     except Exception as exc:
         log.warning("invitation email failed | user_id=%s | %s", user.user_id, type(exc).__name__)
+
+
+class PasswordEmailFailed(RuntimeError):
+    """The password email could not be sent; the caller rolls back so the
+    old password (if any) keeps working, and shows a retryable message."""
+
+    message = "We could not send your password email. Please try again in a few minutes."
+
+
+def has_usable_password(user: VaUsers) -> bool:
+    """Whether *user* already knows a working password, so verifying an
+    email must not replace it (account-onboarding-and-passwords.md 5.3).
+
+    True once the person has signed in and accepted the terms
+    (``pw_reset_t_and_c``) or has redeemed a sign-in code
+    (``mobile_verified_at``). A new invitee -- and one invited before
+    generated passwords, still holding the random placeholder -- has
+    neither. Edge: someone whose email is changed after a reset but before
+    they accept the terms again gets a fresh password at the new address.
+    """
+    return bool(user.pw_reset_t_and_c) or user.mobile_verified_at is not None
+
+
+def email_new_password(user: VaUsers, *, path: str, actor_user_id=None) -> None:
+    """Generate a password for *user*, end their sessions and email it to
+    their address synchronously (never queued: the password must not sit in
+    the broker). Order: generate (raises PasswordGenerationUnavailable before
+    any write), set, send. Raises PasswordEmailFailed if the send fails; the
+    caller then rolls back, otherwise commits. Never logs the password.
+    """
+    from app.services import mobile_sign_in_service
+    from app.services.email_service import send_password_email
+
+    password = mobile_sign_in_service.set_new_password(
+        user, path=path, actor_user_id=actor_user_id
+    )
+    try:
+        send_password_email(user, password)
+    except Exception as exc:
+        # Type only: an SMTP error could echo message content.
+        log.warning("password email failed | user_id=%s | %s", user.user_id, type(exc).__name__)
+        raise PasswordEmailFailed() from exc

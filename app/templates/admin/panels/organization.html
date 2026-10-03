@@ -1697,6 +1697,12 @@
         lines.push('Applied: ' + res.data.created_users + ' new account(s), ' + res.data.changed_grants + ' new/reactivated grant(s).');
         lines.push(res.data.invitations_queued + ' invitation(s) queued. Delivery is not confirmed.');
         (res.data.invite_warnings || []).forEach(function (warning) { lines.push('WARNING: ' + warning); });
+        var codes = res.data.sign_in_codes || [];
+        if (codes.length) {
+          // Shown once: give each person their code in person or by phone.
+          lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 72 hours):');
+          codes.forEach(function (c) { lines.push('Row ' + c.row + ': ' + c.name + ' (' + c.mobile + ') — ' + c.sign_in_code); });
+        }
       } else { lines.push('Preview only. No accounts or grants changed.'); }
       out.textContent = lines.join('\n');
       if (!apply) {

@@ -35,6 +35,7 @@ from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 from app.services.authz import reachable_unit_ids
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
+from app.services.user_account_service import canonical_mobile
 from app.utils.who_va_bundle import who_va_bundle_version
 
 bp = Blueprint("device", __name__)
@@ -85,13 +86,18 @@ def _body() -> dict:
 
 def _body_key(name):
     """Rate-limit key from a JSON body field (per device, per account). An
-    oversized body gives an empty key here; the blueprint hook answers 413."""
+    oversized body gives an empty key here; the blueprint hook answers 413.
+    A sign-in identifier without ``@`` keys on its canonical mobile number,
+    so spacing or a ``+91`` prefix does not buy a fresh bucket."""
     def key():
         try:
             value = _body().get(name)
         except RequestEntityTooLarge:
             value = None
-        return f"device-{name}:{str(value).strip().lower()[:128]}" if value else f"device-{name}:"
+        text = str(value).strip().lower()[:128] if value else ""
+        if name == "email" and text and "@" not in text:
+            text = canonical_mobile(text) or text
+        return f"device-{name}:{text}"
     return key
 
 
@@ -162,7 +168,8 @@ def enroll():
 @limiter.limit("10 per minute", key_func=_body_key("device_id"))
 @limiter.limit("20 per hour", key_func=_body_key("email"))
 def open_session():
-    """Interviewer sign-in on an enrolled device. Rate limits match the web
+    """Interviewer sign-in on an enrolled device; the ``email`` field takes an
+    email or a mobile number (docs/policy/mobile-sign-in.md). Rate limits match the web
     password step (docs/policy/authentication-factors.md section 1), per IP,
     per device and per account; the device credential replaces the CAPTCHA."""
     p = _body()

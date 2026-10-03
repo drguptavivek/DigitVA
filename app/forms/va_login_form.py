@@ -58,13 +58,14 @@ class SecondFactorForm(FlaskForm):
 
 
 class RedeemCodeForm(FlaskForm):
-    """"I have a code": a mobile-only account's number and the one-time code
-    its data manager gave it, plus the same proof-of-work CAPTCHA as the
-    email step (docs/policy/mobile-sign-in.md section 3)."""
+    """"I have a code": the person's email or mobile number (field name kept
+    as ``mobile``) and the one-time code their data manager gave them, plus
+    the same proof-of-work CAPTCHA as the email step (docs/policy/
+    mobile-sign-in.md section 3)."""
 
     mobile = StringField(
-        "Mobile number:",
-        validators=[DataRequired(message="Mobile number is required."), Length(max=32)],
+        "Email or mobile number:",
+        validators=[DataRequired(message="Email or mobile number is required."), Length(max=128)],
     )
     code = StringField(
         "Code:", validators=[DataRequired(message="Code is required."), Length(max=32)]

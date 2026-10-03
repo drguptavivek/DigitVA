@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-03
 ---
 
 # Field Data Collection Policy
@@ -102,8 +102,9 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   allowlist compiled into the build (release: the production host), so a
   forged QR cannot send an interviewer's password elsewhere. The device
   secret it receives is used only to open interviewer sessions.
-- **Interviewer sign-in** uses the account's password and, when the account
-  has factors, a TOTP or recovery code
+- **Interviewer sign-in** takes the account's email or mobile number
+  (unique, from a redeemed code or verified email; mobile-sign-in.md) and its
+  password and, when the account has factors, a TOTP or recovery code
   ([Authentication Factors](authentication-factors.md)); a device session
   requires an active `interviewer` grant in the enrolled project, checked
   again at every refresh.

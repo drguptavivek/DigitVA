@@ -64,10 +64,14 @@ mobile, cadre and unit where the grant needs them.
 
 1. The creator saves the account. The server sends a **verification email**
    with a single-use link (the existing `email_verify` token).
-2. The person opens the link. The server marks the email verified,
-   generates the password and **sends it in a second email** to that
-   verified address, then shows "Your password has been emailed to you."
-   The page shows no password.
+2. The person opens the link and presses "Verify my email" (opening the
+   link alone changes nothing, so a mail scanner that prefetches it cannot).
+   The server marks the email verified, generates the password and **sends
+   it in a second email** to that verified address, then shows "Your
+   password has been emailed to you." The page shows no password. The
+   password email is sent at once, never queued, and carries only the
+   password and the login page address; if it cannot be sent nothing
+   changes and the person tries again.
 3. The person signs in (web or app) with email (or mobile, if set and
    unique) and the emailed password, and is offered to add a passkey.
    Privileged users must enrol a passkey or TOTP within the enrolment
@@ -76,7 +80,9 @@ mobile, cadre and unit where the grant needs them.
    point (their email verification proves the account; no code is needed).
 
 The verification link expires as today; the creator can resend it. An
-unverified email account cannot sign in.
+unverified email account cannot sign in. An account counts as already having
+a password once its holder has signed in and accepted the terms, or has
+redeemed a sign-in code; its password is never replaced by verifying.
 
 ### 5.2 Account with a mobile number only
 
@@ -104,10 +110,10 @@ use "Forgot password" by email (section 6).
 
 | Situation | Flow |
 | --- | --- |
-| Account has a verified email | "Forgot password" takes email or mobile. A single-use link (existing `password_reset` token) goes to the verified email. Opening it generates a new password and emails it; the page says so and shows no password. The same message is shown whether or not the identifier exists. |
+| Account has a verified email | "Forgot password" takes email or mobile. A single-use link (existing `password_reset` token) goes to the verified email (never to an unverified one). Opening it and pressing "Email me a new password" generates a new password and emails it; the page says so and shows no password. The same message is shown whether or not the identifier exists. |
 | Mobile only | "Forgot password" with a mobile number says "Ask your data manager for a sign-in code", whether or not the number exists. The data manager issues a code; redeeming it shows a new password once (5.2). |
 | Signed in, wants a new one | Profile: "Generate a new password", after reauthentication (authentication-factors.md section 7). Email accounts get it by email; mobile-only accounts see it once on screen. |
-| Admin or data manager action | They can resend verification (email), issue a code (only for someone all of whose grants they may manage; mobile-sign-in.md section 3), or, admin only, reset factors. They never set or see a password. |
+| Admin or data manager action | They can resend verification (email), issue a code (a data manager only for someone without a verified email -- mobile-only or an email never verified -- all of whose grants they may manage; an admin for any account; mobile-sign-in.md section 3; redeeming a code for an account with an email on file sends that address a notice with no password or code), or, admin only, email a reset link to a verified email ("send a new password": the person still opens the link, so a wrong address on file never receives a live password) or reset factors. They never set or see a password. |
 | Break-glass CLI | `flask users reset-password` generates the password and prints it once to the operator's terminal (shell access is the safeguard), and ends sessions. |
 
 Opening a reset link is required before anything changes: typing someone's

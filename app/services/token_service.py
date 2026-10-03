@@ -9,6 +9,9 @@ issued before it. Factor-reset tokens (the break-glass CLI's magic link,
 docs/policy/authentication-factors.md section 8) are single-use the same way,
 but fingerprint the password hash *and* ``auth_session_version`` together, so
 either setting a new password or any other factor reset invalidates them.
+Email-verification tokens fingerprint the account's current email, so a link
+sent to one address stops working once the email changes (links issued
+before this binding carry no fingerprint and must be resent).
 """
 
 from __future__ import annotations
@@ -64,12 +67,19 @@ def _factor_reset_fingerprint(user) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+def _email_fingerprint(user) -> str:
+    """Digest of the current email, so a verification link sent to one
+    address stops working once the account's email changes."""
+    return hashlib.sha256((user.email or "").strip().lower().encode()).hexdigest()[:16]
+
+
 # Purposes whose token carries a fingerprint tying it to current user state,
 # so using it once (or any other event that changes that state) invalidates
 # every other outstanding token for the same purpose.
 _FINGERPRINT_FNS = {
     "password_reset": _password_fingerprint,
     "factor_reset": _factor_reset_fingerprint,
+    "email_verify": _email_fingerprint,
 }
 
 

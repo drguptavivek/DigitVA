@@ -1,6 +1,7 @@
 """Login redirect safety, inactive-user lockout and single-use reset tokens."""
 
 import uuid
+from unittest.mock import patch
 from urllib.parse import urlparse
 
 from flask import g
@@ -13,7 +14,7 @@ from tests.base import BaseTestCase
 
 PASSWORD = "LoginSecurity123!"
 LOGIN_PATH = "/vaauth/valogin"
-RESET_FORM_MARKER = b"Choose a new password for your account."
+RESET_FORM_MARKER = b"We will email you a new password."
 INVALID_LOGIN_MESSAGE = b"Invalid email or password."
 
 
@@ -129,18 +130,17 @@ class InactiveUserLoginTests(VaAuthSecurityTestBase):
 
 
 class PasswordResetTokenTests(VaAuthSecurityTestBase):
-    NEW_PASSWORD = "BrandNewPass456!"
-
     def _reset_url(self, token):
         return f"/vaauth/reset-password/{token}"
 
-    def _post_reset(self, token, password):
-        return self.client.post(
-            self._reset_url(token),
-            data={"new_password": password, "confirm_password": password},
-            headers=self._csrf_headers(),
-            follow_redirects=False,
-        )
+    def _post_reset(self, token):
+        # The new password is generated and emailed (digitva-kmoy); the mail
+        # transport is mocked so the test does not depend on SMTP config.
+        with patch("app.services.email_service.is_mail_configured", return_value=True), \
+                patch("app.services.email_service.mail.send"):
+            return self.client.post(
+                self._reset_url(token), headers=self._csrf_headers(), follow_redirects=False,
+            )
 
     def test_reset_token_is_single_use(self):
         token = generate_token(self.user.user_id, "password_reset")
@@ -149,23 +149,23 @@ class PasswordResetTokenTests(VaAuthSecurityTestBase):
         resp = self.client.get(self._reset_url(token))
         self.assertIn(RESET_FORM_MARKER, resp.data)
 
-        resp = self._post_reset(token, self.NEW_PASSWORD)
+        resp = self._post_reset(token)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(urlparse(resp.headers["Location"]).path, LOGIN_PATH)
         user = db.session.get(VaUsers, self.user.user_id)
-        self.assertTrue(user.check_password(self.NEW_PASSWORD))
+        self.assertFalse(user.check_password(PASSWORD))
+        first_hash = user.password
 
         resp = self.client.get(self._reset_url(token))
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn(RESET_FORM_MARKER, resp.data)
 
-        resp = self._post_reset(token, "AnotherPass789!")
+        resp = self._post_reset(token)
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn(RESET_FORM_MARKER, resp.data)
         db.session.expire_all()
         user = db.session.get(VaUsers, self.user.user_id)
-        self.assertTrue(user.check_password(self.NEW_PASSWORD))
-        self.assertFalse(user.check_password("AnotherPass789!"))
+        self.assertEqual(user.password, first_hash)
 
     def test_token_rejected_after_password_changed_elsewhere(self):
         token = generate_token(self.user.user_id, "password_reset")

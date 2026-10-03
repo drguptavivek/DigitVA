@@ -621,13 +621,13 @@ def admin_org_import_users(project_id):
     try:
         rows = user_import.parse_upload(uploaded.stream, uploaded.filename)
         plan = user_import.prepare(project_id, rows, actor=current_user)
-        preview = [{"row": item["row"], "email": item["email"],
+        preview = [{"row": item["row"], "email": item["display"],
                     "role": item["role"].value,
                     "scope": item["unit"].unit_code if item["unit"] else "whole project",
                     "action": item["action"]} for item in plan]
         if dry_run:
             return jsonify({"dry_run": True, "rows": preview})
-        new_users, changed_grants = user_import.apply(
+        new_users, changed_grants, sign_in_codes = user_import.apply(
             project_id, plan, actor_user_id=actor_user_id
         )
         db.session.commit()
@@ -652,11 +652,7 @@ def admin_org_import_users(project_id):
     invite_warnings = []
     invitations_queued = 0
     if new_users:
-        from app.services.email_service import (
-            is_mail_configured,
-            send_password_reset_email,
-            send_verification_email,
-        )
+        from app.services.email_service import is_mail_configured, send_verification_email
         from app.services.token_service import generate_token
         if not is_mail_configured():
             invite_warnings.append(
@@ -666,13 +662,11 @@ def admin_org_import_users(project_id):
         else:
             for user in new_users:
                 try:
-                    verification_queued = send_verification_email(
+                    # Opening the verification link emails the password
+                    # (account-onboarding-and-passwords.md section 5.1).
+                    if send_verification_email(
                         user, generate_token(user.user_id, "email_verify")
-                    )
-                    password_queued = send_password_reset_email(
-                        user, generate_token(user.user_id, "password_reset"), invite_mode=True
-                    )
-                    if verification_queued and password_queued:
+                    ):
                         invitations_queued += 1
                     else:
                         invite_warnings.append(f"Invitation for {user.email} was skipped; resend from Users.")
@@ -680,11 +674,17 @@ def admin_org_import_users(project_id):
                     log.exception("project users invitation failed | project=%s user_id=%s", project_id, user.user_id)
                     invite_warnings.append(f"Invitation for {user.email} could not be queued; resend from Users.")
     log.info("project users import | project=%s by=%s rows=%s new_users=%s",
-             project_id, actor_user_id, len(plan), len(new_users))
-    return jsonify({"dry_run": False, "rows": preview,
-                    "created_users": len(new_users), "changed_grants": len(changed_grants),
-                    "invitations_queued": invitations_queued,
-                    "invite_warnings": invite_warnings})
+             project_id, actor_user_id, len(plan), len(new_users) + len(sign_in_codes))
+    # New mobile-only accounts' first sign-in codes, shown once (section
+    # 5.2): only in this no-store response, never logged.
+    response = jsonify({"dry_run": False, "rows": preview,
+                        "created_users": len(new_users) + len(sign_in_codes),
+                        "changed_grants": len(changed_grants),
+                        "invitations_queued": invitations_queued,
+                        "invite_warnings": invite_warnings,
+                        "sign_in_codes": sign_in_codes})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @admin.get(f"{_API}/odk-choices.csv")

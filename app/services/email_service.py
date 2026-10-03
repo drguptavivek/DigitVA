@@ -110,28 +110,65 @@ def _email_link_base_url() -> str:
     return base_url
 
 
-def send_password_reset_email(user, token: str, invite_mode: bool = False) -> bool:
-    """Dispatch a password email via Celery.
-
-    invite_mode=True is used for first-time onboarding so the email copy
-    instructs the user to set a password instead of resetting one.
-    """
+def send_password_reset_email(user, token: str) -> bool:
+    """Queue the reset-link email via Celery. The link carries no password:
+    opening it is what generates one (account-onboarding-and-passwords.md
+    section 6), so it is safe in the broker."""
 
     reset_url = f"{_email_link_base_url()}/vaauth/reset-password/{token}"
-    subject = "Set Your DigitVA Password" if invite_mode else "Reset Your DigitVA Password"
 
     if not _should_attempt_email_delivery(user.email):
         return False
 
     _dispatch_email.delay(
         to=user.email,
-        subject=subject,
+        subject="Reset Your DigitVA Password",
         template_name="emails/reset_password",
-        context={
-            "name": user.name,
-            "reset_url": reset_url,
-            "invite_mode": invite_mode,
-        },
+        context={"name": user.name, "reset_url": reset_url},
+    )
+    return True
+
+
+def login_page_url() -> str:
+    """The sign-in page address: the only link a password email carries."""
+    return f"{_email_link_base_url()}/vaauth/valogin"
+
+
+def send_password_email(user, password: str) -> None:
+    """Send a server-generated *password* to the user's email *synchronously*,
+    never through Celery, so the password is never stored in the broker or
+    its retries (account-onboarding-and-passwords.md sections 4 and 9).
+
+    The message carries the password and the login page address only. Raises
+    on any failure (unconfigured mail, suppressed recipient, SMTP error) so
+    the caller can roll the new password back; the caller must never log the
+    password or the exception text with it.
+    """
+    if not is_mail_configured():
+        raise RuntimeError("Mail is not configured (MAIL_SERVER unset).")
+    if not _should_attempt_email_delivery(user.email):
+        raise RuntimeError("Email delivery is disabled, or this recipient is suppressed.")
+
+    _actually_send_email(
+        to=user.email,
+        subject="Your DigitVA password",
+        template_name="emails/new_password",
+        context={"password": password, "login_url": login_page_url()},
+    )
+
+
+def send_code_redeemed_notice(user) -> bool:
+    """Tell the address on file that a sign-in code was used to set a new
+    password (security review of digitva-kmoy). Queued like the other
+    account emails: it carries no password, code or link."""
+    if not _should_attempt_email_delivery(user.email):
+        return False
+
+    _dispatch_email.delay(
+        to=user.email,
+        subject="Your DigitVA password was changed",
+        template_name="emails/code_redeemed",
+        context={"name": user.name},
     )
     return True
 

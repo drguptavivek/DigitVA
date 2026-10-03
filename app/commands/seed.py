@@ -523,7 +523,7 @@ def _build_test_project(org, user_import) -> dict:
     ]
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
-    _new_users, audit = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
+    _new_users, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
     summary["grants"] = f"{len(audit)} written, {len(plan) - len(audit)} already in place"
     summary["audit"] = audit
     summary["actor_user_id"] = actor.user_id

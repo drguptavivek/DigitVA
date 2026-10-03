@@ -80,17 +80,20 @@
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-edit-btn" '
         + ' data-id="' + esc(u.user_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
-      var verifyBtn = '';
-      if (u.mobile_only) {
-        // docs/policy/mobile-sign-in.md section 3: no email to verify; the
-        // person gets a one-time sign-in code instead.
-        verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-issue-code-btn" '
-          + ' data-id="' + esc(u.user_id) + '" title="Issue sign-in code">'
-          + '<i class="fa-solid fa-mobile-screen"></i></button>';
-      } else if (!u.email_verified) {
-        verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-warning user-resend-verify-btn" '
+      // docs/policy/account-onboarding-and-passwords.md section 6: nobody
+      // sets a password; a code (any account), a verification resend or a
+      // reset link (verified email) gets the person a generated one.
+      var verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-issue-code-btn" '
+        + ' data-id="' + esc(u.user_id) + '" title="Issue sign-in code">'
+        + '<i class="fa-solid fa-mobile-screen"></i></button>';
+      if (!u.mobile_only && !u.email_verified) {
+        verifyBtn += ' <button class="btn btn-sm py-0 px-2 btn-outline-warning user-resend-verify-btn" '
           + ' data-id="' + esc(u.user_id) + '" title="Resend verification email">'
           + '<i class="fa-solid fa-envelope"></i></button>';
+      } else if (!u.mobile_only) {
+        verifyBtn += ' <button class="btn btn-sm py-0 px-2 btn-outline-secondary user-send-reset-btn" '
+          + ' data-id="' + esc(u.user_id) + '" title="Email a password reset link">'
+          + '<i class="fa-solid fa-envelope-open-text"></i></button>';
       }
 
       var resetFactorsBtn = '';
@@ -156,6 +159,22 @@
             showCode(res.data.sign_in_code);
           })
           .catch(function () { btn.disabled = false; showCode(null, 'Network error.'); });
+      });
+    }
+    var resetBtns = wrap.querySelectorAll('.user-send-reset-btn');
+    for (var r = 0; r < resetBtns.length; r++) {
+      resetBtns[r].addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+        apiJson('/admin/api/users/' + encodeURIComponent(btn.getAttribute('data-id')) + '/send-password-reset', 'POST')
+          .then(function (res) {
+            btn.disabled = false;
+            var w = document.getElementById('user-table-wrap');
+            var ok = res.ok;
+            var text = ok ? (res.data.message || 'Reset link sent.') : (res.data.error || 'Failed to send the reset link.');
+            w.insertAdjacentHTML('afterbegin', '<div class="alert alert-' + (ok ? 'success' : 'danger') + ' small py-2 mt-2">' + esc(text) + '</div>');
+          })
+          .catch(function () { btn.disabled = false; });
       });
     }
     var verifyBtns = wrap.querySelectorAll('.user-resend-verify-btn');
@@ -321,10 +340,6 @@
   function showEditOnly(on) {
     for (var i = 0; i < editOnlyCols.length; i++) editOnlyCols[i].classList.toggle('d-none', !on);
   }
-  var passwordCol = document.getElementById('user-password-col');
-  var passwordInput = document.getElementById('user-password-input');
-  var passwordAsterisk = document.getElementById('user-password-asterisk');
-  var passwordHelp = document.getElementById('user-password-help');
   var statusInput = document.getElementById('user-status-input');
   var languagesInput = $('#user-languages-input');
   var adminRow = document.getElementById('admin-toggle-row');
@@ -344,10 +359,6 @@
     yobInput.value = '';
     sexInput.value = '';
     showEditOnly(false);
-    passwordInput.value = '';
-    passwordCol.classList.add('d-none');
-    passwordAsterisk.classList.add('d-none');
-    passwordHelp.textContent = 'Invite flow: user sets password from email link.';
     statusInput.value = 'active';
     statusInput.disabled = true; // New users are always active
     languagesInput.val([]).trigger('change');
@@ -372,10 +383,6 @@
     yobInput.value = user.year_of_birth == null ? '' : String(user.year_of_birth);
     sexInput.value = user.sex || '';
     showEditOnly(true);
-    passwordCol.classList.remove('d-none');
-    passwordInput.value = '';
-    passwordAsterisk.classList.add('d-none');
-    passwordHelp.textContent = '(Leave blank to keep unchanged)';
     statusInput.value = user.status;
     statusInput.disabled = (userId === CURRENT_USER_ID); // Cannot change own status
     languagesInput.val(user.languages || []).trigger('change');
@@ -436,7 +443,6 @@
     var data = {
       name: nameInput.value.trim(),
       phone: phoneInput.value.trim(),
-      password: passwordInput.value,
       languages: languagesInput.val()
     };
 
@@ -460,7 +466,6 @@
         if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
         if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
       }
-      if (!data.password) delete data.password;
     } else {
       url = '/admin/api/users';
       method = 'POST';
@@ -473,7 +478,6 @@
       } else if (!data.phone) {
         errEl.textContent = 'Enter an email or a 10-digit mobile number.'; return;
       }
-      delete data.password;
     }
 
     if (!data.name) { errEl.textContent = 'Name is required.'; return; }

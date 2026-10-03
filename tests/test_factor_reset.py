@@ -218,11 +218,7 @@ class FactorResetCliTests(FactorResetTestBase):
             )
         token = generate_token(self.target.user_id, "factor_reset")
 
-        first = self.client.post(
-            f"/vaauth/factor-reset/{token}",
-            data={"new_password": "BrandNewSecret789!", "confirm_password": "BrandNewSecret789!"},
-            headers=self._csrf_headers(),
-        )
+        first = self.client.post(f"/vaauth/factor-reset/{token}", headers=self._csrf_headers())
         self.assertEqual(first.status_code, 302)
 
         # The first use signed the client in; log back out so the second
@@ -294,19 +290,31 @@ class FactorResetCliTests(FactorResetTestBase):
 # ---------------------------------------------------------------------------
 
 class FactorResetLinkRouteTests(FactorResetTestBase):
-    def _post(self, token, password="BrandNewSecret789!"):
+    def _post(self, token):
         return self.client.post(
             f"/vaauth/factor-reset/{token}",
-            data={"new_password": password, "confirm_password": password},
             headers=self._csrf_headers(),
         )
 
-    def test_breach_check_validator_applies(self):
+    def test_link_changes_no_password_and_get_changes_nothing(self):
+        """digitva-kmoy: nobody chooses a password, so the link only signs
+        the person in; the existing password keeps working."""
         token = generate_token(self.target.user_id, "factor_reset")
-        resp = self._post(token, password="weak")
-        self.assertEqual(resp.status_code, 200)
+        page = self.client.get(f"/vaauth/factor-reset/{token}")
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn(b'type="password"', page.data)
+        version = self.target.auth_session_version
         db.session.refresh(self.target)
-        self.assertTrue(self.target.check_password(PASSWORD))  # unchanged
+        self.assertEqual(self.target.auth_session_version, version)  # GET changed nothing
+        posted = self.client.post(
+            f"/vaauth/factor-reset/{token}",
+            data={"new_password": "BrandNewSecret789!", "confirm_password": "BrandNewSecret789!"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(posted.status_code, 302)
+        db.session.refresh(self.target)
+        self.assertTrue(self.target.check_password(PASSWORD))
+        self.assertFalse(self.target.check_password("BrandNewSecret789!"))
 
     def test_sets_email_verified(self):
         self.target.email_verified = False

@@ -1,9 +1,11 @@
-"""One-time sign-in codes and server-generated passwords for mobile-only
-accounts. Baseline: docs/policy/mobile-sign-in.md section 3.
+"""One-time sign-in codes and server-generated passwords for every account.
+Baseline: docs/policy/mobile-sign-in.md section 3 and
+docs/policy/account-onboarding-and-passwords.md.
 
 A data manager, In-charge or admin issues a 6-digit code for a person; the
-person redeems it with their mobile number and gets a generated password,
-shown once. Codes are stored only as keyed hashes, expire after 72 hours,
+person redeems it with their email or mobile number and gets a generated
+password, shown once. ``set_new_password`` is the one place any other path
+(email verification, reset link, Profile, CLI) generates a password. Codes are stored only as keyed hashes, expire after 72 hours,
 are voided by a newer code or by five wrong attempts, and work once. Every
 issue, void, redemption and regeneration is audited in
 ``auth_security_events`` without the code, password or number.
@@ -104,8 +106,11 @@ def may_issue_code(actor, target_user_id) -> bool:
     Admin always. Anyone else only when the target holds at least one active
     grant and the actor may manage **every** one of them (``authz.can_grant``,
     as ``grant_list_filter`` states it over the table), none of them
-    privileged (``_PRIVILEGED_ROLES`` or global scope). A code replaces the
-    person's password, so managing one of several grants is not enough
+    privileged (``_PRIVILEGED_ROLES`` or global scope), and only when the
+    target has no verified email: such an account resets by email, so a
+    manager cannot take it over by redeeming their own code with its address
+    (security review of digitva-kmoy). A code replaces the person's
+    password, so managing one of several grants is not enough
     (security review 2026-10-03).
     """
     grants = authz.resolve_grants(actor)
@@ -120,9 +125,15 @@ def may_issue_code(actor, target_user_id) -> bool:
         G.role.in_(_PRIVILEGED_ROLES),
         G.scope_type == VaAccessScopeTypes.global_scope,
     )
+    verified_email = sa.exists().where(
+        VaUsers.user_id == target_user_id,
+        VaUsers.email.is_not(None),
+        VaUsers.email_verified.is_(True),
+    )
     return bool(db.session.scalar(sa.select(sa.and_(
         sa.exists().where(*active),
         sa.not_(sa.exists().where(*active, unmanaged)),
+        sa.not_(verified_email),
     ))))
 
 
@@ -140,13 +151,11 @@ def _void_live_codes(user_id, now) -> int:
 
 
 def issue_code(user: VaUsers, *, actor_user_id) -> str:
-    """Issue a fresh 6-digit code for a mobile-only *user*, voiding any live
-    one, and return it in clear -- shown to the issuer once, never stored.
-    Raises ValueError for an account that does not sign in by mobile only.
-    Caller authorizes (``may_issue_code``) and commits.
+    """Issue a fresh 6-digit code for *user* (redeemed with their email or
+    mobile number), voiding any live one, and return it in clear -- shown to
+    the issuer once, never stored. Caller authorizes (``may_issue_code``:
+    a verified-email account gets codes from an admin only) and commits.
     """
-    if not user.is_mobile_only or not user.mobile_login:
-        raise ValueError("Sign-in codes are only for accounts without an email.")
     now = datetime.now(UTC)
     # Serialise issuers for this person so two cannot each leave a live code
     # (the partial unique index on auth_mobile_codes is the backstop).
@@ -181,10 +190,15 @@ def _set_generated_password(user: VaUsers, password: str) -> None:
     user.bump_session_version()
 
 
-def redeem_code(raw_mobile: str, code: str) -> tuple[VaUsers, str] | None:
-    """Redeem a sign-in code. Returns ``(user, password)`` once, or None for
-    any mismatch -- unknown, shared or malformed number, inactive account,
-    no live code, wrong code -- so the caller gives one answer for all.
+def redeem_code(identifier: str, code: str) -> tuple[VaUsers, str] | None:
+    """Redeem a sign-in code typed with an email (contains ``@``) or a mobile
+    number. Returns ``(user, password)`` once, or None for any mismatch --
+    unknown email, unknown, shared or malformed number, inactive account, no
+    live code, wrong code -- so the caller gives one answer for all.
+
+    A redemption also sets ``mobile_verified_at`` ("has redeemed a code",
+    ``VaUsers.sign_in_verified``): the code, handed over by the person's
+    manager, proves the account as an email verification would.
 
     The password is generated before the number is looked up, so a breach
     check outage (PasswordGenerationUnavailable, raised before anything is
@@ -194,14 +208,18 @@ def redeem_code(raw_mobile: str, code: str) -> tuple[VaUsers, str] | None:
     Caller commits in every case (a counted failure must persist).
     """
     password = generate_password()
-    mobile = canonical_mobile(raw_mobile)
+    typed = (identifier or "").strip()
+    if "@" in typed:
+        match = VaUsers.email == typed.lower()
+    else:
+        match = VaUsers.mobile_login == (canonical_mobile(typed) or "")
     code = (code or "").strip()
     now = datetime.now(UTC)
     # Every path runs the same three statements -- user lookup, locking read
     # of the live code, one counting write -- whether or not the number is
     # known or has a live code, so the work done reveals neither.
-    user = db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == (mobile or "")))
-    eligible = user is not None and user.is_active and user.is_mobile_only
+    user = db.session.scalar(sa.select(VaUsers).where(match))
+    eligible = user is not None and user.is_active
     # FOR UPDATE: concurrent guesses at one code queue here, and each sees
     # the count the previous one left, so a code is compared at most
     # MAX_CODE_FAILURES times in all.
@@ -250,20 +268,24 @@ def redeem_code(raw_mobile: str, code: str) -> tuple[VaUsers, str] | None:
     if user.mobile_verified_at is None:
         user.mobile_verified_at = now
     record_security_event(user_id=user.user_id, event_type="mobile_code_redeemed")
+    record_security_event(
+        user_id=user.user_id, event_type="password_generated", detail={"path": "sign_in_code"},
+    )
     return user, password
 
 
-def regenerate_password(user: VaUsers) -> str:
-    """A new generated password for a signed-in mobile-only *user* (the
-    caller has checked reauthentication). Ends every session, the caller's
-    included. Raises PasswordGenerationUnavailable or ValueError. Caller
-    commits."""
-    if not user.is_mobile_only:
-        raise ValueError("Only accounts without an email get generated passwords.")
+def set_new_password(user: VaUsers, *, path: str, actor_user_id=None) -> str:
+    """Generate a password for *user*, set it and end every session, the
+    caller's included; return it in clear for the caller to deliver once
+    (email or screen) and never log. *path* names the flow in the audit
+    event (``email_verification``, ``password_reset``, ``profile``, ``cli``;
+    ``redeem_code`` records ``sign_in_code`` itself).
+    Raises PasswordGenerationUnavailable before anything changes. Caller
+    commits, or rolls back if delivery fails."""
     password = generate_password()
     _set_generated_password(user, password)
     record_security_event(
-        user_id=user.user_id, actor_user_id=user.user_id,
-        event_type="mobile_password_regenerated",
+        user_id=user.user_id, actor_user_id=actor_user_id,
+        event_type="password_generated", detail={"path": path},
     )
     return password

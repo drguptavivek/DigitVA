@@ -306,6 +306,9 @@ class Config:
 
     # Email (SMTP)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")
+    # Never let smtplib echo message bodies: password emails carry a password
+    # (Flask-Mail otherwise defaults MAIL_DEBUG to app.debug).
+    MAIL_DEBUG = False
     MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("true", "1", "yes")
     MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in ("true", "1", "yes")

@@ -2240,6 +2240,13 @@ def admin_update_user(target_user_id):
         return _json_error("User not found.", 404)
         
     payload = request.get_json(silent=True) or {}
+    if "password" in payload:
+        # docs/policy/account-onboarding-and-passwords.md section 6: nobody,
+        # an admin included, sets or sees a password.
+        return _json_error(
+            "Passwords are generated, never set. Email a reset link or issue a "
+            "sign-in code instead.", 400
+        )
 
     if "email" in payload or "email_confirm" in payload:
         new_email = (payload.get("email") or "").strip().lower()
@@ -2291,19 +2298,6 @@ def admin_update_user(target_user_id):
         except ValueError:
             return _json_error("Invalid status.", 400)
             
-    if payload.get("password"):
-        # docs/policy/mobile-sign-in.md section 3: nobody chooses a mobile-only
-        # account's password, an admin included; issue a sign-in code instead.
-        if target_user.is_mobile_only:
-            return _json_error(
-                "This account signs in by mobile number; issue a sign-in code instead.", 400
-            )
-        from app.utils.password_policy import password_error_message
-        pw_err = password_error_message(payload["password"])
-        if pw_err:
-            return _json_error(pw_err, 400)
-        target_user.set_password(payload["password"])
-
     if "languages" in payload:
         languages = payload.get("languages")
         if not isinstance(languages, list) or not languages:
@@ -2371,11 +2365,45 @@ def admin_resend_verification(target_user_id):
     return jsonify({"message": "Verification email sent."})
 
 
+@admin.post("/api/users/<uuid:target_user_id>/send-password-reset")
+@role_required("admin")
+def admin_send_password_reset(target_user_id):
+    """Email the person a single-use reset link ("send a new password"). The
+    link, not this call, generates the password -- opening it is required
+    before anything changes, so a mistyped address on file never receives a
+    live password (account-onboarding-and-passwords.md section 6). Only to a
+    verified email; a mobile-only account gets a sign-in code instead."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+    if not target_user.email or not target_user.email_verified:
+        return _json_error(
+            "This account has no verified email; resend verification or issue a "
+            "sign-in code instead.", 400
+        )
+    try:
+        from app.services.email_service import send_password_reset_email
+        from app.services.token_service import generate_token
+
+        queued = send_password_reset_email(
+            target_user, generate_token(target_user.user_id, "password_reset")
+        )
+    except Exception as exc:
+        log.warning("admin reset link failed | user_id=%s | %s", target_user.user_id, type(exc).__name__)
+        return _json_error("Failed to send the reset link.", 500)
+    if not queued:
+        return _json_error("Email delivery is off for this address; issue a sign-in code instead.", 400)
+    return jsonify({"message": "Password reset link sent."})
+
+
 @admin.post("/api/users/<uuid:target_user_id>/sign-in-code")
 @role_required("admin")
 def admin_issue_sign_in_code(target_user_id):
-    """Issue a one-time sign-in code for a mobile-only account, shown once
-    (docs/policy/mobile-sign-in.md section 3)."""
+    """Issue a one-time sign-in code for any account, shown once; it is
+    redeemed with the person's email or mobile number (docs/policy/
+    mobile-sign-in.md section 3)."""
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
     from app.services import mobile_sign_in_service

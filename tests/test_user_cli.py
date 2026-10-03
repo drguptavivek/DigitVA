@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import sqlalchemy as sa
 
 from app import db
@@ -64,18 +66,12 @@ class UserCliTestCase(BaseTestCase):
         self.assertIn(self.BASE_SITE_ID, result.output)
 
     def test_users_create_creates_active_user(self):
-        result = self.runner.invoke(
-            args=[
-                "users",
-                "create",
-                "--email",
-                "cli.user@test.local",
-                "--name",
-                "CLI User",
-                "--password",
-                "CliUser1234!A",
-            ]
-        )
+        # Passwords are generated (digitva-kmoy); an unverified email account
+        # gets the verification email, which later emails the password.
+        with patch("app.services.user_account_service.send_invitation") as invite:
+            result = self.runner.invoke(
+                args=["users", "create", "--email", "cli.user@test.local", "--name", "CLI User"]
+            )
 
         self.assertEqual(result.exit_code, 0, result.output)
         user = db.session.scalar(
@@ -84,8 +80,8 @@ class UserCliTestCase(BaseTestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.user_status, VaStatuses.active)
         self.assertFalse(user.pw_reset_t_and_c)
-        self.assertTrue(user.check_password("CliUser1234!A"))
-        self.assertIn("password_reset_required: true", result.output)
+        invite.assert_called_once()
+        self.assertIn("emailed when the user verifies", result.output)
 
     def test_users_reset_password_updates_hash_and_flag(self):
         result = self.runner.invoke(
@@ -94,15 +90,14 @@ class UserCliTestCase(BaseTestCase):
                 "reset-password",
                 "--email",
                 self.base_coder_user.email,
-                "--password",
-                "ResetPass123!A",
                 "--require-password-change",
             ]
         )
 
         self.assertEqual(result.exit_code, 0, result.output)
+        password = result.output.split("new password (shown once): ")[1].split()[0]
         user = db.session.get(VaUsers, self.base_coder_user.user_id)
-        self.assertTrue(user.check_password("ResetPass123!A"))
+        self.assertTrue(user.check_password(password))
         self.assertFalse(user.pw_reset_t_and_c)
 
     def test_users_grant_admin_creates_global_admin_grant(self):

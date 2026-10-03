@@ -5,12 +5,20 @@ Usage:
   flask users list
   flask users search --query="admin"
   flask users list-grants --email=user@example.com
-  flask users create --email=user@example.com --name="Example User" --password="Secret123" [--phone=9876543210]
-  flask users reset-password --email=user@example.com --password="NewSecret123"
+  flask users create --email=user@example.com --name="Example User" [--phone=9876543210] [--email-verified]
+  flask users create --phone=9876543210 --name="Example User"
+  flask users reset-password --email=user@example.com
+  flask users reset-password --mobile=9876543210
+
+Passwords are always generated (docs/policy/account-onboarding-and-passwords.md):
+nobody types one in, here or anywhere.
   flask users grant-admin --email=user@example.com
   flask users revoke-admin --email=user@example.com
   flask users set-status --email=user@example.com --status=deactive
 """
+import secrets
+from datetime import UTC, datetime
+
 import click
 import sqlalchemy as sa
 
@@ -23,8 +31,9 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
-from app.services.user_account_service import UserAccountError, assign_phone
-from app.utils.password_policy import password_error_message
+from app.services import mobile_sign_in_service
+from app.services import user_account_service as accounts
+from app.services.user_account_service import UserAccountError, assign_phone, canonical_mobile
 
 
 @click.group("users")
@@ -161,9 +170,8 @@ def list_grants(email):
 
 
 @users_group.command("create")
-@click.option("--email", required=True, help="User email address.")
+@click.option("--email", default="", help="User email address. Omit for a mobile-only account.")
 @click.option("--name", required=True, help="Display name.")
-@click.option("--password", required=True, help="Initial password.")
 @click.option(
     "--landing-page",
     default="coder",
@@ -185,8 +193,8 @@ def list_grants(email):
 @click.option(
     "--phone",
     default="",
-    help="Optional phone; a 10-digit mobile number also becomes a sign-in number "
-    "and must be unique.",
+    help="Phone; a 10-digit mobile number also becomes a sign-in number and must be "
+    "unique. Required without --email.",
 )
 @click.option(
     "--email-verified/--email-unverified",
@@ -197,24 +205,29 @@ def list_grants(email):
 def create_user(
     email,
     name,
-    password,
     landing_page,
     timezone,
     languages,
     phone,
     email_verified,
 ):
-    """Create a user without assigning grants.
+    """Create a user without assigning grants; the password is generated.
 
-    CLI-created users are always forced through first-login password reset.
+    - Email, unverified: a verification email goes; opening it emails the
+      password (section 5.1).
+    - Email, --email-verified: the password is emailed now; nothing is
+      created if the email cannot be sent.
+    - No email: the password is printed once to this terminal; the account
+      can sign in by mobile number at once (shell access is the safeguard).
+
+    CLI-created users accept the terms at first sign-in.
     """
-    normalized_email = email.strip().lower()
-    if _get_user_by_email(normalized_email):
+    normalized_email = email.strip().lower() or None
+    if normalized_email and _get_user_by_email(normalized_email):
         click.echo(f"User already exists: {normalized_email}")
         raise SystemExit(1)
-    pw_err = password_error_message(password)
-    if pw_err:
-        click.echo(pw_err)
+    if normalized_email is None and canonical_mobile(phone) is None:
+        click.echo("Give --email, or --phone with a 10-digit mobile number.")
         raise SystemExit(1)
 
     user = VaUsers(
@@ -225,7 +238,7 @@ def create_user(
         permission={},
         landing_page=landing_page.strip(),
         pw_reset_t_and_c=False,
-        email_verified=email_verified,
+        email_verified=email_verified if normalized_email else False,
         timezone=timezone.strip(),
         user_status=VaStatuses.active,
     )
@@ -234,41 +247,77 @@ def create_user(
     except UserAccountError as exc:
         click.echo(str(exc))
         raise SystemExit(1)
-    user.set_password(password)
+    # Unknown placeholder until a generated password replaces it below or
+    # at email verification.
+    user.set_password(secrets.token_urlsafe(32))
     db.session.add(user)
-    db.session.commit()
+    db.session.flush()
 
-    click.echo(f"Created user: {user.email}")
+    printed = None
+    try:
+        if normalized_email is None:
+            printed = mobile_sign_in_service.set_new_password(user, path="cli")
+            # The operator hands the password over: the account is proven.
+            user.mobile_verified_at = datetime.now(UTC)
+        elif email_verified:
+            accounts.email_new_password(user, path="cli")
+    except (mobile_sign_in_service.PasswordGenerationUnavailable,
+            accounts.PasswordEmailFailed) as exc:
+        db.session.rollback()
+        click.echo(f"{exc.message} User not created.")
+        raise SystemExit(1)
+    db.session.commit()
+    if normalized_email and not email_verified:
+        accounts.send_invitation(user)
+
+    click.echo(f"Created user: {user.email or accounts.mask_mobile(user.mobile_login)}")
     click.echo(f"  user_id: {user.user_id}")
     click.echo(f"  landing_page: {user.landing_page}")
-    click.echo("  password_reset_required: true")
+    if printed:
+        click.echo(f"  password (shown once): {printed}")
+    elif email_verified:
+        click.echo("  password: emailed")
+    else:
+        click.echo("  password: emailed when the user verifies their email")
 
 
 @users_group.command("reset-password")
-@click.option("--email", required=True, help="User email address.")
-@click.option("--password", required=True, help="New password.")
+@click.option("--email", default="", help="User email address.")
+@click.option("--mobile", default="", help="User sign-in mobile number (instead of --email).")
 @click.option(
     "--onboarded/--require-password-change",
     default=None,
-    help="Optionally update the post-reset onboarding flag.",
+    help="Optionally update the terms-accepted (onboarding) flag.",
 )
-def reset_password(email, password, onboarded):
-    """Reset a user's password."""
-    user = _get_user_by_email(email)
+def reset_password(email, mobile, onboarded):
+    """Break-glass: generate a new password, print it once to this terminal
+    and end every session (account-onboarding-and-passwords.md section 6).
+    Shell access is the safeguard; the password is never logged."""
+    if email.strip():
+        user = _get_user_by_email(email)
+        label = email.strip().lower()
+    else:
+        number = canonical_mobile(mobile)
+        user = db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.mobile_login == number)
+        ) if number else None
+        label = accounts.mask_mobile(number) or "(no --email or valid --mobile)"
     if user is None:
-        click.echo(f"User not found: {email.strip().lower()}")
+        click.echo(f"User not found: {label}")
         raise SystemExit(1)
-    pw_err = password_error_message(password)
-    if pw_err:
-        click.echo(pw_err)
+    try:
+        password = mobile_sign_in_service.set_new_password(user, path="cli")
+    except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
+        db.session.rollback()
+        click.echo(exc.message)
         raise SystemExit(1)
-
-    user.set_password(password)
     if onboarded is not None:
         user.pw_reset_t_and_c = onboarded
     db.session.commit()
 
-    click.echo(f"Password reset for: {user.email}")
+    click.echo(f"Password reset for: {label}")
+    click.echo(f"  new password (shown once): {password}")
+    click.echo("  every existing session has ended")
     click.echo(f"  onboarded: {str(user.pw_reset_t_and_c).lower()}")
 
 

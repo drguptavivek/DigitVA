@@ -106,27 +106,42 @@ def mentor_institute_staff(code):
     override_defaults=False,
 )
 def mentor_institute_create_staff(code):
-    """Create an invited account that is staff of this institute."""
+    """Create an account that is staff of this institute: with an email (a
+    verification email follows) or -- platform admin only -- with a mobile
+    number only, whose first sign-in code is returned once in this no-store
+    response (account-onboarding-and-passwords.md section 5)."""
+    from app.services import mobile_sign_in_service
+
     institute, error = _institute_or_error(code)
     if error:
         return error
     try:
-        fields = accounts.validate_new_user_payload(request.get_json(silent=True) or {})
-    except accounts.EmailInUseError as exc:
-        # Only a platform admin may learn that an address is registered.
-        return _json_error(
-            str(exc) if current_user.is_admin() else _GENERIC_CREATE_REFUSAL, 400
+        # Mobile-only accounts (and their codes) from a platform admin only,
+        # as in the project import; an institute admin must give an email.
+        fields = accounts.validate_new_user_payload(
+            request.get_json(silent=True) or {}, allow_mobile_only=current_user.is_admin()
         )
-    except accounts.UserAccountError as exc:
-        return _json_error(str(exc), 400)
-    try:
         user = mentors.create_staff(institute, fields, actor_user_id=current_user.user_id)
+    except accounts.UserAccountError as exc:
+        # Only a platform admin may learn that an email or number is taken.
+        taken = isinstance(exc, accounts.EmailInUseError) or str(exc) == accounts.MOBILE_IN_USE_MESSAGE
+        return _json_error(
+            _GENERIC_CREATE_REFUSAL if taken and not current_user.is_admin() else str(exc), 400
+        )
     except OrganizationError as exc:
         return _json_error(str(exc), 400)
+    code_for_holder = None
+    if user.is_mobile_only:
+        code_for_holder = mobile_sign_in_service.issue_code(user, actor_user_id=current_user.user_id)
     db.session.commit()
     accounts.send_invitation(user)
     link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
-    return jsonify({"staff": _serialize_staff(user, link)}), 201
+    body = {"staff": _serialize_staff(user, link)}
+    if code_for_holder:
+        body["sign_in_code"] = code_for_holder
+    response = jsonify(body)
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
 
 
 @admin.post(f"{_API}/<code>/staff/<uuid:user_id>/remove")

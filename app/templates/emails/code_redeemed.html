@@ -1,0 +1,15 @@
+{% extends "emails/email_base.html" %}
+
+{% block email_title %}Your DigitVA password was changed{% endblock %}
+
+{% block email_body %}
+<p style="margin: 0 0 16px 0; color: #212529; font-size: 16px;">
+  Hello {{ name }},
+</p>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  Your DigitVA password was changed using a sign-in code.
+</p>
+<p style="margin: 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  If this wasn't you, contact your administrator.
+</p>
+{% endblock %}

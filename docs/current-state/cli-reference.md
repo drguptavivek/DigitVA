@@ -34,8 +34,8 @@ Detailed policy: [`docs/policy/user-management-cli.md`](../policy/user-managemen
 | `users list` | List all users with status and admin state. |
 | `users search --query=FRAG` | Search by email or display name (case-insensitive). |
 | `users list-grants [--email=...]` | List access grants, optionally filtered by user. |
-| `users create --email=... --name=... --password=...` | Create a user (no grants assigned). |
-| `users reset-password --email=... --password=...` | Reset a user's password. |
+| `users create --email=... --name=...` or `users create --phone=... --name=...` | Create a user (no grants assigned); the password is generated, never typed. Email, unverified: a verification email goes and opening it emails the password. Email with `--email-verified`: the password is emailed now (nothing is created if it cannot be sent). No email: a 10-digit `--phone` is required and the password is printed once to the terminal. |
+| `users reset-password --email=...` or `--mobile=...` | Break-glass: generate a new password, print it once to the terminal, end every session (`--onboarded/--require-password-change` optionally sets the terms flag). Fails without changing anything if the breach check is unreachable. |
 | `users grant-admin --email=...` | Grant or reactivate global admin. |
 | `users revoke-admin --email=...` | Deactivate global admin grant. |
 | `users set-status --email=... --status=active\|deactive` | Activate or deactivate a user. |

@@ -25,7 +25,7 @@
           </div>
           <div class="card-body">
             <p class="text-muted">
-              Enter your mobile number and the code your data manager gave you.
+              Enter your email or mobile number and the code your data manager gave you.
               You will get a new password, shown once.
             </p>
             <noscript>
@@ -40,7 +40,7 @@
               {{ form.hidden_tag() }}
               <div class="mb-3">
                 {{ form.mobile.label(class="form-label") }}
-                {{ form.mobile(class="form-control", inputmode="tel", autocomplete="tel", autofocus=True, placeholder="10-digit mobile number") }}
+                {{ form.mobile(class="form-control", autocomplete="username", autofocus=True, placeholder="Email or 10-digit mobile number") }}
                 {% for error in form.mobile.errors %}
                   <div class="text-danger small">{{ error }}</div>
                 {% endfor %}

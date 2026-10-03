@@ -183,16 +183,16 @@
 
 <ol>
   <li>The user account is created with <code>active</code> status</li>
-  <li>The user receives a verification email and a password-setup email</li>
-  <li>The password-setup email uses invite wording ("set your password")</li>
-  <li>When the user verifies their email for the first time, they are redirected to the password setup page</li>
-  <li>After setting their password, the first login shows a terms-and-conditions gate</li>
+  <li>A user with an email receives a verification email; opening its link and pressing "Verify my email" emails them a generated password</li>
+  <li>A user with a mobile number only gets no email: you see a one-time sign-in code to give them; they use "I have a code" on the sign-in page and see their password once</li>
+  <li>The first login shows a terms-and-conditions gate</li>
   <li>The user's default landing page is set to the coder dashboard</li>
 </ol>
 
 <div class="help-info">
-  You do not set a password for the user. The user sets their own password
-  through the invite email flow.
+  You never set or see a password. If someone forgets theirs, they use
+  "Forgot Password" (verified email), or you issue them a sign-in code
+  (any account whose grants you all manage).
 </div>
 
 <h2>User Details</h2>

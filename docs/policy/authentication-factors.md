@@ -162,9 +162,12 @@ while privileged and past the enforcement date.
   the app container (shell access is the safeguard), does what an admin reset
   does, then emails a magic link. The link is single-use and expires in one
   hour: it carries a fingerprint of the password hash and session version, so
-  its first use invalidates it. It leads into onboarding: verify email, set a
-  password, then enrol a passkey or TOTP (required for privileged users,
-  offered to others). The command prints the link only if mail delivery fails,
+  its first use invalidates it. The link opens a page with a button (it
+  changes nothing until pressed); pressing it verifies the email, signs the
+  person in and leads to enrolling a passkey or TOTP (required for
+  privileged users, offered to others). It sets no password: the existing
+  one keeps working, and the fresh sign-in lets the person use Profile
+  "Generate a new password" at once (account-onboarding-and-passwords.md). The command prints the link only if mail delivery fails,
   never shows existing secrets, and never creates users or changes roles.
 
 ## 9. Audit

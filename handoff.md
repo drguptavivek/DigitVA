@@ -38,10 +38,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 3. `digitva-5hmc` (P1) every app access through authz with a Redis grant
    cache (policy written in `access-control-model.md`; attachments never
    static). Route probe test first, then refuse in production.
-4. `digitva-vsc0` (P1) read-only check for unit paths already rewritten
-   by the cross-project rename bug (fixed in review 10 #1); run on production
-   before and after deploy. `digitva-ggc3` tester/demo provenance (review 10
-   #12, needs a migration).
+4. `digitva-ggc3` tester/demo provenance (review 10 #12, needs a
+   migration).
 5. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
 6. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
@@ -61,6 +59,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Production release notes (this session)
 
+- Production DB is at `d3f1a7c92b64` (2026-09-17), about 77 migrations
+  behind head and before org units exist; the release is one large upgrade.
 - Migrations to run (backup first): `e2b7c4d9a1f3` (In-charge = site_pi at
   a unit), `f3a8c1d6e2b9` (mobile sign-in, codes table, email nullable),
   `b7d4e9f2a6c1` (partial date of birth).

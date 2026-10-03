@@ -161,7 +161,16 @@ class ViewAuthzStageTwoTests(CodingScopeFixtureMixin, BaseTestCase):
         from app.models import VaProjectMaster
         from app.services.authz import Action, can
 
+        from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses, VaUserAccessGrants
+
         trainee = self._make_user("stage2.demo.trainee@test.local", "Stage2Test123")
+        # Demo is for people who code somewhere (owner 2026-10-03): a coder
+        # grant on another project, none here.
+        db.session.add(VaUserAccessGrants(
+            user_id=trainee.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         self.assertFalse(can(trainee, Action.VIEW, "csc-s2-phc-a"))
         db.session.get(VaProjectMaster, self.PROJECT).demo_training_enabled = True

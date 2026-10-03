@@ -45,12 +45,13 @@ class ResolveGrantsTests(AuthzFixtureMixin, BaseTestCase):
         )
 
     def test_closed_project_grants_are_absent_and_demo_is_virtual(self):
-        resolved = resolve_grants(self.users["closed_coder"])
-        self.assertTrue(resolved.grants)  # the demo grants: the subject is present
-        self.assertTrue(all(g.virtual and g.project_id == DM for g in resolved.grants))
-        self.assertEqual(
-            {g.role for g in resolved.grants}, {R.coder, R.coding_tester, R.reviewer}
-        )
+        # A coder grant on a closed project counts for nothing, including the
+        # demo eligibility (owner 2026-10-03: demo only for active coders).
+        self.assertEqual(resolve_grants(self.users["closed_coder"]).grants, ())
+        resolved = resolve_grants(self.users["coder_sp1"])
+        virtual = {g.role for g in resolved.grants if g.virtual}
+        self.assertEqual(virtual, {R.coder, R.coding_tester, R.reviewer})
+        self.assertTrue(all(g.project_id == DM for g in resolved.grants if g.virtual))
 
     def test_admin_is_the_global_grant(self):
         self.assertTrue(resolve_grants(self.users["admin"]).is_admin)
@@ -75,16 +76,18 @@ class EffectiveRolesTests(AuthzFixtureMixin, BaseTestCase):
     def test_roles(self):
         demo = {"coder", "coding_tester", "reviewer"}
         cases = {
+            # demo roles only for admin and people who code or review somewhere
             "admin": {"admin"} | demo,
-            "nobody": demo,
-            "dm_c1": {"data_manager"} | demo,
-            "pi_ta": {"project_pi", "data_manager", "interview_supervisor"} | demo,
-            "pi_sp": {"project_pi"} | demo,
-            "sitepi_sp1": {"site_pi"} | demo,
-            "incharge_c1": {"site_pi", "data_manager", "interview_supervisor"} | demo,
-            "collab_c1": {"collaborator", "collaborator_pii"} | demo,
-            "supervisor_c1": {"interview_supervisor"} | demo,
-            "closed_coder": demo,
+            "nobody": set(),
+            "dm_c1": {"data_manager"},
+            "pi_ta": {"project_pi", "data_manager", "interview_supervisor"},
+            "pi_sp": {"project_pi"},
+            "sitepi_sp1": {"site_pi"},
+            "incharge_c1": {"site_pi", "data_manager", "interview_supervisor"},
+            "collab_c1": {"collaborator", "collaborator_pii"},
+            "supervisor_c1": {"interview_supervisor"},
+            "closed_coder": set(),
+            "reviewer_sp1": {"reviewer"} | demo,
         }
         for key, expected in cases.items():
             with self.subTest(user=key):

@@ -513,9 +513,17 @@ class VaUsers(UserMixin, db.Model):
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
-        if role in ("coder", "coding_tester", "data_manager", "reviewer"):
+        if role in ("coder", "coding_tester", "reviewer") and self._demo_eligible():
             return granted_form_ids | get_coder_demo_project_form_ids()
         return granted_form_ids
+
+    def _demo_eligible(self) -> bool:
+        """Whether demo projects are open to this user: authz adds the demo
+        grants only for admins and people who code or review somewhere
+        (owner 2026-10-03), so the answer is whether any were added."""
+        from app.services.authz import resolve_grants
+
+        return any(g.virtual for g in resolve_grants(self).grants)
 
     # -- grant resolvers behind the getters above ----------------------------
 

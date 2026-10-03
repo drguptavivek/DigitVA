@@ -40,17 +40,28 @@ MATRIX = [
     ("admin", A.CODE, "ta-p1", NO_ROLE),             # D 2.2: admin codes demo only
     ("admin", A.REVIEW, "ta-p1", NO_ROLE),
     ("admin", A.SUPERVISE_INTAKE, "case:P1", NO_ROLE),  # D 9.9: no intake bypass
-    ("admin", A.CODE, "dm-1", True),                 # CWSM: demo open to every user
+    ("admin", A.CODE, "dm-1", True),                 # admins may use the demo project
 
     # -- no grant at all: only the demo-training project
     ("nobody", A.VIEW, "ta-p1", NO_ROLE),
     ("nobody", A.TRIAGE, "sp-1", NO_ROLE),
     ("nobody", A.LIST_DATA, "sp-1", False),
-    ("nobody", A.CODE, "dm-1", True),                # CWSM: no coder grant needed on demo
-    ("nobody", A.RECODE, "dm-1", True),
-    ("nobody", A.REVIEW, "dm-1", True),              # owner 2026-10-02: reviewing open on demo too
-    ("nobody", A.VIEW, "dm-1", True),                # coding a demo case includes viewing it
+    # owner 2026-10-03: demo coding/reviewing only for people who code or
+    # review somewhere; anyone else never reaches the demo project.
+    ("nobody", A.CODE, "dm-1", NO_ROLE),
+    ("nobody", A.RECODE, "dm-1", NO_ROLE),
+    ("nobody", A.REVIEW, "dm-1", NO_ROLE),
+    ("nobody", A.VIEW, "dm-1", NO_ROLE),
     ("nobody", A.TRIAGE, "dm-1", NO_ROLE),           # owner: never data_manager on demo
+    ("interviewer_p1", A.CODE, "dm-1", NO_ROLE),     # field staff never see coding
+    ("collab_c1", A.CODE, "dm-1", NO_ROLE),
+    ("collab_c1", A.REVIEW, "dm-1", NO_ROLE),
+    ("dm_sp", A.CODE, "dm-1", NO_ROLE),
+    ("coder_sp1", A.CODE, "dm-1", True),             # a coder anywhere practises on demo
+    ("coder_sp1", A.REVIEW, "dm-1", True),           # owner 2026-10-02: reviewing too
+    ("coder_sp1", A.VIEW, "dm-1", True),
+    ("reviewer_sp1", A.CODE, "dm-1", True),
+    ("tester_sp", A.REVIEW, "dm-1", True),
     ("nobody", A.SYNC_FORM, "form:dm1", NO_ROLE),
     ("nobody", A.LIST_UNROUTED, "proj:AZTA01", NO_ROLE),
 

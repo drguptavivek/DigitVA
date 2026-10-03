@@ -109,9 +109,10 @@ ADMIN_BYPASS = frozenset(Action) - {
     Action.SUPERVISE_INTAKE,
 }
 
-# Every authenticated user holds a project-scope grant of these roles on each
-# active demo-training project (digitva-6zq; owner 2026-10-02: coding AND
-# reviewing open without a grant, never data_manager). The one place to change it.
+# A user holding any of these roles somewhere (or an admin) also holds a
+# project-scope grant of all of them on each active demo-training project
+# (owner 2026-10-02: coding AND reviewing, never data_manager; 2026-10-03:
+# only for people who already code or review). The one place to change it.
 DEMO_VIRTUAL_ROLES = frozenset({
     VaAccessRoles.coder,
     VaAccessRoles.coding_tester,

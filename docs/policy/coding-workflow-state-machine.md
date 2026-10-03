@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Coding Workflow State Machine Policy
@@ -248,11 +248,13 @@ Current intended baseline:
   artifacts
 - those demo artifacts must be visible immediately after save, including on the
   coder dashboard while they remain active
-- project-declared demo/training projects are open to all active authenticated
-  users; no coder grant is required for those projects
-- demo/training projects are open to every user for both coding and
-  reviewing without a grant, never for data management (owner decision
-  2026-10-02, digitva-6zq)
+- project-declared demo/training projects are open, for both coding and
+  reviewing, to admins and to every user who holds an active `coder`,
+  `reviewer` or `coding_tester` grant somewhere; no grant on the demo
+  project itself is needed (owner decisions 2026-10-02 and 2026-10-03)
+- everyone else (interviewers, ASHA/ANM field staff, viewers, data managers
+  without a coding role) never reaches a demo project or a coding screen
+  through it, and demo projects never grant data management
 - non-demo projects continue to require normal grant-based coding access
 - demo artifacts are temporary and must expire automatically after the
   configured demo-retention window

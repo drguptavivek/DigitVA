@@ -294,8 +294,11 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
 def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     is_admin, grants = _load_grants(user_id)
     projects = _load_projects({g.project_id for g in grants})
+    # Demo coding and reviewing only for people who code or review somewhere
+    # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
+    demo_eligible = is_admin or any(g.role in DEMO_VIRTUAL_ROLES for g in grants)
     for settings in projects.values():
-        if not settings.demo_training:
+        if not settings.demo_training or not demo_eligible:
             continue
         grants.extend(
             Grant(role=role, scope_type=_P, project_id=settings.project_id, virtual=True)

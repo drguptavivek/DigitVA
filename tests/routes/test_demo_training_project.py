@@ -19,6 +19,9 @@ from app.models import (
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaUserAccessGrants,
     VaUsers,
 )
 from app.services.reviewer_coding_service import (
@@ -189,8 +192,29 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         )
         cls.demo_plain_user.set_password("DemoTrainee123")
         db.session.add(cls.demo_plain_user)
+        db.session.flush()
+        # Demo coding is for people who code somewhere (owner 2026-10-03):
+        # the trainee holds a coder grant, here on the training project.
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.demo_plain_user.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.DEMO_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        cls.demo_no_role_user = VaUsers(
+            name="field worker",
+            email="demo.fieldworker@test.local",
+            vacode_language=["English"],
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        cls.demo_no_role_user.set_password("DemoTrainee123")
+        db.session.add(cls.demo_no_role_user)
         db.session.commit()
         cls.demo_plain_user_id = str(cls.demo_plain_user.user_id)
+        cls.demo_no_role_user_id = str(cls.demo_no_role_user.user_id)
 
     def _active_allocation_sid(self):
         return db.session.scalar(
@@ -241,6 +265,14 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
+
+    def test_a_user_who_codes_nowhere_cannot_reach_the_demo_project(self):
+        no_role = db.session.get(VaUsers, self.demo_no_role_user.user_id)
+        self.assertFalse(no_role.is_coder(self.DEMO_FORM_ID))
+        self.assertFalse(no_role.is_reviewer(self.DEMO_FORM_ID))
+        self._login(self.demo_no_role_user_id)
+        response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
+        self.assertNotEqual(response.status_code, 200)
 
     def test_plain_user_can_start_demo_project_without_any_grant(self):
         self._login(self.demo_plain_user_id)

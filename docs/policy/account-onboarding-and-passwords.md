@@ -90,7 +90,9 @@ redeemed a sign-in code; its password is never replaced by verifying.
    code** once; the creator gives it to the person in person or by phone.
    It expires after 72 hours.
 2. The person opens the sign-in page (web or app), chooses "I have a code",
-   enters their mobile number and the code.
+   enters their mobile number and the code, and ticks "I accept the terms
+   of use" (required; redeeming records the acceptance, so the person can
+   use the app straight away).
 3. The server generates the password and **shows it once** on that screen:
    "Write this down. It will not be shown again." The screen offers to add
    a passkey (and, in the native app, to set the device PIN).
@@ -98,6 +100,17 @@ redeemed a sign-in code; its password is never replaced by verifying.
 
 Details (hashing, five-try limit, same answer for a wrong number or a wrong
 code, audit) are in mobile-sign-in.md section 3.
+
+### 5.4 Accepting the terms (owner 2026-10-03)
+
+Anyone whose terms acceptance is pending (a new account, or after a
+password reset) accepts them where they are: on the code page (5.2), on
+the website's terms page, or on the app's own terms screen. The app's
+screen uses a JSON endpoint (signed-in session or device token, CSRF for
+the browser) that records the acceptance; until then the app shows that
+screen instead of refusing sign-in. JSON requests from a person with
+pending terms get a JSON answer naming the terms step, never a redirect
+to an HTML page.
 
 ### 5.3 Adding an email later
 

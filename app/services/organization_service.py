@@ -131,18 +131,19 @@ DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool]] = {
 }
 # Advisory only, shown on the Organization page: the grants an administrator
 # would normally give each cadre. Never read for authorization; access comes
-# only from each person's grants.
+# only from each person's grants. site_pi here is the In-charge (site_pi held
+# at the unit; docs/policy/access-control-model.md, "In-charge").
 DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("district", "CS"): ("interview_supervisor",),
+    ("district", "CS"): ("site_pi",),
     ("district", "DPM"): ("data_manager",),
     ("district", "DEPI"): ("collaborator_pii",),
     ("district", "MO"): ("coder", "reviewer"),
     ("district", "SN"): ("interviewer",),
-    ("chc", "SMO"): ("interview_supervisor", "reviewer"),
+    ("chc", "SMO"): ("site_pi", "reviewer"),
     ("chc", "MO"): ("coder",),
     ("chc", "BPM"): ("data_manager",),
     ("chc", "SN"): ("interviewer",),
-    ("phc", "MO"): ("interview_supervisor", "coder"),
+    ("phc", "MO"): ("site_pi", "coder"),
     ("subcentre", "CHO"): ("interviewer",),
 }
 # Cadres with no role yet: they report deaths, which no role covers today.

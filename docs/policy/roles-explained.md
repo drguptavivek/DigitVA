@@ -1,9 +1,9 @@
 ---
 title: Roles Explained
 doc_type: policy
-status: proposed
+status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Who can do what in DigitVA
@@ -129,9 +129,6 @@ Senior Medical Officer of the CHC; PHC in-charge: Medical Officer of the PHC)
 - Cannot interview unless also given that role.
 - Cannot see or act outside their own area.
 
-This is planned and not built yet. Today the in-charges hold the field
-supervision role only.
-
 **Data manager** (District Programme Manager for the district, Block
 Programme Manager for a block)
 - Can see every death and every progress figure in their area.
@@ -148,9 +145,6 @@ Programme Manager for a block)
 - Cannot code or review deaths.
 - Cannot make anyone an in-charge, project lead or administrator, or give a
   role outside their own area.
-
-Giving roles this way is planned and not built yet. Today a data manager
-gives only the coder, coding tester and data manager roles.
 
 **Coder** (Medical Officer)
 - Can assign the cause of death for deaths at their own facility and below

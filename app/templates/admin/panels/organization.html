@@ -75,7 +75,7 @@
             <td>
               {%- if row.typical_roles -%}
                 {%- for role in row.typical_roles -%}
-                  <a href="{{ roles_help_url }}#role-{{ role }}">{{ role }}</a>{% if not loop.last %}, {% endif %}
+                  <a href="{{ roles_help_url }}#role-{{ role }}">{{ 'In-charge' if role == 'site_pi' else role }}</a>{% if not loop.last %}, {% endif %}
                 {%- endfor -%}
               {%- elif row.typical_roles_note -%}
                 <a class="text-muted" href="{{ roles_help_url }}#role-death_reporter">{{ row.typical_roles_note }}</a>

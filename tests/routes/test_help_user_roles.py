@@ -15,3 +15,11 @@ class HelpUserRolesTests(BaseTestCase):
             self.assertIn(f'id="role-{role.value}"', html)
         self.assertIn('id="role-death_reporter"', html)
         self.assertIn("Planned &mdash; not available yet", html)
+
+    def test_data_manager_section_has_no_stale_unit_gap(self):
+        html = self.client.get("/help/user-roles").get_data(as_text=True)
+        start = html.index('id="role-data_manager"')
+        section = html[start:html.index("</section>", start)]
+
+        self.assertIn("covers that unit and everything below it", section)
+        self.assertNotIn("Known gap", section)

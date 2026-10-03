@@ -36,11 +36,11 @@
     <tr><td><a href="#role-admin">admin</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Demo only</td><td>&ndash;</td><td>&ndash;</td><td>Partly</td><td>Yes</td><td>Yes</td><td>Yes, all</td><td>global</td></tr>
     <tr><td><a href="#role-project_pi">project_pi</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>Own projects</td><td>project</td></tr>
     <tr><td><a href="#role-site_pi">site_pi</a> (In-charge at a unit)</td><td>&ndash;</td><td>&ndash;</td><td>In-charge</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>In-charge</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>site, unit (In-charge)</td></tr>
-    <tr><td><a href="#role-data_manager">data_manager</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Coders, testers, data managers</td><td>project, site, unit*</td></tr>
+    <tr><td><a href="#role-data_manager">data_manager</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Coders, testers, data managers; in organization projects also interviewers, reviewers, viewers</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-collaborator">collaborator</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td><strong>No</strong></td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-collaborator_pii">collaborator_pii</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-coder">coder</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
-    <tr><td><a href="#role-coding_tester">coding_tester</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit*</td></tr>
+    <tr><td><a href="#role-coding_tester">coding_tester</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-reviewer">reviewer</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-interviewer">interviewer</a></td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-interview_supervisor">interview_supervisor</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>unit only</td></tr>
@@ -49,7 +49,6 @@
 </table>
 </div>
 
-<p class="small text-muted">* The role can be granted at this scope, but part of it does not work there yet. See the "Known gap" note in the role's section.</p>
 
 <h2>Roles</h2>
 
@@ -92,12 +91,11 @@
   <h3>data_manager</h3>
   <p><strong>For:</strong> the person who keeps the data clean and the work moving (for example a District or Block Programme Manager). <strong>Scope:</strong> project, site, or organization unit.</p>
   <ul>
-    <li><strong>Can:</strong> open the Data Manager dashboard (<code>/data-management</code>, their landing page): browse and filter all submissions in scope, open a submission read-only, mark it Not Codeable, pass or reject it in screening, accept or reject changes made in ODK, re-sync a form or a submission from ODK, open it in ODK's editor, place unrouted submissions in the right unit, download CSV exports, see KPI and coder statistics and cause-of-death groupings. Supervise web intake (<code>/intake/supervision</code>): see cases, resolve flags, cancel, reopen, mark duplicates. Create users and give or remove <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> grants at project or site scope inside their own scope (Users page, <code>/data-management/users</code>).</li>
-    <li><strong>Cannot:</strong> register deaths or interview; code or review; give any other role; give grants on organization units.</li>
+    <li><strong>Can:</strong> open the Data Manager dashboard (<code>/data-management</code>, their landing page): browse and filter all submissions in scope, open a submission read-only, mark it Not Codeable, pass or reject it in screening, accept or reject changes made in ODK, re-sync a form or a submission from ODK, open it in ODK's editor, place unrouted submissions in the right unit, download CSV exports, see KPI and coder statistics and cause-of-death groupings. Supervise web intake (<code>/intake/supervision</code>): see cases, resolve flags, cancel, reopen, mark duplicates. Create users and give or remove grants inside their own scope (Users page, <code>/data-management/users</code>): in a site project, <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> at their own project or site scope; in an organization project, <code>interviewer</code>, <code>coder</code>, <code>reviewer</code>, <code>coding_tester</code>, <code>collaborator</code> and <code>collaborator_pii</code> at any level of their area, and <code>data_manager</code> only below their own level. A grant on an organization unit covers that unit and everything below it on every screen.</li>
+    <li><strong>Cannot:</strong> register deaths or interview; code or review; make anyone an In-charge, <code>interview_supervisor</code>, <code>site_pi</code>, <code>project_pi</code> or <code>admin</code>; give a grant outside their own scope. A data manager on an organization unit cannot re-sync a whole form, only one submission.</li>
     <li><strong>Personal details:</strong> yes.</li>
-    <li><strong>Granted by:</strong> an admin, a project PI, or another data manager (project or site scope only).</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, an In-charge (their own unit and below), or another data manager (in an organization project, only below their own level).</li>
   </ul>
-  <div class="help-warning"><strong>Known gap:</strong> the data manager screens recognise only project and site grants. A data manager granted only on an organization unit cannot yet open the Data Manager dashboard or intake supervision; they see the Area dashboard. Use a project or site grant until this is fixed.</div>
 </section>
 
 <section id="role-collaborator">
@@ -129,7 +127,7 @@
     <li><strong>Can:</strong> open the Coding dashboard (<code>/coding</code>, their landing page); take the next case or pick one, code it and submit the cause of death; resume their own unfinished case; recode their own case within 24 hours; look up ICD codes and definitions. Only cases in their scope, in their coding language, at sites where coding is switched on, within the coding dates and under the daily limit.</li>
     <li><strong>Cannot:</strong> review, change submission data or manage users.</li>
     <li><strong>Personal details:</strong> yes.</li>
-    <li><strong>Granted by:</strong> an admin, a project PI, or a data manager (project or site scope).</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, a data manager or an In-charge, within their own area.</li>
   </ul>
 </section>
 
@@ -140,9 +138,8 @@
     <li><strong>Can:</strong> everything a coder can, and code even when the site's coding is switched off, outside its coding dates, and beyond its daily limit.</li>
     <li><strong>Cannot:</strong> review, change submission data or manage users.</li>
     <li><strong>Personal details:</strong> yes.</li>
-    <li><strong>Granted by:</strong> an admin, a project PI, or a data manager (project or site scope).</li>
+    <li><strong>Granted by:</strong> an admin, a project PI, a data manager or an In-charge, within their own area.</li>
   </ul>
-  <div class="help-warning"><strong>Known gap:</strong> the exemptions above are read from project and site grants only. On an organization unit, a coding tester currently works like an ordinary coder.</div>
 </section>
 
 <section id="role-reviewer">
@@ -207,7 +204,7 @@
 <ul>
   <li><strong>Admin</strong> &mdash; every grant, everywhere, and all user accounts.</li>
   <li><strong>Project PI</strong> &mdash; every role except admin and project_pi, inside their own projects, from the Admin panel's access grants or the Organization page's user import. Unit grants are given here.</li>
-  <li><strong>Data manager</strong> &mdash; new users, and <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> grants at project or site scope inside their own scope.</li>
+  <li><strong>Data manager and In-charge</strong> &mdash; new users and grants inside their own area: in a site project, <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> at project or site scope; in an organization project, <code>interviewer</code>, <code>coder</code>, <code>reviewer</code>, <code>coding_tester</code>, <code>collaborator</code> and <code>collaborator_pii</code> at any level of their area, and <code>data_manager</code> below their own level (an In-charge also at its own level).</li>
 </ul>
 
 <div class="help-info">

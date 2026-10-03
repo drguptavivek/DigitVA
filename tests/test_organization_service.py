@@ -107,7 +107,10 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(set(rows), set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
         # A typical-roles key the grid does not have would never be shown.
         self.assertTrue(set(org.DEFAULT_TYPICAL_ROLES) <= set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
-        self.assertEqual(rows[("district", "CS")]["typical_roles"], ["interview_supervisor"])
+        # The In-charge is site_pi held at the unit (district, block, PHC).
+        self.assertEqual(rows[("district", "CS")]["typical_roles"], ["site_pi"])
+        self.assertEqual(rows[("chc", "SMO")]["typical_roles"], ["site_pi", "reviewer"])
+        self.assertEqual(rows[("phc", "MO")]["typical_roles"], ["site_pi", "coder"])
         self.assertTrue(rows[("district", "CS")]["can_supervise_interviews"])
         self.assertEqual(rows[("subcentre", "ANM")]["typical_roles"], [])
         self.assertIn("death_reporter", rows[("village", "ASHA")]["typical_roles_note"])

@@ -453,12 +453,16 @@ class ImportAndWarningTests(Stage1bBase):
         self.assertEqual(response.status_code, 403, response.get_json())
         self.assertNotIn("mentoring", response.get_json()["error"])
 
-    def test_default_typical_roles_do_not_list_site_pi_at_the_district(self):
+    def test_default_typical_roles_suggest_in_charge_for_the_in_charge_cadres(self):
         from app.services.organization_service import DEFAULT_TYPICAL_ROLES
 
-        self.assertEqual(DEFAULT_TYPICAL_ROLES[("district", "CS")], ("interview_supervisor",))
-        for roles in DEFAULT_TYPICAL_ROLES.values():
-            self.assertNotIn("site_pi", roles)
+        in_charge_cadres = {("district", "CS"), ("chc", "SMO"), ("phc", "MO")}
+        for key in in_charge_cadres:
+            self.assertEqual(DEFAULT_TYPICAL_ROLES[key][0], "site_pi")
+        for key, roles in DEFAULT_TYPICAL_ROLES.items():
+            self.assertNotIn("interview_supervisor", roles)
+            if key not in in_charge_cadres:
+                self.assertNotIn("site_pi", roles)
 
 
 class InstituteAdminTests(Stage1bBase):

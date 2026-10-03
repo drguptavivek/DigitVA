@@ -109,16 +109,16 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 |---|---|---|---|
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
-| DH | CS (or CMO) | District in-charge; `interview_supervisor` until it is built | whole district. The In-charge is `site_pi` held at the unit (decision 2026-10-02), with every data manager power in its area (see [Access Control Model](access-control-model.md), "In-charge"); implementation tracked in digitva-0wc |
+| DH | CS (or CMO) | District in-charge (`site_pi` at the unit, shown as In-charge) | whole district, with every data manager power in it plus field supervision and the unit site PI report (see [Access Control Model](access-control-model.md), "In-charge"; built in digitva-0wc stages 5 and 6) |
 | DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is interviewer-only) |
 | DH | DEPI | `collaborator_pii` | read-only with personal details |
 | DH | MO | `coder`, or `reviewer` | whole district |
 | DH | SN | `interviewer` | facility deaths at the DH |
-| CHC | SMO | Block in-charge (`interview_supervisor` until it is built), `reviewer` | the block |
+| CHC | SMO | Block in-charge (`site_pi` at the unit, shown as In-charge), `reviewer` | the block |
 | CHC | MO | `coder` | the block |
 | CHC | BPM | `data_manager` | the block |
 | CHC | SN | `interviewer` | facility deaths at the CHC |
-| PHC-AAM | MO | PHC in-charge (`interview_supervisor` until it is built), `coder` | its SC-AAMs |
+| PHC-AAM | MO | PHC in-charge (`site_pi` at the unit, shown as In-charge), `coder` | its SC-AAMs |
 | SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
 | SC-AAM | ANM, MPW | none yet; `death_reporter` proposed | report deaths only |
 | Village | ASHA | none yet; `death_reporter` proposed | report deaths only |

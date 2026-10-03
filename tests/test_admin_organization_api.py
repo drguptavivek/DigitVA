@@ -323,9 +323,10 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertIn("<summary", html)  # collapsed without Bootstrap JS
         self.assertIn("District reference model", html)
         self.assertIn("CS Civil Surgeon", html)
-        # site_pi is not held at a unit, so the district CS row no longer suggests it
+        # The in-charge cadres suggest site_pi, shown as In-charge (held at a unit)
+        self.assertIn('href="/help/user-roles#role-site_pi">In-charge</a>', html)
         self.assertNotIn('role-site_pi">site_pi</a>', html)
-        self.assertIn('href="/help/user-roles#role-interview_supervisor"', html)
+        self.assertNotIn('href="/help/user-roles#role-interview_supervisor"', html)
         self.assertIn('href="/help/user-roles#role-death_reporter"', html)
         self.assertIn('href="/help/user-roles">What each role can do</a>', html)
         self.assertIn("Populate district defaults", html)

@@ -33,6 +33,7 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     get_active_coding_allocation,
     get_pick_available_forms,
+    require_active_coding_allocation,
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
@@ -78,7 +79,7 @@ def dashboard():
         va_random_ready_forms = _count_ready(random_form_ids) if random_form_ids else 0
         pick_ready_rows = get_pick_available_forms(current_user, pick_form_ids)
         va_forms_completed = get_coder_completed_count(current_user.user_id, va_form_access)
-        va_forms = get_coder_completed_history(current_user.user_id, va_form_access)
+        va_forms = get_coder_completed_history(current_user, va_form_access)
         va_pick_ready_forms_count = len(pick_ready_rows)
         has_random_mode = bool(random_form_ids)
         has_pick_mode = bool(pick_form_ids)
@@ -191,7 +192,7 @@ def dashboard():
         has_random_mode=has_random_mode,
         has_pick_mode=has_pick_mode,
         va_has_allocation=va_has_allocation,
-        va_recodeable=get_coder_recodeable_sids(current_user.user_id, va_form_access),
+        va_recodeable=get_coder_recodeable_sids(current_user, va_form_access),
         is_admin=current_user.is_admin(),
         demo_projects=demo_projects,
         demo_retention_minutes=demo_retention_minutes,
@@ -246,7 +247,10 @@ def start():
 @coding.get("/resume")
 @role_required("coder", "coding_tester", "admin")
 def resume():
-    va_sid = get_active_coding_allocation(current_user.user_id)
+    try:
+        va_sid = require_active_coding_allocation(current_user)
+    except AllocationError as e:
+        _handle_allocation_error(e)
     if not va_sid:
         va_permission_abortwithflash("No active coding allocation found.", 404)
     form = db.session.get(VaSubmissions, va_sid)

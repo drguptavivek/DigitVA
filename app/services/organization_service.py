@@ -838,8 +838,12 @@ def create_unit(
     return unit
 
 
-def _rewrite_subtree_paths(old_path: str, new_path: str) -> None:
-    """Rewrite ``path`` for a unit and every descendant after a move or rename."""
+def _rewrite_subtree_paths(project_id: str, old_path: str, new_path: str) -> None:
+    """Rewrite ``path`` for a unit and every descendant after a move or rename.
+
+    Unit codes are unique per project only, so the same path can exist in
+    another project; the ``project_id`` filter keeps the rewrite in this one.
+    """
     db.session.execute(
         sa.text(
             """
@@ -848,10 +852,11 @@ def _rewrite_subtree_paths(old_path: str, new_path: str) -> None:
                 WHEN path = CAST(:old_path AS ltree) THEN CAST(:new_path AS ltree)
                 ELSE CAST(:new_path AS ltree) || subpath(path, nlevel(CAST(:old_path AS ltree)))
             END
-            WHERE path <@ CAST(:old_path AS ltree)
+            WHERE project_id = :project_id
+              AND path <@ CAST(:old_path AS ltree)
             """
         ),
-        {"old_path": old_path, "new_path": new_path},
+        {"project_id": project_id, "old_path": old_path, "new_path": new_path},
     )
     db.session.expire_all()
 
@@ -926,7 +931,7 @@ def update_unit(project_id: str, org_unit_id: object, *, allow_unplaced: bool = 
     db.session.flush()
     new_path = f"{parent.path}.{new_code}" if parent else new_code
     if new_path != old_path:
-        _rewrite_subtree_paths(old_path, new_path)
+        _rewrite_subtree_paths(project_id, old_path, new_path)
         unit = db.session.get(MasOrgUnit, unit.org_unit_id)
 
     if "is_active" in fields:

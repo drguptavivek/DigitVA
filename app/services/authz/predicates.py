@@ -143,8 +143,8 @@ def _form_ids(condition, *, active_form: bool, active_pair: bool):
     *active_form*: the form is active (the form-resolved roles: coder,
     coding_tester, reviewer, site_pi; va_users._get_granted_va_forms).
     *active_pair*: the form's (project, site) is an active project-site
-    (coder, data manager, viewer: their lists never reached a site moved
-    out of the project).
+    (coder and coding_tester coding, data manager, viewer: their lists never
+    reached a site moved out of the project).
     """
     stmt = sa.select(VaForms.form_id)
     if condition is not None:
@@ -214,9 +214,11 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
     if lens is Lens.CODE_CODER:
         return [
             (coded(g.of((_R.coder,), virtual=False)), True, True),
-            # coding_tester is exempt from the coding scope level; the
+            # coding_tester is exempt from the coding scope level, never from
+            # the active-site rule (a tester waives gates, not scope); the
             # demo-training virtual grants carry no active-site rule.
-            (list(g.of((_R.coding_tester,), virtual=False)) + virtual_coders, True, False),
+            (list(g.of((_R.coding_tester,), virtual=False)), True, True),
+            (virtual_coders, True, False),
         ]
     if lens is Lens.CODE_REVIEWER:
         # Demo-training grants are exempt from the coding scope level, as
@@ -230,7 +232,9 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
     if lens is Lens.VIEW_CODER:
         return [
             (list(g.of((_R.coder,), virtual=False)), True, True),
-            (list(g.of((_R.coding_tester,), virtual=False)) + virtual_coders, True, False),
+            # As CODE_CODER: a tester never views a deactivated pair's forms.
+            (list(g.of((_R.coding_tester,), virtual=False)), True, True),
+            (virtual_coders, True, False),
         ]
     if lens is Lens.VIEW_REVIEWER:
         return [(list(g.of((_R.reviewer,))), True, False)]
@@ -448,10 +452,12 @@ def _submission_reason(g: ResolvedGrants, action: Action, row) -> Reason:
 
 
 def _can_sync_form(g: ResolvedGrants, form_id) -> Decision:
+    # Admin's bypass is the form existing, as in scope_filter: no active-pair rule.
     if g.is_admin:
-        condition = sa.true()
-    else:
-        condition = _wide_form_condition(_lens_groups(g, Lens.DM_DIRECT)[0][0])
+        if db.session.get(VaForms, form_id) is None:
+            return _deny(Reason.NOT_FOUND)
+        return _ALLOWED
+    condition = _wide_form_condition(_lens_groups(g, Lens.DM_DIRECT)[0][0])
     if condition is not None and db.session.scalar(sa.select(sa.exists().where(
         VaForms.form_id == form_id, condition,
         VaForms.form_id.in_(_form_ids(None, active_form=False, active_pair=True)),

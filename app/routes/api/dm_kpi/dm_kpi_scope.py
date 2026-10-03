@@ -33,6 +33,8 @@ build scoped sub-queries.  The key design decisions:
   per language) include a unit grant's project; they are counts only. The
   coder roster names coders, so it stays on the direct projects: a unit grant
   never resolves to its whole project (docs/policy/access-control-model.md).
+  Every grant resolves to its project through ``GRANT_PROJECT_JOINS`` /
+  ``GRANT_PROJECT_SQL``; a NULL ``project_id`` is never a wildcard.
 """
 
 from __future__ import annotations
@@ -53,6 +55,20 @@ from app.services.data_management_service import dm_grant_scope
 log = logging.getLogger(__name__)
 
 _CACHE_TTL = 300  # 5 minutes
+
+# The project of a grant row ``g``: a project grant names it, a pair or unit
+# grant resolves through its row, and only while that pair or unit is active
+# (as authz's grant relation does). Only project grants carry ``project_id``,
+# so the NULL there is never a wildcard. Joins are on primary keys.
+GRANT_PROJECT_JOINS = """
+    LEFT JOIN va_project_sites gps
+           ON gps.project_site_id = g.project_site_id
+          AND gps.project_site_status = 'active'
+    LEFT JOIN mas_org_unit gou
+           ON gou.org_unit_id = g.org_unit_id
+          AND gou.is_active
+"""
+GRANT_PROJECT_SQL = "COALESCE(g.project_id, gps.project_id, gou.project_id)"
 
 bp = Blueprint("dm_kpi_cache", __name__)
 
@@ -102,6 +118,7 @@ class DmScope:
     aggregate_site_ids: list[str]
     unit_project_ids: tuple[str, ...] = ()
     direct: bool = True
+    grant_project_ids: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(self.pairs or self.unit_ids)
@@ -114,16 +131,7 @@ class DmScope:
         )
         if not self.unit_ids:
             return pair_sql
-        # The subtree of the granted units (authz.subtree_select as text):
-        # anchored on the grant ids, served by the ltree GiST index.
-        subtree_sql = (
-            "SELECT dm_scope_cu.org_unit_id FROM mas_org_unit dm_scope_gu"
-            " JOIN mas_org_unit dm_scope_cu"
-            " ON dm_scope_cu.project_id = dm_scope_gu.project_id"
-            " AND dm_scope_cu.path <@ dm_scope_gu.path"
-            " WHERE dm_scope_gu.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
-            " AND dm_scope_cu.is_active"
-        )
+        subtree_sql = self.subtree_sql()
         # The form's pair is active (authz.active_pair as text): the grid
         # stops at a deactivated (project, site) pair for unit grants too.
         active_pair_sql = (
@@ -133,6 +141,42 @@ class DmScope:
             " AND dm_scope_ps.project_site_status = 'active')"
         )
         return f"({pair_sql} OR ({sub}.org_unit_id IN ({subtree_sql}) AND {active_pair_sql}))"
+
+    @staticmethod
+    def subtree_sql() -> str:
+        """Unit ids in the subtree of the granted units (authz.subtree_select
+        as text): anchored on the grant ids, served by the ltree GiST index."""
+        return (
+            "SELECT dm_scope_cu.org_unit_id FROM mas_org_unit dm_scope_gu"
+            " JOIN mas_org_unit dm_scope_cu"
+            " ON dm_scope_cu.project_id = dm_scope_gu.project_id"
+            " AND dm_scope_cu.path <@ dm_scope_gu.path"
+            " WHERE dm_scope_gu.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
+            " AND dm_scope_cu.is_active"
+        )
+
+    def grant_in_scope_sql(self, grant: str = "g") -> str:
+        """WHERE fragment: grant row *grant* sits inside this scope -- a project
+        grant on a project the DM holds whole, a pair grant on one of the DM's
+        pairs, a unit grant inside the DM's subtree or a project held whole.
+        Binds ``params`` plus ``grant_project_ids``. Names coders, so it is
+        never wider than the DM's own scope (owner decision 2026-10-03)."""
+        return (
+            f"(({grant}.scope_type = 'project'"
+            f" AND {grant}.project_id = ANY(CAST(:grant_project_ids AS text[])))"
+            f" OR ({grant}.scope_type = 'project_site' AND EXISTS ("
+            "SELECT 1 FROM va_project_sites dm_scope_gps"
+            f" WHERE dm_scope_gps.project_site_id = {grant}.project_site_id"
+            " AND dm_scope_gps.project_site_status = 'active'"
+            " AND (dm_scope_gps.project_id, dm_scope_gps.site_id) IN (SELECT * FROM unnest("
+            "CAST(:pair_project_ids AS text[]), CAST(:pair_site_ids AS text[])))))"
+            f" OR ({grant}.scope_type = 'org_unit' AND EXISTS ("
+            "SELECT 1 FROM mas_org_unit dm_scope_gun"
+            f" WHERE dm_scope_gun.org_unit_id = {grant}.org_unit_id"
+            " AND dm_scope_gun.is_active"
+            " AND (dm_scope_gun.project_id = ANY(CAST(:grant_project_ids AS text[]))"
+            f" OR dm_scope_gun.org_unit_id IN ({self.subtree_sql()})))))"
+        )
 
     @property
     def direct_project_ids(self) -> list[str]:
@@ -167,6 +211,7 @@ class DmScope:
             "pair_site_ids": [site_id for _, site_id in self.pairs],
             "unit_ids": self.unit_ids,
             "aggregate_site_ids": self.aggregate_site_ids,
+            "grant_project_ids": list(self.grant_project_ids),
         }
 
     def digest(self) -> str:
@@ -201,6 +246,7 @@ def dm_scope() -> DmScope:
         aggregate_site_ids=_aggregate_safe_sites(pairs),
         unit_project_ids=tuple(sorted(grants.unit_project_ids)),
         direct=grants.has_direct,
+        grant_project_ids=tuple(sorted(grants.project_ids)),
     )
     request.environ[_SCOPE_ENVIRON_KEY] = (current_user.user_id, scope)
     return scope

@@ -492,7 +492,9 @@ class VaUsers(UserMixin, db.Model):
                 )
             )
         )
-        if role == "coder":
+        # A tester waives coding gates, never scope: both resolve only forms
+        # on an active (project, site) pair. Demo forms are added below.
+        if role in ("coder", "coding_tester"):
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
         if role in ("coder", "coding_tester", "reviewer") and self._demo_eligible():

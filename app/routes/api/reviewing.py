@@ -5,6 +5,7 @@ from flask_login import current_user
 
 from app.decorators import role_required
 from app.services import coding_search_telemetry_service
+from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
 from app.services.coding_service import get_project_for_submission
 from app.services.reviewer_coding_service import (
@@ -39,6 +40,9 @@ def _error(
 @role_required("reviewer")
 def get_allocation():
     va_sid = get_active_reviewing_allocation(current_user.user_id)
+    # An allocation grants nothing once the submission leaves review scope.
+    if va_sid and not can(current_user, Action.REVIEW, va_sid).allowed:
+        va_sid = None
     return jsonify({"allocation": {"va_sid": va_sid} if va_sid else None})
 
 

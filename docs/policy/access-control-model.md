@@ -388,6 +388,9 @@ Rules:
   tester waives gates only within its own subtree (see
   [Organization Model Policy](organization-model.md), "Per-unit coding
   gates")
+- the coder eligibility guard is scope, not a gate: a tester neither views
+  nor codes forms of a deactivated (project, site) pair (security review 10
+  #5); demo-training practice is unaffected
 
 May not:
 
@@ -481,7 +484,9 @@ subtree and is reached only through a project or site grant, with one
 exception. **The unrouted queue of an organizational project is open to every
 `data_manager` of the project, at any scope, unit included**: each sees the
 project's unrouted submissions and may route one to a unit inside their own
-subtree, never outside it. The owner accepted the trade-off that a district
+subtree, never outside it. A `project_site` data manager, whose pair has
+no units below it, may route an unrouted case to any unit of the project
+(owner decision 2026-10-03, security review 10 #10). The owner accepted the trade-off that a district
 data manager sees unrouted cases that may belong to another district
 (decision 2026-10-02; implemented in digitva-0wc stage 3). A unit grant
 resolves to the forms under its subtree (a form with a submission routed
@@ -497,8 +502,11 @@ only direct sites whose every project with forms there is in the manager's
 scope; the rest of the scope is added live from the raw tables, limited to
 submissions outside those sites. Coder counts keyed by coder grant project
 (utilization, coders per language) include a unit grant's project, but the
-coder roster, which names coders, stays on project and site grants, since a
-unit grant never resolves to its whole project. Whole-form
+coder roster, which names coders, lists only coders whose grant sits inside
+the manager's own scope: a project grant's coders of that project at any
+scope, a site manager's coders on its own (project, site) pairs, a unit
+manager's coders on units in its subtree (owner decision 2026-10-03,
+digitva-4b3e). Whole-form
 operations need a project or site grant: a form spans several
 units, and ODK-side counts cannot be narrowed to one, so a unit-only data
 manager refreshes single submissions but neither syncs nor previews a whole

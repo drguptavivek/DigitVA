@@ -5,11 +5,11 @@ Policy: docs/policy/access-control-model.md ("collaborator",
 "collaborator_pii", "Why this is a role and not a flag").
 Task record: .tasks/viewer-pii-roles.md.
 
-Rule (decided, not re-litigated here): redact ONLY for a user whose read
-access comes through a plain ``collaborator`` grant and who holds no other
-active grant that would grant personal data. Every other role — admin,
-project_pi, site_pi, data_manager, coder, coding_tester, reviewer,
-interviewer, collaborator_pii — sees personal data exactly as it does today.
+Rule (decided, not re-litigated here): redact unless the user holds a live
+grant in ``_PII_GRANTING_ROLES`` — admin, project_pi, site_pi, data_manager,
+coder, coding_tester, reviewer, interviewer, collaborator_pii. A plain
+``collaborator`` and an ``interview_supervisor`` (docs/policy/web-intake.md,
+"Privacy rule (item 14)") are redacted.
 A user holding both ``collaborator`` and, say, ``coder`` sees personal data
 via the coder grant.
 
@@ -20,75 +20,55 @@ that checks only "is this read-only" and forgets this call fails OPEN (a
 plain viewer sees personal data), which is the failure mode that matters.
 """
 
-import sqlalchemy as sa
+from app.models import VaAccessRoles
 
-from app import db
-from app.models import (
-    MasOrgUnit,
-    VaAccessRoles,
-    VaAccessScopeTypes,
-    VaProjectSites,
-    VaStatuses,
-    VaUserAccessGrants,
-)
-from app.services.org_grant_service import active_project_condition
-
-# Every role except plain `collaborator` already sees personal data today.
-# Holding any ONE of these as an active grant unlocks personal data for the
-# viewer, even if the same user also holds a plain collaborator grant.
-_PII_GRANTING_ROLES = frozenset(VaAccessRoles) - {VaAccessRoles.collaborator}
+# An explicit allowlist, so a role added later redacts until someone decides
+# otherwise (a deny-list fails open). Membership per
+# docs/policy/access-control-model.md: project_pi and the In-charge (site_pi)
+# see every screen "with personal data"; collaborator_pii exists to see it.
+# The rollout note under "collaborator" narrowed only that role, so admin,
+# data_manager, coder, coding_tester, reviewer and interviewer keep the
+# personal data they saw before the viewer split. Left out: collaborator
+# (redacted by definition) and interview_supervisor, whose identifier access
+# is confined to the intake worklist and case views (docs/policy/web-intake.md,
+# "Privacy rule (item 14)") and never lifts this redaction.
+_PII_GRANTING_ROLES = frozenset({
+    VaAccessRoles.admin,
+    VaAccessRoles.project_pi,
+    VaAccessRoles.site_pi,
+    VaAccessRoles.data_manager,
+    VaAccessRoles.coder,
+    VaAccessRoles.coding_tester,
+    VaAccessRoles.reviewer,
+    VaAccessRoles.interviewer,
+    VaAccessRoles.collaborator_pii,
+})
 
 
 def should_redact_pii(user) -> bool:
     """Return True if ``user`` must not see subject PII or staff identity.
 
-    False (do not redact) for every role except a user whose active grants
-    are exclusively plain ``collaborator``. A user with no active grants at
-    all also gets True: this helper only governs what a read-only view may
-    display once access has already been granted elsewhere — it is not an
-    access check.
-    """
-    user_id = getattr(user, "user_id", None)
-    if not user_id:
-        return True
+    False (do not redact) when the user holds a live grant in
+    ``_PII_GRANTING_ROLES``. A user with no such grant, or no grants at all,
+    gets True: this helper only governs what a read-only view may display
+    once access has already been granted elsewhere — it is not an access
+    check.
 
-    # A PII-granting grant only counts while its project is active. The
-    # access resolvers all apply active_project_condition, so a closed
-    # project's grants no longer open any screen; if this check ignored the
-    # project's status, that same dormant grant would still switch redaction
-    # off on the screens the user reaches through an open project's plain
-    # collaborator grant. The grant names its project differently per scope,
-    # so resolve it per scope; a global grant (admin) has no project and
-    # counts unconditionally.
-    grant_project_id = sa.case(
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.project_id,
-        ),
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-            sa.select(VaProjectSites.project_id)
-            .where(VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id)
-            .correlate(VaUserAccessGrants)
-            .scalar_subquery(),
-        ),
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            sa.select(MasOrgUnit.project_id)
-            .where(MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
-            .correlate(VaUserAccessGrants)
-            .scalar_subquery(),
-        ),
+    "Live" is the authz grant relation (``resolve_grants``): an active grant
+    on an active project, and for a pair or unit grant an active pair or
+    unit. Reusing it keeps redaction in step with the resolvers, so a grant
+    that opens no screen (closed project, deactivated unit or pair) cannot
+    switch redaction off on screens reached through another grant.
+    Demo-training virtual grants are ignored: they are derived, not held.
+    """
+    # Imported here: app.services.authz imports this module at package load.
+    from app.services.authz.grants import resolve_grants
+
+    if not getattr(user, "user_id", None):
+        return True
+    resolved = resolve_grants(user)
+    if resolved.is_admin:
+        return False
+    return not any(
+        g.role in _PII_GRANTING_ROLES and not g.virtual for g in resolved.grants
     )
-    stmt = sa.select(
-        sa.exists().where(
-            VaUserAccessGrants.user_id == user_id,
-            VaUserAccessGrants.role.in_(_PII_GRANTING_ROLES),
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-            sa.or_(
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
-                active_project_condition(grant_project_id),
-            ),
-        )
-    )
-    return not bool(db.session.scalar(stmt))

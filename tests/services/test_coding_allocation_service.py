@@ -861,6 +861,12 @@ class TestCodingAllocationService(BaseTestCase):
     def test_start_recode_allocation_reuses_existing_live_session_for_same_sid(self):
         sid = "uuid:recode-live-session"
         recode_user = self._make_user("recode.live@test.local", "RecodeLive123")
+        # Resuming re-asks RECODE (security review 10 #4): a coder of the form.
+        db.session.add(VaUserAccessGrants(
+            user_id=recode_user.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         self._add_submission(sid)
         db.session.flush()
 

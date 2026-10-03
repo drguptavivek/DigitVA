@@ -481,12 +481,12 @@ review a new member's existing grants.
 
 **Who gives mentor staff their grants.** Not the institute: an institute
 cannot widen its own access. A platform admin or the project's PI (admin grant
-interface) or a **district data manager** may write the grants, always inside
-the guard above. A data manager qualifies when they hold an active
-`data_manager` grant at the district unit or above it (a project-scope grant
-counts), in the same project. For an institute member, the guard narrows what
+interface) or a **data manager** may write the grants, always inside the guard
+above. Any data manager of the project qualifies, at any level of the tree (a
+CHC or PHC data manager included; owner decision 2026-10-03, security review
+10 #11), on a unit their own grant covers. For an institute member, the guard narrows what
 a data manager may otherwise grant at unit scope (see "Unit-scoped grants"):
-only a mentor role, on a unit inside a district they manage. The data-manager
+only a mentor role, on a unit their grant covers inside an attached district. The data-manager
 grant list shows those mentor grants. A
 data manager who holds only unit-scope grants finds people through the
 user search, which returns only active staff of active institutes attached to

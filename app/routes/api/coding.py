@@ -22,10 +22,10 @@ from app.services.coder_workflow_service import (
     admin_override_to_recode,
     allocate_pick_form,
     allocate_random_form,
-    get_active_coding_allocation,
     get_coder_ready_stats,
     get_pick_available_forms,
     is_upstream_recode,
+    require_active_coding_allocation,
     mark_reviewer_eligible_after_recode_window_submissions,
     _narration_language_filter,
     start_demo_allocation,
@@ -63,8 +63,15 @@ def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
 @bp.get("/allocation")
 @role_required("coder", "coding_tester", "admin")
 def get_allocation():
-    """Return the current active coding allocation, or null."""
-    va_sid = get_active_coding_allocation(current_user.user_id)
+    """Return the current active coding allocation, or null.
+
+    Null too for an allocation now outside the user's coding scope: the
+    dashboard loads this alongside its other panels and must not fail on it.
+    """
+    try:
+        va_sid = require_active_coding_allocation(current_user)
+    except AllocationError:
+        va_sid = None
     if not va_sid:
         return jsonify({"allocation": None})
     form = db.session.get(VaSubmissions, va_sid)
@@ -236,8 +243,8 @@ def stats():
 def history():
     """Return the coder's completed coding history with recodeable flags."""
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
-    rows = get_coder_completed_history(current_user.user_id, va_form_access)
-    recodeable_sids = set(get_coder_recodeable_sids(current_user.user_id, va_form_access))
+    rows = get_coder_completed_history(current_user, va_form_access)
+    recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
     demo_rows = get_coder_demo_history(current_user.user_id)

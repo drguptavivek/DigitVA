@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
     VaCoderReview,
     VaFinalAssessments,
     VaForms,
@@ -11,6 +13,7 @@ from app.models import (
     VaSites,
     VaStatuses,
     VaSubmissions,
+    VaUserAccessGrants,
 )
 from app.services.coder_dashboard_service import (
     get_coder_demo_history,
@@ -159,6 +162,14 @@ class TestCoderDashboardService(BaseTestCase):
             f"coder.dashboard.{uuid.uuid4().hex[:8]}@test.local",
             "CoderDash123",
         )
+        # History and recodeable are scoped by authz (VIEW / RECODE).
+        db.session.add(VaUserAccessGrants(
+            user_id=self.dashboard_user.user_id,
+            role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         bust_coder_dashboard_cache(self.dashboard_user.user_id)
 
@@ -295,7 +306,7 @@ class TestCoderDashboardService(BaseTestCase):
         db.session.commit()
 
         rows = get_coder_completed_history(
-            self.dashboard_user.user_id,
+            self.dashboard_user,
             [self.FORM_ID, self.DEMO_FORM_ID],
         )
         labels = {row["va_sid"]: row["va_code_status"] for row in rows}
@@ -400,7 +411,7 @@ class TestCoderDashboardService(BaseTestCase):
         db.session.commit()
 
         recodeable = get_coder_recodeable_sids(
-            self.dashboard_user.user_id,
+            self.dashboard_user,
             [self.FORM_ID],
         )
 
@@ -434,7 +445,7 @@ class TestCoderDashboardService(BaseTestCase):
 
         self.assertIn(
             sid,
-            get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID]),
+            get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]),
         )
 
         db.session.get(VaSubmissions, sid).va_sync_issue_code = MISSING_IN_ODK
@@ -442,7 +453,7 @@ class TestCoderDashboardService(BaseTestCase):
 
         self.assertNotIn(
             sid,
-            get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID]),
+            get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]),
         )
 
     def test_recodeable_sids_follow_the_once_in_24_hours_rule(self):
@@ -482,6 +493,6 @@ class TestCoderDashboardService(BaseTestCase):
 
         self.assertIsNone(recode_limit_error(self.dashboard_user, once))
         self.assertIn("once in the last 24 hours", recode_limit_error(self.dashboard_user, twice))
-        recodeable = get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID])
+        recodeable = get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID])
         self.assertIn(once, recodeable)
         self.assertNotIn(twice, recodeable)

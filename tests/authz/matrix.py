@@ -32,6 +32,7 @@ MATRIX = [
     ("admin", A.TRIAGE, "cl-1", True),               # D 2.2: TRIAGE bypassed today (service layer)
     ("admin", A.LIST_DATA, "sp-1", True),            # D 2.2 / bead 4in: admin sees the DM grid
     ("admin", A.SYNC_FORM, "form:ta1", True),
+    ("admin", A.SYNC_FORM, "form:sp4", True),        # review 10 #8: admin bypass ignores the active pair, as the list does
     ("admin", A.LIST_UNROUTED, "proj:AZTA01", True),
     ("admin", A.LIST_UNROUTED, "ta-unr", True),      # the bypass lifts the project limit...
     ("admin", A.LIST_UNROUTED, "ta-p1", False),      # ...never the queue's shape: routed is out
@@ -140,7 +141,10 @@ MATRIX = [
     ("tester_c1", A.CODE, "ta-d1", OUT),
     ("tester_c1", A.CODE, "ta-unr", UNROUTED),
     ("tester_c1", A.VIEW, "ta-p2", True),
-    ("tester_sp", A.CODE, "sp-4", True),             # active-site rule is the coder's only
+    ("tester_sp", A.CODE, "sp-4", OUT),              # review 10 #5: a tester waives gates, never the active-site rule
+    ("tester_sp", A.CODE, "sp-3", True),
+    ("tester_sp", A.VIEW, "sp-4", OUT),              # ACM coder eligibility guard: no coder access to a deactivated pair
+    ("tester_sp", A.VIEW, "sp-3", True),
 
     # -- reviewer: views its scope, reviews under the coding scope rule (F7 closed, D 2.3)
     ("reviewer_ta", A.VIEW, "ta-p1", True),

@@ -32,6 +32,7 @@ HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_cod
 MAX_BYTES = 1024 * 1024
 MAX_ROWS = 1000
 EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
+NOT_PERMITTED = "you are not permitted to grant this role here"
 
 
 class ProjectUserImportError(ValueError):
@@ -184,8 +185,24 @@ def prepare(project_id, rows, *, actor):
                 raise ProjectUserImportError("role is not grantable")
             unit_code = row["org_unit_code"].upper()
             unit = units.get(unit_code) if unit_code else None
+            # Authorize before validating the unit and cadre
+            # (docs/policy/access-control-model.md): a non-admin gets one
+            # refusal for a unit that is missing, inactive or out of scope,
+            # so the import cannot probe which unit codes exist.
             if unit_code and (unit is None or not unit.is_active):
+                if not is_admin:
+                    raise ProjectUserImportError(NOT_PERMITTED)
                 raise ProjectUserImportError("unit code is unknown or inactive")
+            target_key = (role, unit.org_unit_id if unit else None)
+            if target_key not in permitted:
+                permitted[target_key] = bool(authz.can_grant(actor, authz.GrantTarget(
+                    role=role,
+                    scope_type=VaAccessScopeTypes.org_unit if unit else VaAccessScopeTypes.project,
+                    project_id=None if unit else project_id,
+                    org_unit_id=unit.org_unit_id if unit else None,
+                ), _grants=actor_grants))
+            if not permitted[target_key]:
+                raise ProjectUserImportError(NOT_PERMITTED)
             # site_pi in an organization project is the In-charge, held at a unit.
             if not unit and role in (VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi):
                 raise ProjectUserImportError(f"{role.value} requires an organization unit")
@@ -209,16 +226,6 @@ def prepare(project_id, rows, *, actor):
                         raise ProjectUserImportError(
                             f"{role.value} needs a cadre permitted to {permits} at this unit's level"
                         )
-            target_key = (role, unit.org_unit_id if unit else None)
-            if target_key not in permitted:
-                permitted[target_key] = bool(authz.can_grant(actor, authz.GrantTarget(
-                    role=role,
-                    scope_type=VaAccessScopeTypes.org_unit if unit else VaAccessScopeTypes.project,
-                    project_id=None if unit else project_id,
-                    org_unit_id=unit.org_unit_id if unit else None,
-                ), _grants=actor_grants))
-            if not permitted[target_key]:
-                raise ProjectUserImportError("you are not permitted to grant this role here")
             key = (identity, role, unit_code)
             if key in seen:
                 raise ProjectUserImportError("duplicate person, role and scope")

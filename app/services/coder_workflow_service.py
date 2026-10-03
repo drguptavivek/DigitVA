@@ -624,17 +624,37 @@ def get_active_coding_allocation(user_id: str) -> str | None:
     )
 
 
+def require_active_coding_allocation(user) -> str | None:
+    """The va_sid of *user*'s active coding allocation, or None when none is held.
+
+    Holding an allocation is ownership, not scope: a grant revoked or
+    narrowed, or a submission rerouted out of the user's unit, leaves the
+    row behind (docs/policy/attachment-storage.md: an old allocation grants
+    nothing after reroute). So the held submission is asked of authz again
+    (RECODE while a recode episode is open, else CODE) before anyone resumes
+    or reads it. Raises AllocationError when authz refuses; the allocation
+    is left as it is and the stale-allocation release clears it.
+    """
+    va_sid = get_active_coding_allocation(user.user_id)
+    if va_sid is None:
+        return None
+    action = Action.RECODE if get_active_recode_episode(va_sid) else Action.CODE
+    _require_coder_access(user, va_sid, action)
+    return va_sid
+
+
 def allocate_random_form(user, project_id: str | None = None) -> AllocationResult:
     """Allocate a random available form for coding.
 
-    If the user already has an active allocation returns it (resume).
+    If the user already has an active allocation still in their coding
+    scope, returns it (resume); one outside it raises AllocationError.
     If project_id is given, restricts the pool to that project only —
     the caller must have already validated the user has access to it.
     Raises AllocationError if no forms are available.
     """
     release_stale_coding_allocations(timeout_hours=1)
 
-    existing_sid = get_active_coding_allocation(user.user_id)
+    existing_sid = require_active_coding_allocation(user)
     if existing_sid:
         return AllocationResult(va_sid=existing_sid, actiontype="varesumecoding")
 
@@ -693,6 +713,7 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     existing_sid = get_active_coding_allocation(user.user_id)
     if existing_sid:
         if existing_sid == va_sid:
+            _require_coder_access(user, va_sid)
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
         raise AllocationError("You already have an active coding allocation.")
 
@@ -753,7 +774,8 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     Only the coder whose final COD is authoritative may recode, once, within
     24 hours, while they still hold coder access to the form and the
     submission is inside their coding scope. An existing live allocation on the
-    same submission resumes without re-checking: it was checked when created.
+    same submission resumes after the scope check alone (RECODE): the recode
+    window was checked when it was created, the scope can have changed since.
 
     Raises AllocationError when any of those fails.
     """
@@ -763,6 +785,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     active_recode_episode = get_active_recode_episode(va_sid)
     if existing_sid:
         if existing_sid == va_sid and active_recode_episode:
+            _require_coder_access(user, va_sid, Action.RECODE)
             current_state = get_submission_workflow_state(va_sid)
             if current_state in (
                 WORKFLOW_CODER_FINALIZED,

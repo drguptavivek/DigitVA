@@ -177,13 +177,22 @@ def get_coder_not_codeable_count(user_id, accessible_form_ids: Sequence[str]) ->
     return get_coder_output_summary(user_id)["not_codeable"]
 
 
-def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> list[dict]:
-    """Return cached coder history rows for non-demo authored outputs."""
+def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> list[dict]:
+    """Return cached coder history rows for non-demo authored outputs.
+
+    Only submissions *user* may still VIEW (what the history's view link
+    opens): authoring an outcome grants nothing once the case is rerouted
+    out of the user's unit, even on a form they still hold.
+    """
+    from app.services.authz import Action, scope_filter
+
+    user_id = user.user_id
     scoped_form_ids = _exclude_demo_form_ids(accessible_form_ids)
     if not scoped_form_ids:
         return []
 
     def compute():
+        view_scope = scope_filter(user, Action.VIEW)
         final_rows = db.session.execute(
             sa.select(
                 VaForms.project_id.label("project_id"),
@@ -204,6 +213,7 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
                 VaFinalAssessments.va_finassess_by == user_id,
                 VaFinalAssessments.va_finassess_status == VaStatuses.active,
                 VaSubmissions.va_form_id.in_(scoped_form_ids),
+                view_scope,
             )
         ).mappings().all()
 
@@ -227,6 +237,7 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
                 VaCoderReview.va_creview_by == user_id,
                 VaCoderReview.va_creview_status == VaStatuses.active,
                 VaSubmissions.va_form_id.in_(scoped_form_ids),
+                view_scope,
             )
         ).mappings().all()
 
@@ -250,6 +261,9 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
         )
         return rows
 
+    # ponytail: keyed on the form set, not the unit scope, so a reroute or a
+    # narrowed unit grant shows here for up to CODER_DASHBOARD_CACHE_TTL;
+    # add the grants digest to the key if that window matters.
     return _cached_dashboard_value(
         user_id,
         "history",
@@ -306,17 +320,22 @@ def get_coder_demo_history(user_id) -> list[dict]:
     return history
 
 
-def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> list[str]:
+def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[str]:
     """Return recently finalized SIDs that are eligible for recode.
 
     The same rule ``recode_limit_error`` applies when the recode starts
     (digitva-h67s), in SQL so the list stays one query: the user's own
     active final within 24 hours, and at most one final or coder review of
     theirs (any status) on the submission in those 24 hours, so a case
-    already re-coded once is not offered again.
+    already re-coded once is not offered again. And the same scope:
+    only submissions *user* may RECODE (authz), so a case rerouted out of
+    their unit is not offered on a form they still hold.
     """
+    from app.services.authz import Action, scope_filter
+
     if not accessible_form_ids:
         return []
+    user_id = user.user_id
 
     recent_window = sa.text("interval '24 hours'")
     # Aliased: the outer query joins both tables for the active rows.
@@ -364,6 +383,7 @@ def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> li
         )
         .where(
             VaSubmissions.va_form_id.in_(accessible_form_ids),
+            scope_filter(user, Action.RECODE),
             # A recode creates a new allocation, so a retired submission is not
             # offered. See docs/policy/odk-retired-submissions.md.
             submission_is_in_odk(),

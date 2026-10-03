@@ -18,7 +18,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3199 passed, 5 min, on 2026-10-03). Narrow tasks to Sonnet/Luna, broad
+> (3223 passed, 7 min, on 2026-10-03). Narrow tasks to Sonnet/Luna, broad
 > ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b7d4e9f2a6c1`. This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
@@ -26,40 +26,22 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **`digitva-4lv4` (P0) fix security review 10**,
-   `docs/audits/10-authz-and-mobile-sign-in.md` (written by the owner's
-   reviewer, uncommitted, text partly garbled; do not commit it as is, ask
-   the owner). Test DB `minerva_test_sec` exists for it. Order:
-   - #1 CRITICAL: `organization_service._rewrite_subtree_paths` lacks
-     `project_id`, so renaming a unit in project A rewrites matching paths in
-     every project (copy `set_unit_active`; two-project regression).
-   - #2/#3 HIGH: `viewer_pii_service` treats every role but collaborator as
-     PII-unlocking (`interview_supervisor` must not), and grants on
-     deactivated units/pairs still lift redaction.
-   - #4 HIGH: coding/reviewing resume and `GET /api/v1/coding/allocation`
-     trust an existing allocation without a current CODE/REVIEW check.
-   - #5 HIGH: `coding_tester` allocates on deactivated (project, site) pairs.
-   - #6 HIGH: DM coder roster `OR g.project_id IS NULL` leaks unit coders of
-     every project (names, emails).
-   - #7 MEDIUM: coder history filters by form, not the submission's unit.
-   - Low: #8 SYNC_FORM admin parity, #9 import checks unit/cadre before
-     `can_grant`, #13 utilization/language-gap NULL project. #12 tester
-     output counted as real coding (separate bead).
-   - **Owner decisions** (#10, #11): may a project-site data manager pin an
-     unrouted case to any unit of the project, or only its own subtree? May a
-     CHC/PHC data manager give a mentor-institute member `collaborator_pii`,
-     or only district and above (policy says district)?
-2. `digitva-q219` intake prefill: stop prefilling/locking interviewer age;
+1. `digitva-q219` intake prefill: stop prefilling/locking interviewer age;
    lock the deceased's age from registration (DOB stays editable); recompute
-   the locked list for drafts saved before it existed.
-3. `digitva-9an9` auth gaps (P1): terms box on the code page and an app terms
+   the locked list for drafts saved before it existed (owner approved
+   2026-10-03).
+2. `digitva-9an9` auth gaps (P1): terms box on the code page and an app terms
    screen + JSON accept endpoint (owner approved; policy
    `account-onboarding-and-passwords.md` 5.2/5.4); JSON 403 instead of a
    redirect for pending terms; reauth by passkey; resend reporting success on
    failed send; missing sign-in audit events.
-4. `digitva-5hmc` (P1) every app access through authz with a Redis grant
+3. `digitva-5hmc` (P1) every app access through authz with a Redis grant
    cache (policy written in `access-control-model.md`; attachments never
    static). Route probe test first, then refuse in production.
+4. `digitva-vsc0` (P1) read-only check for unit paths already rewritten
+   by the cross-project rename bug (fixed in review 10 #1); run on production
+   before and after deploy. `digitva-ggc3` tester/demo provenance (review 10
+   #12, needs a migration).
 5. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
 6. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
@@ -89,8 +71,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   coder, reviewer or coding_tester grant.
 - Dev has a test account "Test ASHA Mobile" (mobile 9000000111, landing page
   set to coder by mistake); remove or fix.
-- Drop finished test DBs: `minerva_test_runner`, `minerva_test_fix`
-  (keep `minerva_test_sec` for 4lv4).
+- Drop finished test DBs: `minerva_test_runner`, `minerva_test_fix`.
+- Review 10 (`digitva-4lv4`): a coder or reviewer whose allocation leaves
+  their scope is refused (403, API returns null), not released; the row
+  clears with the 1-hour stale release. Coder history cache can show a
+  rerouted case for up to 300 s. Admin may now sync a form on a deactivated
+  pair. A site data manager's coder roster now shows only its own pairs'
+  coders.
 
 ## Proposals parked (plan only, need owner discussion)
 

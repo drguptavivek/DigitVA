@@ -30,12 +30,14 @@ from flask import Blueprint, jsonify, request
 
 from app import db
 from app.decorators import role_required
-from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
-from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    GRANT_PROJECT_JOINS,
+    GRANT_PROJECT_SQL,
     cached_kpi,
     dm_scope,
 )
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 
 bp = Blueprint("dm_kpi_coders", __name__)
 log = logging.getLogger(__name__)
@@ -72,15 +74,13 @@ def coder_utilization():
     def compute():
         # Total active coders in DM's scope
         total_coders = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(DISTINCT g.user_id) AS cnt
                 FROM va_user_access_grants g
+                {GRANT_PROJECT_JOINS}
                 WHERE g.role = 'coder'
                   AND g.grant_status = 'active'
-                  AND (
-                      g.project_id = ANY(:project_ids)
-                      OR g.project_id IS NULL
-                  )
+                  AND {GRANT_PROJECT_SQL} = ANY(:project_ids)
             """),
             {"project_ids": project_ids},
         ).scalar() or 0
@@ -223,23 +223,35 @@ def coder_roster():
     Time frame: Cumulative.
     Note: Policy-only definition, exposed as data for the DM dashboard.
     """
-    # Coders are listed by direct project only (a unit grant never resolves to
-    # its whole project); total_coded counts the DM's whole scope.
+    # Coders are listed only when their grant sits inside the DM's own scope
+    # (owner decision 2026-10-03, digitva-4b3e): a site DM sees its own
+    # pairs' coders, a unit DM its subtree's. Counts use the same scope.
     scope = dm_scope()
-    project_ids = scope.direct_project_ids
 
-    if not project_ids:
+    if not scope:
         return jsonify({"coders": []})
 
     def compute():
         rows = db.session.execute(
             sa.text(f"""
+                WITH roster AS (
+                    SELECT
+                        g.user_id,
+                        {GRANT_PROJECT_SQL} AS project_id,
+                        MIN(g.grant_created_at) AS active_since
+                    FROM va_user_access_grants g
+                    {GRANT_PROJECT_JOINS}
+                    WHERE g.role = 'coder'
+                      AND g.grant_status = 'active'
+                      AND {scope.grant_in_scope_sql("g")}
+                    GROUP BY g.user_id, {GRANT_PROJECT_SQL}
+                )
                 SELECT
                     u.user_id,
                     u.name,
                     u.email,
                     u.vacode_language,
-                    g.project_id,
+                    r.project_id,
                     (
                         SELECT COUNT(*)
                         FROM va_final_assessments fa
@@ -254,22 +266,19 @@ def coder_roster():
                     (
                         SELECT COUNT(*)
                         FROM va_allocations a
+                        JOIN va_submissions s3 ON s3.va_sid = a.va_sid
+                        JOIN va_forms f3 ON f3.form_id = s3.va_form_id
                         WHERE a.va_allocated_to = u.user_id
                           AND a.va_allocation_status = 'active'
+                          AND f3.project_id = r.project_id
+                          AND {scope.sql("f3", "s3")}
                     ) AS active_allocations,
-                    MIN(g.grant_created_at) AS active_since
-                FROM va_users u
-                JOIN va_user_access_grants g ON g.user_id = u.user_id
-                WHERE g.role = 'coder'
-                  AND g.grant_status = 'active'
-                  AND (
-                      g.project_id = ANY(:project_ids)
-                      OR g.project_id IS NULL
-                  )
-                GROUP BY u.user_id, u.name, u.email, u.vacode_language, g.project_id
+                    r.active_since
+                FROM roster r
+                JOIN va_users u ON u.user_id = r.user_id
                 ORDER BY u.name
             """),
-            {**IN_ODK_BIND, "project_ids": project_ids, **scope.params},
+            {**IN_ODK_BIND, **scope.params},
         ).mappings().all()
 
         return {

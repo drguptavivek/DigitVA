@@ -1,34 +1,38 @@
 import sqlalchemy as sa
+from flask import Blueprint, redirect, render_template, url_for
+from flask_login import current_user
+
 from app import db
+from app.decorators import role_required
 from app.models import (
-    VaAllocations,
     VaAllocation,
+    VaAllocations,
     VaFinalAssessments,
-    VaReviewerFinalAssessments,
     VaForms,
     VaProjectSites,
+    VaReviewerFinalAssessments,
     VaStatuses,
-    VaSubmissionWorkflow,
     VaSubmissions,
+    VaSubmissionWorkflow,
 )
-from flask_login import current_user
-from flask import Blueprint, redirect, render_template, url_for
-from app.decorators import role_required
-from app.utils import va_permission_abortwithflash, va_render_serialisedates
-from app.utils import va_permission_ensureanyallocation
 from app.routes.coding import _has_org_unit_area, _require_or_abort
-from app.services.authz import Action, scope_filter
+from app.services.authz import Action, can, scope_filter
 from app.services.coding_service import render_va_coding_page
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
-from app.services.workflow.definition import (
-    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-    WORKFLOW_REVIEWER_FINALIZED,
-)
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
     start_reviewer_coding,
+)
+from app.services.workflow.definition import (
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_FINALIZED,
+)
+from app.utils import (
+    va_permission_abortwithflash,
+    va_permission_ensureanyallocation,
+    va_render_serialisedates,
 )
 
 reviewing = Blueprint("reviewing", __name__)
@@ -187,6 +191,9 @@ def dashboard():
             & (VaAllocations.va_allocation_status == VaStatuses.active)
         )
     )
+    # An allocation grants nothing once the submission leaves review scope.
+    if va_has_allocation and not can(current_user, Action.REVIEW, va_has_allocation).allowed:
+        va_has_allocation = None
     return render_template(
         "va_frontpages/va_reviewer.html",
         va_total_forms=va_total_forms,
@@ -214,6 +221,9 @@ def start(va_sid):
 def resume():
     va_permission_ensureanyallocation("reviewing")
     va_sid = get_active_reviewing_allocation(current_user.user_id)
+    # The allocation is ownership, not scope: a revoked grant or a reroute
+    # out of the reviewer's unit leaves it behind, so REVIEW is asked again.
+    _require_or_abort(Action.REVIEW, va_sid)
     form = db.session.get(VaSubmissions, va_sid)
     return render_va_coding_page(form, "vareview", "varesumereviewing", "reviewer")
 

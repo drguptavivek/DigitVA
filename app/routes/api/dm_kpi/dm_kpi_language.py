@@ -27,9 +27,14 @@ from flask import Blueprint, jsonify, request
 
 from app import db
 from app.decorators import role_required
+from app.routes.api.dm_kpi.dm_kpi_scope import (
+    GRANT_PROJECT_JOINS,
+    GRANT_PROJECT_SQL,
+    cached_kpi,
+    dm_scope,
+)
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_language", __name__)
 log = logging.getLogger(__name__)
@@ -97,13 +102,14 @@ def language_gap():
         project_ids = dm_scope().all_project_ids
 
         coders_by_lang = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT UNNEST(u.vacode_language) AS lang, COUNT(DISTINCT u.user_id) AS coder_count
                 FROM va_users u
                 JOIN va_user_access_grants g ON g.user_id = u.user_id
+                {GRANT_PROJECT_JOINS}
                 WHERE g.role = 'coder'
                   AND g.grant_status = 'active'
-                  AND g.project_id = ANY(:project_ids)
+                  AND {GRANT_PROJECT_SQL} = ANY(:project_ids)
                 GROUP BY lang
             """),
             {"project_ids": project_ids},

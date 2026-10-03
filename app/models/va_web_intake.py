@@ -76,6 +76,15 @@ class VaDeathRegister(db.Model):
             name="identity",
         ),
         sa.CheckConstraint("pending_flag IN ('duplicate', 'cancel')", name="pending_flag"),
+        sa.CheckConstraint(
+            "date_of_birth_partial IS NULL OR "
+            "date_of_birth_partial ~ '^[0-9]{4}(-((0[1-9])|(1[0-2])))?$'",
+            name="date_of_birth_partial_format",
+        ),
+        sa.CheckConstraint(
+            "date_of_birth IS NULL OR date_of_birth_partial IS NULL",
+            name="date_of_birth_exact_or_partial",
+        ),
         sa.Index(
             "uq_va_death_register_client_death_id",
             "client_death_id",
@@ -104,6 +113,9 @@ class VaDeathRegister(db.Model):
     abha_number: so.Mapped[str | None] = so.mapped_column(sa.String(17), nullable=True)
     abha_address: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
     date_of_birth: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
+    # Stored as YYYY or YYYY-MM when the day (or day and month) is unknown;
+    # never turn an uncertain date into a fabricated first of the month.
+    date_of_birth_partial: so.Mapped[str | None] = so.mapped_column(sa.String(7), nullable=True)
     age_years: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     date_of_death: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
     place_of_death: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)

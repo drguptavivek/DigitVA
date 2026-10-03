@@ -494,6 +494,11 @@ its case at once). `status` is the case state, written only by
   `draft_identity` or `cancelled`. A direct start's draft saves fill them from
   `Id10017`/`Id10018`, `Id10019` and `Id10023` (else `Id10023_a`/`_b`); form
   edits on a registered case flow back the same way.
+- `date_of_birth_partial` (String(7), nullable; migration `b7d4e9f2a6c1`):
+  `YYYY-MM` or `YYYY` when the day, or day and month, of birth is unknown.
+  CHECK `ck_va_death_register_date_of_birth_partial_format` holds the format;
+  CHECK `ck_va_death_register_date_of_birth_exact_or_partial` forbids it
+  beside `date_of_birth`. Prefill mapping: docs/policy/web-intake.md.
 - `started_by_user_id` (FK `va_users`): who opened the first interview. The
   migration backfilled it from each case's earliest draft.
 - `pending_flag` (`duplicate` | `cancel`) and `duplicate_of_death_id` (self

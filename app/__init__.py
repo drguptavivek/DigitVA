@@ -254,6 +254,8 @@ def create_app(config_class=None):
 
     from app.routes import register_blueprints  
     register_blueprints(app)
+    from app.routes.expo_client import expo_client
+    app.register_blueprint(expo_client)
     from app.routes.va_errors import register_error_handlers
     register_error_handlers(app)
     from app.logging import va_logging
@@ -482,6 +484,14 @@ def create_app(config_class=None):
             'va_auth.resend_verification',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
+            if request.endpoint == "api_v1.client_api.bootstrap":
+                response = jsonify({
+                    "code": "password_change_required",
+                    "redirect_url": url_for('profile.force_password_change'),
+                })
+                response.status_code = 403
+                response.headers["Cache-Control"] = "no-store"
+                return response
             return redirect(url_for('profile.force_password_change'))
 
     # docs/policy/authentication-factors.md section 6: once
@@ -550,11 +560,21 @@ def create_app(config_class=None):
         from app.decorators.role_required import API_PATH_PREFIXES
 
         if request.path.startswith(API_PATH_PREFIXES):
+            if request.endpoint == "api_v1.client_api.bootstrap":
+                return jsonify({
+                    "error": "factor_setup_required",
+                    "code": "factor_setup_required",
+                    "redirect_url": url_for("profile.view") + "#passkeys-card",
+                }), 403
             return jsonify({"error": "factor_setup_required"}), 403
         return redirect(url_for("profile.view") + "#passkeys-card")
 
     @app.after_request
     def apply_static_cache_headers(response):
+        # Browser intake carries identifiers and questionnaire answers. This
+        # applies to errors and redirects as well as successful JSON responses.
+        if request.path.startswith(("/intake/api/", "/api/v1/client/")):
+            response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/static/") and response.status_code == 200:
             response.cache_control.public = True
             response.cache_control.max_age = app.config["STATIC_ASSET_CACHE_MAX_AGE"]

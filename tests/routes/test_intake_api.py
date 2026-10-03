@@ -22,6 +22,7 @@ from app.models import (
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
+    VaSubmissionPayloadVersion,
     VaSubmissions,
     VaUserAccessGrants,
     VaWebIntakeDraft,
@@ -507,6 +508,108 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(
             db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister)), before
         )
+
+    # ── partial birth date and locked prefill (digitva-tld2, p6fs.9) ───────
+
+    def test_register_api_accepts_and_returns_a_partial_birth_date(self):
+        self._login(self.interviewer_id)
+        response = self.client.post(
+            "/intake/api/deaths", json=self._death_payload(date_of_birth_partial="1953"),
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["death"]["date_of_birth_partial"], "1953")
+        both = self.client.post(
+            "/intake/api/deaths",
+            json=self._death_payload(date_of_birth_partial="1953-02", date_of_birth="1953-02-11"),
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(both.status_code, 400)
+
+        draft = self._start_draft(death_id=response.get_json()["death"]["death_id"])
+        prefill = self.client.get(f"/intake/api/drafts/{draft['draft_id']}").get_json()["prefill"]
+        self.assertEqual(
+            (prefill["answers"]["Id10020"], prefill["answers"]["dob_precision"], prefill["answers"]["dob_year"]),
+            ("no", "year", "1953-01-01"),
+        )
+
+    _TAMPERED = {
+        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl",
+        "abha_number": "99999999999999",
+    }
+
+    def _locked_draft(self):
+        """A draft locking the interviewer, an HIV area preset and ABHA;
+        returns (draft json, authoritative locked values)."""
+        self.interviewer.name = "Field Worker"
+        self.interviewer.sex = "female"
+        self.interviewer.year_of_birth = date.today().year - 45
+        org.seed_default_organization(self.PROJECT_ID)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT_ID)}
+        district = org.create_unit(
+            self.PROJECT_ID, org_level_id=levels["district"].org_level_id,
+            unit_code="LCK01", unit_name="Locked District",
+        )
+        org.set_unit_va_presets(self.PROJECT_ID, district.org_unit_id, hiv_mortality="high", malaria_mortality=None)
+        self._login(self.interviewer_id)
+        death = self.client.post(
+            "/intake/api/deaths",
+            json=self._death_payload(org_unit_id=str(district.org_unit_id), abha_number="12345678901234"),
+            headers=self._csrf_headers(),
+        ).get_json()["death"]
+        draft = self._start_draft(death_id=death["death_id"])
+        return draft, {
+            "Id10010": "Field Worker", "Id10010a": 45, "Id10010b": "female",
+            "Id10010c": self.interviewer_id, "Id10002": "high", "abha_number": "12345678901234",
+        }
+
+    def _save(self, draft, sections):
+        response = self.client.patch(
+            f"/intake/api/drafts/{draft['draft_id']}", json={"sections": sections}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return self.client.get(f"/intake/api/drafts/{draft['draft_id']}").get_json()["envelope"]["data"]
+
+    def _submit(self, draft, data):
+        answers = {
+            "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+            "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+            "narr_language": "english", **data,
+        }
+        response = self.client.post(
+            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            json={"completion": {"valid": True, "issues": [], "data": answers}}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        return db.session.scalar(sa.select(VaSubmissionPayloadVersion.payload_data).where(
+            VaSubmissionPayloadVersion.va_sid == response.get_json()["va_sid"]))
+
+    def test_draft_save_and_submit_overwrite_tampered_locked_answers(self):
+        draft, authoritative = self._locked_draft()
+        saved = self._save(draft, {"interviewer": dict(self._TAMPERED), "background": {"Id10007": "Ramesh"}})
+        for name, value in authoritative.items():
+            with self.subTest(step="save", name=name):
+                self.assertEqual(saved[name], value)
+        self.assertEqual(saved["Id10007"], "Ramesh")
+
+        # Dropping a locked answer keeps it; clearing an unlocked one works.
+        saved = self._save(draft, {"interviewer": {}, "background": {}})
+        self.assertEqual({k: saved.get(k) for k in authoritative}, authoritative)
+        self.assertNotIn("Id10007", saved)
+
+        payload = self._submit(draft, dict(self._TAMPERED))
+        for name, value in authoritative.items():
+            with self.subTest(step="submit", name=name):
+                self.assertEqual(payload[name], value)
+
+    def test_untampered_save_and_submit_are_unaffected(self):
+        draft, authoritative = self._locked_draft()
+        saved = self._save(draft, {"interviewer": {**authoritative, "Id10007": "Ramesh"}})
+        self.assertEqual(saved, {**authoritative, "Id10007": "Ramesh"})
+        payload = self._submit(draft, {**authoritative, "Id10007": "Ramesh"})
+        self.assertEqual({k: payload[k] for k in authoritative}, authoritative)
+        self.assertEqual(payload["Id10007"], "Ramesh")
 
     def test_discard_frees_the_death_for_a_new_draft(self):
         self._login(self.interviewer_id)

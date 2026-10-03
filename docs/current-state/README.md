@@ -39,7 +39,8 @@ Read these documents in this order:
 16. [DORIS COD Workflow](doris-cod-workflow.md)
 17. [Device Collection API](device-collection-api.md)
 18. [Test Project TST001](test-project-tst001.md)
-19. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
+19. [Expo Client Hosting And Bootstrap](expo-client.md)
+20. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
 
 Related planning:
 

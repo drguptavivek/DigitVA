@@ -7,6 +7,7 @@ api_v1 = Blueprint("api_v1", __name__)
 from app.routes.api import (  # noqa: E402, F401
     analytics,
     area,
+    client,
     cod_buckets,
     coding,
     coding_search_demo,
@@ -40,6 +41,7 @@ from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E4
 
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(area.bp, url_prefix="/area")
+api_v1.register_blueprint(client.bp, url_prefix="/client")
 api_v1.register_blueprint(cod_buckets.bp, url_prefix="/cod-buckets")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
 api_v1.register_blueprint(coding_search_demo.bp, url_prefix="/coding-search-demo")

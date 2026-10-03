@@ -987,6 +987,9 @@ class WebIntakeServiceTests(BaseTestCase):
         )
         self.assertEqual(draft.meta["locale"], "hi")
         self.assertEqual(draft.meta["translation_version"], 7)
+        envelope = intake_svc.load_draft_envelope(draft)
+        self.assertEqual(envelope["locale"], "hi")
+        self.assertEqual(envelope["translation_version"], 7)
         # The keys the envelope already carried are not disturbed by the switch.
         self.assertIn("createdAt", draft.meta)
 
@@ -1240,6 +1243,161 @@ class WebIntakeServiceTests(BaseTestCase):
         # _org_unit(); this test deliberately does not.
         death = self._register_death()
         self.assertIsNone(death.org_unit_id)
+
+    # ── partial date of birth (digitva-tld2) ────────────────────────────────
+
+    def test_register_death_keeps_a_partial_birth_date_and_serializes_it(self):
+        for value in ("1950", "1950-07"):
+            with self.subTest(value=value):
+                death = self._register_death(date_of_birth_partial=f" {value} ")
+                self.assertEqual(death.date_of_birth_partial, value)
+                self.assertIsNone(death.date_of_birth)
+                body = intake_svc.serialize_death(death)
+                self.assertEqual(body["date_of_birth_partial"], value)
+                self.assertIsNone(body["date_of_birth"])
+        exact = self._register_death(date_of_birth="1950-07-12")
+        self.assertIsNone(intake_svc.serialize_death(exact)["date_of_birth_partial"])
+
+    def test_register_death_refuses_a_bad_partial_birth_date(self):
+        today = date.today()
+        death_day = today - timedelta(days=10)
+        next_month = (today.replace(day=1) + timedelta(days=32)).strftime("%Y-%m")
+        for value in (
+            "1950-13", "1950-00", "1950-7", "50", "1950-07-01", "195O", "1899", "1899-12",
+            str(today.year + 1), next_month,
+        ):
+            with self.subTest(value=value), self.assertRaises(intake_svc.WebIntakeError):
+                self._register_death(date_of_birth_partial=value)
+        # After the date of death, at the precision given.
+        with self.assertRaises(intake_svc.WebIntakeError):
+            self._register_death(
+                date_of_death="2000-03-15", date_of_birth_partial="2000-04",
+            )
+        with self.assertRaises(intake_svc.WebIntakeError):
+            self._register_death(date_of_death="2000-03-15", date_of_birth_partial="2001")
+        # The same month or year as the death is plausible.
+        same = self._register_death(
+            date_of_death=death_day.isoformat(), date_of_birth_partial=death_day.strftime("%Y-%m"),
+        )
+        self.assertEqual(same.date_of_birth_partial, death_day.strftime("%Y-%m"))
+        with self.assertRaises(intake_svc.WebIntakeError) as both:
+            self._register_death(date_of_birth="1950-07-12", date_of_birth_partial="1950-07")
+        self.assertIn("not both", str(both.exception))
+
+    def test_prefill_maps_a_partial_birth_date_to_the_who_precision_fields(self):
+        month_year = self._register_death(date_of_birth_partial="1950-07", age_years=None)
+        prefill = intake_svc._prefill_from_death(month_year, self.interviewer)
+        self.assertNotIn("dateOfBirth", prefill["deceased"])
+        self.assertNotIn("Id10021", prefill["answers"])
+        self.assertEqual(
+            {k: prefill["answers"].get(k) for k in ("Id10020", "dob_precision", "dob_month_year", "dob_year")},
+            {"Id10020": "no", "dob_precision": "month_year", "dob_month_year": "1950-07-01", "dob_year": None},
+        )
+
+        year = self._register_death(date_of_birth_partial="1950", age_years=74)
+        prefill = intake_svc._prefill_from_death(year, self.interviewer)
+        self.assertEqual(
+            {k: prefill["answers"].get(k) for k in ("Id10020", "dob_precision", "dob_month_year", "dob_year")},
+            {"Id10020": "no", "dob_precision": "year", "dob_month_year": None, "dob_year": "1950-01-01"},
+        )
+        # The age still prefills beside it; neither is locked.
+        self.assertEqual(prefill["deceased"]["ageInYears"], 74)
+        self.assertFalse({"dob_precision", "dob_year", "Id10020"} & set(prefill["lockedQuestionNames"]))
+
+        exact = self._register_death(date_of_birth="1950-07-12")
+        prefill = intake_svc._prefill_from_death(exact, self.interviewer)
+        self.assertEqual(prefill["deceased"]["dateOfBirth"], "1950-07-12")
+        self.assertNotIn("dob_precision", prefill["answers"])
+
+    def test_partial_birth_date_answers_survive_the_submit_relevance_strip(self):
+        death = self._register_death(date_of_birth_partial="1950-07")
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+        answers = {k: draft.prefill["answers"][k] for k in ("Id10020", "dob_precision", "dob_month_year")}
+        submission = intake_svc.submit_draft(draft, self.interviewer, completion=self._completion(data=answers))
+        payload = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id).payload_data
+        self.assertEqual(payload["dob_precision"], "month_year")
+        self.assertEqual(payload["dob_month_year"], "1950-07-01")
+        self.assertNotIn("Id10021", payload)
+
+    # ── locked prefill enforced on the server (digitva-p6fs.9) ──────────────
+
+    def _locked_case_draft(self):
+        """A draft whose prefill locks the interviewer, both area presets and
+        ABHA; returns (draft, the authoritative locked values)."""
+        from app.services import organization_service as org
+
+        self.interviewer.name = "Field Worker"
+        self.interviewer.sex = "female"
+        self.interviewer.year_of_birth = date.today().year - 40
+        unit = self._org_unit()
+        org.set_unit_va_presets(self.PROJECT_ID, unit.org_unit_id, hiv_mortality="high", malaria_mortality="low")
+        death = self._register_death(org_unit_id=str(unit.org_unit_id), abha_number="12345678901234")
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+        authoritative = {
+            "Id10010": "Field Worker", "Id10010a": 40, "Id10010b": "female",
+            "Id10010c": str(self.interviewer.user_id), "Id10002": "high", "Id10003": "low",
+            "abha_number": "12345678901234",
+        }
+        self.assertEqual(set(draft.prefill["lockedQuestionNames"]), set(authoritative))
+        return draft, authoritative
+
+    _TAMPERED = {
+        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl", "Id10003": "high",
+        "abha_number": "99999999999999",
+    }
+
+    def test_draft_save_overwrites_tampered_locked_answers(self):
+        draft, authoritative = self._locked_case_draft()
+        sent = {"interviewer": dict(self._TAMPERED), "background": {"Id10019": "female", "Id10002": "low"}}
+        intake_svc.save_draft_sections(draft, sections=sent)
+        data = intake_svc.load_draft_envelope(draft)["data"]
+        for name, value in authoritative.items():
+            with self.subTest(name=name):
+                self.assertEqual(data[name], value)
+        self.assertEqual(data["Id10019"], "female")
+        # The caller's dicts are not rewritten in place.
+        self.assertEqual(sent["interviewer"]["Id10010"], "Someone Else")
+
+    def test_draft_save_keeps_a_dropped_locked_answer_and_clears_an_unlocked_one(self):
+        draft, authoritative = self._locked_case_draft()
+        intake_svc.save_draft_sections(
+            draft, sections={"interviewer": {**authoritative, "Id10007": "Ramesh"}},
+        )
+        intake_svc.save_draft_sections(draft, sections={"interviewer": {"Id10010": "Field Worker"}})
+        rows = {s.section_name: s.data for s in draft.sections}
+        self.assertEqual(rows["interviewer"], authoritative)
+        self.assertNotIn("Id10007", rows["interviewer"])
+
+    def test_untampered_save_is_stored_exactly_as_sent(self):
+        draft, authoritative = self._locked_case_draft()
+        sent = {"interviewer": {**authoritative, "Id10007": "Ramesh"}, "consent": {"Id10013": "yes"}}
+        intake_svc.save_draft_sections(draft, sections=sent)
+        self.assertEqual({s.section_name: s.data for s in draft.sections}, sent)
+
+    def test_submit_overwrites_tampered_locked_answers(self):
+        draft, authoritative = self._locked_case_draft()
+        submission = intake_svc.submit_draft(
+            draft, self.interviewer, completion=self._completion(data=dict(self._TAMPERED)),
+        )
+        payload = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id).payload_data
+        for name, value in authoritative.items():
+            with self.subTest(name=name):
+                self.assertEqual(payload[name], value)
+
+    def test_a_draft_without_locked_names_is_left_alone(self):
+        draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID)
+        draft.prefill = {}  # a draft started before lockedQuestionNames existed
+        intake_svc.save_draft_sections(draft, sections={"interviewer": {"Id10010": "Anyone"}})
+        self.assertEqual(draft.sections[0].data, {"Id10010": "Anyone"})
+        self.assertEqual(intake_svc._locked_answers({}), {})
+        self.assertEqual(
+            intake_svc._locked_answers({"lockedQuestionNames": ["Id10010", "Id10002"], "interviewer": {}}), {},
+        )
 
 
 class WebFormTypeFromProjectSettingTests(BaseTestCase):

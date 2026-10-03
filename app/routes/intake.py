@@ -125,7 +125,7 @@ def api_register_death():
             site_id=str(p.get("site_id") or ""),
             org_unit_id=p.get("org_unit_id") or None,
             **{k: p.get(k) for k in (
-                "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth",
+                "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
                 "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
                 "address_village_ward", "address_landmark", "informant_name", "informant_phone",
                 "informant_phone_2", "remarks", "father_name", "mother_name",

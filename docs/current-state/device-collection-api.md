@@ -170,6 +170,12 @@ one section named `device`; then `submit_draft` with `intake_source =
   `superseded: true`. Supervisors cannot yet list these copies.
 - Scope: a site outside the interviewer's context in the device's project is
   403; a case outside it, or in another project, is 404.
+- **Locked answers.** The draft's server-computed prefill decides which
+  answers are locked (interviewer identity, area presets, ABHA); their
+  values overwrite whatever the upload carries, in the stored section and
+  the submission payload, and in a superseded copy (whose draft now stores
+  that prefill). A tampered value is never persisted; nothing is refused
+  for it (docs/policy/web-intake.md, "Locked prefill").
 - **Bounds.** `draft.data` nested deeper than 6 levels or over 1 MB
   serialized is 422 before anything is stored, on the superseded path too
   (`_check_device_answers`).
@@ -199,6 +205,10 @@ one section named `device`; then `submit_draft` with `intake_source =
   client_death_id=...)`. A concurrent resend that loses the unique index is
   answered 200 the same way. `register_death`'s content refusals (400) are
   answered 422 `invalid_registration`; a list or object in a field is 422 too.
+  The fields are the web register form's, including optional
+  `date_of_birth_partial` (`YYYY-MM` or `YYYY`, never with `date_of_birth`);
+  the case row's `prefill` maps it to `Id10020` = no and the WHO
+  `dob_precision` fields.
 - **Attempts.** `find_device_attempt` first (same user and case -> 200, even
   after the case has moved on; otherwise 409), then `log_contact_attempt(...,
   client_attempt_id=...)`; 422 `invalid_attempt` for a bad outcome or date.

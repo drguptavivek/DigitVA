@@ -109,6 +109,10 @@ INSTRUMENT_ID = "va_who_2022"
 ATTACHMENT_REFERENCE_PREFIX = "who-va-attachment:"
 AUDIT_ROLE = "vainterviewer"
 PAYLOAD_ROLE = "vainterviewer"
+#: ``YYYY`` or ``YYYY-MM``: a birth date whose day (or day and month) is unknown.
+_PARTIAL_DATE_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2]))?$", re.ASCII)
+#: The earliest plausible birth year; the WHO dob_year constraint's floor.
+PARTIAL_BIRTH_MIN_YEAR = 1900
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
 # Indian mobile: 10 digits starting 6-9, optionally after +91 or 0.
@@ -423,6 +427,28 @@ def _clean_date(raw: object, *, what: str, required: bool = False) -> date | Non
     return parsed
 
 
+def _clean_partial_birth(raw: object, date_of_death: date) -> str | None:
+    """A partial birth date as ``YYYY`` or ``YYYY-MM``, or None if blank.
+
+    Refused (400) when malformed, before PARTIAL_BIRTH_MIN_YEAR, or after
+    today or the date of death at the precision given -- the month or year
+    of death itself is plausible. Compared as strings, which order like the
+    dates they name at equal length.
+    """
+    value = _clean(raw, what="Partial date of birth", max_len=7)
+    if value is None:
+        return None
+    if not _PARTIAL_DATE_RE.match(value):
+        raise WebIntakeError("Partial date of birth must be YYYY-MM or YYYY.")
+    if int(value[:4]) < PARTIAL_BIRTH_MIN_YEAR:
+        raise WebIntakeError(f"Partial date of birth cannot be before {PARTIAL_BIRTH_MIN_YEAR}.")
+    if value > date.today().isoformat()[:len(value)]:
+        raise WebIntakeError("Partial date of birth cannot be in the future.")
+    if value > date_of_death.isoformat()[:len(value)]:
+        raise WebIntakeError("Date of birth cannot be after the date of death.")
+    return value
+
+
 def _clean_abha(number: object, address: object) -> tuple[str | None, str | None]:
     abha_number = _clean(number, what="ABHA number", max_len=17)
     abha_address = _clean(address, what="ABHA address", max_len=64)
@@ -470,6 +496,9 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
     date_of_birth = _clean_date(fields.get("date_of_birth"), what="Date of birth")
     if date_of_birth and date_of_birth > date_of_death:
         raise WebIntakeError("Date of birth cannot be after the date of death.")
+    date_of_birth_partial = _clean_partial_birth(fields.get("date_of_birth_partial"), date_of_death)
+    if date_of_birth and date_of_birth_partial:
+        raise WebIntakeError("Give an exact or a partial date of birth, not both.")
     age_years = None
     if fields.get("age_years") not in (None, ""):
         try:
@@ -492,6 +521,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         abha_number=abha_number,
         abha_address=abha_address,
         date_of_birth=date_of_birth,
+        date_of_birth_partial=date_of_birth_partial,
         age_years=age_years,
         date_of_death=date_of_death,
         place_of_death=_clean(fields.get("place_of_death"), what="Place of death"),
@@ -788,7 +818,18 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
     identity, area presets, ABHA). Everything else is an ordinary editable
     answer. Name split: the first word is the given name (Id10017), the rest
-    the surname (Id10018). ``unit_parts`` is the unit's ``(presets, org path
+    the surname (Id10018).
+
+    Birth date: an exact ``date_of_birth`` goes as ``deceased.dateOfBirth``
+    (prefill.ts sets Id10020 = yes, Id10021). A ``date_of_birth_partial``
+    never touches Id10021 (WHO's full date only); it sets Id10020 = no and
+    the DigitVA precision block after it, whose relevance needs that no:
+    ``YYYY-MM`` -> dob_precision = month_year, dob_month_year = YYYY-MM-01;
+    ``YYYY`` -> dob_precision = year, dob_year = YYYY-01-01 (the day and
+    month the ODK date type stores for those appearances, never read back
+    as known). Age, when also known, still prefills as below.
+
+    ``unit_parts`` is the unit's ``(presets, org path
     names)`` already resolved for a batch (``device_case_rows``); without it
     both are queried here.
     """
@@ -854,6 +895,13 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
                 "Id10020": "no", "age_group": "child",
                 "age_child_unit": "years", "age_child_years": death.age_years,
             })
+        if not death.date_of_birth and death.date_of_birth_partial:
+            partial = death.date_of_birth_partial
+            answers["Id10020"] = "no"
+            if len(partial) == 7:
+                answers.update({"dob_precision": "month_year", "dob_month_year": f"{partial}-01"})
+            else:
+                answers.update({"dob_precision": "year", "dob_year": f"{partial}-01-01"})
         prefill["deceased"] = deceased
         for name, value in (("abha_number", death.abha_number), ("abha_address", death.abha_address)):
             if value:
@@ -862,6 +910,48 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     prefill["answers"] = answers
     prefill["lockedQuestionNames"] = sorted(locked)
     return prefill
+
+
+#: Locked interviewer questions and the ``prefill["interviewer"]`` key each is
+#: filled from, as prefill.ts's addInterviewer maps them.
+_INTERVIEWER_ANSWER_KEYS = {"Id10010": "name", "Id10010a": "age", "Id10010b": "sex", "Id10010c": "id"}
+
+
+def _locked_answers(prefill: dict) -> dict:
+    """``{question: value}`` for every locked question of a draft's prefill.
+
+    *prefill* is the draft's stored, server-computed prefill
+    (``_prefill_from_death``), never the client's ``lockedQuestionNames``:
+    the client list only drives the read-only display. Values come from
+    ``prefill["answers"]`` (area presets, ABHA) or ``prefill["interviewer"]``
+    (Id10010 trimmed, as prefill.ts does). A name with no value to restore,
+    or a prefill without locked names (a draft from before them), yields
+    nothing, so nothing is ever blanked.
+    """
+    answers = prefill.get("answers") or {}
+    interviewer = prefill.get("interviewer") or {}
+    out: dict = {}
+    for name in prefill.get("lockedQuestionNames") or ():
+        if name in answers:
+            value = answers[name]
+        elif name in _INTERVIEWER_ANSWER_KEYS:
+            value = interviewer.get(_INTERVIEWER_ANSWER_KEYS[name])
+            if isinstance(value, str):
+                value = value.strip()
+        else:
+            value = None
+        if value not in (None, ""):
+            out[name] = value
+    return out
+
+
+def _enforce_locked(answers: dict, locked: dict, previous: dict | None = None) -> dict:
+    """*answers* with every locked question it carries, or *previous* (the
+    section's last save) carried, set to its authoritative value. A new dict:
+    the caller's is left as sent. Locked questions the section never held are
+    not added, so a section save does not move answers between sections."""
+    held = set(answers) | set(previous or {})
+    return {**answers, **{name: value for name, value in locked.items() if name in held}}
 
 
 #: Case states from which starting (or resuming) an interview moves the case
@@ -996,6 +1086,8 @@ def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
         "id": str(draft.draft_id),
         "instrumentId": meta.get("instrumentId", INSTRUMENT_ID),
         "instrumentVersion": meta.get("instrumentVersion", ""),
+        "locale": meta.get("locale", DEFAULT_LOCALE),
+        "translation_version": meta.get("translation_version", 0),
         "currentSection": draft.current_section or meta.get("currentSection", ""),
         "createdAt": meta.get("createdAt", draft.created_at.isoformat()),
         "updatedAt": meta.get("updatedAt", draft.updated_at.isoformat()),
@@ -1079,6 +1171,9 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     # answers saved and the meta refused.
     locale_meta = _clean_locale_meta(meta) if meta else {}
     existing = {row.section_name: row for row in draft.sections}
+    # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
+    # answer is put back, not refused (see submit_draft).
+    locked = _locked_answers(draft.prefill or {})
     written = 0
     for name, answers in sections.items():
         if not isinstance(name, str) or not _SECTION_NAME_RE.match(name):
@@ -1086,6 +1181,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         if not isinstance(answers, dict):
             raise WebIntakeError(f"Section {name!r} must be an object of answers.")
         row = existing.get(name)
+        answers = _enforce_locked(answers, locked, row.data if row is not None else None)
         if row is None:
             row = VaWebIntakeDraftSection(draft_id=draft.draft_id, section_name=name, data=answers)
             db.session.add(row)
@@ -1324,7 +1420,13 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
     outcome = _interview_outcome(completion["data"], completion)
-    data = {**completion["data"], "interview_outcome": outcome}
+    # Locked answers (interviewer identity, area presets, ABHA) are
+    # overwritten with the draft's server-computed prefill, added when the
+    # client left them out, before relevance is derived or stripped. Overwrite,
+    # not refuse: a device interview finished offline may hold a stale locked
+    # value (a profile edit, an age crossing a birthday year), and refusing
+    # would strand a completed interview the interviewer cannot correct.
+    data = {**completion["data"], **_locked_answers(draft.prefill or {}), "interview_outcome": outcome}
     consent = normalize_consent(data.get("Id10013"))
     _require_live_org_unit(draft)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
@@ -1512,6 +1614,9 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
     except WebIntakeError:
         outcome = None
     form = ensure_web_runtime_form(death.project_id, death.site_id)
+    # Stored answers get the same locked-answer rule as a submission.
+    prefill = _prefill_from_death(death, user, death.org_unit_id)
+    data = {**data, **_locked_answers(prefill)}
     now = _utcnow()
     draft = VaWebIntakeDraft(
         project_id=death.project_id,
@@ -1523,7 +1628,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
         unique_id=death.unique_id,
         meta={"instrumentId": INSTRUMENT_ID, "locale": DEFAULT_LOCALE, "translation_version": 0,
               **meta, "interviewOutcome": outcome},
-        prefill={},
+        prefill=prefill,
         status="superseded",
         client_draft_id=client_draft_id,
         submitted_at=now,
@@ -2110,6 +2215,7 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "abha_number": death.abha_number,
         "abha_address": death.abha_address,
         "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
+        "date_of_birth_partial": death.date_of_birth_partial,
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
         "place_of_death": death.place_of_death,

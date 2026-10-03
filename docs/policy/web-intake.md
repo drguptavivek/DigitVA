@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Web Intake Policy
@@ -44,6 +44,16 @@ submission enters the workflow. Plan:
   and ABHA address, date of birth or age, date of death, place, address,
   informant, remarks, unit. Name, phone and ABHA identifiers are personal
   data and follow the PII rules (never logged, admin-only exports).
+- **Birth-date precision**: exact birth dates use `date_of_birth` (YYYY-MM-DD).
+  Month/year and year-only values use optional `date_of_birth_partial`
+  (YYYY-MM or YYYY), mutually exclusive with the exact date (both is
+  refused). A partial value must be well formed, from 1900, and not after
+  today or the date of death at the precision given (the month or year of
+  death itself is accepted). Missing day or month is never fabricated in the
+  register. Age may accompany a partial
+  birth date or stand alone when birth date is unknown. WHO prefill uses
+  `dob_precision`, `dob_month_year` or `dob_year` for partial values; WHO
+  sentinel days stay confined to those precision fields, never `Id10021`.
 - **Unique id**: a PostgreSQL sequence (`va_death_register_number_seq`)
   assigns the human-readable id `<unit_code or site_id>-<6 digits>` when a
   death is registered, or when a direct-mode draft is first started. Gaps
@@ -619,9 +629,23 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
 | `Id10010a` / `Id10010b` interviewer age / sex | user-profile `year_of_birth` (age = interview year in the user's timezone minus it) and `sex` (`digitva-vzk.3`) | yes; `Id10010b` only when the profile has a sex |
 | `abha_number` / `abha_address` | case | yes (unchanged) |
+| `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills beside it (`digitva-tld2`) | no |
 
 Rules as built:
 
+- **Locked prefill is enforced on the server** (`digitva-p6fs.9`). The
+  locked set and values come from the draft's stored prefill, computed by
+  the server when the draft started (`_locked_answers`); the client's
+  `lockedQuestionNames` only drives the read-only display and is never
+  read back. On every draft save, a locked answer a section carries, or
+  carried in its last save, is set to its authoritative value; on submit
+  (and for a device superseded copy) every locked answer is set, added if
+  the client left it out, before relevance is derived. The server
+  **overwrites rather than refuses**: an offline device interview may hold
+  a stale locked value (a profile edit, an age crossing a year), and a
+  refusal would strand a completed interview the interviewer cannot fix.
+  Unlocked answers keep their saved-answer semantics (an unchanged answer
+  stays, a cleared one is cleared).
 - **Name split**: the first word of the case name is the given name
   (`Id10017`), the rest the surname (`Id10018`); a one-word name has no
   surname. Owner decision open: last word as surname suits Indian names

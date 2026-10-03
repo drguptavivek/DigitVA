@@ -1004,6 +1004,85 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
             VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
 
+    # ── locked prefill and partial birth dates (digitva-p6fs.9, tld2) ──────
+
+    _TAMPERED = {
+        "Id10010": "Someone Else", "Id10010a": 25, "Id10010b": "male",
+        "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl",
+        "abha_number": "99999999999999",
+    }
+
+    def _locked_case(self):
+        """A case at a unit with an HIV preset and ABHA, interviewed by a
+        profile that locks name, age and sex; returns (case, authoritative)."""
+        from app.services import organization_service as org
+
+        self.interviewer.name = "Device Worker"
+        self.interviewer.sex = "male"
+        self.interviewer.year_of_birth = date.today().year - 35
+        d1, _p1, _d2 = self._tree()
+        org.set_unit_va_presets(self.PROJECT_ID, d1.org_unit_id, hiv_mortality="high", malaria_mortality=None)
+        death = self._web_case(org_unit_id=str(d1.org_unit_id), abha_number="12345678901234")
+        return death, {
+            "Id10010": "Device Worker", "Id10010a": 35, "Id10010b": "male",
+            "Id10010c": str(self.interviewer.user_id), "Id10002": "high", "abha_number": "12345678901234",
+        }
+
+    def test_upload_overwrites_tampered_locked_answers(self):
+        death, authoritative = self._locked_case()
+        _device, tokens = self._session()
+        response = self._upload(tokens, death_id=str(death.death_id),
+                                draft={"data": {**_complete_answers(), **self._TAMPERED}})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        payload = db.session.scalar(sa.select(VaSubmissionPayloadVersion.payload_data).where(
+            VaSubmissionPayloadVersion.va_sid == response.get_json()["va_sid"]))
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.user_id == self.interviewer.user_id))
+        for name, value in authoritative.items():
+            with self.subTest(name=name):
+                self.assertEqual(payload[name], value)
+                self.assertEqual(draft.sections[0].data[name], value)
+        self.assertEqual(payload["Id10017"], "Bina")
+
+    def test_untampered_upload_is_unaffected(self):
+        death, authoritative = self._locked_case()
+        _device, tokens = self._session()
+        response = self._upload(tokens, death_id=str(death.death_id),
+                                draft={"data": {**_complete_answers(), **authoritative}})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["outcome"], "completed")
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.user_id == self.interviewer.user_id))
+        self.assertEqual(draft.sections[0].data, {**_complete_answers(), **authoritative})
+
+    def test_superseded_copy_overwrites_tampered_locked_answers(self):
+        death, authoritative = self._locked_case()
+        _device, teammate_tokens = self._session(email="device.teammate@test.local")
+        self.assertEqual(self._upload(teammate_tokens, death_id=str(death.death_id)).status_code, 201)
+        _device2, tokens = self._session()
+        late = self._upload(tokens, death_id=str(death.death_id),
+                            draft={"data": {**_complete_answers(), **self._TAMPERED}})
+        self.assertTrue(late.get_json()["superseded"])
+        copy = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id, VaWebIntakeDraft.death_id == death.death_id))
+        for name, value in authoritative.items():
+            with self.subTest(name=name):
+                self.assertEqual(copy.sections[0].data[name], value)
+
+    def test_offline_registration_takes_a_partial_birth_date(self):
+        _device, tokens = self._session()
+        created = self._register(tokens, date_of_birth_partial="1966-04")
+        self.assertEqual(created.status_code, 201, created.get_json())
+        case = created.get_json()["case"]
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(case["death_id"])).date_of_birth_partial, "1966-04")
+        answers = case["prefill"]["answers"]
+        self.assertEqual((answers["Id10020"], answers["dob_precision"], answers["dob_month_year"]),
+                         ("no", "month_year", "1966-04-01"))
+        for fields in ({"date_of_birth_partial": "1966-13"},
+                       {"date_of_birth_partial": "1966", "date_of_birth": "1966-04-02"}):
+            refused = self._register(tokens, **fields)
+            self.assertEqual((refused.status_code, refused.get_json()["code"]), (422, "invalid_registration"), fields)
+
     # ── units and translations ─────────────────────────────────────────────
 
     def _tree(self):

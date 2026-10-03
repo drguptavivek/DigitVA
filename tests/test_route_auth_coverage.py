@@ -52,6 +52,11 @@ _LOGIN_REQUIRED_CO_QUALNAME = "login_required.<locals>.decorated_view"
 PUBLIC_BY_DESIGN = frozenset({
     # Static asset serving; Flask's own endpoint, no application data.
     "static",
+    # Public Expo assets contain no case data. The bootstrap guards identity
+    # in its body and returns JSON 401 before exposing any session metadata.
+    "expo_client.expo_index",
+    "expo_client.expo_asset",
+    "api_v1.client_api.bootstrap",
     # Liveness probe for the container orchestrator; must answer before login.
     "health.health_check",
     # The login form and its POST. Cannot require a session to create one.

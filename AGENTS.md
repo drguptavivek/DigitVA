@@ -10,12 +10,18 @@ The main session plans, decides, reviews results and commits. It delegates:
 - **Coding: Opus `code-writer`.** Give it the decided design, the files to
   read first, the tests to write, and "do not commit, stash or push". It
   reports files changed, where the design did not fit, and the pytest targets.
+- **Narrow-scoped tasks and code exploration: Sonnet or Luna at high
+  effort.** A small fix, a single-file change, a doc, or finding where
+  something lives goes to one of these, not to Opus. Keep Opus for broad or
+  risky multi-file changes (auth, migrations, cross-module refactors).
 - **Reads, audits, reviews: Sonnet or Haiku.** `code-reviewer`,
   `security-reviewer`, `auditor`, `Explore`. Read-only. Ask for verified
   findings with `file:line`, nothing speculative.
 - **Tests: one dedicated read-only Sonnet runner.** It runs pytest and reports
   exact counts and full tracebacks. It never edits. One runner at a time per
-  test database, so runs do not terminate each other's connections.
+  test database, so runs do not terminate each other's connections: each
+  concurrent agent gets its own `minerva_test_<name>`, dropped when its
+  work is committed.
 - Launch independent agents in the same turn (reviewer and test runner in
   parallel). Never have two agents editing the same files at once.
 - The main session makes small fix-ups itself; anything larger goes back to

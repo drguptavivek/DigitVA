@@ -789,6 +789,39 @@ The scope check is one package, `app/services/authz/` (`can`/`require`,
 in this document. Workflow checks (allocation, state, language, the recode
 window) stay with the workflow services. The legacy `permission` JSONB column is kept but never read (digitva-d3y5: production holds only coder and sitepi keys, which were already ignored).
 
+### Every access goes through authz (owner 2026-10-03)
+
+- **No unchecked endpoint.** Every request to the app (web pages, partials,
+  JSON APIs, the browser and native app APIs, file and media delivery) is
+  decided by `app/services/authz/`. Role gates (`role_required`) read
+  `authz.effective_roles`; object and list access use `can`/`require`/
+  `scope_filter`. The only exceptions are a reviewed, named public list:
+  sign-in, sign-out, password reset and verification links, static assets,
+  health checks and the public landing/help pages. Each entry states why.
+- **Fail closed.** A non-public endpoint that completes without consulting
+  authz is a defect. Tests probe every registered route with a user holding
+  no grants and with each role, and fail if any non-public endpoint skips
+  authz. In production such a request is refused (403) and logged, once
+  the probe shows no gaps.
+- **Redis cache for grant lookups.** A user's resolved grants are cached in
+  Redis so every request decides from one fast lookup. The cache is an
+  accelerator, never the authority:
+  - keyed by user and a per-user version; every grant write, user status
+    change, admin flag change and factor/session reset bumps that user's
+    version (`authz.invalidate`);
+  - a global version is bumped by any change that can alter many users'
+    reach: a project, site, project-site or unit activated, deactivated or
+    closed, a project's coding-scope settings, the demo-training project
+    switch, the organization tree;
+  - a short TTL (5 minutes) is the backstop for anything missed;
+  - holds grant ids, roles, scopes and project settings only: no personal
+    data, no submission data;
+  - if Redis is unavailable the grants are read from the database for that
+    request (slower, never more permissive); a cached entry that fails to
+    parse is discarded.
+  - Decisions about one submission (`can`) still read that submission's
+    routing from the database; only the grants are cached.
+
 ## API And CSRF Baseline
 
 Authorization services should be reusable across server-rendered, HTMX, and React clients.

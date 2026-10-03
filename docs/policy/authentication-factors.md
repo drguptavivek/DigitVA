@@ -194,3 +194,5 @@ Windows, Safari and Chrome on macOS, Safari on iOS, Chrome on Android; a
 platform passkey, a synced or cross-device passkey and a security key where
 available) are recorded with exact OS and browser versions; a passing unit
 test is not evidence of platform support.
+
+Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

@@ -220,3 +220,5 @@ one section named `device`; then `submit_draft` with `intake_source =
   ids (they are in the JSON).
 - A supervisor view of superseded copies and telling the interviewer in the
   web list.
+
+Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboarding](authentication-and-onboarding.md).

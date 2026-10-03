@@ -114,3 +114,5 @@ Email accounts sign in exactly as today. Mobile numbers are not shown to
 unit data managers in search or lookup results
 ([dm-user-grant-management.md](dm-user-grant-management.md)). A mobile
 number is personal data: kept out of logs, exports and URLs.
+
+Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

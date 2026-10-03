@@ -148,3 +148,5 @@ sessions ended: actor and time, never a password, code or token. Emails
 carrying a password carry nothing else sensitive and no sign-in link
 beside the login page address. Mobile numbers are personal data: kept out
 of logs, exports and URLs.
+
+Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

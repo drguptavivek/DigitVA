@@ -19,6 +19,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services import authz
 from tests.base import BaseTestCase
 from tests.test_coding_scope_enforcement import CodingScopeFixtureMixin
 
@@ -133,7 +134,7 @@ class UnitCodingTesterTests(UnitScopeFixture, BaseTestCase):
         self.assertNotIn("csc-tester-sibling-same-form", offered)
 
     def test_tester_bypass_of_the_coder_unit_check_is_its_own_subtree(self):
-        from app.services.coder_workflow_service import tester_covers_submission
+        from app.services.authz import Action, can
 
         _, _, chc, phc_a, _ = self._tree()
         self._sub("csc-cover-in", unit=phc_a)
@@ -141,9 +142,9 @@ class UnitCodingTesterTests(UnitScopeFixture, BaseTestCase):
         self._sub("csc-cover-unrouted")
         tester = self._user_with("unit.tester.cover@test.local", VaAccessRoles.coding_tester, phc_a)
 
-        self.assertTrue(tester_covers_submission(tester, "csc-cover-in", self.FORM_ID))
-        self.assertFalse(tester_covers_submission(tester, "csc-cover-above", self.FORM_ID))
-        self.assertFalse(tester_covers_submission(tester, "csc-cover-unrouted", self.FORM_ID))
+        self.assertTrue(can(tester, Action.CODE, "csc-cover-in"))
+        self.assertFalse(can(tester, Action.CODE, "csc-cover-above"))
+        self.assertFalse(can(tester, Action.CODE, "csc-cover-unrouted"))
 
     def test_pick_allocation_refuses_a_unit_tester_outside_the_subtree(self):
         from app.services.coder_workflow_service import AllocationError, allocate_pick_form
@@ -381,7 +382,11 @@ class CrossUnitSubmissionScopeTests(UnitScopeFixture, BaseTestCase):
         _, district, _, _, _ = self._tree()
         self._sub("csc-x-sync", unit=district)
         dm = self._user_with("x.dm.sync@test.local", VaAccessRoles.data_manager, district)
-        self.assertTrue(dm.has_data_manager_form_access(self.FORM_ID))
+        # The subject: the unit grant does reach submissions of this form.
+        self.assertTrue(db.session.scalar(sa.select(sa.exists().where(
+            VaSubmissions.va_form_id == self.FORM_ID,
+            authz.scope_filter(dm, authz.Action.LIST_DATA),
+        ))))
         self._login(str(dm.user_id))
 
         self.assertEqual(self.client.post(

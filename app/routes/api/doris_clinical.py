@@ -81,9 +81,7 @@ def _clinical_context(va_sid: str, role: str) -> ClinicalDorisContext:
         allowed = can(current_user, Action.REVIEW, va_sid).allowed
         allocation_for = VaAllocation.reviewing
     else:
-        allowed = current_user.has_va_form_access(
-            submission.va_form_id, "coder"
-        ) or current_user.is_coding_tester(submission.va_form_id)
+        allowed = can(current_user, Action.CODE, va_sid).allowed
         allocation_for = VaAllocation.coding
     if not allowed:
         raise ClinicalDorisAccessError(

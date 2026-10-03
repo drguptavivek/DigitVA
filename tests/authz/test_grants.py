@@ -11,7 +11,7 @@ from app.services.authz import (
     invalidate,
     resolve_grants,
 )
-from tests.authz.fixture import DM, TA, USERS, AuthzFixtureMixin, P, R
+from tests.authz.fixture import DM, SP, TA, USERS, AuthzFixtureMixin, P, R
 from tests.base import BaseTestCase
 
 
@@ -94,25 +94,27 @@ class EffectiveRolesTests(AuthzFixtureMixin, BaseTestCase):
 
 class CodingGateWaiverTests(AuthzFixtureMixin, BaseTestCase):
 
-    def test_same_waivers_as_the_original(self):
-        # The original (coder_workflow_service._coding_waivers, deleted in
-        # stage 1) was these five VaUsers getters; compare against them.
-        checked = 0
+    def test_waivers_per_fixture_user(self):
+        # Hand-written from the fixture roster (tests/authz/fixture.py USERS);
+        # every field not listed is empty. A demo-training grant waives nothing.
+        tester_c1_units = {self.units[code].org_unit_id for code in ("C1", "P1", "SC1", "P2")}
+        expected = {
+            "pi_ta": {"pi_projects": {TA}},
+            "pi_sp": {"pi_projects": {SP}},
+            "sitepi_sp1": {"pi_pairs": {(SP, "AZS1")}},
+            "tester_ta": {"tester_projects": {TA}},
+            "tester_sp": {"tester_projects": {SP}},
+            "tester_c1": {"tester_unit_ids": tester_c1_units},
+        }
+        fields = ("pi_projects", "pi_pairs", "tester_projects", "tester_pairs", "tester_unit_ids")
         for key in USERS:
             with self.subTest(user=key):
-                user = self.users[key]
-                new = coding_gate_waivers(user)
-                old = {
-                    "pi_projects": user.get_project_pi_projects(),
-                    "pi_pairs": user.get_site_pi_project_site_pairs(),
-                    "tester_projects": user.get_coding_tester_projects(),
-                    "tester_pairs": user.get_coding_tester_project_site_pairs(),
-                    "tester_unit_ids": user.get_coding_tester_org_unit_ids(),
-                }
-                for field, expected in old.items():
-                    self.assertEqual(getattr(new, field), frozenset(expected), field)
-                    checked += bool(getattr(new, field))
-        self.assertGreater(checked, 3)  # some user holds each kind of waiver
+                waivers = coding_gate_waivers(self.users[key])
+                for field in fields:
+                    self.assertEqual(
+                        getattr(waivers, field), frozenset(expected.get(key, {}).get(field, ())),
+                        field,
+                    )
 
     def test_unit_tester_waives_inside_its_subtree_only(self):
         waivers = coding_gate_waivers(self.users["tester_c1"])

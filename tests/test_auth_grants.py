@@ -17,7 +17,13 @@ from app.models import (
     VaUsers,
 )
 
+from app.services.authz import resolve_grants
 from tests.base import BaseTestCase
+
+
+def _site_pi_pairs(user):
+    """(project_id, site_id) pairs of the user's live site_pi grants."""
+    return resolve_grants(user).wide_pairs((VaAccessRoles.site_pi,), coding=False)
 
 
 class AuthGrantResolutionTests(BaseTestCase):
@@ -190,8 +196,8 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_coder_va_forms(), {self.form_a})
         self.assertTrue(user.is_coder())
-        self.assertTrue(user.has_va_form_access(self.form_a, "coder"))
-        self.assertFalse(user.has_va_form_access(self.form_b, "coder"))
+        self.assertTrue(user.is_coder(self.form_a))
+        self.assertFalse(user.is_coder(self.form_b))
 
     def test_reviewer_project_grant_resolves_all_project_forms(self):
         user = self._create_user("test.auth.reviewer@example.com")
@@ -206,10 +212,8 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_reviewer_va_forms(), {self.form_a, self.form_b})
         self.assertTrue(user.is_reviewer())
-        self.assertTrue(user.has_va_form_access(self.form_a, "reviewer"))
-        self.assertTrue(user.has_va_form_access(self.form_b, "reviewer"))
-        self.assertTrue(user.has_va_form_access(self.form_a))
-        self.assertTrue(user.has_va_form_access(self.form_b))
+        self.assertTrue(user.is_reviewer(self.form_a))
+        self.assertTrue(user.is_reviewer(self.form_b))
 
     def test_reviewer_without_grant_fails_closed(self):
         user = self._create_user("test.auth.reviewer@example.com")
@@ -217,8 +221,8 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_reviewer_va_forms(), set())
         self.assertFalse(user.is_reviewer())
-        self.assertFalse(user.has_va_form_access(self.form_a, "reviewer"))
-        self.assertFalse(user.has_va_form_access(self.form_b, "reviewer"))
+        self.assertFalse(user.is_reviewer(self.form_a))
+        self.assertFalse(user.is_reviewer(self.form_b))
 
     def test_site_pi_project_site_grant_resolves_site_and_form_scope(self):
         user = self._create_user("test.auth.sitepi@example.com")
@@ -232,24 +236,22 @@ class AuthGrantResolutionTests(BaseTestCase):
         db.session.refresh(user)
 
         self.assertEqual(
-            user.get_site_pi_project_site_pairs(), {(self.project_id, self.site_b)}
+            _site_pi_pairs(user), {(self.project_id, self.site_b)}
         )
         self.assertEqual(user.get_site_pi_va_forms(), {self.form_b})
         self.assertTrue(user.is_site_pi())
-        self.assertTrue(user.has_va_form_access(self.form_b, "sitepi"))
-        self.assertFalse(user.has_va_form_access(self.form_a, "sitepi"))
-        self.assertTrue(user.has_va_form_access(self.form_b))
-        self.assertFalse(user.has_va_form_access(self.form_a))
+        self.assertTrue(user.is_site_pi(self.form_b))
+        self.assertFalse(user.is_site_pi(self.form_a))
 
     def test_site_pi_without_grant_fails_closed(self):
         user = self._create_user("test.auth.sitepi@example.com")
         db.session.refresh(user)
 
-        self.assertEqual(user.get_site_pi_project_site_pairs(), set())
+        self.assertEqual(_site_pi_pairs(user), set())
         self.assertEqual(user.get_site_pi_va_forms(), set())
         self.assertFalse(user.is_site_pi())
-        self.assertFalse(user.has_va_form_access(self.form_a, "sitepi"))
-        self.assertFalse(user.has_va_form_access(self.form_b, "sitepi"))
+        self.assertFalse(user.is_site_pi(self.form_a))
+        self.assertFalse(user.is_site_pi(self.form_b))
 
     def test_legacy_coder_permission_without_grant_fails_closed(self):
         user = self._create_user(
@@ -260,7 +262,7 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_coder_va_forms(), set())
         self.assertFalse(user.is_coder())
-        self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
+        self.assertFalse(user.is_coder(self.form_a))
         self.assertFalse(user.has_va_form_access(self.form_a))
 
     def test_generic_access_does_not_cross_role_or_scope_boundaries(self):
@@ -274,8 +276,9 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.refresh(user)
 
-        self.assertTrue(user.has_va_form_access(self.form_a))
-        self.assertFalse(user.has_va_form_access(self.form_b))
+        self.assertTrue(user.is_coder(self.form_a))
+        self.assertFalse(user.is_coder(self.form_b))
+        self.assertFalse(user.is_reviewer(self.form_a))
 
     def test_project_site_grant_ignores_inactive_project_site_mapping(self):
         user = self._create_user("test.auth.coder@example.com")
@@ -293,7 +296,7 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_coder_va_forms(), set())
         self.assertFalse(user.is_coder())
-        self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
+        self.assertFalse(user.is_coder(self.form_a))
 
     def test_coder_project_grant_excludes_inactive_project_site_forms(self):
         user = self._create_user("test.auth.coder.project@example.com")
@@ -311,8 +314,8 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_coder_va_forms(), {self.form_b})
         self.assertTrue(user.is_coder())
-        self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
-        self.assertTrue(user.has_va_form_access(self.form_b, "coder"))
+        self.assertFalse(user.is_coder(self.form_a))
+        self.assertTrue(user.is_coder(self.form_b))
 
     def test_inactive_grant_does_not_authorize_access(self):
         user = self._create_user("test.auth.reviewer@example.com")
@@ -330,7 +333,7 @@ class AuthGrantResolutionTests(BaseTestCase):
 
         self.assertEqual(user.get_reviewer_va_forms(), set())
         self.assertFalse(user.is_reviewer())
-        self.assertFalse(user.has_va_form_access(self.form_a, "reviewer"))
+        self.assertFalse(user.is_reviewer(self.form_a))
 
     def test_mixed_project_and_project_site_grants_union_access(self):
         user = self._create_user("test.auth.reviewer@example.com")
@@ -351,8 +354,8 @@ class AuthGrantResolutionTests(BaseTestCase):
         db.session.refresh(user)
 
         self.assertEqual(user.get_reviewer_va_forms(), {self.form_a, self.form_b})
-        self.assertTrue(user.has_va_form_access(self.form_a, "reviewer"))
-        self.assertTrue(user.has_va_form_access(self.form_b, "reviewer"))
+        self.assertTrue(user.is_reviewer(self.form_a))
+        self.assertTrue(user.is_reviewer(self.form_b))
 
 
 if __name__ == "__main__":

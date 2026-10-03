@@ -168,7 +168,7 @@ May:
 - view data
 - view reporting
 - open a single submission read-only, within scope, with personal data
-  redacted (implementation tracked in digitva-0wc). The read-only renderings
+  redacted (`authz.require(VIEW)`, digitva-0wc). The read-only renderings
   (`vadata`, `vaarea`) load the category sections plus an allowlist of other
   partials (workflow history, the viewer's own note); the coding forms, which
   carry the DORIS prefill and prior certificates, are refused, and the DORIS
@@ -204,7 +204,7 @@ the admin panel as "Viewer (with PII)"; plain `collaborator` is shown as
 "Viewer".
 
 Identical to `collaborator` in everything it may do, including opening a
-single submission read-only within scope (implementation tracked in
+single submission read-only within scope (`authz.require(VIEW)`,
 digitva-0wc). The only difference is that personal data is not redacted from
 what it sees. Mentors, who may hold `collaborator_pii`, open submissions the
 same way.
@@ -550,7 +550,11 @@ manager at their own (project, site) pair only. They never create
 Decision 2026-10-02; replaces the data-manager role list recorded earlier the
 same day. Implemented in digitva-0wc stage 6: every grant write (the
 data-manager users page, the admin panel, the project users import) asks
-`authz.can_grant`, and the data-manager grant list is `authz.grant_list_filter`.
+`authz.can_grant`, and the grant lists (the data-manager users page and the
+admin panel's grant and orphaned-grant lists for a project PI) are
+`authz.grant_list_filter`. A non-admin is refused before the unit and cadre
+are validated, so a unit outside their scope, or one that does not exist,
+gets the same 403 (digitva-xd1q).
 
 A grant's **subtree** is what it covers: a `project` grant covers the whole
 project, a `project_site` grant its (project, site) pair, an `org_unit` grant
@@ -778,6 +782,14 @@ Implementation should separate:
 - workflow state check
 
 They should not remain blended together behind form-id-based helpers.
+
+The scope check is one package, `app/services/authz/` (`can`/`require`,
+`scope_filter`, `can_grant`/`grant_list_filter`, `effective_roles`,
+`reachable_unit_ids`), the single source for every role and scope decision
+in this document. Workflow checks (allocation, state, language, the recode
+window) stay with the workflow services. The legacy `permission` JSONB is
+still read as a fall-through for attachments and workflow events until a
+production row count (digitva-d3y5).
 
 ## API And CSRF Baseline
 

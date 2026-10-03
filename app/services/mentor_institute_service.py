@@ -426,72 +426,12 @@ def _deactivate_institute_grants(institute: MasMentorInstitute, user_id) -> int:
 # ---------------------------------------------------------------------------
 
 
-def holds_unit_data_manager(user_id) -> bool:
-    """Does the user hold an active unit-scope data_manager grant in an active project?"""
-    unit = sa.orm.aliased(MasOrgUnit, name="dm_gate_unit")
-    return bool(
-        db.session.scalar(
-            sa.select(
-                sa.exists().where(
-                    VaUserAccessGrants.user_id == user_id,
-                    VaUserAccessGrants.role == VaAccessRoles.data_manager,
-                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                    VaUserAccessGrants.grant_status == VaStatuses.active,
-                    unit.org_unit_id == VaUserAccessGrants.org_unit_id,
-                    unit.is_active.is_(True),
-                    active_project_condition(unit.project_id),
-                )
-            )
-        )
-    )
-
-
-def dm_covers_mentor_unit(dm_user_id, unit: MasOrgUnit) -> bool:
-    """May this data manager give mentor grants on *unit*?
-
-    No caller since digitva-0wc stage 6: ``authz.can_grant`` decides grant
-    writes, and the guard narrows them. Kept until stage 7 deletes it with
-    the other old helpers. True when they hold an active data_manager grant at project scope in the
-    unit's project, or at a unit that is the unit's district-level ancestor
-    (or the district itself) or above it. A grant lower down, at a CHC say,
-    does not cover the district.
-    """
-    if unit.project_id in _project_scope_dm_projects(dm_user_id):
-        return True
-    granted = sa.orm.aliased(MasOrgUnit, name="dm_granted_unit")
-    district = sa.orm.aliased(MasOrgUnit, name="dm_district")
-    target = sa.orm.aliased(MasOrgUnit, name="dm_target_unit")
-    return bool(
-        db.session.scalar(
-            sa.select(
-                sa.exists()
-                .where(
-                    VaUserAccessGrants.user_id == dm_user_id,
-                    VaUserAccessGrants.role == VaAccessRoles.data_manager,
-                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                    VaUserAccessGrants.grant_status == VaStatuses.active,
-                    granted.org_unit_id == VaUserAccessGrants.org_unit_id,
-                    granted.is_active.is_(True),
-                    active_project_condition(granted.project_id),
-                    district.project_id == granted.project_id,
-                    district.is_active.is_(True),
-                    sa.text("dm_district.path <@ dm_granted_unit.path"),
-                    MasOrgLevel.org_level_id == district.org_level_id,
-                    MasOrgLevel.depth == 1,
-                    target.org_unit_id == unit.org_unit_id,
-                    target.project_id == district.project_id,
-                    sa.text("dm_target_unit.path <@ dm_district.path"),
-                )
-            )
-        )
-    )
-
-
 def dm_visible_mentor_staff(
     dm_user_id, query: str, include_inactive: bool, limit: int = 25, *, user_id=None
 ) -> tuple[list[tuple[VaUsers, list[str]]], bool]:
     """Active staff of active institutes attached to a district the data manager
-    covers (same rule as ``dm_covers_mentor_unit``), with their institute codes.
+    covers, with their institute codes: a project-scope data_manager grant in
+    the district's project, or a unit data_manager grant at the district or above it.
 
     Backs the unit-only data manager's user search: nobody outside those
     institutes, and no inactive membership, is returned. The query is a literal

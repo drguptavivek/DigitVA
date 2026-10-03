@@ -7,8 +7,9 @@ created: the cadre must be defined at the unit's level, a ``coder`` grant
 requires a cadre that may code at that level, and an ``interview_supervisor``
 grant (unit scope only) a cadre that may supervise interviews there.
 
-Runtime coding and reviewer enforcement is phase 4; this module only resolves
-grants to unit id sets so those surfaces have one place to ask.
+Authorization decisions are ``app.services.authz``'s; this module keeps the
+write-time validation and the unit-set resolvers web intake and the unit
+pickers build on.
 
 Policy: docs/policy/organization-model.md, docs/policy/access-control-model.md.
 Plan: docs/planning/health-system-organization-model-plan.md (phase 2).
@@ -293,98 +294,12 @@ def granted_project_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# Coding scope (phase 4)
-#
-# A project may fix the level within which a death may be coded. A coder
-# granted at or below that level codes inside their own unit's subtree; one
-# granted above it is governed by the project's above_scope_coding_mode:
-# 'code_any' lets them code their whole subtree, 'view_only' lets them code
-# nothing. A project with no scope level set has no unit-based restriction.
+# Coding scope modes (mas_project.above_scope_coding_mode). The rule that
+# applies them is ``authz.ResolvedGrants.codes``.
 # ---------------------------------------------------------------------------
 
 ABOVE_SCOPE_CODE_ANY = "code_any"
 ABOVE_SCOPE_VIEW_ONLY = "view_only"
-
-
-def _project_scope_settings(project_ids: set[str]) -> dict[str, tuple[int | None, str]]:
-    """(scope level depth, above-scope mode) per project, in one query."""
-    if not project_ids:
-        return {}
-    from app.models import MasOrgLevel, VaProjectMaster
-
-    level = sa.orm.aliased(MasOrgLevel)
-    rows = db.session.execute(
-        sa.select(
-            VaProjectMaster.project_id,
-            level.depth,
-            VaProjectMaster.above_scope_coding_mode,
-        )
-        .outerjoin(level, level.org_level_id == VaProjectMaster.coding_scope_level_id)
-        .where(VaProjectMaster.project_id.in_(sorted(project_ids)))
-    ).all()
-    return {
-        row.project_id: (row.depth, row.above_scope_coding_mode or ABOVE_SCOPE_VIEW_ONLY)
-        for row in rows
-    }
-
-
-def codeable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]:
-    """Units whose submissions this user may code (or review) through unit grants.
-
-    Starts from each active *role* grant, applies the grant's project coding
-    scope, and expands the surviving grants to their subtrees. A grant above
-    the project's scope level survives only when the project says
-    ``above_scope_coding_mode = 'code_any'``.
-    """
-    from app.models import MasOrgLevel, MasOrgUnit
-
-    granted = sa.orm.aliased(MasOrgUnit, name="granted_unit")
-    level = sa.orm.aliased(MasOrgLevel, name="granted_level")
-    rows = db.session.execute(
-        sa.select(granted.org_unit_id, granted.project_id, level.depth)
-        .select_from(VaUserAccessGrants)
-        .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
-        .join(level, level.org_level_id == granted.org_level_id)
-        .where(
-            VaUserAccessGrants.user_id == user_id,
-            VaUserAccessGrants.role == role,
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-            granted.is_active.is_(True),
-            active_project_condition(granted.project_id),
-        )
-    ).all()
-    if not rows:
-        return set()
-
-    settings = _project_scope_settings({row.project_id for row in rows})
-    eligible_unit_ids = []
-    for row in rows:
-        scope_depth, above_mode = settings.get(row.project_id, (None, ABOVE_SCOPE_VIEW_ONLY))
-        if scope_depth is None:
-            # No coding scope level set: the grant's own subtree, as always.
-            eligible_unit_ids.append(row.org_unit_id)
-            continue
-        if row.depth >= scope_depth or above_mode == ABOVE_SCOPE_CODE_ANY:
-            eligible_unit_ids.append(row.org_unit_id)
-    if not eligible_unit_ids:
-        return set()
-
-    covered = sa.orm.aliased(MasOrgUnit, name="covered_unit")
-    anchor = sa.orm.aliased(MasOrgUnit, name="anchor_unit")
-    stmt = (
-        sa.select(covered.org_unit_id)
-        .select_from(anchor)
-        .join(
-            covered,
-            sa.and_(
-                covered.project_id == anchor.project_id,
-                sa.text("covered_unit.path <@ anchor_unit.path"),
-            ),
-        )
-        .where(anchor.org_unit_id.in_(eligible_unit_ids), covered.is_active.is_(True))
-    )
-    return set(db.session.scalars(stmt).all())
 
 
 def project_wide_grant_exists(
@@ -397,13 +312,13 @@ def project_wide_grant_exists(
     subtree, so it can't be answered by expanding org_unit-scoped grants
     (``scope_unit_ids``) — it needs its own existence check.
 
-    Shared by the organization API's unit picker
-    (``app/routes/api/organization.py::_reachable_unit_ids``) and the web
-    intake service's create-time scope check
-    (``app/services/web_intake_service.py::_reachable_unit_ids``). Both must
-    apply the same reachability rule, or the picker an interviewer sees and
-    the check their submission is held to would disagree about which units
-    they reach.
+    Used by the web intake service's create-time scope check
+    (``app/services/web_intake_service.py::_reachable_unit_ids``). The
+    organization API's unit picker answers the same question from
+    ``authz.reachable_unit_ids`` (project and pair grants on active pairs of
+    active projects); the two must keep the same rule, or the picker an
+    interviewer sees and the check their submission is held to would
+    disagree about which units they reach.
 
     Exact promises, because callers outside this module depend on them:
 
@@ -421,8 +336,8 @@ def project_wide_grant_exists(
       function answers one narrow question — does an *explicit* project- or
       site-scoped grant in *roles* exist — and nothing else. A caller that
       wants admins to reach the whole tree must check that itself, before
-      calling (the organization API does; web intake deliberately does not,
-      because intake access is strictly grant-based).
+      calling (``authz.reachable_unit_ids`` does; web intake deliberately
+      does not, because intake access is strictly grant-based).
     * **An org_unit-scoped grant never counts**, by construction: that is
       what ``scope_unit_ids`` expands.
     """
@@ -464,38 +379,6 @@ def project_wide_grant_exists(
     return bool(db.session.scalar(site_scope))
 
 
-def reachable_unit_ids(
-    user, project_id: str, roles: frozenset[VaAccessRoles] = ROLES_ALLOWING_ORG_UNIT
-) -> set[uuid.UUID] | None:
-    """Unit ids of *project_id* that *user*'s grants in *roles* reach, for viewing.
-
-    ``None`` means the whole tree: an admin, a PI of the project, or anyone
-    holding a project- or site-scoped grant there in *roles*. Otherwise the
-    union of the user's unit-grant subtrees in *roles*, kept to this project
-    (a user may hold grants in several). An empty set reaches nothing.
-
-    Shared by the organization API's read-only unit picker and the area
-    dashboard (``area_dashboard_service``), so the tree a user may browse and
-    the tree whose counts they see cannot disagree. Web intake deliberately
-    keeps its own interviewer-only, grant-only variant
-    (``web_intake_service._reachable_unit_ids``): intake has no admin bypass.
-    """
-    if user.is_admin() or user.can_manage_project(project_id):
-        return None
-    if project_wide_grant_exists(user.user_id, project_id, roles):
-        return None
-    reachable = scope_unit_ids_for_roles(user.user_id, roles)
-    if not reachable:
-        return set()
-    in_project = db.session.scalars(
-        sa.select(MasOrgUnit.org_unit_id).where(
-            MasOrgUnit.project_id == project_id,
-            MasOrgUnit.org_unit_id.in_(sorted(reachable)),
-        )
-    ).all()
-    return set(in_project)
-
-
 def projects_with_org_tree(project_ids: set[str] | None = None) -> set[str]:
     """Projects that have at least one active organization level."""
     from app.models import MasOrgLevel
@@ -504,133 +387,6 @@ def projects_with_org_tree(project_ids: set[str] | None = None) -> set[str]:
     if project_ids:
         stmt = stmt.where(MasOrgLevel.project_id.in_(sorted(project_ids)))
     return set(db.session.scalars(stmt.distinct()).all())
-
-
-def wide_grant_scope(
-    user, role: VaAccessRoles, *, coding: bool
-) -> tuple[set[str], set[tuple[str, str]]]:
-    """Projects and (project, site) pairs *user* holds *role* at above any unit.
-
-    A ``project`` or ``project_site`` grant on a tree project is a grant at the
-    top of the tree (decision 2026-10-02, digitva-7xq): it views its whole
-    project or pair, routed and unrouted. For *coding* it is above any scope
-    level, so a project that sets ``coding_scope_level_id`` keeps it only under
-    ``above_scope_coding_mode = 'code_any'``. Pairs are keyed on
-    (project_id, site_id), never the bare site id.
-
-    Two or three queries per call, whatever the number of grants.
-    """
-    projects = user._get_granted_project_ids(role.value)
-    pairs = user._get_granted_project_site_pairs(role.value)
-    if not coding or not (projects or pairs):
-        return projects, pairs
-    settings = _project_scope_settings(projects | {project_id for project_id, _ in pairs})
-
-    def codes(project_id: str) -> bool:
-        scope_depth, above_mode = settings.get(project_id, (None, ABOVE_SCOPE_VIEW_ONLY))
-        return scope_depth is None or above_mode == ABOVE_SCOPE_CODE_ANY
-
-    return (
-        {project_id for project_id in projects if codes(project_id)},
-        {pair for pair in pairs if codes(pair[0])},
-    )
-
-
-def _submission_within(user, va_sid: str, role: VaAccessRoles, *, coding: bool) -> bool:
-    from app.models import MasOrgLevel, VaForms, VaSubmissions
-
-    row = db.session.execute(
-        sa.select(VaSubmissions.org_unit_id, VaForms.project_id, VaForms.site_id)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .where(VaSubmissions.va_sid == va_sid)
-    ).first()
-    if row is None:
-        return False
-
-    has_tree = db.session.scalar(
-        sa.select(sa.literal(True)).where(
-            sa.exists(
-                sa.select(1).where(
-                    MasOrgLevel.project_id == row.project_id,
-                    MasOrgLevel.is_active.is_(True),
-                )
-            )
-        )
-    )
-    if not has_tree:
-        return True
-    # Checked before the unrouted test: a project or pair grant reaches the
-    # unrouted submissions of its scope too.
-    projects, pairs = wide_grant_scope(user, role, coding=coding)
-    if row.project_id in projects or (row.project_id, row.site_id) in pairs:
-        return True
-    if row.org_unit_id is None:
-        return False
-    units = (
-        codeable_unit_ids(user.user_id, role)
-        if coding
-        else viewable_unit_ids(user.user_id, role)
-    )
-    return row.org_unit_id in units
-
-
-def submission_within_org_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
-    """Whether one submission is inside the user's coding scope for *role*.
-
-    True for any submission of a project with no organization tree: those keep
-    the form-and-site model untouched. On a tree project it is True when a
-    ``project`` / ``project_site`` grant codes there (``wide_grant_scope``),
-    routed or not, or when the submission is routed to a unit inside the
-    user's codeable units. An unrouted submission is reached by no unit grant
-    until a data manager routes it.
-
-    This is the per-submission counterpart of the list filter in
-    ``coder_workflow_service._org_unit_scope_filter``: the list decides what is
-    offered, this decides what may be opened directly.
-    """
-    return _submission_within(user, va_sid, role, coding=True)
-
-
-# ---------------------------------------------------------------------------
-# Viewing scope
-#
-# Deliberately separate from the coding scope above. A grant above the
-# project's coding scope level codes nothing, but its holder still oversees
-# their subtree: they see the cause of death and the submission data,
-# read-only. Keeping the two sets apart is what stops a viewer becoming a
-# coder — never substitute one for the other.
-# ---------------------------------------------------------------------------
-
-
-def viewable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]:
-    """Units whose submissions this user may *see* through unit grants.
-
-    The whole subtree of every active grant, regardless of the project's
-    coding scope level — oversight does not shrink because coding does.
-    """
-    return scope_unit_ids(user_id, role)
-
-
-def submission_within_org_view_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
-    """Whether one submission is inside the user's *viewing* scope for *role*.
-
-    Same shape as ``submission_within_org_scope``, against the viewable units
-    and every ``project`` / ``project_site`` grant whatever the coding scope
-    level. True for any submission of a project with no organization tree.
-    """
-    return _submission_within(user, va_sid, role, coding=False)
-
-
-def has_view_only_scope(user_id: uuid.UUID, role: VaAccessRoles) -> bool:
-    """Whether this user oversees units they may not code in.
-
-    True when the viewable set is strictly larger than the codeable one, which
-    is exactly the case the oversight surface exists for.
-    """
-    viewable = viewable_unit_ids(user_id, role)
-    if not viewable:
-        return False
-    return bool(viewable - codeable_unit_ids(user_id, role))
 
 
 def resolve_unit_coding_gates(

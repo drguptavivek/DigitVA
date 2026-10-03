@@ -33,7 +33,7 @@ from app.routes.api.organization import (
 )
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
-from app.services.org_grant_service import reachable_unit_ids
+from app.services.authz import reachable_unit_ids
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.utils.who_va_bundle import who_va_bundle_version
 

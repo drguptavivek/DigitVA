@@ -57,10 +57,11 @@ def _may_read_events(user, submission) -> bool:
 
     Events are part of viewing the submission, so the answer is the page's:
     the ``VIEW`` scope (``authz.READ_EVENTS``, digitva-0wc F13). The legacy
-    permission dict keeps its form-level answer until stage 7.
+    permission dict keeps its form-level answer until digitva-d3y5.
     """
     if can(user, READ_EVENTS, submission.va_sid):
         return True
+    # Legacy permission JSONB fall-through; delete after digitva-d3y5's count.
     return any(
         submission.va_form_id in forms
         for legacy_role, forms in (user.permission or {}).items()

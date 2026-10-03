@@ -32,12 +32,18 @@ from app.models import (
     VaUsers,
 )
 from app.services import organization_service as org
+from app.services.authz import Action, can, resolve_grants
 from app.services.org_grant_service import (
     granted_project_ids,
     project_wide_grant_exists,
     scope_unit_ids,
 )
 from tests.base import BaseTestCase
+
+
+def _dm_projects(user):
+    """Projects the user holds a project-scope data_manager grant on."""
+    return resolve_grants(user).wide_projects((VaAccessRoles.data_manager,), coding=False)
 
 
 class ClosedProjectGrantResolutionTests(BaseTestCase):
@@ -290,11 +296,11 @@ class ClosedProjectGrantResolutionTests(BaseTestCase):
 
         self._assert_dormant_then_restored(
             self.PROJECT,
-            lambda: user.get_data_manager_projects() == {self.PROJECT},
+            lambda: _dm_projects(user) == {self.PROJECT},
         )
         self._assert_dormant_then_restored(
             self.PROJECT,
-            lambda: user.has_data_manager_submission_access(self.PROJECT, self.SITE),
+            lambda: bool(can(user, Action.SYNC_FORM, self.FORM)),
         )
 
     def test_data_manager_route_refuses_while_project_closed(self):
@@ -346,14 +352,14 @@ class ClosedProjectGrantResolutionTests(BaseTestCase):
             )
 
         self.assertEqual(
-            user.get_data_manager_projects(), {self.PROJECT, self.OTHER_PROJECT}
+            _dm_projects(user), {self.PROJECT, self.OTHER_PROJECT}
         )
 
         self._set_project_status(self.PROJECT, VaStatuses.deactive)
-        self.assertEqual(user.get_data_manager_projects(), {self.OTHER_PROJECT})
+        self.assertEqual(_dm_projects(user), {self.OTHER_PROJECT})
         self.assertEqual(user.get_data_manager_va_forms(), {self.OTHER_FORM})
 
         self._set_project_status(self.PROJECT, VaStatuses.active)
         self.assertEqual(
-            user.get_data_manager_projects(), {self.PROJECT, self.OTHER_PROJECT}
+            _dm_projects(user), {self.PROJECT, self.OTHER_PROJECT}
         )

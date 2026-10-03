@@ -34,7 +34,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUserAccessGrants,
 )
-from app.services.authz import Action, scope_filter
+from app.services.authz import Action, can, resolve_grants, scope_filter
 from app.services.data_management_service import (
     dm_filter_options,
     dm_scoped_forms,
@@ -107,7 +107,10 @@ class ViewerScopeHelperTests(BaseTestCase):
         self.assertEqual(user.get_viewer_projects(), {self.PROJECT})
         self.assertTrue(user.is_viewer())
         # data_manager-only helpers are unaffected.
-        self.assertEqual(user.get_data_manager_projects(), set())
+        self.assertEqual(
+            resolve_grants(user).wide_projects((VaAccessRoles.data_manager,), coding=False),
+            set(),
+        )
 
     def test_get_viewer_project_sites_from_collaborator_pii(self):
         user = self._get_or_make_user("vsc.collab.pii@test.local", "VscCollabPii123")
@@ -558,16 +561,25 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
     def test_unit_data_manager_submission_access_is_per_routed_unit(self):
         _, unit_dm = self._site_and_unit_data_managers()
         self.assertTrue(unit_dm.is_data_manager())
-        self.assertFalse(unit_dm.has_direct_data_manager_scope())
-        self.assertTrue(unit_dm.has_data_manager_submission_access(
-            self.PROJECT, self.SITE_A, self.unit_a.org_unit_id))
-        self.assertFalse(unit_dm.has_data_manager_submission_access(
-            self.PROJECT, self.SITE_B, self.unit_b.org_unit_id))
+        # No project or pair grant: no whole-form operation.
+        self.assertFalse(can(unit_dm, Action.SYNC_FORM, self.FORM_A))
+        self.assertTrue(can(unit_dm, Action.TRIAGE, self.sid_a))
+        self.assertFalse(can(unit_dm, Action.TRIAGE, self.sid_b))
+
+        def reaches_form(form_id):
+            return db.session.scalar(sa.select(sa.exists().where(
+                VaSubmissions.va_form_id == form_id,
+                scope_filter(unit_dm, Action.LIST_DATA),
+            )))
+
+        self.assertTrue(reaches_form(self.FORM_A))
+        self.assertFalse(reaches_form(self.FORM_B))
         # An unrouted submission belongs to no subtree.
-        self.assertFalse(unit_dm.has_data_manager_submission_access(
-            self.PROJECT, self.SITE_A, None))
-        self.assertTrue(unit_dm.has_data_manager_form_access(self.FORM_A))
-        self.assertFalse(unit_dm.has_data_manager_form_access(self.FORM_B))
+        submission = db.session.get(VaSubmissions, self.sid_a)
+        submission.org_unit_id = None
+        submission.org_unit_resolution = None
+        db.session.flush()
+        self.assertFalse(can(unit_dm, Action.TRIAGE, self.sid_a))
 
     def test_unit_data_manager_kpi_counts_match_a_site_grant(self):
         from app.services.submission_analytics_mv import get_dm_kpi_from_mv

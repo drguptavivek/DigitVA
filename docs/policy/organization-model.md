@@ -669,7 +669,7 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
   because coding does. A `project` or `project_site` coder or reviewer grant
   views every submission of its project, or of its (project, site) pair,
   routed or not, whatever the coding scope level. It is resolved separately from the codeable set
-  (`org_grant_service.viewable_unit_ids`), and the two are never substituted
+  (the `VIEW` lenses of `app/services/authz`), and the two are never substituted
   for one another — that separation is what stops a viewer becoming a coder.
 - A read-only **area** surface lists the submissions routed to those units,
   marking which are also codeable, and opens any of them in the same read-only
@@ -704,11 +704,10 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 - The check is applied in two places, because a list filter alone is not
   authorization: the pick list and dashboard counts filter by unit, and
   opening or being allocated one submission is gated separately
-  (`org_grant_service.submission_within_org_scope`). Every coding and
+  (`authz.require`). Every coding and
   reviewing action passes through the gate, rather than each action
-  remembering to ask. The same two functions
-  (`submission_within_org_scope`, `submission_within_org_view_scope`) and the
-  list filter (`coder_workflow_service._org_unit_scope_filter`) apply the
+  remembering to ask. The same rule, as `authz.can` for one submission and
+  `authz.scope_filter` for a list, applies the
   project and project_site rule, so the coder and reviewer validators, view
   pages, attachments, pick list, allocation, reviewing list and workflow
   history agree.

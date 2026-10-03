@@ -231,10 +231,9 @@ class OrgUnitGrantTests(BaseTestCase):
         self._grant(self.base_project_pi_user.user_id, VaAccessRoles.coder, chc, cadres["SMO"])
         self.assertEqual(self.base_project_pi_user.get_coder_va_forms(), before)
         # The unit grant is visible only through the unit-scope accessors.
-        self.assertIn(chc.org_unit_id, self.base_project_pi_user.get_coder_org_unit_ids())
-        self.assertEqual(
-            self.base_project_pi_user.get_org_unit_projects("coder"), {self.PROJECT}
-        )
+        user_id = self.base_project_pi_user.user_id
+        self.assertIn(chc.org_unit_id, og.scope_unit_ids(user_id, VaAccessRoles.coder))
+        self.assertEqual(og.granted_project_ids(user_id, VaAccessRoles.coder), {self.PROJECT})
 
     # -- database constraints ----------------------------------------------
 

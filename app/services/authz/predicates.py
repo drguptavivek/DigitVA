@@ -1,4 +1,4 @@
-"""scope_filter, can, require and effective_roles (digitva-0wc, design 1.4).
+"""scope_filter, can, require, effective_roles and reachable_unit_ids.
 
 ``scope_filter(user, action)`` is a SQL predicate on ``VaSubmissions``; a
 list embeds it. ``can(user, action, va_sid)`` is ``EXISTS`` of the same
@@ -10,9 +10,7 @@ Predicate hygiene (load-bearing). The returned expression references
 through uncorrelated ``IN (SELECT ...)`` subqueries carrying
 ``.correlate(None)``. The reviewing dashboard joins ``VaForms`` itself and
 the coder pool does not; a correlated ``EXISTS`` on ``VaForms`` silently
-adds a cartesian product in one of them (the reason
-``coder_workflow_service._org_unit_scope_filter`` and
-``org_grant_service.scope_unit_ids_select`` are written as they are).
+adds a cartesian product in one of them.
 tests/authz/test_single_source.py runs the predicate both ways.
 """
 
@@ -281,6 +279,39 @@ def reaches(user, lens: Lens, va_sid, *, _grants: ResolvedGrants | None = None) 
     return bool(db.session.scalar(sa.select(sa.exists().where(
         VaSubmissions.va_sid == va_sid, sa.or_(*clauses),
     ))))
+
+
+def reachable_unit_ids(
+    user, project_id: str, roles, *, _grants: ResolvedGrants | None = None
+) -> set[uuid.UUID] | None:
+    """Unit ids of *project_id* that *user*'s grants in *roles* reach, for
+    browsing the tree (the organization API's unit picker, the device unit
+    list, the area dashboard).
+
+    ``None`` means the whole tree: an admin, a project_pi of the project, or
+    a project or pair grant in *roles* there. Otherwise the subtrees of the
+    user's unit grants in *roles* on this project; an empty set reaches
+    nothing. Demo-training grants never count: they open coding practice,
+    not a project's tree. Web intake keeps its own grant-only variant with
+    no admin bypass (``web_intake_service._reachable_unit_ids``).
+    """
+    g = _grants if _grants is not None else resolve_grants(user)
+    if g.is_admin:
+        return None
+    roles = frozenset(roles)
+    for grant in g.grants:
+        if grant.virtual or grant.project_id != project_id:
+            continue
+        if grant.role == _R.project_pi or (grant.role in roles and grant.is_wide):
+            return None
+    units = {
+        grant.org_unit_id
+        for grant in g.of(roles, scope_types=(_U,), virtual=False)
+        if grant.project_id == project_id
+    }
+    if not units:
+        return set()
+    return set(db.session.scalars(_subtree_select(units)))
 
 
 def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None):

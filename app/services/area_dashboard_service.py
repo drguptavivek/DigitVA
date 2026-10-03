@@ -4,7 +4,7 @@ user holds a grant for.
 Scope is viewing scope, never coding scope, resolved per project as a union
 over all of the user's roles:
 
-* a tree project: ``org_grant_service.reachable_unit_ids`` -- the whole tree
+* a tree project: ``authz.reachable_unit_ids`` -- the whole tree
   for an admin, the project's PI, or any project- or site-scoped grant;
   otherwise the subtrees of the user's unit grants;
 * a project with no tree (sites mode): every active site for an admin, PI or
@@ -47,7 +47,7 @@ from app.models import (
     VaUsers,
     VaWebIntakeDraft,
 )
-from app.services import org_grant_service
+from app.services import authz, org_grant_service
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
@@ -207,7 +207,9 @@ def resolve_area_scope(user, project_id: str, project_name: str | None = None) -
             return None
 
     if project_id in org_grant_service.projects_with_org_tree({project_id}):
-        reachable = org_grant_service.reachable_unit_ids(user, project_id)
+        reachable = authz.reachable_unit_ids(
+            user, project_id, org_grant_service.ROLES_ALLOWING_ORG_UNIT
+        )
         if reachable is not None and not reachable:
             return None
         return AreaScope(

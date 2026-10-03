@@ -1281,6 +1281,41 @@ def _resolve_scope_from_payload(payload, user_id=None):
     )
 
 
+def _payload_grant_target(payload):
+    """The grant a create payload names, before any validation, or None.
+
+    For asking ``authz.can_grant`` first (digitva-xd1q): the cadre and
+    unit checks in ``_resolve_scope_from_payload`` say whether a unit
+    exists, is active or takes the cadre, which a caller who may not write
+    there must not learn. None when the payload names no well-formed target
+    (bad role or scope_type, missing or malformed id); its shape errors
+    disclose nothing and ``_resolve_scope_from_payload`` reports them.
+    """
+    from app.services import authz
+
+    try:
+        role = VaAccessRoles(payload.get("role"))
+        scope_type = VaAccessScopeTypes(payload.get("scope_type"))
+    except ValueError:
+        return None
+    if scope_type == VaAccessScopeTypes.project:
+        project_id = payload.get("project_id")
+        if not project_id or not isinstance(project_id, str):
+            return None
+        return authz.GrantTarget(role=role, scope_type=scope_type, project_id=project_id)
+    key = {
+        VaAccessScopeTypes.project_site: "project_site_id",
+        VaAccessScopeTypes.org_unit: "org_unit_id",
+    }.get(scope_type)
+    if key is None:
+        return None
+    try:
+        target_id = uuid.UUID(str(payload.get(key)))
+    except ValueError:
+        return None
+    return authz.GrantTarget(role=role, scope_type=scope_type, **{key: target_id})
+
+
 def _project_pi_may_write(role, scope_type, project_id, project_site_id, org_unit_id):
     """The admin panel's non-admin branch: ``authz.can_grant`` decides.
 
@@ -1302,12 +1337,21 @@ def _project_pi_may_write(role, scope_type, project_id, project_site_id, org_uni
     )))
 
 
-def _project_access_filter(project_id_expression):
-    if current_user.is_authenticated and current_user.is_admin():
-        return sa.true()
-    if current_user.is_authenticated:
-        return project_id_expression.in_(list(current_user.get_project_pi_projects()))
-    return sa.false()
+def _grant_list_condition():
+    """The grants the admin panel lists: every grant for an admin, else the
+    ones ``authz.can_grant`` lets the caller write (``grant_list_filter``)."""
+    from app.services import authz
+
+    return authz.grant_list_filter(current_user)
+
+
+def _may_list_project(project_id):
+    """Whether the grant lists may be narrowed to *project_id*: admin, or a
+    project where the caller holds a grant-writing grant."""
+    from app.services import authz
+
+    g = authz.resolve_grants(current_user)
+    return g.is_admin or any(x.project_id == project_id for x in authz.writer_grants(g))
 
 
 @admin.get("/api/bootstrap")
@@ -2432,12 +2476,12 @@ def admin_access_grants():
         )
         .where(
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            _project_access_filter(project_id_expression),
+            _grant_list_condition(),
         )
     )
     project_id = request.args.get("project_id")
     if project_id:
-        if not _current_user_can_manage_project(project_id):
+        if not _may_list_project(project_id):
             return _json_error("You do not have access to that project.", 403)
         stmt = stmt.where(project_id_expression == project_id)
     role = request.args.get("role")
@@ -2491,13 +2535,13 @@ def admin_orphaned_grants():
                 VaProjectSites.project_site_id == None,
                 VaProjectSites.project_site_status == VaStatuses.deactive
             ),
-            _project_access_filter(project_id_expression),
+            _grant_list_condition(),
         )
     )
-    
+
     project_id = request.args.get("project_id")
     if project_id:
-        if not _current_user_can_manage_project(project_id):
+        if not _may_list_project(project_id):
             return _json_error("You do not have access to that project.", 403)
         stmt = stmt.where(project_id_expression == project_id)
         
@@ -2522,6 +2566,20 @@ def admin_create_access_grant():
     target_user = db.session.get(VaUsers, user_id)
     if not target_user or target_user.user_status != VaStatuses.active:
         return _json_error("Active user not found.", 404)
+
+    # A non-admin is refused before the scope is validated, so the cadre and
+    # unit checks never tell them about a unit they may not write in; an
+    # unknown unit and another project's unit get the same 403
+    # (digitva-xd1q). Admin keeps every descriptive message.
+    if not current_user.is_admin():
+        if payload.get("role") in {VaAccessRoles.admin.value, VaAccessRoles.project_pi.value}:
+            return _json_error("Project PI may not manage admin or project_pi grants.", 403)
+        target = _payload_grant_target(payload)
+        if target is not None and not _project_pi_may_write(
+            target.role, target.scope_type, target.project_id,
+            target.project_site_id, target.org_unit_id,
+        ):
+            return _json_error("You do not have access to that project.", 403)
 
     # Resolve without the mentor guard: it runs after the permission check
     # below, so a 400 never discloses mentoring-institute membership to a

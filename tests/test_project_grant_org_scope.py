@@ -24,13 +24,12 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.routes.api.workflow import _may_read_events
-from app.services import org_grant_service as grants
 from app.services import org_unit_routing_service as routing
 from app.services import organization_service as org
 from app.services.attachment_service import can_access_submission_attachment
+from app.services.authz import Action, can, scope_filter
 from app.services.coder_workflow_service import (
     AllocationError,
-    _org_unit_scope_filter,
     allocate_pick_form,
     get_pick_available_forms,
 )
@@ -39,6 +38,8 @@ from tests.test_coding_scope_enforcement import CodingScopeFixtureMixin
 
 SCOPES = ("project", "project_site")
 ROLES = (VaAccessRoles.coder, VaAccessRoles.reviewer)
+# The action each role's coding scope answers.
+WORK = {VaAccessRoles.coder: Action.CODE, VaAccessRoles.reviewer: Action.REVIEW}
 
 
 class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
@@ -117,7 +118,7 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
         """Submissions of CSC001 the shared list filter offers for *role*."""
         stmt = sa.select(VaSubmissions.va_sid).where(
             VaSubmissions.va_form_id == self.FORM_ID,
-            _org_unit_scope_filter(self.user, role=role.value),
+            scope_filter(self.user, WORK[role]),
         )
         return set(db.session.scalars(stmt).all())
 
@@ -125,9 +126,9 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
         sids = ("csc-routed", "csc-unrouted")
         for sid in sids:
             # Viewing never depends on the coding scope level.
-            self.assertTrue(grants.submission_within_org_view_scope(self.user, sid, role))
+            self.assertTrue(can(self.user, Action.VIEW, sid))
             self.assertTrue(_may_read_events(self.user, db.session.get(VaSubmissions, sid)))
-            self.assertEqual(grants.submission_within_org_scope(self.user, sid, role), codes)
+            self.assertEqual(bool(can(self.user, WORK[role], sid)), codes)
         self.assertEqual(self._listed(role), set(sids) if codes else set())
 
     # -- the three configurations ------------------------------------------
@@ -221,14 +222,14 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
             with self.subTest(role=role.value):
                 self._wide_grant("project_site", role)
                 # The subject: the grant does reach (P, S).
-                self.assertTrue(grants.submission_within_org_scope(self.user, "csc-routed", role))
+                self.assertTrue(can(self.user, WORK[role], "csc-routed"))
                 for sid in ("qsc-routed", "qsc-unrouted"):
-                    self.assertFalse(grants.submission_within_org_view_scope(self.user, sid, role))
-                    self.assertFalse(grants.submission_within_org_scope(self.user, sid, role))
+                    self.assertFalse(can(self.user, Action.VIEW, sid))
+                    self.assertFalse(can(self.user, WORK[role], sid))
                     self.assertFalse(_may_read_events(self.user, db.session.get(VaSubmissions, sid)))
                 listed = set(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
                     VaSubmissions.va_form_id == self.OTHER_FORM_ID,
-                    _org_unit_scope_filter(self.user, role=role.value),
+                    scope_filter(self.user, WORK[role]),
                 )).all())
                 self.assertEqual(listed, set())
                 self._clear_wide_grants()

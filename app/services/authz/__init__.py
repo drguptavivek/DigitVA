@@ -1,27 +1,32 @@
-"""Authorization: one module for who may do what to which object (digitva-0wc).
+"""Authorization: the single source for who may do what to which object.
 
-Public interface: ``can``, ``require``, ``scope_filter``, ``can_grant`` and
-``grant_list_filter``, plus ``effective_roles`` (what opens a role gate),
-``coding_gate_waivers`` (gates, not scope) and ``redacts_pii`` (the per-user
-redaction rule, unchanged). Every answer is derived from one per-request
-``ResolvedGrants`` and the ``RULES`` table.
+Every role and scope decision in the app is asked here; workflow checks
+(allocation, state, narration language, the recode window) stay with the
+workflow services.
 
-Stage 1: the coding screens (coder pool, pick, recode, coder view, area
-overview and the ``vacode`` partial validator) call this package. Stage 2:
-the read-only rendering (``vadata``/``vaarea`` validators, write partials in
-va_form.renderpartial), attachments and workflow events. Every other caller
-still uses the old helpers in org_grant_service and VaUsers until the stages
-in .tasks/digitva-0wc-design.md move it here. Stage 3: the data-manager
-grid, exports, KPIs, triage, sync, the unrouted queue and pinning. Stage 4:
-reviewing (dashboard, start, Step 1, final, the view page, the ``vareview``
-validator and the reviewer branches of the NQA, SO, ICD and DORIS APIs).
-Stage 5: the site PI report (``SITE_PI_REPORT``, pairs and units) and the
-``is_site_pi`` / ``is_interview_supervisor`` role gates. Stage 6: every
-grant write (the data-manager users page, the admin panel's project_pi
-branch, the project users import) asks ``can_grant``, and the grant lists
-use ``grant_list_filter``.
-``subtree_select`` is the unit-subtree SELECT for the raw-SQL and MV
-surfaces that cannot embed ``scope_filter``.
+- ``can(user, action, target)`` / ``require(...)``: one decision. Targets are
+  a ``va_sid`` for the submission actions (``ROUTE_PIN`` also takes
+  ``("unit", org_unit_id)``), a ``form_id`` for ``SYNC_FORM``, a
+  ``project_id`` for ``LIST_UNROUTED``, ``("pair", project_id, site_id)`` or
+  ``("unit", org_unit_id)`` for ``SITE_PI_REPORT``, a ``VaDeathRegister``
+  row for ``SUPERVISE_INTAKE``. ``require`` raises ``AuthzError`` (404 for a
+  missing target, else 403).
+- ``scope_filter(user, action)``: the same rule as a SQL predicate on
+  ``VaSubmissions``, for lists, counts and exports; ``can`` is ``EXISTS``
+  over it, so a list never offers what ``can`` refuses. ``subtree_select``
+  is the unit-subtree SELECT for raw-SQL and MV surfaces that cannot embed
+  it; ``reaches`` asks one lens (a rendering that belongs to one role).
+- ``can_grant(actor, GrantTarget)`` / ``grant_list_filter(actor)``: grant
+  writes and the grant lists, one rule.
+- ``effective_roles(user)``: which ``role_required`` gates the user opens.
+- ``reachable_unit_ids(user, project_id, roles)``: the units of a project
+  the user may browse (unit picker, device unit list, area dashboard).
+- ``coding_gate_waivers`` (gates, not scope) and ``redacts_pii`` (the
+  per-user redaction rule).
+
+Every answer is derived from one per-request ``ResolvedGrants``
+(``resolve_grants``; a grant write calls ``invalidate``) and the ``RULES``
+table. Policy: docs/policy/access-control-model.md.
 """
 
 from app.services.authz.actions import (
@@ -52,6 +57,7 @@ from app.services.authz.predicates import (
     Decision,
     can,
     effective_roles,
+    reachable_unit_ids,
     reaches,
     require,
     scope_filter,
@@ -82,6 +88,7 @@ __all__ = [
     "effective_roles",
     "grant_list_filter",
     "invalidate",
+    "reachable_unit_ids",
     "reaches",
     "redacts_pii",
     "require",

@@ -11,7 +11,7 @@ about, so it is what this file proves.
 The chain under test (docs/policy/organization-model.md, routing and coding
 scope): the interviewer names a unit -> ``_unit_context`` writes the path's
 ``org_<level_code>_code`` answers into the stored payload -> routing reads them
-back and stamps ``va_submissions.org_unit_id`` -> ``_org_unit_scope_filter``
+back and stamps ``va_submissions.org_unit_id`` -> ``authz.scope_filter(CODE)``
 offers the case only to coders whose grants cover that unit.
 """
 from datetime import UTC, date, datetime, timedelta

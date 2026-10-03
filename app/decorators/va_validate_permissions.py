@@ -32,18 +32,11 @@ def va_validate_permissions():
         def wrapper(*args, **kwargs):
             if current_user.is_anonymous:
                 return redirect(url_for("va_auth.va_login", next=request.url))
-            va_role = kwargs.get("va_role")
             va_action = kwargs.get("va_action") or request.values.get("action")
             va_actiontype = kwargs.get("va_actiontype") or request.values.get("actiontype")
             va_sid = kwargs.get("va_sid")
             va_partial = kwargs.get("va_partial")
-            if va_role and not any([va_action, va_actiontype, va_sid, va_partial]):
-                if not va_hasrole(va_role):
-                    va_permission_abortwithflash(
-                        f"You don't have permission to access the '{va_role}' dashboard.",
-                        403,
-                    )
-            elif va_action:
+            if va_action:
                 validate_sid = db.session.scalar(sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_sid == va_sid))
                 if not validate_sid and va_actiontype not in ["vastartcoding", "vademo_start_coding", "varesumecoding", "varesumereviewing"]:
                     va_permission_abortwithflash("Invalid va_sid in the URL. Please verify and try again.", 404)
@@ -61,18 +54,6 @@ def va_validate_permissions():
         return wrapper
 
     return decorator
-
-
-def va_hasrole(role):
-    if current_user.is_admin():
-        return True
-    mapping = {
-        "coder": current_user.is_coder() or current_user.is_coding_tester(),
-        "reviewer": current_user.is_reviewer(),
-        "sitepi": current_user.is_site_pi(),
-        "data_manager": current_user.is_data_manager(),
-    }
-    return mapping.get(role)
 
 
 def _has_coding_role() -> bool:
@@ -248,7 +229,7 @@ def _validate_vasitepi(actiontype, sid, partial):
     form_id = db.session.scalar(
         sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
     )
-    if not current_user.has_va_form_access(form_id, "sitepi"):
+    if not current_user.is_site_pi(form_id):
         va_permission_abortwithflash(
             "VA Site PI access is required for this operation.", 403
         )

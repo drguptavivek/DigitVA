@@ -5,10 +5,12 @@ access-control-model.md "Who creates which grants" (site projects: today's
 rule; district projects: the subtree rule, owner 2026-10-02) and
 dm-user-grant-management.md "Scope Rules" / "Toggle".
 """
+import uuid
+
 import sqlalchemy as sa
 
 from app import db
-from app.models import VaStatuses, VaUserAccessGrants
+from app.models import MasLanguages, VaStatuses, VaUserAccessGrants
 from app.services.authz import GrantTarget, Reason, can_grant, grant_list_filter
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError, list_cadres
@@ -200,3 +202,75 @@ class CanGrantTests(AuthzFixtureMixin, BaseTestCase):
                 self.assertEqual(listed, allowed)
                 if actor != "coder_ta":
                     self.assertTrue(allowed, "an actor with grant powers lists something")
+
+
+class GrantCreateOrderTests(AuthzFixtureMixin, BaseTestCase):
+    """digitva-xd1q: on every grant-create path the permission check runs
+    before the unit and cadre validation, so a caller who may not write at a
+    unit learns nothing about it (exists, active, which cadre it takes)."""
+
+    DM_GRANTS = "/data-management/api/access-grants"
+    ADMIN_GRANTS = "/admin/api/access-grants"
+
+    def _post(self, actor, url, payload):
+        self._login(str(self.users[actor].user_id))
+        return self.client.post(url, json=payload, headers=self._csrf_headers())
+
+    def _coder_at(self, unit_id):
+        # No cadre: a coder grant on a unit requires one, so validation
+        # would refuse this payload with a descriptive 400.
+        return {
+            "user_id": str(self.users["nobody"].user_id),
+            "role": "coder",
+            "scope_type": "org_unit",
+            "org_unit_id": str(unit_id),
+        }
+
+    def test_unit_dm_gets_403_not_the_cadre_message_on_another_projects_unit(self):
+        # The subject: inside the DM's own subtree the cadre rule answers.
+        own = self._post("dm_c1", self.DM_GRANTS, self._coder_at(self.units["P1"].org_unit_id))
+        self.assertEqual(own.status_code, 400)
+        self.assertIn("requires a cadre", own.get_json()["error"])
+        foreign = self._post("dm_c1", self.DM_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
+        self.assertEqual(foreign.status_code, 403)
+        self.assertNotIn("cadre", foreign.get_json()["error"])
+        unknown = self._post("dm_c1", self.DM_GRANTS, self._coder_at(uuid.uuid4()))
+        self.assertEqual(unknown.status_code, 403)
+        self.assertEqual(unknown.get_json()["error"], foreign.get_json()["error"])
+
+    def test_dm_create_user_refuses_another_projects_unit_before_validation(self):
+        self._login(str(self.users["dm_c1"].user_id))
+        if db.session.get(MasLanguages, "english") is None:
+            db.session.add(MasLanguages(
+                language_code="english", language_name="English", is_active=True
+            ))
+            db.session.flush()
+        language = "english"
+        payload = {
+            "email": "xd1q.new@test.local", "email_confirm": "xd1q.new@test.local",
+            "name": "New Person", "languages": [language],
+            "initial_role": "coder", "initial_scope_type": "org_unit",
+            "initial_project_id": TB, "initial_org_unit_id": str(self.units["F1"].org_unit_id),
+        }
+        response = self.client.post(
+            "/data-management/api/users", json=payload, headers=self._csrf_headers()
+        )
+        self.assertEqual(response.status_code, 403, response.get_json())
+        payload.update(initial_project_id=TA, initial_org_unit_id=str(self.units["P1"].org_unit_id))
+        response = self.client.post(
+            "/data-management/api/users", json=payload, headers=self._csrf_headers()
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("requires a cadre", response.get_json()["error"])
+
+    def test_admin_panel_project_pi_is_refused_first_and_admin_keeps_the_message(self):
+        own = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(self.units["P1"].org_unit_id))
+        self.assertEqual(own.status_code, 400)
+        self.assertIn("requires a cadre", own.get_json()["error"])
+        foreign = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
+        self.assertEqual(foreign.status_code, 403)
+        unknown = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(uuid.uuid4()))
+        self.assertEqual(unknown.status_code, 403)
+        admin = self._post("admin", self.ADMIN_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
+        self.assertEqual(admin.status_code, 400)
+        self.assertIn("requires a cadre", admin.get_json()["error"])

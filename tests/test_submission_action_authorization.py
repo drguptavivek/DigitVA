@@ -189,7 +189,7 @@ class RecodeStartAuthorizationTests(ConventionalProjectMixin, BaseTestCase):
 
     def test_another_coder_of_the_same_form_is_refused(self):
         sid = self._finalized_by(self.owner)
-        self.assertTrue(self.peer.has_va_form_access(self.FORM_ID, "coder"))
+        self.assertTrue(self.peer.is_coder(self.FORM_ID))
 
         with self.assertRaises(AllocationError) as ctx:
             start_recode_allocation(self.peer, sid)
@@ -201,7 +201,7 @@ class RecodeStartAuthorizationTests(ConventionalProjectMixin, BaseTestCase):
     def test_the_coder_who_now_codes_another_site_is_refused(self):
         # Coded it, but the grant is now on another site of the project.
         sid = self._finalized_by(self.moved)
-        self.assertFalse(self.moved.has_va_form_access(self.FORM_ID, "coder"))
+        self.assertFalse(self.moved.is_coder(self.FORM_ID))
 
         with self.assertRaises(AllocationError):
             start_recode_allocation(self.moved, sid)
@@ -248,7 +248,7 @@ class RecodeStartOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
         _finalize("csc-recode", self.base_coder_user)
         submission.org_unit_id = phc_b.org_unit_id
         db.session.commit()
-        self.assertTrue(self.base_coder_user.has_va_form_access(self.FORM_ID, "coder"))
+        self.assertTrue(self.base_coder_user.is_coder(self.FORM_ID))
 
         with self.assertRaises(AllocationError) as ctx:
             start_recode_allocation(self.base_coder_user, "csc-recode")
@@ -283,7 +283,7 @@ class ReviewerUnitScopeTests(CodingScopeFixtureMixin, BaseTestCase):
         _set_state("csc-rev-mine", WORKFLOW_REVIEWER_ELIGIBLE)
         _set_state("csc-rev-sibling", WORKFLOW_REVIEWER_ELIGIBLE)
         user = self.base_coder_user
-        self.assertTrue(user.has_va_form_access(self.FORM_ID, "reviewer"))
+        self.assertTrue(user.is_reviewer(self.FORM_ID))
         self._login(str(user.user_id))
         return user
 

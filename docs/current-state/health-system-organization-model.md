@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -144,9 +144,9 @@ Two halves, because a list filter is not authorization:
    `is_coding_tester`, `is_reviewer`, `is_data_manager`) opens on the grant
    alone, so an empty subtree shows an empty page, not a 403.
 2. The **submissions** of those forms are then narrowed to the coder's own
-   units (`coder_workflow_service._org_unit_scope_filter`), and opening or
-   being allocated one submission is gated separately
-   (`org_grant_service.submission_within_org_scope`).
+   units (`authz.scope_filter(CODE)`), and opening or being allocated one
+   submission is gated separately (`authz.require(CODE)`, the same
+   predicate).
 
 The per-submission gate runs once at the top of the coding and reviewing
 validators in `va_validate_permissions`, rather than per action, so a future

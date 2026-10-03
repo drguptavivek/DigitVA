@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-03
 ---
 
 # Device Collection API (Path B server side)
@@ -116,7 +116,7 @@ As the contract, with these additions (all additive):
 | `DELETE /sessions/current` | `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out. |
 | `GET /bootstrap` | `user`, `context` (the intake context filtered to the device's project), `form_options` (the `/api/v1/organization/<project>/form-options` body), `instrument_version` (the served bundle's manifest sha, `who_va_bundle_version`). No CSRF fields. |
 | `POST /submissions` | Accepts an optional `completion: {valid, issues}` beside `draft`; see below. |
-| `GET /units` | `units_payload` from `app/routes/api/organization.py` over `org_grant_service.reachable_unit_ids(user, project, {interviewer})`: the web picker's body. 403 when nothing is reachable. |
+| `GET /units` | `units_payload` from `app/routes/api/organization.py` over `authz.reachable_unit_ids(user, project, {interviewer})`: the web picker's body. 403 when nothing is reachable. |
 | `GET /instruments/<code>/translations/<locale>` | `translations_response` from `app/routes/api/instruments.py`, only for `served_instrument_locales(project)` (the default form type's instrument, `available_locales`); else 404 `not_found`. |
 | `POST /outstanding` | Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
 | `GET /cases` | Offline cases, below. 120/min. |

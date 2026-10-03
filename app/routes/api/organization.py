@@ -36,8 +36,9 @@ from app.models import (
     VaStatuses,
 )
 from app.services import organization_service as org
-from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, reachable_unit_ids
+from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import active_locale_versions
+from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
     FALLBACK_INSTRUMENT_CODE,

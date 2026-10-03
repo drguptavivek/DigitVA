@@ -206,7 +206,7 @@ counts for the part of a project a user holds a grant for
   an active grant (`VaUsers.has_any_active_grant`).
 - Scope is viewing scope, a union over all roles, per project. A project with
   an active organization level is a tree project and uses
-  `org_grant_service.reachable_unit_ids` (whole tree for admin, the project's
+  `authz.reachable_unit_ids` (whole tree for admin, the project's
   PI, or any project- or site-scoped grant; otherwise unit-grant subtrees),
   shared with the organization API's unit picker. A project with no tree is
   shown per site: all active sites for admin, PI or a project grant, else the

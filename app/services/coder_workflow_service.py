@@ -177,66 +177,6 @@ def _demo_recode_reset_message() -> str:
 # Internal helpers (no current_user — caller passes user explicitly)
 # ---------------------------------------------------------------------------
 
-def _org_unit_scope_filter(user, role: str = "coder"):
-    """Restrict submissions of organization-tree projects to the user's units.
-
-    Returns None when nothing should be restricted. The filter only bites for
-    projects that actually have an active organization tree; a project without
-    one keeps today's form-and-site behaviour untouched, which is what makes
-    this safe to add to a shared filter path.
-
-    Within a tree project a submission is codeable when it is routed to a unit
-    inside the user's coding scope — their grant's subtree, narrowed by the
-    project's coding scope level and above-scope mode — or when a ``project``
-    / ``project_site`` grant codes there (``org_grant_service.wide_grant_scope``),
-    routed or not. An unrouted submission is reached by no unit grant until a
-    data manager routes it, which is the point of the unrouted queue.
-
-    For the coder pool a unit-scope ``coding_tester`` grant adds its whole
-    subtree: a tester is not bound by the project's coding scope level.
-    """
-    from app.models import MasOrgLevel, VaAccessRoles
-    from app.services.org_grant_service import (
-        codeable_unit_ids,
-        scope_unit_ids,
-        wide_grant_scope,
-    )
-
-    # Correlated on VaSubmissions alone, with VaForms pulled inside the
-    # subquery: this filter is used by queries that do not join VaForms, and
-    # correlating on it there would silently add a cartesian product.
-    project_has_tree = sa.exists(
-        sa.select(1)
-        .select_from(VaForms)
-        .join(MasOrgLevel, MasOrgLevel.project_id == VaForms.project_id)
-        .where(
-            VaForms.form_id == VaSubmissions.va_form_id,
-            MasOrgLevel.is_active.is_(True),
-        )
-    )
-    unit_ids = codeable_unit_ids(user.user_id, VaAccessRoles(role))
-    if role == "coder":
-        unit_ids |= scope_unit_ids(user.user_id, VaAccessRoles.coding_tester)
-    # With no grant at all, every tree project is out of reach, while non-tree
-    # projects are unaffected.
-    clauses = [sa.not_(project_has_tree)]
-    if unit_ids:
-        clauses.append(VaSubmissions.org_unit_id.in_(sorted(unit_ids)))
-    projects, pairs = wide_grant_scope(user, VaAccessRoles(role), coding=True)
-    wide = []
-    if projects:
-        wide.append(VaForms.project_id.in_(sorted(projects)))
-    if pairs:
-        wide.append(sa.tuple_(VaForms.project_id, VaForms.site_id).in_(sorted(pairs)))
-    if wide:
-        # An uncorrelated IN, not an EXISTS on VaForms: the reviewing list
-        # joins VaForms itself and must not correlate against it.
-        clauses.append(
-            VaSubmissions.va_form_id.in_(sa.select(VaForms.form_id).where(sa.or_(*wide)))
-        )
-    return sa.or_(*clauses)
-
-
 def _available_submission_filters(form_ids, project_id=None, user=None):
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
@@ -264,26 +204,6 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     if tr01_filter is not None:
         filters.append(tr01_filter)
     return filters
-
-
-def tester_covers_submission(user, va_sid: str, form_id: str) -> bool:
-    """Does a coding_tester grant reach this one submission?
-
-    A project or project_site tester reaches every submission of a form they
-    test; a unit tester only those routed into their subtree. Used where a
-    tester skips the coder's unit-scope check.
-    """
-    if not user.is_coding_tester(form_id):
-        return False
-    row = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
-        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
-        .where(VaSubmissions.va_sid == va_sid)
-    ).first()
-    if row is None:
-        return False
-    waivers = coding_gate_waivers(user)
-    return waivers.is_tester(row.project_id, row.site_id, row.org_unit_id)
 
 
 def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set:

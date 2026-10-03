@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-02
+last_updated: 2026-10-03
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -25,7 +25,7 @@ DigitVA uses a 4-layer access control model. This policy governs **Layer 2
 |---|---|---|---|
 | **1. Authentication** | flask-login `current_user` (handled by `@role_required`) | Is this a valid logged-in user? | Anonymous → redirect to login |
 | **2. RBAC role gate** | `@role_required(*roles)` | Does this user hold one of the required roles? | Coder cannot access admin routes |
-| **3. ABAC scope gate** | Inline: `has_va_form_access()`, `has_data_manager_submission_access()` | Does this user's grant scope cover this specific resource? | DM for UNSW01 cannot see ICMR01 data |
+| **3. ABAC scope gate** | `app.services.authz`: `require` / `can`, `scope_filter`, `can_grant` | Does this user's grant scope cover this specific resource? | DM for UNSW01 cannot see ICMR01 data |
 | **4. Workflow state** | `@va_validate_permissions()` + service-layer checks | Is this submission in the right state for this action? | Cannot review a submission that hasn't been coded |
 
 ### What each layer does NOT do
@@ -48,7 +48,7 @@ what each role may reach.
 |---|---|---|---|
 | `admin` | `admin` | `global` | Full system access, bypasses all ABAC checks |
 | `project_pi` | `project_pi` | `project` | Manages a project (users, settings) |
-| `site_pi` | `site_pi` | `project_site` | Views data for their assigned sites |
+| `site_pi` | `site_pi` | `project_site`, `org_unit` | Views data for their assigned sites; at a unit, the In-charge |
 | `coder` | `coder` | `project`, `project_site`, `org_unit` | Codes VA forms within assigned scope |
 | `reviewer` | `reviewer` | `project`, `project_site`, `org_unit` | Reviews coded forms within assigned scope |
 | `data_manager` | `data_manager` | `project`, `project_site`, `org_unit` | Manages data pipeline within assigned scope |
@@ -59,16 +59,16 @@ what each role may reach.
 | `interview_supervisor` | `interview_supervisor` | `org_unit` | Supervises web intake cases in its unit subtree; never assigns |
 
 The **In-charge** of a district project (District, Block or PHC in-charge;
-see `access-control-model.md`, "In-charge") is decided but not built, and its
-identifier is `site_pi` held at `org_unit` (shown as "In-charge"; needs a
-`role_scope` CHECK migration), with every `data_manager` power in its subtree. Until then
-in-charges hold `interview_supervisor`. Implementation tracked in
-digitva-0wc.
+see `access-control-model.md`, "In-charge") is `site_pi` held at `org_unit`
+(shown as "In-charge"), with every `data_manager` power in its subtree.
+`authz.effective_roles` opens the `data_manager` and `interview_supervisor`
+gates for it.
 
 ### Admin bypass
 
-Admin users bypass ABAC checks via `va_hasrole()` in
-`va_validate_permissions.py`. This is intentional and preserved.
+Admin users bypass the scope checks for every action except coding,
+reviewing and intake supervision (`authz.actions.ADMIN_BYPASS`). This is
+intentional and preserved.
 
 ---
 
@@ -232,21 +232,30 @@ logout).
 The `scope_shape`, `role_scope` and `cadre_scope` CHECK constraints on
 `va_user_access_grants` enforce these shapes.
 
-### ABAC check methods (on `VaUsers` model)
+### ABAC checks (`app/services/authz/`)
 
-| Method | ABAC check | Layer |
+Every scope decision runs through one package; the old per-role helpers on
+`VaUsers` and in `org_grant_service` are gone.
+
+| Function | ABAC check | Layer |
 |---|---|---|
-| `has_va_form_access(form_id, role)` | User's grants cover this form's project/site for this role | Form-level |
-| `has_data_manager_submission_access(project_id, site_id, org_unit_id=None)` | DM's grants cover this project or project-site pair, or a unit grant's subtree holds the submission's routed unit (`org_unit_id`; an unrouted submission is reached through a direct grant only) | Submission-level |
-| `has_data_manager_form_access(form_id)` | Resolves form → (project, site) → checks submission access | Form-level |
-| `get_coder_va_forms()` | Set of form IDs user can code | Role+scope |
-| `get_reviewer_va_forms()` | Set of form IDs user can review | Role+scope |
-| `get_site_pi_sites(project_id)` | Set of site IDs PI can view | Role+scope |
-| `get_data_manager_projects()` | Set of project IDs DM can manage | Role+scope |
-| `get_data_manager_project_sites()` | Set of (project, site) pairs DM can manage | Role+scope |
+| `require(user, action, target)` / `can(...)` | May the user perform the action (`VIEW`, `CODE`, `RECODE`, `REVIEW`, `TRIAGE`, `SYNC_SUBMISSION`, `ROUTE_PIN`, `SYNC_FORM`, `LIST_UNROUTED`, `SITE_PI_REPORT`, `SUPERVISE_INTAKE`) on this submission, form, project, unit or case? `require` raises `AuthzError` (404 missing, else 403) | Object-level |
+| `scope_filter(user, action)` | The same rule as a SQL predicate on `VaSubmissions`, for lists, counts and exports (`LIST_DATA` for the data-manager and viewer grid) | List-level |
+| `can_grant(actor, GrantTarget)` / `grant_list_filter(actor)` | May the actor write this grant; which grants they may list | Grant writes |
+| `effective_roles(user)` | Which `_ROLE_METHODS` gates the user opens (In-charge and project_pi on a tree count as `data_manager` and `interview_supervisor`) | Role gate |
+| `reachable_unit_ids(user, project_id, roles)` | Units of a project the user may browse (unit picker, area dashboard) | Tree browsing |
+| `redacts_pii(user)` | Whether personal data is redacted for this viewer | Rendering |
 
-These methods are called inline in route handlers and inside service functions
-as defense-in-depth. They are NOT replaced by `@role_required()`.
+`VaUsers.is_*` stay as role-gate predicates for `_ROLE_METHODS` and the
+templates; `is_data_manager`, `is_site_pi` and `is_interview_supervisor` read
+`effective_roles`. The `get_*_va_forms` getters (and `is_coder(form)` and
+friends) answer form-level questions only, such as which forms to offer; a
+decision about one submission is `require`/`can`. The legacy
+`permission` JSONB is still read as a fall-through for attachments and
+workflow events until a production row count (digitva-d3y5).
+
+These checks run inside route handlers and services as defense-in-depth.
+They are NOT replaced by `@role_required()`.
 
 ---
 

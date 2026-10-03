@@ -25,6 +25,7 @@ from app.models import (
 )
 from app.services import mentor_institute_service as mentors
 from app.services import project_user_import_service as user_import
+from app.services.authz import resolve_grants
 from tests.test_mentor_institute import REFUSED, MentorBase
 
 DM_GRANTS = "/data-management/api/access-grants"
@@ -333,31 +334,25 @@ class DataManagerMentorGrantTests(Stage1bBase):
         self.assertIn(plain.email, emails(""))
         self.assertEqual(emails("%"), {pct.email})
 
-    def test_dm_search_set_equals_dm_covers_mentor_unit(self):
+    def test_dm_search_returns_staff_of_districts_at_or_below_the_dm(self):
         d1, d2, chc, one, two = self._two_institutes()  # one: D01; two: D01+D02
         mentors.create_institute("MC3", "Medical College Three")
         mentors.attach_district("MC3", self.P1, "D02")
         db.session.commit()
         three = self._member("MC3", "mentor.three@test.local")
         self._tree(self.P2)
-        members = {one: ["D01"], two: ["D01", "D02"], three: ["D02"]}
         dm_d1 = self._dm_at("dm.d01@test.local", d1)
         dm_chc = self._dm_at("dm.chc@test.local", chc)  # below the district
         dm_d2 = self._dm_at("dm.d02@test.local", d2)
-        for dm in (dm_d1, dm_chc, dm_d2):
-            expected = set()
-            for member, districts in members.items():
-                for code in districts:
-                    unit = db.session.scalar(
-                        sa.select(MasOrgUnit).where(
-                            MasOrgUnit.project_id == self.P1, MasOrgUnit.unit_code == code
-                        )
-                    )
-                    if mentors.dm_covers_mentor_unit(dm.user_id, unit):
-                        expected.add(member.email)
+        # A DM at a district (or above it) covers the staff of institutes
+        # attached to that district; one below it, at a CHC, covers none.
+        for dm, expected in (
+            (dm_d1, {one.email, two.email}),
+            (dm_d2, {two.email, three.email}),
+            (dm_chc, set()),
+        ):
             found = {u.email for u, _ in self._dm_search(dm)[0]}
             self.assertEqual(found, expected, dm.email)
-        self.assertEqual({u.email for u, _ in self._dm_search(dm_chc)[0]}, set())
 
     def test_unit_only_dm_is_refused_project_and_site_scope(self):
         d1, _, _, member = self._setup_one()
@@ -751,7 +746,8 @@ class InstituteAdminTests(Stage1bBase):
         self.assertTrue(boss.is_mentor_institute_admin())
         self.assertFalse(boss.is_admin())
         self.assertFalse(boss.is_data_manager())
-        self.assertFalse(boss.is_unit_data_manager())
+        self.assertFalse(resolve_grants(boss).holds(
+            VaAccessRoles.data_manager, VaAccessScopeTypes.org_unit))
         self.assertTrue(db.session.get(VaUserAccessGrants, grant.grant_id).grant_status
                         == VaStatuses.active)
 

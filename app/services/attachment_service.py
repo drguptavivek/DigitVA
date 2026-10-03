@@ -231,8 +231,8 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     ``VIEW`` scope (``authz.READ_ATTACHMENTS``), evaluated against the
     submission's current routing: an old allocation or coder outcome grants
     nothing once the case is re-routed out of the user's scope (digitva-ck9).
-    The legacy ``permission`` dict stays as a fall-through until stage 7 of
-    digitva-0wc. See docs/policy/attachment-storage.md.
+    The legacy ``permission`` dict stays as a fall-through until a
+    production row count (digitva-d3y5). See docs/policy/attachment-storage.md.
 
     Evaluated fresh on every delivery; the result is never cached. Possession
     of a storage_name token grants nothing on its own.
@@ -249,6 +249,7 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     # them either, whichever path below would grant it.
     if can(user, READ_ATTACHMENTS, va_sid):
         return not redacts_pii(user)
+    # Legacy permission JSONB fall-through; delete after digitva-d3y5's count.
     for legacy_role, va_forms in (user.permission or {}).items():
         if legacy_role in _SCOPED_LEGACY_ROLES:
             continue

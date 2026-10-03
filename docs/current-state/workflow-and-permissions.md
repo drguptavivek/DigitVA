@@ -640,9 +640,10 @@ from this table.
 Legacy residue: `va_users.permission`, a NOT NULL JSONB column of
 form-centric permissions, still exists. It is read only as a fallback for
 roles other than coder, reviewer and site PI, in
-`VaUsers.has_va_form_access` and `get_all_accessible_va_forms`
-(`app/models/va_users.py`), `app/routes/api/workflow.py` and
-`app/services/attachment_service.py`. Account creation (admin, data-manager,
+`app/routes/api/workflow.py` (event history) and
+`app/services/attachment_service.py` (attachments); `VaUsers.has_va_form_access`
+now holds only that same fallback and has no app caller. All three wait for
+a production row count before deletion (digitva-d3y5). Account creation (admin, data-manager,
 CLI, project user import, seed) writes `{}`. The legacy shell helpers
 `app/services/va_user/va_user_01_create.py` and `va_user_02_update.py`
 (imported in `run.py`) and the test-data seed (`app/commands/seed.py`) write
@@ -651,14 +652,20 @@ current writer grants access through it.
 
 ### Current permission helpers
 
-The user model provides helpers such as:
+Every role and scope decision runs through `app/services/authz/`:
+`can` / `require` (one submission, form, project, unit or intake case),
+`scope_filter` (the same rule as a SQL predicate on `VaSubmissions`, for
+lists), `can_grant` / `grant_list_filter` (grant writes and lists),
+`effective_roles` (role gates), `reachable_unit_ids` (the unit picker, the
+device unit list and the area dashboard), `coding_gate_waivers` and
+`redacts_pii`. All of it is computed from one per-request `ResolvedGrants`.
 
-- `is_coder()`
-- `is_reviewer()`
-- `is_site_pi()`
-- `get_coder_va_forms()`
-- `get_reviewer_va_forms()`
-- `has_va_form_access()`
+The user model keeps role-gate predicates (`is_coder()`, `is_reviewer()`,
+`is_site_pi()`, `is_data_manager()`, `is_viewer()` and friends, used by
+`role_required._ROLE_METHODS` and the templates; `is_data_manager`,
+`is_site_pi` and `is_interview_supervisor` read `effective_roles`) and the
+form getters (`get_coder_va_forms()`, `get_reviewer_va_forms()`, ...) that
+answer which forms to offer. Neither decides one submission.
 
 ### Current effective model
 
@@ -672,10 +679,10 @@ Grant scope is resolved back to forms and submissions as follows:
   `VaUsers._get_granted_va_forms`), and for projects with an active
   organization tree the submissions of those forms are then narrowed to the
   coder's own unit subtree, honouring the project's coding scope level and
-  above-scope mode (`app/services/org_grant_service.py::codeable_unit_ids`);
+  above-scope mode (`authz.ResolvedGrants.codes`, applied by
+  `scope_filter(CODE)` / `can(CODE)`);
   a unit `coding_tester` adds its whole subtree to the coder pool and its
-  gate waivers apply to its own units only
-  (`coder_workflow_service._coding_waivers`, `tester_covers_submission`)
+  gate waivers apply to its own units only (`authz.coding_gate_waivers`)
 - data-management surfaces ask the authorization module (`app/services/authz`,
   digitva-0wc stage 3). A data manager is whoever `authz.effective_roles`
   says: a `data_manager` grant at any scope, `site_pi` at a unit (the
@@ -714,10 +721,10 @@ Grant scope is resolved back to forms and submissions as follows:
   In-charge only inside their own subtree; clearing a pin needs only the
   submission check
 - the narrowing is applied in the shared availability filter
-  (`coder_workflow_service._org_unit_scope_filter`, used by the pick list,
-  random allocation and the dashboard counts) **and** per submission when one
-  is opened or allocated (`submission_within_org_scope`, called once for every
-  coding and reviewing action in `va_validate_permissions`)
+  (`authz.scope_filter(CODE)` / `scope_filter(REVIEW)`, used by the pick
+  list, random allocation and the dashboard counts) **and** per submission
+  when one is opened or allocated (`authz.require`, the same predicate, in the
+  coding and reviewing services and `va_validate_permissions`)
 - projects with no organization tree are unaffected: the filter excludes
   nothing for them, so the form-and-site model is unchanged
 - web intake supervision: `interview_supervisor` (unit grants only),
@@ -1059,9 +1066,18 @@ Current baseline:
   `app/routes/data_management.py`), the admin panel's non-admin branch
   (`_project_pi_may_write` in `app/routes/admin.py`) and the project users
   import (`project_user_import_service.prepare`, one decision per distinct
-  role and unit). After it allows, the cadre check
-  (`validate_org_unit_grant`) and the mentor guard run unchanged, and every
-  write calls `authz.invalidate` for the grantee
+  role and unit). On a create, `can_grant` is asked of the raw payload
+  target before the scope is validated (`admin._payload_grant_target`,
+  digitva-xd1q), so a non-admin gets the same 403 for another project's unit
+  and an unknown one, never the unit or cadre message; after it allows, the
+  cadre check (`validate_org_unit_grant`) and the mentor guard run unchanged,
+  and every write calls `authz.invalidate` for the grantee
+- the admin panel's grant list and orphaned-grant list
+  (`/admin/api/access-grants`, `/admin/api/access-grants/orphaned`) filter on
+  `authz.grant_list_filter` (every grant for an admin; for a project PI the
+  grants it may write, so not other `project_pi` grants); the `project_id`
+  narrowing is allowed for a project where the caller holds a grant-writing
+  grant
 - `/data-management/users` serves data managers, In-charges and, in district
   projects, the `project_pi` (all pass the data-manager role gate through
   `authz.effective_roles`). It writes and lists `coder`, `coding_tester`,

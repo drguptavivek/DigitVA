@@ -24,11 +24,20 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUserAccessGrants,
 )
-from app.services import org_grant_service as grants
+from app.services.authz import Action, can, resolve_grants, subtree_select
 from app.services import organization_service as org
 from app.services import org_unit_routing_service as routing
 from app.services.coder_workflow_service import get_pick_available_forms
 from tests.base import BaseTestCase
+
+
+
+def _unit_scope(user, role, *, coding):
+    """Every unit the user's *role* unit grants reach: their codeable units
+    (the project's coding scope level applied) or, with ``coding=False``,
+    their viewable ones (the whole subtree of every grant)."""
+    anchors = resolve_grants(user).unit_grant_ids((role,), coding=coding)
+    return set(db.session.scalars(subtree_select(anchors))) if anchors else set()
 
 
 class CodingScopeFixtureMixin:
@@ -168,14 +177,12 @@ class CodingScopeFixtureMixin:
 
 
 class CodingScopeResolutionTests(CodingScopeFixtureMixin, BaseTestCase):
-    """codeable_unit_ids applies the project's scope level and above-scope mode."""
+    """The codeable units apply the project's scope level and above-scope mode."""
 
     def test_without_a_scope_level_a_grant_covers_its_whole_subtree(self):
         _, district, chc, phc_a, phc_b = self._tree()
         self._grant(chc, cadre_code="SMO")
-        units = grants.codeable_unit_ids(
-            self.base_coder_user.user_id, VaAccessRoles.coder
-        )
+        units = _unit_scope(self.base_coder_user, VaAccessRoles.coder, coding=True)
         self.assertEqual(
             units, {chc.org_unit_id, phc_a.org_unit_id, phc_b.org_unit_id}
         )
@@ -185,9 +192,7 @@ class CodingScopeResolutionTests(CodingScopeFixtureMixin, BaseTestCase):
         levels, _, _, phc_a, _ = self._tree()
         self._grant(phc_a)
         self._set_scope(levels["phc"])
-        units = grants.codeable_unit_ids(
-            self.base_coder_user.user_id, VaAccessRoles.coder
-        )
+        units = _unit_scope(self.base_coder_user, VaAccessRoles.coder, coding=True)
         self.assertEqual(units, {phc_a.org_unit_id})
 
     def test_a_grant_above_the_scope_level_codes_nothing_by_default(self):
@@ -195,7 +200,7 @@ class CodingScopeResolutionTests(CodingScopeFixtureMixin, BaseTestCase):
         self._grant(chc, cadre_code="SMO")
         self._set_scope(levels["phc"])  # CHC is shallower than PHC
         self.assertEqual(
-            grants.codeable_unit_ids(self.base_coder_user.user_id, VaAccessRoles.coder),
+            _unit_scope(self.base_coder_user, VaAccessRoles.coder, coding=True),
             set(),
         )
 
@@ -204,7 +209,7 @@ class CodingScopeResolutionTests(CodingScopeFixtureMixin, BaseTestCase):
         self._grant(chc, cadre_code="SMO")
         self._set_scope(levels["phc"], mode="code_any")
         self.assertEqual(
-            grants.codeable_unit_ids(self.base_coder_user.user_id, VaAccessRoles.coder),
+            _unit_scope(self.base_coder_user, VaAccessRoles.coder, coding=True),
             {chc.org_unit_id, phc_a.org_unit_id, phc_b.org_unit_id},
         )
 
@@ -220,7 +225,7 @@ class CodingScopeResolutionTests(CodingScopeFixtureMixin, BaseTestCase):
         self._grant(subcentre, cadre_code="CHO")
         self._set_scope(levels["phc"])
         self.assertEqual(
-            grants.codeable_unit_ids(self.base_coder_user.user_id, VaAccessRoles.coder),
+            _unit_scope(self.base_coder_user, VaAccessRoles.coder, coding=True),
             {subcentre.org_unit_id},
         )
 
@@ -444,14 +449,10 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
         self._submission("csc-nowhere")
 
         user = self.base_coder_user
-        self.assertTrue(grants.submission_within_org_scope(
-            user, "csc-mine", VaAccessRoles.coder))
-        self.assertFalse(grants.submission_within_org_scope(
-            user, "csc-theirs", VaAccessRoles.coder))
-        self.assertFalse(grants.submission_within_org_scope(
-            user, "csc-nowhere", VaAccessRoles.coder))
-        self.assertFalse(grants.submission_within_org_scope(
-            user, "csc-does-not-exist", VaAccessRoles.coder))
+        self.assertTrue(can(user, Action.CODE, "csc-mine"))
+        self.assertFalse(can(user, Action.CODE, "csc-theirs"))
+        self.assertFalse(can(user, Action.CODE, "csc-nowhere"))
+        self.assertFalse(can(user, Action.CODE, "csc-does-not-exist"))
 
     def test_a_reviewer_grant_does_not_confer_coding_scope(self):
         _, _, _, phc_a, _ = self._tree()
@@ -459,10 +460,8 @@ class SubmissionLevelGateTests(CodingScopeFixtureMixin, BaseTestCase):
         self._submission("csc-reviewable", unit=phc_a)
 
         user = self.base_coder_user
-        self.assertTrue(grants.submission_within_org_scope(
-            user, "csc-reviewable", VaAccessRoles.reviewer))
-        self.assertFalse(grants.submission_within_org_scope(
-            user, "csc-reviewable", VaAccessRoles.coder))
+        self.assertTrue(can(user, Action.REVIEW, "csc-reviewable"))
+        self.assertFalse(can(user, Action.CODE, "csc-reviewable"))
 
     def test_allocation_refuses_a_submission_outside_scope(self):
         from app.services.coder_workflow_service import (
@@ -670,13 +669,18 @@ class AreaOverviewTests(CodingScopeFixtureMixin, BaseTestCase):
 
         user = self.base_coder_user
         self.assertEqual(
-            grants.codeable_unit_ids(user.user_id, VaAccessRoles.coder), set()
+            _unit_scope(user, VaAccessRoles.coder, coding=True), set()
         )
         self.assertEqual(
-            grants.viewable_unit_ids(user.user_id, VaAccessRoles.coder),
+            _unit_scope(user, VaAccessRoles.coder, coding=False),
             {chc.org_unit_id, phc_a.org_unit_id, phc_b.org_unit_id},
         )
-        self.assertTrue(grants.has_view_only_scope(user.user_id, VaAccessRoles.coder))
+        # View-only scope: units seen but not coded.
+        self.assertTrue(
+            _unit_scope(user, VaAccessRoles.coder, coding=False)
+            - _unit_scope(user, VaAccessRoles.coder, coding=True)
+        )
+        self.assertFalse(can(user, Action.CODE, "csc-area-chc"))
 
         self._login_coder()
         response = self.client.get("/coding/area")
@@ -713,11 +717,9 @@ class AreaOverviewTests(CodingScopeFixtureMixin, BaseTestCase):
 
         user = self.base_coder_user
         # Visible…
-        self.assertTrue(grants.submission_within_org_view_scope(
-            user, "csc-area-look-only", VaAccessRoles.coder))
+        self.assertTrue(can(user, Action.VIEW, "csc-area-look-only"))
         # …but not codeable, and allocation refuses it.
-        self.assertFalse(grants.submission_within_org_scope(
-            user, "csc-area-look-only", VaAccessRoles.coder))
+        self.assertFalse(can(user, Action.CODE, "csc-area-look-only"))
         with self.assertRaises(AllocationError):
             allocate_pick_form(user, "csc-area-look-only")
 
@@ -738,7 +740,12 @@ class AreaOverviewTests(CodingScopeFixtureMixin, BaseTestCase):
         self._submission("csc-area-codeable", unit=phc_a)
 
         user = self.base_coder_user
-        self.assertFalse(grants.has_view_only_scope(user.user_id, VaAccessRoles.coder))
+        # No view-only scope: every unit seen is coded.
+        self.assertTrue(_unit_scope(user, VaAccessRoles.coder, coding=True))
+        self.assertEqual(
+            _unit_scope(user, VaAccessRoles.coder, coding=False),
+            _unit_scope(user, VaAccessRoles.coder, coding=True),
+        )
 
         self._login_coder()
         response = self.client.get("/coding/area")

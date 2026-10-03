@@ -1052,11 +1052,6 @@
     return ROLE_LABEL[g.role] || g.role;
   }
   var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary', reviewer: 'success', collaborator: 'info', collaborator_pii: 'info' };
-  function isProtectedSelfDmGrant(g) {
-    if (!_state || !_state.user || _state.user.is_admin) return false;
-    return g.role === 'data_manager' && g.user_id === _state.user.user_id;
-  }
-
   function renderGrantsTable(grants) {
     var wrap = document.getElementById('dm-ag-table-wrap');
     if (!grants.length) {
@@ -1066,12 +1061,11 @@
     var rows = grants.map(function (g) {
       var color = ROLE_COLOR[g.role] || 'secondary';
       var scopeLabel = esc(scopeLabelOf(g));
-      var protectedSelfGrant = isProtectedSelfDmGrant(g);
-      var actionCell = protectedSelfGrant
-        ? '<span class="text-muted small" title="Your own data_manager grant cannot be revoked here.">Protected</span>'
-        : '<button class="btn btn-sm py-0 px-2 btn-outline-danger dm-ag-revoke-btn"'
-          + ' data-grant-id="' + esc(g.grant_id) + '" title="Revoke">'
-          + '<i class="fa-solid fa-ban"></i></button>';
+      // The list never holds the caller's own data_manager grant
+      // (authz.grant_list_filter), so every row is revocable.
+      var actionCell = '<button class="btn btn-sm py-0 px-2 btn-outline-danger dm-ag-revoke-btn"'
+        + ' data-grant-id="' + esc(g.grant_id) + '" title="Revoke">'
+        + '<i class="fa-solid fa-ban"></i></button>';
       return '<tr>'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(g.user_name) + '</div>'

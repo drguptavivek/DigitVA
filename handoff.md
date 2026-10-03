@@ -54,18 +54,32 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    rendering by reviewer reach; area link). **Stage 5 committed**
    (migration `e2b7c4d9a1f3`, applied to dev: site_pi at org_unit = the
    In-charge, with every DM power, intake supervision and the unit site PI
-   report; project_pi supervises tree projects). **Stage 6 implemented, in
-   verification** (grant writes through can_grant/grant_list_filter; DMs,
+   report; project_pi supervises tree projects). **Stage 6 committed** (grant writes through can_grant/grant_list_filter; DMs,
    in-charges and project_pi create grants per the district rule; unit
    writers see managed people without contact details). Open from stage 6:
-   `digitva-i0zb` (owner: how a unit DM adds an existing account),
-   `digitva-xd1q` (400-before-403 oracle). Dev DB head: `e2b7c4d9a1f3`.
+   `digitva-i0zb` (owner chose exact-email lookup with search-then-add;
+   policy written; implement after stage 7, same files),
+   **Stage 7 committed** (digitva-0wc stays open only for `digitva-26pg`) (old helpers and shadow test
+   deleted; authz is the single source; xd1q fixed). The legacy
+   `permission` fall-through stays: dev holds only coder/sitepi keys, which
+   it ignores, so it grants nothing there; run the key query on production
+   and delete it (`digitva-d3y5`). `org_grant_service.project_wide_grant_exists`
+   stays only for web_intake_service (Expo-session file); switch it to
+   `authz.reachable_unit_ids` once that lands. Field staff without email:
+   `digitva-l7c2` (owner decision). Dev DB head: `e2b7c4d9a1f3`.
    A parallel Expo-client session (`digitva-p6fs`) has uncommitted work
    in this checkout (client API/static host, mobile/, app/__init__.py,
    additive draft locale fields and tests): commit only stage files by name.
    Expo preview `/app/`: English/Hindi UI, shared dark/light form theme,
    left sidebar/phone rail, login handoff and server collection drafts; coding/review still link to existing workspaces (.4).
-   Expo: 78 Jest tests, TypeScript and separate web/Android JS exports pass.
+   Expo: 84 Jest tests, TypeScript and separate web/Android JS exports pass.
+   Compact language icon, linked UI/form language and web logo are in place.
+   Section dots select directly; separate fly-out uses the theme; authorized
+   interviewer prefill preserves saved answers. Settings uses the shared shell
+   (left navigation/header, optional footer). Clearing the last section answer
+   now sends an explicit empty section. Refresh old loaded previews.
+   P1 `digitva-p6fs.9`: enforce locked prefill at intake PATCH/submit on server
+   (existing UI locks can be bypassed); dev preview only, no production-ready claim.
    Browser synthetic TST001 registration, Hindi save/resume and theme checked;
    left rail tested at 391px without overflow, drawer Escape/focus return checked.
    Focused backend: 73 passed, 20 subtests; latest broad run: 3068 passed,

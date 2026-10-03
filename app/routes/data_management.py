@@ -34,6 +34,7 @@ from app.routes.admin import (
     _grant_project_id_expression,
     _grant_site_id_expression,
     _json_error,
+    _payload_grant_target,
     _resolve_scope_from_payload,
     _serialize_grant,
     _serialize_project_site,
@@ -251,6 +252,14 @@ def require_dm_scope(f):
                 target_id = uuid.UUID(str(payload.get("user_id")))
             except ValueError:
                 target_id = None  # the handler rejects a bad user_id itself
+            # Permission first: the cadre and unit checks below would tell a
+            # caller about a unit outside their scope (digitva-xd1q).
+            early = _payload_grant_target(payload)
+            if early is not None and not _may_write(early, target_id):
+                log.warning(
+                    "Grant scope denied: user=%s path=%s", current_user.get_id(), request.path
+                )
+                return _json_error(_GRANT_REFUSAL, 403)
             try:
                 scope = _resolve_scope_from_payload(payload)
             except ValueError as exc:
@@ -695,6 +704,10 @@ def manage_create_user():
             continue
         if payload.get(initial_key):
             grant_payload[key] = payload[initial_key]
+    # Permission first, as on the grant create path (digitva-xd1q).
+    early = _payload_grant_target(grant_payload)
+    if early is not None and not _may_write(early, None):
+        return _json_error(_GRANT_REFUSAL, 403)
     try:
         scope = _resolve_scope_from_payload(grant_payload)
     except ValueError as exc:

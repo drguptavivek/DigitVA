@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-03
 ---
 
 # Area Dashboard Policy
@@ -29,16 +29,17 @@ separate project dashboard build. Bead `digitva-stc`.
 ## Scope
 
 Resolved per project, as a union over all of the user's roles. A project
-"has a tree" when it has an active organization level, the same test the
-coding scope uses (`submission_within_org_scope`):
+"has a tree" when it has an active organization level
+(`org_grant_service.projects_with_org_tree`), the same test authorization
+uses; the reach is `authz.reachable_unit_ids`:
 
 - A project-scoped or project-site-scoped grant on an **organization** project
   gives the whole tree. The automatic `O###` site is the project
   (`organization-model.md`), so a site grant there is project-wide
-  (`org_grant_service.project_wide_grant_exists`).
+  (a project or pair grant in `authz.ResolvedGrants`).
 - Otherwise the subtrees of the user's org-unit grants
-  (`org_grant_service.scope_unit_ids_for_roles`), which is the same viewing
-  scope `viewable_unit_ids` already gives each role.
+  (`authz.reachable_unit_ids`), the same viewing scope `authz.can(VIEW)`
+  gives each role.
 - A **sites-mode** project (no tree) is shown per site: every site for a
   project grant, the granted sites for site grants.
 

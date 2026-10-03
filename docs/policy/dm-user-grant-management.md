@@ -204,9 +204,27 @@ Who they find depends on their grants:
   `project_pi`) and an admin search every account, as before;
 - a unit writer (a `data_manager` at a unit, an In-charge) finds and opens
   only the holders of grants it may manage and the staff of mentoring
-  institutes attached to districts it covers, with no contact details. To
-  grant someone who holds no grant in its area it creates the account, or
-  asks a project-level data manager or the project PI.
+  institutes attached to districts it covers, with no contact details.
+
+**Find by exact email or mobile, then add (digitva-i0zb).** A unit writer who needs
+to grant someone with an existing account outside its area types that
+person's full email address or full mobile number (field staff such as
+ANM and ASHA often have no email of their own). The lookup matches the
+whole value (email case-insensitive; mobile compared on digits only), no
+partial match, no wildcard, among active accounts. An email returns at
+most one person; a mobile number can return a few, since numbers are not
+unique. Each match shows the person's name, email, status, job title
+(digitva-04u4, once it exists) and their current posts: each unit where
+they hold an active grant with the cadre held there (for example "ANM,
+Sub-centre Rampur"), so the writer can confirm it has the right person.
+It shows no phone, no roles and no site-project grants. A miss says "No account found; create one" and offers the
+create-user form with the typed value filled in. A match offers
+"Add grant", which opens the new-grant form with that person preselected;
+the grant itself is decided by the normal rules (`can_grant`, cadre,
+mentor guard). Finding a person by exact email does not let the writer
+open their details panel or see their grants until it has given them a
+grant it may manage. The lookup is rate-limited, since it says whether an
+address has an account.
 
 The details panel includes:
 

@@ -12,7 +12,7 @@ The main session plans, decides, reviews results and commits. It delegates:
   reports files changed, where the design did not fit, and the pytest targets.
 - **Narrow-scoped tasks and code exploration: Sonnet or Luna at high
   effort.** A small fix, a single-file change, a doc, or finding where
-  something lives goes to one of these, not to Opus. Keep Opus for broad or
+  something lives goes to one of these, not to Opus or Sol. Keep Opus or Sol for broad or
   risky multi-file changes (auth, migrations, cross-module refactors).
 - **Reads, audits, reviews: Sonnet or Haiku.** `code-reviewer`,
   `security-reviewer`, `auditor`, `Explore`. Read-only. Ask for verified

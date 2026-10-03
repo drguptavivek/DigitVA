@@ -6,6 +6,7 @@ Shared helpers live in app/services/data_management_service.py.
 """
 
 import logging
+import re
 import uuid
 
 import sqlalchemy as sa
@@ -14,9 +15,10 @@ from flask_login import current_user
 from flask_wtf.csrf import generate_csrf
 from functools import wraps
 
-from app import db
+from app import db, limiter
 from app.decorators import role_required
 from app.models import (
+    MasCadre,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -664,6 +666,122 @@ def manage_users():
         "users": [_serialize_user(u) for u in users[:_USER_SEARCH_LIMIT]],
         "truncated": len(users) > _USER_SEARCH_LIMIT,
     })
+
+
+#: At most this many accounts for one mobile number (numbers are not unique).
+_LOOKUP_MOBILE_LIMIT = 5
+
+#: The stored phone, normalised in SQL exactly as ``_canonical_mobile`` does
+#: in Python: digits only, then a leading ``0`` or ``91`` in front of ten
+#: digits dropped.
+_PHONE_CANONICAL = sa.func.regexp_replace(
+    sa.func.regexp_replace(VaUsers.phone, "[^0-9]", "", "g"),
+    "^(0|91)([0-9]{10})$",
+    r"\2",
+)
+
+
+def _canonical_mobile(value):
+    """The ten-digit form of a typed mobile number, or None.
+
+    Keeps the digits only (spaces, dashes, brackets and ``+`` go), then drops
+    a trunk ``0`` (eleven digits) or the country code ``91`` (twelve digits).
+    Anything that is not then exactly ten digits is not a full number, so a
+    partial or padded number never matches. ``_PHONE_CANONICAL`` applies the
+    same rule to the stored phone.
+    """
+    digits = re.sub(r"[^0-9]", "", value)
+    if (len(digits) == 11 and digits.startswith("0")) or (
+        len(digits) == 12 and digits.startswith("91")
+    ):
+        digits = digits[-10:]
+    return digits if len(digits) == 10 else None
+
+
+def _lookup_posts(user_ids):
+    """Active unit grants of *user_ids* as posts: unit and cadre, no role.
+
+    Returns ``{user_id: [post, ...]}``; two roles at one unit with one cadre
+    are one post.
+    """
+    rows = db.session.execute(
+        sa.select(
+            VaUserAccessGrants.user_id,
+            VaUserAccessGrants.org_unit_id,
+            VaUserAccessGrants.cadre_id,
+            MasOrgUnit.unit_code,
+            MasOrgUnit.unit_name,
+            MasOrgLevel.level_name,
+            MasCadre.cadre_code,
+            MasCadre.cadre_name,
+        )
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .outerjoin(MasCadre, MasCadre.cadre_id == VaUserAccessGrants.cadre_id)
+        .where(
+            VaUserAccessGrants.user_id.in_(user_ids),
+            VaUserAccessGrants.scope_type == _U,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        )
+        .order_by(MasOrgUnit.unit_code, MasCadre.cadre_code)
+    ).all()
+    posts, seen = {}, set()
+    for row in rows:
+        key = (row.user_id, row.org_unit_id, row.cadre_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        posts.setdefault(row.user_id, []).append({
+            "unit_code": row.unit_code,
+            "unit_name": row.unit_name,
+            "level_name": row.level_name,
+            "cadre_code": row.cadre_code,
+            "cadre_name": row.cadre_name,
+        })
+    return posts
+
+
+@data_management.get("/api/users/lookup")
+@role_required("data_manager", "admin")
+@limiter.limit("10 per minute")
+def manage_lookup_user():
+    """Find an existing account by its full email or full mobile number.
+
+    For a writer about to grant someone outside its area (policy:
+    dm-user-grant-management.md, digitva-i0zb). ``value`` containing ``@``
+    is an email, matched whole and case-insensitively (at most one); anything
+    else is a mobile number matched on ``_canonical_mobile`` (at most
+    ``_LOOKUP_MOBILE_LIMIT``). Active accounts only; no partial match.
+
+    Returns ``{"users": [{user_id, name, email, status, posts}]}``, empty on
+    a miss; 400 for an empty value. No phone, roles or grants, and finding
+    someone does not widen ``_dm_may_see_user``. Rate-limited because it
+    says whether an address has an account.
+    """
+    value = (request.args.get("value") or "").strip()
+    if not value:
+        return _json_error("Enter a full email address or mobile number.", 400)
+    stmt = sa.select(VaUsers).where(VaUsers.user_status == VaStatuses.active)
+    if "@" in value:
+        stmt = stmt.where(sa.func.lower(VaUsers.email) == value.lower()).limit(1)
+    else:
+        mobile = _canonical_mobile(value)
+        if mobile is None:
+            return jsonify({"users": []})
+        stmt = stmt.where(_PHONE_CANONICAL == mobile).limit(_LOOKUP_MOBILE_LIMIT)
+    users = db.session.scalars(stmt.order_by(VaUsers.email)).all()
+    posts = _lookup_posts([u.user_id for u in users]) if users else {}
+    # Job title joins these rows once the user model has one (digitva-04u4).
+    return jsonify({"users": [
+        {
+            "user_id": str(u.user_id),
+            "name": u.name,
+            "email": u.email,
+            "status": u.user_status.value,
+            "posts": posts.get(u.user_id, []),
+        }
+        for u in users
+    ]})
 
 
 #: create-user payload key -> the grant payload key it stands for.

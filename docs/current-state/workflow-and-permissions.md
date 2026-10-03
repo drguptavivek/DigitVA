@@ -1094,6 +1094,15 @@ Current baseline:
 - user search: a project or site writer (or admin) searches every account; a
   unit writer finds only holders of grants it may manage plus the mentoring
   institute staff of districts it covers (slim rows, no phone)
+- exact lookup (`GET /data-management/api/users/lookup?value=`, digitva-i0zb):
+  any writer on the page finds an active account by its full email
+  (case-insensitive, at most one) or full mobile number (digits only, a
+  leading `0` or `91` before ten digits dropped, on both sides; at most five).
+  Rows carry name, email, status and posts (each active unit grant's unit,
+  level and cadre), no phone, roles or grants. Finding someone does not open
+  their details panel; that still needs a grant the writer may manage.
+  Rate-limited to 10 per minute per user; a 429 under `/data-management/api/`
+  is JSON
 - browser-originated mutating admin API requests require the `X-CSRFToken` header
 
 ## Important Current-State Limitation

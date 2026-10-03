@@ -61,6 +61,18 @@
         </button>
       </div>
 
+      {# Exact lookup: someone with an account outside the caller's area (digitva-i0zb) #}
+      <div class="mb-3">
+        <div class="input-group input-group-sm" style="max-width:420px;">
+          <input type="text" id="dm-user-lookup-input" class="form-control"
+                 placeholder="Find by full email or mobile" autocomplete="off">
+          <button class="btn btn-outline-secondary" type="button" id="dm-user-lookup-btn">
+            <i class="fa-solid fa-user-check me-1"></i>Find
+          </button>
+        </div>
+        <div id="dm-user-lookup-results" class="mt-2"></div>
+      </div>
+
       {# Create user form #}
       <div id="dm-user-form-container" class="card mb-4 d-none">
         <div class="card-body">
@@ -478,6 +490,79 @@
     document.getElementById('dm-user-search-input').addEventListener('input', function () {
       clearTimeout(_searchTimeout);
       _searchTimeout = setTimeout(loadUsers, 300);
+    });
+    document.getElementById('dm-user-lookup-btn').addEventListener('click', lookupUser);
+    document.getElementById('dm-user-lookup-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); lookupUser(); }
+    });
+  }
+
+  // Exact lookup by full email or mobile (rate-limited server side). A match
+  // offers "Add grant"; a miss offers the create-user form, prefilled.
+  var _lookupUsers = [];
+
+  function lookupUser() {
+    var value = document.getElementById('dm-user-lookup-input').value.trim();
+    var wrap = document.getElementById('dm-user-lookup-results');
+    if (!value) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Looking up...</div>';
+    apiJson('/data-management/api/users/lookup?value=' + encodeURIComponent(value)).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-warning small py-2 mb-0">' + esc(res.data.error || 'Lookup failed.') + '</div>';
+        return;
+      }
+      _lookupUsers = res.data.users || [];
+      if (!_lookupUsers.length) { renderLookupMiss(value); return; }
+      renderLookupMatches();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2 mb-0">Lookup failed. Wait a minute and try again.</div>';
+    });
+  }
+
+  function renderLookupMatches() {
+    var wrap = document.getElementById('dm-user-lookup-results');
+    wrap.innerHTML = '<ul class="list-group">' + _lookupUsers.map(function (u, i) {
+      var posts = (u.posts || []).map(function (p) {
+        return esc(p.cadre_name || p.cadre_code || 'No cadre') + ', ' + esc(p.unit_name)
+          + ' <span class="text-muted">(' + esc(p.unit_code) + ', ' + esc(p.level_name) + ')</span>';
+      });
+      return '<li class="list-group-item d-flex justify-content-between align-items-start">'
+        + '<div class="small">'
+        +   '<div class="fw-semibold">' + esc(u.name) + ' <span class="badge text-bg-light">' + esc(u.status) + '</span></div>'
+        +   '<div class="text-muted">' + esc(u.email) + '</div>'
+        +   '<div>' + (posts.length ? posts.join('<br>') : '<span class="text-muted">No current posts</span>') + '</div>'
+        + '</div>'
+        + '<button type="button" class="btn btn-sm btn-outline-primary dm-lookup-add" data-index="' + i + '">'
+        +   '<i class="fa-solid fa-key me-1"></i>Add grant</button>'
+        + '</li>';
+    }).join('') + '</ul>';
+    wrap.querySelectorAll('.dm-lookup-add').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var u = _lookupUsers[Number(btn.getAttribute('data-index'))];
+        if (!u) return;
+        _selectedUserId = u.user_id;
+        _selectedUserEmail = u.email;
+        _selectedUserName = u.name;
+        openSelectedUserInGrantsTab();
+      });
+    });
+  }
+
+  function renderLookupMiss(value) {
+    var wrap = document.getElementById('dm-user-lookup-results');
+    wrap.innerHTML = '<div class="alert alert-light border small py-2 mb-0">'
+      + 'No account found; <a href="#" id="dm-user-lookup-create">create one</a>.</div>';
+    document.getElementById('dm-user-lookup-create').addEventListener('click', function (e) {
+      e.preventDefault();
+      resetUserForm();
+      if (value.indexOf('@') !== -1) {
+        document.getElementById('dm-user-email').value = value.toLowerCase();
+        document.getElementById('dm-user-email-confirm').value = value.toLowerCase();
+      } else {
+        document.getElementById('dm-user-phone').value = value;
+      }
+      document.getElementById('dm-user-form-container').classList.remove('d-none');
+      document.getElementById('dm-user-name').focus();
     });
   }
 

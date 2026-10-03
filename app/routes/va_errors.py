@@ -29,7 +29,7 @@ def register_error_handlers(app):
         message = (
             "Too many requests in a short time. Please wait 5 minutes and try again."
         )
-        if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
+        if request.path.startswith(("/api/", "/admin/api/", "/data-management/api/")):
             return jsonify({"error": message}), 429
 
         flash(message, "warning")

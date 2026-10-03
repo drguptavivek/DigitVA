@@ -14,7 +14,7 @@ from unittest.mock import patch
 import sqlalchemy as sa
 
 from app import db, limiter
-from app.models import VaProjectMaster, VaStatuses, VaUserAccessGrants
+from app.models import MasOrgLevel, VaProjectMaster, VaStatuses, VaUserAccessGrants
 from app.models.mas_languages import MasLanguages
 from app.services import project_user_import_service as user_import
 from app.services.authz import GrantTarget, can_grant
@@ -25,6 +25,7 @@ from tests.base import BaseTestCase
 
 DM_GRANTS = "/data-management/api/access-grants"
 ADMIN_GRANTS = "/admin/api/access-grants"
+LOOKUP = "/data-management/api/users/lookup"
 # The roles the data-manager page writes and lists; the rest are the admin panel's.
 DM_PAGE_ROLES = DM_SITE_ASSIGNABLE | DM_TREE_ASSIGNABLE
 
@@ -331,6 +332,138 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
                            initial_org_unit_id=str(self.units["D1"].org_unit_id))
             refused = self._post("/data-management/api/users", payload)
             self.assertEqual(refused.status_code, 403, refused.get_json())
+
+    # -- exact lookup by email or mobile (digitva-i0zb) ---------------------
+
+    def _lookup(self, value):
+        return self.client.get(LOOKUP, query_string={"value": value})
+
+    def _found(self, value):
+        response = self._lookup(value)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return response.get_json()["users"]
+
+    def _phone_users(self):
+        """Three accounts holding one mobile number in different formats."""
+        stored = ("+91 98765 43210", "09876543210", "9876543210")
+        made = []
+        for i, phone in enumerate(stored):
+            user = self._get_or_make_user(f"authz.phone{i}@test.local", "AuthzTest123")
+            user.phone = phone
+            made.append(user)
+        db.session.flush()
+        return made
+
+    def test_lookup_finds_an_outside_person_by_exact_email_case_insensitively(self):
+        outside = self.users["reviewer_ta"]
+        self._as("dm_c1")
+        found = self._found("  AUTHZ.Reviewer_TA@test.LOCAL ")
+        self.assertEqual([u["email"] for u in found], [outside.email])
+        self.assertEqual(found[0]["user_id"], str(outside.user_id))
+        # No partial match, no wildcard.
+        self.assertEqual(self._found("authz.reviewer_t"), [])
+        self.assertEqual(self._found("reviewer_ta@test.local"), [])
+        self.assertEqual(self._found("authz.reviewer_%@test.local"), [])
+
+    def test_lookup_matches_a_mobile_in_any_format_and_returns_every_holder(self):
+        made = self._phone_users()
+        self._as("dm_c1")
+        expected = sorted(u.email for u in made)
+        for typed in ("9876543210", "98765-43210", "+91 98765 43210", "09876543210",
+                      "919876543210"):
+            with self.subTest(typed=typed):
+                self.assertEqual(sorted(u["email"] for u in self._found(typed)), expected)
+        # A partial or padded number is not the full number.
+        for typed in ("9876543", "876543210", "59876543210", "1919876543210"):
+            with self.subTest(typed=typed):
+                self.assertEqual(self._found(typed), [])
+
+    def test_lookup_caps_mobile_matches(self):
+        for i in range(7):
+            user = self._get_or_make_user(f"authz.cap{i}@test.local", "AuthzTest123")
+            user.phone = "9123456789"
+        db.session.flush()
+        self._as("dm_c1")
+        self.assertEqual(len(self._found("9123456789")), 5)
+
+    def test_lookup_returns_active_accounts_only(self):
+        made = self._phone_users()
+        self._as("dm_c1")
+        self.assertIn(made[0].email, [u["email"] for u in self._found("9876543210")])
+        self.assertEqual([u["email"] for u in self._found(made[0].email)], [made[0].email])
+        made[0].user_status = VaStatuses.deactive
+        db.session.flush()
+        self.assertNotIn(made[0].email, [u["email"] for u in self._found("9876543210")])
+        self.assertEqual(self._found(made[0].email), [])
+
+    def test_lookup_shows_posts_with_cadre_and_no_contact_roles_or_grants(self):
+        person = self._get_or_make_user("authz.posted@test.local", "AuthzTest123")
+        person.phone = "9000000001"
+        mo = self._cadre("MO")
+        db.session.add_all([
+            VaUserAccessGrants(user_id=person.user_id, role=R.interviewer, scope_type=U,
+                               org_unit_id=self.units["D2"].org_unit_id, cadre_id=mo.cadre_id,
+                               grant_status=VaStatuses.active),
+            # Same post under a second role: still one post.
+            VaUserAccessGrants(user_id=person.user_id, role=R.reviewer, scope_type=U,
+                               org_unit_id=self.units["D2"].org_unit_id, cadre_id=mo.cadre_id,
+                               grant_status=VaStatuses.active),
+            VaUserAccessGrants(user_id=person.user_id, role=R.coder, scope_type=U,
+                               org_unit_id=self.units["E1"].org_unit_id,
+                               grant_status=VaStatuses.deactive),
+            VaUserAccessGrants(user_id=person.user_id, role=R.coder, scope_type=P,
+                               project_id=SP, grant_status=VaStatuses.active),
+        ])
+        db.session.flush()
+        self._as("dm_c1")
+        [row] = self._found("9000000001")
+        self.assertEqual(row["email"], person.email)
+        self.assertEqual(row["name"], person.name)
+        self.assertEqual(row["status"], "active")
+        self.assertEqual(row["posts"], [{
+            "unit_code": "D2", "unit_name": "D2",
+            "level_name": db.session.get(MasOrgLevel, self.units["D2"].org_level_id).level_name,
+            "cadre_code": "MO", "cadre_name": mo.cadre_name,
+        }])
+        for key in ("phone", "roles", "role", "grants", "grant_id", "languages", "is_admin"):
+            self.assertNotIn(key, row)
+        self.assertNotIn("9000000001", str(row))
+        # A project-scope grant is not a post.
+        [outside] = self._found(self.users["reviewer_ta"].email)
+        self.assertEqual(outside["posts"], [])
+
+    def test_finding_someone_does_not_open_their_details_until_granted(self):
+        outside = self.users["reviewer_ta"]
+        detail = f"/data-management/api/users/{outside.user_id}"
+        self._as("dm_c1")
+        self.assertEqual([u["email"] for u in self._found(outside.email)], [outside.email])
+        self.assertEqual(self.client.get(detail).status_code, 404)
+        made = self._post(DM_GRANTS, self._body(R.reviewer, U, "C1", user=outside))
+        self.assertEqual(made.status_code, 201, made.get_json())
+        opened = self.client.get(detail)
+        self.assertEqual(opened.status_code, 200)
+        self.assertEqual(opened.get_json()["user"]["email"], outside.email)
+
+    def test_in_charge_and_wide_writers_may_look_up_too(self):
+        outside = self.users["reviewer_sp1"]
+        for actor in ("incharge_c1", "dm_ta", "admin"):
+            with self.subTest(actor=actor):
+                self._as(actor)
+                self.assertEqual([u["email"] for u in self._found(outside.email)], [outside.email])
+        self._as("coder_c1")
+        self.assertEqual(self._lookup(outside.email).status_code, 403)
+
+    def test_lookup_rejects_an_empty_value(self):
+        self._as("dm_c1")
+        self.assertEqual(self._lookup("   ").status_code, 400)
+
+    def test_lookup_is_rate_limited(self):
+        self._as("dm_c1")
+        for _ in range(10):
+            self.assertEqual(self._lookup("nobody@test.local").status_code, 200)
+        limited = self._lookup("nobody@test.local")
+        self.assertEqual(limited.status_code, 429)
+        self.assertIn("error", limited.get_json())
 
     # -- invalidate ---------------------------------------------------------
 

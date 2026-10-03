@@ -57,8 +57,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    report; project_pi supervises tree projects). **Stage 6 committed** (grant writes through can_grant/grant_list_filter; DMs,
    in-charges and project_pi create grants per the district rule; unit
    writers see managed people without contact details). Open from stage 6:
-   `digitva-i0zb` (owner chose exact-email lookup with search-then-add;
-   policy written; implement after stage 7, same files),
+   
    **Stage 7 committed** (digitva-0wc stays open only for `digitva-26pg`) (old helpers and shadow test
    deleted; authz is the single source; xd1q fixed). The legacy
    `permission` fall-through stays: dev holds only coder/sitepi keys, which

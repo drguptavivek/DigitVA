@@ -16,8 +16,10 @@ build scoped sub-queries.  The key design decisions:
   row when its form's (project, site) pair is in the direct scope OR the
   submission's ``org_unit_id`` is in the subtree of the granted units, a
   subquery anchored on the grant ids (``DmScope.sql``), never a materialised
-  id list. Each row is tested once in one WHERE, so a submission both in a
-  direct pair and in the subtree is counted once.
+  id list, and its form's pair is active, as the grid requires
+  (``authz.active_pair``; digitva-26pg). Each row is tested once in one
+  WHERE, so a submission both in a direct pair and in the subtree is
+  counted once.
 - **Aggregate panels** (daily grid, burndown, backlog trend) read
   ``va_daily_kpi_aggregates``, which holds one row per (date, site) counting
   every project's forms at that site (``app/tasks/kpi_tasks.py``; its
@@ -122,7 +124,15 @@ class DmScope:
             " WHERE dm_scope_gu.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
             " AND dm_scope_cu.is_active"
         )
-        return f"({pair_sql} OR {sub}.org_unit_id IN ({subtree_sql}))"
+        # The form's pair is active (authz.active_pair as text): the grid
+        # stops at a deactivated (project, site) pair for unit grants too.
+        active_pair_sql = (
+            "EXISTS (SELECT 1 FROM va_project_sites dm_scope_ps"
+            f" WHERE dm_scope_ps.project_id = {form}.project_id"
+            f" AND dm_scope_ps.site_id = {form}.site_id"
+            " AND dm_scope_ps.project_site_status = 'active')"
+        )
+        return f"({pair_sql} OR ({sub}.org_unit_id IN ({subtree_sql}) AND {active_pair_sql}))"
 
     @property
     def direct_project_ids(self) -> list[str]:

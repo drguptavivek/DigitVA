@@ -15,7 +15,9 @@ workflow services.
   ``VaSubmissions``, for lists, counts and exports; ``can`` is ``EXISTS``
   over it, so a list never offers what ``can`` refuses. ``subtree_select``
   is the unit-subtree SELECT for raw-SQL and MV surfaces that cannot embed
-  it; ``reaches`` asks one lens (a rendering that belongs to one role).
+  it, and ``active_pair`` the DM/viewer active (project, site) rule for
+  rows that carry a form's pair; ``reaches`` asks one lens (a rendering
+  that belongs to one role).
 - ``can_grant(actor, GrantTarget)`` / ``grant_list_filter(actor)``: grant
   writes and the grant lists, one rule.
 - ``effective_roles(user)``: which ``role_required`` gates the user opens.
@@ -62,6 +64,7 @@ from app.services.authz.predicates import (
     require,
     scope_filter,
 )
+from app.services.authz.predicates import _active_pair as active_pair
 from app.services.authz.predicates import _subtree_select as subtree_select
 from app.services.authz.waivers import CodingWaivers, coding_gate_waivers
 from app.services.viewer_pii_service import should_redact_pii as redacts_pii
@@ -82,6 +85,7 @@ __all__ = [
     "ProjectSettings",
     "Reason",
     "ResolvedGrants",
+    "active_pair",
     "can",
     "can_grant",
     "coding_gate_waivers",

@@ -15,6 +15,9 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
+    VaProjectSites,
+    VaSiteMaster,
+    VaSites,
     VaStatuses,
     VaSubmissions,
     VaUserAccessGrants,
@@ -57,6 +60,41 @@ class UnitScopeFixture(CodingScopeFixtureMixin):
         ))
         db.session.commit()
         return user
+
+    INACTIVE_PAIR_SITE = "CS09"
+    INACTIVE_PAIR_FORM_ID = "CSC001CS0901"
+
+    def _inactive_pair_form(self):
+        """A form of the tree project on site CS09, whose (project, site)
+        pair is deactivated. Seeded per test (rolled back with it); returns
+        the ``VaProjectSites`` row so a test can flip its status."""
+        now = datetime.now(UTC)
+        site = self.INACTIVE_PAIR_SITE
+        db.session.add(VaSiteMaster(
+            site_id=site, site_abbr=site, site_name="Inactive Pair Site",
+            site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now,
+        ))
+        db.session.flush()
+        db.session.add(VaSites(
+            site_id=site, project_id=self.PROJECT, site_name="Inactive Pair Site",
+            site_abbr=site, site_status=VaStatuses.active,
+            site_registered_at=now, site_updated_at=now,
+        ))
+        pair = VaProjectSites(
+            project_id=self.PROJECT, site_id=site,
+            project_site_status=VaStatuses.deactive,
+            project_site_registered_at=now, project_site_updated_at=now,
+        )
+        db.session.add(pair)
+        db.session.flush()
+        db.session.add(VaForms(
+            form_id=self.INACTIVE_PAIR_FORM_ID, project_id=self.PROJECT, site_id=site,
+            odk_form_id="CODING_SCOPE_FORM_INACTIVE", odk_project_id="91",
+            form_type="WHO VA 2022", form_status=VaStatuses.active,
+            form_registered_at=now, form_updated_at=now,
+        ))
+        db.session.commit()
+        return pair
 
     def _sub(self, sid, unit=None, form_id=None):
         submission = self._submission(sid, unit=unit)

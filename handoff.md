@@ -28,41 +28,19 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. `digitva-0wc` **authorization module** (owner priority). One module with a
-   small interface, `can(user, action, submission)` and `scope_filter(user,
-   action)` (SQL predicate for lists), over the existing grants (RBAC with
-   scoped grants; no schema change except the In-charge CHECK below). Every
-   screen, partial, attachment and API calls it. Input: the audit of how each
-   screen decides access today, `.tasks/digitva-0wc-access-matrix-current.md`
-   (F1, F6, F9 fixed in `74c114e1`; F2-F5, F7, F8, F10-F19 open). Progress:
-   policy written (`4fcd984e`); **design done**:
-   `.tasks/digitva-0wc-design.md` (package `app/services/authz/`: `can`,
-   `require`, `scope_filter`, `can_grant`; stages 0-7). **Stage 0
-   committed** (module, 236-row matrix, single-source and shadow tests, lh1h
-   fix; no callers yet). **Stage 1 (coding)
-   committed**. **Stage 2
-   committed** (viewing, attachments, events, partials, viewers open a case,
-   area view = blp; plain viewers get no attachments, no DORIS prefill, a
-   certificate without AdministrativeData; read-only partial allowlist).
-   **Stage 3 committed**
-   (DM pages, APIs, KPIs, analytics, COD buckets, unrouted queue for every
-   DM of a tree project, pin, project_pi as DM on tree projects, admin DM
-   view, 38lp, 4in; DM and viewer reach stops at a deactivated
-   project-site). **Stage 4 (reviewing)
-   committed** (reviewer dashboard, start, allocation, saves, NQA/SO/ICD/DORIS
-   reviewer checks on REVIEW; view wider than review, F7; reviewer
-   rendering by reviewer reach; area link). **Stage 5 committed**
-   (migration `e2b7c4d9a1f3`, applied to dev: site_pi at org_unit = the
-   In-charge, with every DM power, intake supervision and the unit site PI
-   report; project_pi supervises tree projects). **Stage 6 committed** (grant writes through can_grant/grant_list_filter; DMs,
-   in-charges and project_pi create grants per the district rule; unit
-   writers see managed people without contact details). Open from stage 6:
-   
-   **Stage 7 committed** (digitva-0wc stays open only for `digitva-26pg`) (old helpers and shadow test
-   deleted; authz is the single source; xd1q fixed). The legacy `permission` fall-through is deleted (column kept). `org_grant_service.project_wide_grant_exists`
-   stays only for web_intake_service (Expo-session file); switch it to
-   `authz.reachable_unit_ids` once that lands. Field staff without email:
-   `digitva-l7c2` (owner decision). Dev DB head: `e2b7c4d9a1f3`.
+1. **Authorization is done** (`digitva-0wc` closed): `app/services/authz/`
+   is the single source for every role and scope decision; policy in
+   `docs/policy/access-control-model.md`, plain-language guide
+   `docs/policy/roles-explained.md` (+ `docs/policy/diagrams/district-roles.d2`,
+   render `d2 --layout elk`). Production needs migration `e2b7c4d9a1f3`
+   (In-charge). Non-authz follow-ups: `digitva-v1sq`.
+   **Onboarding and sign-in** (owner priority): policy
+   `docs/policy/account-onboarding-and-passwords.md` and
+   `docs/policy/mobile-sign-in.md`. `digitva-l7c2` mobile sign-in with a
+   writer (new migration, applied to the shared dev DB); then
+   `digitva-kmoy` (verify email, then email the generated password; owner
+   insists the email carries the password); then `digitva-j13l` (document
+   onboarding, login and all authentication APIs for web and app).
    A parallel Expo-client session (`digitva-p6fs`) has uncommitted work
    in this checkout (client API/static host, mobile/, app/__init__.py,
    additive draft locale fields and tests): commit only stage files by name.
@@ -84,47 +62,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    left rail tested at 391px without overflow, drawer Escape/focus return checked.
    Focused backend: 73 passed, 20 subtests; latest broad run: 3068 passed,
    33 failures confined to unfinished stage-6 grant-write tests. Device/APK
-   and full browser submission acceptance remain `digitva-p6fs.5`. `digitva-bibk`: reference model still
-   suggests interview_supervisor for in-charges. `digitva-8126`: stale migration
-   test. `digitva-26pg`: unit DM
-   KPI/analytics/COD counts still include deactivated-pair forms. Known: through the widened DM gate, project_pi on a tree
-   project reaches the stage-6 grant pages, which read old helpers (empty,
-   writes refused) until stage 6. Carry into later
-   stages: admin unrouted queue = tree projects only (stage 3); TR01 cutoff
-   and language in pick validators; Recode list should also apply RECODE
-   scope; remove `ready_for_coding` source in `mark_coder_step1_saved`; EXPLAIN the
-   area overview ORDER BY for project-wide grants; gate the open-submission
-   repair job on SYNC_SUBMISSION (stage 2).
-   Demo projects stay open to coding and reviewing (owner). Update this line as each stage
-   lands. Owner decisions 2026-10-02 (all in the bead notes, written into
-   `docs/policy/access-control-model.md` / `organization-model.md`, marked
-   "Implementation tracked in digitva-0wc"):
-   - **In-charge** at every level of a district project (District = CMO or
-     Civil Surgeon, Block = SMO, PHC = MO): the `site_pi` role allowed at
-     `org_unit` (migration lifting the `role_scope` CHECK; mentors still
-     refused). All data manager powers in their area, plus field-work
-     supervision, every screen with PII, and creating data managers at their
-     own level and below.
-   - **project_pi in district projects**: every screen, acts as data manager
-     and supervisor across the project; codes/reviews only with a grant.
-   - **Data manager grants, district projects only**: create DMs strictly
-     below their level; create interviewer, coder, reviewer, coding_tester,
-     viewers anywhere in their subtree. Site projects keep today's rule.
-   - **Viewers** (`collaborator`, `collaborator_pii`, so mentors) open one
-     submission read-only in scope; plain viewer redacted.
-   - **Unrouted queue**: every DM of the project sees it, routes only into
-     their own subtree (owner accepted the cross-district visibility).
-   - Absorbs `digitva-blp` (area view partials refuse coders/reviewers;
-     confirmed in the browser), `digitva-lh1h` (DM KPI and DM scope match
-     bare site ids across projects), `digitva-38lp`, `digitva-h67s`.
-   - Plain-language guide: `docs/policy/roles-explained.md` with the D2
-     diagram `docs/policy/diagrams/district-roles.d2` (render:
-     `d2 --layout elk <d2> <svg>`; d2 installed via Homebrew). Rewrite
-     `/help/user-roles` from it when the module lands.
-2. `digitva-6zq` verify: an active demo-training project may make
-   `is_coder`/`is_reviewer`/`is_coding_tester` true for every user
-   (`_get_granted_va_forms` unions demo forms). Policy opens demo projects
-   for coding only. Write the test first.
+   and full browser submission acceptance remain `digitva-p6fs.5`.
 3. `digitva-ci8` record every web sign-in: `signed_in` security event with
    method and client IP (trusted proxy header only), IP wiped after 210
    days by a beat task, plus `va_users.last_signed_in_at` (additive
@@ -200,11 +138,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 - A direct start refused at consent with no identity stores a `refused` submission
   and closes its case `cancelled` (the identity constraint allows no other
   closed state without one); it counts under Not analysable in DM KPIs.
-- Built today (until `digitva-0wc`): data managers give unit grants only to
-  mentor-institute staff (inside the mentor guard); CHO interviewer grants
-  come from an admin or project PI. Policy now states the wider 2026-10-02
-  rules. A
-  mentor-institute member who also holds district work needs a second
+- A mentor-institute member who also holds district work needs a second
   account (guard refuses mixed grants).
 - Deploy: bump `STATIC_ASSET_VERSION` with `74c114e1`; `reviewing.start` is
   now POST with CSRF, and a cached old reviewer dashboard script gets 405.

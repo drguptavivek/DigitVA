@@ -74,7 +74,11 @@ project". Whether a submission is visible is decided by the scope filters,
 which compare `(project_id, site_id)` against currently active
 `va_project_sites` pairs (`submission_analytics_mv._mv_scope_filter`).
 Submissions of a form whose pair has been deactivated therefore drop out of
-scoped analytics rather than being re-attributed to another project.
+scoped analytics rather than being re-attributed to another project. A unit
+grant (data manager or In-charge) is held to the same rule: a submission
+routed into its subtree counts only while its form's pair is active
+(`authz.active_pair`), as on the data-management grid. The DM KPI cards
+(`DmScope.sql`) and the COD bucket report apply it too.
 
 
 Across the three views, DigitVA stores:

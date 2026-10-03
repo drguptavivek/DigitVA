@@ -121,6 +121,21 @@ _HAS_TREE = sa.exists(sa.select(1).where(
 ))
 
 
+def _active_pair(project_id, site_id):
+    """EXISTS an active ``va_project_sites`` row for (*project_id*, *site_id*).
+
+    The active-pair rule of the data-manager and viewer lenses, for any
+    surface whose rows carry the form's project and site (an analytics MV,
+    say). Correlates to the enclosing query; one probe of
+    ``uq_va_project_sites_project_site``.
+    """
+    return sa.exists(sa.select(1).where(
+        VaProjectSites.project_id == project_id,
+        VaProjectSites.site_id == site_id,
+        VaProjectSites.project_site_status == VaStatuses.active,
+    ))
+
+
 def _form_ids(condition, *, active_form: bool, active_pair: bool):
     """SELECT of form ids matching *condition* (on VaForms), uncorrelated.
 
@@ -136,11 +151,7 @@ def _form_ids(condition, *, active_form: bool, active_pair: bool):
     if active_form:
         stmt = stmt.where(VaForms.form_status == VaStatuses.active)
     if active_pair:
-        stmt = stmt.where(sa.exists(sa.select(1).where(
-            VaProjectSites.project_id == VaForms.project_id,
-            VaProjectSites.site_id == VaForms.site_id,
-            VaProjectSites.project_site_status == VaStatuses.active,
-        )))
+        stmt = stmt.where(_active_pair(VaForms.project_id, VaForms.site_id))
     return stmt.correlate(None)
 
 

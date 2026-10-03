@@ -198,6 +198,18 @@ class InChargeTests(UnitScopeFixture, BaseTestCase):
         phc = get_sitepi_unit_dashboard_data(self.phc_a.org_unit_id)
         self.assertEqual(phc["total_submissions"], 1)
 
+    def test_the_unit_report_skips_a_deactivated_pair(self):
+        pair = self._inactive_pair_form()
+        self._sub("csc-s5-phc-a-inactive", unit=self.phc_a, form_id=self.INACTIVE_PAIR_FORM_ID)
+        pair.project_site_status = VaStatuses.active
+        db.session.commit()
+        self.assertEqual(get_sitepi_unit_dashboard_data(self.phc_a.org_unit_id)["total_submissions"], 2)
+        pair.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        report = get_sitepi_unit_dashboard_data(self.phc_a.org_unit_id)
+        self.assertEqual(report["total_submissions"], 1)
+        self.assertNotIn("csc-s5-phc-a-inactive", {r["va_sid"] for r in report["submission_rows"]})
+
     def test_the_unit_report_lists_coders_granted_in_the_subtree_once(self):
         coder = self._get_or_make_user("stage5.coder@test.local", "Stage5Test123")
         for unit in (self.phc_a, self.phc_b):

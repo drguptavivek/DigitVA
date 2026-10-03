@@ -4785,7 +4785,8 @@ def _cod_bucket_aggregate_base_subquery(
         conditions.append(core.c.submission_date <= submission_date_to)
     if allowed_project_site_pairs is not None:
         # Whole project-sites, plus (for a unit grant) the deaths routed into
-        # the grant's subtree: never a unit grant's whole site.
+        # the grant's subtree on an active pair, as the grid lists them:
+        # never a unit grant's whole site.
         allowed = []
         if allowed_project_site_pairs:
             allowed.append(
@@ -4794,7 +4795,12 @@ def _cod_bucket_aggregate_base_subquery(
                 )
             )
         if allowed_org_unit_ids:
-            allowed.append(VaSubmissions.org_unit_id.in_(sorted(allowed_org_unit_ids)))
+            from app.services.authz import active_pair
+
+            allowed.append(sa.and_(
+                VaSubmissions.org_unit_id.in_(sorted(allowed_org_unit_ids)),
+                active_pair(core.c.project_id, core.c.site_id),
+            ))
         conditions.append(sa.or_(*allowed) if allowed else sa.false())
 
     query = (

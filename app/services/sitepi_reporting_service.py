@@ -255,11 +255,20 @@ def get_sitepi_unit_dashboard_data(org_unit_id) -> dict:
     The caller authorizes the unit (``authz.can(user, SITE_PI_REPORT, ...)``).
     """
     return _dashboard_data(
-        f"s.org_unit_id IN {_UNIT_SUBTREE_SQL}",
+        # Reach stops at a deactivated (project, site) pair, as everywhere
+        # (authz.active_pair; digitva-26pg).
+        f"""s.org_unit_id IN {_UNIT_SUBTREE_SQL}
+              AND EXISTS (
+                  SELECT 1 FROM va_project_sites ps
+                  WHERE ps.project_id = f.project_id
+                    AND ps.site_id = f.site_id
+                    AND ps.project_site_status = :project_site_active
+              )""",
         f"g.scope_type = :org_unit_scope AND g.org_unit_id IN {_UNIT_SUBTREE_SQL}",
         {
             "org_unit_id": org_unit_id,
             "org_unit_scope": VaAccessScopeTypes.org_unit.value,
+            "project_site_active": VaStatuses.active.value,
         },
         row_limit=UNIT_SUBMISSION_ROW_LIMIT,
     )

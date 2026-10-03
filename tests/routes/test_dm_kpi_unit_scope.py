@@ -47,10 +47,10 @@ class DmKpiUnitScopeTests(UnitScopeFixture, BaseTestCase):
 
     # -- fixtures ----------------------------------------------------------
 
-    def _seed_coded(self, sid, unit, finalized_at=None):
+    def _seed_coded(self, sid, unit, finalized_at=None, form_id=None):
         """One coded submission in *unit* with the rows every KPI group reads."""
         finalized_at = finalized_at or datetime.now(UTC) - timedelta(minutes=30)
-        self._sub(sid, unit=unit)
+        self._sub(sid, unit=unit, form_id=form_id)
         submission = db.session.get(VaSubmissions, sid)
         submission.va_odk_reviewstate = "hasIssues"
         submission.va_submission_date = finalized_at - timedelta(hours=4)
@@ -158,6 +158,28 @@ class DmKpiUnitScopeTests(UnitScopeFixture, BaseTestCase):
     def test_unit_dm_with_nothing_in_its_subtree_sees_zero_not_the_site(self):
         self._seed_coded("csc-kpi-sibling-only", self.phc_b)
         self._expect_all(self._counts(self._unit_dm(self.phc_a)), 0)
+
+    def test_unit_dm_skips_a_subtree_submission_on_a_deactivated_pair(self):
+        # digitva-26pg: the grid stops at a deactivated (project, site) pair
+        # for unit grants too, so the KPI cards must.
+        pair = self._inactive_pair_form()
+        self._seed_coded("csc-kpi-pair-active", self.phc_a)
+        self._seed_coded(
+            "csc-kpi-pair-inactive", self.phc_a, form_id=self.INACTIVE_PAIR_FORM_ID
+        )
+
+        # Guard: with the pair active both count, so the 1 below is the pair rule.
+        pair.project_site_status = VaStatuses.active
+        db.session.commit()
+        self._expect_all(self._counts(self._unit_dm(self.phc_a)), 2)
+
+        pair.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        self._expect_all(self._counts(self._unit_dm(self.phc_a)), 1)
+        in_charge = self._user_with(
+            self._unique("kpi.incharge"), VaAccessRoles.site_pi, self.phc_a
+        )
+        self._expect_all(self._counts(in_charge), 1)
 
     def test_mixed_dm_counts_a_submission_in_both_scopes_once(self):
         self._seed_coded("csc-kpi-both", self.phc_a)

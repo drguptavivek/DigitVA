@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-10-04
 ---
 
 # ODK Sync Policy
@@ -417,7 +417,10 @@ These states allow normal ODK sync behavior (consent re-evaluated on each update
 A sync releases an allocation only for a case whose ODK payload changed in
 that run and whose state is non-protected: the case's own coding allocation
 is released with its first-pass artifacts
-(`va_allocation_released_during_datasync`). A protected case keeps its
+(`va_allocation_released_during_datasync`; the release is
+`release_coding_for_changed_payload` in `app/services/coding_release_service.py`,
+shared with an interviewer's revision, which audits `interviewer_revision`
+instead). A protected case keeps its
 allocations and goes through the upstream-change path. A case whose payload
 did not change keeps any coder or reviewer session untouched, including a
 metadata-only refresh. Abandoned allocations are released only by the

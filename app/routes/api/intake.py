@@ -59,7 +59,7 @@ def _body_limit():
     endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
     if endpoint in _UNCAPPED:
         return None
-    if endpoint in ("submit_interview", "sync_draft"):
+    if endpoint in ("submit_interview", "sync_draft", "revise_submission"):
         limit = SUBMISSION_MAX_BYTES
     elif endpoint == "report_outstanding":
         limit = REPORT_MAX_BYTES
@@ -367,6 +367,9 @@ def get_draft(draft_id):
             "draft": intake_svc.serialize_draft(draft),
             "envelope": intake_svc.load_draft_envelope(draft),
             "prefill": draft.prefill or {},
+            # The hash of the exact answers text held now (null for a browser
+            # draft); a revision must start from these answers.
+            "answers_sha256": draft.answers_sha256,
         }
     )
 
@@ -580,6 +583,47 @@ def submit_interview():
             raise
         return _existing_upload_reply(existing, answers_sha256)
     return jsonify(intake_svc.serialize_device_upload(draft)), 201
+
+
+@bp.post("/submissions/<va_sid>/revisions")
+@role_required("interviewer")
+def revise_submission(va_sid):
+    """Revise the caller's own submitted interview (docs/policy/interview-revisions.md).
+
+    Body: ``reason_code`` (``interviewer_correction``, ``respondent_correction``,
+    ``more_information`` or ``finish_partial``), ``answers_json`` +
+    ``answers_sha256`` (the complete answers, as ``/submissions``),
+    ``completion`` (``{valid, issues}``), ``draft`` (envelope meta; only
+    ``startedAt``/``completedAt`` are taken, checked as on upload). Replies 200
+    ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
+    workflow_state}``; ``changed: false`` when the answers do not change the
+    coding payload: no new version, release or routing, but raw answers that
+    differ (only irrelevant ones were edited) are kept and ``answers_sha256``
+    is the sent hash. 404 ``not_found`` unless the caller's own submitted
+    interview; 409 ``revision_locked`` / ``case_already_submitted`` /
+    ``case_closed`` / ``case_state_conflict``; 422 ``invalid_reason`` /
+    ``outcome_regression`` / ``answers_hash_*`` / ``invalid_interview``."""
+    p = parse_body()
+    reason_code = p.get("reason_code")
+    envelope = p.get("draft")
+    completion = p.get("completion")
+    if not isinstance(reason_code, str) or not isinstance(envelope, dict) or not isinstance(completion, dict):
+        return error("reason_code, draft and completion are required.", "invalid_interview", 422)
+    data, answers_sha256, refusal = _parse_upload_answers(p)
+    if refusal is not None:
+        return refusal
+    try:
+        intake_svc.check_device_times(envelope)
+    except intake_svc.WebIntakeError as exc:
+        return error(str(exc), "invalid_interview", 422)
+    reply = intake_svc.revise_submission(
+        current_user, va_sid, reason_code=reason_code, data=data, answers_sha256=answers_sha256,
+        completion={"valid": completion.get("valid") is True,
+                    "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else []},
+        envelope=envelope,
+    )
+    db.session.commit()
+    return jsonify(reply)
 
 
 @bp.post("/outstanding")

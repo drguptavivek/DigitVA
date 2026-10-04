@@ -122,6 +122,20 @@ class VaSubmissionPayloadVersion(db.Model):
         nullable=True,
     )
 
+    # Set by an interviewer's revision (docs/policy/interview-revisions.md):
+    # the fixed reason code (no free text, no personal data) and the SHA-256
+    # of the exact answers text the interviewer's client sent for this
+    # version. NULL on a version from ODK sync or a first submission without
+    # a hash.
+    revision_reason_code: so.Mapped[str | None] = so.mapped_column(
+        sa.String(32),
+        nullable=True,
+    )
+    answers_sha256: so.Mapped[str | None] = so.mapped_column(
+        sa.String(64),
+        nullable=True,
+    )
+
     # Server-derived disagreements between the client's own "valid: true"
     # and this application's own relevant/constraint re-evaluation of the
     # same answers (beads digitva-cal.2). Never enforced -- see

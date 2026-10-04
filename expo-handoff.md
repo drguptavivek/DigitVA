@@ -98,7 +98,7 @@ state their last-sync freshness. Open in-progress cases can start with server
 prefill. Browser superseded submissions return to collection with a notice.
 Verified: 30 Jest suites, 287 tests, TypeScript, web and Android JS exports;
 independent quality audit found no material issues. Physical-device acceptance
-remains separate. Part B waits for the section 4 backend contract.
+remains separate. Part B completion is recorded in section 4 below.
 Frontend commit `78346d82` is pushed; the app child bead is closed. The local
 Flask-hosted web export has been refreshed from the verified build.
 
@@ -131,11 +131,18 @@ Part B (phone in-progress draft sync, newer-save-wins) follows in section 4.
 
 ## 4. Phone in-progress draft sync, part B (`digitva-xz83`, server built)
 
-Frontend in progress (`digitva-xz83.2`): separate Luna writers own native
-storage/transport, native integration and browser revision guards. Local
-replacement is snapshot-guarded; unsynced phone edits go through the server
-conflict resolver before downloading a newer draft. Combined validation and
-quality audit are pending.
+Frontend implemented (`digitva-xz83.2`): separate Luna writers delivered native
+draft storage/transport, case/form continuation and browser revision guards.
+Unsynced phone edits go through the server conflict resolver before download;
+every local replacement is snapshot-guarded. Clean server mirrors refresh by
+GET rather than interpreting server timestamps as device save times. Local
+IDs, start times, answers and questionnaire language survive continuation.
+Verified: 31 Jest suites, 314 tests, TypeScript, web and Android JS exports;
+independent quality audit found no material issues. The initial Jest package
+loading failures are fixed. Physical-device acceptance remains separate.
+Frontend commit `6c5ff8cc` is pushed; the app child bead is closed. The local
+Flask-hosted web export is refreshed and its served index matches the verified
+build. Sections 1–4 are complete on the frontend.
 
 One draft per interviewer per case, continued on the phone or in the browser.
 At each sync the phone uploads every unfinished draft of a registered case:
@@ -168,3 +175,40 @@ Opening a case: if the case row has `my_draft_id`, fetch
 `GET /api/v1/intake/drafts/<my_draft_id>` and continue from its `envelope`
 (newer than local by `draft.updated_at` vs your last `base_updated_at`).
 Resends are safe: the same version twice writes nothing.
+
+## 5. Revising a submitted interview (`digitva-bhpl`, part A server built)
+
+Frontend in progress (`digitva-bhpl.1`): separate Luna writers are building
+browser revisions and the encrypted native revision queue; native screens
+follow after the storage interface settles. The submitted list shows the
+server's newest 200 records as recent interviews. Send-back/reopen remains
+outside this part.
+
+Only the interviewer whose interview became the submission may revise it,
+while coding has not been finalised (send-back and reopen come in part B).
+
+List to revise from: `GET /api/v1/intake/drafts?status=submitted` (own,
+newest first, metadata only). On Revise, fetch `GET /drafts/<draft_id>`:
+`envelope.data` is the complete raw answers as submitted, plus top-level
+`answers_sha256`. Keep it on the device only while revising; purge after.
+
+`POST /api/v1/intake/submissions/<va_sid>/revisions` (bearer):
+
+- `reason_code`: `interviewer_correction` | `respondent_correction` |
+  `more_information` | `finish_partial` (no free text)
+- `answers_json`, `answers_sha256` (as section 1), `completion {valid, issues}`
+- `draft`: envelope meta (`startedAt`, `completedAt` as section 2)
+
+Reply 200 `{changed, va_sid, payload_version_id, answers_sha256, outcome, workflow_state}`.
+`changed: false` means nothing coded changed (no new version, coding kept).
+Idempotent: resending the same revision is `changed: false`. Delete the local
+copy when `answers_sha256` matches what you sent.
+
+Errors: 404 not yours (or a superseded copy); 409 `revision_locked` (coding
+finalised; show "locked, ask the coder"); 409 `case_already_submitted`
+(finishing a partial after a teammate's complete one won); 409 `case_state_conflict` (an outcome change the case can no longer take); 409 `case_closed`;
+422 `invalid_reason`, `outcome_regression` (a completed interview cannot
+become partial/refused), and the section 1 answer/hash codes.
+
+A partial interview (case paused) is finished by revising it with
+`reason_code: finish_partial`, not by starting a new draft.

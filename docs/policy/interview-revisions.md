@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Interview Revisions Policy
@@ -11,9 +11,59 @@ last_updated: 2026-10-04
 Owner decisions of 2026-10-04, bead `digitva-bhpl`. Baseline written before
 implementation. It covers interviews from the browser and from the app.
 
-Not built yet (`digitva-bhpl`): everything below, including the
-`interviewer_revision` audit reason. Today a submitted web case
-cannot be edited ([Web Intake Policy](web-intake.md)).
+## Status (`digitva-bhpl`)
+
+**Built (part A)**: rules 1 and 2, the partial-finish rule and the no-change
+rule, on the server: `POST /api/v1/intake/submissions/<va_sid>/revisions`
+([Device Collection API](../current-state/device-collection-api.md), "Interviewer
+revisions"), the shared release `release_coding_for_changed_payload`
+(`app/services/coding_release_service.py`, called by ODK sync and by the
+revision), the `interviewer_revision` audit reason, and the payload-version
+columns `revision_reason_code` and `answers_sha256`. A submitted draft keeps its
+complete raw answers in a `final` section. The revision reasons are fixed codes:
+`interviewer_correction`, `respondent_correction`, `more_information`,
+`finish_partial`.
+
+**Not built (part B)**: rules 3 and 4 (coder or reviewer send-back, supervisor
+reopen after final COD), the DM accept block reused by the revision, and the
+phone's Revise screen. Until then every ODK-protected state is locked to the
+interviewer: `revision_unlocked(submission)` in
+`app/services/web_intake_service.py` returns False, and part B puts its
+send-back or reopen marker check there. A browser screen for revising is not
+built either.
+
+Decisions made while building part A:
+
+- A revision starts a new version only when the coding payload's canonical
+  fingerprint differs. The no-change rule is about coding: a change to an
+  answer that is irrelevant (stripped) makes no new version, no release, no
+  SmartVA rerun and no routing, but the raw answers are kept (owner,
+  2026-10-05): the previous ones as a history row, the new ones as the
+  submission's raw answers, with the sent hash, so nothing typed is lost and
+  the phone's acknowledgement matches. Raw answers with the stored hash write
+  nothing. The interview times (`startedAt`, `completedAt`) are part of the
+  payload: a new `completedAt` is a change.
+- Only answers and interview times can change the fingerprint. The submitter's
+  name, the organization-unit codes and names and the register's ABHA are taken
+  from the version being replaced, and locked answers the submit held keep
+  their stored value, so renaming the interviewer or a unit after the submit
+  does not turn a resend of the same answers into a release.
+- A revision from one incomplete outcome to another (partially completed,
+  respondent unavailable, refused) moves the case to that outcome's state, as
+  a submit does. If the case is no longer waiting for this interview (a
+  teammate's complete submission won) the revision is refused
+  (`case_state_conflict`) rather than leave case and submission disagreeing.
+- Finishing a partial requires a live, placed organization unit, as a submit
+  does.
+- A completed-to-completed revision syncs the form's name, date of death and
+  sex onto the case again: the winning submission is the one corrected.
+- A revision keeps the original submission date, masked id and source of the
+  interview; only the answers and times can change the fingerprint.
+- The release runs for every changed revision, as ODK's does for every changed
+  payload: a data manager's or coder's not-codeable exclusion is cleared too.
+- A revision of a case that is `duplicate` or `cancelled` is refused
+  (`case_closed`); finishing a partial after a teammate's complete submission
+  is refused (`case_already_submitted`).
 
 ## Rules by stage
 
@@ -69,8 +119,9 @@ Guards").
   a case whose payload did not change keeps any coder session untouched).
 - **During active coding** the revision reuses ODK's release code path
   (allocation deactivated, case re-routed to `smartva_pending`;
-  `app/services/va_data_sync/va_data_sync_01_odkcentral.py`, ~lines 897-925)
-  rather than a second implementation. It audits with its own reason,
+  `release_coding_for_changed_payload` in
+  `app/services/coding_release_service.py`, the one implementation both
+  use) rather than a second implementation. It audits with its own reason,
   `interviewer_revision`, separate from ODK's
   `va_allocation_released_during_datasync`, so coder statistics can tell them
   apart (owner, 2026-10-04).
@@ -92,7 +143,8 @@ Guards").
 - The phone needs a "my submitted interviews" list to revise from. Not built
   yet: the app drops submitted cases from its store today.
   `GET /api/v1/intake/drafts?status=submitted` and `GET /intake/drafts/<id>`
-  already return the owner's submitted envelope.
+  return the owner's submitted draft; the envelope holds the complete raw
+  answers and the reply carries their `answers_sha256`.
 - Locked prefill answers stay locked in a revision.
 - A superseded copy cannot be revised
   ([Web Intake Policy](web-intake.md), "Parallel interviews").

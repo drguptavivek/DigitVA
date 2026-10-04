@@ -54,9 +54,18 @@ from app.services import organization_service as org
 from app.services.authz import resolve_grants, subtree_select
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
+from app.services.coding_release_service import (
+    SOURCE_INTERVIEWER_REVISION,
+    release_coding_for_changed_payload,
+)
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submission_payload_version_service import (
+    canonical_payload_fingerprint,
+    ensure_active_payload_version,
+    get_active_payload_version,
+)
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    apply_submission_projection,
     build_submission_projection,
     consent_is_valid,
     normalize_consent,
@@ -66,7 +75,10 @@ from app.services.web_form_relevance_service import (
     derive_validation_errors,
     strip_irrelevant_answers,
 )
+from app.services.workflow.definition import PROTECTED_WORKFLOW_STATES
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
+    WorkflowTransitionError,
     mark_attachment_sync_completed,
     route_synced_submission,
     system_actor,
@@ -1096,11 +1108,21 @@ def get_draft(user: VaUsers, draft_id: object, *, for_update: bool = False) -> V
     return draft
 
 
-def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
-    """Reassemble the package's draft envelope from the per-section rows."""
+def _answers_of(draft: VaWebIntakeDraft) -> dict:
+    """The draft's answers: the ``final`` section alone once the draft is
+    closed (a submitted or superseded draft keeps its complete final answers
+    there), else the per-section saves merged."""
     data: dict = {}
     for section in draft.sections:
+        if section.section_name == FINAL_SECTION and draft.status != "draft":
+            return dict(section.data or {})
         data.update(section.data or {})
+    return data
+
+
+def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
+    """Reassemble the package's draft envelope from the per-section rows."""
+    data = _answers_of(draft)
     meta = dict(draft.meta or {})
     return {
         "schemaVersion": meta.get("schemaVersion", 1),
@@ -1302,11 +1324,20 @@ def _is_attachment_reference(value: object) -> bool:
     return False
 
 
-def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web") -> tuple[dict, dict]:
+def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web", meta: dict | None = None, carry: dict | None = None) -> tuple[dict, dict]:
     """Return (payload, attachment_references) shaped like a synced ODK record.
 
     Attachment answers are lifted out of the payload (phase 2 uploads them
     through the attachment store) and their slot names returned separately.
+
+    ``meta`` replaces ``draft.meta`` when given (a revision builds the next
+    version before it changes the draft).
+
+    ``carry`` is the payload a revision replaces. Every value that is not an
+    answer or an interview time is taken from it instead of today's world
+    (the submitter's name, the organization-unit codes and names, the death
+    register's ABHA), so renaming the interviewer or a unit after the submit
+    does not turn a resend of the same answers into a change.
 
     ``data`` is expected to already have had ``strip_irrelevant_answers``
     applied (see ``submit_draft``): an attachment reference for a question
@@ -1331,9 +1362,13 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
 
     form = db.session.get(VaForms, draft.form_id)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    unit_context = _unit_context(draft.org_unit_id)
+    if carry is None:
+        unit_context = _unit_context(draft.org_unit_id)
+    else:
+        unit_context = {k: v for k, v in carry.items() if k.startswith("org_")}
     submitted_iso = submitted_at.isoformat()
-    meta = draft.meta or {}
+    if meta is None:
+        meta = draft.meta or {}
 
     payload.update(unit_context)
     payload.setdefault("Site", draft.site_id)
@@ -1345,8 +1380,11 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["language"] = payload.get("language") or payload["narr_language"]
     if death is not None:
         if death.source == "register":
-            payload.setdefault("abha_number", death.abha_number)
-            payload.setdefault("abha_address", death.abha_address)
+            abha = {"abha_number": death.abha_number, "abha_address": death.abha_address}
+            if carry is not None:
+                abha = {k: carry[k] for k in abha if k in carry}
+            for key, value in abha.items():
+                payload.setdefault(key, value)
         payload["death_register_id"] = str(death.death_id)
 
     # ODK-shaped metadata so the shared projection and payload-version code
@@ -1355,7 +1393,7 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["instanceID"] = f"web:{draft.draft_id}"
     payload["SubmissionDate"] = submitted_iso
     payload["updatedAt"] = submitted_iso
-    payload["SubmitterName"] = user.name
+    payload["SubmitterName"] = carry["SubmitterName"] if carry and "SubmitterName" in carry else user.name
     payload["SubmitterID"] = str(user.user_id)
     payload["DeviceID"] = f"digitva-{intake_source}"
     payload["FormVersion"] = str(meta.get("instrumentVersion") or meta.get("formVersion") or "2022")
@@ -1485,18 +1523,52 @@ _SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
 FINAL_SECTION = "final"
 
 
+def _set_final_section(draft: VaWebIntakeDraft, data: dict) -> None:
+    """Store *data* as the draft's ``final`` section: the exact final raw
+    answers, locked answers included, before irrelevant ones are stripped. A
+    browser section saved under that name is overwritten, not duplicated."""
+    for row in draft.sections:
+        if row.section_name == FINAL_SECTION:
+            row.data = data
+            return
+    draft.sections.append(VaWebIntakeDraftSection(section_name=FINAL_SECTION, data=data))
+
+
 def _supersede_draft(draft: VaWebIntakeDraft, data: dict, completion: dict) -> None:
     """Keep a draft whose case was closed meanwhile (a teammate's complete
     submission won): final answers stored, no submission, no routing, the case
     left exactly as it is. The browser's saved sections may lack the last
     edits, which only the submit carries, so they are kept as one more section."""
-    draft.sections.append(VaWebIntakeDraftSection(section_name=FINAL_SECTION, data=data))
+    _set_final_section(draft, data)
     draft.status = "superseded"
     draft.submitted_at = _utcnow()
     draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
     db.session.flush()
     log.info("draft kept as superseded copy | unique_id=%s | by=%s", draft.unique_id, draft.user_id)
+
+
+def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, submitted_at: datetime, expression_now: datetime, visit_note: dict, intake_source: str, meta: dict | None = None, carry: dict | None = None) -> tuple[dict, dict, list]:
+    """The coding payload for the final raw answers *data*, with its
+    attachment references and the server's own validation diagnostic:
+    ``(payload, references, validation_err)``. Shared by a first submit and an
+    interviewer's revision (which passes the payload it replaces as *carry*, see
+    ``build_web_payload``), so both strip and build identically."""
+    # Re-derive relevance and constraint over the client's raw answers before
+    # anything is stripped: this is the diagnostic the client's own
+    # "valid: true" is checked against (beads digitva-cal.2). It does not
+    # block the submission -- see derive_validation_errors' docstring.
+    validation_err = derive_validation_errors(data, now=expression_now)
+    # Final submit only (never a draft save): remove answers to questions
+    # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
+    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
+    # Added after stripping: the form shows the note only while no given name
+    # is recorded, so a partial identity would otherwise lose it as irrelevant.
+    stripped_data = {**stripped_data, **visit_note}
+    payload, references = build_web_payload(
+        draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source, meta=meta, carry=carry,
+    )
+    return payload, references, validation_err
 
 
 def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions | None:
@@ -1567,18 +1639,10 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     # The device's completion time in its own offset, else the submit time in
     # the interviewer's timezone (docs/policy/field-data-collection.md).
     expression_now = _device_time((draft.meta or {}).get("completedAt")) or _expression_now(user, submitted_at)
-    # Re-derive relevance and constraint over the client's raw answers before
-    # anything is stripped: this is the diagnostic the client's own
-    # "valid: true" is checked against (beads digitva-cal.2). It does not
-    # block the submission -- see derive_validation_errors' docstring.
-    validation_err = derive_validation_errors(data, now=expression_now)
-    # Final submit only (never a draft save): remove answers to questions
-    # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
-    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
-    # Added after stripping: the form shows the note only while no given name
-    # is recorded, so a partial identity would otherwise lose it as irrelevant.
-    stripped_data = {**stripped_data, **visit_note}
-    payload, references = build_web_payload(draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source)
+    payload, references, validation_err = build_final_payload(
+        draft, user, data, submitted_at=submitted_at, expression_now=expression_now,
+        visit_note=visit_note, intake_source=intake_source,
+    )
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
     va_sid = fields["va_sid"]
@@ -1625,6 +1689,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         created_by_role=PAYLOAD_ROLE,
         created_by=user.user_id,
         validation_err=validation_err,
+        answers_sha256=draft.answers_sha256,
     )
     # A refused or incomplete interview is kept but never coded. consent_refused
     # is the only existing state that is outside coding *and* blocked from
@@ -1650,6 +1715,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             va_audit_entityid=draft.draft_id,
         )
     )
+    # The complete raw answers, whatever sections the saves held.
+    _set_final_section(draft, data)
     draft.status = "submitted"
     draft.va_sid = va_sid
     draft.submitted_at = submitted_at
@@ -1669,6 +1736,224 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     db.session.flush()
     log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | outcome=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, outcome, len(references))
     return submission
+
+
+# ---------------------------------------------------------------------------
+# Interviewer revisions (digitva-bhpl part A, docs/policy/interview-revisions.md)
+# ---------------------------------------------------------------------------
+
+#: The fixed reasons for a revision. No free text: a reason carries no
+#: personal data.
+REVISION_REASONS = ("interviewer_correction", "respondent_correction", "more_information", "finish_partial")
+
+
+def revision_unlocked(submission: VaSubmissions) -> bool:
+    """True once a coder or reviewer send-back, or a supervisor reopen, has
+    opened a submission in a protected workflow state for its interviewer
+    again. Those moves are not built yet (digitva-bhpl part B), so a protected
+    submission stays locked; part B puts its marker check here."""
+    return False
+
+
+def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str, completion: dict, envelope: dict) -> dict:
+    """Revise the submitted interview *va_sid* as its interviewer; returns the
+    reply ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
+    workflow_state}``.
+
+    Only the user whose draft became the submission may (else 404, never
+    revealing it exists). Done under the case lock with a lock on the
+    submission, so a concurrent submit, revision or sync serialises with it.
+    The payload is rebuilt from the new raw answers exactly as ``submit_draft``
+    builds it, on the original submit time, ``intake_source`` and
+    non-answer values (``build_web_payload``'s *carry*), so only a real
+    change in the answers or times changes the fingerprint.
+
+    An equal fingerprint is the ODK no-change rule, which is about coding: no
+    payload version, no release, no SmartVA rerun, no routing, no case move.
+    Raw answers that differ only in answers stripped as irrelevant are still
+    kept (the previous ones as a ``replaced`` draft row, the new ones as the
+    draft's ``final`` section, ``answers_sha256`` set to the sent hash), so
+    nothing typed is lost and the phone's acknowledgement matches; raw answers
+    with the stored hash write nothing. Otherwise the previous raw answers are
+    kept as a ``replaced`` draft row, the draft takes the new ones, a new
+    active payload version records reason and hash, the coding artifacts and
+    allocations are dropped as an ODK edit drops them, and the submission is
+    re-routed. An incomplete outcome revised to ``completed`` also runs
+    ``submit_draft``'s completion branch (case to ``submitted``); one revised
+    to another incomplete outcome moves the case to that outcome's state
+    (``OUTCOME_CASE_STATES``) the way a submit does. A completed-to-completed
+    revision syncs the form's identity answers onto the case again: the
+    winning submission is the one corrected.
+
+    Every refusal is decided before anything is written, except the workflow
+    race ``revision_locked`` (a coder finalised after the check) and a case
+    transition ``cases.transition`` refuses; those raise after writes, and the
+    route's error handler rolls the whole transaction back. Refusals: 404
+    unknown or not the caller's, 409 ``revision_locked`` (protected workflow
+    state), ``case_already_submitted`` (a teammate's complete submission won),
+    ``case_closed`` (duplicate or cancelled), ``case_state_conflict`` (an
+    outcome change the case's state does not allow), the live-org-unit
+    refusals when finishing a partial, 422 ``invalid_reason``,
+    ``outcome_regression`` (a completed interview revised to refused or
+    incomplete), the missing identity of a finished partial and
+    ``_interview_outcome``'s own.
+    """
+    if reason_code not in REVISION_REASONS:
+        raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
+    draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.va_sid == va_sid,
+        VaWebIntakeDraft.user_id == user.user_id,
+        VaWebIntakeDraft.status == "submitted",
+    ))
+    if draft is None:
+        raise WebIntakeError("Submission not found.", 404)
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if death is not None:
+        death = cases.lock_case(death)
+    submission = db.session.get(VaSubmissions, va_sid, with_for_update=True)
+    # Re-read under the locks: a revision that won meanwhile is the version
+    # this one compares against.
+    db.session.refresh(draft)
+    if submission is None or draft.status != "submitted":
+        raise WebIntakeError("Submission not found.", 404)
+    if get_submission_workflow_state(va_sid) in PROTECTED_WORKFLOW_STATES and not revision_unlocked(submission):
+        raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked")
+
+    active = get_active_payload_version(va_sid)
+    prior = (active.payload_data if active is not None else None) or {}
+    previous = (draft.meta or {}).get("interviewOutcome") or prior.get("interview_outcome")
+    outcome = _interview_outcome(data, completion)
+    if previous == "completed" and outcome != "completed":
+        raise WebIntakeError("A completed interview cannot be revised to an incomplete or refused one.", 422, "outcome_regression")
+    completing = outcome == "completed" and previous != "completed"
+    # Locked answers keep the value the interview was submitted with; one the
+    # submit never held is filled from the case and the interviewer, as on a
+    # submit. Recomputing them all would turn a renamed interviewer or a
+    # corrected registration into a change to answers nobody edited.
+    stored = _answers_of(draft)
+    locked = {name: stored.get(name, value) for name, value in _draft_locked_answers(draft).items()}
+    raw = {**data, **locked, "interview_outcome": outcome}
+    if death is not None:
+        if death.status in ("duplicate", "cancelled"):
+            raise WebIntakeError("This case is closed.", 409, "case_closed")
+        if completing:
+            if death.status == "submitted" and death.va_sid != va_sid:
+                raise WebIntakeError("A complete interview of this case was already submitted.", 409, "case_already_submitted")
+            _require_live_org_unit(draft)
+            # What the identity sync below will leave on the case.
+            identity = {
+                "deceased_name": death.deceased_name, "date_of_death": death.date_of_death,
+                "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
+            }
+            if not all(identity.values()):
+                raise WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422)
+        elif outcome != previous and death.status != OUTCOME_CASE_STATES[outcome]:
+            # Incomplete to another incomplete outcome: the case follows it as
+            # on a submit (via in_progress), or the revision is refused rather
+            # than leave the case and the submission disagreeing.
+            if death.status not in _STARTABLE_STATES and death.status != "in_progress":
+                raise WebIntakeError(
+                    f"The case is {death.status}, so this interview's outcome can no longer be changed.",
+                    409, "case_state_conflict",
+                )
+
+    meta = {**(draft.meta or {}), **{k: envelope[k] for k in _DEVICE_TIME_KEYS if k in envelope}}
+    # The original submit time and source: SubmissionDate, the masked id and
+    # the default end time stay as they were, so they never read as a change.
+    submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else draft.submitted_at
+    expression_now = _device_time(meta.get("completedAt")) or _expression_now(user, submitted_at)
+    payload, references, validation_err = build_final_payload(
+        draft, user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
+        intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
+    )
+    fingerprint = canonical_payload_fingerprint(payload)
+    now = _utcnow()
+    # Recomputed from the stored payload, as ensure_active_payload_version and
+    # ODK sync decide "same payload": a stored column from an older
+    # normalisation must not turn a no-op into a release.
+    if active is not None and canonical_payload_fingerprint(prior) == fingerprint:
+        if answers_sha256 != draft.answers_sha256:
+            _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=active.payload_version_id)
+        return _revision_reply(draft, active, False, outcome)
+
+    payload["updatedAt"] = now.isoformat()
+    form = db.session.get(VaForms, draft.form_id)
+    fields = build_submission_projection(form, payload)
+    if fields["va_sid"] != va_sid:
+        raise WebIntakeError("This interview's form changed; it cannot be revised.", 409)
+    # All refusals above are decided; writes start here.
+    if death is not None and outcome == "completed":
+        _sync_case_identity(death, raw, user)
+    apply_submission_projection(submission, fields, payload)
+    version = ensure_active_payload_version(
+        submission,
+        payload_data=payload,
+        source_updated_at=fields["va_odk_updatedat"],
+        created_by_role=PAYLOAD_ROLE,
+        created_by=user.user_id,
+        validation_err=validation_err,
+        revision_reason_code=reason_code,
+        answers_sha256=answers_sha256,
+    )
+    _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
+    draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome}
+
+    release_coding_for_changed_payload(va_sid, source=SOURCE_INTERVIEWER_REVISION, audit_by=user.user_id)
+    enters_coding = outcome == "completed" and consent_is_valid(normalize_consent(raw.get("Id10013")))
+    try:
+        route_synced_submission(va_sid, consent_valid=enters_coding, reason="interviewer_revision", actor=system_actor())
+    except WorkflowTransitionError as exc:
+        # A coder finalised between the check above and here; the route rolls back.
+        raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked") from exc
+    if enters_coding and not references:
+        mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
+    if death is not None and outcome != previous:
+        target = OUTCOME_CASE_STATES[outcome]
+        if completing or death.status != target:
+            _begin_interview(death, user)
+            cases.transition(
+                death, target, actor=user, action="submitted" if completing else f"submitted_{outcome}", reason=reason_code,
+            )
+        if completing:
+            death.va_sid = va_sid
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_byrole=AUDIT_ROLE,
+        va_audit_by=user.user_id,
+        va_audit_operation="u",
+        va_audit_action="va_submission_revised_by_interviewer",
+        va_audit_entityid=version.payload_version_id,
+    ))
+    db.session.flush()
+    log.info("interview revised | sid=%s | by=%s | reason=%s | outcome=%s", va_sid, user.user_id, reason_code, outcome)
+    return _revision_reply(draft, version, True, outcome)
+
+
+def _replace_raw_answers(draft: VaWebIntakeDraft, raw: dict, answers_sha256: str, completion: dict, *, at: datetime, version_id: uuid.UUID) -> None:
+    """Keep the draft's current raw answers as a ``replaced`` history row and
+    make *raw* its only (``final``) section, with the sent hash and the
+    completion that came with it. *version_id* is the payload version that was
+    current when the answers were replaced."""
+    _keep_history(draft, _answers_of(draft), sha256=draft.answers_sha256, meta={
+        "source": "revision", "revisedAt": at.isoformat(), "payloadVersionId": str(version_id),
+    })
+    _set_final_section(draft, raw)
+    for row in [r for r in draft.sections if r.section_name != FINAL_SECTION]:
+        draft.sections.remove(row)
+    draft.answers_sha256 = answers_sha256
+    draft.client_valid = completion.get("valid") is True
+    draft.client_issue_count = len(completion.get("issues") or [])
+
+
+def _revision_reply(draft: VaWebIntakeDraft, version, changed: bool, outcome: str) -> dict:
+    return {
+        "changed": changed,
+        "va_sid": draft.va_sid,
+        "payload_version_id": str(version.payload_version_id),
+        "answers_sha256": draft.answers_sha256,
+        "outcome": outcome,
+        "workflow_state": get_submission_workflow_state(draft.va_sid),
+    }
 
 
 # ---------------------------------------------------------------------------

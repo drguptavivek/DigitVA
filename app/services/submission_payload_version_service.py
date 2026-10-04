@@ -189,8 +189,14 @@ def ensure_active_payload_version(
     created_by_role: str = "vasystem",
     created_by=None,
     validation_err: list[dict] | None = None,
+    revision_reason_code: str | None = None,
+    answers_sha256: str | None = None,
 ) -> VaSubmissionPayloadVersion:
     """Ensure a submission has an active payload version matching payload_data.
+
+    ``revision_reason_code`` and ``answers_sha256`` (interviewer revisions,
+    web intake) are recorded only on a version created here; an equal-payload
+    update in place keeps the version's own.
 
     ``validation_err`` (beads digitva-cal.2) is per-version, not merged with
     whatever a previous version recorded: a resubmission gets its own
@@ -243,6 +249,8 @@ def ensure_active_payload_version(
         has_required_metadata=has_meta,
         attachments_expected=att_expected,
         validation_err=validation_err,
+        revision_reason_code=revision_reason_code,
+        answers_sha256=answers_sha256,
     )
     db.session.add(version)
     db.session.flush()

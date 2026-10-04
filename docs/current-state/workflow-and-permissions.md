@@ -343,6 +343,10 @@ Timeout cleanup:
 - a Celery beat task also runs every hour to release stale coding allocations
 - normal coding allocations expire after 1 hour
 - demo/training coding allocations expire after 15 minutes
+- an interviewer's revision of a submitted interview releases the allocation
+  with audit action `interviewer_revision` (ODK sync:
+  `va_allocation_released_during_datasync`), through the same
+  `release_coding_for_changed_payload` (`docs/policy/interview-revisions.md`)
 - timeout release writes a `va_submissions_auditlog` row with
   `va_allocation_released_due_to_timeout`
 - timeout release now reverts unfinished Step 1 COD drafts by deactivating the

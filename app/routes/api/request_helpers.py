@@ -20,7 +20,7 @@ def error(message, code, status_code, **extra):
 
 
 def intake_error(exc: intake_svc.WebIntakeError):
-    return error(str(exc), INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code)
+    return error(str(exc), exc.code or INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code)
 
 
 def parse_body() -> dict:

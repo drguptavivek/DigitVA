@@ -88,6 +88,7 @@ interviewer role (supervision: `interview_supervisor` or `data_manager`).
 | Call | Notes |
 |---|---|
 | `POST /intake/submissions` | Body `client_draft_id` (UUID), `project_id`, `site_id`, `draft` (envelope: meta keys only, `draft.data` is not read; optional `startedAt`, `completedAt`, `deviceClockAt`, each ISO 8601 with a UTC offset), `answers_json` (string: the exact JSON text of the answers object) and `answers_sha256` (64 hex, SHA-256 of that text's UTF-8 bytes), optional `completion: {valid, issues}`, `death_id`, `org_unit_id`. The server hashes `answers_json` as received, then parses. 422 `answers_hash_required` (a field missing, not a string, or a malformed hash), 422 `answers_hash_invalid` (hash differs; nothing stored), 422 `invalid_interview` (not a JSON object, over 1 MB, nested deeper than 6, or one of the three times present but unparsable or offset-less). 201 on a new upload, 200 on a resend with the same hash, 409 `hash_mismatch` on a resend with another hash or of an upload stored before hashing, body `{error, code, stored}` where `stored` is the first result. Result: `{va_sid, case, outcome, superseded, answers_sha256}`, the stored hash echoed. A cookie request stores no `meta.deviceId`. Detail: [Device Collection API](device-collection-api.md) "Uploads". |
+| `POST /intake/submissions/<va_sid>/revisions` | The submitting interviewer revises their own submitted interview. Body `reason_code` (`interviewer_correction`, `respondent_correction`, `more_information`, `finish_partial`), `answers_json` + `answers_sha256` (as `/submissions`), `completion: {valid, issues}`, `draft` (meta; only `startedAt`/`completedAt` are taken). 200 `{changed, va_sid, payload_version_id, answers_sha256, outcome, workflow_state}`; `changed: false` writes nothing. 404 `not_found` (not the caller's), 409 `revision_locked` / `case_already_submitted` / `case_closed`, 422 `invalid_reason` / `outcome_regression` / `answers_hash_*` / `invalid_interview`. Body cap 2 MB. Detail: [Device Collection API](device-collection-api.md) "Interviewer revisions". |
 | `POST /intake/outstanding` | Device session only (a cookie: 403 `device_session_required`). Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
 | `GET /intake/cases?project_id=&mine=&state=&limit=&cursor=` | The case list, below. 120/min. `project_id` optional. |
 | `GET /intake/cases/<death_id>` | Case detail with full contacts, links and (when the caller may start or resume it) prefill, below. 120/min. |
@@ -117,7 +118,7 @@ worker's, which the scope already enforces (404 otherwise).
 
 Body caps (`_body_limit` in the intake blueprint, applied before the first read,
 including the rate limiter's key functions, which read the body in an
-app-level hook): 2 MB for `/intake/submissions`, 256 KB for
+app-level hook): 2 MB for `/intake/submissions` and its `/revisions`, 256 KB for
 `/intake/outstanding`, 16 KB otherwise
 (draft saves and submits excepted); over it -> 413 `payload_too_large`.
 

@@ -267,6 +267,8 @@ class VaWebIntakeDraft(db.Model):
         sa.Index("ix_va_web_intake_drafts_user_status", "user_id", "status"),
         sa.Index("ix_va_web_intake_drafts_project", "project_id"),
         sa.Index("ix_va_web_intake_drafts_death", "death_id"),
+        # The submitter's revision finds its draft by submission id.
+        sa.Index("ix_va_web_intake_drafts_va_sid", "va_sid", postgresql_where=sa.text("va_sid IS NOT NULL")),
         sa.Index(
             "uq_va_web_intake_drafts_client_draft_id",
             "client_draft_id",

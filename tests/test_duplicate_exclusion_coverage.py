@@ -74,6 +74,17 @@ EXEMPT = {
     "routes/api/coding.py::admin_override_recode": (
         "thin route over admin_override_to_recode, which refuses a confirmed duplicate"
     ),
+    "routes/api/intake.py::revise_submission": (
+        "reads the caller's own one submission's state to decide the revision lock, not a "
+        "coding list; a confirmed duplicate case is refused (409 case_closed)"
+    ),
+    "services/web_intake_service.py::revise_submission": (
+        "the submitter's own one submission, not a coding list; a confirmed duplicate case is "
+        "refused (409 case_closed)"
+    ),
+    "services/web_intake_service.py::_revision_reply": (
+        "echoes the revised submission's own workflow state to its submitter"
+    ),
     "routes/api/dm_kpi/dm_kpi_grid.py::daily_grid": (
         "dispatcher; its live queries (_grid_from_*) apply the predicate, the aggregate table "
         "is pre-counted by kpi_tasks and recounted on confirm / reopen"

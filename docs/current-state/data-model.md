@@ -800,6 +800,16 @@ Current behavior:
   carries its own record rather than overwriting its predecessor's. Migration
   `f2031819b3aa`; policy: `docs/policy/va-web-form-options.md`.
 
+Interviewer revisions (migration `f7b3d9e1a5c4`, digitva-bhpl part A): nullable
+`revision_reason_code` (String 32; a fixed code, never free text) and
+`answers_sha256` (String 64; SHA-256 of the exact answers text the client
+sent) on the version a revision creates, and `answers_sha256` on a web or
+device submission's first version when the draft had one. Also the partial
+index `ix_va_web_intake_drafts_va_sid` (`va_sid` where not null) on
+`va_web_intake_drafts`. A submitted draft stores its complete raw answers in a
+`final` section; a revision replaces it and keeps the previous answers as a
+`replaced` draft row. See [Device Collection API](device-collection-api.md).
+
 ### `va_submission_workflow`
 
 Purpose:

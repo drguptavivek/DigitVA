@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Device Collection API (Path B server side)
@@ -424,6 +424,70 @@ registered case, into the caller's one open draft of it.
   is 409 `draft_stale` with the message above and nothing written; an
   unparsable value is 400; without it a save works as before. The form sends
   it with every save and asks the interviewer to reload on a 409.
+
+## Interviewer revisions (`digitva-bhpl` part A)
+
+Policy: [Interview Revisions](../policy/interview-revisions.md).
+
+`POST /api/v1/intake/submissions/<va_sid>/revisions` (role interviewer, either
+credential, CSRF for a cookie; body cap 2 MB). Code:
+`web_intake_service.revise_submission`.
+
+- **Body**: `reason_code` (one of `interviewer_correction`,
+  `respondent_correction`, `more_information`, `finish_partial`; no free
+  text), `answers_json` + `answers_sha256` (the complete answers, exactly as
+  `/submissions`, same 422 codes), `completion` (`{valid, issues}`), `draft`
+  (envelope; only `startedAt` and `completedAt` are taken, checked as on an
+  upload).
+- **Reply 200** `{changed, va_sid, payload_version_id, answers_sha256,
+  outcome, workflow_state}`. `changed: false` when the rebuilt coding
+  payload's canonical fingerprint equals the active version's: no version, no
+  release, no routing, no case move and no audit row. The sent raw answers are
+  still kept when their hash differs from the stored one (only answers stripped
+  as irrelevant changed): the previous ones as a `replaced` row, the new ones
+  as the `final` section, `answers_sha256` set to the sent hash and echoed; the
+  same hash writes nothing. The rebuilt payload takes the submitter's name, the
+  organization-unit codes and names and the register's ABHA from the active
+  version, and locked answers the submit held keep their stored value, so a
+  rename after the submit is not a change. Otherwise a new active version
+  (`revision_reason_code`, `answers_sha256` set), the previous raw answers kept
+  as a `replaced` draft row (`history` section, `meta.source = revision`), the
+  draft's `final` section replaced by the new raw answers, the coding
+  artifacts and active allocations released
+  (`release_coding_for_changed_payload`; allocation audit action
+  `interviewer_revision`, the others `..._during_interviewer_revision`), the
+  submission re-routed (`reason interviewer_revision`; to `smartva_pending`
+  when no attachment is referenced) and one audit row
+  `va_submission_revised_by_interviewer` (entity: the new version; the reason
+  is on the version, never an answer).
+- **Who**: only the user whose draft became the submission (`draft.va_sid`,
+  `user_id`, `status = submitted`); anything else, a superseded copy
+  included, is 404 `not_found`.
+- **Errors** (nothing stored): 409 `revision_locked` (an ODK-protected
+  workflow state; `revision_unlocked` is False until part B), 409
+  `case_already_submitted` (finishing a partial after a teammate's complete
+  submission), 409 `case_closed` (case duplicate or cancelled), 409
+  `case_state_conflict` (an incomplete outcome changed to another while the
+  case is in a state the move cannot leave), 422
+  `invalid_reason`, 422 `outcome_regression` (a completed interview revised
+  to refused or incomplete), 422 `answers_hash_required` /
+  `answers_hash_invalid` / `invalid_interview`.
+- **Partial to completed**: the case moves to `submitted`, `death.va_sid` is
+  set and the submission enters coding, as a first complete submit. The
+  case is taken under `lock_case` first, as `submit_draft` does, and the
+  organization unit must still be live (`_require_live_org_unit`).
+- **Incomplete to another incomplete outcome** (`partially_completed`,
+  `respondent_unavailable`, `refused`): the case moves to
+  `OUTCOME_CASE_STATES[outcome]` via `in_progress`, as a submit does.
+- Refusals are decided before any write. The two that cannot be (a coder
+  finalising in between, a case transition refused) raise after writes and the
+  route's error handler rolls the transaction back.
+- A completed-to-completed revision syncs the form's identity answers onto
+  the case again.
+- `GET /intake/drafts/<id>` of a submitted draft returns the complete raw
+  answers (the `final` section) in `envelope.data` and, as `answers_sha256`,
+  the hash of the answers text held now (null for a browser submit). Every
+  submit now stores the `final` section.
 
 ## Not built
 

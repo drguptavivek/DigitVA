@@ -22,9 +22,9 @@ from app.services.odk_connection_guard_service import (
     is_retryable_odk_connectivity_error,
 )
 from app.services.who_age_normalization import normalize_who_2022_age
-from app.services.final_cod_authority_service import (
-    abandon_active_recode_episode,
-    upsert_final_cod_authority,
+from app.services.coding_release_service import (
+    SOURCE_DATASYNC,
+    release_coding_for_changed_payload,
 )
 from app.services.workflow.definition import (
     PROTECTED_WORKFLOW_STATES,
@@ -52,15 +52,7 @@ from app.services.submission_payload_version_service import (
     get_active_payload_version,
 )
 from app.models import (
-    VaAllocations,
-    VaCoderReview,
-    VaDataManagerReview,
-    VaFinalAssessments,
-    VaInitialAssessments,
-    VaReviewerReview,
-    VaUsernotes,
     VaSubmissions,
-    VaStatuses,
     VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
 )
@@ -591,6 +583,9 @@ def _apply_submission_projection(submission: VaSubmissions, fields: dict, payloa
     submission.va_category_list = fields["va_category_list"]
 
 
+apply_submission_projection = _apply_submission_projection
+
+
 # Forms already checked this run, so a project's many forms cost one Central
 # call each at most, not one per pass.
 _ORG_FIELD_CHECK_CACHE_KEY = "_org_field_check_seen"
@@ -788,127 +783,9 @@ def _upsert_form_submissions(
                         va_audit_action="va_submission_updation_during_datasync",
                     )
                 )
-                for record in db.session.scalars(
-                    sa.select(VaCoderReview).where(
-                        (VaCoderReview.va_sid == va_submission_sid)
-                        & (VaCoderReview.va_creview_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_creview_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_creview_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_coderreview_deletion_during_datasync",
-                    ))
-                for record in db.session.scalars(
-                    sa.select(VaFinalAssessments).where(
-                        (VaFinalAssessments.va_sid == va_submission_sid)
-                        & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_finassess_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_finassess_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_finalasses_deletion_during_datasync",
-                    ))
-                upsert_final_cod_authority(
-                    va_submission_sid,
-                    None,
-                    reason="submission_updated_during_sync",
-                    source_role="vaadmin",
+                discarded += release_coding_for_changed_payload(
+                    va_submission_sid, source=SOURCE_DATASYNC
                 )
-                abandon_active_recode_episode(
-                    va_submission_sid,
-                    by_role="vaadmin",
-                    audit_action="recode episode abandoned due to data sync update",
-                )
-                for record in db.session.scalars(
-                    sa.select(VaInitialAssessments).where(
-                        (VaInitialAssessments.va_sid == va_submission_sid)
-                        & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_iniassess_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_iniassess_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_initialasses_deletion_during_datasync",
-                    ))
-                for record in db.session.scalars(
-                    sa.select(VaReviewerReview).where(
-                        (VaReviewerReview.va_sid == va_submission_sid)
-                        & (VaReviewerReview.va_rreview_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_rreview_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_rreview_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_reviewerreview_deletion_during_datasync",
-                    ))
-                for record in db.session.scalars(
-                    sa.select(VaUsernotes).where(
-                        (VaUsernotes.note_vasubmission == va_submission_sid)
-                        & (VaUsernotes.note_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.note_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.note_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_usernote_deletion_during_datasync",
-                    ))
-                # Deactivate any data-manager not-codeable record so the
-                # workflow state (re-routed below) is the sole authority.
-                # ODK data change supersedes the DM's prior exclusion decision;
-                # a DM may re-exclude after reviewing the updated payload.
-                for record in db.session.scalars(
-                    sa.select(VaDataManagerReview).where(
-                        (VaDataManagerReview.va_sid == va_submission_sid)
-                        & (VaDataManagerReview.va_dmreview_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_dmreview_status = VaStatuses.deactive
-                    discarded += 1
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_dmreview_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_datamanagerreview_cleared_during_datasync",
-                    ))
-                # Release any active coding allocation so the coder's session
-                # is invalidated immediately rather than waiting for timeout.
-                for record in db.session.scalars(
-                    sa.select(VaAllocations).where(
-                        (VaAllocations.va_sid == va_submission_sid)
-                        & (VaAllocations.va_allocation_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_allocation_status = VaStatuses.deactive
-                    db.session.add(VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_entityid=record.va_allocation_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_allocation_released_during_datasync",
-                    ))
                 va_submission_amended = True
                 updated += 1
                 route_synced_submission(

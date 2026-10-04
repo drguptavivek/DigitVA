@@ -55,11 +55,13 @@ log = logging.getLogger(__name__)
 
 
 class WebIntakeError(ValueError):
-    """A refused intake or case action; ``status_code`` is the HTTP answer."""
+    """A refused intake or case action; ``status_code`` is the HTTP answer,
+    ``code`` an optional machine code that replaces the status's generic one."""
 
-    def __init__(self, message: str, status_code: int = 400):
+    def __init__(self, message: str, status_code: int = 400, code: str | None = None):
         super().__init__(message)
         self.status_code = status_code
+        self.code = code
 
 
 # Who may make a transition. ``team``: any interviewer in scope. ``starter`` /

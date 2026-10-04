@@ -146,7 +146,9 @@ class OwnerIcdDecisionsMigrationTest(unittest.TestCase):
         self.assertEqual(new["KD3B.Z"][:2], ("vas_11_02", "owner_decision"))
         self.assertTrue(new["KD3B.Z"][2].startswith("Owner decision 9 (2026-09-24): "))
         self.assertEqual(new["KD3B.Z"][3], "who_2022_va_icd11_owner_decisions.csv")
-        self.assertEqual(new["KD3B.1"][:2], ("vas_11_01", "range"), "the child of KD3B keeps its cause")
+        # Owner decision 20 (2026-09-29) maps KD3B.1 itself: the child of
+        # KD3B keeps its cause, now recorded as an owner decision.
+        self.assertEqual(new["KD3B.1"][:2], ("vas_11_01", "owner_decision"))
         self.assertEqual(new["MG26"][:2], ("vas_01_99", "owner_decision"))
         self.assertEqual(new["QA00"][:2], ("vas_99", "owner_fallback"))
         self.assertEqual(new["5C52.Y"][:2], ("vas_98", "owner_decision"))

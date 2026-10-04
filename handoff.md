@@ -54,7 +54,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 7. Expo (`digitva-p6fs`): auth contract for the app is
    `docs/current-state/authentication-and-onboarding.md`. Device sign-in
    takes email or mobile; `user.email` may be null. `p6fs.4` coding/review
-   workspaces, `p6fs.5` device acceptance.
+   workspaces, `p6fs.5` device acceptance. Device case contract (p6fs.24,
+   on main): `docs/current-state/device-collection-api.md` -- bootstrap
+   `projects`, `project_id` required, `/cases` = browser list per project,
+   `/cases/<id>` detail with full contacts; the Expo app must adopt it
+   (p6fs.22/.23). `digitva-yw11`: register list and unit picker still use
+   the older, narrower grant rule.
 8. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
    retention, `digitva-t6q` death_reporter role, `digitva-kfi` Android
    rewrite, `digitva-35x` duplicate hint, `digitva-kmk.5` Android release,

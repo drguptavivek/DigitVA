@@ -18,7 +18,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3334 passed, 5 min, on 2026-10-04). Narrow tasks to Sonnet/Luna, broad
+> (3378 passed, 6 min, on 2026-10-04; `test_odk_site_mappings` flakes under load). Narrow tasks to Sonnet/Luna, broad
 > ones to Opus/Sol (`AGENTS.md`). Dev DB head: `c4e8a1f7d2b3`. This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
@@ -26,16 +26,25 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **One `/api/v1` for every client is done on the backend** (epic
-   `digitva-ntct`; policy `docs/policy/api-v1.md`, route reference
-   `docs/current-state/api-v1.md`). Either credential on every route;
-   sign-in at `/api/v1/auth/*` (replies carry `access`); `GET /api/v1/me/access`;
-   `/api/v1/intake/*`; `/api/v1/device/*`, `/api/v1/client/bootstrap` and
-   `/intake/api/*` are gone. Next: the Expo session moves `mobile/` onto it
-   (it is broken against main until then). Open owner question: fold
-   form-options and prefill-policy into `me/access` (recommended: no).
-   Some blueprints outside the client contract (analytics, coding, DM,
-   reviewing) still answer inline errors without `code`.
+1. **One `/api/v1` for every client** (epic `digitva-ntct`; policy
+   `docs/policy/api-v1.md`, route reference `docs/current-state/api-v1.md`).
+   Done on the backend for sign-in and intake: either credential on every
+   route; `auth/*` (replies carry `access`), `me/access`, `me/terms`,
+   `intake/*`, `organization/<p>/units|form-options`,
+   `instruments/.../translations`; `/api/v1/device/*`,
+   `/api/v1/client/bootstrap` and `/intake/api/*` are gone. Remaining, in
+   order:
+   a. Expo session moves `mobile/` onto it (`digitva-ntct.1`, in progress;
+      the app is broken against main until then).
+   b. `digitva-xl43` coding and review workspace API: case content by
+      category and the Step 1 / final COD steps are server HTML partials
+      (`va_form.renderpartial`) today, so no app can code or review;
+      unblocks `digitva-p6fs.4`.
+   c. `digitva-ey38` `code` on every remaining `/api/v1` error
+      (data-management, va/nqa+so, area, cod-buckets, ...) and a contract
+      review of those blueprints.
+   Open owner question: fold form-options and prefill-policy into
+   `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).
 2. **Deploy notes.** Bump `STATIC_ASSET_VERSION` with the API release (cached
    old intake scripts call removed routes). `digitva-5hmc`: production
    refuses any non-public request that never consulted authz
@@ -55,7 +64,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `ready_for_coding` source, area overview EXPLAIN, open-submission repair
    gate, KPI cache vs pair status).
 6. Expo (`digitva-p6fs`): `p6fs.4` coding/review workspaces, `p6fs.5` device
-   acceptance; both on the one `/api/v1` contract once `ad02` lands. A
+   acceptance; both use the one `/api/v1` contract (`ad02` is landed). A
    signed-in worker's unit tree, not the site, is the scope
    (`docs/policy/web-intake.md`).
 7. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log

@@ -303,7 +303,7 @@
       UNITS = []; LEVELS = []; SELECTED_CODES = []; SELECTED_UNIT_ID = null;
       setBlocked(true, message);
     }
-    fetch('/api/v1/organization/' + encodeURIComponent(c.project_id) + '/units?role=interviewer')
+    fetch('/api/v1/organization/' + encodeURIComponent(c.project_id) + '/units?role=interviewer&site_id=' + encodeURIComponent(c.site_id))
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
       .then(function (res) {
         if (token !== RENDER_TOKEN) return; // a newer scope change is in flight

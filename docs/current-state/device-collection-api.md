@@ -136,7 +136,7 @@ As the contract, with these additions (all additive):
 | `DELETE /sessions/current` | `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out. |
 | `GET /bootstrap` | `{user, instrument_version, projects}`: `user {user_id, name}`, `instrument_version` (the served bundle's manifest sha, `who_va_bundle_version`), `projects` (below). No CSRF fields. |
 | `POST /submissions` | Body `project_id` (required) and an optional `completion: {valid, issues}` beside `draft`; see below. |
-| `GET /units?project_id=` | `units_payload` from `app/routes/api/organization.py` over `authz.reachable_unit_ids(user, project, {interviewer})`: the web picker's body. 403 when nothing is reachable. |
+| `GET /units?project_id=` | `units_payload` from `app/routes/api/organization.py` over `web_intake_service.reachable_unit_ids(user, project)` (grant-based, the create-time check's rule without a site: a project grant or any site grant of the project reaches the whole tree): the web picker's body. 403 when nothing is reachable. |
 | `GET /instruments/<code>/translations/<locale>?project_id=` | `translations_response` from `app/routes/api/instruments.py`, only for `served_instrument_locales(project)` (the default form type's instrument, `available_locales`); else 404 `not_found`. |
 | `POST /outstanding` | Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
 | `GET /cases?project_id=&mine=&state=&limit=&cursor=` | The case list, below. 120/min. |

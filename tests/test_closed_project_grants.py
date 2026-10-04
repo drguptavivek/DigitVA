@@ -32,10 +32,10 @@ from app.models import (
     VaUsers,
 )
 from app.services import organization_service as org
+from app.services import web_intake_service as intake_svc
 from app.services.authz import Action, can, resolve_grants
 from app.services.org_grant_service import (
     granted_project_ids,
-    project_wide_grant_exists,
     scope_unit_ids,
 )
 from tests.base import BaseTestCase
@@ -219,10 +219,9 @@ class ClosedProjectGrantResolutionTests(BaseTestCase):
             project_id=self.PROJECT,
         )
 
-        roles = frozenset({VaAccessRoles.interviewer})
         self._assert_dormant_then_restored(
             self.PROJECT,
-            lambda: project_wide_grant_exists(user.user_id, self.PROJECT, roles),
+            lambda: intake_svc.reachable_unit_ids(user, self.PROJECT) is None,
         )
         self._assert_dormant_then_restored(
             self.PROJECT,
@@ -256,15 +255,50 @@ class ClosedProjectGrantResolutionTests(BaseTestCase):
             project_site_id=self._project_site_id(self.PROJECT, self.SITE),
         )
 
-        roles = frozenset({VaAccessRoles.coder})
-        self._assert_dormant_then_restored(
-            self.PROJECT,
-            lambda: project_wide_grant_exists(user.user_id, self.PROJECT, roles),
-        )
         self._assert_dormant_then_restored(
             self.PROJECT,
             lambda: user.get_coder_va_forms() == {self.FORM},
         )
+
+    def test_project_site_interviewer_grant_goes_dormant(self):
+        user = self._create_user("site.interviewer")
+        self._grant(
+            user,
+            VaAccessRoles.interviewer,
+            VaAccessScopeTypes.project_site,
+            project_site_id=self._project_site_id(self.PROJECT, self.SITE),
+        )
+
+        self._assert_dormant_then_restored(
+            self.PROJECT,
+            lambda: intake_svc.reachable_unit_ids(user, self.PROJECT, self.SITE) is None,
+        )
+        # A site grant covers its own site only: the other site reaches no unit.
+        self.assertEqual(
+            intake_svc.reachable_unit_ids(user, self.PROJECT, self.OTHER_SITE), set()
+        )
+
+    def test_inactive_project_site_and_grant_reach_nothing(self):
+        user = self._create_user("site.inactive")
+        grant = self._grant(
+            user,
+            VaAccessRoles.interviewer,
+            VaAccessScopeTypes.project_site,
+            project_site_id=self._project_site_id(self.PROJECT, self.SITE),
+        )
+        self.assertIsNone(intake_svc.reachable_unit_ids(user, self.PROJECT, self.SITE))
+
+        pair = db.session.get(VaProjectSites, self._project_site_id(self.PROJECT, self.SITE))
+        pair.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        self.assertEqual(intake_svc.reachable_unit_ids(user, self.PROJECT, self.SITE), set())
+        pair.project_site_status = VaStatuses.active
+        db.session.commit()
+        self.assertIsNone(intake_svc.reachable_unit_ids(user, self.PROJECT, self.SITE))
+
+        grant.grant_status = VaStatuses.deactive
+        db.session.commit()
+        self.assertEqual(intake_svc.reachable_unit_ids(user, self.PROJECT, self.SITE), set())
 
     # -- org_unit scope -----------------------------------------------------
 

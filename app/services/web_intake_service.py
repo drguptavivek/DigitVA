@@ -53,6 +53,7 @@ from app.services import org_grant_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
 from app.services.authz import resolve_grants, subtree_select
+from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -295,36 +296,37 @@ def interviewer_context(user: VaUsers) -> list[dict]:
     return context
 
 
-def _reachable_unit_ids(user: VaUsers, project_id: str) -> set[uuid.UUID] | None:
+def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = None) -> set[uuid.UUID] | None:
     """Active units of *project_id* this interviewer may attribute an entry to.
 
-    ``None`` means the whole tree: the user holds a project- or site-scoped
-    interviewer grant there, which by design reaches every unit (that is the
-    point of a grant wider than one unit) — mirroring what
-    ``org_grant_service.project_wide_grant_exists`` means for the
-    organization API's picker. Otherwise the union of the user's
-    interviewer unit-scoped grants' subtrees, filtered to this project.
+    The unit-picking half of the rule ``_worklist_scope`` applies to cases
+    (docs/policy/web-intake.md, "Who sees which cases"), built from the same
+    ``resolve_grants`` data. ``None`` means the whole tree: a project grant
+    on the project, or a site grant on exactly (*project_id*, *site_id*).
+    Otherwise the subtrees of the user's interviewer unit grants in this
+    project (an empty set reaches nothing). A site grant on another site
+    widens nothing here.
 
-    Mirrors ``app/routes/api/organization.py::_reachable_unit_ids`` for
-    ``role=interviewer`` — no admin/project-manager bypass here, since web
-    intake access is strictly grant-based. Both share
-    ``org_grant_service.project_wide_grant_exists`` so the unit picker an
-    interviewer sees and this check their submission is held to cannot
-    silently disagree.
+    With ``site_id=None`` (the per-project picker, which has no site: device
+    ``/units`` and ``prefill_policy``) a wide grant on *any* site of the
+    project returns ``None``: the picker offers every unit some site of the
+    project allows, and the create-time check (``_require_scope``, which
+    passes its site) still holds each site to its own grants.
+
+    No admin or project_pi bypass: web intake is strictly grant-based.
     """
-    roles = frozenset({VaAccessRoles.interviewer})
-    if org_grant_service.project_wide_grant_exists(user.user_id, project_id, roles):
-        return None
-    reachable = org_grant_service.scope_unit_ids(user.user_id, VaAccessRoles.interviewer)
-    if not reachable:
+    mark_consulted()
+    units: set[uuid.UUID] = set()
+    for grant in resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False):
+        if grant.project_id != project_id:
+            continue
+        if not grant.is_wide:
+            units.add(grant.org_unit_id)
+        elif site_id is None or grant.site_id in (None, site_id):  # site_id None: project grant
+            return None
+    if not units:
         return set()
-    in_project = db.session.scalars(
-        sa.select(MasOrgUnit.org_unit_id).where(
-            MasOrgUnit.project_id == project_id,
-            MasOrgUnit.org_unit_id.in_(sorted(reachable)),
-        )
-    ).all()
-    return set(in_project)
+    return set(db.session.scalars(subtree_select(units)))
 
 
 def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None) -> dict:
@@ -334,8 +336,9 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     whatever the grant's scope — the routed unit is what makes a submission
     codeable at all (docs/policy/organization-model.md phase 4), and an
     unrouted one is invisible to every coder. A project- or site-scoped
-    interviewer grant may name *any* active unit of the project; a
-    unit-scoped grant is held to its own subtree. A project with no tree
+    interviewer grant on this project-site may name *any* active unit of
+    the project; a unit-scoped grant is held to its own subtree
+    (``reachable_unit_ids``). A project with no tree
     keeps the pre-phase-4 behaviour: no unit is required.
     """
     entry = None
@@ -363,7 +366,7 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     except (ValueError, TypeError, AttributeError):
         raise WebIntakeError("Invalid organization unit.", 400) from None
 
-    reachable = _reachable_unit_ids(user, project_id)
+    reachable = reachable_unit_ids(user, project_id, site_id)
     if reachable is not None and unit_id not in reachable:
         raise WebIntakeError("That organization unit is outside what you may access.", 403)
 
@@ -565,39 +568,21 @@ def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | N
         VaDeathRegister.site_id == site_id,
         VaDeathRegister.source == "register",
     )
-    # _has_units also raises 403 when the user has no interviewer access to
-    # this project/site at all -- that access check runs whichever branch is
-    # taken below.
-    if _has_units(user, project_id, site_id):
-        # A unit-scoped grant is held to its own subtree(s); a death with no
-        # unit at all is outside every subtree, so it is excluded.
-        unit_ids = _scope_unit_ids(user, project_id, site_id)
-        stmt = stmt.where(VaDeathRegister.org_unit_id.in_(unit_ids))
-    # Otherwise the grant is project- or site-scoped, which reaches every
-    # unit of the project (docs/policy/organization-model.md) -- no unit
-    # filter applies, whether or not the project has an organization tree.
-    # Previously this branch called _require_scope(..., None), which was
-    # right for "which unit may a NEW entry be attributed to" but wrong here:
-    # in a tree project it raised 400 "Choose the organization unit" merely
-    # for listing, even though such a grant may already see every unit.
+    entry = next(
+        (e for e in interviewer_context(user) if e["project_id"] == project_id and e["site_id"] == site_id),
+        None,
+    )
+    if entry is None:
+        raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
+    # The same per-project-site rule the worklist uses; its draft-identity
+    # clause is moot here, register rows never sit in that state.
+    scope = _worklist_scope(user, [entry])
+    if scope is None:
+        return []
+    stmt = stmt.where(scope)
     if status:
         stmt = stmt.where(VaDeathRegister.status == _LEGACY_STATUS.get(status, status))
     return list(db.session.scalars(stmt.order_by(VaDeathRegister.created_at.desc()).limit(500)).all())
-
-
-def _has_units(user: VaUsers, project_id: str, site_id: str) -> bool:
-    for entry in interviewer_context(user):
-        if entry["project_id"] == project_id and entry["site_id"] == site_id:
-            return bool(entry["org_units"])
-    raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
-
-
-def _scope_unit_ids(user: VaUsers, project_id: str, site_id: str) -> list[uuid.UUID]:
-    """All units in the subtrees of the user's interviewer unit grants."""
-    return [
-        unit_id
-        for unit_id in org_grant_service.scope_unit_ids(user.user_id, VaAccessRoles.interviewer)
-    ]
 
 
 def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
@@ -2091,7 +2076,7 @@ def prefill_policy(user: VaUsers, project_id: str) -> dict:
     ``direct``: the prefill of a direct start with no unit (interviewer and
     its locked questions). ``units``: ``{org_unit_id: {answers,
     lockedQuestionNames}}``, the area part a direct start in that unit adds,
-    for every unit the caller may pick (``_reachable_unit_ids``; None means
+    for every unit the caller may pick (``reachable_unit_ids``; None means
     every active unit). ``answer_fields``/``locked_fields``: which register
     columns become which answers. Name, sex, dates and age go to
     ``prefill.deceased`` and the package maps them; the registered age lock,
@@ -2101,7 +2086,7 @@ def prefill_policy(user: VaUsers, project_id: str) -> dict:
     ponytail: ``units`` grows with the reachable tree, as ``/units`` does.
     """
     direct = _prefill_from_death(None, user)
-    reachable = _reachable_unit_ids(user, project_id)
+    reachable = reachable_unit_ids(user, project_id)
     if reachable is None:
         reachable = set(db.session.scalars(
             sa.select(MasOrgUnit.org_unit_id).where(

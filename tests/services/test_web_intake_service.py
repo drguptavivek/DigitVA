@@ -1564,3 +1564,189 @@ class IntakeNoteResolutionTests(BaseTestCase):
 
         project.web_intake_intake_note = "   "
         self.assertEqual(intake_svc.resolve_intake_note(project), "")
+
+
+class InterviewerUnitScopeTests(BaseTestCase):
+    """The per-project-site grant rule (docs/policy/web-intake.md, "Who sees
+    which cases"), as ``list_deaths``, the create-time ``_require_scope`` and
+    ``reachable_unit_ids`` apply it.
+
+    P has sites S1 and S2 and a tree: A (with child A1) and B. Q is another
+    project with its own tree (QX) and site S3.
+    """
+
+    P, Q = "YW1P", "YW1Q"
+    S1, S2, S3 = "YW11", "YW12", "YW13"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from app.services import organization_service as org
+
+        now = datetime.now(timezone.utc)
+        pairs = ((cls.P, cls.S1), (cls.P, cls.S2), (cls.Q, cls.S3))
+        for project_id in (cls.P, cls.Q):
+            db.session.add(VaProjectMaster(
+                project_id=project_id, project_code=project_id, project_name=project_id,
+                project_nickname=project_id, project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now, web_intake_mode="both",
+            ))
+        for site_id in (cls.S1, cls.S2, cls.S3):
+            db.session.add(VaSiteMaster(
+                site_id=site_id, site_name=site_id, site_abbr=site_id, site_status=VaStatuses.active,
+                site_registered_at=now, site_updated_at=now,
+            ))
+        db.session.flush()
+        for project_id, site_id in pairs:
+            db.session.add(VaProjectSites(
+                project_id=project_id, site_id=site_id, project_site_status=VaStatuses.active,
+                project_site_registered_at=now, project_site_updated_at=now,
+            ))
+        db.session.flush()
+        for project_id, site_id in pairs:
+            _ensure_legacy_project_site_rows(project_id, site_id)
+            db.session.add(VaForms(
+                form_id=f"{project_id}{site_id}01", project_id=project_id, site_id=site_id,
+                odk_form_id=f"ODK_{project_id}{site_id}", odk_project_id="7", form_type="WHO VA 2022",
+                form_source="odk", form_status=VaStatuses.active, form_registered_at=now,
+                form_updated_at=now,
+            ))
+        db.session.flush()
+
+        def tree(project_id, roots):
+            org.seed_default_organization(project_id)
+            levels = sorted(org.list_levels(project_id), key=lambda lv: lv.depth)
+            return {
+                code: org.create_unit(
+                    project_id, org_level_id=levels[0].org_level_id, unit_code=code, unit_name=code
+                )
+                for code in roots
+            }, levels
+
+        roots, levels = tree(cls.P, ("YWA", "YWB"))
+        cls.unit_a, cls.unit_b = roots["YWA"], roots["YWB"]
+        cls.unit_a1 = org.create_unit(
+            cls.P, org_level_id=levels[1].org_level_id, unit_code="YWA1", unit_name="YWA1",
+            parent_org_unit_id=cls.unit_a.org_unit_id,
+        )
+        cls.unit_qx = tree(cls.Q, ("YWQX",))[0]["YWQX"]
+
+        # Registers the deaths: a project grant sees every unit.
+        cls.wide = cls._get_or_make_user("yw1.wide@test.local", "WebIntake123")
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.wide.user_id, role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.P,
+            notes="yw11 test", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self.deaths = {
+            (site_id, unit.unit_code): self._register(self.wide, site_id, unit)
+            for site_id in (self.S1, self.S2)
+            for unit in (self.unit_a1, self.unit_b)
+        }
+
+    # ── helpers ────────────────────────────────────────────────────────────
+
+    def _register(self, user, site_id, unit):
+        return intake_svc.register_death(
+            user, project_id=self.P, site_id=site_id, org_unit_id=str(unit.org_unit_id),
+            deceased_name="Scope Test", deceased_sex="male", date_of_death=date.today().isoformat(),
+        ).death_id
+
+    def _user(self, label, *grants):
+        """A user with *grants*: ("unit", unit) | ("site", project, site) | ("project", project)."""
+        user = self._get_or_make_user(f"yw1.{label}@test.local", "WebIntake123")
+        for kind, *args in grants:
+            scope = {
+                "unit": lambda unit: dict(
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=unit.org_unit_id),
+                "site": lambda project_id, site_id: dict(
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=db.session.scalar(sa.select(VaProjectSites.project_site_id).where(
+                        VaProjectSites.project_id == project_id, VaProjectSites.site_id == site_id))),
+                "project": lambda project_id: dict(
+                    scope_type=VaAccessScopeTypes.project, project_id=project_id),
+            }[kind](*args)
+            db.session.add(VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.interviewer, notes="yw11 test",
+                grant_status=VaStatuses.active, **scope,
+            ))
+        db.session.flush()
+        return user
+
+    def _listed(self, user, site_id):
+        return {r.death_id for r in intake_svc.list_deaths(user, project_id=self.P, site_id=site_id)}
+
+    def _create_status(self, user, site_id, unit):
+        try:
+            self._register(user, site_id, unit)
+        except intake_svc.WebIntakeError as exc:
+            return exc.status_code
+        return 201
+
+    def _assert_subtree_only(self, user, site_id):
+        listed = self._listed(user, site_id)
+        self.assertIn(self.deaths[(site_id, "YWA1")], listed)
+        self.assertNotIn(self.deaths[(site_id, "YWB")], listed)
+        reachable = intake_svc.reachable_unit_ids(user, self.P, site_id)
+        self.assertIn(self.unit_a1.org_unit_id, reachable)
+        self.assertEqual(reachable, {self.unit_a.org_unit_id, self.unit_a1.org_unit_id})
+        self.assertEqual(self._create_status(user, site_id, self.unit_a1), 201)
+        self.assertEqual(self._create_status(user, site_id, self.unit_b), 403)
+
+    def _assert_whole_site(self, user, site_id):
+        listed = self._listed(user, site_id)
+        self.assertIn(self.deaths[(site_id, "YWA1")], listed)
+        self.assertIn(self.deaths[(site_id, "YWB")], listed)
+        self.assertIsNone(intake_svc.reachable_unit_ids(user, self.P, site_id))
+        self.assertEqual(self._create_status(user, site_id, self.unit_b), 201)
+
+    # ── the rule ───────────────────────────────────────────────────────────
+
+    def test_unit_grant_only_reaches_its_subtree(self):
+        user = self._user("unit", ("unit", self.unit_a))
+        self._assert_subtree_only(user, self.S1)
+        self._assert_subtree_only(user, self.S2)
+
+    def test_unit_grant_in_another_project_does_not_reach_this_one(self):
+        user = self._user("two.projects", ("unit", self.unit_a), ("unit", self.unit_qx))
+        self._assert_subtree_only(user, self.S1)
+        self.assertNotIn(self.unit_qx.org_unit_id, intake_svc.reachable_unit_ids(user, self.P))
+
+        q_only = self._user("q.only", ("unit", self.unit_qx))
+        self.assertEqual(intake_svc.reachable_unit_ids(q_only, self.Q), {self.unit_qx.org_unit_id})
+        self.assertEqual(intake_svc.reachable_unit_ids(q_only, self.P), set())
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.list_deaths(q_only, project_id=self.P, site_id=self.S1)
+        self.assertEqual(ctx.exception.status_code, 403)
+        self.assertEqual(self._create_status(q_only, self.S1, self.unit_a1), 403)
+
+    def test_site_grant_widens_its_own_site_only(self):
+        user = self._user("site.plus.unit", ("site", self.P, self.S1), ("unit", self.unit_a))
+        self._assert_whole_site(user, self.S1)
+        self._assert_subtree_only(user, self.S2)
+
+    def test_site_grant_beside_a_unit_grant_on_the_same_site_sees_the_whole_site(self):
+        user = self._user("site.and.unit", ("site", self.P, self.S2), ("unit", self.unit_a))
+        self._assert_whole_site(user, self.S2)
+        self._assert_subtree_only(user, self.S1)
+
+    def test_project_grant_beside_a_unit_grant_sees_every_site_whole(self):
+        user = self._user("project.and.unit", ("project", self.P), ("unit", self.unit_a))
+        self._assert_whole_site(user, self.S1)
+        self._assert_whole_site(user, self.S2)
+
+    def test_the_per_project_picker_offers_the_union_over_sites(self):
+        site_grant = self._user("picker.site", ("site", self.P, self.S1))
+        self.assertIsNone(intake_svc.reachable_unit_ids(site_grant, self.P))
+        site_and_unit = self._user("picker.site.unit", ("site", self.P, self.S2), ("unit", self.unit_a))
+        self.assertIsNone(intake_svc.reachable_unit_ids(site_and_unit, self.P))
+        unit_only = self._user("picker.unit", ("unit", self.unit_a))
+        self.assertEqual(
+            intake_svc.reachable_unit_ids(unit_only, self.P),
+            {self.unit_a.org_unit_id, self.unit_a1.org_unit_id},
+        )
+        self.assertEqual(intake_svc.reachable_unit_ids(site_grant, self.Q), set())

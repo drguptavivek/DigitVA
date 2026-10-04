@@ -1613,6 +1613,12 @@ class DeviceApiTests(BaseTestCase):
         for death in (no_unit, d2_here, d1_there):
             self.assertEqual(self._detail(tokens, death.death_id).status_code, 200)
         self.assertEqual(self._detail(tokens, d2_there.death_id).status_code, 404)
+        # The per-project picker has no site: it offers the union over sites,
+        # the whole tree some site's grant allows.
+        picker = self.client.get(f"{API}/units", query_string={"project_id": self.PROJECT_ID},
+                                 headers=self._bearer(tokens)).get_json()
+        self.assertEqual({u["unit_code"] for u in picker["units"]}, {"D1", "D2"})
+        self.assertFalse(picker["scoped"])
 
     def test_list_breaks_updated_at_ties_on_death_id(self):
         _device, tokens = self._session()

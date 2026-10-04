@@ -190,6 +190,38 @@ class OrganizationApiTests(BaseTestCase):
         payload = response.get_json()
         self.assertFalse(payload["scoped"])
 
+    def test_interviewer_site_param_holds_a_site_grant_to_its_own_site(self):
+        """``site_id`` makes the intake picker match the create-time check: a
+        site grant on OA01 beside a CHC A unit grant reaches the whole tree
+        at OA01, and only the CHC A subtree at another site of the project."""
+        other_site = "OA02"
+        now = datetime.now(UTC)
+        if db.session.get(VaSiteMaster, other_site) is None:
+            db.session.add(VaSiteMaster(site_id=other_site, site_name="Organization API Site 2", site_abbr=other_site,
+                                        site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now))
+            db.session.flush()
+            db.session.add(VaProjectSites(project_id=self.PROJECT, site_id=other_site,
+                                          project_site_status=VaStatuses.active,
+                                          project_site_registered_at=now, project_site_updated_at=now))
+            db.session.commit()
+        user = self._get_or_make_user("org.api.site.and.unit@test.local", "OrgApiUser123")
+        self._grant(user.user_id, VaAccessRoles.interviewer,
+                    scope_type=VaAccessScopeTypes.project_site, project_site_id=self.project_site_id)
+        self._grant(user.user_id, VaAccessRoles.interviewer,
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.chc_a.org_unit_id)
+        self._login(str(user.user_id))
+        url = f"/api/v1/organization/{self.PROJECT}/units?role=interviewer&site_id="
+
+        own = self.client.get(url + self.SITE).get_json()
+        self.assertFalse(own["scoped"])
+        self.assertIn(str(self.chc_b.org_unit_id), {u["org_unit_id"] for u in own["units"]})
+
+        other = self.client.get(url + other_site).get_json()
+        self.assertTrue(other["scoped"])
+        selectable = {u["org_unit_id"] for u in other["units"] if u["selectable"]}
+        self.assertIn(str(self.chc_a.org_unit_id), selectable)
+        self.assertNotIn(str(self.chc_b.org_unit_id), {u["org_unit_id"] for u in other["units"]})
+
     # -- no grant -------------------------------------------------------------
 
     def test_no_grant_on_project_is_refused(self):

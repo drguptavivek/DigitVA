@@ -341,7 +341,8 @@ def reachable_unit_ids(
     user's unit grants in *roles* on this project; an empty set reaches
     nothing. Demo-training grants never count: they open coding practice,
     not a project's tree. Web intake keeps its own grant-only variant with
-    no admin bypass (``web_intake_service._reachable_unit_ids``).
+    no admin bypass (``web_intake_service.reachable_unit_ids``, which also
+    narrows a site grant to its own site).
     """
     mark_consulted()
     g = _grants if _grants is not None else resolve_grants(user)

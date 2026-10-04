@@ -36,6 +36,7 @@ from app.models import (
     VaStatuses,
 )
 from app.services import organization_service as org
+from app.services import web_intake_service as intake_svc
 from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import active_locale_versions
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
@@ -116,6 +117,9 @@ def project_units(project_id: str):
       ``role`` narrows scoping to that one role's grants (e.g.
       ``role=interviewer`` for the web intake picker) instead of the union of
       every role the user holds on the project. Unknown value -> 400.
+      ``site_id`` with ``role=interviewer`` scopes to that project-site by
+      the web intake rule (grant-only, a site grant covers its own site),
+      so the picker matches the create-time check.
 
     Each returned unit carries ``selectable``: ``true`` for a unit the
     caller's grants actually reach, ``false`` for an ancestor unit included
@@ -133,7 +137,13 @@ def project_units(project_id: str):
     except ValueError as exc:
         role, role_error = None, str(exc)
     # authz decides first; the refusals keep their order (404, 400, 403).
-    reachable = _reachable_unit_ids(project_id, role)
+    site_id = (request.args.get("site_id") or "").strip()
+    if role is VaAccessRoles.interviewer and site_id:
+        # The web intake picker names its site: offer exactly what the
+        # create-time check (web_intake_service._require_scope) will accept.
+        reachable = intake_svc.reachable_unit_ids(current_user, project_id, site_id)
+    else:
+        reachable = _reachable_unit_ids(project_id, role)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
         return _error("Project not found.", 404)

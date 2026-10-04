@@ -24,7 +24,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import csrf, db, limiter
 from app.decorators import role_required
-from app.models import AuthDevice, VaAccessRoles, VaProjectMaster
+from app.models import AuthDevice, VaProjectMaster
 from app.routes.api.instruments import translations_response
 from app.routes.api.organization import (
     form_options_payload,
@@ -33,7 +33,6 @@ from app.routes.api.organization import (
 )
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
-from app.services.authz import reachable_unit_ids
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.services.user_account_service import canonical_mobile
 from app.utils.who_va_bundle import who_va_bundle_version
@@ -356,9 +355,10 @@ def units():
     (``project_id``, required):
     the ``/api/v1/organization/<project>/units?role=interviewer`` body, scoped
     by interviewer grants only (a unit grant sees its subtree, plus ancestors
-    as ``selectable: false`` context; a project or site grant the whole tree)."""
+    as ``selectable: false`` context; a project grant or a site grant the whole
+    tree, the same rule as the create-time check, ``intake_svc.reachable_unit_ids``)."""
     project_id = _request_project_id()
-    reachable = reachable_unit_ids(current_user, project_id, frozenset({VaAccessRoles.interviewer}))
+    reachable = intake_svc.reachable_unit_ids(current_user, project_id)
     if reachable is not None and not reachable:
         return _error("You have no organization units in this project.", "forbidden", 403)
     return jsonify(units_payload(project_id, reachable))

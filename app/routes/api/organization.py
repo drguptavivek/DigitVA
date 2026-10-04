@@ -117,9 +117,9 @@ def project_units(project_id: str):
       ``role`` narrows scoping to that one role's grants (e.g.
       ``role=interviewer`` for the web intake picker) instead of the union of
       every role the user holds on the project. Unknown value -> 400.
-      ``site_id`` with ``role=interviewer`` scopes to that project-site by
-      the web intake rule (grant-only, a site grant covers its own site),
-      so the picker matches the create-time check.
+      ``role=interviewer`` answers by the web intake rule
+      (``web_intake_service.reachable_unit_ids``): grant-only, no admin or
+      PI bypass, the same tree device ``/units`` returns.
 
     Each returned unit carries ``selectable``: ``true`` for a unit the
     caller's grants actually reach, ``false`` for an ancestor unit included
@@ -137,11 +137,11 @@ def project_units(project_id: str):
     except ValueError as exc:
         role, role_error = None, str(exc)
     # authz decides first; the refusals keep their order (404, 400, 403).
-    site_id = (request.args.get("site_id") or "").strip()
-    if role is VaAccessRoles.interviewer and site_id:
-        # The web intake picker names its site: offer exactly what the
-        # create-time check (web_intake_service._require_scope) will accept.
-        reachable = intake_svc.reachable_unit_ids(current_user, project_id, site_id)
+    if role is VaAccessRoles.interviewer:
+        # Intake pickers (Jinja, Expo web) get the same grant-only tree as
+        # device /units, decided from the user's grants alone (owner,
+        # 2026-10-04); the create-time check stays the authority.
+        reachable = intake_svc.reachable_unit_ids(current_user, project_id)
     else:
         reachable = _reachable_unit_ids(project_id, role)
     project = db.session.get(VaProjectMaster, project_id)

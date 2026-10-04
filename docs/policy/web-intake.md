@@ -61,8 +61,8 @@ submission enters the workflow. Plan:
 - **Drafts** (`va_web_intake_drafts` + `va_web_intake_draft_sections`): the
   package's draft envelope is stored as metadata plus one JSON row per
   questionnaire section. The page sends only the sections whose answers
-  changed. One active draft per registered death; only its author may edit
-  it.
+  changed. Each interviewer edits only their own draft; a death may have
+  several (see "Parallel interviews").
 - **Prefill contract** (`web_intake_service._prefill_from_death`): the
   package's `createWhoVaInitialDataFromPrefill` (`vendor/who-va-2022/src/
   prefill.ts`) throws if both `deceased.dateOfDeath` and `deceased.
@@ -241,7 +241,9 @@ submission's organization unit, falling back to the form-level setting
   `sync_runtime_forms_from_site_mappings()` also excludes `form_source =
   'web'` rows from the forms it rewrites, so an ODK mapping on a project-site
   that also has a web form cannot overwrite the web form's identifiers.
-- Editing a submitted web case is not supported in this phase.
+- Editing a submitted web case follows
+  [Interview Revisions Policy](interview-revisions.md) (owner, 2026-10-04,
+  `digitva-bhpl`). Not built yet.
 
 ## Ready for web capture
 
@@ -285,7 +287,7 @@ contact attempts, pause, phones and address) are built; see "Built in phases 2
 and 3", "Built in phase 4" and "Built in phase 5" at the end of this section
 for the details they fixed. The rest is not built yet, and the
 "Baseline" bullets above (own drafts only, one author per draft, 409 for a
-second interviewer) remain the running behaviour until team drafts land.
+second interviewer) remain the running behaviour until parallel interviews land (`digitva-xz83`).
 
 ### The case
 
@@ -362,12 +364,66 @@ a place for names, phone numbers or addresses).
   still governs the project's other sites. Interview forms (answers) stay
   their interviewer's own; the case's submission id (`va_sid`) is shown in
   the worklist rows (browser and device) and the single-case detail only to
-  the worker who started the case's interview. The supervision list keeps
-  it for every case.
-- **One shared draft per death**, replacing "only its author may edit". Each
-  save records who saved it; the audit trail keeps every interviewer who
-  worked on the case.
+  the worker who started the case's interview (to change under "Parallel
+  interviews": the worker whose draft became the submission). The
+  supervision list keeps it for every case.
+- **Own draft per interviewer** (owner, 2026-10-04, `digitva-xz83`),
+  replacing the earlier "one shared draft per death" and "only its author may
+  edit": each interviewer edits only their own copy. Each save records who
+  saved it; the audit trail keeps every interviewer who worked on the case.
+  See "Parallel interviews".
 - "Mine" is a filter (registered or worked on by me), not a boundary.
+
+### Parallel interviews
+
+Owner, 2026-10-04 (`digitva-xz83`).
+
+- Every interviewer who can see an **open** case (not `submitted`,
+  `duplicate` or `cancelled`) gets the case prefill, on the device and in the
+  browser, even when another interviewer holds a draft on it.
+- Any such interviewer may start their **own copy** (own draft) of the case,
+  in the browser or the app. A second start is never refused for another
+  interviewer's draft.
+- **One draft per interviewer per case.** An interviewer continues from where
+  they left off, on the phone or in the browser: the same draft, not a second
+  copy. The phone uploads its in-progress draft to the server's draft store at
+  sync, and downloads the interviewer's latest server draft when it opens the
+  case.
+- **Same draft edited in two places** (for example the phone offline and the
+  browser): keep both. The most recently saved version becomes the draft. The
+  device save time is corrected by the stored clock skew
+  ([Field Data Collection Policy](field-data-collection.md), "Interview
+  times"); server receipt breaks ties. The other version is kept as history,
+  never discarded. The interviewer sees: "This interview was also edited on
+  another device; the newer version was kept." There is no section merge.
+- **Case identity** (name, date of death, sex) updates only from the
+  submitted (winning) draft, not from every save by any draft holder.
+- **The submission id** (`va_sid`) is shown to the interviewer whose draft
+  became the submission, not to whoever first started the case. This changes
+  the `va_sid` rule in "Who sees which cases".
+- **Case state stays shared.** One interviewer's contact attempt (for example
+  refused) or pause moves the case for everyone. A later submit restarts it.
+- Case list rows and the case detail warn that another interviewer has an
+  active draft: a boolean and when it started. The other user's name or id is
+  never shown. The warning is only as fresh as the phone's last sync, so
+  offline, two full interviews of one household can happen. That is the
+  accepted cost of this decision.
+- The first complete submission wins and moves the case to `submitted` (see
+  "One submission per case"). Later uploads and submits on the case are kept
+  as **superseded copies** on web and device alike: answers kept, no
+  submission, no routing. The interviewer is told their copy was superseded.
+
+Not built yet (`digitva-xz83`):
+
+- `case_prefill` (`app/services/web_intake_service.py`) withholds the prefill
+  when another interviewer holds a draft, and `start_draft` answers 409 to a
+  second start.
+- The phone keeps unfinished drafts locally only, and `submit_device_interview`
+  always opens a new copy (`own_copy=True`).
+- `save_draft_sections` calls `_sync_case_identity` on every save, by any
+  draft holder (`app/services/web_intake_service.py`, ~line 1217).
+- `va_sid` visibility is tied to `started_by_user_id`.
+- The `other_draft_active` warning does not exist in code.
 
 ### Supervisors
 
@@ -889,7 +945,8 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
   **Start** (registered, scheduled, paused, not reachable), **Restart**
   (refused) or **Resume** (in progress, details pending) calls
   `POST /api/v1/intake/drafts` with the case. A second interviewer on a case
-  with someone else's draft still gets the 409 message until team drafts land.
+  with someone else's draft still gets the 409 message until parallel
+  interviews land (`digitva-xz83`; see "Parallel interviews").
 - **Secondary actions:** **Flag duplicate** (the kept case picked from cases in
   scope of the same project, the 200 most recently active) and **Flag for
   cancel** (reason required, 200 characters), both with the warning "No

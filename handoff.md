@@ -37,10 +37,27 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    route; `auth/*` (replies carry `access`), `me/access`, `me/terms`,
    `intake/*`, `organization/<p>/units|form-options`,
    `instruments/.../translations`; `/api/v1/device/*`,
-   `/api/v1/client/bootstrap` and `/intake/api/*` are gone. Remaining, in
-   order:
-   a. Expo session moves `mobile/` onto it (`digitva-ntct.1`, in progress;
-      the app is broken against main until then).
+   `/api/v1/client/bootstrap` and `/intake/api/*` are gone. The Expo app is
+   on it (`digitva-ntct.1` closed). Remaining, in order:
+   a. **Field collection integrity** (owner decisions 2026-10-04, policy
+      written, nothing built; owner said hold execution until told). Each
+      bead has a server half (this session) and an app half (Expo session,
+      give it the exact contract). Order: `digitva-2bxa` answers sent as an
+      exact JSON string + SHA-256 the server verifies, 409 `hash_mismatch`
+      the app must handle, app request timeout; `digitva-latk` start,
+      completion, upload times + clock skew; `digitva-xz83` one draft per
+      interviewer carried across phone and browser, prefill for all,
+      other-draft warning, newer save wins, identity only from the submitted
+      draft; `digitva-xuf9` form versions endpoint (version + activated_at);
+      `digitva-6pwq` server serves each project's composed form JSON;
+      `digitva-bhpl` revisions matching ODK (`interviewer_revision` audit
+      reason); `digitva-hdrv` polled notifications (Postgres table, Redis
+      latest-id cache, no FCM/Expo push). Policy:
+      `docs/policy/interview-revisions.md`, `docs/policy/web-intake.md`
+      "Parallel interviews", `docs/policy/field-data-collection.md`
+      ("Interview times", "Upload integrity", "Form version", "Form
+      definition from the server"). Bug found: `digitva-w5jw` Celery broker
+      shares the 64 MB allkeys-lru Redis.
    b. `digitva-xl43` coding and review workspace API: case content by
       category and the Step 1 / final COD steps are server HTML partials
       (`va_form.renderpartial`) today, so no app can code or review;

@@ -223,6 +223,146 @@ wider wins. Interview forms stay the worker's own: the submission id
 (`va_sid`) appears in a case's list row and detail only for the worker who
 started its interview.
 
+### Interview times (owner, 2026-10-04, `digitva-latk`)
+
+Every interview, from the browser or the app, records three times:
+
+- **Interview start**: the device or browser time the interview was opened.
+- **Interview completion**: the device time it was marked complete.
+  Marking it complete again updates this time.
+- **Upload (receipt)**: the server time the interview arrived.
+
+**Clock skew** is one stored number: the difference between the device's
+clock at upload and the server's receipt time. It is for audit and for the
+two-device conflict rule ([Web Intake Policy](web-intake.md), "Parallel
+interviews"). It does not change the interview times.
+
+The submission payload's `start` and `end` come from the start and completion
+times; `SubmissionDate` stays the server receipt time.
+
+The server's re-check of relevance and constraints evaluates `today()` at the
+device's raw completion time, whatever the device considered local, not the
+upload time and not skew-corrected. An interview finished offline days earlier
+is not refused for it.
+
+Not built yet (`digitva-latk`):
+
+- The app records no completion time. `markCompleted`
+  (`mobile/digitva-collect/src/drafts.ts`) sets only a flag.
+- Payload `start` is the envelope `createdAt` and `end` is `SubmissionDate`,
+  the server submit time (`build_web_payload`), so an offline interview's
+  completion time is lost.
+- The re-check uses the server's `today()` (`_expression_now`, used in
+  `submit_draft`).
+- Clock skew is not stored.
+
+### Upload integrity under connection drops (owner, 2026-10-04, `digitva-2bxa`)
+
+Owner concern: another app saw dropped connections corrupt data and create
+duplicate uploads. The rules:
+
+- **Client ids.** Every offline write carries one: `client_death_id` for a
+  registration, `client_attempt_id` for a contact attempt, `client_draft_id`
+  for an interview. A resend returns the first result, never a second record.
+- **One transaction.** The server commits the whole interview in one
+  transaction before it replies.
+- **Delete after a matching acknowledgement.** The device deletes its copy
+  only after an acknowledgement that matches what it sent.
+- **Exact text and hash.** The app sends the answers as one exact JSON text
+  string (`answers_json`) plus `answers_sha256`, the SHA-256 of that exact
+  string. The server hashes the bytes it received and compares. A mismatch is
+  refused 422 and nothing is stored. Only then does it parse. Neither side
+  re-serialises the answers, so JavaScript and Python number formatting
+  cannot differ.
+- **What the server stores.** It stores that hash, computed over what was
+  sent, before locked answers are overwritten and irrelevant answers
+  stripped. It echoes the hash in the acknowledgement. The app verifies the
+  echoed hash and the death id before it deletes its copy.
+- **Resend with the same `client_draft_id`.** Same hash: 200 with the stored
+  result. Different hash: 409 `hash_mismatch` with the stored result. The app
+  handles that code explicitly: it tells the interviewer their later edits
+  were not applied and offers a revision
+  ([Interview Revisions Policy](interview-revisions.md)). The server side
+  ships only together with the app side.
+- **Timeouts.** Every app request has a timeout, so a dead connection fails
+  the run with everything kept instead of hanging.
+- **Case list refresh.** The app writes the replacement case list in one
+  local transaction, so a kill mid-write leaves the old list.
+
+This closes a data-loss path that exists today: the upload succeeds, the reply
+is lost, the interviewer edits the completed draft, and the resend returns the
+old stored result, so the app deletes the edited copy.
+
+Not built yet (`digitva-2bxa`): `answers_json`, `answers_sha256`, the 422, the
+stored and echoed hash, `hash_mismatch`, the app's explicit handling (today it
+retries every 409 forever), request timeouts (none today) and the transactional
+case list write. Client-id idempotent resend is built (see "Idempotent upload"
+above).
+
+### Form version (owner, 2026-10-04, `digitva-xuf9`)
+
+The form is compiled into the app. A question or logic change needs a new app
+build. The server records the phone's form version (envelope
+`instrumentVersion`, stored as payload `FormVersion`) but never compares it,
+and it re-checks answers against its own server instrument. So an older phone's
+answers can be stripped by rules it never showed.
+
+Rule:
+
+- The server publishes its form version in form-options: the server
+  instrument's own version, not the web bundle's file time.
+- An app whose bundled version is older blocks **new** interviews with "update
+  the app". It never blocks an upload.
+- The server never refuses an upload on version. It flags
+  `FormVersion` != current for QA.
+- The app's version is refreshed at each sign-in.
+- Owner, 2026-10-04: the server publishes the current form version and its
+  history at `GET /api/v1/instruments/<code>/versions`: each version and the
+  date-time it became active on this server, newest first. The server records
+  a version the first time it serves it, so no deploy step is needed.
+
+Not built yet (`digitva-xuf9`):
+
+- The versions endpoint and the table that records activation times.
+- The form-options payload carries `instrument_version` today, but it is
+  `who_va_bundle_version()`, the web bundle's version, not a server
+  instrument version (`app/routes/api/organization.py`, ~line 713).
+- `auth_devices.app_version` is set at enrolment only
+  (`app/services/device_auth_service.py`, `enrol_device`).
+- No comparison, block or QA flag exists. Form-options contract:
+  [VA Web Form Options Contract](va-web-form-options.md).
+
+### Form definition from the server (owner, 2026-10-04, `digitva-6pwq`)
+
+The form is already data: a JSON definition (sections, questions, choices,
+relevance, constraints, calculations) run by a generic engine
+(`vendor/who-va-2022/src/generated/who-va-2022.instrument.json`,
+`src/engine/`; the controls in `src/ui/question-controls.tsx` name no
+question). Today it is bundled into the app at build time, and DigitVA's
+extensions are added to it in code (`src/digitva-extension.ts`).
+
+Rule:
+
+- The server builds each project's complete form (the WHO definition plus
+  that project's enabled extensions, with the package's own composer) and
+  serves it as JSON, with its version, a SHA-256 fingerprint and an ETag.
+  The server re-checks answers against that same definition.
+- JSON only. No XForm XML (it would need a second engine) and no YAML.
+- The app downloads the definition, checks the fingerprint, caches it per
+  version and renders it. Question, label, choice, relevance, constraint and
+  order changes need no app build.
+- A draft stays on the version it started with. The app keeps a version
+  cached until every draft on it has uploaded.
+- The definition names the engine version it needs. An app whose engine is
+  older refuses it and asks for an update: new control types, expression
+  functions or engine changes still need an app build.
+- The bundled form stays as the fallback until the first download. With a
+  served definition, "older version" in the rule above means the app has no
+  current definition its engine can run; it then blocks new interviews,
+  never uploads.
+
+Not built yet (`digitva-6pwq`): everything in this section.
+
 ### Accepted risk: no retention ceiling
 
 Decision C3 permits an interview to remain on a device indefinitely until it
@@ -277,6 +417,7 @@ real interviews**, and must be pointed at a non-production DigitVA.
 ## References
 
 - [Web Intake Policy](web-intake.md)
+- [Interview Revisions Policy](interview-revisions.md)
 - [Organization Model Policy](organization-model.md)
 - [Access Control Model](access-control-model.md)
 - [Attachment Storage Policy](attachment-storage.md)

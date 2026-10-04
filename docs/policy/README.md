@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-04
 ---
 
 # Policy Docs
@@ -27,6 +27,7 @@ Current policy docs:
 - [Demo Coding Retention Policy](demo-coding-retention.md)
 - [Field Data Collection Policy](field-data-collection.md) — permitted collection paths, unmasked collection vs masked coding, device encryption rules
 - [Final COD Authority Policy](final-cod-authority.md)
+- [Interview Revisions Policy](interview-revisions.md) — who may revise a submitted interview, when it locks, versions and answer fingerprints
 - [Migration Chaining Policy](migration-chaining.md) — chain onto committed revisions only, which head moves, why working-tree checks cannot verify it
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)

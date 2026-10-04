@@ -23,6 +23,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
+> Code search: use semble first (`mcp__semble__search`; load it with
+> ToolSearch if deferred) for "where does X happen" questions, and tell
+> agents to as well; grep only for exact names or every occurrence. Owner
+> wants a report on whether semble found things grep would not.
+> trace-mcp is broken (binary missing at `~/.trace-mcp/bin/trace-mcp`).
 
 ## Next, ranked
 

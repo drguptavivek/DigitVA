@@ -40,14 +40,26 @@ const mockProject = {
   form_options: {
     default_locale: "en",
     available_locales: [{ code: "en", label: "English" }],
+    instrument_version: "served-v2",
+    definition_sha256: "b".repeat(64),
+    enabled_extensions: ["mobility"],
+    translation_versions: { en: 1 },
   },
 };
 let mockLocalRow: unknown = null;
 let mockReference: unknown;
 let mockFormProps: Record<string, unknown> = {};
 let mockLockCallback: (() => Promise<void>) | undefined;
+let mockLockVersion = 0;
+let mockObservedLockVersion = 0;
 const mockSaveDraft = jest.fn(async () => undefined);
 const mockQueue = jest.fn(async (..._args: unknown[]) => undefined);
+const mockRevisionInstrument = { id: "WHO_2022_VA", version: "served-v2", sections: [], questions: [] };
+const mockRevisionDefinition = {
+  instrument: mockRevisionInstrument,
+  provenance: "served",
+  pin: { instrumentVersion: "served-v2", definitionSha256: "b".repeat(64), definitionExtensions: ["mobility"] },
+};
 const mockReload = jest.fn();
 const mockChooseUiLocale = jest.fn(async () => undefined);
 const mockActivity = jest.fn();
@@ -58,7 +70,9 @@ jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParams,
 }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({
+  useAppState: () => {
+    mockObservedLockVersion = mockLockVersion;
+    return {
     accounts: mockAccounts,
     activity: mockActivity,
     onBeforeLock: (callback: () => Promise<void>) => {
@@ -67,12 +81,26 @@ jest.mock("../src/AppState", () => ({
     },
     chooseUiLocale: mockChooseUiLocale,
     reload: mockReload,
-  }),
+    lockVersion: mockLockVersion,
+    };
+  },
 }));
 jest.mock("../src/api", () => ({ ApiError: class ApiError extends Error { code?: string; status?: number } }));
 jest.mock("../src/auth", () => ({
+  authedRawRequest: jest.fn(async () => ({ status: 200, headers: {}, body: "{}" })),
   SessionRevokedError: class SessionRevokedError extends Error {},
   SignInRequiredError: class SignInRequiredError extends Error {},
+}));
+jest.mock("../src/drafts", () => ({ getMeta: jest.fn(async () => undefined) }));
+jest.mock("../src/formDefinitionCache", () => ({
+  createNativeDefinitionCache: jest.fn(() => ({ initialize: jest.fn(async () => undefined) })),
+}));
+jest.mock("../src/formDefinitionRuntime", () => ({
+  PinnedDefinitionError: class PinnedDefinitionError extends Error { code?: string },
+  resolveSavedEnvelopeDefinition: jest.fn(async () => mockRevisionDefinition),
+}));
+jest.mock("../src/formDefinitions", () => ({
+  FormDefinitionError: class FormDefinitionError extends Error { code?: string },
 }));
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
@@ -99,6 +127,7 @@ jest.mock("../src/revisions", () => ({
   reopenRevision: jest.fn(async () => undefined),
 }));
 jest.mock("../src/sync", () => ({
+  markProjectDefinitionServed: jest.fn(async () => undefined),
   getCachedReferenceData: jest.fn(async () => mockReference),
   isUploadable: jest.fn(() => true),
   translationsFor: jest.fn(async () => null),
@@ -125,7 +154,10 @@ jest.mock("@drguptavivek/who-2022-va/native", () => ({
   WhoVaForm: (props: Record<string, unknown>) => {
     mockFormProps = props;
     const ReactActual = jest.requireActual("react") as typeof React;
-    return ReactActual.createElement("section", { "data-revision-form": true });
+    return ReactActual.createElement("section", {
+      "data-revision-form": true,
+      "data-form-version": (props.instrument as { version?: string } | undefined)?.version,
+    });
   },
 }), { virtual: true });
 jest.mock("@drguptavivek/who-2022-va", () => ({
@@ -143,6 +175,8 @@ beforeEach(() => {
   mockLocalRow = null;
   mockFormProps = {};
   mockLockCallback = undefined;
+  mockLockVersion = 0;
+  mockObservedLockVersion = 0;
   mockReference = { projects: [{ project: mockProject }] };
 });
 
@@ -168,6 +202,102 @@ describe("native submitted-interview revisions", () => {
     expect(fetchSubmittedRevisions).not.toHaveBeenCalled();
     expect(beginRevision).not.toHaveBeenCalled();
     expect(JSON.stringify(tree!.toJSON())).toContain("data-revision-form");
+  });
+
+  it("resolves the saved revision pin and gives that immutable instrument to the form", async () => {
+    mockLocalRow = {
+      ...mockRow,
+      envelope: {
+        ...mockRow.envelope,
+        instrumentVersion: "served-v2",
+        definitionSha256: "b".repeat(64),
+        definitionExtensions: ["mobility"],
+      },
+    };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    expect(jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition)
+      .toHaveBeenCalledWith(expect.objectContaining({
+        projectId: "P1",
+        envelope: expect.objectContaining({ instrumentVersion: "served-v2", definitionSha256: "b".repeat(64) }),
+      }));
+    expect(mockFormProps.instrument).toEqual(mockRevisionInstrument);
+    expect(jest.requireMock("../src/sync").translationsFor).toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("uses English for a same-version revision whose saved hash differs from current", async () => {
+    mockLocalRow = {
+      ...mockRow,
+      envelope: {
+        ...mockRow.envelope,
+        instrumentVersion: "served-v2",
+        definitionSha256: "b".repeat(64),
+        definitionExtensions: ["mobility"],
+      },
+    };
+    mockProject.form_options.definition_sha256 = "c".repeat(64);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    expect(mockFormProps.instrument).toBe(mockRevisionInstrument);
+    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/drafts").getMeta).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("does not fetch current translations for an unpinned legacy revision", async () => {
+    mockLocalRow = {
+      ...mockRow,
+      envelope: { instrumentId: "WHO_2022_VA", instrumentVersion: "v1", data: { answer: "old" }, locale: "en" },
+    };
+    const legacyInstrument = { ...mockRevisionInstrument, version: "v1" };
+    (jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock)
+      .mockResolvedValueOnce({ instrument: legacyInstrument, provenance: "bundled-original", pin: null });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    expect(mockFormProps.instrument).toEqual(legacyInstrument);
+    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/drafts").getMeta).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("clears a mounted revision after access changes and blocks its stale store", async () => {
+    mockLocalRow = mockRow;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    expect(tree!.root.findAllByProps({ "data-revision-form": true })).toHaveLength(1);
+    const staleStore = mockFormProps.draftStore as { save(draft: unknown): Promise<unknown> };
+    const stores = jest.requireMock("../src/revisions").createRevisionDraftStore as jest.Mock;
+    const underlyingSave = stores.mock.results[stores.mock.results.length - 1].value.save as jest.Mock;
+    let releaseReference!: (value: unknown) => void;
+    (jest.requireMock("../src/sync").getCachedReferenceData as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => { releaseReference = resolve; }),
+    );
+
+    mockLockVersion += 1;
+    await act(async () => { tree!.update(<Revision />); });
+
+    expect(mockObservedLockVersion).toBe(mockLockVersion);
+    expect(tree!.root.findAllByProps({ "data-revision-form": true })).toHaveLength(0);
+    await expect(staleStore.save({ data: { answer: "must-not-write" } })).rejects.toThrow("revision_access_changed");
+    expect(underlyingSave).not.toHaveBeenCalled();
+    await act(async () => { releaseReference(mockReference); });
+    await settle();
+    await settle();
+    expect(tree!.root.findAllByProps({ "data-revision-form": true })).toHaveLength(1);
+    await act(async () => tree!.unmount());
   });
 
   it("begins an authorized direct revision without requiring a death id", async () => {

@@ -18,7 +18,8 @@
  */
 import * as SecureStore from "expo-secure-store";
 
-import { ApiError, AUTH_API, parseAccessSummary, requestJson, type AccessSummary } from "./api";
+import { APP_VERSION } from "./appVersion";
+import { ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import {
   deleteInterviewerDb,
@@ -218,6 +219,7 @@ export async function signIn(
       device_secret: secret,
       email: identifier,
       password,
+      app_version: APP_VERSION,
       ...(otp ? { otp } : {}),
     },
   });
@@ -322,6 +324,7 @@ async function doRefresh(userId: string, server: string): Promise<Tokens> {
           refresh_token: current.refresh_token,
           device_id: device?.device_id,
           device_secret: secret,
+          app_version: APP_VERSION,
         },
       },
     );
@@ -415,6 +418,33 @@ export async function authedRequest<T>(
       body: retryBody,
       token: next.access_token,
     });
+  } catch (error) {
+    throw await classifyAuthError(userId, error);
+  }
+}
+
+/** Authenticated raw response with the same refresh lock and one-401 retry as JSON calls. */
+export async function authedRawRequest(
+  userId: string,
+  path: string,
+  init: { ifNoneMatch?: string; acceptGzip?: boolean; timeoutMs?: number } = {},
+): Promise<RawApiResponse> {
+  const device = await loadDevice();
+  const tokens = await readJson<Tokens>(tokensKey(userId));
+  if (!device) throw new Error("not_enrolled");
+  if (!tokens) throw new SignInRequiredError();
+  try {
+    return await requestRaw(device.server, path, { ...init, token: tokens.access_token });
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw await classifyAuthError(userId, error);
+    if (error.code === "session_revoked") throw await classifyAuthError(userId, error);
+  }
+  const latest = await readJson<Tokens>(tokensKey(userId));
+  const next = latest && latest.access_token !== tokens.access_token
+    ? latest
+    : await refresh(userId, device.server);
+  try {
+    return await requestRaw(device.server, path, { ...init, token: next.access_token });
   } catch (error) {
     throw await classifyAuthError(userId, error);
   }

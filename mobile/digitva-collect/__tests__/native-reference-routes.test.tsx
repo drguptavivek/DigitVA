@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
+import * as Crypto from "expo-crypto";
 
 const mockAccount = { user_id: "u1", name: "Interviewer" };
 const mockDb = { getFirstAsync: jest.fn(async () => null) };
@@ -20,6 +21,23 @@ let mockCachedReference: unknown;
 let mockCachedCases: unknown[] = [];
 let mockSubmittedRevisions: unknown[] = [];
 let mockLocalRevisions: unknown[] = [];
+let mockFormProps: Record<string, unknown> = {};
+let mockLockVersion = 0;
+let mockObservedLockVersion = 0;
+let mockDefinitionResponse: { body: string; sha256: string } | undefined;
+const mockDefinitionCache = {
+  initialize: jest.fn(async () => undefined),
+  get: jest.fn(async () => undefined),
+  put: jest.fn(async () => undefined),
+};
+const realRuntime = jest.requireActual("../src/formDefinitionRuntime") as typeof import("../src/formDefinitionRuntime");
+const realEngine = jest.requireActual("@drguptavivek/who-2022-va") as typeof import("@drguptavivek/who-2022-va");
+const mockServedInstrument = { id: "WHO_2022_VA", version: "served-v2", sections: [{ name: "served" }], questions: [] };
+const mockResolvedDefinition = {
+  instrument: mockServedInstrument,
+  provenance: "served",
+  pin: { instrumentVersion: "served-v2", definitionSha256: "a".repeat(64), definitionExtensions: [] },
+};
 
 function pack(mode = "both", projectId = "P1") {
   const project = {
@@ -37,6 +55,10 @@ function pack(mode = "both", projectId = "P1") {
     form_options: {
       default_locale: "en",
       available_locales: [{ code: "en", label: "English" }],
+      narration_languages: [{ code: "en", label: "English" }],
+      instrument_version: "served-v2",
+      definition_sha256: "a".repeat(64),
+      enabled_extensions: [],
     },
     prefill_policy: {
       direct: {},
@@ -57,6 +79,17 @@ function pack(mode = "both", projectId = "P1") {
 
 mockReference = pack();
 
+jest.mock("expo-crypto", () => {
+  const { createHash } = require("node:crypto");
+  return {
+    CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+    CryptoEncoding: { HEX: "hex" },
+    randomUUID: () => "44444444-4444-4444-8444-444444444444",
+    digestStringAsync: async (_algorithm: string, value: string) =>
+      createHash("sha256").update(value, "utf8").digest("hex"),
+  };
+});
+
 jest.mock("expo-router", () => ({
   Redirect: () => null,
   useRouter: () => mockRouter,
@@ -67,18 +100,40 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({
+  useAppState: () => {
+    mockObservedLockVersion = mockLockVersion;
+    return {
     accounts: [mockAccount],
     reload: mockReload,
     lockNow: jest.fn(),
     activity: jest.fn(),
     onBeforeLock: jest.fn(() => jest.fn()),
     chooseUiLocale: mockChooseUiLocale,
-  }),
+    lockVersion: mockLockVersion,
+    };
+  },
 }));
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
   openInterviewerDb: jest.fn(async () => mockDb),
+}));
+jest.mock("../src/formDefinitionCache", () => ({
+  createNativeDefinitionCache: jest.fn(() => mockDefinitionCache),
+}));
+jest.mock("../src/formDefinitionRuntime", () => ({
+  PinnedDefinitionError: class PinnedDefinitionError extends Error { code?: string },
+  resolveNewInterviewDefinition: jest.fn(async () => mockResolvedDefinition),
+  resolveSavedEnvelopeDefinition: jest.fn(async () => mockResolvedDefinition),
+}));
+jest.mock("../src/formDefinitions", () => jest.requireActual("../src/formDefinitions"));
+jest.mock("../src/auth", () => ({
+  authedRawRequest: jest.fn(async () => ({
+    status: 200,
+    headers: { definitionSha256: mockDefinitionResponse?.sha256 },
+    body: mockDefinitionResponse?.body ?? "{}",
+  })),
+  SessionRevokedError: class SessionRevokedError extends Error {},
+  SignInRequiredError: class SignInRequiredError extends Error {},
 }));
 jest.mock("../src/drafts", () => ({
   listDrafts: jest.fn(async () => []),
@@ -198,6 +253,9 @@ jest.mock("../src/sync", () => ({
   registersDeaths: (project: { web_intake_mode: string }) =>
     ["death_register", "both"].includes(project.web_intake_mode),
   translationsFor: jest.fn(async () => null),
+  refreshAuthorizedProjectDefinitions: jest.fn(async () => []),
+  canUseBundledFallbackForProject: jest.fn(async () => true),
+  markProjectDefinitionServed: jest.fn(async () => undefined),
   isUploadable: () => true,
 }));
 jest.mock("../src/i18n", () => ({
@@ -271,7 +329,13 @@ jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock(
   "@drguptavivek/who-2022-va/native",
   () => ({
-    WhoVaForm: () => null,
+    WhoVaForm: (props: Record<string, unknown>) => {
+      mockFormProps = props;
+      const ReactActual = jest.requireActual("react") as typeof React;
+      return ReactActual.createElement("section", {
+        "data-form-version": (props.instrument as { version?: string } | undefined)?.version,
+      });
+    },
     WhoVaQuestionControls: {
       Date: () => null,
       Integer: () => null,
@@ -282,16 +346,20 @@ jest.mock(
 );
 jest.mock(
   "@drguptavivek/who-2022-va",
-  () => ({
-    createWhoVa2022Instrument: jest.fn(() => ({
-      id: "WHO_2022_VA",
-      version: "v1",
-      sections: [{ name: "start" }],
-      questions: [],
-    })),
-    resolveUiMessages: () => ({}),
-    WHO_VA_BUILT_IN_UI_TRANSLATIONS: {},
-  }),
+  () => {
+    const actual = jest.requireActual("@drguptavivek/who-2022-va") as Record<string, unknown>;
+    return {
+      ...actual,
+      createWhoVa2022Instrument: jest.fn(() => ({
+        id: "WHO_2022_VA",
+        version: "v1",
+        sections: [{ name: "start" }],
+        questions: [],
+      })),
+      resolveUiMessages: () => ({}),
+      WHO_VA_BUILT_IN_UI_TRANSLATIONS: {},
+    };
+  },
   { virtual: true },
 );
 
@@ -320,6 +388,16 @@ beforeEach(() => {
   mockCachedCases = [];
   mockSubmittedRevisions = [];
   mockLocalRevisions = [];
+  mockLockVersion = 0;
+  mockObservedLockVersion = 0;
+  mockFormProps = {};
+  mockDefinitionResponse = undefined;
+  mockDefinitionCache.get.mockReset().mockResolvedValue(undefined);
+  mockDefinitionCache.put.mockReset().mockResolvedValue(undefined);
+  (jest.requireMock("../src/formDefinitionRuntime").resolveNewInterviewDefinition as jest.Mock)
+    .mockImplementation(async (...args: unknown[]) => mockResolvedDefinition);
+  (jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock)
+    .mockImplementation(async (...args: unknown[]) => mockResolvedDefinition);
   (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockImplementation(
     async () => [],
   );
@@ -391,6 +469,16 @@ describe("native project-aware routes", () => {
     expect(rendered).toContain("revisionRetry");
     expect(rendered).toContain("VA-LOCAL");
     expect(rendered).toContain("interviewsTitle");
+    await act(async () => tree!.unmount());
+  });
+
+  it("refreshes authorized project definitions after loading the unlocked reference pack", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+
+    expect(jest.requireMock("../src/sync").refreshAuthorizedProjectDefinitions)
+      .toHaveBeenCalledWith("u1", mockDb, mockReference);
     await act(async () => tree!.unmount());
   });
 
@@ -501,6 +589,241 @@ describe("native project-aware routes", () => {
       mockDb,
       expect.objectContaining({ locale: "hi", translationVersion: 17 }),
     );
+    await act(async () => tree!.unmount());
+  });
+
+  it("opens a new interview with the resolved served definition and pins draft storage", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+
+    expect(jest.requireMock("../src/formDefinitionRuntime").resolveNewInterviewDefinition)
+      .toHaveBeenCalledWith(expect.objectContaining({
+        accountId: "u1",
+        projectId: "P1",
+        options: expect.objectContaining({ instrumentVersion: "served-v2", definitionSha256: "a".repeat(64) }),
+        narrationLanguageCodes: ["en"],
+      }));
+    expect(mockFormProps.instrument).toEqual(mockServedInstrument);
+    expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(
+      mockDb,
+      expect.objectContaining({ definitionPin: mockResolvedDefinition.pin }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("downloads and verifies the current served definition through the native route", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    const definition = {
+      ...realEngine.createWhoVa2022Instrument([]),
+      version: "20261005-a1b2c3d4e5",
+      engineVersion: realEngine.ENGINE_VERSION,
+      extensions: [],
+    };
+    const body = JSON.stringify(definition);
+    const sha256 = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      body,
+      { encoding: Crypto.CryptoEncoding.HEX },
+    );
+    mockDefinitionResponse = { body, sha256 };
+    const packData = pack() as ReturnType<typeof pack>;
+    const project = packData.projects[0].project;
+    project.form_options.definition_sha256 = sha256;
+    project.form_options.instrument_version = definition.version;
+    mockReference = packData;
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    const resolveNew = jest.requireMock("../src/formDefinitionRuntime").resolveNewInterviewDefinition as jest.Mock;
+    resolveNew.mockImplementation((input) => realRuntime.resolveNewInterviewDefinition(input));
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+
+    expect(jest.requireMock("../src/auth").authedRawRequest).toHaveBeenCalledWith(
+      "u1",
+      "/api/v1/instruments/WHO_2022_VA/definition?project_id=P1",
+      expect.objectContaining({ acceptGzip: true }),
+    );
+    expect(mockFormProps.instrument).toMatchObject({ version: definition.version });
+    expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(
+      mockDb,
+      expect.objectContaining({
+        definitionPin: {
+          instrumentVersion: definition.version,
+          definitionSha256: sha256,
+          definitionExtensions: [],
+        },
+      }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("downloads the exact historical slice before reopening an encrypted draft", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const definition = {
+      ...realEngine.createWhoVa2022Instrument([]),
+      version: "historic-v1",
+      engineVersion: realEngine.ENGINE_VERSION,
+      extensions: [],
+    };
+    const body = JSON.stringify(definition);
+    const sha256 = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      body,
+      { encoding: Crypto.CryptoEncoding.HEX },
+    );
+    mockDefinitionResponse = { body, sha256 };
+    const projectPack = pack();
+    const project = projectPack.projects[0].project;
+    project.form_options.instrument_version = "historic-v1";
+    project.form_options.definition_sha256 = "c".repeat(64);
+    mockReference = projectPack;
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    const row = {
+      id,
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      death_id: null,
+      unique_id: "VA-OLD",
+      client_death_id: null,
+      server_draft_id: null,
+      base_updated_at: null,
+      draft_sync_dirty: 0,
+      draft_sync_blocked: 0,
+    };
+    (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValueOnce(row);
+    (jest.requireMock("../src/drafts").getMeta as jest.Mock).mockImplementationOnce(async () => ({
+      projectId: "P1",
+      locale: "en",
+      enabledExtensions: [],
+      instrumentCode: "WHO_2022_VA",
+    }));
+    mockDb.getFirstAsync.mockImplementationOnce(async () => ({
+      envelope: JSON.stringify({
+        instrumentId: "WHO_2022_VA",
+        instrumentVersion: definition.version,
+        definitionSha256: sha256,
+        definitionExtensions: [],
+        data: { answer: "keep-this-answer" },
+        locale: "en",
+      }),
+    }) as never);
+    const resolveSaved = jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock;
+    resolveSaved.mockImplementation((input) => realRuntime.resolveSavedEnvelopeDefinition(input));
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+
+    const requestCalls = (jest.requireMock("../src/auth").authedRawRequest as jest.Mock).mock.calls;
+    expect(requestCalls[0][1]).toContain("version=historic-v1&extensions=");
+    expect(mockFormProps.instrument).toMatchObject({ version: definition.version });
+    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect((jest.requireMock("../src/drafts").getMeta as jest.Mock).mock.calls)
+      .not.toContainEqual(expect.arrayContaining([expect.stringContaining("translations:")]));
+    expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(
+      mockDb,
+      expect.objectContaining({
+        definitionPin: {
+          instrumentVersion: definition.version,
+          definitionSha256: sha256,
+          definitionExtensions: [],
+        },
+      }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("does not request current translations for an unpinned legacy bundle", async () => {
+    const id = "77777777-7777-4777-8777-777777777777";
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValueOnce({
+      id,
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      death_id: null,
+      unique_id: "VA-LEGACY",
+      client_death_id: null,
+      server_draft_id: null,
+      base_updated_at: null,
+      draft_sync_dirty: 0,
+      draft_sync_blocked: 0,
+    });
+    (jest.requireMock("../src/drafts").getMeta as jest.Mock).mockImplementationOnce(async () => ({
+      projectId: "P1",
+      locale: "en",
+      translationVersion: 9,
+      enabledExtensions: [],
+      instrumentCode: "WHO_2022_VA",
+    }));
+    mockDb.getFirstAsync.mockImplementationOnce(async () => ({
+      envelope: JSON.stringify({
+        instrumentId: "WHO_2022_VA",
+        instrumentVersion: "v1",
+        data: { answer: "legacy-answer" },
+        locale: "en",
+      }),
+    }) as never);
+    const projectPack = pack();
+    const formOptions = projectPack.projects[0].project.form_options as unknown as {
+      translation_versions?: Record<string, number>;
+    };
+    formOptions.translation_versions = { en: 10 };
+    mockReference = projectPack;
+    const legacyDefinition = { instrument: mockServedInstrument, provenance: "bundled-original", pin: null };
+    (jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock)
+      .mockResolvedValueOnce(legacyDefinition);
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+
+    expect(mockFormProps.instrument).toEqual(mockServedInstrument);
+    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("clears a mounted form after access changes and blocks its stale draft store", async () => {
+    const id = "66666666-6666-4666-8666-666666666666";
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+
+    expect(tree!.root.findAllByProps({ "data-form-version": "served-v2" })).toHaveLength(1);
+    const staleStore = mockFormProps.draftStore as { save(draft: unknown): Promise<unknown> };
+    const stores = jest.requireMock("../src/drafts").createDraftStore as jest.Mock;
+    const underlyingSave = stores.mock.results[stores.mock.results.length - 1].value.save as jest.Mock;
+    let releaseReference!: (value: unknown) => void;
+    (getCachedReferenceData as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => { releaseReference = resolve; }),
+    );
+
+    mockLockVersion += 1;
+    await act(async () => { tree!.update(<Form />); });
+
+    expect(mockObservedLockVersion).toBe(mockLockVersion);
+    expect(tree!.root.findAllByProps({ "data-form-version": "served-v2" })).toHaveLength(0);
+    await expect(staleStore.save({ data: { answer: "must-not-write" } })).rejects.toThrow("interview_access_changed");
+    expect(underlyingSave).not.toHaveBeenCalled();
+    await act(async () => { releaseReference(mockReference); });
+    await settle();
+    await settle();
+    expect(tree!.root.findAllByProps({ "data-form-version": "served-v2" })).toHaveLength(1);
     await act(async () => tree!.unmount());
   });
 

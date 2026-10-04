@@ -2,6 +2,7 @@ import type { SubmissionData } from "@drguptavivek/who-2022-va";
 
 import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse, type DraftSummary } from "./api";
 import { localDateTimeWithOffset } from "../drafts";
+import type { DefinitionPin } from "../formDefinitionRuntime";
 
 const INTAKE_DRAFTS = "/api/v1/intake/drafts";
 const INCOMPLETE_OUTCOMES = new Set(["partially_completed", "respondent_unavailable", "refused"]);
@@ -27,6 +28,8 @@ export interface RevisionDetail extends DraftResponse {
     data: SubmissionData;
     startedAt?: string;
     completedAt?: string;
+    definitionSha256?: DefinitionPin["definitionSha256"];
+    definitionExtensions?: DefinitionPin["definitionExtensions"];
   };
   answers_sha256: string | null;
 }
@@ -44,7 +47,13 @@ export interface RevisionSnapshot {
   answersJson: string;
   answersSha256: string;
   completion: { valid: boolean; issues: unknown[] };
-  draft: { startedAt?: string; completedAt?: string };
+  draft: {
+    startedAt?: string;
+    completedAt?: string;
+    instrumentVersion: string;
+    definitionSha256?: DefinitionPin["definitionSha256"];
+    definitionExtensions?: DefinitionPin["definitionExtensions"];
+  };
   generation: number;
 }
 
@@ -124,7 +133,13 @@ export async function createRevisionSnapshot(
     reasonCode: RevisionReasonCode;
     data: SubmissionData;
     completion: { valid: boolean; issues: unknown[] };
-    draft: { startedAt?: string; completedAt?: string };
+    draft: {
+      startedAt?: string;
+      completedAt?: string;
+      instrumentVersion: string;
+      definitionSha256?: DefinitionPin["definitionSha256"];
+      definitionExtensions?: DefinitionPin["definitionExtensions"];
+    };
     generation: number;
   },
 ): Promise<RevisionSnapshot> {
@@ -140,6 +155,9 @@ export async function createRevisionSnapshot(
     draft: {
       ...(input.draft.startedAt ? { startedAt: input.draft.startedAt } : {}),
       completedAt: localDateTimeWithOffset(),
+      instrumentVersion: input.draft.instrumentVersion,
+      ...(input.draft.definitionSha256 ? { definitionSha256: input.draft.definitionSha256 } : {}),
+      ...(input.draft.definitionExtensions ? { definitionExtensions: [...input.draft.definitionExtensions] } : {}),
     },
     generation: input.generation,
   };

@@ -8,7 +8,7 @@ export {
   validateSubmission
 } from "./engine/validation.js";
 export { createWhoVaSession } from "./engine/session.js";
-export { WHO_VA_FORM_VERSION } from "./version.js";
+export { ENGINE_VERSION, WHO_VA_FORM_VERSION } from "./version.js";
 export { compileInstrumentDefinition } from "./engine/instrument-model.js";
 export type { CompiledInstrumentDefinition, InstrumentRuntimeIndex } from "./engine/instrument-model.js";
 export {

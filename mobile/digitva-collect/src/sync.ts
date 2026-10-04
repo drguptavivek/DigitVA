@@ -25,7 +25,7 @@
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
-import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRawRequest, authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import {
   acknowledgeRegistration,
   ACTIVE_CASE_STATES,
@@ -63,6 +63,14 @@ import {
 } from "./drafts";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
+import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
+import { createNativeDefinitionCache } from "./formDefinitionCache";
+import {
+  FormDefinitionError,
+  downloadCurrentDefinition,
+  type DefinitionIdentity,
+} from "./formDefinitions";
+import { FormDefinitionHistoryError, readDefinitionExtensions } from "./formDefinitionHistory";
 import { questionnaireLocales } from "./i18n";
 import type { Translations } from "./translations";
 
@@ -73,6 +81,7 @@ export interface SyncResult {
   supersededUniqueIds: string[];
   draftConflictIds?: string[];
   revisionAttentionIds?: string[];
+  definitionRefresh?: DefinitionRefreshStatus[];
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
@@ -87,6 +96,7 @@ const DRAFT_SYNC_PAGE_SIZE = 100;
 export const REFERENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const REFERENCE_META_KEY = "referenceData";
 const REFERENCE_ATTEMPT_META_KEY = "referenceDataAttemptAt";
+const SERVED_DEFINITION_META_KEY = "servedDefinition";
 const BUNDLED_INSTRUMENT_CODE = "WHO_2022_VA";
 // Keep this cache identity tied to the generated instrument shipped by the
 // vendored package. The device bootstrap's instrument_version is a web
@@ -253,6 +263,14 @@ export async function syncInterviewer(
 
   draftLoop: for (const item of await completedDrafts(db)) {
     if (!item.project_id || !authorizedProjects.has(item.project_id)) continue;
+    try {
+      readDefinitionPin(item.draft);
+    } catch (error) {
+      if (!(error instanceof PinnedDefinitionError)) throw error;
+      await setDraftUploadIssue(db, item.id, "invalid_definition_pin");
+      failed += 1;
+      continue draftLoop;
+    }
     if (!isUploadable(item.draft.data, item.completion)) continue; // stays on the phone, counted as remaining
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
     const answersJson = JSON.stringify(item.draft.data);
@@ -326,6 +344,8 @@ export async function syncInterviewer(
   sent += revisionSync.sent;
   failed += revisionSync.failed;
 
+  const definitionRefresh = await refreshAuthorizedProjectDefinitions(userId, db, referenceData);
+
   const remaining = await countDrafts(db);
   await authedRequest(userId, `${INTAKE_API}/outstanding`, {
     method: "POST",
@@ -343,7 +363,8 @@ export async function syncInterviewer(
     remaining,
     supersededUniqueIds,
     ...(draftConflictIds.length ? { draftConflictIds } : {}),
-    ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {})
+    ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {}),
+    ...(definitionRefresh.length ? { definitionRefresh } : {})
   };
 }
 
@@ -488,6 +509,12 @@ export interface ReferenceData {
   projects: ProjectReferenceData[];
 }
 
+export interface DefinitionRefreshStatus {
+  projectId: string;
+  available: boolean;
+  error?: string;
+}
+
 interface ReferencePack {
   bootstrap: Bootstrap;
   projects: Array<ProjectReferenceData & { translations: Record<string, Translations | null> }>;
@@ -498,6 +525,7 @@ interface ReferencePack {
 
 /** One refresh per database/interviewer, even when several screens focus together. */
 const referenceRefreshes = new WeakMap<Db, Map<string, Promise<ReferenceData>>>();
+const definitionRefreshes = new WeakMap<Db, Map<string, Promise<DefinitionRefreshStatus[]>>>();
 
 function configuredTranslationLocales(project: ProjectSettings): string[] {
   return questionnaireLocales(project.form_options?.available_locales)
@@ -598,8 +626,13 @@ export async function reconcileReferenceAccess(
   const localProjectIds = new Set(await projectIds(db));
   for (const item of previous?.projects ?? []) localProjectIds.add(item.project.project_id);
   for (const projectId of localProjectIds) {
-    if (!authorized.has(projectId)) await purgeProjectData(db, projectId);
+    if (!authorized.has(projectId)) await purgeProjectData(db, projectId, access.user.user_id);
   }
+  const definitions = createNativeDefinitionCache(
+    db as Parameters<typeof createNativeDefinitionCache>[0],
+    access.user.user_id,
+  );
+  for (const project of authorized.values()) definitions.restoreProject(project.project_id);
   if (!previous || !referenceIsComplete(previous)) return undefined;
 
   const projects: ReferencePack["projects"] = [];
@@ -722,7 +755,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   const localProjectIds = new Set(await projectIds(db));
   for (const project of previous?.projects ?? []) localProjectIds.add(project.project.project_id);
   for (const projectId of localProjectIds) {
-    if (!authorized.has(projectId)) await purgeProjectData(db, projectId);
+    if (!authorized.has(projectId)) await purgeProjectData(db, projectId, userId);
   }
   const removedFromPrevious = previous?.projects.some(({ project }) => !authorized.has(project.project_id)) ?? false;
   if (previous && removedFromPrevious) {
@@ -868,6 +901,119 @@ export function refreshReferenceData(
   return pending;
 }
 
+/** Refresh each authorized project's current form after queued work uploads. */
+export async function refreshAuthorizedProjectDefinitions(
+  userId: string,
+  db: Db,
+  referenceData?: ReferenceData,
+): Promise<DefinitionRefreshStatus[]> {
+  let byUser = definitionRefreshes.get(db);
+  if (!byUser) {
+    byUser = new Map();
+    definitionRefreshes.set(db, byUser);
+  }
+  const active = byUser.get(userId);
+  if (active) return active;
+  let pending!: Promise<DefinitionRefreshStatus[]>;
+  pending = refreshAuthorizedProjectDefinitionsOnce(userId, db, referenceData).finally(() => {
+    if (byUser?.get(userId) === pending) byUser.delete(userId);
+  });
+  byUser.set(userId, pending);
+  return pending;
+}
+
+async function refreshAuthorizedProjectDefinitionsOnce(
+  userId: string,
+  db: Db,
+  referenceData?: ReferenceData,
+): Promise<DefinitionRefreshStatus[]> {
+  const reference = referenceData ?? await getCachedReferenceData(db);
+  if (!reference) throw new Error("reference_data_required");
+  const cache = createNativeDefinitionCache(
+    db as Parameters<typeof createNativeDefinitionCache>[0],
+    userId,
+  );
+  await cache.initialize();
+  const statuses: DefinitionRefreshStatus[] = [];
+  for (const { project } of reference.projects) {
+    const options = project.form_options;
+    const code = options?.form_types?.find((item) => item.is_default)?.instrument_code;
+    if ((code ?? BUNDLED_INSTRUMENT_CODE) !== BUNDLED_INSTRUMENT_CODE) continue;
+    if (!options?.instrument_version || !options.definition_sha256) {
+      statuses.push({ projectId: project.project_id, available: false, error: "current_definition_unavailable" });
+      continue;
+    }
+    const identity: DefinitionIdentity = {
+      accountId: userId,
+      projectId: project.project_id,
+      instrumentCode: BUNDLED_INSTRUMENT_CODE,
+      composedVersion: options.instrument_version,
+      sha256: options.definition_sha256,
+    };
+    try {
+      const cached = await cache.get(identity);
+      const definition = cached ?? (await downloadCurrentDefinition({
+        identity,
+        request: (path, requestOptions) => authedRawRequest(userId, path, {
+          ifNoneMatch: requestOptions.ifNoneMatch,
+          acceptGzip: true,
+        }),
+      })).value;
+      const actualExtensions = readDefinitionExtensions(definition);
+      const expectedExtensions = [...(options.enabled_extensions ?? [])].sort();
+      if (actualExtensions.length !== expectedExtensions.length ||
+          actualExtensions.some((extension, index) => extension !== expectedExtensions[index])) {
+        throw new FormDefinitionError("invalid_definition");
+      }
+      if (!cached) await cache.put(definition);
+      await markProjectDefinitionServed(userId, db, project.project_id);
+      statuses.push({ projectId: project.project_id, available: true });
+    } catch (error) {
+      if (error instanceof SessionRevokedError || error instanceof SignInRequiredError ||
+          (error instanceof ApiError && (error.status === 401 || error.status === 403))) throw error;
+      if (error instanceof FormDefinitionError || error instanceof FormDefinitionHistoryError || error instanceof TypeError ||
+          (error instanceof ApiError && (error.status === 404 || error.status === 408 || error.status === 429 || error.status >= 500))) {
+        const code = error instanceof FormDefinitionError || error instanceof FormDefinitionHistoryError || error instanceof ApiError
+          ? error.code
+          : "network_error";
+        statuses.push({ projectId: project.project_id, available: false, error: code ?? "definition_unavailable" });
+        continue;
+      }
+      throw error;
+    }
+  }
+  return statuses;
+}
+
+/** Allow bundled new interviews only until this project has served a verified definition. */
+export async function canUseBundledFallbackForProject(
+  userId: string,
+  db: Db,
+  projectId: string,
+): Promise<boolean> {
+  assertDefinitionProjectIdentity(userId, projectId);
+  const served = await getMeta<unknown>(db, SERVED_DEFINITION_META_KEY, projectId);
+  if (served === undefined) return true;
+  if (typeof served !== "boolean") throw new Error("invalid_definition_served_state");
+  return !served;
+}
+
+/** Record first service in the account's encrypted, project-scoped metadata. */
+export async function markProjectDefinitionServed(
+  userId: string,
+  db: Db,
+  projectId: string,
+): Promise<void> {
+  assertDefinitionProjectIdentity(userId, projectId);
+  await setMeta(db, SERVED_DEFINITION_META_KEY, true, projectId);
+}
+
+function assertDefinitionProjectIdentity(userId: string, projectId: string): void {
+  if (typeof userId !== "string" || !userId.trim() || typeof projectId !== "string" || !projectId.trim()) {
+    throw new Error("invalid_definition_identity");
+  }
+}
+
 async function refreshReferenceDataOnce(userId: string, db: Db, force: boolean): Promise<ReferenceData> {
   const previous = await readReferencePack(db);
   const previousComplete = referenceIsComplete(previous) ? previous : undefined;
@@ -925,6 +1071,11 @@ async function refreshReferenceDataOnce(userId: string, db: Db, force: boolean):
   // The complete pack is already durable; failure to clear the retry marker
   // must not make a successful refresh look like a failed one.
   await setMeta(db, REFERENCE_ATTEMPT_META_KEY, 0);
+  const definitions = createNativeDefinitionCache(
+    db as Parameters<typeof createNativeDefinitionCache>[0],
+    userId,
+  );
+  for (const { project } of next.projects) definitions.restoreProject(project.project_id);
   return exposedReference(next);
 }
 
@@ -1026,6 +1177,7 @@ export interface ProjectSettings {
   form_options: {
     web_intake_mode?: string;
     instrument_version?: string;
+    definition_sha256?: string | null;
     enabled_extensions?: string[];
     form_types?: Array<{ instrument_code: string | null; is_default: boolean }>;
     available_locales?: Array<{ code: string; label: string; under_review?: boolean }>;

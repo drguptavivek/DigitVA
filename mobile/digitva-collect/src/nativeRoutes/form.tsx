@@ -43,25 +43,35 @@ import {
   setMeta,
   type Db,
 } from "../drafts";
-import { SessionRevokedError, SignInRequiredError } from "../auth";
+import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
 import { canStartDeathInterview } from "../deathWorkflow";
 import { questionnaireDefault, questionnaireLocales, t, UI_LOCALES } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
+import { createNativeDefinitionCache } from "../formDefinitionCache";
+import {
+  PinnedDefinitionError,
+  resolveNewInterviewDefinition,
+  resolveSavedEnvelopeDefinition,
+  type ResolvedInstrument,
+} from "../formDefinitionRuntime";
+import { FormDefinitionError } from "../formDefinitions";
 import { platformServices } from "../platform";
 import { initialDataFromPrefill } from "../prefill";
 import {
   getCachedReferenceData,
+  canUseBundledFallbackForProject,
   draftSyncDefaults,
   fetchCaseDetail,
   isUploadable,
   startsDirectly,
   targetsFrom,
   translationsFor,
+  markProjectDefinitionServed,
   type ProjectSettings,
   type ReferenceData,
 } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
-import { applyTranslations } from "../translations";
+import { applyTranslations, type Translations } from "../translations";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,6 +80,8 @@ interface Loaded extends DraftHost {
   db: Db;
   project: ProjectSettings;
   config: DraftConfig;
+  definition: ResolvedInstrument;
+  accessVersion: number;
 }
 
 interface DraftConfig {
@@ -139,6 +151,25 @@ function withEnvelopeLocale(config: DraftConfig, value: unknown): DraftConfig {
   return next;
 }
 
+function definitionErrorMessage(error: unknown): string | undefined {
+  if (error instanceof FormDefinitionError && error.code === "incompatible_engine") {
+    return "Update the app to open this form. Your saved answers remain on this device.";
+  }
+  if (error instanceof PinnedDefinitionError) {
+    if (error.code === "current_definition_unavailable") {
+      return "The current form is unavailable. Reconnect and retry before starting an interview.";
+    }
+    return "This interview's original form could not be verified. Your answers remain on this device.";
+  }
+  if (error instanceof FormDefinitionError) {
+    return "The questionnaire form could not be verified. Your answers remain on this device.";
+  }
+  if (error instanceof Error && error.name === "FormDefinitionHistoryError") {
+    return "This interview's original form is unavailable. Your answers remain on this device.";
+  }
+  return undefined;
+}
+
 function mergeProjectPrefill(
   project: ProjectSettings | undefined,
   orgUnitId: string | null | undefined,
@@ -195,8 +226,10 @@ export default function Form() {
     deathId?: string;
     clientDeathId?: string;
   }>();
-  const { accounts, activity, onBeforeLock, chooseUiLocale, reload } =
+  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion } =
     useAppState();
+  const lockVersionRef = useRef(lockVersion);
+  lockVersionRef.current = lockVersion;
   const account = accounts.find((a) => a.user_id === params.userId);
   const draftId = UUID.test(params.draftId ?? "") ? params.draftId : undefined;
   const [loaded, setLoaded] = useState<Loaded | undefined>();
@@ -207,6 +240,7 @@ export default function Form() {
   const [translationFallback, setTranslationFallback] = useState(false);
   const [message, setMessage] = useState("");
   const [blockedReferenceData, setBlockedReferenceData] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
   const session = useRef<WhoVaSession | undefined>(undefined);
   const loadGeneration = useRef(0);
@@ -237,7 +271,9 @@ export default function Form() {
             error instanceof SignInRequiredError
           ) {
             await reload();
-            if (active) router.replace("/");
+            if (active && generation === loadGeneration.current) {
+              router.replace("/");
+            }
           } else {
             setBlockedReferenceData(true);
             setMessage(errorText(error));
@@ -410,20 +446,93 @@ export default function Form() {
           existingDraft?.server_draft_id &&
             existingDraft.base_updated_at !== localDraft?.base_updated_at,
         );
+        let envelope: Record<string, unknown> | undefined;
         if (importedDraft || hasServerBase) {
           const stored = await db.getFirstAsync<{ envelope: string }>(
             "SELECT envelope FROM drafts WHERE id = ?",
             [draftId],
           );
           if (!stored) throw new Error("draft_missing");
-          let envelope: unknown;
           try {
-            envelope = JSON.parse(stored.envelope) as unknown;
+            const parsed = JSON.parse(stored.envelope) as unknown;
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+              throw new Error("invalid_draft_envelope");
+            }
+            envelope = parsed as Record<string, unknown>;
           } catch {
             throw new Error("invalid_draft_envelope");
           }
           config = withEnvelopeLocale(config, envelope);
+        } else if (existingDraft) {
+          const stored = await db.getFirstAsync<{ envelope: string }>(
+            "SELECT envelope FROM drafts WHERE id = ?",
+            [draftId],
+          );
+          if (!stored) throw new Error("draft_missing");
+          const parsed = JSON.parse(stored.envelope) as unknown;
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("invalid_draft_envelope");
+          }
+          envelope = parsed as Record<string, unknown>;
+          config = withEnvelopeLocale(config, envelope);
         }
+        const options = project.form_options as ProjectSettings["form_options"] & {
+          narration_languages?: Array<{ code: string; label: string }>;
+        };
+        const narrationLanguageCodes = (options.narration_languages ?? []).map(
+          ({ code }) => code,
+        );
+        const cache = createNativeDefinitionCache(
+          db as Parameters<typeof createNativeDefinitionCache>[0],
+          account.user_id,
+        );
+        await cache.initialize();
+        if (!active || generation !== loadGeneration.current) return;
+        const request = (path: string, requestOptions: { ifNoneMatch?: string }) =>
+          authedRawRequest(account.user_id, path, {
+            ifNoneMatch: requestOptions.ifNoneMatch,
+            acceptGzip: true,
+          });
+        const bundledInstrument = createWhoVa2022Instrument(config.enabledExtensions);
+        const definition = envelope
+          ? await resolveSavedEnvelopeDefinition({
+              accountId: account.user_id,
+              projectId: hostProjectId,
+              envelope,
+              request,
+              cache,
+              narrationLanguageCodes,
+              bundledLegacyDefinitions: [{
+                instrument: bundledInstrument,
+                instrumentVersion: bundledInstrument.version,
+                extensions: config.enabledExtensions,
+              }],
+              legacyDefinitionExtensions: hasSavedConfig
+                ? config.enabledExtensions
+                : undefined,
+            })
+          : await resolveNewInterviewDefinition({
+              accountId: account.user_id,
+              projectId: hostProjectId,
+              options: {
+                instrumentVersion: project.form_options.instrument_version ?? null,
+                definitionSha256: project.form_options.definition_sha256 ?? null,
+                extensions: project.form_options.enabled_extensions ?? [],
+              },
+              request,
+              cache,
+              narrationLanguageCodes,
+              bundledOriginal: {
+                instrument: bundledInstrument,
+                instrumentVersion: bundledInstrument.version,
+                extensions: config.enabledExtensions,
+              },
+              canUseBundledFallback: () =>
+                canUseBundledFallbackForProject(account.user_id, db!, hostProjectId),
+              onServedDefinition: () =>
+                markProjectDefinitionServed(account.user_id, db!, hostProjectId),
+            });
+        if (!active || generation !== loadGeneration.current) return;
         if (!hasSavedConfig || importedDraft || draftConflict || serverEnvelopeChanged || hasServerBase) {
           await setMeta(db, draftConfigKey(draftId), config);
         }
@@ -439,7 +548,7 @@ export default function Form() {
             prefill: mergeProjectPrefill(project, params.orgUnitId, undefined),
           };
         }
-        setLoaded({ db, project: project!, config, ...host });
+        setLoaded({ db, project: project!, config, definition, accessVersion: lockVersion, ...host });
         setLocale(config.locale);
       } catch (error) {
         if (!active || generation !== loadGeneration.current) return;
@@ -448,11 +557,13 @@ export default function Form() {
           error instanceof SignInRequiredError
         ) {
           await reload();
-          if (active) router.replace("/");
+          if (active && generation === loadGeneration.current) {
+            router.replace("/");
+          }
           return;
         }
         setBlockedReferenceData(true);
-        setMessage(errorText(error));
+        setMessage(definitionErrorMessage(error) ?? errorText(error));
       }
     })();
     return () => {
@@ -466,16 +577,12 @@ export default function Form() {
     params.orgUnitId,
     params.deathId,
     params.clientDeathId,
+    lockVersion,
     router,
+    loadAttempt,
   ]);
 
-  const baseInstrument = useMemo(
-    () =>
-      loaded
-        ? createWhoVa2022Instrument(loaded.config.enabledExtensions)
-        : undefined,
-    [loaded],
-  );
+  const baseInstrument = loaded?.definition.instrument;
 
   useEffect(() => {
     if (!loaded || !baseInstrument || !account) return;
@@ -484,18 +591,42 @@ export default function Form() {
     const version = loaded.config.translationVersion;
     void (async () => {
       try {
-        const translations = await translationsFor(
-          account.user_id,
-          loaded.db,
-          loaded.project.project_id,
-          code,
-          locale,
-          version,
+        const pin = loaded.definition.pin;
+        const currentOptions = loaded.project.form_options;
+        const currentExtensions = currentOptions.enabled_extensions;
+        const isCurrentDefinition = Boolean(
+          pin &&
+          pin.instrumentVersion === currentOptions.instrument_version &&
+          pin.definitionSha256 === currentOptions.definition_sha256 &&
+          Array.isArray(currentExtensions) &&
+          pin.definitionExtensions.length === currentExtensions.length &&
+          [...currentExtensions].sort().every(
+            (extension, index) => pin.definitionExtensions[index] === extension,
+          ),
         );
+        let translations: Translations | null = null;
+        if (isCurrentDefinition && version !== undefined) {
+          const savedTranslations =
+            version === loaded.project.form_options.translation_versions?.[locale]
+              ? await translationsFor(
+                  account.user_id,
+                  loaded.db,
+                  loaded.project.project_id,
+                  code,
+                  locale,
+                  version,
+                )
+              : await getMeta<Translations | null>(
+                  loaded.db,
+                  `translations:${code}:${locale}:${version}`,
+                  loaded.project.project_id,
+                );
+          translations = savedTranslations ?? null;
+        }
         if (!active) return;
         await chooseUiLocale(locale);
         setTranslationFallback(locale !== "en" && !translations);
-        setInstrument(applyTranslations(baseInstrument, translations, locale));
+        setInstrument(applyTranslations(baseInstrument, translations ?? null, locale));
         setMessage("");
       } catch (error) {
         if (
@@ -538,7 +669,7 @@ export default function Form() {
 
   // Autosaves count as activity, so typing a long answer never trips the idle lock.
   const draftStore = useMemo(() => {
-    if (!loaded || !draftId) return undefined;
+    if (!loaded || loaded.accessVersion !== lockVersion || !draftId) return undefined;
     const store = createDraftStore(loaded.db, {
       projectId: loaded.projectId,
       siteId: loaded.siteId,
@@ -546,10 +677,14 @@ export default function Form() {
       binding: loaded.binding,
       locale: loaded.config.locale,
       translationVersion: loaded.config.translationVersion,
+      definitionPin: loaded.definition.pin,
     });
     return {
       ...store,
       save: (draft: Parameters<typeof store.save>[0]) => {
+        if (loaded.accessVersion !== lockVersionRef.current) {
+          return Promise.reject(new Error("interview_access_changed"));
+        }
         activity();
         return (async () => {
           // Keep the questionnaire choices with the encrypted draft so a later
@@ -559,7 +694,7 @@ export default function Form() {
         })();
       },
     };
-  }, [loaded, draftId, activity]);
+  }, [loaded, draftId, activity, lockVersion]);
 
   // A stored draft replaces these on mount (the form's restore), so they only fill a new one.
   const initialData = useMemo(
@@ -567,6 +702,9 @@ export default function Form() {
     [loaded],
   );
 
+  if (loaded && loaded.accessVersion !== lockVersion) {
+    return <ActivityIndicator style={{ flex: 1 }} />;
+  }
   if (!account || !draftId) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
     return (
@@ -579,6 +717,11 @@ export default function Form() {
     return (
       <Screen title={t("appName")}>
         <Text style={styles.error}>{message}</Text>
+        <Button
+          kind="secondary"
+          label={t("refresh")}
+          onPress={() => setLoadAttempt((attempt) => attempt + 1)}
+        />
         <Button
           kind="secondary"
           label={t("cancel")}
@@ -628,7 +771,10 @@ export default function Form() {
           ...current.config,
           locale: code,
           translationVersion:
-            current.project.form_options?.translation_versions?.[code],
+            current.definition.pin &&
+            current.definition.pin.instrumentVersion !== current.project.form_options.instrument_version
+              ? undefined
+              : current.project.form_options?.translation_versions?.[code],
         },
       };
     });
@@ -709,10 +855,14 @@ export default function Form() {
           platform={platformServices}
           autoSaveDraftOnChange
           onDraftController={(next) => {
-            controller.current = next;
+            if (loaded.accessVersion === lockVersionRef.current) {
+              controller.current = next;
+            }
           }}
           onReady={(next) => {
-            session.current = next;
+            if (loaded.accessVersion === lockVersionRef.current) {
+              session.current = next;
+            }
           }}
           onDraftError={() => setMessage(t("errGeneric"))}
           onDraftSaved={() => setMessage("")}

@@ -14,7 +14,7 @@ jest.mock("../src/auth", () => ({
 
 import { authedRequest } from "../src/auth";
 import { ApiError } from "../src/api";
-import { migrate, type Db } from "../src/drafts";
+import { migrate, purgeProjectData, type Db } from "../src/drafts";
 import {
   beginRevision,
   createRevisionDraftStore,
@@ -117,10 +117,18 @@ describe("native submitted interview revisions", () => {
     expect(await fetchSubmittedRevisions(USER)).toEqual([directSummary]);
     const row = await beginRevision(USER, db, DRAFT_ID);
     expect(row.death_id).toBeNull();
+    const stored = await db.getFirstAsync<{ row_json: string }>("SELECT row_json FROM revision_drafts WHERE draft_id = ?", [DRAFT_ID]);
+    const savedRow = JSON.parse(stored!.row_json) as RevisionRow;
+    savedRow.config = { enabledExtensions: ["saved_legacy_extension"] };
+    await db.runAsync("UPDATE revision_drafts SET row_json = ? WHERE draft_id = ?", [JSON.stringify(savedRow), DRAFT_ID]);
     await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
     request.mockImplementation(async (_userId, path, init) => {
       const body = (init as { bodyFactory: () => Record<string, unknown> }).bodyFactory();
       expect(path).toBe(`/api/v1/intake/submissions/${VA_SID}/revisions`);
+      expect(body.draft).toMatchObject({
+        instrumentVersion: "instrument-v1",
+        definitionExtensions: ["saved_legacy_extension"],
+      });
       expect(body.draft).not.toHaveProperty("death_id");
       return { body: {
         changed: true, va_sid: VA_SID, payload_version_id: "payload-direct",
@@ -136,7 +144,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     const base = { ...envelope(), locale: "en", translation_version: 3 } as WhoVaDraft;
     const first = store.save({ ...base, data: { Id10007: "first" }, updatedAt: "2026-10-01T00:01:00Z" });
     const second = store.save({ ...base, data: { Id10007: "second" }, updatedAt: "2026-10-01T00:02:00Z", locale: "hi", translation_version: 4 } as WhoVaDraft);
@@ -147,12 +155,71 @@ describe("native submitted interview revisions", () => {
     });
   });
 
+  it("invalidates a mounted revision store before an in-flight save can outlive project purge", async () => {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail() });
+    await beginRevision(USER, db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    const originalGetFirst = db.getFirstAsync.bind(db);
+    let releaseRead!: () => void;
+    let startedRead!: () => void;
+    const readStarted = new Promise<void>((resolve) => { startedRead = resolve; });
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    db.getFirstAsync = async <T,>(sql: string, params: Array<string | number | null>) => {
+      if (sql === "SELECT row_json FROM revision_drafts WHERE draft_id = ?") {
+        startedRead();
+        await readGate;
+      }
+      return originalGetFirst<T>(sql, params);
+    };
+
+    const staleSave = store.save({ ...envelope(), data: { Id10007: "stale answer" } } as WhoVaDraft);
+    await readStarted;
+    const purge = purgeProjectData(db, PROJECT);
+    const laterStaleSave = store.save({ ...envelope(), data: { Id10007: "later stale answer" } } as WhoVaDraft);
+    releaseRead();
+    await expect(staleSave).rejects.toThrow("project_access_revoked");
+    await purge;
+    await expect(laterStaleSave).rejects.toThrow("project_access_revoked");
+
+    expect(await getRevisionRow(db, DRAFT_ID)).toBeNull();
+  });
+
+  it("keeps the saved definition pin through revision autosave, queueing, and upload", async () => {
+    const pin = { definitionSha256: "d".repeat(64), definitionExtensions: ["geography"] };
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail({ envelope: { ...envelope(), instrumentVersion: "historic-v1", ...pin } }) });
+    await beginRevision(USER, db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    await store.save({ ...envelope(), instrumentVersion: "historic-v1", data: { interview_outcome: "completed", Id10013: "yes", Id10007: "edited" } } as WhoVaDraft);
+    expect(await store.load!(DRAFT_ID)).toMatchObject({ instrumentVersion: "historic-v1", ...pin });
+    await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+
+    (authedRequest as jest.Mock).mockClear();
+    const request = mockRequest(async (_userId, _path, init) => {
+      const payload = (init as MockRequestInit & { bodyFactory: () => Record<string, unknown> }).bodyFactory() as Record<string, unknown>;
+      expect(payload.draft).toMatchObject({
+        instrumentVersion: "historic-v1",
+        definitionSha256: pin.definitionSha256,
+        definitionExtensions: pin.definitionExtensions,
+      });
+      return { body: {
+        changed: true, va_sid: VA_SID, payload_version_id: "payload-2",
+        answers_sha256: payload.answers_sha256, outcome: "completed", workflow_state: "smartva_pending",
+      } };
+    });
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toEqual({ sent: 1, failed: 0, attentionIds: [] });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("freezes one exact answer string, preserves unknown start time and uses one queued completion time", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(envelope() as WhoVaDraft), data: { Id10007: "edited", interview_outcome: "completed", Id10013: "yes" } });
     const ready = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
     expect(ready.frozen_json).toBe('{"Id10007":"edited","interview_outcome":"completed","Id10013":"yes"}');
@@ -170,7 +237,7 @@ describe("native submitted interview revisions", () => {
       : { body: detail({ envelope: envelope({ interview_outcome: "partially_completed", Id10007: "old" }) }) });
     const row = await beginRevision(USER, db, DRAFT_ID);
     expect(row.original_outcome).toBe("partially_completed");
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(row.envelope as WhoVaDraft), data: { interview_outcome: "completed", Id10007: "finished", Id10013: "yes" } });
     expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ original_outcome: "partially_completed" });
     await expect(queueRevision(db, DRAFT_ID, "more_information", { valid: true, issues: [] }))
@@ -184,7 +251,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail({ envelope: envelope({ interview_outcome: "partially_completed", Id10007: "old" }) }) });
     const row = await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(row.envelope as WhoVaDraft), data: { interview_outcome: "partially_completed", Id10013: "yes", Id10007: "finished" } });
     const completion = { valid: true, issues: [] };
     expect(effectiveRevisionOutcome({ interview_outcome: "partially_completed", Id10013: "yes" }, completion)).toBe("completed");
@@ -197,7 +264,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     const row = await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     const data = { Id10007: "preserved answer", interview_outcome: "completed", ...(consent !== undefined ? { Id10013: consent } : {}) };
     await store.save({ ...(row.envelope as WhoVaDraft), data });
     const completion = { valid: true, issues: [] };
@@ -214,7 +281,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail({ envelope: envelope({ interview_outcome: "partially_completed", Id10007: "old" }) }) });
     const row = await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     const data = { interview_outcome: "partially_completed", Id10013: "no", Id10007: "refused" };
     await store.save({ ...(row.envelope as WhoVaDraft), data });
     const completion = { valid: true, issues: [] };
@@ -245,7 +312,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail({ envelope: whoEnvelope }) });
     const row = await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     const decoded = decodeWhoVaDraft(await store.load!(DRAFT_ID));
     const restoredSession = createWhoVaSession(instrument, {
       initialData: decoded.data,
@@ -283,7 +350,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(envelope() as WhoVaDraft), data: { Id10007: "before hash", Id10013: "yes" } });
     const crypto = require("expo-crypto") as { digestStringAsync: jest.Mock };
     let releaseHash!: (value: string) => void;
@@ -308,7 +375,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(envelope() as WhoVaDraft), data: { Id10007: "frozen", Id10013: "yes" } });
     const row = await queueRevision(db, DRAFT_ID, "more_information", { valid: true, issues: [] });
     let sends = 0;
@@ -341,7 +408,7 @@ describe("native submitted interview revisions", () => {
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
-    const store = createRevisionDraftStore(db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
     await store.save({ ...(envelope() as WhoVaDraft), data: { Id10007: "sent", Id10013: "yes" } });
     const row = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
     mockRequest(async () => {
@@ -371,6 +438,33 @@ describe("native submitted interview revisions", () => {
     mockRequest(async () => { throw new Error("network"); });
     expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toMatchObject({ failed: 1, attentionIds: [] });
     expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
+  });
+
+  it("keeps malformed imported revision pins visible and prevents queued upload", async () => {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail({ envelope: { ...envelope(), definitionSha256: "d".repeat(64) } }) });
+    const imported = await beginRevision(USER, db, DRAFT_ID);
+    expect(imported).toMatchObject({ state: "attention", refusal_code: "invalid_definition_pin", envelope: { data: { Id10007: "old" } } });
+    expect(await listLocalRevisions(db)).toMatchObject([{ state: "attention", refusal_code: "invalid_definition_pin" }]);
+
+    await discardRevision(db, DRAFT_ID);
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail() });
+    await beginRevision(USER, db, DRAFT_ID);
+    await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+    const stored = await db.getFirstAsync<{ row_json: string }>("SELECT row_json FROM revision_drafts WHERE draft_id = ?", [DRAFT_ID]);
+    const row = JSON.parse(stored!.row_json) as RevisionRow;
+    row.envelope.definitionExtensions = ["geography"];
+    await db.runAsync("UPDATE revision_drafts SET row_json = ? WHERE draft_id = ?", [JSON.stringify(row), DRAFT_ID]);
+
+    const before = (authedRequest as jest.Mock).mock.calls.length;
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toMatchObject({ failed: 1, attentionIds: [DRAFT_ID] });
+    expect((authedRequest as jest.Mock).mock.calls).toHaveLength(before);
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({
+      state: "attention", refusal_code: "invalid_definition_pin", envelope: { data: { Id10007: "old" }, definitionExtensions: ["geography"] }
+    });
   });
 
   it("retains terminal refusals and skips revoked projects", async () => {

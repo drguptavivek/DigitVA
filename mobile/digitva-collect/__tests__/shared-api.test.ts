@@ -1,8 +1,9 @@
 import {
   ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
-  getIntakeContext, intakeContextFromAccess, parseAccessSummary, registerDeath,
-  requestClientJson, requestJson, submitDraft, type AccessSummary
+  getIntakeContext, getProjectFormOptions, intakeContextFromAccess, parseAccessSummary, registerDeath,
+  requestClientJson, requestJson, requestRaw, submitDraft, type AccessSummary
 } from "../src/api";
+import { Platform } from "react-native";
 
 const csrf = { header: "X-CSRFToken", token: "csrf" };
 const unit = (id: string, roles: string[], selectable = true, can_code = false) => ({
@@ -31,6 +32,32 @@ function response(body: unknown, status = 200, contentType = "application/json",
   } as unknown as Response;
 }
 
+function rawResponse(input: {
+  status: number;
+  body?: string;
+  contentType?: string;
+  etag?: string;
+  definitionSha256?: string;
+  contentEncoding?: string;
+  contentLength?: string;
+  redirected?: boolean;
+}): Response {
+  const headers = new Map<string, string>([
+    ["content-type", input.contentType ?? "application/json"],
+    ["etag", input.etag ?? '"etag"'],
+    ["x-definition-sha256", input.definitionSha256 ?? "a".repeat(64)],
+    ["content-encoding", input.contentEncoding ?? ""],
+    ["content-length", input.contentLength ?? ""],
+  ]);
+  return {
+    status: input.status,
+    ok: input.status >= 200 && input.status < 300,
+    redirected: input.redirected ?? false,
+    headers: { get: (name: string) => headers.get(name.toLowerCase()) ?? null },
+    text: jest.fn(async () => input.body ?? ""),
+  } as unknown as Response;
+}
+
 afterEach(() => jest.restoreAllMocks());
 
 it("uses one path and body for bearer and cookie credentials", async () => {
@@ -54,6 +81,97 @@ it("accepts the empty 204 outstanding acknowledgement", async () => {
   jest.spyOn(globalThis, "fetch").mockResolvedValue(response(undefined, 204, ""));
   await expect(requestJson("https://digitva.test", "/api/v1/intake/outstanding", { method: "POST", body: { count: 0 }, token: "access" }))
     .resolves.toEqual({ status: 204, body: undefined });
+});
+
+it("returns exact raw JSON text and definition headers without parsing it", async () => {
+  const text = '\uFEFF{"label":"नमस्कार"}\n';
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValue(rawResponse({
+    status: 200, body: text, etag: '"project-etag"', definitionSha256: "b".repeat(64), contentEncoding: "gzip",
+  }));
+  const result = await requestRaw("https://digitva.test", "/definition", {
+    token: "access", ifNoneMatch: `"${"a".repeat(64)}"`, acceptGzip: true,
+  });
+  expect(result).toEqual({
+    status: 200, body: text,
+    headers: { etag: '"project-etag"', definitionSha256: "b".repeat(64), contentEncoding: "gzip" },
+  });
+  expect(fetch).toHaveBeenCalledWith("https://digitva.test/definition", expect.objectContaining({
+    credentials: "omit", cache: "no-store", headers: expect.objectContaining({
+      Authorization: "Bearer access", "If-None-Match": `"${"a".repeat(64)}"`,
+    }),
+  }));
+  const acceptEncoding = (fetch.mock.calls[0][1]?.headers as Record<string, string>)["Accept-Encoding"];
+  if (Platform.OS === "web") expect(acceptEncoding).toBeUndefined();
+  else expect(acceptEncoding).toBe("gzip");
+});
+
+it("rejects an invalid ETag before sending a raw request", async () => {
+  const fetch = jest.spyOn(globalThis, "fetch");
+  await expect(requestRaw("https://digitva.test", "/definition", { ifNoneMatch: '"bad\r\netag"' }))
+    .rejects.toMatchObject({ code: "invalid_request" });
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("rejects a declared oversized body before reading it", async () => {
+  const oversized = rawResponse({ status: 200, contentLength: String(9 * 1024 * 1024) });
+  const text = oversized.text as jest.Mock;
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(oversized);
+  await expect(requestRaw("https://digitva.test", "/definition"))
+    .rejects.toMatchObject({ code: "response_too_large" });
+  expect(text).not.toHaveBeenCalled();
+});
+
+it("bounds decoded raw bodies by UTF-8 bytes, not JavaScript characters", async () => {
+  const body = "é".repeat(4 * 1024 * 1024 + 1);
+  expect(body.length).toBeLessThan(8 * 1024 * 1024);
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(rawResponse({ status: 200, body }));
+  await expect(requestRaw("https://digitva.test", "/definition"))
+    .rejects.toMatchObject({ code: "response_too_large" });
+});
+
+it("keeps 304 bodyless and rejects redirected or non-JSON raw responses", async () => {
+  const notModified = rawResponse({ status: 304, body: "should-not-be-read", contentType: "" });
+  const text = notModified.text as jest.Mock;
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(notModified);
+  await expect(requestRaw("https://digitva.test", "/definition", { ifNoneMatch: `"${"a".repeat(64)}"` }))
+    .resolves.toMatchObject({ status: 304, body: null });
+  expect(text).not.toHaveBeenCalled();
+
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(rawResponse({ status: 304, redirected: true, contentType: "" }));
+  await expect(requestRaw("https://digitva.test", "/definition"))
+    .rejects.toMatchObject({ code: "redirected_response" });
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(rawResponse({ status: 200, contentType: "text/html", body: "<html/>" }));
+  await expect(requestRaw("https://digitva.test", "/definition"))
+    .rejects.toMatchObject({ code: "redirected_response" });
+});
+
+it("dispatches the browser access-stale event before refusing an HTML 403", async () => {
+  const dispatch = jest.fn();
+  const previousWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { dispatchEvent: dispatch } });
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(rawResponse({ status: 403, contentType: "text/html", body: "<html/>" }));
+  await expect(requestRaw("", "/api/v1/intake/form-definition", { csrf }))
+    .rejects.toMatchObject({ status: 403, code: "redirected_response" });
+  expect(dispatch).toHaveBeenCalledWith(expect.any(Event));
+  Object.defineProperty(globalThis, "window", { configurable: true, value: previousWindow });
+});
+
+it("keeps the total deadline active while reading raw response text", async () => {
+  jest.useFakeTimers();
+  const fetch = jest.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+    const signal = init?.signal as AbortSignal;
+    return {
+      status: 200, ok: true, redirected: false,
+      headers: { get: (name: string) => name.toLowerCase() === "content-type" ? "application/json" : null },
+      text: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true })),
+    } as unknown as Response;
+  });
+  const pending = requestRaw("https://digitva.test", "/slow", { timeoutMs: 25 }).catch((error: unknown) => error);
+  await jest.advanceTimersByTimeAsync(25);
+  expect(await pending).toMatchObject({ name: "AbortError" });
+  expect((fetch.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true);
+  expect(jest.getTimerCount()).toBe(0);
+  jest.useRealTimers();
 });
 
 it("branches only on code, never on error text", async () => {
@@ -136,6 +254,22 @@ it("gets intake reach from access and mode from project form options without old
   expect(context.links?.deaths).toBe("/api/v1/intake/deaths");
   expect(context.context[0].web_intake_mode).toBe("death_register");
   expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access", "/api/v1/organization/P1/form-options"]);
+});
+
+it("accepts the backend narration option objects and nullable non-WHO versions", async () => {
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response({
+    project_id: "P1", web_intake_mode: "both", instrument_version: null,
+    definition_sha256: null, narration_languages: [{ code: "hi", label: "Hindi" }],
+  }));
+  await expect(getProjectFormOptions("P1", csrf)).resolves.toMatchObject({
+    instrument_version: null,
+    definition_sha256: null,
+    narration_languages: [{ code: "hi", label: "Hindi" }],
+  });
+  expect(fetch).toHaveBeenCalledWith("/api/v1/organization/P1/form-options", expect.any(Object));
+
+  jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response({ narration_languages: ["hi"] }));
+  await expect(getProjectFormOptions("P1", csrf)).rejects.toMatchObject({ code: "malformed_response" });
 });
 
 it("fetches validated access with either credential", async () => {

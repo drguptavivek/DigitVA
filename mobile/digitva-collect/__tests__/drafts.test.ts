@@ -104,6 +104,23 @@ describe("draft store", () => {
     expect(await activeLocale.load!("localized")).toMatchObject({ locale: "en", translation_version: 4 });
   });
 
+  it("persists a served definition pin through autosave and keeps incomplete raw pin metadata intact", async () => {
+    const pin = { instrumentVersion: "served-v2", definitionSha256: "a".repeat(64), definitionExtensions: ["geography"] };
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", definitionPin: pin });
+    await store.save({ ...draft("pinned", "2026-09-30T01:00:00Z", { Id10007: "kept" }), instrumentVersion: pin.instrumentVersion });
+    expect(await store.load!("pinned")).toMatchObject({
+      ...pin, data: { Id10007: "kept" },
+    });
+
+    await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [
+      JSON.stringify({ ...draft("pinned", "2026-09-30T01:00:00Z", { Id10007: "raw answer" }), definitionSha256: "partial" }), "pinned",
+    ]);
+    const resumed = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await expect(resumed.save(draft("pinned", "2026-09-30T02:00:00Z", { Id10007: "updated" })))
+      .rejects.toMatchObject({ code: "partial_definition_pin" });
+    expect(await resumed.load!("pinned")).toMatchObject({ definitionSha256: "partial", data: { Id10007: "raw answer" } });
+  });
+
   it("updates completion time on each explicit completion", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
     try {
@@ -224,6 +241,48 @@ describe("draft store", () => {
     expect(await getDraftRow(db, "invalid")).toMatchObject({ completed: 1, upload_issue: null });
   });
 
+  it("keeps a completed interview with a malformed definition pin visible for attention", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("partial-pin", "2026-09-30T01:00:00Z", { Id10007: "preserved" }));
+    await markCompleted(db, "partial-pin", { valid: true, issues: [] });
+    await setDraftUploadIssue(db, "partial-pin", "invalid_definition_pin");
+
+    expect(await getDraftRow(db, "partial-pin")).toMatchObject({ completed: 1, upload_issue: "invalid_definition_pin" });
+    expect(await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["partial-pin"]))
+      .toMatchObject({ envelope: expect.stringContaining('"Id10007":"preserved"') });
+    expect(await completedDrafts(db)).toEqual([]);
+  });
+
+  it("invalidates a mounted draft store before an in-flight save can recreate a revoked project row", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    const originalGetFirst = db.getFirstAsync.bind(db);
+    let releaseRead!: () => void;
+    let startedRead!: () => void;
+    const readStarted = new Promise<void>((resolve) => { startedRead = resolve; });
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    db.getFirstAsync = async <T,>(sql: string, params: Array<string | number | null>) => {
+      if (sql === "SELECT project_id, envelope FROM drafts WHERE id = ?") {
+        startedRead();
+        await readGate;
+      }
+      return originalGetFirst<T>(sql, params);
+    };
+
+    const staleSave = store.save(draft("revoked", "2026-09-30T01:00:00Z"));
+    await readStarted;
+    const purge = purgeProjectData(db, "PROJECT1");
+    await expect(store.save(draft("revoked", "2026-09-30T02:00:00Z"))).rejects.toThrow("project_access_revoked");
+    releaseRead();
+    await expect(staleSave).rejects.toThrow("project_access_revoked");
+    await purge;
+
+    expect(await getDraftRow(db, "revoked")).toBeNull();
+    expect(await countDrafts(db, "PROJECT1")).toBe(0);
+    const restoredStore = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await expect(restoredStore.save(draft("restored", "2026-09-30T03:00:00Z"))).resolves.toBeUndefined();
+    expect(await getDraftRow(db, "restored")).toMatchObject({ project_id: "PROJECT1" });
+  });
+
   it("deletes only the envelope that was acknowledged", async () => {
     const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     await store.save(draft("a", "2026-09-30T01:00:00Z", { Id10007: "sent" }));
@@ -283,6 +342,22 @@ describe("draft store", () => {
     await purgeProjectData(db, "PROJECT2");
     expect(await db.getFirstAsync("SELECT draft_id FROM revision_drafts WHERE draft_id = ?", ["revision"])).toBeNull();
     expect(await countDrafts(db)).toBe(1);
+  });
+
+  it("purges only the revoked project's cached definitions", async () => {
+    await db.execAsync(`CREATE TABLE form_definitions (
+      account_id TEXT NOT NULL, project_id TEXT NOT NULL, instrument_code TEXT NOT NULL,
+      composed_version TEXT NOT NULL, sha256 TEXT NOT NULL, raw_json TEXT NOT NULL, etag TEXT,
+      PRIMARY KEY (account_id, project_id, instrument_code, composed_version, sha256)
+    )`);
+    for (const projectId of ["PROJECT1", "PROJECT2"]) {
+      await db.runAsync("INSERT INTO form_definitions VALUES (?, ?, ?, ?, ?, ?, ?)", [
+        "user-1", projectId, "WHO_2022_VA", "v1", "a".repeat(64), "{}", null,
+      ]);
+    }
+    await purgeProjectData(db, "PROJECT1", "user-1");
+    expect(await db.getFirstAsync("SELECT project_id FROM form_definitions WHERE project_id = ?", ["PROJECT1"])).toBeNull();
+    expect(await db.getFirstAsync("SELECT project_id FROM form_definitions WHERE project_id = ?", ["PROJECT2"])).toEqual({ project_id: "PROJECT2" });
   });
 
   it("surfaces a draft-config delete failure during project purge", async () => {

@@ -10,6 +10,8 @@
  * only: a row is deleted once the server acknowledges it (push and purge).
  */
 import type { ValidationIssue, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
+import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "./formDefinitionRuntime";
+import { createNativeDefinitionCache } from "./formDefinitionCache";
 
 type Bind = string | number | null;
 
@@ -35,6 +37,8 @@ export type DeviceTimedDraft = WhoVaDraft & {
   deviceClockAt?: string;
   locale?: string;
   translation_version?: number;
+  definitionSha256?: unknown;
+  definitionExtensions?: unknown;
 };
 
 export interface DraftRow {
@@ -50,7 +54,7 @@ export interface DraftRow {
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
   /** A persistent upload refusal that needs interviewer attention. */
-  upload_issue?: "hash_mismatch" | "answers_hash_invalid" | null;
+  upload_issue?: "hash_mismatch" | "answers_hash_invalid" | "invalid_definition_pin" | null;
   upload_issue_unique_id?: string | null;
   /** Server draft identity is separate from the stable local submission id. */
   server_draft_id?: string | null;
@@ -83,6 +87,64 @@ export interface DraftBinding {
 
 const ROW_COLUMNS = "id, project_id, site_id, org_unit_id, completed, updated_at, death_id, unique_id, client_death_id, upload_issue, upload_issue_unique_id, server_draft_id, base_updated_at, draft_sync_dirty, draft_sync_blocked";
 const LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+const projectStoreGenerations = new WeakMap<Db, Map<string, number>>();
+const projectStoreWrites = new WeakMap<Db, Map<string, Set<Promise<unknown>>>>();
+
+/** A mounted form's lease on project-local storage; revocation makes it stale synchronously. */
+export interface ProjectStoreGuard {
+  assertCurrent(): void;
+  runWrite<T>(operation: () => Promise<T>): Promise<T>;
+}
+
+export function createProjectStoreGuard(db: Db, projectId: string): ProjectStoreGuard {
+  const generation = projectStoreGenerations.get(db)?.get(projectId) ?? 0;
+  const assertCurrent = () => {
+    if ((projectStoreGenerations.get(db)?.get(projectId) ?? 0) !== generation) {
+      throw new Error("project_access_revoked");
+    }
+  };
+  return {
+    assertCurrent,
+    runWrite<T>(operation: () => Promise<T>): Promise<T> {
+      assertCurrent();
+      let byProject = projectStoreWrites.get(db);
+      if (!byProject) {
+        byProject = new Map();
+        projectStoreWrites.set(db, byProject);
+      }
+      let active = byProject.get(projectId);
+      if (!active) {
+        active = new Set();
+        byProject.set(projectId, active);
+      }
+      const pending = operation();
+      active.add(pending);
+      void pending.finally(() => {
+        active?.delete(pending);
+        if (active?.size === 0) byProject?.delete(projectId);
+      }).catch(() => undefined);
+      return pending;
+    },
+  };
+}
+
+/** Invalidate every store mounted before project access was revoked. */
+export function invalidateProjectStoreGeneration(db: Db, projectId: string): void {
+  let byProject = projectStoreGenerations.get(db);
+  if (!byProject) {
+    byProject = new Map();
+    projectStoreGenerations.set(db, byProject);
+  }
+  byProject.set(projectId, (byProject.get(projectId) ?? 0) + 1);
+}
+
+async function waitForProjectStoreWrites(db: Db, projectId: string): Promise<void> {
+  while (true) {
+    const active = projectStoreWrites.get(db)?.get(projectId);
+    if (!active?.size) return;
+    await Promise.allSettled([...active]);
+  }
+}
 
 /**
  * Format a date as local ISO 8601 with a numeric offset and milliseconds.
@@ -111,9 +173,29 @@ function envelopeWithDeviceTimes(
   draft: WhoVaDraft,
   existingEnvelope: string | null,
   startedAt: string,
-  host: { locale?: string; translationVersion?: number }
+  host: { locale?: string; translationVersion?: number; definitionPin?: DefinitionPin | null }
 ): DeviceTimedDraft {
   const existing = existingEnvelope ? JSON.parse(existingEnvelope) as Record<string, unknown> : {};
+  if (typeof existing.instrumentVersion === "string" && existing.instrumentVersion !== draft.instrumentVersion) {
+    throw new Error("instrument_incompatible");
+  }
+  const existingPin = readDefinitionPin(existing);
+  const suppliedPin = host.definitionPin
+    ? readDefinitionPin({
+        instrumentVersion: host.definitionPin.instrumentVersion,
+        definitionSha256: host.definitionPin.definitionSha256,
+        definitionExtensions: host.definitionPin.definitionExtensions,
+      })
+    : null;
+  if (suppliedPin && suppliedPin.instrumentVersion !== draft.instrumentVersion) {
+    throw new Error("instrument_incompatible");
+  }
+  if (existingPin && suppliedPin && (
+    existingPin.instrumentVersion !== suppliedPin.instrumentVersion ||
+    existingPin.definitionSha256 !== suppliedPin.definitionSha256 ||
+    existingPin.definitionExtensions.some((name, index) => name !== suppliedPin.definitionExtensions[index])
+  )) throw new Error("instrument_incompatible");
+  const pin = existingPin ?? suppliedPin;
   const locale = host.locale && LOCALE_RE.test(host.locale)
     ? host.locale
     : typeof existing.locale === "string" && LOCALE_RE.test(existing.locale) ? existing.locale : undefined;
@@ -122,12 +204,22 @@ function envelopeWithDeviceTimes(
     : typeof existing.translation_version === "number" && Number.isInteger(existing.translation_version) && existing.translation_version >= 0
       ? existing.translation_version
       : undefined;
-  return {
+  const saved: DeviceTimedDraft = {
     ...draft,
     startedAt: storedTimestamp(existing.startedAt) ? existing.startedAt : startedAt,
     ...(storedTimestamp(existing.completedAt) ? { completedAt: existing.completedAt } : {}),
     ...(locale ? { locale } : {}),
-    ...(translationVersion !== undefined ? { translation_version: translationVersion } : {})
+    ...(translationVersion !== undefined ? { translation_version: translationVersion } : {}),
+  };
+  if (pin) return withDefinitionPin(saved, pin) as DeviceTimedDraft;
+  return {
+    ...saved,
+    ...(Object.prototype.hasOwnProperty.call(existing, "definitionSha256")
+      ? { definitionSha256: existing.definitionSha256 }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(existing, "definitionExtensions")
+      ? { definitionExtensions: existing.definitionExtensions }
+      : {}),
   };
 }
 
@@ -257,20 +349,24 @@ export async function migrate(db: Db): Promise<void> {
  */
 export function createDraftStore(
   db: Db,
-  host: { projectId: string; siteId: string; orgUnitId?: string | null; binding?: DraftBinding; locale?: string; translationVersion?: number }
+  host: { projectId: string; siteId: string; orgUnitId?: string | null; binding?: DraftBinding; locale?: string; translationVersion?: number; definitionPin?: DefinitionPin | null }
 ): WhoVaDraftStore {
   const binding = host.binding ?? { projectId: host.projectId };
   if (binding.projectId !== host.projectId) throw new Error("project_mismatch");
+  const guard = createProjectStoreGuard(db, host.projectId);
   const openedAt = localDateTimeWithOffset();
   return {
     async save(draft) {
-      const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string }>(
-        "SELECT project_id, envelope FROM drafts WHERE id = ?",
-        [draft.id]
-      );
-      if (existing && existing.project_id !== host.projectId) throw new Error("project_mismatch");
-      const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt, host));
-      const params = [
+      return guard.runWrite(async () => {
+        guard.assertCurrent();
+        const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string }>(
+          "SELECT project_id, envelope FROM drafts WHERE id = ?",
+          [draft.id]
+        );
+        guard.assertCurrent();
+        if (existing && existing.project_id !== host.projectId) throw new Error("project_mismatch");
+        const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt, host));
+        const params = [
           draft.id,
           host.projectId,
           host.siteId,
@@ -282,30 +378,39 @@ export function createDraftStore(
           binding.clientDeathId ?? null,
           binding.prefill === undefined ? null : JSON.stringify(binding.prefill)
         ];
-      const result = existing
-        ? await db.runAsync(
+        guard.assertCurrent();
+        const result = existing
+          ? await db.runAsync(
             `UPDATE drafts SET envelope = ?, updated_at = ?, draft_sync_dirty = 1,
                upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
                upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
              WHERE id = ? AND envelope = ?`,
             [envelope, draft.updatedAt, draft.id, existing.envelope]
           )
-        : await db.runAsync(
+          : await db.runAsync(
             `INSERT INTO drafts (id, project_id, site_id, org_unit_id, updated_at, envelope, death_id, unique_id, client_death_id, prefill)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO NOTHING`,
             params
           );
-      if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) {
-        throw new Error("draft_conflict");
-      }
+        guard.assertCurrent();
+        if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) {
+          throw new Error("draft_conflict");
+        }
+      });
     },
     async load(id) {
+      guard.assertCurrent();
       const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [id]);
+      guard.assertCurrent();
       return row ? (JSON.parse(row.envelope) as WhoVaDraft) : undefined;
     },
     async remove(id) {
-      await deleteDraft(db, id);
+      await guard.runWrite(async () => {
+        guard.assertCurrent();
+        await deleteDraft(db, id);
+        guard.assertCurrent();
+      });
     }
   };
 }
@@ -398,7 +503,7 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
 export async function setDraftUploadIssue(
   db: Db,
   id: string,
-  issue: "hash_mismatch" | "answers_hash_invalid",
+  issue: "hash_mismatch" | "answers_hash_invalid" | "invalid_definition_pin",
   uniqueId?: string,
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
@@ -541,7 +646,17 @@ export async function projectIds(db: Db): Promise<string[]> {
 }
 
 /** Remove one project's local data and project-scoped metadata only. */
-export async function purgeProjectData(db: Db, projectId: string): Promise<void> {
+export async function purgeProjectData(db: Db, projectId: string, accountId?: string): Promise<void> {
+  invalidateProjectStoreGeneration(db, projectId);
+  await waitForProjectStoreWrites(db, projectId);
+  if (accountId) {
+    const definitions = createNativeDefinitionCache(
+      db as Parameters<typeof createNativeDefinitionCache>[0],
+      accountId,
+    );
+    await definitions.initialize();
+    await definitions.removeProject(projectId);
+  }
   const configs = await db.getAllAsync<{ key: string; value: string }>(
     "SELECT key, value FROM meta WHERE key LIKE 'draft-config:%'",
     []

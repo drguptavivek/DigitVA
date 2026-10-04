@@ -10,10 +10,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
-import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
+import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
+import { resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
+import type { DefinitionRequest } from "../formDefinitions";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
 import { useAppState } from "../AppState";
@@ -27,6 +29,45 @@ function instrumentCode(options: FormOptions): string {
   const code = options.form_types?.find((formType) => formType.is_default)?.instrument_code;
   if (code !== "WHO_2022_VA") throw new Error("unsupported_instrument");
   return code;
+}
+
+function narrationLanguageCodes(options: FormOptions): string[] {
+  return (options.narration_languages ?? []).map((language) => language.code);
+}
+
+function definitionOptions(options: FormOptions) {
+  return {
+    instrumentVersion: options.instrument_version ?? null,
+    definitionSha256: options.definition_sha256 ?? null,
+    extensions: options.enabled_extensions ?? [],
+  };
+}
+
+function definitionRequest(
+  csrf: { header: string; token: string },
+  isCurrent: () => boolean,
+): DefinitionRequest {
+  return async (path, options) => {
+    if (!isCurrent()) throw new Error("request_superseded");
+    const response = await requestRaw("", path, { csrf, ...options });
+    if (!isCurrent()) throw new Error("request_superseded");
+    return response;
+  };
+}
+
+function sameDefinitionPin(left: DefinitionPin | null, right: DefinitionPin | null): boolean {
+  return left === right || (!!left && !!right &&
+    left.instrumentVersion === right.instrumentVersion &&
+    left.definitionSha256 === right.definitionSha256 &&
+    left.definitionExtensions.length === right.definitionExtensions.length &&
+    left.definitionExtensions.every((extension, index) => extension === right.definitionExtensions[index]));
+}
+
+interface BrowserDefinitionAccess {
+  definitionCache?: DefinitionCache;
+  hasServedDefinition(projectId: string): boolean;
+  markServedDefinition(projectId: string): Promise<void>;
+  sessionGeneration: number;
 }
 
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
@@ -89,7 +130,10 @@ export default function InterviewScreen() {
     siteId?: string;
     orgUnitId?: string;
   }>();
-  const { bootstrap, chooseUiLocale } = useAppState();
+  const appState = useAppState();
+  const { bootstrap, chooseUiLocale } = appState;
+  const { definitionCache, hasServedDefinition, markServedDefinition, sessionGeneration } =
+    appState as typeof appState & BrowserDefinitionAccess;
   const styles = useUiStyles();
   const theme = useTheme();
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -97,6 +141,7 @@ export default function InterviewScreen() {
   const [draft, setDraft] = useState<DraftResponse>();
   const [revision, setRevision] = useState<RevisionDetail>();
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
+  const [resolvedInstrument, setResolvedInstrument] = useState<ResolvedInstrument>();
   const [locale, setLocale] = useState("en");
   const [locales, setLocales] = useState<FormOptions["available_locales"]>([]);
   const [store, setStore] = useState<ServerDraftStore | RevisionMemoryStore>();
@@ -121,9 +166,12 @@ export default function InterviewScreen() {
   const draftPrefill = draft?.prefill as Prefill | undefined;
 
   const initialise = useCallback(async (isInitializationActive: () => boolean) => {
-    if (!bootstrap) return;
+    if (!bootstrap || !definitionCache) return;
+    const currentDefinitionCache: DefinitionCache = definitionCache;
     const generation = generationRef.current;
-    const isCurrent = () => isInitializationActive() && generationRef.current === generation && bootstrapRef.current === bootstrap;
+    const requestSessionGeneration = sessionGeneration;
+    const isCurrent = () => isInitializationActive() && generationRef.current === generation &&
+      bootstrapRef.current === bootstrap && requestSessionGeneration === sessionGeneration;
     if (!isCurrent()) return;
     setLoadedBootstrap(undefined);
     const nextIntake = await getIntakeContext(bootstrap.csrf);
@@ -131,6 +179,35 @@ export default function InterviewScreen() {
     setIntake(nextIntake);
     let nextDraftId = params.draftId;
     let nextRevision: RevisionDetail | undefined;
+    let options: FormOptions | undefined;
+    let resolved: ResolvedInstrument | undefined;
+    const request = definitionRequest(bootstrap.csrf, isCurrent);
+    const accountId = bootstrap.user.user_id;
+
+    async function resolveNew(projectId: string, formOptions: FormOptions): Promise<ResolvedInstrument> {
+      instrumentCode(formOptions);
+      const bundled = createWhoVa2022Instrument(formOptions.enabled_extensions ?? []);
+      return resolveNewInterviewDefinition({
+        accountId,
+        projectId,
+        options: definitionOptions(formOptions),
+        request,
+        cache: currentDefinitionCache,
+        narrationLanguageCodes: narrationLanguageCodes(formOptions),
+        bundledOriginal: {
+          instrument: bundled,
+          instrumentVersion: bundled.version,
+          extensions: formOptions.enabled_extensions ?? [],
+        },
+        canUseBundledFallback: async () => isCurrent() && !hasServedDefinition(projectId),
+        onServedDefinition: async () => {
+          if (!isCurrent()) throw new Error("request_superseded");
+          await markServedDefinition(projectId);
+          if (!isCurrent()) throw new Error("request_superseded");
+        },
+      });
+    }
+
     if (params.revisionDraftId) {
       if (!params.revisionProjectId || !params.revisionSiteId || !params.revisionVaSid) {
         throw new ClientApiError(400, "malformed_response");
@@ -150,23 +227,36 @@ export default function InterviewScreen() {
       if (!isCurrent()) return;
       if (!caseRow?.prefill) throw new Error("caseActionsUnavailable");
       if (!caseRow.project_id || !caseRow.site_id) throw new Error("case_context_missing");
-      const started = await startDraft(
-        bootstrap.links.intakeDrafts,
-        {
-          project_id: caseRow.project_id,
-          site_id: caseRow.site_id,
-          ...(caseRow.org_unit_id ? { org_unit_id: caseRow.org_unit_id } : {}),
-          death_id: params.deathId
-        },
-        bootstrap.csrf
-      );
-      if (!isCurrent()) return;
-      nextDraftId = started.draft.draft_id;
-      setDraftId(nextDraftId);
+      if (caseRow.my_draft_id) {
+        nextDraftId = caseRow.my_draft_id;
+        setDraftId(nextDraftId);
+      } else {
+        options = await getProjectFormOptions(caseRow.project_id, bootstrap.csrf);
+        if (!isCurrent()) return;
+        resolved = await resolveNew(caseRow.project_id, options);
+        if (!isCurrent()) return;
+        const started = await startDraft(
+          bootstrap.links.intakeDrafts,
+          {
+            project_id: caseRow.project_id,
+            site_id: caseRow.site_id,
+            ...(caseRow.org_unit_id ? { org_unit_id: caseRow.org_unit_id } : {}),
+            death_id: params.deathId
+          },
+          bootstrap.csrf
+        );
+        if (!isCurrent()) return;
+        nextDraftId = started.draft.draft_id;
+        setDraftId(nextDraftId);
+      }
     }
     if (!nextDraftId && !params.deathId && params.projectId && params.siteId) {
       const context = nextIntake.context.find((entry) => entry.project_id === params.projectId && entry.site_id === params.siteId);
       if (!context || !["direct", "both"].includes(context.web_intake_mode ?? "")) throw new Error("intake_configuration_unavailable");
+      options = await getProjectFormOptions(params.projectId, bootstrap.csrf);
+      if (!isCurrent()) return;
+      resolved = await resolveNew(params.projectId, options);
+      if (!isCurrent()) return;
       const started = await startDraft(
         bootstrap.links.intakeDrafts,
         {
@@ -183,18 +273,29 @@ export default function InterviewScreen() {
     if (!nextDraftId) throw new Error("draft_missing");
     const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, bootstrap.csrf);
     if (!isCurrent()) return;
-    const options = await getProjectFormOptions(nextDraft.draft.project_id, bootstrap.csrf);
+    options ??= await getProjectFormOptions(nextDraft.draft.project_id, bootstrap.csrf);
     if (!isCurrent()) return;
-    const base = createWhoVa2022Instrument(options.enabled_extensions ?? []);
+    instrumentCode(options);
+    resolved ??= await resolveSavedEnvelopeDefinition({
+      accountId: bootstrap.user.user_id,
+      projectId: nextDraft.draft.project_id,
+      envelope: nextDraft.envelope,
+      request,
+      cache: currentDefinitionCache,
+      narrationLanguageCodes: narrationLanguageCodes(options),
+      bundledLegacyDefinitions: [],
+    });
+    if (!isCurrent()) return;
+    const base = resolved.instrument;
     const normalizedRevision = nextRevision
       ? {
           ...nextRevision,
-          envelope: normalizeRevisionEnvelope(nextRevision.envelope, base),
+          envelope: withDefinitionPin(normalizeRevisionEnvelope(nextRevision.envelope, base), resolved.pin),
         }
       : undefined;
     const savedLocale = nextDraft.envelope.locale;
     const nextLocale = savedLocale ?? questionnaireDefault(options.available_locales, options.default_locale);
-    const translated = await translatedInstrument(base, nextLocale, options, bootstrap.csrf);
+    const translated = await translatedResolvedInstrument(resolved, nextLocale, options, bootstrap.csrf);
     if (!isCurrent()) return;
     const nextInstrument = translated.instrument;
     setTranslationFallback(translated.fallback);
@@ -213,9 +314,10 @@ export default function InterviewScreen() {
           csrf: bootstrap.csrf,
           sectionOf,
           initialData,
+          definitionPin: resolved.pin,
           identity: {
             instrumentId: nextInstrument.id,
-            instrumentVersion: nextInstrument.version,
+            instrumentVersion: resolved.pin?.instrumentVersion ?? nextInstrument.version,
             firstSection: nextInstrument.sections[0]?.name ?? ""
           },
           locale: nextLocale,
@@ -228,10 +330,11 @@ export default function InterviewScreen() {
     setRevision(normalizedRevision);
     setLocale(nextLocale);
     setLocales(questionnaireLocales(options.available_locales));
+    setResolvedInstrument(resolved);
     setInstrument(nextInstrument);
     setStore(nextStore);
     setLoadedBootstrap(bootstrap);
-  }, [bootstrap, chooseUiLocale, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId]);
+  }, [bootstrap, chooseUiLocale, definitionCache, hasServedDefinition, markServedDefinition, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId, sessionGeneration]);
 
   useEffect(() => {
     setIntake(undefined);
@@ -239,6 +342,7 @@ export default function InterviewScreen() {
     setDraft(undefined);
     setRevision(undefined);
     setInstrument(undefined);
+    setResolvedInstrument(undefined);
     setStore(undefined);
     setController(undefined);
     setDirty(false);
@@ -248,7 +352,7 @@ export default function InterviewScreen() {
     setLoadedBootstrap(undefined);
     revisionGenerationRef.current = 0;
     pendingRevisionRef.current = undefined;
-  }, [bootstrap, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId]);
+  }, [bootstrap, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId, sessionGeneration]);
 
   useEffect(() => {
     let active = true;
@@ -264,7 +368,7 @@ export default function InterviewScreen() {
       setMessage(params.revisionDraftId ? revisionErrorText(error) : interviewErrorText(error));
     });
     return () => { active = false; };
-  }, [bootstrap, initialise, params.revisionDraftId]);
+  }, [bootstrap, initialise, params.revisionDraftId, sessionGeneration]);
 
   // Browser navigation warns before losing a revision held only in memory.
   useEffect(() => {
@@ -297,7 +401,7 @@ export default function InterviewScreen() {
   }, []);
 
   const switchLocale = useCallback(async (nextLocale: string): Promise<boolean> => {
-    if (!bootstrap || !intake || !draft || !instrument || !store) return false;
+    if (!bootstrap || !intake || !draft || !instrument || !resolvedInstrument || !store) return false;
     const generation = generationRef.current;
     const isCurrent = () => generationRef.current === generation && bootstrapRef.current === bootstrap;
     setBusy(true);
@@ -312,7 +416,7 @@ export default function InterviewScreen() {
       if (store instanceof ServerDraftStore) await store.flush();
       const options = await getProjectFormOptions(draft.draft.project_id, bootstrap.csrf);
       if (!isCurrent()) return false;
-      const next = await translatedInstrument(createWhoVa2022Instrument(options.enabled_extensions ?? []), nextLocale, options, bootstrap.csrf);
+      const next = await translatedResolvedInstrument(resolvedInstrument, nextLocale, options, bootstrap.csrf);
       if (!isCurrent()) return false;
       const translationVersion = options.translation_versions?.[nextLocale] ?? 0;
       store.setLocaleMetadata(nextLocale, translationVersion);
@@ -338,7 +442,7 @@ export default function InterviewScreen() {
     } finally {
       if (isCurrent()) setBusy(false);
     }
-  }, [bootstrap, chooseUiLocale, controller, draft, instrument, intake, locale, store]);
+  }, [bootstrap, chooseUiLocale, controller, draft, instrument, intake, locale, resolvedInstrument, store]);
 
   async function sendRevisionSnapshot(snapshot: RevisionSnapshot) {
     if (!bootstrap) return;
@@ -412,7 +516,12 @@ export default function InterviewScreen() {
             reasonCode: revisionReason,
             data: current.data,
             completion: { valid: result.valid, issues: result.issues },
-            draft: { ...(current.startedAt ? { startedAt: current.startedAt } : {}) },
+            draft: {
+              ...(current.startedAt ? { startedAt: current.startedAt } : {}),
+              instrumentVersion: current.instrumentVersion,
+              ...(current.definitionSha256 ? { definitionSha256: current.definitionSha256 } : {}),
+              ...(current.definitionExtensions ? { definitionExtensions: current.definitionExtensions } : {}),
+            },
             generation: revisionGenerationRef.current,
           });
           if (!isCurrent()) return;
@@ -708,6 +817,27 @@ function QuestionnaireLanguageMenu({
 }
 
 /** Missing or unreachable translations render English; other failures propagate. */
+async function translatedResolvedInstrument(
+  resolved: ResolvedInstrument,
+  locale: string,
+  options: FormOptions,
+  csrf: { header: string; token: string },
+): Promise<{ instrument: InstrumentDefinition; fallback: boolean }> {
+  if (!locale || locale === "en") return { instrument: resolved.instrument, fallback: false };
+  const pin = resolved.pin;
+  const extensions = [...(options.enabled_extensions ?? [])].sort();
+  if (
+    !pin ||
+    pin.instrumentVersion !== options.instrument_version ||
+    pin.definitionSha256 !== options.definition_sha256 ||
+    pin.definitionExtensions.length !== extensions.length ||
+    pin.definitionExtensions.some((extension, index) => extension !== extensions[index])
+  ) {
+    return { instrument: resolved.instrument, fallback: true };
+  }
+  return translatedInstrument(resolved.instrument, locale, options, csrf);
+}
+
 async function translatedInstrument(
   base: InstrumentDefinition,
   locale: string,

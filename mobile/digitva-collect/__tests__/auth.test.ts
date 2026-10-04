@@ -20,6 +20,7 @@ jest.mock("../src/interviewerDb", () => ({
 
 import {
   acceptDeviceTerms,
+  authedRawRequest,
   authedRequest,
   loadAccounts,
   refreshAccessSummary,
@@ -29,6 +30,7 @@ import {
   subscribeAccessChanges,
   subscribeTermsChanges,
 } from "../src/auth";
+import { APP_VERSION } from "../src/appVersion";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -147,6 +149,7 @@ it("retains the terms flag returned at sign-in", async () => {
     }));
   expect((await signIn("a@example.org", "pw")).terms_required).toBe(true);
   expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/sessions`);
+  expect(JSON.parse(calls[0].body!)).toMatchObject({ app_version: APP_VERSION });
   expect((await loadAccounts())[1].terms_required).toBe(true);
   expect(calls.some((call) => call.url.endsWith("/me/access"))).toBe(false);
   expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!)).not.toHaveProperty("access");
@@ -215,6 +218,7 @@ it("rotates once for concurrent 401s and retries with the new access token", asy
         refresh_token: "r1",
         device_id: "d1",
         device_secret: "dev-secret",
+        app_version: APP_VERSION,
       });
       return json(200, {
         access_token: "new-access",
@@ -417,4 +421,50 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A" });
   expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A" }]);
+});
+
+it("shares one refresh between raw and JSON calls and retains raw response headers", async () => {
+  seed({ access: "old-access", refresh: "r1" });
+  let refreshes = 0;
+  const rawText = '{"label":"स्वास्थ्य"}';
+  mockServer((call) => {
+    if (call.url.endsWith("/sessions/refresh")) {
+      refreshes += 1;
+      return json(200, {
+        access_token: "new-access", access_expires_at: "", refresh_token: "r2",
+        refresh_expires_at: "", access: ACCESS,
+      });
+    }
+    if (call.url.endsWith("/definition")) {
+      if (call.auth === "Bearer old-access") return json(401, { code: "token_expired" });
+      return {
+        status: 200, ok: true, redirected: false,
+        headers: { get: (name: string) => ({
+          "content-type": "application/json",
+          etag: '"current"',
+          "x-definition-sha256": "c".repeat(64),
+          "content-encoding": "gzip",
+        }[name.toLowerCase()] ?? null) },
+        text: async () => rawText,
+      } as unknown as Response;
+    }
+    return call.auth === "Bearer new-access"
+      ? json(200, { ok: true })
+      : json(401, { code: "token_expired" });
+  });
+
+  const [jsonResult, rawResult] = await Promise.all([
+    authedRequest<{ ok: boolean }>(USER, "/api/v1/intake/cases"),
+    authedRawRequest(USER, "/definition", { ifNoneMatch: `"${"a".repeat(64)}"`, acceptGzip: true }),
+  ]);
+  expect(jsonResult.body).toEqual({ ok: true });
+  expect(rawResult).toMatchObject({
+    status: 200,
+    body: rawText,
+    headers: { etag: '"current"', definitionSha256: "c".repeat(64), contentEncoding: "gzip" },
+  });
+  expect(refreshes).toBe(1);
+  expect(calls.find((call) => call.url.endsWith("/definition") && call.auth === "Bearer new-access"))
+    .toBeDefined();
+  expect(mockDeleteDb).not.toHaveBeenCalled();
 });

@@ -22,6 +22,7 @@ export const AUTH_API = "/api/v1/auth";
 export const INTAKE_API = "/api/v1/intake";
 
 import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
+import { Platform } from "react-native";
 import type { Translations } from "./translations";
 
 export interface AccessUnit {
@@ -171,7 +172,9 @@ export interface IntakeContextEntry {
 
 export interface FormOptions {
   web_intake_mode?: "off" | "direct" | "death_register" | "both";
-  instrument_version?: string;
+  instrument_version?: string | null;
+  definition_sha256?: string | null;
+  narration_languages?: Array<{ code: string; label: string }>;
   project_id?: string;
   enabled_extensions?: string[];
   form_types?: Array<{ instrument_code: string | null; is_default: boolean }>;
@@ -329,6 +332,17 @@ export interface ClientRequestOptions {
   allowRedirect?: boolean;
 }
 
+export interface RawApiResponse {
+  status: number;
+  body: string | null;
+  headers: {
+    etag: string | null;
+    definitionSha256: string | null;
+    contentEncoding: string | null;
+  };
+  csrf?: ClientCsrf;
+}
+
 function sameOriginRedirect(response: Response): string | undefined {
   if (!response.redirected || typeof window === "undefined") return undefined;
   try {
@@ -449,6 +463,123 @@ export async function requestJson<T>(
   }
 }
 
+/** Count UTF-8 bytes without relying on TextEncoder in the native runtime. */
+function utf8ByteLength(value: string): number {
+  let bytes = 0;
+  for (let index = 0; index < value.length; ) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x7f) {
+      bytes += 1;
+      index += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+      index += 1;
+    } else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length &&
+        value.charCodeAt(index + 1) >= 0xdc00 && value.charCodeAt(index + 1) <= 0xdfff) {
+      bytes += 4;
+      index += 2;
+    } else {
+      // Lone surrogates are represented by the UTF-8 replacement character.
+      bytes += 3;
+      index += 1;
+    }
+  }
+  return bytes;
+}
+
+/**
+ * Read response text for definition hashing and reject declared or decoded UTF-8 bodies over 8 MiB.
+ * Native fetch exposes text() rather than a portable streaming reader, so its string is materialized
+ * before the decoded-byte check. A 304 has no body; other refusals use the machine-code ApiError contract.
+ */
+export async function requestRaw(
+  server: string,
+  path: string,
+  options: ClientRequestOptions & {
+    token?: string;
+    ifNoneMatch?: string;
+    acceptGzip?: boolean;
+  } = {},
+): Promise<RawApiResponse> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
+  else if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+  if (options.ifNoneMatch !== undefined) {
+    if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw new ApiError(400, "invalid_request");
+    headers["If-None-Match"] = options.ifNoneMatch;
+  }
+  if (options.acceptGzip && Platform.OS !== "web") headers["Accept-Encoding"] = "gzip";
+
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abortFromCaller();
+  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${server}${path}`, {
+      method: options.method ?? "GET",
+      credentials: options.token !== undefined || server ? "omit" : "include",
+      cache: "no-store",
+      headers,
+      signal: controller.signal,
+      redirect: options.allowRedirect ? "manual" : "follow",
+    });
+    const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
+    const csrf = typeof csrfToken === "string" && csrfToken.trim()
+      ? { header: "X-CSRFToken", token: csrfToken }
+      : undefined;
+    const responseHeaders = {
+      etag: response.headers.get("ETag"),
+      definitionSha256: response.headers.get("X-Definition-SHA256"),
+      contentEncoding: response.headers.get("Content-Encoding"),
+    };
+    const redirectUrl = sameOriginRedirect(response);
+    const manualRedirect = options.allowRedirect &&
+      (response.status === 0 || response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400));
+    if (manualRedirect || response.redirected) throw new ApiError(response.status, "redirected_response", redirectUrl);
+    if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(new Event("digitva-access-stale"));
+    }
+    if (response.status !== 304) {
+      const contentLength = Number(response.headers.get("Content-Length"));
+      if (Number.isFinite(contentLength) && contentLength > 8 * 1024 * 1024) {
+        throw new ApiError(response.status, "response_too_large");
+      }
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType && !contentType.toLowerCase().includes("json")) {
+      throw new ApiError(response.status, "redirected_response", redirectUrl);
+    }
+    if (response.status === 304) return { status: 304, body: null, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
+    if (!contentType.toLowerCase().includes("json")) throw new ApiError(response.status, "redirected_response", redirectUrl);
+
+    let body: string;
+    try {
+      body = await response.text();
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+      throw new ApiError(response.status, "malformed_response");
+    }
+    if (utf8ByteLength(body) > 8 * 1024 * 1024) throw new ApiError(response.status, "response_too_large");
+    if (!response.ok) {
+      let payload: Record<string, unknown> = {};
+      try {
+        const parsed: unknown = JSON.parse(body);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) payload = parsed as Record<string, unknown>;
+      } catch {
+        // Keep the JSON client's generic error shape for malformed refusal bodies.
+      }
+      const code = typeof payload.code === "string" ? payload.code : undefined;
+      throw new ApiError(response.status, code, redirectUrl, csrf, payload);
+    }
+    return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
 /** Cookie-session wrapper over the same transport used by bearer clients. */
 export async function requestClientJson<T>(path: string, options: ClientRequestOptions = {}): Promise<T> {
   const internalPath = safeActionUrl(path);
@@ -510,7 +641,9 @@ export async function getProjectFormOptions(
   );
   if (!options || typeof options !== "object" || Array.isArray(options) ||
       (options.web_intake_mode !== undefined && !["off", "direct", "death_register", "both"].includes(options.web_intake_mode)) ||
-      (options.instrument_version !== undefined && typeof options.instrument_version !== "string")) {
+      (options.instrument_version !== undefined && options.instrument_version !== null && typeof options.instrument_version !== "string") ||
+      (options.definition_sha256 !== undefined && options.definition_sha256 !== null && typeof options.definition_sha256 !== "string") ||
+      (options.narration_languages !== undefined && (!Array.isArray(options.narration_languages) || options.narration_languages.some((language) => !language || typeof language !== "object" || typeof language.code !== "string" || typeof language.label !== "string")))) {
     throw new ApiError(200, "malformed_response");
   }
   return options;

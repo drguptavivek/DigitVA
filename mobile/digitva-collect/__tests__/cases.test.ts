@@ -282,7 +282,13 @@ describe("sync queue", () => {
     await offlineVisit(db);
     mockServer(accepting([caseRow(DEATH)]));
 
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 4, failed: 0, remaining: 0, supersededUniqueIds: [] });
+    expect(await syncInterviewer(USER, db)).toEqual({
+      sent: 4,
+      failed: 0,
+      remaining: 0,
+      supersededUniqueIds: [],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }]
+    });
 
     expect(calls.map(path)).toEqual([
       "/api/v1/me/access",
@@ -345,7 +351,13 @@ describe("sync queue", () => {
     mockServer((call) =>
       path(call).endsWith("/deaths") ? json(422, { code: "invalid_registration" }) : accepting()(call)
     );
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 1, failed: 1, remaining: 1, supersededUniqueIds: [] });
+    expect(await syncInterviewer(USER, db)).toEqual({
+      sent: 1,
+      failed: 1,
+      remaining: 1,
+      supersededUniqueIds: [],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }]
+    });
     expect((await getRegistration(db, REG))?.state).toBe("needs_edit");
     expect(calls.some((c) => path(c).endsWith("/attempts"))).toBe(false);
     expect(calls.filter((c) => path(c).endsWith("/submissions")).map((c) => c.body!.client_draft_id)).toEqual([DIRECT]);
@@ -369,7 +381,13 @@ describe("sync queue", () => {
       if (path(call).endsWith("/visit")) return json(422, { code: "invalid_visit" });
       return accepting()(call);
     });
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 2, remaining: 0, supersededUniqueIds: [] });
+    expect(await syncInterviewer(USER, db)).toEqual({
+      sent: 0,
+      failed: 2,
+      remaining: 0,
+      supersededUniqueIds: [],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }]
+    });
     expect(calls.find((c) => path(c).endsWith("/visit"))!.body).toEqual({ next_visit_at: "2026-10-02T03:30:00.000Z" });
     expect((await listActions(db)).map((a) => a.state)).toEqual(["needs_edit", "needs_edit"]);
   });

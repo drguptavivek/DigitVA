@@ -7,7 +7,8 @@ import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
-import { localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
+import { createProjectStoreGuard, localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
+import { readDefinitionPin, withDefinitionPin } from "./formDefinitionRuntime";
 
 export type RevisionReason = "interviewer_correction" | "respondent_correction" | "more_information" | "finish_partial";
 export type RevisionState = "editing" | "ready" | "attention";
@@ -180,6 +181,12 @@ function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config
       (typeof envelope.translation_version !== "number" || !Number.isInteger(envelope.translation_version) || envelope.translation_version < 0)) {
     throw new ApiError(200, "malformed_response");
   }
+  let invalidDefinitionPin = false;
+  try {
+    readDefinitionPin(envelope);
+  } catch {
+    invalidDefinitionPin = true;
+  }
   return {
     ...summary,
     envelope: envelope as unknown as DeviceTimedDraft,
@@ -191,8 +198,8 @@ function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config
     completion: null,
     frozen_json: null,
     answers_sha256: null,
-    state: "editing",
-    refusal_code: null,
+    state: invalidDefinitionPin ? "attention" : "editing",
+    refusal_code: invalidDefinitionPin ? "invalid_definition_pin" : null,
     updated_at: summary.updated_at ?? envelope.updatedAt
   };
 }
@@ -219,6 +226,12 @@ function rowFromJson(rowJson: string): RevisionRow {
       !(value.completion === null || (isRecord(value.completion) && typeof value.completion.valid === "boolean" && Array.isArray(value.completion.issues))) ||
       !(value.original_outcome === undefined || value.original_outcome === null || typeof value.original_outcome === "string")) throw new Error("invalid_revision_row");
   if (value.original_outcome === undefined) value.original_outcome = null;
+  try {
+    readDefinitionPin(value.envelope);
+  } catch {
+    value.state = "attention";
+    value.refusal_code = "invalid_definition_pin";
+  }
   return value as unknown as RevisionRow;
 }
 
@@ -264,28 +277,35 @@ export async function listLocalRevisions(db: Db): Promise<RevisionRow[]> {
 }
 
 function envelopeForSave(draft: WhoVaDraft, existing: DeviceTimedDraft): DeviceTimedDraft {
+  const pin = readDefinitionPin(existing);
+  if (pin && pin.instrumentVersion !== draft.instrumentVersion) throw new Error("instrument_incompatible");
   const locale = typeof (draft as DeviceTimedDraft).locale === "string" ? (draft as DeviceTimedDraft).locale : existing.locale;
   const translationVersion = typeof (draft as DeviceTimedDraft).translation_version === "number"
     ? (draft as DeviceTimedDraft).translation_version
     : existing.translation_version;
-  return {
+  const saved: DeviceTimedDraft = {
     ...draft,
     ...(existing.startedAt ? { startedAt: existing.startedAt } : {}),
     ...(existing.completedAt ? { completedAt: existing.completedAt } : {}),
     ...(locale ? { locale } : {}),
-    ...(translationVersion !== undefined ? { translation_version: translationVersion } : {})
+    ...(translationVersion !== undefined ? { translation_version: translationVersion } : {}),
   };
+  return pin ? withDefinitionPin(saved, pin) as DeviceTimedDraft : saved;
 }
 
-/** Store WHO autosaves in the revision table, serializing writes per form mount. */
-export function createRevisionDraftStore(db: Db, draftId: string): WhoVaDraftStore {
+/** Store WHO autosaves in one project's revision table for the lifetime of the form mount. */
+export function createRevisionDraftStore(db: Db, draftId: string, projectId: string): WhoVaDraftStore {
   let pending = Promise.resolve();
+  const guard = createProjectStoreGuard(db, projectId);
   return {
     async save(draft) {
-      const operation = pending.then(async () => {
+      const operation = pending.then(() => guard.runWrite(async () => {
+        guard.assertCurrent();
         if (draft.id !== draftId) throw new Error("revision_id_mismatch");
         const current = await readRow(db, draftId);
+        guard.assertCurrent();
         if (!current) throw new Error("revision_not_found");
+        if (current.row.project_id !== projectId) throw new Error("project_mismatch");
         if (current.row.state === "attention") throw new Error("revision_attention_required");
         if (draft.instrumentId !== current.row.envelope.instrumentId ||
             draft.instrumentVersion !== current.row.envelope.instrumentVersion ||
@@ -302,22 +322,33 @@ export function createRevisionDraftStore(db: Db, draftId: string): WhoVaDraftSto
           updated_at: draft.updatedAt
         };
         const nextJson = JSON.stringify(next);
+        guard.assertCurrent();
         const result = await db.runAsync(
           `UPDATE revision_drafts SET state = ?, updated_at = ?, row_json = ?
            WHERE draft_id = ? AND row_json = ?`,
           [next.state, next.updated_at, nextJson, draftId, current.rowJson]
         );
+        guard.assertCurrent();
         if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) throw new Error("revision_conflict");
-      });
+      }));
       pending = operation.catch(() => undefined);
       return operation;
     },
     async load(id) {
+      guard.assertCurrent();
       if (id !== draftId) return undefined;
-      return (await getRevisionRow(db, draftId))?.envelope;
+      const row = await getRevisionRow(db, draftId);
+      guard.assertCurrent();
+      return row?.envelope;
     },
     async remove(id) {
-      if (id === draftId) await discardRevision(db, draftId);
+      if (id === draftId) {
+        await guard.runWrite(async () => {
+          guard.assertCurrent();
+          await discardRevision(db, draftId);
+          guard.assertCurrent();
+        });
+      }
     }
   };
 }
@@ -397,10 +428,17 @@ export async function discardRevision(db: Db, draftId: string): Promise<void> {
   await db.runAsync("DELETE FROM revision_drafts WHERE draft_id = ?", [draftId]);
 }
 
-function revisionMeta(row: RevisionRow): Record<string, string> {
+function revisionMeta(row: RevisionRow): Record<string, unknown> {
+  const definitionPin = readDefinitionPin(row.envelope);
   return {
+    instrumentVersion: row.envelope.instrumentVersion,
     ...(row.envelope.startedAt ? { startedAt: row.envelope.startedAt } : {}),
-    ...(row.envelope.completedAt ? { completedAt: row.envelope.completedAt } : {})
+    ...(row.envelope.completedAt ? { completedAt: row.envelope.completedAt } : {}),
+    ...(definitionPin ? {
+      instrumentVersion: definitionPin.instrumentVersion,
+      definitionSha256: definitionPin.definitionSha256,
+      definitionExtensions: [...definitionPin.definitionExtensions],
+    } : row.config?.enabledExtensions ? { definitionExtensions: [...row.config.enabledExtensions] } : {}),
   };
 }
 
@@ -447,6 +485,12 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
       const rowJson = stored.row_json;
       const row = rowFromJson(rowJson);
       afterId = row.draft_id;
+      if (row.refusal_code === "invalid_definition_pin") {
+        if (JSON.parse(rowJson).state === "ready") await markAttention(db, rowJson, row, "invalid_definition_pin");
+        attentionIds.push(row.draft_id);
+        failed += 1;
+        continue;
+      }
       if (row.state !== "ready" || !authorizedProjects.has(row.project_id)) continue;
       if (!row.reason_code || !row.frozen_json || !row.answers_sha256 || !row.completion) {
         await markAttention(db, rowJson, row, "invalid_revision_snapshot");

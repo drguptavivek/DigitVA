@@ -122,7 +122,7 @@ describe("browser submitted interview revisions", () => {
       reasonCode: "finish_partial",
       data,
       completion: { valid: true, issues: [] },
-      draft: { startedAt: "2026-10-04T10:00:00+05:30" },
+      draft: { startedAt: "2026-10-04T10:00:00+05:30", instrumentVersion: "served-2", definitionSha256: validHash, definitionExtensions: ["digitva_core"] },
       generation: 4,
     });
     expect(snapshot.answersJson).toBe(JSON.stringify(data));
@@ -131,13 +131,14 @@ describe("browser submitted interview revisions", () => {
     expect(snapshot.answersSha256).toBe(expectedHash);
     expect(snapshot).toMatchObject({ reasonCode: "finish_partial", completion: { valid: true }, generation: 4 });
     expect(snapshot.draft.startedAt).toBe("2026-10-04T10:00:00+05:30");
+    expect(snapshot.draft).toMatchObject({ instrumentVersion: "served-2", definitionSha256: validHash, definitionExtensions: ["digitva_core"] });
     expect(snapshot.draft.completedAt).toMatch(/T.*[+-]\d{2}:\d{2}$/);
   });
 
   it.each([true, false])("accepts complete matching acknowledgements when changed=%s", async (changed) => {
     const snapshot = await createRevisionSnapshot({
       vaSid: "va-1", reasonCode: "interviewer_correction", data: { Id10007: "x" } as SubmissionData,
-      completion: { valid: true, issues: [] }, draft: {}, generation: 0,
+      completion: { valid: true, issues: [] }, draft: { instrumentVersion: "served-2", definitionSha256: validHash, definitionExtensions: ["digitva_core"] }, generation: 0,
     });
     jest.spyOn(globalThis, "fetch").mockResolvedValue(response(200, {
       changed, va_sid: "va-1", payload_version_id: "version-2", answers_sha256: snapshot.answersSha256,
@@ -151,13 +152,14 @@ describe("browser submitted interview revisions", () => {
     expect((options.headers as Record<string, string>)["X-CSRFToken"]).toBe("csrf");
     expect(options.signal).toBeDefined();
     expect(body).toMatchObject({ reason_code: "interviewer_correction", answers_json: snapshot.answersJson, answers_sha256: snapshot.answersSha256 });
+    expect(body.draft).toMatchObject({ instrumentVersion: "served-2", definitionSha256: validHash, definitionExtensions: ["digitva_core"] });
     expect(body.draft).toMatchObject({ deviceClockAt: expect.stringMatching(/T.*[+-]\d{2}:\d{2}$/) });
   });
 
   it("retains mismatched acknowledgements and safe refusals as failures", async () => {
     const snapshot = await createRevisionSnapshot({
       vaSid: "va-1", reasonCode: "more_information", data: {} as SubmissionData,
-      completion: { valid: false, issues: [] }, draft: {}, generation: 1,
+      completion: { valid: false, issues: [] }, draft: { instrumentVersion: "1" }, generation: 1,
     });
     jest.spyOn(globalThis, "fetch").mockResolvedValue(response(200, {
       changed: false, va_sid: "va-1", payload_version_id: "version-2", answers_sha256: validHash,
@@ -183,7 +185,7 @@ describe("browser submitted interview revisions", () => {
     expect(revisionOutcome({ Id10013: "yes", interview_outcome: "partially_completed" } as SubmissionData, true)).toBe("completed");
     expect(revisionOutcome({ Id10013: "yes", interview_outcome: "respondent_unavailable" } as SubmissionData, false)).toBe("respondent_unavailable");
     expect(isIncompleteOutcome("completed")).toBe(false);
-    const original: WhoVaDraft & { startedAt: string; locale: string; translation_version: number } = {
+    const original: WhoVaDraft & { startedAt: string; locale: string; translation_version: number; definitionSha256: string; definitionExtensions: string[] } = {
       schemaVersion: 1,
       formVersion: "2022",
       id: "d1",
@@ -195,12 +197,15 @@ describe("browser submitted interview revisions", () => {
       startedAt: "2026-10-04T10:00:00+05:30",
       locale: "hi",
       translation_version: 3,
+      definitionSha256: validHash,
+      definitionExtensions: ["digitva_core"],
       data: { Id10007: "before" },
     };
     const store = new RevisionMemoryStore(original);
     store.save({ ...original, data: { Id10007: "after" }, locale: undefined } as unknown as WhoVaDraft);
     expect(store.load("d1")).toMatchObject({
       data: { Id10007: "after" }, startedAt: original.startedAt, locale: "hi", translation_version: 3,
+      instrumentVersion: "1", definitionSha256: validHash, definitionExtensions: ["digitva_core"],
     });
     store.setLocaleMetadata("en", 0);
     store.save({ ...original, data: { Id10007: "later" }, locale: undefined } as unknown as WhoVaDraft);

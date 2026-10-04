@@ -37,6 +37,7 @@ import {
 import {
   getCachedReferenceData,
   fetchCasePage,
+  refreshAuthorizedProjectDefinitions,
   refreshReferenceData,
   refreshCases,
   registersDeaths,
@@ -306,6 +307,22 @@ export default function Worklist() {
     [clearVisible, reload, router],
   );
 
+  const refreshDefinitions = useCallback(
+    async (userId: string, handle: Db, reference: Awaited<ReturnType<typeof getCachedReferenceData>>) => {
+      try {
+        await refreshAuthorizedProjectDefinitions(userId, handle, reference);
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
+          await handleError(error);
+          return;
+        }
+        setMessage(errorText(error));
+      }
+    },
+    [handleError, isCurrent],
+  );
+
   const loadSubmittedInterviews = useCallback(
     async (projectIds: Set<string>, current: () => boolean = () => true) => {
       if (!account) return;
@@ -377,6 +394,8 @@ export default function Worklist() {
               : await refreshReferenceData(account.user_id, handle);
             if (active) {
               setReference(fresh);
+              await refreshDefinitions(account.user_id, handle, fresh);
+              if (!active || !isCurrent()) return;
               const authorizedProjectIds = new Set(
                 fresh?.projects.map(({ project }) => project.project_id) ?? [],
               );
@@ -426,6 +445,7 @@ export default function Worklist() {
       handleError,
       isCurrent,
       loadSubmittedInterviews,
+      refreshDefinitions,
       loadLocal,
       recoverAfterRefreshFailure,
       refreshCases,
@@ -456,6 +476,8 @@ export default function Worklist() {
       .then(async (fresh) => {
         if (isCurrent()) {
           setReference(fresh);
+          await refreshDefinitions(account.user_id, handle, fresh);
+          if (!isCurrent()) return;
           const authorizedProjectIds = new Set(
             fresh?.projects.map(({ project }) => project.project_id) ?? [],
           );
@@ -482,6 +504,7 @@ export default function Worklist() {
     handleError,
     isCurrent,
     loadSubmittedInterviews,
+    refreshDefinitions,
     loadLocal,
     recoverAfterRefreshFailure,
     setReference,
@@ -508,6 +531,8 @@ export default function Worklist() {
       });
       if (!isCurrent()) return;
       setReference(fresh);
+      await refreshDefinitions(account.user_id, db, fresh);
+      if (!isCurrent()) return;
       await refreshCases(account.user_id, db);
       await loadLocal(db, isCurrent);
       const authorizedProjectIds = new Set(

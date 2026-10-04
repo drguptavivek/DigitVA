@@ -7,6 +7,7 @@ import { authedRequest } from "./auth";
 import type { CaseDetail } from "./cases";
 import { canStartDeathInterview } from "./deathWorkflow";
 import { draftForCase, getDraftPrefill, getDraftRow, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
+import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
@@ -122,6 +123,7 @@ function serverEnvelope(value: unknown, draftId: string): ServerDraftEnvelope {
         !Number.isInteger(value.translation_version) || value.translation_version < 0))) {
     throw new Error("invalid_server_draft");
   }
+  readDefinitionPin(value);
   return {
     ...value,
     schemaVersion: 1,
@@ -176,9 +178,10 @@ function parseLocalEnvelope(item: DraftSyncItem): DeviceTimedDraft {
   } catch {
     throw new Error("invalid_local_draft");
   }
+  const host = isRecord(raw) ? raw : {};
+  readDefinitionPin(host);
   const decoded = decodeWhoVaDraft(raw);
   if (decoded.id !== item.id) throw new Error("invalid_local_draft");
-  const host = isRecord(raw) ? raw : {};
   return {
     ...decoded,
     ...(isOffsetTimestamp(host.startedAt) ? { startedAt: host.startedAt } : {}),
@@ -187,7 +190,8 @@ function parseLocalEnvelope(item: DraftSyncItem): DeviceTimedDraft {
     ...(typeof host.locale === "string" ? { locale: host.locale } : {}),
     ...(typeof host.translation_version === "number" && Number.isInteger(host.translation_version) && host.translation_version >= 0
       ? { translation_version: host.translation_version }
-      : {})
+      : {}),
+    ...definitionPinFields(host),
   };
 }
 
@@ -201,8 +205,22 @@ function metadataForSync(draft: DeviceTimedDraft): Record<string, unknown> {
     updatedAt: draft.updatedAt,
     currentSection: draft.currentSection,
     ...(draft.startedAt ? { startedAt: draft.startedAt } : {}),
+    ...(draft.completedAt ? { completedAt: draft.completedAt } : {}),
     ...(draft.locale ? { locale: draft.locale } : {}),
-    ...(draft.translation_version !== undefined ? { translation_version: draft.translation_version } : {})
+    ...(draft.translation_version !== undefined ? { translation_version: draft.translation_version } : {}),
+    ...definitionPinFields(draft),
+  };
+}
+
+function definitionPinFields(value: object): Pick<DeviceTimedDraft, "definitionSha256" | "definitionExtensions"> {
+  const record = value as Record<string, unknown>;
+  return {
+    ...(Object.prototype.hasOwnProperty.call(record, "definitionSha256")
+      ? { definitionSha256: record.definitionSha256 }
+      : {}),
+    ...(Object.prototype.hasOwnProperty.call(record, "definitionExtensions")
+      ? { definitionExtensions: record.definitionExtensions }
+      : {}),
   };
 }
 
@@ -223,17 +241,19 @@ function normalizedEnvelope(
   startedAt?: string,
   createdAt?: string,
 ): DeviceTimedDraft {
-  if (!UUID_RE.test(localId) || envelope.instrumentId !== defaults.instrumentId ||
-      (envelope.instrumentVersion && envelope.instrumentVersion !== defaults.instrumentVersion)) {
+  if (!UUID_RE.test(localId) || envelope.instrumentId !== defaults.instrumentId) {
     throw new Error("server_draft_instrument_mismatch");
   }
   if (!defaults.instrumentId || !defaults.instrumentVersion || !defaults.currentSection) {
     throw new Error("draft_defaults_required");
   }
+  if (typeof envelope.instrumentVersion !== "string" || !envelope.instrumentVersion.trim()) {
+    throw new Error("server_draft_instrument_mismatch");
+  }
   const merged = {
     ...envelope,
     id: localId,
-    instrumentVersion: envelope.instrumentVersion || defaults.instrumentVersion,
+    instrumentVersion: envelope.instrumentVersion,
     currentSection: envelope.currentSection || defaults.currentSection,
     createdAt: createdAt ?? envelope.createdAt ?? server.created_at,
     updatedAt: server.updated_at,
@@ -243,10 +263,13 @@ function normalizedEnvelope(
   return {
     ...decoded,
     ...(startedAt && isOffsetTimestamp(startedAt) ? { startedAt } : {}),
+    ...(isOffsetTimestamp(envelope.completedAt) ? { completedAt: envelope.completedAt } : {}),
+    ...(isOffsetTimestamp(envelope.deviceClockAt) ? { deviceClockAt: envelope.deviceClockAt } : {}),
     ...(typeof envelope.locale === "string" ? { locale: envelope.locale } : {}),
     ...(typeof envelope.translation_version === "number" && Number.isInteger(envelope.translation_version) && envelope.translation_version >= 0
       ? { translation_version: envelope.translation_version }
-      : {})
+      : {}),
+    ...definitionPinFields(envelope),
   };
 }
 
@@ -269,7 +292,17 @@ function serverIdentityMatches(server: DraftCaseIdentity, item: DraftCaseIdentit
 
 /** Send one immutable local snapshot; a concurrent save or completion always wins the local compare-and-set. */
 export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncItem): Promise<DraftSyncResult> {
-  const draft = parseLocalEnvelope(item);
+  let draft: DeviceTimedDraft;
+  try {
+    draft = parseLocalEnvelope(item);
+  } catch (error) {
+    if (error instanceof PinnedDefinitionError) {
+      await db.runAsync(`UPDATE drafts SET draft_sync_blocked = 1
+        WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,
+      [item.id, item.envelope, item.updated_at]);
+    }
+    throw error;
+  }
   if (!item.project_id || !item.death_id || !isOffsetTimestamp(item.updated_at)) throw new Error("invalid_local_draft");
   if (item.draft_sync_blocked) return { applied: true, conflict: false, message: null, draftId: item.id };
   if (item.draft_sync_dirty === 0 && item.server_draft_id && item.base_updated_at && isOffsetTimestamp(item.base_updated_at)) {

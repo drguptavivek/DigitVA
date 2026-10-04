@@ -535,4 +535,55 @@ describe("server draft store", () => {
     await repeated;
     expect(patches).toHaveLength(1);
   });
+
+  it("pins a served definition before the first answer save and preserves it on later writes", async () => {
+    const requests: Array<{ method: string; body?: Record<string, unknown> }> = [];
+    const pin = {
+      instrumentVersion: "served-2",
+      definitionSha256: "a".repeat(64),
+      definitionExtensions: ["digitva_core"],
+    };
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
+      requests.push({ method, body });
+      if (method === "PATCH") {
+        return response({ status: 200, body: { saved_sections: 0, draft: { draft_id: "d1", updated_at: `revision-${requests.length}` } } });
+      }
+      return response({ status: 200, body: {
+        draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "revision-0" },
+        envelope: { ...draft, instrumentVersion: "served-2", data: { Id10007: "server answer" } },
+        prefill: {},
+      } });
+    });
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]),
+      definitionPin: pin,
+    });
+    const loaded = await store.load("d1");
+    expect(loaded).toMatchObject({
+      instrumentVersion: pin.instrumentVersion,
+      definitionSha256: pin.definitionSha256,
+      definitionExtensions: pin.definitionExtensions,
+      data: { Id10007: "server answer" },
+    });
+    expect(requests[1].body?.meta).toMatchObject({
+      instrumentVersion: pin.instrumentVersion,
+      definitionSha256: pin.definitionSha256,
+      definitionExtensions: pin.definitionExtensions,
+    });
+
+    const pending = store.save({
+      ...loaded!, instrumentVersion: "changed", definitionSha256: "b".repeat(64),
+      definitionExtensions: [], data: { Id10007: "edited answer" },
+    } as WhoVaDraft);
+    await store.flush();
+    await pending;
+    expect(requests[2].body?.meta).toMatchObject({
+      instrumentVersion: pin.instrumentVersion,
+      definitionSha256: pin.definitionSha256,
+      definitionExtensions: pin.definitionExtensions,
+    });
+    expect(requests[2].body?.sections).toEqual({ s1: { Id10007: "edited answer" } });
+  });
 });

@@ -134,22 +134,24 @@ describe("native draft sync", () => {
     await migrate(db);
   });
 
-  async function saveLocal(): Promise<DraftSyncItem> {
+  async function saveLocal(definitionPin?: { instrumentVersion: string; definitionSha256: string; definitionExtensions: string[] }): Promise<DraftSyncItem> {
     const store = createDraftStore(db, {
       projectId: "PROJECT1", siteId: "SITE1",
-      binding: { projectId: "PROJECT1", deathId: DEATH_ID, uniqueId: "CASE-1" }
+      binding: { projectId: "PROJECT1", deathId: DEATH_ID, uniqueId: "CASE-1" },
+      ...(definitionPin ? { definitionPin } : {}),
     });
-    await store.save(localDraft());
+    await store.save({ ...localDraft(), ...(definitionPin ? { instrumentVersion: definitionPin.instrumentVersion } : {}) });
     const [item] = await unfinishedDraftsForSync(db, "PROJECT1");
     expect(item).toBeDefined();
     return item;
   }
 
   it("acknowledges incoming without changing the local envelope", async () => {
-    const item = await saveLocal();
+    const item = await saveLocal({ instrumentVersion: "served-v2", definitionSha256: "c".repeat(64), definitionExtensions: ["geography"] });
     const body = syncReply("incoming");
+    let payload: Record<string, unknown> | undefined;
     request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
-      init.bodyFactory();
+      payload = init.bodyFactory() as Record<string, unknown>;
       return { status: 200, body };
     });
 
@@ -161,6 +163,23 @@ describe("native draft sync", () => {
     });
     const current = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
     expect(current?.envelope).toBe(item.envelope);
+    expect(payload?.draft).toMatchObject({
+      instrumentVersion: "served-v2", definitionSha256: "c".repeat(64), definitionExtensions: ["geography"],
+    });
+  });
+
+  it("blocks a malformed local definition pin without uploading or discarding answers", async () => {
+    const item = await saveLocal();
+    const malformed = { ...JSON.parse(item.envelope), definitionSha256: "c".repeat(64) };
+    const envelopeJson = JSON.stringify(malformed);
+    await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [envelopeJson, LOCAL_ID]);
+    const [stored] = await unfinishedDraftsForSync(db, "PROJECT1");
+
+    await expect(syncDraftSnapshot("user-1", db, stored)).rejects.toMatchObject({ code: "partial_definition_pin" });
+    expect(request).not.toHaveBeenCalled();
+    expect(await getDraftRow(db, LOCAL_ID)).toMatchObject({ draft_sync_blocked: 1 });
+    const retained = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
+    expect(JSON.parse(retained!.envelope)).toMatchObject({ data: { Id10007: "local" }, definitionSha256: "c".repeat(64) });
   });
 
   it("keeps the answers snapshot across an auth retry while refreshing the device clock", async () => {
@@ -184,14 +203,21 @@ describe("native draft sync", () => {
   });
 
   it("replaces with the validated server winner while keeping the local id and start time", async () => {
-    const item = await saveLocal();
+    const item = await saveLocal({ instrumentVersion: "local-v2", definitionSha256: "a".repeat(64), definitionExtensions: ["geography"] });
     const original = JSON.parse(item.envelope) as Record<string, unknown>;
-    request.mockResolvedValueOnce({ status: 200, body: syncReply("server") });
+    const reply = syncReply("server");
+    (reply as { envelope?: Record<string, unknown> }).envelope = {
+      ...serverEnvelope(), instrumentVersion: "historic-v1", definitionSha256: "b".repeat(64), definitionExtensions: ["medical_records"],
+    };
+    request.mockResolvedValueOnce({ status: 200, body: reply });
 
     await expect(syncDraftSnapshot("user-1", db, item)).resolves.toMatchObject({ applied: true, conflict: true, draftId: LOCAL_ID });
     const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
     const winner = JSON.parse(row!.envelope) as Record<string, unknown>;
-    expect(winner).toMatchObject({ id: LOCAL_ID, startedAt: original.startedAt, currentSection: "s2", data: { Id10007: "server" } });
+    expect(winner).toMatchObject({
+      id: LOCAL_ID, startedAt: original.startedAt, currentSection: "s2", instrumentVersion: "historic-v1",
+      definitionSha256: "b".repeat(64), definitionExtensions: ["medical_records"], data: { Id10007: "server" },
+    });
     expect(await getDraftRow(db, LOCAL_ID)).toMatchObject({ updated_at: NEW_TIME, base_updated_at: NEW_TIME, draft_sync_dirty: 0 });
   });
 
@@ -232,8 +258,10 @@ describe("native draft sync", () => {
     badHash.answers_sha256 = "b".repeat(64);
     const badEnvelope = syncReply("server");
     (badEnvelope.envelope as Record<string, unknown>).id = LOCAL_ID;
+    const badPin = syncReply("server");
+    (badPin.envelope as Record<string, unknown>).definitionSha256 = "partial";
     const badKnownServerId = syncReply("incoming");
-    const invalidReplies = [badScope, badDeath, badHash, badEnvelope, badKnownServerId];
+    const invalidReplies = [badScope, badDeath, badHash, badEnvelope, badPin, badKnownServerId];
 
     for (const [index, body] of invalidReplies.entries()) {
       request.mockResolvedValueOnce({ status: 200, body });
@@ -291,26 +319,16 @@ describe("native draft sync", () => {
     expect((await getDraftRow(db, LOCAL_ID))?.base_updated_at).toBe(NEW_TIME);
   });
 
-  it("imports a server draft under a new local id and layers prefill under saved answers", async () => {
+  it("fails closed on a server draft with answers but no recoverable instrument version", async () => {
     const blankEnvelope = { ...serverEnvelope({ Id10007: "saved" }), instrumentVersion: "", currentSection: "" };
     request.mockResolvedValueOnce({ status: 200, body: {
       draft: summary(), envelope: blankEnvelope,
       prefill: { answers: { Id10007: "prefill", Id10008: "prefilled" } }
     } satisfies FetchedServerDraft });
 
-    const result = await reconcileCaseDraft("user-1", db, caseDetail(), null, LOCAL_ID, defaults);
-    expect(result).toMatchObject({ conflict: false, imported: true });
-    expect(result.draft).toMatchObject({ id: LOCAL_ID, server_draft_id: SERVER_ID, draft_sync_dirty: 0 });
-    const row = await db.getFirstAsync<{ envelope: string; prefill: string }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [LOCAL_ID]);
-    expect(JSON.parse(row!.envelope)).toMatchObject({
-      id: LOCAL_ID,
-      instrumentVersion: "1",
-      currentSection: "s1",
-      createdAt: OLD_TIME,
-      startedAt: OLD_TIME,
-      data: { Id10007: "saved", Id10008: "prefilled" }
-    });
-    expect(JSON.parse(row!.prefill)).toEqual({ answers: { Id10007: "prefill", Id10008: "prefilled" } });
+    await expect(reconcileCaseDraft("user-1", db, caseDetail(), null, LOCAL_ID, defaults))
+      .rejects.toThrow("server_draft_instrument_mismatch");
+    expect(await getDraftRow(db, LOCAL_ID)).toBeNull();
   });
 
   it("keeps the local row when the server timestamp is equal to its base", async () => {

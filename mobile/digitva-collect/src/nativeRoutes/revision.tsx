@@ -16,9 +16,16 @@ import { ActivityIndicator, Alert, AppState, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
-import { SessionRevokedError, SignInRequiredError } from "../auth";
+import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
 import type { Prefill } from "../cases";
-import type { Completion, Db, DeviceTimedDraft } from "../drafts";
+import { getMeta, type Completion, type Db, type DeviceTimedDraft } from "../drafts";
+import { createNativeDefinitionCache } from "../formDefinitionCache";
+import {
+  PinnedDefinitionError,
+  resolveSavedEnvelopeDefinition,
+  type ResolvedInstrument,
+} from "../formDefinitionRuntime";
+import { FormDefinitionError } from "../formDefinitions";
 import {
   questionnaireDefault,
   t,
@@ -41,10 +48,11 @@ import {
 import {
   getCachedReferenceData,
   isUploadable,
+  markProjectDefinitionServed,
   translationsFor,
   type ProjectSettings,
 } from "../sync";
-import { applyTranslations } from "../translations";
+import { applyTranslations, type Translations } from "../translations";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
 const INCOMPLETE_OUTCOMES = new Set([
@@ -88,7 +96,9 @@ interface LoadedRevision {
   row: RevisionRow;
   project: ProjectSettings;
   config: RevisionConfig;
+  definition?: ResolvedInstrument;
   generation: number;
+  accessVersion: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -138,6 +148,12 @@ function attentionMessage(code: string | null): string {
 }
 
 function loadFailureMessage(error: unknown): string {
+  if (error instanceof FormDefinitionError && error.code === "incompatible_engine") {
+    return "Update the app to open this form. Your saved answers remain on this device.";
+  }
+  if (error instanceof PinnedDefinitionError && error.code === "unknown_saved_definition") {
+    return "This interview's original form is unavailable. Your saved answers remain on this device.";
+  }
   if (error instanceof Error && error.message === "revision_project_unavailable") {
     return t("revisionUnavailable");
   }
@@ -204,6 +220,52 @@ function normalizeEnvelope(
   };
 }
 
+/** Resolve the saved definition pin; failures leave the encrypted revision unchanged. */
+async function resolveRevisionInstrument(
+  userId: string,
+  db: Db,
+  row: RevisionRow,
+  project: ProjectSettings,
+): Promise<ResolvedInstrument> {
+  const options = project.form_options as ProjectSettings["form_options"] & {
+    narration_languages?: Array<{ code: string; label: string }>;
+  };
+  const narrationLanguageCodes = (options.narration_languages ?? []).map(
+    ({ code }) => code,
+  );
+  const savedExtensions = row.config?.enabledExtensions;
+  const bundledExtensions = savedExtensions ?? [];
+  const bundled = createWhoVa2022Instrument(bundledExtensions);
+  const cache = createNativeDefinitionCache(
+    db as Parameters<typeof createNativeDefinitionCache>[0],
+    userId,
+  );
+  await cache.initialize();
+  const request = (path: string, requestOptions: { ifNoneMatch?: string }) =>
+    authedRawRequest(userId, path, {
+      ifNoneMatch: requestOptions.ifNoneMatch,
+      acceptGzip: true,
+    });
+  const resolved = await resolveSavedEnvelopeDefinition({
+    accountId: userId,
+    projectId: project.project_id,
+    envelope: row.envelope,
+    request,
+    cache,
+    narrationLanguageCodes,
+    bundledLegacyDefinitions: [{
+      instrument: bundled,
+      instrumentVersion: bundled.version,
+      extensions: bundledExtensions,
+    }],
+    legacyDefinitionExtensions: savedExtensions,
+  });
+  if (resolved.provenance === "served") {
+    await markProjectDefinitionServed(userId, db, project.project_id);
+  }
+  return resolved;
+}
+
 export default function Revision() {
   const styles = useUiStyles();
   const router = useRouter();
@@ -214,7 +276,9 @@ export default function Revision() {
     siteId?: string;
     vaSid?: string;
   }>();
-  const { accounts, activity, onBeforeLock, chooseUiLocale, reload } = useAppState();
+  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion } = useAppState();
+  const lockVersionRef = useRef(lockVersion);
+  lockVersionRef.current = lockVersion;
   const account = accounts.find((candidate) => candidate.user_id === params.userId);
   const [loaded, setLoaded] = useState<LoadedRevision>();
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
@@ -222,6 +286,7 @@ export default function Revision() {
   const [message, setMessage] = useState("");
   const [translationFallback, setTranslationFallback] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
   const session = useRef<WhoVaSession | undefined>(undefined);
   const generationRef = useRef(0);
@@ -229,9 +294,10 @@ export default function Revision() {
   const isCurrentRevision = useCallback(
     (generation: number) =>
       generation === generationRef.current &&
+      lockVersion === lockVersionRef.current &&
       Boolean(account && accounts.some((candidate) => candidate.user_id === account.user_id)) &&
       Boolean(account && isUnlocked(account.user_id)),
-    [account, accounts],
+    [account, accounts, lockVersion],
   );
 
   useEffect(() => {
@@ -286,6 +352,7 @@ export default function Revision() {
             project,
             config: configForRevision(row, project),
             generation,
+            accessVersion: lockVersion,
           });
           return;
         }
@@ -297,10 +364,11 @@ export default function Revision() {
         }
         if (!isPrefill(row.prefill)) throw new Error("revision_prefill_invalid");
         const config = configForRevision(row, project);
-        const base = createWhoVa2022Instrument(config.enabledExtensions);
-        const envelope = normalizeEnvelope(row.envelope, base);
+        const definition = await resolveRevisionInstrument(account.user_id, db, row, project);
+        if (!active || !isCurrentRevision(generation)) return;
+        const envelope = normalizeEnvelope(row.envelope, definition.instrument);
         const normalizedRow = { ...row, envelope };
-        setLoaded({ db, row: normalizedRow, project, config, generation });
+        setLoaded({ db, row: normalizedRow, project, config, definition, generation, accessVersion: lockVersion });
       } catch (error) {
         if (!active || generation !== generationRef.current) return;
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
@@ -315,12 +383,10 @@ export default function Revision() {
       active = false;
       generationRef.current += 1;
     };
-  }, [account, isCurrentRevision, params.draftId, params.projectId, params.siteId, params.vaSid, reload, router]);
+  }, [account, isCurrentRevision, lockVersion, params.draftId, params.projectId, params.siteId, params.vaSid, reload, router, loadAttempt]);
 
   const baseInstrument = useMemo(
-    () => loaded && loaded.row.state !== "attention"
-      ? createWhoVa2022Instrument(loaded.config.enabledExtensions)
-      : undefined,
+    () => loaded && loaded.row.state !== "attention" ? loaded.definition?.instrument : undefined,
     [loaded],
   );
 
@@ -330,19 +396,44 @@ export default function Revision() {
     let active = true;
     void (async () => {
       try {
-        const translations = await translationsFor(
-          account.user_id,
-          loaded.db,
-          loaded.project.project_id,
-          loaded.config.instrumentCode,
-          loaded.config.locale,
-          loaded.config.translationVersion,
+        const pin = loaded.definition?.pin;
+        const currentOptions = loaded.project.form_options;
+        const currentExtensions = currentOptions.enabled_extensions;
+        const isCurrentDefinition = Boolean(
+          pin &&
+          pin.instrumentVersion === currentOptions.instrument_version &&
+          pin.definitionSha256 === currentOptions.definition_sha256 &&
+          Array.isArray(currentExtensions) &&
+          pin.definitionExtensions.length === currentExtensions.length &&
+          [...currentExtensions].sort().every(
+            (extension, index) => pin.definitionExtensions[index] === extension,
+          ),
         );
+        const currentTranslationVersion = loaded.project.form_options.translation_versions?.[loaded.config.locale];
+        let translations: Translations | null = null;
+        if (isCurrentDefinition && loaded.config.translationVersion !== undefined) {
+          const savedTranslations =
+            loaded.config.translationVersion === currentTranslationVersion
+              ? await translationsFor(
+                  account.user_id,
+                  loaded.db,
+                  loaded.project.project_id,
+                  loaded.config.instrumentCode,
+                  loaded.config.locale,
+                  loaded.config.translationVersion,
+                )
+              : await getMeta<Translations | null>(
+                  loaded.db,
+                  `translations:${loaded.config.instrumentCode}:${loaded.config.locale}:${loaded.config.translationVersion}`,
+                  loaded.project.project_id,
+                );
+          translations = savedTranslations ?? null;
+        }
         if (!active || !isCurrentRevision(generation)) return;
         await chooseUiLocale(loaded.config.locale);
         if (!active || !isCurrentRevision(generation)) return;
         setTranslationFallback(loaded.config.locale !== "en" && !translations);
-        setInstrument(applyTranslations(baseInstrument, translations, loaded.config.locale));
+        setInstrument(applyTranslations(baseInstrument, translations ?? null, loaded.config.locale));
         setMessage("");
       } catch (error) {
         if (!active || !isCurrentRevision(generation)) return;
@@ -361,22 +452,30 @@ export default function Revision() {
   }, [account, baseInstrument, chooseUiLocale, isCurrentRevision, loaded, reload, router]);
 
   const draftStore = useMemo(() => {
-    if (!loaded || !baseInstrument || loaded.row.state !== "editing") return undefined;
-    const store = createRevisionDraftStore(loaded.db, loaded.row.draft_id);
+    if (!loaded || loaded.accessVersion !== lockVersion || !baseInstrument || loaded.row.state !== "editing") return undefined;
+    const store = createRevisionDraftStore(
+      loaded.db,
+      loaded.row.draft_id,
+      loaded.project.project_id,
+    );
     return {
       ...store,
       load: async (id: string) => {
+        if (!isCurrentRevision(loaded.generation)) return undefined;
         const draft = await store.load?.(id);
-        if (!draft) return undefined;
+        if (!draft || !isCurrentRevision(loaded.generation)) return undefined;
         const normalized = normalizeEnvelope(draft as DeviceTimedDraft, baseInstrument);
         return normalized;
       },
       save: (draft: Parameters<typeof store.save>[0]) => {
+        if (!isCurrentRevision(loaded.generation)) {
+          return Promise.reject(new Error("revision_access_changed"));
+        }
         activity();
         return store.save(draft);
       },
     };
-  }, [activity, baseInstrument, loaded]);
+  }, [activity, baseInstrument, isCurrentRevision, loaded, lockVersion]);
 
   const flush = useCallback(async () => {
     const current = loaded;
@@ -410,6 +509,9 @@ export default function Revision() {
     [flush, onBeforeLock],
   );
 
+  if (loaded && loaded.accessVersion !== lockVersion) {
+    return <ActivityIndicator style={{ flex: 1 }} />;
+  }
   if (!account) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
     return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
@@ -447,13 +549,14 @@ export default function Revision() {
         if (!isCurrentRevision(generation) || !row) return;
         if (!isPrefill(row.prefill)) throw new Error("revision_prefill_invalid");
         const config = configForRevision(row, current.project);
-        const composed = createWhoVa2022Instrument(config.enabledExtensions);
-        const envelope = normalizeEnvelope(row.envelope, composed);
+        const definition = await resolveRevisionInstrument(userId, current.db, row, current.project);
+        if (!isCurrentRevision(generation)) return;
+        const envelope = normalizeEnvelope(row.envelope, definition.instrument);
         setReason(undefined);
         setMessage("");
-        setLoaded({ ...current, row: { ...row, envelope }, config });
-      } catch {
-        if (isCurrentRevision(generation)) setMessage(t("revisionRetry"));
+        setLoaded({ ...current, row: { ...row, envelope }, config, definition });
+      } catch (error) {
+        if (isCurrentRevision(generation)) setMessage(loadFailureMessage(error));
       } finally {
         if (isCurrentRevision(generation)) setBusy(false);
       }
@@ -461,6 +564,7 @@ export default function Revision() {
     return (
       <Screen title={t("revisionTitle")}>
         <Text style={styles.error}>{messageText}</Text>
+        {message ? <Text style={styles.muted}>{message}</Text> : null}
         <Row>
           <Button kind="secondary" label={t("home")} onPress={() => router.replace({ pathname: "/worklist", params: { userId } })} />
           {canEdit ? (
@@ -483,6 +587,7 @@ export default function Revision() {
       <Screen title={t("revisionTitle")}>
         <ActivityIndicator />
         {message ? <Text style={styles.error}>{message}</Text> : null}
+        {message ? <Button kind="secondary" label={t("refresh")} onPress={() => setLoadAttempt((attempt) => attempt + 1)} /> : null}
         <Button kind="secondary" label={t("home")} onPress={() => router.replace({ pathname: "/worklist", params: { userId: account.user_id } })} />
       </Screen>
     );

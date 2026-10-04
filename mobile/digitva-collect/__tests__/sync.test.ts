@@ -26,8 +26,9 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
-import { fetchCaseDetail, fetchCasePage, getCachedReferenceData, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { canUseBundledFallbackForProject, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
+import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { getCase, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -216,6 +217,36 @@ beforeEach(() => {
 });
 
 describe("project scoped reference data", () => {
+  it("keeps the first-served definition marker encrypted and project-scoped until revocation", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    expect(await canUseBundledFallbackForProject(USER, db, "P1")).toBe(true);
+    await markProjectDefinitionServed(USER, db, "P1");
+    expect(await canUseBundledFallbackForProject(USER, db, "P1")).toBe(false);
+    expect(await canUseBundledFallbackForProject(USER, db, "P2")).toBe(true);
+
+    await reconcileReferenceAccess(db, access([]));
+    expect(await canUseBundledFallbackForProject(USER, db, "P1")).toBe(true);
+  });
+
+  it("restores the native definition cache only for projects in authoritative interviewer access", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const cache = createNativeDefinitionCache(db as never, USER);
+    const restoreProject = jest.spyOn(cache, "restoreProject");
+
+    await reconcileReferenceAccess(db, access([project("P1")]));
+    expect(restoreProject).toHaveBeenCalledTimes(1);
+    expect(restoreProject).toHaveBeenCalledWith("P1");
+    restoreProject.mockClear();
+
+    server((call) => call.url.endsWith("/fixture-reference")
+      ? json(200, referenceFixture([project("P1")]))
+      : json(200, { scoped: false, levels: [], units: [] }));
+    await refreshReferenceData(USER, db, { force: true });
+    expect(restoreProject).toHaveBeenCalledWith("P1");
+  });
+
   it("fetches every project and keeps units isolated by project", async () => {
     const db = memoryDb();
     await migrate(db);
@@ -579,7 +610,10 @@ describe("sync upload ordering", () => {
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
-    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 2, failed: 0, remaining: 2, supersededUniqueIds: [] });
+    await expect(syncInterviewer(USER, db)).resolves.toEqual({
+      sent: 2, failed: 0, remaining: 2, supersededUniqueIds: [],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }],
+    });
     const uploads = calls.filter(({ url }) => url.endsWith("/submissions"));
     expect(uploads.map(({ body }) => body?.client_draft_id)).toEqual([valid, partial]);
     expect(uploads[0].body).toMatchObject({ project_id: PROJECT, completion: { valid: true, issues: [] } });
@@ -608,7 +642,10 @@ describe("sync upload ordering", () => {
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
-    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 0, failed: 2, remaining: 2, supersededUniqueIds: [] });
+    await expect(syncInterviewer(USER, db)).resolves.toEqual({
+      sent: 0, failed: 2, remaining: 2, supersededUniqueIds: [],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }],
+    });
     expect(await getDraftRow(db, first)).toMatchObject({ completed: 1 });
     expect(await getDraftRow(db, second)).toMatchObject({ completed: 1 });
   });
@@ -652,7 +689,10 @@ describe("sync upload ordering", () => {
     });
 
     const onSuperseded = jest.fn();
-    await expect(syncInterviewer(USER, db, onSuperseded)).resolves.toEqual({ sent: 1, failed: 0, remaining: 0, supersededUniqueIds: ["U-77"] });
+    await expect(syncInterviewer(USER, db, onSuperseded)).resolves.toEqual({
+      sent: 1, failed: 0, remaining: 0, supersededUniqueIds: ["U-77"],
+      definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }],
+    });
     expect(onSuperseded).toHaveBeenCalledTimes(1);
     expect(onSuperseded).toHaveBeenCalledWith("U-77");
     const upload = calls.find((call) => call.url.endsWith("/submissions"))!;
@@ -719,6 +759,10 @@ describe("sync upload ordering", () => {
   it("refreshes once after a revision 401 while keeping its frozen answers and refreshing only deviceClockAt", async () => {
     const db = memoryDb();
     await migrate(db);
+    const completedId = "aaaaaaaa-0000-4000-8000-000000000099";
+    const completedStore = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await completedStore.save(draft(completedId));
+    await markCompleted(db, completedId, { valid: true, issues: [] });
     const revisionDraft = {
       ...draft(DRAFT, { interview_outcome: "completed", Id10013: "yes" }),
       locale: "en",
@@ -742,12 +786,20 @@ describe("sync upload ordering", () => {
     const queued = await queueRevision(db, DRAFT, "interviewer_correction", { valid: true, issues: [] });
 
     let revisionAttempts = 0;
+    const currentProject = project();
+    currentProject.form_options = {
+      ...currentProject.form_options,
+      instrument_version: "current-v2",
+      definition_sha256: "b".repeat(64),
+      enabled_extensions: [],
+    };
     server((call) => {
-      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([currentProject]));
       if (call.url.endsWith("/sessions/refresh")) return json(200, {
         access_token: "fresh-access", access_expires_at: "2026-10-01T19:00:00Z",
         refresh_token: "fresh-refresh", refresh_expires_at: "2026-10-02T19:00:00Z", access: access()
       });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
       if (call.url.endsWith("/revisions")) {
         if (revisionAttempts++ === 0) {
           jest.setSystemTime(new Date("2026-10-01T18:31:01Z"));
@@ -758,18 +810,28 @@ describe("sync upload ordering", () => {
           answers_sha256: call.body?.answers_sha256, outcome: "completed", workflow_state: "smartva_pending"
         });
       }
+      if (call.url.includes("/instruments/WHO_2022_VA/definition")) return json(503, { code: "unavailable" });
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
 
     jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
     try {
-      await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+      await expect(syncInterviewer(USER, db)).resolves.toMatchObject({
+        sent: 2, failed: 0, remaining: 0,
+        definitionRefresh: [{ projectId: PROJECT, available: false, error: "unavailable" }],
+      });
     } finally {
       jest.useRealTimers();
     }
 
     const uploads = calls.filter((call) => call.url.endsWith("/revisions"));
+    expect(calls.findIndex((call) => call.url.endsWith("/submissions"))).toBeLessThan(
+      calls.findIndex((call) => call.url.endsWith("/revisions")),
+    );
+    expect(calls.findIndex((call) => call.url.endsWith("/revisions"))).toBeLessThan(
+      calls.findIndex((call) => call.url.includes("/instruments/WHO_2022_VA/definition")),
+    );
     expect(uploads).toHaveLength(2);
     expect(uploads[0].auth).toBe("Bearer a");
     expect(uploads[1].auth).toBe("Bearer fresh-access");
@@ -807,6 +869,29 @@ describe("sync upload ordering", () => {
     const sentBefore = calls.filter((call) => call.url.endsWith("/submissions")).length;
     await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
     expect(calls.filter((call) => call.url.endsWith("/submissions")).length).toBe(sentBefore);
+  });
+
+  it("holds a completed draft with a partial definition pin for attention before upload", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    const stored = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [DRAFT]);
+    await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [
+      JSON.stringify({ ...JSON.parse(stored!.envelope), definitionSha256: "c".repeat(64) }), DRAFT,
+    ]);
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(calls.filter((call) => call.url.endsWith("/submissions"))).toHaveLength(0);
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ completed: 1, upload_issue: "invalid_definition_pin" });
+    const retained = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [DRAFT]);
+    expect(JSON.parse(retained!.envelope)).toMatchObject({ data: { Id10013: "yes" }, definitionSha256: "c".repeat(64) });
   });
 
   it("recomputes the same answers hash once, then marks repeated hash refusal editable", async () => {

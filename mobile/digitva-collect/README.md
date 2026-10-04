@@ -269,6 +269,24 @@ docker compose exec -T -e DEVICE_PUBLIC_URL=http://10.0.2.2:8051 minerva_app_ser
 
 Prints the QR payload JSON to paste into the debug enrol box.
 
+## Server-served questionnaires
+
+Current project definitions are verified against the exact response SHA-256
+and the app's supported engine version before rendering. Native definitions
+remain in the unlocked interviewer's SQLCipher database; browser definitions
+remain in account-scoped memory. Drafts and revisions keep their original
+version, hash and extension list. Cache loss recovers that exact historical
+slice; a failed recovery keeps the answers and blocks editing.
+
+An unpinned browser draft without saved extension provenance also keeps its
+server answers and cannot be opened using today's project settings. Historical
+native forms use their original English labels when an exact translation cannot
+be established. Failed current-definition refresh does not block queued uploads.
+
+After vendor changes, rebuild the package and refresh the installed package
+copy before exporting the app. Web and Android JavaScript exports do not install
+or validate a physical Android build.
+
 ## Needs a real device
 
 Biometric enforcement: emulators do not require the biometric to release a

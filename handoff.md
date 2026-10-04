@@ -18,7 +18,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3270 passed, 7 min, on 2026-10-03). Narrow tasks to Sonnet/Luna, broad
+> (3325 passed, 8 min, on 2026-10-04). Narrow tasks to Sonnet/Luna, broad
 > ones to Opus/Sol (`AGENTS.md`). Dev DB head: `c4e8a1f7d2b3`. This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
@@ -39,19 +39,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 2. **Deploy order** `digitva-p6fs.25` (Expo session): the app's terms screen
    and `terms_required` handling must ship before or with the 9an9 backend;
    a current app build shows `terms_required` as an error.
-3. Branch `p6fs24-device-cases` (commit `4a648682`, another session's
-   `digitva-p6fs.24`) needs a rebase onto main (conflicts expected in
-   `api/device.py`, `device_auth_service.py`, `web_intake_service.py`,
-   `web-intake.md`), a full suite, then merge.
-4. `digitva-scwg` closed with this commit; run `tests/migrations` on its
+3. `digitva-scwg` closed with this commit; run `tests/migrations` on its
    own DB, never in the same run as the main suite (it breaks setup there).
-5. `digitva-04u4` job title per person (shown in the DM exact lookup when it
+4. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
-6. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
+5. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
    `ready_for_coding` source, area overview EXPLAIN, open-submission repair
    gate, KPI cache vs pair status, switch `web_intake_service` to
    `authz.reachable_unit_ids` and delete `project_wide_grant_exists`).
-7. Expo (`digitva-p6fs`): auth contract for the app is
+6. Expo (`digitva-p6fs`): auth contract for the app is
    `docs/current-state/authentication-and-onboarding.md`. Device sign-in
    takes email or mobile; `user.email` may be null. `p6fs.4` coding/review
    workspaces, `p6fs.5` device acceptance. Device case contract (p6fs.24,
@@ -60,7 +56,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `/cases/<id>` detail with full contacts; the Expo app must adopt it
    (p6fs.22/.23). `digitva-yw11`: register list and unit picker still use
    the older, narrower grant rule.
-8. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
+7. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
    retention, `digitva-t6q` death_reporter role, `digitva-kfi` Android
    rewrite, `digitva-35x` duplicate hint, `digitva-kmk.5` Android release,
    `digitva-ej1` intake attachments, `digitva-ddv.2` production release,

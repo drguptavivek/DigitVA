@@ -51,18 +51,22 @@ from app.services import case_transition_service as cases
 from app.services import org_grant_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
+from app.services import served_form_service
 from app.services.authz import resolve_grants, subtree_select
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
 from app.services.coding_release_service import (
     SOURCE_INTERVIEWER_REVISION,
     release_coding_for_changed_payload,
+    reopen_coding_after_revision,
 )
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
     canonical_payload_fingerprint,
     ensure_active_payload_version,
     get_active_payload_version,
+    get_latest_pending_upstream_payload_version,
+    reject_pending_upstream_payload_version,
 )
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     apply_submission_projection,
@@ -73,10 +77,16 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
 from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services.web_form_relevance_service import (
     derive_validation_errors,
+    form_version_of,
     strip_irrelevant_answers,
 )
-from app.services.workflow.definition import PROTECTED_WORKFLOW_STATES
+from app.services.workflow.definition import PROTECTED_WORKFLOW_STATES, WORKFLOW_FINALIZED_UPSTREAM_CHANGED
 from app.services.workflow.state_store import get_submission_workflow_state
+from app.services.workflow.upstream_changes import (
+    UPSTREAM_CHANGE_STATUS_REJECTED,
+    get_open_revision_request,
+    resolve_pending_upstream_change,
+)
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     mark_attachment_sync_completed,
@@ -1397,6 +1407,9 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["SubmitterID"] = str(user.user_id)
     payload["DeviceID"] = f"digitva-{intake_source}"
     payload["FormVersion"] = str(meta.get("instrumentVersion") or meta.get("formVersion") or "2022")
+    # QA flag, never a refusal: filled on a served form version older than the
+    # one this server serves now.
+    payload["form_version_outdated"] = _is_outdated_form_version(payload["FormVersion"])
     payload["ReviewState"] = None
     payload["instanceName"] = f"{draft.unique_id}_WHOVA2022"
     payload["form_def"] = form.form_id
@@ -1548,6 +1561,20 @@ def _supersede_draft(draft: VaWebIntakeDraft, data: dict, completion: dict) -> N
     log.info("draft kept as superseded copy | unique_id=%s | by=%s", draft.unique_id, draft.user_id)
 
 
+_COMPOSED_VERSION_RE = re.compile(r"^\d+-[0-9a-f]{10}$")
+
+
+def _is_outdated_form_version(version: str) -> bool:
+    """A served (composed) form version other than the current one. The
+    browser's bundled version and unknown strings are not composed versions."""
+    if not _COMPOSED_VERSION_RE.match(version):
+        return False
+    try:
+        return version != served_form_service.composed_version()
+    except served_form_service.ServedFormUnavailable:
+        return False
+
+
 def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, submitted_at: datetime, expression_now: datetime, visit_note: dict, intake_source: str, meta: dict | None = None, carry: dict | None = None) -> tuple[dict, dict, list]:
     """The coding payload for the final raw answers *data*, with its
     attachment references and the server's own validation diagnostic:
@@ -1558,10 +1585,14 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     # anything is stripped: this is the diagnostic the client's own
     # "valid: true" is checked against (beads digitva-cal.2). It does not
     # block the submission -- see derive_validation_errors' docstring.
-    validation_err = derive_validation_errors(data, now=expression_now)
+    # Against the form version the interview was filled on, when the server
+    # served that version (field-data-collection.md "Form version"); any other
+    # (the browser's bundled form, an unknown version) uses the current rules.
+    version = form_version_of(meta if meta is not None else draft.meta)
+    validation_err = derive_validation_errors(data, now=expression_now, version=version)
     # Final submit only (never a draft save): remove answers to questions
     # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
-    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now)
+    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now, version=version)
     # Added after stripping: the form shows the note only while no given name
     # is recorded, so a partial identity would otherwise lose it as irrelevant.
     stripped_data = {**stripped_data, **visit_note}
@@ -1748,11 +1779,13 @@ REVISION_REASONS = ("interviewer_correction", "respondent_correction", "more_inf
 
 
 def revision_unlocked(submission: VaSubmissions) -> bool:
-    """True once a coder or reviewer send-back, or a supervisor reopen, has
-    opened a submission in a protected workflow state for its interviewer
-    again. Those moves are not built yet (digitva-bhpl part B), so a protected
-    submission stays locked; part B puts its marker check here."""
-    return False
+    """True while a coder's or reviewer's send-back, or a supervisor's reopen
+    (``interview_send_back_service``), holds *submission* open for its
+    interviewer: it is in ``finalized_upstream_changed`` and the latest
+    workflow event that put it there was one of those two requests. An ODK
+    upstream change leaves it locked: that case is the data manager's to
+    accept or reject. One indexed lookup (``get_open_revision_request``)."""
+    return get_open_revision_request(submission.va_sid) is not None
 
 
 def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str, completion: dict, envelope: dict) -> dict:
@@ -1785,12 +1818,19 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     revision syncs the form's identity answers onto the case again: the
     winning submission is the one corrected.
 
+    A protected case is locked, except one a coder, reviewer or supervisor
+    sent back or reopened (``revision_unlocked``): its changed revision
+    restarts coding at once (``reopen_coding_after_revision``, the data
+    manager's accept block under a system actor), rejects any lingering
+    pending upstream payload, and keeps the earlier COD as inactive history.
+    An unchanged revision leaves that case sent back.
+
     Every refusal is decided before anything is written, except the workflow
     race ``revision_locked`` (a coder finalised after the check) and a case
     transition ``cases.transition`` refuses; those raise after writes, and the
     route's error handler rolls the whole transaction back. Refusals: 404
     unknown or not the caller's, 409 ``revision_locked`` (protected workflow
-    state), ``case_already_submitted`` (a teammate's complete submission won),
+    state not sent back or reopened), ``case_already_submitted`` (a teammate's complete submission won),
     ``case_closed`` (duplicate or cancelled), ``case_state_conflict`` (an
     outcome change the case's state does not allow), the live-org-unit
     refusals when finishing a partial, 422 ``invalid_reason``,
@@ -1816,7 +1856,12 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     db.session.refresh(draft)
     if submission is None or draft.status != "submitted":
         raise WebIntakeError("Submission not found.", 404)
-    if get_submission_workflow_state(va_sid) in PROTECTED_WORKFLOW_STATES and not revision_unlocked(submission):
+    state = get_submission_workflow_state(va_sid)
+    # A sent-back or reopened case takes the revision and restarts coding at
+    # once; every other protected state is locked, an ODK upstream change
+    # included (the data manager resolves that one).
+    reopening = state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and revision_unlocked(submission)
+    if state in PROTECTED_WORKFLOW_STATES and not reopening:
         raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked")
 
     active = get_active_payload_version(va_sid)
@@ -1898,9 +1943,21 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
     draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome}
 
-    release_coding_for_changed_payload(va_sid, source=SOURCE_INTERVIEWER_REVISION, audit_by=user.user_id)
     enters_coding = outcome == "completed" and consent_is_valid(normalize_consent(raw.get("Id10013")))
     try:
+        if reopening:
+            # The revision is the new payload: no pending upstream version may
+            # linger beside it. Coding restarts at smartva_pending, then the
+            # routing below puts the case where any revision would be.
+            pending = get_latest_pending_upstream_payload_version(va_sid)
+            if pending is not None:
+                reject_pending_upstream_payload_version(pending, reason="superseded_by_interviewer_revision")
+            resolve_pending_upstream_change(
+                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id, resolved_by_role=AUDIT_ROLE,
+            )
+            reopen_coding_after_revision(va_sid, audit_by=user.user_id)
+        else:
+            release_coding_for_changed_payload(va_sid, source=SOURCE_INTERVIEWER_REVISION, audit_by=user.user_id)
         route_synced_submission(va_sid, consent_valid=enters_coding, reason="interviewer_revision", actor=system_actor())
     except WorkflowTransitionError as exc:
         # A coder finalised between the check above and here; the route rolls back.

@@ -248,6 +248,17 @@ def _clean_text(value, *, limit: int, name: str, required: bool) -> str | None:
     return value.strip()
 
 
+def record_app_version(session, app_version) -> None:
+    """The app version a device reports at sign-in or refresh (it changes with
+    every app update; enrolment alone went stale). Absent: left as it is."""
+    if app_version is None:
+        return
+    version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
+    device = db.session.get(AuthDevice, session.device_id)
+    if device is not None and version and device.app_version != version:
+        device.app_version = version
+
+
 def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevice, str]:
     """Consume one use of an enrolment code and register a device. Returns
     (device, plaintext device secret). An unknown, expired, revoked or used-up

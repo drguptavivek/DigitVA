@@ -212,3 +212,46 @@ become partial/refused), and the section 1 answer/hash codes.
 
 A partial interview (case paused) is finished by revising it with
 `reason_code: finish_partial`, not by starting a new draft.
+
+## 6. Form versions and the server-served form (`digitva-xuf9`, `digitva-6pwq`, server built)
+
+Frontend planning (`digitva-6pwq.1`): section 5 lands first. Current definition
+download, exact-byte hash verification, cache retention and draft version pinning
+are actionable. Historical recovery needs an additional backend contract:
+the current definition endpoint serves only the current project slice, while
+the versions endpoint returns metadata. Please provide an authorized way to
+download a named historical project definition (`digitva-6pwq.2`). Until that contract exists,
+a missing historical cache must preserve the interview and fail visibly;
+the app must not substitute today's form.
+
+- `GET /api/v1/organization/<project>/form-options`: `instrument_version` is
+  now the composed version (e.g. `2026081401-3833e95fb5`, not the bundle
+  hash) and new `definition_sha256` is the SHA-256 of this project's served
+  definition. Both are null for a non-WHO-2022 project.
+- `GET /api/v1/instruments/WHO_2022_VA/definition?project_id=<p>`: the
+  project's composed definition JSON (WHO + its enabled extensions), top-level
+  `version` and `engineVersion` (1). Headers: `X-Definition-SHA256` (over the
+  uncompressed JSON; verify it), `ETag`, `Cache-Control: private, no-cache`.
+  Send `If-None-Match` with the stored ETag -> 304. Send
+  `Accept-Encoding: gzip` (about 1 MB plain). Errors: 400 no project_id, 403,
+  404 unknown project or other instrument, 503 `unavailable`.
+- `GET /api/v1/instruments/WHO_2022_VA/versions`: `{current, versions:
+  [{version, activated_at}]}` newest first.
+
+App must:
+
+0. Send `app_version` on `POST /auth/sessions` and `/auth/sessions/refresh` (the server records it each time).
+1. Add an engine constant `ENGINE_VERSION = 1` in `vendor/who-va-2022`
+   (the package exports none). Refuse a definition whose `engineVersion` is
+   higher and ask for an app update.
+2. At sign-in and sync: if `definition_sha256` differs from the cached one,
+   download, verify the SHA, cache per `version`. Keep a version cached until
+   every draft started on it has uploaded.
+3. A draft stays on the version it started with; send that version as the
+   envelope `instrumentVersion` (the server re-checks the upload against that
+   version's rules).
+4. Bundled form stays the fallback until the first download. Block **new**
+   interviews (never uploads) when no current definition the engine can run
+   is available: "update the app".
+5. Keep narrowing `narr_language` choices to form-options
+   `narration_languages` (the served definition carries the full list).

@@ -152,6 +152,14 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.instruments_api.instrument_translations": "Questionnaire strings of a "
                                                       "standard instrument; reference "
                                                       "data, no case data.",
+    "api_v1.instruments_api.instrument_definition": "The composed questionnaire "
+                                                    "definition; reference data, no "
+                                                    "case data. With project_id it "
+                                                    "also runs the form-options "
+                                                    "reach check to pick the slice.",
+    "api_v1.instruments_api.instrument_versions": "Version strings and first-serve "
+                                                  "times of the questionnaire; "
+                                                  "reference data.",
 }
 
 EXEMPT_ENDPOINTS = frozenset(PUBLIC_ENDPOINTS) | frozenset(SELF_SERVICE_ENDPOINTS)

@@ -34,12 +34,24 @@ ACTOR_ADMIN = "admin"
 ACTOR_CODER = "coder"
 ACTOR_DATA_MANAGER = "data_manager"
 ACTOR_REVIEWER = "reviewer"
+ACTOR_INTERVIEW_SUPERVISOR = "interview_supervisor"
 
 SYSTEM_ACTOR_KINDS = frozenset({ACTOR_SYSTEM, ACTOR_ADMIN})
 CODING_ACTOR_KINDS = frozenset({ACTOR_CODER, ACTOR_ADMIN})
 DATA_MANAGER_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_ADMIN})
 REVIEWER_ACTOR_KINDS = frozenset({ACTOR_REVIEWER})
 ADMIN_ACTOR_KINDS = frozenset({ACTOR_ADMIN})
+#: A coder or reviewer sends an interview back for revision, a supervisor, data
+#: manager or admin reopens it after final COD (docs/policy/interview-revisions.md).
+#: Only ``mark_upstream_change_detected`` with one of these two reasons admits
+#: them; the ODK upstream-change reason stays system/admin only.
+REVISION_REQUEST_REASONS = frozenset({"sent_back_for_revision", "reopened_for_revision"})
+REVISION_REQUEST_ACTOR_KINDS = frozenset({
+    ACTOR_CODER, ACTOR_REVIEWER, ACTOR_DATA_MANAGER, ACTOR_INTERVIEW_SUPERVISOR, ACTOR_ADMIN,
+})
+#: The interviewer's revision of a sent-back case restarts coding with a
+#: system actor; ``accept_upstream_change`` admits it for this reason only.
+REVISION_RESTART_REASON = "interviewer_revision"
 SYNC_SOURCE_STATES = (
     None,
     wd.WORKFLOW_CONSENT_REFUSED,
@@ -91,6 +103,12 @@ def data_manager_actor(user_id: UUID | None) -> WorkflowActor:
 
 def reviewer_actor(user_id: UUID | None) -> WorkflowActor:
     return WorkflowActor(kind=ACTOR_REVIEWER, audit_role="reviewer", user_id=user_id)
+
+
+def interview_supervisor_actor(user_id: UUID | None) -> WorkflowActor:
+    return WorkflowActor(
+        kind=ACTOR_INTERVIEW_SUPERVISOR, audit_role="interview_supervisor", user_id=user_id
+    )
 
 
 def _apply_transition(
@@ -351,7 +369,11 @@ def mark_upstream_change_detected(
             wd.WORKFLOW_REVIEWER_FINALIZED,
             wd.WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
         ),
-        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        allowed_actor_kinds=(
+            SYSTEM_ACTOR_KINDS | REVISION_REQUEST_ACTOR_KINDS
+            if reason in REVISION_REQUEST_REASONS
+            else SYSTEM_ACTOR_KINDS
+        ),
         reason=reason,
         actor=actor or system_actor(),
     )
@@ -607,7 +629,11 @@ def accept_upstream_change(
         transition_id=wd.TRANSITION_UPSTREAM_CHANGE_ACCEPTED,
         target_state=wd.WORKFLOW_SMARTVA_PENDING,
         allowed_from=(wd.WORKFLOW_FINALIZED_UPSTREAM_CHANGED,),
-        allowed_actor_kinds=DATA_MANAGER_ACTOR_KINDS,
+        allowed_actor_kinds=(
+            DATA_MANAGER_ACTOR_KINDS | {ACTOR_SYSTEM}
+            if reason == REVISION_RESTART_REASON
+            else DATA_MANAGER_ACTOR_KINDS
+        ),
         reason=reason,
         actor=actor,
     )

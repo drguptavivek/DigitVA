@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Current Data Model
@@ -368,6 +368,25 @@ Migrations: `c8d2e4f6a1b3` (additive; enables the `ltree` extension),
 columns), `c1d4e7f9a3b6` (additive; adds the routing columns),
 `e2a5c8b1d7f3` (widens the mapping uniqueness constraint),
 `f7b2d4e6a8c9` (additive; adds the project coding-scope columns).
+
+## Instrument Versions
+
+### `mas_instrument_versions`
+
+Added 2026-10-05 (`a8c4e2f6b9d1`, beads digitva-xuf9 / digitva-6pwq).
+
+- one row per composed form version the server has served; surrogate `id`,
+  unique `(instrument_code, version)`
+- `version`: `<WHO version>-<first 10 hex of SHA-256>` of the composed
+  all-extensions definition
+- `activated_at` (timestamptz, default `now()`): when this server first served
+  it
+- `definition` (JSONB): the complete composed definition with each
+  conditional-extension item tagged `extensions: [..]`, so an upload filled on
+  that version can be re-checked against its rules
+  (`web_form_relevance_service`, `version=`)
+- written by `served_form_service.record_served_version`, once per process per
+  version, `ON CONFLICT DO NOTHING`; never edited
 
 ## Instrument Translation Tables
 

@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Field Data Collection Policy
@@ -334,16 +334,35 @@ Rule:
   date-time it became active on this server, newest first. The server records
   a version the first time it serves it, so no deploy step is needed.
 
-Not built yet (`digitva-xuf9`):
+Built (server half, `digitva-xuf9`, 2026-10-05):
 
-- The versions endpoint and the table that records activation times.
-- The form-options payload carries `instrument_version` today, but it is
-  `who_va_bundle_version()`, the web bundle's version, not a server
-  instrument version (`app/routes/api/organization.py`, ~line 713).
-- `auth_devices.app_version` is set at enrolment only
-  (`app/services/device_auth_service.py`, `enrol_device`).
-- No comparison, block or QA flag exists. Form-options contract:
-  [VA Web Form Options Contract](va-web-form-options.md).
+- `GET /api/v1/instruments/<code>/versions` and `mas_instrument_versions`
+  (instrument code, version, `activated_at`, and the full composed definition;
+  unique on code + version). A version is recorded the first time this server
+  serves it, once per process, `INSERT ... ON CONFLICT DO NOTHING`.
+- form-options `instrument_version` is the composed version string
+  (`<WHO version>-<first 10 hex of the composed definition's SHA-256>`, e.g.
+  `2026081401-3833e95fb5`), and `definition_sha256` fingerprints the project's
+  slice so an app with it cached skips the fetch.
+- Re-check by version (owner, 2026-10-04): `derive_validation_errors` and
+  `strip_irrelevant_answers` in `app/services/web_form_relevance_service.py`
+  take an optional `version`; a recorded version is judged by its stored
+  definition, an unknown one by the current server instrument.
+  `form_version_of(meta)` reads it from the envelope; submit and revision
+  pass it. A version this server never served (the browser's bundled form)
+  is judged by the reduced server instrument, as before.
+
+Built server-side (`digitva-xuf9`, 2026-10-05): the versions endpoint and
+`mas_instrument_versions`; form-options `instrument_version` is the composed
+version; an upload is re-checked against the version it names when this
+server served it (else the current rules); the payload carries
+`form_version_outdated` (true for a served version older than the current
+one; never a refusal); `auth_devices.app_version` is refreshed from an
+optional `app_version` on `POST /auth/sessions` and `/auth/sessions/refresh`.
+
+Not built yet: the app half (send `app_version` at sign-in and refresh,
+compare versions, block new interviews on an outdated form), bead
+`digitva-6pwq.1`.
 
 ### Form definition from the server (owner, 2026-10-04, `digitva-6pwq`)
 
@@ -374,7 +393,40 @@ Rule:
   current definition its engine can run; it then blocks new interviews,
   never uploads.
 
-Not built yet (`digitva-6pwq`): everything in this section.
+Built (server half, `digitva-6pwq`, 2026-10-05):
+
+- `tooling/who-va-2022/build-composed-instrument.mjs` (`npm run
+  build:composed-instrument`) composes the package's
+  `createWhoVa2022Instrument(ALL_DIGITVA_EXTENSIONS)` (the form the app
+  renders), keeps the full definition and tags every section and question a
+  conditional extension (`social_autopsy`, `narration_language`,
+  `death_summary`, `medical_records`, `abha`) contributes with
+  `extensions: [..]`. It fails unless, for all 32 subsets, the tagged items
+  filtered by the subset equal the package's own composition for it (names and
+  order, every item deep-equal). `order` numbers may differ because a subset
+  that omits a layer renumbers the layers after it; the check requires the
+  relative order, ties included, to be identical. Output
+  `app/data/who-va-2022.composed.json`, deterministic, with top-level
+  `version` and `engineVersion: 1`.
+- `app/services/served_form_service.py` loads the file once and serves
+  `GET /api/v1/instruments/<code>/definition?project_id=`: the file minus the
+  items whose tags are all disabled for the project, serialized once per
+  distinct set of enabled extensions; ETag `"<sha256>"` and
+  `X-Definition-SHA256`, `Cache-Control: private, no-cache`, 304 on
+  `If-None-Match`. The SHA-256 is not in the body.
+
+Not built yet (`digitva-6pwq`), the app half:
+
+- The Expo app downloads, verifies the SHA-256, caches per version, renders the
+  served definition and keeps drafts on the version they started with. The
+  engine must carry a matching `engineVersion` constant (the vendor package
+  exports none) and refuse a higher one.
+- Switching the server's re-check default from the reduced server instrument
+  to the stored composed definition.
+
+Narration languages are not narrowed in the served definition: `narr_language`
+carries the composer's full choice list, and the client keeps narrowing it to
+the project's form-options `narration_languages`, as the web form does today.
 
 ### Accepted risk: no retention ceiling
 

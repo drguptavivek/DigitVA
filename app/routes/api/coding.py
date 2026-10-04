@@ -31,7 +31,10 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
+from app.routes.api.request_helpers import intake_error, parse_body
+from app.services.case_transition_service import WebIntakeError
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+from app.services.interview_send_back_service import send_back_for_revision
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
@@ -192,6 +195,26 @@ def admin_override_recode(va_sid):
     except AllocationError as e:
         return _error(e.message, e.status_code)
     return jsonify({"va_sid": va_sid, "workflow_state": "ready_for_coding"}), 200
+
+
+@bp.post("/submissions/<va_sid>/send-back")
+@role_required("coder", "reviewer")
+def send_back(va_sid):
+    """Send a finalised web or device interview back to its interviewer for
+    revision (docs/policy/interview-revisions.md, rule 3). Body: ``reason_code``
+    (``missing_information``, ``inconsistent_answers``,
+    ``wrong_respondent_or_case``, ``needs_clarification``). 200
+    ``{va_sid, workflow_state, reason_code}``. The coder who finalised it, or a
+    reviewer working on or eligible for it, in their scope: 404 unknown, 403
+    otherwise; 409 ``not_web_submission`` / ``wrong_state``; 422
+    ``invalid_reason``."""
+    try:
+        reply = send_back_for_revision(current_user, va_sid, reason_code=parse_body().get("reason_code"))
+        db.session.commit()
+    except WebIntakeError as exc:
+        db.session.rollback()
+        return intake_error(exc)
+    return jsonify(reply)
 
 
 @bp.post("/reviewer-eligible-after-recode-window")

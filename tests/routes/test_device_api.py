@@ -535,6 +535,15 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(new)).status_code, 200)
         self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 401)
 
+    def test_refresh_records_the_reported_app_version(self):
+        device, tokens = self._session()
+        stored = db.session.get(AuthDevice, uuid.UUID(device["device_id"]))
+        before = stored.app_version
+        self.assertNotEqual(before, "2.4.1")
+        self.assertEqual(self._refresh(tokens["refresh_token"], app_version="2.4.1").status_code, 200)
+        db.session.expire_all()
+        self.assertEqual(db.session.get(AuthDevice, uuid.UUID(device["device_id"])).app_version, "2.4.1")
+
     def _age_rotation(self, user, seconds=120):
         """Move the session's last rotation out of the grace window."""
         db.session.execute(sa.update(AuthDeviceSession).where(
@@ -778,6 +787,22 @@ class DeviceApiTests(BaseTestCase):
         version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(
             VaSubmissionPayloadVersion.va_sid == body["va_sid"]))
         self.assertEqual(version.payload_data["intake_source"], "device")
+
+    def test_an_older_served_form_version_is_flagged_for_qa_never_refused(self):
+        from app.services import served_form_service
+        _device, tokens = self._session()
+        current = served_form_service.composed_version()
+        older = current.split("-")[0] + "-0000000000"
+        for sent, outdated in ((current, False), (older, True), ("2023072701", False)):
+            with self.subTest(version=sent):
+                draft = {"schemaVersion": 1, "formVersion": "2022", "instrumentId": "va_who_2022",
+                         "instrumentVersion": sent, "data": _complete_answers()}
+                response = self._upload(tokens, draft=draft)
+                self.assertEqual(response.status_code, 201, response.get_json())
+                version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(
+                    VaSubmissionPayloadVersion.va_sid == response.get_json()["va_sid"]))
+                self.assertEqual(version.payload_data["FormVersion"], sent)
+                self.assertIs(version.payload_data["form_version_outdated"], outdated)
 
     def _drafts_of(self, client_draft_id):
         return db.session.scalars(sa.select(VaWebIntakeDraft).where(

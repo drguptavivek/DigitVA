@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Runtime And Operations
@@ -539,6 +539,31 @@ Celery task execution logs are written to `logs/celery_tasks.log` with task meta
 Celery `ERROR`-level events are also mirrored into the shared `logs/errors.log`
 sink so operational triage can use one consolidated error log across Flask and
 Celery.
+
+## Generated Form Artifacts
+
+`GET /api/v1/instruments/<code>/definition` gzips the body itself (once per
+cached entry) when the client sends `Accept-Encoding: gzip`, with
+`Content-Encoding: gzip`, `Vary: Accept-Encoding` and its own ETag
+(`"<sha256>.gz"`). A reverse proxy's gzip skips a response that already has a
+`Content-Encoding`, so nothing is compressed twice; do not configure a proxy
+to decompress and keep the header. `X-Definition-SHA256` is always over the
+uncompressed JSON.
+
+The composed form definition the server serves,
+`app/data/who-va-2022.composed.json`, is generated from the vendored WHO
+package and DigitVA's extensions. Rebuild it after any change under
+`vendor/who-va-2022` (a question, label, rule or extension):
+
+```bash
+cd tooling/who-va-2022 && npm run build:composed-instrument
+```
+
+The build fails unless the tagged definition reproduces the package's own
+composition for all 32 extension subsets, and prints the new `version`. Commit
+the file; the server records the version the first time it serves it. Node runs
+on the host, not in the app image. Details: "Form definition from the server" in
+`docs/policy/field-data-collection.md`.
 
 ## Frontend Runtime Helpers
 

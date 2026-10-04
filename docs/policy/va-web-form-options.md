@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # VA Web Form Options Contract
@@ -136,11 +136,21 @@ narration only.
   "translation_versions": {"en": 0, "hi": 7},   // revalidate cached strings against this
 
   "narration_languages": [{"code": "hi", "label": "Hindi"}],
-  "show_guidance": false
+  "show_guidance": false,
+
+  "instrument_version": "2026081401-3833e95fb5",   // the composed form version this server serves; null for an instrument with no composed definition
+  "definition_sha256": "9f2c…"                      // SHA-256 of this project's definition (the ETag of GET /instruments/<code>/definition); null likewise
 }
 ```
 
 Notes on the shape:
+
+- `instrument_version` is the composed WHO 2022 form's version
+  (`<WHO version>-<first 10 hex of the composed definition's SHA-256>`), the
+  same for every project; `definition_sha256` differs by the project's enabled
+  extensions. A client that has the definition cached under that SHA-256 skips
+  `GET /api/v1/instruments/<code>/definition?project_id=`. Before 2026-10-05
+  `instrument_version` was the vendored web bundle's manifest hash.
 
 - `config_version` exists for the same reason `tree_version` does: a client
   caches the options and revalidates, so a settings change reaches a page that

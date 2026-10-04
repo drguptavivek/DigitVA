@@ -36,6 +36,7 @@ from app.models import (
     VaStatuses,
 )
 from app.services import organization_service as org
+from app.services import served_form_service
 from app.services import web_intake_service as intake_svc
 from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import active_locale_versions
@@ -46,7 +47,6 @@ from app.services.web_form_instruments import (
     instrument_locale_catalogue,
 )
 from app.services.web_intake_service import resolve_intake_note
-from app.utils.who_va_bundle import who_va_bundle_version
 
 bp = Blueprint("organization_api", __name__)
 
@@ -632,6 +632,22 @@ def _enabled_extensions(
     return extensions
 
 
+def project_instrument_and_extensions(project: VaProjectMaster) -> tuple[str, list[str]]:
+    """The instrument code the project's default form type layers on (the
+    standard fallback when none is set) and its ``enabled_extensions``, exactly
+    as form-options resolves them."""
+    form_types = _project_form_types(project)
+    default_form_type = next((ft for ft in form_types if ft["is_default"]), None)
+    code = (default_form_type or {}).get("instrument_code") or FALLBACK_INSTRUMENT_CODE
+    extensions = _enabled_extensions(
+        project,
+        form_types,
+        _resolve_narration_languages(project, _active_languages()),
+        resolve_intake_note(project),
+    )
+    return code, extensions
+
+
 @bp.get("/<project_id>/form-options")
 @login_required
 @limiter.limit("120 per minute")
@@ -650,16 +666,29 @@ def project_form_options(project_id: str):
     not narrowed by what the grants reach -- project configuration is the same
     for everyone who may see the project at all.
     """
+    project, refusal = form_options_project(project_id)
+    if refusal is not None:
+        return refusal
+    served_form_service.record_served_version()
+    return jsonify(form_options_payload(project))
+
+
+def form_options_project(project_id: str) -> tuple[VaProjectMaster | None, tuple | None]:
+    """The project behind a form-options style request, or the refusal.
+
+    One check for everything served per project (form-options, the form
+    definition): authz decides first and the refusals keep their order (404
+    for a missing or inactive project, then 403 for a user whose grants reach
+    nothing in it). Returns ``(project, None)`` or ``(None, (response, status))``.
+    """
     project_id = (project_id or "").strip().upper()
-    # authz decides first; the refusals keep their order (404, then 403).
     reachable = _reachable_unit_ids(project_id, None)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
-        return _error("Project not found.", 404)
+        return None, _error("Project not found.", 404)
     if reachable is not None and not reachable:
-        return _error("You do not have access to that project.", 403)
-
-    return jsonify(form_options_payload(project))
+        return None, _error("You do not have access to that project.", 403)
+    return project, None
 
 
 def served_instrument_locales(project: VaProjectMaster) -> tuple[str, set[str]]:
@@ -690,12 +719,26 @@ def form_options_payload(project: VaProjectMaster) -> dict:
         else FALLBACK_INSTRUMENT_CODE
     )
 
+    enabled_extensions = _enabled_extensions(
+        project, form_types, narration_languages, intake_note
+    )
+    # The composed definition exists for the WHO 2022 instrument only; a
+    # project on any other instrument is served neither value.
+    served_code = (default_form_type or {}).get("instrument_code") or FALLBACK_INSTRUMENT_CODE
+    instrument_version = definition_sha256 = None
+    if served_code == served_form_service.INSTRUMENT_CODE:
+        try:
+            instrument_version = served_form_service.composed_version()
+            definition_sha256 = served_form_service.served_definition(enabled_extensions).sha256
+        except served_form_service.ServedFormUnavailable:
+            # The options must not fail with the generated file: the app
+            # keeps its bundled form (null version) until it is rebuilt.
+            current_app.logger.exception("form-options: composed definition unavailable")
+
     return {
         "project_id": project_id,
         "config_version": _config_version(project_id),
-        "enabled_extensions": _enabled_extensions(
-            project, form_types, narration_languages, intake_note
-        ),
+        "enabled_extensions": enabled_extensions,
         "form_types": form_types,
         # The text the intake_screen extension renders, or null when the
         # project turned the welcome screen off.
@@ -708,7 +751,10 @@ def form_options_payload(project: VaProjectMaster) -> dict:
         "narration_languages": narration_languages,
         "show_guidance": project.web_intake_show_guidance,
         # What the removed device bootstrap carried, per project and global:
-        # which capture paths are open, and the vendored form bundle in use.
+        # which capture paths are open, and the composed form version the
+        # server serves; definition_sha256 fingerprints this project's slice
+        # of it so an app with that definition cached skips the fetch.
         "web_intake_mode": project.web_intake_mode or "off",
-        "instrument_version": who_va_bundle_version(),
+        "instrument_version": instrument_version,
+        "definition_sha256": definition_sha256,
     }

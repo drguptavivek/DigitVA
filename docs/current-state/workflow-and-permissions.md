@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Workflow And Permissions
@@ -192,6 +192,26 @@ Current rename note:
 - runtime/data now use `finalized_upstream_changed`
 - legacy migrated key: `revoked_va_data_changed`
 - UI target label remains `Finalized - ODK Data Changed`
+
+## Send-back And Reopen Of Web Interviews
+
+A finalised web or device interview can be opened for its interviewer's
+revision (`docs/policy/interview-revisions.md`, rules 3 and 4). Both moves go
+to `finalized_upstream_changed` through the `upstream_change_detected`
+transition with a distinct transition reason, and leave the COD active until
+the revision arrives (`app/services/interview_send_back_service.py`).
+
+| Route | Who | Reason | From |
+|---|---|---|---|
+| `POST /api/v1/coding/submissions/<va_sid>/send-back` | the coder who authored the final COD; a reviewer in scope on a `reviewer_eligible` submission, holding the session (`reviewer_coding_in_progress`, released first) or having finalised it (`reviewer_finalized`) | `sent_back_for_revision` | `coder_finalized`, `reviewer_eligible`, `reviewer_coding_in_progress`, `reviewer_finalized` |
+| `POST /api/v1/intake/supervision/submissions/<va_sid>/reopen-for-revision` | `admin`; `interview_supervisor` or `data_manager` (or In-charge, project PI) whose supervision reach covers the interview's case; for an interview with no case, a data manager of its scope | `reopened_for_revision` | `coder_finalized`, `reviewer_eligible`, `reviewer_finalized` |
+
+Neither exists for ODK submissions (409 `not_web_submission`). The coder,
+reviewer and interview-supervisor workflow actors are admitted to
+`mark_upstream_change_detected` for these two reasons only. The interviewer's
+changed revision (`revise_submission`) then runs the data manager's accept
+block under a system actor (`reopen_coding_after_revision`) and the case
+returns to `smartva_pending`; a data manager's reject cancels the open request.
 
 ## Confirmed Duplicate Web Cases
 

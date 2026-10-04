@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # API v1 Reference
@@ -72,9 +72,11 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | `GET /me/access` | The whole access body, below. Sets `X-CSRFToken` for a cookie request. |
 | `POST /me/terms` | Below. Also `POST /profile/terms` (the same view). |
 | `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. Other `role` values and none are the browsing views. |
-| `GET /organization/<project>/form-options` | `form_options_payload`: `config_version`, `enabled_extensions`, `form_types`, `intake_note`, `default_locale`, `available_locales`, `translation_versions`, `narration_languages`, `show_guidance`, `web_intake_mode` (which capture paths are open), `instrument_version` (the served form bundle's manifest sha, `who_va_bundle_version`). Any grant reaching the project. |
+| `GET /organization/<project>/form-options` | `form_options_payload`: `config_version`, `enabled_extensions`, `form_types`, `intake_note`, `default_locale`, `available_locales`, `translation_versions`, `narration_languages`, `show_guidance`, `web_intake_mode` (which capture paths are open), `instrument_version` (the composed form version, `served_form_service.composed_version`), `definition_sha256` (the project's definition fingerprint). Any grant reaching the project. |
 | `GET /intake/projects/<project>/prefill-policy` | `web_intake_service.prefill_policy`; the project must be one of the caller's interviewer projects (403 `project_forbidden`). |
 | `GET /instruments/<code>/translations/<locale>[?project_id=]` | `translations_response` (weak ETag, 304). Without `project_id`: any servable (active or `in_review`) locale to any signed-in user. With it: also needs a grant reaching the project (403 `forbidden`; unknown or inactive project 404 `not_found`) and serves only that project's instrument and `available_locales`, else 404 `not_found` (the offline app passes it). 120/min. |
+| `GET /instruments/<code>/definition?project_id=` | `instrument_definition`: the project's composed form definition (JSON), `served_form_service.served_definition`. `project_id` required (400 `invalid_request`), gated as form-options (404 / 403); 404 for another instrument; 503 `unavailable` if the file is unreadable. Headers `ETag: "<sha256>"`, `X-Definition-SHA256`, `Cache-Control: private, no-cache`; `If-None-Match` match gives a bodiless 304. Body carries `version` and `engineVersion`, not the SHA. 120/min. |
+| `GET /instruments/<code>/versions` | `instrument_versions`: `{instrument_code, current, versions: [{version, activated_at}]}`, newest first (at most 200), from `mas_instrument_versions`. Any signed-in user. 404 for another instrument. 120/min. |
 
 A client starts from `GET /me/access` (or the sign-in reply's `access`), then
 reads `form-options` and `prefill-policy` per interviewer project it works in
@@ -89,6 +91,7 @@ interviewer role (supervision: `interview_supervisor` or `data_manager`).
 |---|---|
 | `POST /intake/submissions` | Body `client_draft_id` (UUID), `project_id`, `site_id`, `draft` (envelope: meta keys only, `draft.data` is not read; optional `startedAt`, `completedAt`, `deviceClockAt`, each ISO 8601 with a UTC offset), `answers_json` (string: the exact JSON text of the answers object) and `answers_sha256` (64 hex, SHA-256 of that text's UTF-8 bytes), optional `completion: {valid, issues}`, `death_id`, `org_unit_id`. The server hashes `answers_json` as received, then parses. 422 `answers_hash_required` (a field missing, not a string, or a malformed hash), 422 `answers_hash_invalid` (hash differs; nothing stored), 422 `invalid_interview` (not a JSON object, over 1 MB, nested deeper than 6, or one of the three times present but unparsable or offset-less). 201 on a new upload, 200 on a resend with the same hash, 409 `hash_mismatch` on a resend with another hash or of an upload stored before hashing, body `{error, code, stored}` where `stored` is the first result. Result: `{va_sid, case, outcome, superseded, answers_sha256}`, the stored hash echoed. A cookie request stores no `meta.deviceId`. Detail: [Device Collection API](device-collection-api.md) "Uploads". |
 | `POST /intake/submissions/<va_sid>/revisions` | The submitting interviewer revises their own submitted interview. Body `reason_code` (`interviewer_correction`, `respondent_correction`, `more_information`, `finish_partial`), `answers_json` + `answers_sha256` (as `/submissions`), `completion: {valid, issues}`, `draft` (meta; only `startedAt`/`completedAt` are taken). 200 `{changed, va_sid, payload_version_id, answers_sha256, outcome, workflow_state}`; `changed: false` writes nothing. 404 `not_found` (not the caller's), 409 `revision_locked` / `case_already_submitted` / `case_closed`, 422 `invalid_reason` / `outcome_regression` / `answers_hash_*` / `invalid_interview`. Body cap 2 MB. Detail: [Device Collection API](device-collection-api.md) "Interviewer revisions". |
+| `POST /intake/supervision/submissions/<va_sid>/reopen-for-revision` | Reopen a finalised web or device interview for its interviewer to revise (`interview_supervisor`, `data_manager` or `admin`). Body `reason_code` (`cod_review_requested`, `new_information`, `data_correction`). 200 `{va_sid, workflow_state: "finalized_upstream_changed", reason_code}`. From `coder_finalized`, `reviewer_eligible`, `reviewer_finalized`. An admin, or a supervisor or data manager whose supervision reach covers the interview's case (404 otherwise); 409 `not_web_submission` / `case_closed` / `wrong_state`; 422 `invalid_reason`. The final COD stays until the interviewer's revision arrives. |
 | `POST /intake/outstanding` | Device session only (a cookie: 403 `device_session_required`). Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
 | `GET /intake/cases?project_id=&mine=&state=&limit=&cursor=` | The case list, below. 120/min. `project_id` optional. |
 | `GET /intake/cases/<death_id>` | Case detail with full contacts, links and (when the caller may start or resume it) prefill, below. 120/min. |
@@ -127,6 +130,24 @@ whose response was lost and is retried with the old token answers 409
 `refresh_retry_race`, and theft-style reuse 401 `refresh_reused`; both
 revoke the session but the app keeps the data and asks the interviewer to
 sign in again.
+
+## Coding send-back (`POST /api/v1/coding/submissions/<va_sid>/send-back`, `app/routes/api/coding.py`)
+
+A coder or reviewer sends a finalised web or device interview back to its
+interviewer ([Interview Revisions Policy](../policy/interview-revisions.md),
+rule 3). Gate `coder` or `reviewer`; browser cookie with `X-CSRFToken`. Body
+`reason_code`: `missing_information`, `inconsistent_answers`,
+`wrong_respondent_or_case`, `needs_clarification`. 200 `{va_sid, workflow_state:
+"finalized_upstream_changed", reason_code}`. Allowed for the coder who authored
+the final COD (`coder_finalized`, `reviewer_eligible`) and a reviewer in
+reviewing scope on a `reviewer_eligible` submission, on the one whose session
+they hold (`reviewer_coding_in_progress`, the session is released first) or on
+the one they finalised (`reviewer_finalized`). Errors `{error, code}`: 404
+unknown, 403 `forbidden` (outside scope, or not the coder who finalised it),
+409 `not_web_submission` (an ODK submission) / `case_closed` (confirmed
+duplicate) / `wrong_state`, 422 `invalid_reason`. The final COD stays active
+until the interviewer's revision arrives; a data manager's reject cancels the
+send-back.
 
 ## GET /api/v1/me/access (body)
 

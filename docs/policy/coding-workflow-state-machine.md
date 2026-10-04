@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Coding Workflow State Machine Policy
@@ -827,6 +827,40 @@ Resolution UI baseline:
   Social Autopsy, and SmartVA artifacts to the promoted payload
 - these modal review actions are local DigitVA workflow decisions and
   do not post a rejection comment back to ODK Central
+
+### Sent back or reopened for revision (web and device interviews)
+
+`finalized_upstream_changed` also holds a web or device interview that a coder,
+reviewer, supervisor, data manager or admin has opened for its interviewer's
+revision ([Interview Revisions Policy](interview-revisions.md), rules 3 and
+4). The same transition (`upstream_change_detected`) carries a different
+transition reason, and the reason is what tells the two apart:
+
+| Transition reason | Actor | From |
+|---|---|---|
+| `upstream_odk_data_changed` | system or admin (ODK sync) | `coder_finalized`, `reviewer_eligible`, `reviewer_finalized`, `finalized_upstream_changed` |
+| `sent_back_for_revision` | the coder who finalised it, or a reviewer working on or eligible for it | `coder_finalized`, `reviewer_eligible`, `reviewer_finalized` (a reviewer's unfinished session is released first, so `reviewer_coding_in_progress` enters through `reviewer_eligible`) |
+| `reopened_for_revision` | interview supervisor, data manager (supervision reach) or admin | `coder_finalized`, `reviewer_eligible`, `reviewer_finalized` |
+
+Only these two reasons admit coder, reviewer, data-manager and
+interview-supervisor actors; the ODK reason stays system and admin. Send-back
+and reopen leave every coding artifact and the final COD active. The case is
+open for revision while the latest workflow event that moved it into
+`finalized_upstream_changed` carries one of those two reasons
+(`get_open_revision_request`). An ODK upstream change on an ODK submission has
+no such event: the interviewer's revision is refused (`revision_locked`) and the
+data manager resolves it as above.
+
+The interviewer's changed revision then restarts coding at once, with no
+data-manager accept step: the accept block of "Accept And Recode" runs under a
+system actor (`reopen_coding_after_revision`), with the transition
+`upstream_change_accepted` (reason `interviewer_revision`, the only reason
+that admits the system actor there), to `smartva_pending`. The earlier COD is
+deactivated, never deleted. An unchanged revision does nothing and the case
+stays open. A data manager's `Keep Current ICD Decision` (reject) on such a
+case cancels it: the case returns to the state it was sent back from, its
+coding untouched (reason `data_manager_cancelled_revision_request`); `Accept
+And Recode` has no upstream payload to accept and is refused.
 
 ### Authorization
 

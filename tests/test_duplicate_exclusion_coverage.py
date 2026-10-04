@@ -74,6 +74,20 @@ EXEMPT = {
     "routes/api/coding.py::admin_override_recode": (
         "thin route over admin_override_to_recode, which refuses a confirmed duplicate"
     ),
+    "routes/api/coding.py::send_back": (
+        "thin route over send_back_for_revision, which refuses a confirmed duplicate (409 case_closed)"
+    ),
+    "routes/api/intake.py::reopen_for_revision": (
+        "thin route over reopen_for_revision, which refuses a confirmed duplicate (409 case_closed)"
+    ),
+    "services/interview_send_back_service.py::_open_for_revision": (
+        "writer of one named submission's workflow state, called only after both public entry "
+        "points refused a confirmed duplicate"
+    ),
+    "services/workflow/upstream_changes.py::get_open_revision_request": (
+        "one named submission's latest workflow event, to decide whether its interviewer may "
+        "revise or a data manager may cancel; not a coding list or count"
+    ),
     "routes/api/intake.py::revise_submission": (
         "reads the caller's own one submission's state to decide the revision lock, not a "
         "coding list; a confirmed duplicate case is refused (409 case_closed)"

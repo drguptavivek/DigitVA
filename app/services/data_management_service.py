@@ -24,7 +24,6 @@ from app import db
 from app.models import (
     MasOdkConnections,
     MapProjectOdk,
-    VaAllocations,
     VaCoderReview,
     VaDataManagerReview,
     VaFinalAssessments,
@@ -47,6 +46,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.services.coding_release_service import deactivate_coding_for_accepted_change
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_retirement_service import (
@@ -56,9 +56,6 @@ from app.services.odk_retirement_service import (
 from app.services.odk_review_service import resolve_odk_instance_id
 from app.services.organization_service import resolve_org_unit_export_labels
 from app.services.payload_bound_coding_artifact_service import (
-    deactivate_active_reviewer_reviews_for_submission,
-    deactivate_active_narrative_assessments_for_submission,
-    deactivate_active_social_autopsy_analyses_for_submission,
     promote_active_reviewer_reviews_to_payload,
     promote_active_narrative_assessments_to_payload,
     promote_active_social_autopsy_analyses_to_payload,
@@ -103,6 +100,7 @@ from app.services.workflow.upstream_changes import (
     UPSTREAM_CHANGE_STATUS_ACCEPTED,
     UPSTREAM_CHANGE_STATUS_KEPT_CURRENT_ICD,
     get_latest_pending_upstream_change,
+    get_open_revision_request,
     resolve_pending_upstream_change,
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
@@ -2833,80 +2831,7 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
     actor_role = actor.audit_role
 
     # Deactivate all coding artifacts so the submission re-enters the coding queue
-    for fa in db.session.scalars(
-        sa.select(VaFinalAssessments).where(
-            VaFinalAssessments.va_sid == va_sid,
-            VaFinalAssessments.va_finassess_status == VaStatuses.active,
-        )
-    ).all():
-        fa.va_finassess_status = VaStatuses.deactive
-
-    for ia in db.session.scalars(
-        sa.select(VaInitialAssessments).where(
-            VaInitialAssessments.va_sid == va_sid,
-            VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-        )
-    ).all():
-        ia.va_iniassess_status = VaStatuses.deactive
-
-    for cr in db.session.scalars(
-        sa.select(VaCoderReview).where(
-            VaCoderReview.va_sid == va_sid,
-            VaCoderReview.va_creview_status == VaStatuses.active,
-        )
-    ).all():
-        cr.va_creview_status = VaStatuses.deactive
-
-    for dmr in db.session.scalars(
-        sa.select(VaDataManagerReview).where(
-            VaDataManagerReview.va_sid == va_sid,
-            VaDataManagerReview.va_dmreview_status == VaStatuses.active,
-        )
-    ).all():
-        dmr.va_dmreview_status = VaStatuses.deactive
-
-    for alloc in db.session.scalars(
-        sa.select(VaAllocations).where(
-            VaAllocations.va_sid == va_sid,
-            VaAllocations.va_allocation_status == VaStatuses.active,
-        )
-    ).all():
-        alloc.va_allocation_status = VaStatuses.deactive
-
-    for sva in db.session.scalars(
-        sa.select(VaSmartvaResults).where(
-            VaSmartvaResults.va_sid == va_sid,
-            VaSmartvaResults.va_smartva_status == VaStatuses.active,
-        )
-    ).all():
-        sva.va_smartva_status = VaStatuses.deactive
-
-    for rfa in db.session.scalars(
-        sa.select(VaReviewerFinalAssessments).where(
-            VaReviewerFinalAssessments.va_sid == va_sid,
-            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
-        )
-    ).all():
-        rfa.va_rfinassess_status = VaStatuses.deactive
-    deactivate_active_reviewer_reviews_for_submission(
-        va_sid,
-        audit_byrole=actor.audit_role,
-        audit_by=user.user_id,
-        audit_action="reviewer review deactivated for recoding after upstream change",
-    )
-
-    deactivate_active_narrative_assessments_for_submission(
-        va_sid,
-        audit_byrole=actor.audit_role,
-        audit_by=user.user_id,
-        audit_action="narrative quality assessment deactivated for recoding after upstream change",
-    )
-    deactivate_active_social_autopsy_analyses_for_submission(
-        va_sid,
-        audit_byrole=actor.audit_role,
-        audit_by=user.user_id,
-        audit_action="social autopsy analysis deactivated for recoding after upstream change",
-    )
+    deactivate_coding_for_accepted_change(va_sid, actor=actor, audit_by=user.user_id)
 
     promote_pending_upstream_payload_version(submission, pending_payload_version)
     apply_payload_to_submission_summary(
@@ -2963,7 +2888,30 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
 
     pending_change = get_latest_pending_upstream_change(va_sid)
     if pending_change is None:
-        raise ValueError("Submission has no pending upstream change record.")
+        send_back = get_open_revision_request(va_sid)
+        if send_back is None:
+            raise ValueError("Submission has no pending upstream change record.")
+        # A coder's or reviewer's send-back, or a supervisor's reopen, is
+        # waiting for the interviewer's revision and holds no upstream
+        # payload. Rejecting it cancels it: the case returns to the state it
+        # was sent back from, its coding untouched.
+        actor = _upstream_resolution_actor(user)
+        keep_current_icd_on_upstream_change(
+            va_sid,
+            target_state=send_back.previous_state or WORKFLOW_CODER_FINALIZED,
+            reason="data_manager_cancelled_revision_request",
+            actor=actor,
+        )
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_byrole=actor.audit_role,
+                va_audit_by=user.user_id,
+                va_audit_operation="u",
+                va_audit_action="revision_request_cancelled_by_data_manager",
+            )
+        )
+        return
 
     restore_state = pending_change.workflow_state_before or WORKFLOW_CODER_FINALIZED
     if restore_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED:

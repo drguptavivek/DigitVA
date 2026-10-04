@@ -15,13 +15,22 @@ is translated. A half-translated locale is safe to serve because an
 untranslated string is absent from this payload rather than empty, so the form
 falls back to English for that string alone.
 Policy: docs/policy/va-web-form-options.md.
+
+The same blueprint serves the composed form itself: ``/<code>/definition``
+(one project's definition, ETag'd by its SHA-256) and ``/<code>/versions``
+(every form version this server has served, newest first). Policy:
+docs/policy/field-data-collection.md ("Form version", "Form definition from
+the server").
 """
 
-from flask import Blueprint, jsonify, request
+import logging
+
+from flask import Blueprint, Response, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import VaProjectMaster, VaStatuses
+from app.services import served_form_service
 from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import (
     BASE_LOCALE,
@@ -33,6 +42,7 @@ from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 from app.services.web_form_instruments import is_servable
 
 bp = Blueprint("instruments_api", __name__)
+log = logging.getLogger(__name__)
 
 #: Bumped whenever export_translations' render-time rules change, so a cached
 #: body (keyed on this ETag) is refetched even though the locale's own
@@ -105,3 +115,83 @@ def translations_response(code: str, locale: str):
     response.cache_control.max_age = 0
     response.cache_control.must_revalidate = True
     return response
+
+
+def _json_error(message: str, status: int, code: str):
+    return jsonify({"error": message, "code": code}), status
+
+
+@bp.get("/<instrument_code>/definition")
+@login_required
+@limiter.limit("120 per minute")
+def instrument_definition(instrument_code: str):
+    """One project's composed form definition (JSON).
+
+    ``?project_id=`` is required and gated exactly as
+    ``/organization/<project>/form-options`` is (404 unknown or inactive
+    project, 403 no grant reaching it). 404 for an instrument without a
+    composed definition or one the project does not use. The body is the
+    composed definition minus the layers the project has not enabled, with
+    top-level ``version`` and ``engineVersion``; its SHA-256 is the ETag
+    (``"<sha256>"``) and the ``X-Definition-SHA256`` header, never part of the
+    body. ``If-None-Match`` with that ETag gets a bodiless 304. ``Cache-Control:
+    private, no-cache``: a client may keep the body but must revalidate.
+    """
+    from app.routes.api.organization import form_options_project, project_instrument_and_extensions
+
+    code = (instrument_code or "").strip().upper()
+    project_id = (request.args.get("project_id") or "").strip().upper()
+    if not project_id:
+        return _json_error("project_id is required.", 400, "invalid_request")
+    project, refusal = form_options_project(project_id)
+    if refusal is not None:
+        return refusal
+    served_code, extensions = project_instrument_and_extensions(project)
+    if code != served_form_service.INSTRUMENT_CODE or code != served_code:
+        return _json_error("Definition not found.", 404, "not_found")
+    try:
+        served = served_form_service.served_definition(extensions)
+    except served_form_service.ServedFormUnavailable:
+        log.exception("instrument_definition: composed definition unavailable")
+        return _json_error("The form definition is unavailable.", 503, "unavailable")
+    served_form_service.record_served_version()
+
+    # A strong ETag names one representation, so the gzipped body has its own
+    # (``<sha256>.gz``); either one revalidates. The SHA-256 the app verifies
+    # is always over the uncompressed JSON (X-Definition-SHA256).
+    gzipped = "gzip" in request.accept_encodings
+    etag = f"{served.sha256}.gz" if gzipped else served.sha256
+    if request.if_none_match.contains(served.sha256) or request.if_none_match.contains(f"{served.sha256}.gz"):
+        response = Response(status=304)
+    else:
+        response = Response(served.gzip_body if gzipped else served.body, mimetype="application/json")
+        if gzipped:
+            response.headers["Content-Encoding"] = "gzip"
+    response.vary.add("Accept-Encoding")
+    response.set_etag(etag)
+    response.headers["X-Definition-SHA256"] = served.sha256
+    response.cache_control.private = True
+    response.cache_control.no_cache = True
+    return response
+
+
+@bp.get("/<instrument_code>/versions")
+@login_required
+@limiter.limit("120 per minute")
+def instrument_versions(instrument_code: str):
+    """Every composed form version this server has served, newest first:
+    ``{"instrument_code", "current", "versions": [{"version", "activated_at"}]}``.
+    ``current`` is the version the running code serves now (always in
+    ``versions``: serving it records it)."""
+    code = (instrument_code or "").strip().upper()
+    if code != served_form_service.INSTRUMENT_CODE:
+        return _json_error("Instrument not found.", 404, "not_found")
+    try:
+        current = served_form_service.composed_version()
+    except served_form_service.ServedFormUnavailable:
+        log.exception("instrument_versions: composed definition unavailable")
+        return _json_error("The form definition is unavailable.", 503, "unavailable")
+    served_form_service.record_served_version()
+    return jsonify(
+        {"instrument_code": code, "current": current, "versions": served_form_service.list_versions()}
+    )

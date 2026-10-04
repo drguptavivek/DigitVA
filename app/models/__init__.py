@@ -27,6 +27,7 @@ from app.models.mas_instrument_locales import (
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
+from app.models.mas_instrument_versions import MasInstrumentVersions
 from app.models.mas_languages import MapLanguageAliases, MasLanguages
 from app.models.mas_mentor_institute import (
     MapMentorInstituteOrgUnit,
@@ -189,6 +190,7 @@ __all__ = [
     "MasLanguages",
     "MapLanguageAliases",
     "MasInstrumentLocales",
+    "MasInstrumentVersions",
     "MapInstrumentTranslations",
     "MasMentorInstitute",
     "MapMentorInstituteOrgUnit",

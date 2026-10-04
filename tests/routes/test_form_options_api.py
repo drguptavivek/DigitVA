@@ -246,7 +246,7 @@ class FormOptionsApiTests(BaseTestCase):
                 "project_id", "config_version", "enabled_extensions", "form_types",
                 "default_locale", "available_locales", "narration_languages",
                 "show_guidance", "intake_note", "translation_versions", "web_intake_mode",
-                "instrument_version",
+                "instrument_version", "definition_sha256",
             },
         )
         self.assertEqual(payload["project_id"], self.PROJECT)
@@ -256,6 +256,18 @@ class FormOptionsApiTests(BaseTestCase):
         self.assertNotIn("social_autopsy", payload["enabled_extensions"])
         self.assertNotIn("narration_language", payload["enabled_extensions"])
         self.assertFalse(payload["show_guidance"])
+
+    def test_instrument_version_is_the_composed_one_and_the_sha_fingerprints_the_slice(self):
+        from app.services import served_form_service as served
+
+        self._login(str(self.granted_user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(payload["instrument_version"], served.composed_version())
+        self.assertRegex(payload["instrument_version"], r"^\d+-[0-9a-f]{10}$")
+        self.assertEqual(
+            payload["definition_sha256"],
+            served.served_definition(payload["enabled_extensions"]).sha256,
+        )
 
     def test_form_types_come_from_the_mapping_with_one_default(self):
         self._login(str(self.granted_user.user_id))

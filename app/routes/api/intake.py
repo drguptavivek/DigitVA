@@ -32,6 +32,7 @@ from app.routes.api.request_helpers import (
     require_project,
 )
 from app.services import case_transition_service as case_svc
+from app.services import interview_send_back_service as send_back_svc
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 
@@ -759,3 +760,18 @@ def mark_duplicate(death_id):
     case_svc.flag_case(death, actor=current_user, kind="duplicate", reason=_reason(p), duplicate_of=kept)
     db.session.commit()
     return _supervisor_reply(death)
+
+
+@bp.post("/supervision/submissions/<va_sid>/reopen-for-revision")
+@role_required("interview_supervisor", "data_manager", "admin")
+def reopen_for_revision(va_sid):
+    """Reopen a finalised web or device interview for its interviewer to
+    revise (docs/policy/interview-revisions.md, rule 4). Body: ``reason_code``
+    (``cod_review_requested``, ``new_information``, ``data_correction``). 200
+    ``{va_sid, workflow_state, reason_code}``; the earlier COD stays until the
+    revision arrives. An admin, or a supervisor or data manager whose
+    supervision reach covers the interview's case (404 otherwise); 409
+    ``not_web_submission`` / ``wrong_state``; 422 ``invalid_reason``."""
+    reply = send_back_svc.reopen_for_revision(current_user, va_sid, reason_code=parse_body().get("reason_code"))
+    db.session.commit()
+    return jsonify(reply)

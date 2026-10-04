@@ -13,9 +13,12 @@ from app.models import (
     VaReviewerFinalAssessments,
     VaSubmissionNotification,
     VaSubmissionUpstreamChange,
+    VaSubmissionWorkflowEvent,
     VaStatuses,
 )
 from app.services.submission_payload_version_service import get_payload_version
+from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+from app.services.workflow.transitions import REVISION_REQUEST_REASONS
 
 
 UPSTREAM_CHANGE_STATUS_PENDING = "pending"
@@ -37,6 +40,32 @@ def get_latest_pending_upstream_change(va_sid: str) -> VaSubmissionUpstreamChang
         )
         .order_by(VaSubmissionUpstreamChange.created_at.desc())
     )
+
+
+def get_open_revision_request(va_sid: str) -> VaSubmissionWorkflowEvent | None:
+    """The send-back or reopen event that holds *va_sid* open for its
+    interviewer's revision, else None.
+
+    Open means: the latest workflow event moved the case into
+    ``finalized_upstream_changed`` with a revision-request reason
+    (``sent_back_for_revision`` / ``reopened_for_revision``). An ODK upstream
+    change, or any later move, closes it. One lookup on
+    ``ix_va_submission_workflow_events_sid_created``. The event's
+    ``previous_state`` is where a data manager's cancel returns the case.
+    """
+    event = db.session.scalar(
+        sa.select(VaSubmissionWorkflowEvent)
+        .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+        .order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
+        .limit(1)
+    )
+    if (
+        event is not None
+        and event.current_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        and event.transition_reason in REVISION_REQUEST_REASONS
+    ):
+        return event
+    return None
 
 
 def record_protected_upstream_change(

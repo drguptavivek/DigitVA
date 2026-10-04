@@ -295,6 +295,27 @@ def _release_reviewer_allocation(record: VaAllocations, *, cause: str, reason: s
     ))
 
 
+def release_reviewer_session_for_send_back(va_sid: str) -> None:
+    """Release the active reviewer allocation on *va_sid* because the reviewer
+    is sending the interview back for revision: the unfinished session
+    artifacts go and the state returns to reviewer_eligible, as a timed-out
+    session does. Does not commit; no-op when no reviewer holds it."""
+    record = db.session.scalar(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    )
+    if record is not None:
+        _release_reviewer_allocation(
+            record,
+            cause="send_back",
+            reason="reviewer_session_released_for_send_back",
+            audit_action="reviewer_session_released_for_send_back",
+        )
+
+
 def revoke_active_allocations(va_sid: str) -> int:
     """Revoke every active coding and reviewing allocation on *va_sid*.
 

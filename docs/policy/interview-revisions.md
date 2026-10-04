@@ -24,13 +24,31 @@ complete raw answers in a `final` section. The revision reasons are fixed codes:
 `interviewer_correction`, `respondent_correction`, `more_information`,
 `finish_partial`.
 
-**Not built (part B)**: rules 3 and 4 (coder or reviewer send-back, supervisor
-reopen after final COD), the DM accept block reused by the revision, and the
-phone's Revise screen. Until then every ODK-protected state is locked to the
-interviewer: `revision_unlocked(submission)` in
-`app/services/web_intake_service.py` returns False, and part B puts its
-send-back or reopen marker check there. A browser screen for revising is not
-built either.
+**Built (part B)**: rules 3 and 4. `POST /api/v1/coding/submissions/<va_sid>/send-back`
+(the coder who finalised it, a reviewer working on or eligible for it) and
+`POST /api/v1/intake/supervision/submissions/<va_sid>/reopen-for-revision`
+(interview supervisor, data manager, admin), both in
+`app/services/interview_send_back_service.py`. They move the submission to
+`finalized_upstream_changed` (transition reason `sent_back_for_revision` /
+`reopened_for_revision`), which `revision_unlocked(submission)` in
+`app/services/web_intake_service.py` reads. The reason codes are fixed, no free
+text: send-back `missing_information`, `inconsistent_answers`,
+`wrong_respondent_or_case`, `needs_clarification`; reopen `cod_review_requested`,
+`new_information`, `data_correction`. The code is recorded on the submission's
+audit row (`sent_back_for_revision:<code>`). The COD and coding artifacts stay
+active until the revision arrives. The interviewer's changed revision then
+restarts coding at once (no data-manager accept step) through the data
+manager's accept block, shared as `reopen_coding_after_revision`
+(`app/services/coding_release_service.py`), under a system actor with the
+reason `interviewer_revision`; any lingering pending upstream payload version
+is rejected. An unchanged revision leaves the case sent back. A data manager's
+reject of the upstream change cancels a send-back or reopen: the case returns
+to the state it came from. Only web and device interviews: an ODK submission is
+refused (409 `not_web_submission`), ODK has its own needs-revision path.
+
+**Not built**: the phone's Revise screen and "my submitted interviews" list,
+and a browser screen for revising. Every ODK-protected state stays locked to
+the interviewer unless the case was sent back or reopened.
 
 Decisions made while building part A:
 
@@ -76,11 +94,19 @@ Decisions made while building part A:
    the case back to `smartva_pending`, as an ODK edit does (owner,
    2026-10-04: match ODK exactly).
 3. **Once the coder finalises.** The case is locked for the interviewer. Only
-   a coder or reviewer can send it back for revision. Sending back reopens it
-   for the interviewer; coding restarts on the new version.
-4. **After final COD.** The case is locked. Only a supervisor or admin may
-   reopen it, with a reason. The interviewer then revises and the case is
-   recoded from scratch. The earlier COD is kept in history.
+   a coder or reviewer can send it back for revision (built). Sending back
+   reopens it for the interviewer; coding restarts on the new version, as soon
+   as it arrives. Who: the coder who authored the final COD (from
+   `coder_finalized`, `reviewer_eligible`), a reviewer in scope on a
+   `reviewer_eligible` submission, the reviewer holding the session
+   (`reviewer_coding_in_progress`, released first) or the reviewer who
+   finalised it (`reviewer_finalized`).
+4. **After final COD.** The case is locked. Only a supervisor, data manager
+   or admin may reopen it, with a reason (built). Open to them from every
+   state that holds a final COD (`coder_finalized`, `reviewer_eligible`,
+   `reviewer_finalized`); not during a live reviewer session. The interviewer
+   then revises and the case is recoded from scratch at once (no accept step,
+   owner 2026-10-04). The earlier COD is kept in history.
 
 ### Where the lock starts
 
@@ -96,13 +122,14 @@ Guards").
   unsaved and partial coding, and re-routes to `smartva_pending`).
 - **Locked for the interviewer**: every ODK-protected state
   (`coder_finalized`, `finalized_upstream_changed`, `reviewer_eligible`,
-  `reviewer_coding_in_progress`, `reviewer_finalized`, legacy `closed`).
+  `reviewer_coding_in_progress`, `reviewer_finalized`, legacy `closed`),
+  except a `finalized_upstream_changed` case that was sent back or reopened.
+  An ODK upstream change on a `finalized_upstream_changed` case stays locked.
 - Send-back mirrors ODK's needs-revision path (`mark_submission_needs_revision`
   in `app/services/odk_review_service.py`): a coder or reviewer sends the case
-  back with a comment, and the data then changes under the existing
-  upstream-change handling. In a non-final state the case re-enters at
-  `smartva_pending`. In a protected state it goes through the reopen rule (4)
-  and the earlier COD is kept.
+  back with a fixed reason code, and the data then changes under the existing
+  upstream-change handling (`finalized_upstream_changed`). The revision
+  re-enters the case at `smartva_pending`; the earlier COD is kept as history.
 
 ## What a revision is
 

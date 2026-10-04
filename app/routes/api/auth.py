@@ -131,6 +131,7 @@ def open_session():
         device_id=p.get("device_id"), device_secret=p.get("device_secret"),
         email=p.get("email"), password=p.get("password"), otp=p.get("otp"),
     )
+    devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()
     return jsonify(_session_body(issued, user)), 201
 
@@ -146,6 +147,7 @@ def refresh_session():
     issued, user = devices.refresh_session(
         p.get("refresh_token"), device_id=p.get("device_id"), device_secret=p.get("device_secret"),
     )
+    devices.record_app_version(issued.session, p.get("app_version"))
     # Pending terms refuse data calls (policy 5.4); the report is one.
     if "count" in p and user.pw_reset_t_and_c:
         devices.record_outstanding(

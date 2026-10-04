@@ -26,6 +26,15 @@ function instrumentCode(options: FormOptions): string {
   return code;
 }
 
+/** Keep the server's actionable stale-draft explanation visible to the interviewer. */
+function interviewErrorText(error: unknown): string {
+  if (error instanceof ClientApiError && error.code === "draft_stale") {
+    const message = error.payload?.error;
+    if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
+  }
+  return browserErrorText(error);
+}
+
 export default function InterviewScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ draftId?: string; deathId?: string; projectId?: string; siteId?: string; orgUnitId?: string }>();
@@ -108,7 +117,7 @@ export default function InterviewScreen() {
       },
       locale: nextLocale,
       translationVersion: nextDraft.envelope.translation_version ?? options.translation_versions?.[nextLocale] ?? 0,
-      onError: (error) => setMessage(browserErrorText(error))
+      onError: (error) => setMessage(interviewErrorText(error))
     });
     await nextStore.load(nextDraftId);
     setDraft(nextDraft);
@@ -124,7 +133,7 @@ export default function InterviewScreen() {
         setInstrument(undefined);
         setStore(undefined);
       }
-      setMessage(browserErrorText(error));
+      setMessage(interviewErrorText(error));
     });
   }, [initialise]);
 
@@ -204,12 +213,12 @@ export default function InterviewScreen() {
     try {
       await controller?.saveDraft();
       await store.flush();
-      const submission = await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: result.valid, issues: result.issues }, bootstrap.csrf);
+      const submission = await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: result.valid, issues: result.issues }, bootstrap.csrf, store.getServerUpdatedAt());
       router.replace(submission.superseded
         ? { pathname: "/collection", params: { superseded: "1" } }
         : "/collection");
     } catch (error) {
-      setMessage(browserErrorText(error));
+      setMessage(interviewErrorText(error));
     } finally {
       setBusy(false);
     }
@@ -221,7 +230,7 @@ export default function InterviewScreen() {
       await store?.flush();
       router.back();
     } catch (error) {
-      setMessage(browserErrorText(error));
+      setMessage(interviewErrorText(error));
     }
   }
 
@@ -231,7 +240,7 @@ export default function InterviewScreen() {
       await store?.flush();
       return true;
     } catch (error) {
-      setMessage(browserErrorText(error));
+      setMessage(interviewErrorText(error));
       return false;
     }
   }, [controller, store]);

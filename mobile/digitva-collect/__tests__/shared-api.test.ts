@@ -184,7 +184,7 @@ it("validates normal and superseded draft submission acknowledgements by status"
   const fetch = jest.spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(response({ va_sid: "sid-1", draft, superseded: false, validation_err: [] }, 201))
     .mockResolvedValueOnce(response({ va_sid: null, draft, superseded: true, validation_err: null }, 200));
-  await expect(submitDraft("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, csrf))
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, csrf, "revision-1"))
     .resolves.toEqual({ va_sid: "sid-1", draft, superseded: false, validation_err: [] });
   await expect(submitDraft("/api/v1/intake/drafts", "draft-2", { valid: true, issues: [] }, csrf))
     .resolves.toEqual({ va_sid: null, draft, superseded: true, validation_err: null });
@@ -193,6 +193,8 @@ it("validates normal and superseded draft submission acknowledgements by status"
     "/api/v1/intake/drafts/draft-2/submit"
   ]);
   expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual(["POST", "POST"]);
+  expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({ completion: { valid: true, issues: [] }, if_updated_at: "revision-1" });
+  expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual({ completion: { valid: true, issues: [] } });
 });
 
 it.each([

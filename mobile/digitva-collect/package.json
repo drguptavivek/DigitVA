@@ -13,7 +13,10 @@
     "test": "jest"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@drguptavivek/who-2022-va$": "<rootDir>/../../vendor/who-va-2022/dist/index.js"
+    }
   },
   "dependencies": {
     "@drguptavivek/who-2022-va": "file:../../vendor/who-va-2022",

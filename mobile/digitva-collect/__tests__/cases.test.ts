@@ -162,6 +162,27 @@ function mockServer(handler: (call: Call) => Response) {
 /** A server that accepts everything; `listed` is what /cases returns. */
 const accepting = (listed: CaseRow[] = []) => (call: Call) => {
   if (call.url.endsWith("/deaths")) return json(201, { case: caseRow(DEATH) });
+  if (call.url.endsWith("/drafts/sync")) {
+    const body = call.body ?? {};
+    const savedAt = typeof body.savedAt === "string" ? body.savedAt : "2026-09-30T00:00:00Z";
+    return json(200, {
+      draft: {
+        draft_id: body.client_draft_id,
+        project_id: body.project_id,
+        site_id: body.site_id,
+        org_unit_id: body.org_unit_id ?? null,
+        death_id: body.death_id,
+        unique_id: null,
+        status: "draft",
+        created_at: savedAt,
+        updated_at: savedAt
+      },
+      kept: "incoming",
+      conflict: false,
+      answers_sha256: body.answers_sha256,
+      message: null
+    });
+  }
   if (call.url.includes("/cases?")) return json(200, { cases: listed, next_cursor: null });
   if (call.url.endsWith("/attempts")) return json(201, { case: { death_id: DEATH } });
   if (call.url.endsWith("/visit")) return json(200, { case: { death_id: DEATH } });
@@ -361,6 +382,15 @@ describe("sync queue", () => {
     await createDraftStore(db, host).save(envelope(DRAFT));
     mockServer(accepting([caseRow(DEATH)]));
     await syncInterviewer(USER, db);
+    expect(calls.findIndex((c) => path(c).endsWith("/drafts/sync"))).toBeLessThan(
+      calls.findIndex((c) => path(c).endsWith("/outstanding"))
+    );
+    expect(calls.find((c) => path(c).endsWith("/drafts/sync"))?.body).toMatchObject({
+      project_id: PROJECT,
+      site_id: "S1",
+      death_id: DEATH,
+      client_draft_id: DRAFT
+    });
     expect(calls.find((c) => path(c).endsWith("/outstanding"))!.body).toMatchObject({
       count: 1,
       unique_ids: ["U-dddd"],

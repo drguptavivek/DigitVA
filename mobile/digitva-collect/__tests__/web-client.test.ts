@@ -217,7 +217,7 @@ describe("server draft store", () => {
         return response({
           status: 200,
           body: {
-            draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
             envelope: { ...draft, data: {} },
             prefill: {},
           },
@@ -228,7 +228,7 @@ describe("server draft store", () => {
           status: 503,
           body: { code: "temporarily_unavailable" },
         });
-      return response({ status: 200, body: {} });
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
     });
     const store = new ServerDraftStore({
       endpoint: "/api/v1/intake/drafts",
@@ -252,6 +252,85 @@ describe("server draft store", () => {
     });
   });
 
+  it("serializes queued saves using each acknowledged server revision", async () => {
+    const requests: Array<{ method: string; body?: Record<string, unknown> }> = [];
+    let releaseFirst!: (reply: Response) => void;
+    const firstPatch = new Promise<Response>((resolve) => { releaseFirst = resolve; });
+    let markPatchStarted!: () => void;
+    const patchStarted = new Promise<void>((resolve) => { markPatchStarted = resolve; });
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const method = init?.method ?? "GET";
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
+      requests.push({ method, body });
+      if (method === "GET") return response({ status: 200, body: {
+        draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "revision-0" },
+        envelope: { ...draft, data: {} }, prefill: {}
+      } });
+      if (requests.filter((request) => request.method === "PATCH").length === 1) {
+        markPatchStarted();
+        return firstPatch;
+      }
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "revision-2" } } });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    await store.load("d1");
+    const first = store.save(draft);
+    const firstFlush = store.flush();
+    await patchStarted;
+    const second = store.save({ ...draft, data: { Id10007: "newer" } });
+    const secondFlush = store.flush();
+    expect(requests.filter((request) => request.method === "PATCH")).toHaveLength(1);
+    releaseFirst(response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "revision-1" } } }));
+    await Promise.all([first, firstFlush, second, secondFlush]);
+    const patches = requests.filter((request) => request.method === "PATCH");
+    expect(patches.map((request) => request.body?.if_updated_at)).toEqual(["revision-0", "revision-1"]);
+    expect(store.getServerUpdatedAt()).toBe("revision-2");
+  });
+
+  it("refuses a stale save and retains it for an explicit retry", async () => {
+    const patches: Record<string, unknown>[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return response({ status: 409, body: { error: "This interview was also edited on another device.", code: "draft_stale" } });
+      }
+      return response({ status: 200, body: {
+        draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "revision-0" },
+        envelope: { ...draft, data: {} }, prefill: {}
+      } });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    await store.load("d1");
+    const pending = store.save(draft);
+    await expect(store.flush()).rejects.toMatchObject({ status: 409, code: "draft_stale" });
+    await expect(pending).rejects.toMatchObject({ status: 409, code: "draft_stale" });
+    await expect(store.flush()).rejects.toMatchObject({ status: 409, code: "draft_stale" });
+    expect(patches).toHaveLength(2);
+    expect(patches.map((body) => body.if_updated_at)).toEqual(["revision-0", "revision-0"]);
+    expect(store.getServerUpdatedAt()).toBe("revision-0");
+  });
+
+  it("does not advance the server revision from an acknowledgement for another draft", async () => {
+    const patches: Record<string, unknown>[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "other", updated_at: "revision-1" } } });
+      }
+      return response({ status: 200, body: {
+        draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "revision-0" },
+        envelope: { ...draft, data: {} }, prefill: {}
+      } });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    await store.load("d1");
+    const pending = store.save(draft);
+    await expect(store.flush()).rejects.toMatchObject({ status: 200, code: "malformed_response" });
+    await expect(pending).rejects.toMatchObject({ status: 200, code: "malformed_response" });
+    expect(store.getServerUpdatedAt()).toBe("revision-0");
+    expect(patches[0].if_updated_at).toBe("revision-0");
+  });
+
   it("writes a locale change even when no answer section changed", async () => {
     const requests: Array<{ url: string; body?: Record<string, unknown> }> = [];
     jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -265,7 +344,7 @@ describe("server draft store", () => {
         return response({
           status: 200,
           body: {
-            draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
             envelope: {
               ...draft,
               data: {},
@@ -280,7 +359,7 @@ describe("server draft store", () => {
         return response({
           status: 200,
           body: {
-            draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:03:00Z" },
             envelope: {
               ...draft,
               data: {},
@@ -291,7 +370,7 @@ describe("server draft store", () => {
           },
         });
       }
-      return response({ status: 200, body: {} });
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
     });
     const store = new ServerDraftStore({
       endpoint: "/api/v1/intake/drafts",
@@ -331,7 +410,7 @@ describe("server draft store", () => {
         return response({
           status: 200,
           body: {
-            draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
             envelope: {
               ...draft,
               data: {},
@@ -347,7 +426,7 @@ describe("server draft store", () => {
           status: 503,
           body: { code: "temporarily_unavailable" },
         });
-      return response({ status: 200, body: {} });
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
     });
     const store = new ServerDraftStore({
       endpoint: "/api/v1/intake/drafts",
@@ -389,13 +468,13 @@ describe("server draft store", () => {
         return response({
           status: 200,
           body: {
-            draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
             envelope: { ...draft, data: { Id10010: "Saved interviewer" } },
             prefill: {},
           },
         });
       }
-      return response({ status: 200, body: {} });
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
     });
     const store = new ServerDraftStore({
       endpoint: "/api/v1/intake/drafts",
@@ -427,12 +506,12 @@ describe("server draft store", () => {
         patches.push(body.sections);
         if (Object.hasOwn(body.sections, "s1"))
           savedData = { ...body.sections.s1 };
-        return response({ status: 200, body: {} });
+        return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
       }
       return response({
         status: 200,
         body: {
-          draft: { draft_id: "d1", project_id: "p1", site_id: "s1" },
+          draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
           envelope: { ...draft, data: savedData },
           prefill: {},
         },

@@ -21,6 +21,7 @@ import {
   purgeProjectData,
   setMeta,
   setDraftUploadIssue,
+  unfinishedDraftsForSync,
   type Db
 } from "../src/drafts";
 
@@ -86,6 +87,22 @@ describe("draft store", () => {
     }
   });
 
+  it("retains imported language metadata and lets the active form update it", async () => {
+    await db.runAsync(`INSERT INTO drafts (id, project_id, site_id, updated_at, envelope) VALUES (?, ?, ?, ?, ?)`, [
+      "localized", "PROJECT1", "SITE1", "2026-09-30T01:00:00Z",
+      JSON.stringify({ ...draft("localized", "2026-09-30T01:00:00Z"), locale: "hi", translation_version: 3 })
+    ]);
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("localized", "2026-09-30T02:00:00Z"));
+    expect(await store.load!("localized")).toMatchObject({ locale: "hi", translation_version: 3 });
+
+    const activeLocale = createDraftStore(db, {
+      projectId: "PROJECT1", siteId: "SITE1", locale: "en", translationVersion: 4
+    });
+    await activeLocale.save(draft("localized", "2026-09-30T03:00:00Z"));
+    expect(await activeLocale.load!("localized")).toMatchObject({ locale: "en", translation_version: 4 });
+  });
+
   it("updates completion time on each explicit completion", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
     try {
@@ -127,6 +144,30 @@ describe("draft store", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ id: "a", site_id: "SITE1", org_unit_id: "unit-1", completed: 0 });
     expect((await store.load!("a"))?.data).toEqual({ Id10007: "y" });
+  });
+
+  it("keeps new and autosaved unfinished case drafts dirty for sync", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", binding: { projectId: "PROJECT1", deathId: "case-1" } });
+    await store.save(draft("case-draft", "2026-09-30T01:00:00Z", { Id10007: "first" }));
+    expect(await unfinishedDraftsForSync(db, "PROJECT1")).toMatchObject([
+      { id: "case-draft", death_id: "case-1", draft_sync_dirty: 1, draft_sync_blocked: 0 }
+    ]);
+
+    await store.save(draft("case-draft", "2026-09-30T02:00:00Z", { Id10007: "second" }));
+    expect(await unfinishedDraftsForSync(db, "PROJECT1")).toMatchObject([
+      { id: "case-draft", updated_at: "2026-09-30T02:00:00Z", draft_sync_dirty: 1,
+        draft: { data: { Id10007: "second" } } }
+    ]);
+  });
+
+  it("pages eligible drafts with a bounded stable id cursor", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", binding: { projectId: "PROJECT1", deathId: "case" } });
+    for (const id of ["draft-a", "draft-b", "draft-c"]) await store.save(draft(id, "2026-09-30T01:00:00Z"));
+
+    const first = await unfinishedDraftsForSync(db, "PROJECT1", undefined, 2);
+    expect(first.map((row) => row.id)).toEqual(["draft-a", "draft-b"]);
+    expect(await unfinishedDraftsForSync(db, "PROJECT1", first[1].id, 2)).toMatchObject([{ id: "draft-c" }]);
+    expect(await unfinishedDraftsForSync(db, "PROJECT1", undefined, 999)).toHaveLength(3);
   });
 
   it("returns undefined for an unknown draft and removes one", async () => {
@@ -211,6 +252,13 @@ describe("draft store", () => {
     await migrate(old);
     const ready = await completedDrafts(old);
     expect(ready.map((d) => [d.id, d.completion])).toEqual([["done", { valid: true, issues: [] }]]);
+    expect(await getDraftRow(old, "open")).toMatchObject({
+      server_draft_id: null,
+      base_updated_at: null,
+      draft_sync_dirty: 1,
+      draft_sync_blocked: 0
+    });
+    expect(await unfinishedDraftsForSync(old)).toEqual([]);
   });
 
   it("keeps meta values such as the cached bootstrap", async () => {

@@ -2,15 +2,17 @@ import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
 
 const mockAccount = { user_id: "u1", name: "Interviewer" };
-const mockDb = {};
+const mockDb = { getFirstAsync: jest.fn(async () => null) };
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 const mockReload = jest.fn();
+const mockChooseUiLocale = jest.fn(async () => undefined);
 let mockParams: {
   userId: string;
   projectId?: string;
   siteId?: string;
   draftId?: string;
   clientDeathId?: string;
+  deathId?: string;
   refresh?: string;
 } = { userId: "u1" };
 let mockReference: unknown;
@@ -69,7 +71,7 @@ jest.mock("../src/AppState", () => ({
     lockNow: jest.fn(),
     activity: jest.fn(),
     onBeforeLock: jest.fn(() => jest.fn()),
-    chooseUiLocale: jest.fn(async () => undefined),
+    chooseUiLocale: mockChooseUiLocale,
   }),
 }));
 jest.mock("../src/interviewerDb", () => ({
@@ -95,6 +97,15 @@ jest.mock("../src/cases", () => {
   const actual = jest.requireActual("../src/cases") as Record<string, unknown>;
   return {
     ...actual,
+    getCase: jest.fn(async () => ({
+      death_id: "d1",
+      project_id: "P1",
+      unique_id: "VA-1",
+      site_id: "S1",
+      org_unit_id: null,
+      state: "in_progress",
+      prefill: {},
+    })),
     listCases: jest.fn(async () => mockCachedCases),
     listActions: jest.fn(async () => []),
     listRegistrations: jest.fn(async () => []),
@@ -109,6 +120,15 @@ jest.mock("../src/cases", () => {
   };
 });
 jest.mock("../src/sync", () => ({
+  fetchCaseDetail: jest.fn(async () => ({
+    death_id: "d1",
+    project_id: "P1",
+    unique_id: "VA-1",
+    state: "in_progress",
+    site_id: "S1",
+    org_unit_id: null,
+    prefill: {},
+  })),
   getCachedReferenceData: jest.fn(async () => mockCachedReference),
   refreshReferenceData: jest.fn(async () => mockReference),
   refreshCases: jest.fn(async () => undefined),
@@ -177,6 +197,9 @@ jest.mock("../src/sync", () => ({
 jest.mock("../src/i18n", () => ({
   ...jest.requireActual("../src/i18n"),
   t: (key: string, values?: Record<string, string | number>) => {
+    if (key === "draftConflictNotice") {
+      return "This interview was also edited on another device; the newer version was kept.";
+    }
     if (key === "draftHashMismatch") {
       return "This interview was already uploaded; your later edits were not applied.";
     }
@@ -195,6 +218,14 @@ jest.mock("../src/i18n", () => ({
     return key;
   },
   uiLocale: () => "en",
+}));
+jest.mock("../src/draftSync", () => ({
+  reconcileCaseDraft: jest.fn(async (_user: string, _db: unknown, _detail: unknown, local: unknown) => ({
+    draft: local,
+    conflict: false,
+    message: null,
+    imported: false,
+  })),
 }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -246,7 +277,12 @@ jest.mock(
 jest.mock(
   "@drguptavivek/who-2022-va",
   () => ({
-    createWhoVa2022Instrument: jest.fn(() => ({ sections: [], questions: [] })),
+    createWhoVa2022Instrument: jest.fn(() => ({
+      id: "WHO_2022_VA",
+      version: "v1",
+      sections: [{ name: "start" }],
+      questions: [],
+    })),
     resolveUiMessages: () => ({}),
     WHO_VA_BUILT_IN_UI_TRANSLATIONS: {},
   }),
@@ -254,6 +290,7 @@ jest.mock(
 );
 
 import Register from "../src/nativeRoutes/register";
+import Form from "../src/nativeRoutes/form";
 import Worklist from "../src/nativeRoutes/worklist";
 import {
   fetchCasePage,
@@ -287,6 +324,73 @@ beforeEach(() => {
 });
 
 describe("native project-aware routes", () => {
+  it("opens an imported server draft with its locale and current project config", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const row = {
+      id,
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      death_id: "d1",
+      unique_id: "VA-1",
+      client_death_id: null,
+      server_draft_id: "22222222-2222-4222-8222-222222222222",
+      base_updated_at: "2026-10-03T00:00:00Z",
+      draft_sync_dirty: 0,
+      draft_sync_blocked: 0,
+    };
+    mockParams = { userId: "u1", projectId: "P1", draftId: id, deathId: "d1" };
+    (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValueOnce(row);
+    (jest.requireMock("../src/draftSync").reconcileCaseDraft as jest.Mock).mockResolvedValueOnce({
+      draft: row,
+      conflict: false,
+      message: null,
+      imported: true,
+    });
+    mockDb.getFirstAsync.mockImplementationOnce(async () => ({
+      envelope: JSON.stringify({ locale: "hi", translation_version: 17 }),
+    }) as never);
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Form />);
+    });
+    await settle();
+    await settle();
+
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("referenceDataUnavailable");
+    expect(jest.requireMock("../src/drafts").setMeta).toHaveBeenCalledWith(
+      mockDb,
+      `draft-config:${id}`,
+      expect.objectContaining({ projectId: "P1", locale: "hi", translationVersion: 17 }),
+    );
+    expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(
+      mockDb,
+      expect.objectContaining({ locale: "hi", translationVersion: 17 }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("refuses an incompatible server draft without creating a blank questionnaire", async () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    mockParams = { userId: "u1", projectId: "P1", draftId: id, deathId: "d1" };
+    (jest.requireMock("../src/draftSync").reconcileCaseDraft as jest.Mock).mockRejectedValueOnce(
+      new Error("server_draft_instrument_mismatch"),
+    );
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Form />);
+    });
+    await settle();
+
+    expect(JSON.stringify(tree!.toJSON())).toContain("error");
+    expect(jest.requireMock("../src/drafts").createDraftStore).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
   it("shows the cached other-draft warning without blocking case details", async () => {
     const startedAt = "2026-01-02T03:04:05.000Z";
     mockCachedCases = [
@@ -570,6 +674,36 @@ describe("native project-aware routes", () => {
       "A teammate’s interview of this case was submitted first; yours is kept.",
     );
     expect(rendered).toContain("Stored interview: VA-FIRST");
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps the fixed draft-conflict notice when a later sync request fails", async () => {
+    (syncInterviewer as jest.Mock).mockImplementationOnce(
+      async (
+        _userId: string,
+        _db: unknown,
+        _onSuperseded?: (uniqueId: string) => void,
+        onDraftConflict?: (draftId: string) => void,
+      ) => {
+        onDraftConflict?.("local-draft-id");
+        throw new TypeError("Network request failed");
+      },
+    );
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    await act(async () =>
+      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+    );
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      "This interview was also edited on another device; the newer version was kept.",
+    );
+    expect(rendered).not.toContain("local-draft-id");
+    expect(rendered).not.toContain("Network request failed");
     await act(async () => tree!.unmount());
   });
 

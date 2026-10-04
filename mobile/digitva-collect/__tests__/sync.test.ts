@@ -14,6 +14,15 @@ jest.mock("expo-secure-store", () => ({
   setItemAsync: jest.fn(async (key: string, value: string) => void mockSecure.set(key, value)),
   deleteItemAsync: jest.fn(async (key: string) => void mockSecure.delete(key))
 }));
+jest.mock("@drguptavivek/who-2022-va", () => ({
+  createWhoVa2022Instrument: () => ({
+    id: "WHO_2022_VA",
+    version: "v1",
+    sections: [{ name: "start" }],
+    questions: [],
+  }),
+  decodeWhoVaDraft: (value: unknown) => value,
+}), { virtual: true });
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
@@ -412,6 +421,138 @@ describe("translations", () => {
     await expect(translationsFor(USER, db, PROJECT, "WHO_2022_VA", "hi", 7)).resolves.toBeNull();
     server(() => json(500, { code: "translation_failed" }));
     await expect(translationsFor(USER, db, PROJECT, "WHO_2022_VA", "hi", 8)).rejects.toThrow("HTTP 500 translation_failed");
+  });
+});
+
+describe("registered phone draft sync", () => {
+  const serverDraftId = "eeeeeeee-0000-4000-8000-000000000001";
+  const serverUpdatedAt = "2026-10-01T01:00:00Z";
+
+  function draftSyncSuccess(call: Call): Response {
+    return json(200, {
+      draft: {
+        draft_id: serverDraftId,
+        project_id: PROJECT,
+        site_id: SITE,
+        org_unit_id: null,
+        death_id: DEATH,
+        unique_id: "U-1",
+        status: "draft",
+        created_at: "2026-09-30T00:00:00Z",
+        updated_at: serverUpdatedAt,
+      },
+      kept: "incoming",
+      conflict: false,
+      answers_sha256: call.body?.answers_sha256,
+      message: null,
+    });
+  }
+
+  it("syncs an offline registration and its unfinished draft before completed uploads", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await saveRegistration(db, {
+      project_id: PROJECT,
+      client_death_id: REG,
+      site_id: SITE,
+      fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" },
+    });
+    const waiting = createDraftStore(db, {
+      projectId: PROJECT,
+      siteId: SITE,
+      binding: { projectId: PROJECT, clientDeathId: REG },
+    });
+    await waiting.save(draft(DRAFT, { Id10013: "unfinished" } as SubmissionData));
+    const completeId = "aaaaaaaa-0000-4000-8000-000000000014";
+    const completed = createDraftStore(db, {
+      projectId: PROJECT,
+      siteId: SITE,
+      binding: { projectId: PROJECT, deathId: DEATH },
+    });
+    await completed.save(draft(completeId, { Id10013: "complete" } as SubmissionData));
+    await markCompleted(db, completeId, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/deaths")) return json(201, { case: detail() });
+      if (call.url.endsWith("/drafts/sync")) return draftSyncSuccess(call);
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 3, failed: 0, remaining: 1 });
+    const registrations = calls.findIndex(({ url }) => url.endsWith("/deaths"));
+    const unfinished = calls.findIndex(({ url }) => url.endsWith("/drafts/sync"));
+    const submissions = calls.findIndex(({ url }) => url.endsWith("/submissions"));
+    expect(registrations).toBeGreaterThanOrEqual(0);
+    expect(unfinished).toBeGreaterThan(registrations);
+    expect(submissions).toBeGreaterThan(unfinished);
+    expect(calls[unfinished].body).toMatchObject({
+      project_id: PROJECT,
+      death_id: DEATH,
+      client_draft_id: DRAFT,
+    });
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ server_draft_id: serverDraftId, draft_sync_dirty: 0 });
+  });
+
+  it("leaves an offline registration's draft waiting when registration is refused", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await saveRegistration(db, {
+      project_id: PROJECT,
+      client_death_id: REG,
+      site_id: SITE,
+      fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" },
+    });
+    const store = createDraftStore(db, {
+      projectId: PROJECT,
+      siteId: SITE,
+      binding: { projectId: PROJECT, clientDeathId: REG },
+    });
+    await store.save(draft(DRAFT));
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/deaths")) return json(422, { code: "invalid_registration" });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(calls.some(({ url }) => url.endsWith("/drafts/sync"))).toBe(false);
+    expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(false);
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it("blocks a closed unfinished draft but still submits its later completed copy", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "aaaaaaaa-0000-4000-8000-000000000015";
+    const store = createDraftStore(db, {
+      projectId: PROJECT,
+      siteId: SITE,
+      binding: { projectId: PROJECT, deathId: DEATH },
+    });
+    await store.save(draft(id));
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/drafts/sync")) return json(409, { code: "conflict" });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(await getDraftRow(db, id)).toMatchObject({ draft_sync_blocked: 1 });
+    await markCompleted(db, id, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { superseded: true });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+    expect(calls.some(({ url }) => url.endsWith("/drafts/sync"))).toBe(false);
+    expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(true);
+    expect(await getDraftRow(db, id)).toBeNull();
   });
 });
 

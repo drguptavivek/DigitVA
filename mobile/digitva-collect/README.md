@@ -154,7 +154,13 @@ birthday. The backend must enforce the same upper age limit.
   over it (`src/drafts.ts`). Attachments are disabled. New-interview choices
   come from role-filtered `/api/v1/me/access` units and form languages from
   `/api/v1/instruments/<code>/translations/<locale>`, both cached in
-  the interviewer's database (`src/sync.ts`).
+  the interviewer's database (`src/sync.ts`). A registered case has one draft
+  per interviewer across phone and browser: sync uploads unfinished phone
+  drafts after registrations and case actions, before completed interviews.
+  When both devices edited the same draft, the newer save wins and the other
+  copy stays in server history. Opening the case reconciles its latest server
+  draft into the existing phone UUID; a closed-case refusal keeps the phone
+  copy for a later superseded submission.
 - **Finish**: the form's own completion (valid) marks a draft ready with
   `completion: {valid: true}`; **Finish as incomplete** is allowed only when
   the interview outcome is partially completed or respondent unavailable.
@@ -184,8 +190,9 @@ birthday. The backend must enforce the same upper age limit.
 - **Offline cases** (phase 3, `src/cases.ts`, `app/case.tsx`,
   `app/register.tsx`): **Send and refresh** runs, in order, offline
   registrations (`POST /deaths`, `project_id`, `client_death_id`), queued contact attempts
-  and visit dates (`client_attempt_id`), interviews (with the case's
-  `death_id`), the outstanding report (draft ids, case ids, pending
+  and visit dates (`client_attempt_id`), unfinished registered-case drafts
+  (`POST /drafts/sync`), completed interviews (with the case's `death_id`),
+  the outstanding report (draft ids, case ids, pending
   registration ids), then downloads every page of `GET /cases?project_id=&state=`
   for registered, scheduled, in-progress, paused, not-reachable and refused cases.
   Each case's detail supplies full contacts for encrypted storage; prefill is

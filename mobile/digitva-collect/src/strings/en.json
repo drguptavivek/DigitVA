@@ -84,6 +84,7 @@
   "draftInProgress": "In progress",
   "draftReady": "Ready to send",
   "draftHashMismatch": "This interview was already uploaded; your later edits were not applied.",
+  "draftConflictNotice": "This interview was also edited on another device; the newer version was kept.",
   "draftHashInvalidAttention": "This interview could not be verified. Open it, review the answers, and try sending it again.",
   "storedInterviewId": "Stored interview: {uniqueId}",
   "supersededInterviewNotice": "A teammate’s interview of this case was submitted first; yours is kept.",

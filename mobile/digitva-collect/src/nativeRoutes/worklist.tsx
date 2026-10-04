@@ -91,6 +91,7 @@ export default function Worklist() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [supersededUniqueIds, setSupersededUniqueIds] = useState<string[]>([]);
+  const [draftConflict, setDraftConflict] = useState(false);
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
@@ -130,6 +131,7 @@ export default function Worklist() {
     setSelectedProjectId(undefined);
     setPicking(false);
     setSupersededUniqueIds([]);
+    setDraftConflict(false);
   }, []);
 
   useEffect(() => {
@@ -467,6 +469,8 @@ export default function Worklist() {
             current.includes(uniqueId) ? current : [...current, uniqueId],
           );
         }
+      }, () => {
+        if (isCurrentSync()) setDraftConflict(true);
       });
       if (isCurrentSync()) {
         setMessage(
@@ -477,6 +481,7 @@ export default function Worklist() {
           }),
         );
         setSupersededUniqueIds(result.supersededUniqueIds);
+        if (result.draftConflictIds?.length) setDraftConflict(true);
       }
       const fresh = await refreshReferenceData(account.user_id, db, {
         force: true,
@@ -835,6 +840,9 @@ export default function Worklist() {
         />
       </Row>
       {message ? <Text style={styles.text}>{message}</Text> : null}
+      {draftConflict ? (
+        <Text style={styles.text}>{t("draftConflictNotice")}</Text>
+      ) : null}
       {supersededUniqueIds.map((uniqueId, index) => (
         <View key={`${uniqueId}-${index}`} style={styles.card}>
           <Text style={styles.text}>{t("supersededInterviewNotice")}</Text>

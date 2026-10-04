@@ -20,6 +20,7 @@ import {
   CONTACT_OUTCOMES,
   deleteAction,
   discardRegistration,
+  getCase,
   getRegistration,
   listActions,
   queueAction,
@@ -37,7 +38,8 @@ import {
   canStartDeathInterview,
   deathPhoneUrl,
 } from "../deathWorkflow";
-import { fetchCaseDetail } from "../sync";
+import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
+import { reconcileCaseDraft } from "../draftSync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
 
 function displayDate(value: string | null | undefined): string | undefined {
@@ -106,20 +108,46 @@ export default function Case() {
 
   const load = useCallback(
     async (handle: Db, isCurrent: () => boolean = () => true) => {
-      const [row, reg, local, queued] = await Promise.all([
+      const [row, reg, local, queued, referenceData] = await Promise.all([
         deathId
-          ? fetchCaseDetail(accountId ?? "", handle, deathId)
+          ? fetchCaseDetail(accountId ?? "", handle, deathId).catch((error) => {
+              if (error instanceof TypeError) return getCase(handle, deathId);
+              throw error;
+            })
           : Promise.resolve(undefined),
         clientDeathId
           ? getRegistration(handle, clientDeathId)
           : Promise.resolve(undefined),
         draftForCase(handle, { deathId, clientDeathId }),
         listActions(handle),
+        deathId ? getCachedReferenceData(handle) : Promise.resolve(undefined),
       ]);
+      let currentDraft = local;
+      let conflict = false;
+      if (row && deathId) {
+        try {
+          const project = referenceData?.projects.find(
+            ({ project: candidate }) => candidate.project_id === row.project_id,
+          )?.project;
+          const reconciled = await reconcileCaseDraft(
+            accountId ?? "",
+            handle,
+            row,
+            local,
+            local?.id ?? randomUUID(),
+            project ? draftSyncDefaults(project) : undefined,
+          );
+          currentDraft = reconciled.draft;
+          conflict = reconciled.conflict;
+        } catch (error) {
+          // Existing encrypted work remains resumable when the network alone is unavailable.
+          if (!(error instanceof TypeError) || !local) throw error;
+        }
+      }
       if (!isCurrent()) return;
       setFound(row);
       setRegistration(reg);
-      setDraft(local);
+      setDraft(currentDraft);
       setActions(
         queued.filter(
           (a) =>
@@ -127,6 +155,7 @@ export default function Case() {
             (clientDeathId && a.client_death_id === clientDeathId),
         ),
       );
+      if (conflict) setMessage(t("draftConflictNotice"));
       setLoaded(true);
     },
     [accountId, deathId, clientDeathId],

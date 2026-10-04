@@ -623,6 +623,7 @@ export function submitDraft(
   draftId: string,
   completion: { valid: boolean; issues: unknown[] },
   csrf: ClientCsrf,
+  ifUpdatedAt?: string,
 ): Promise<
   | { va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[] }
   | { va_sid: null; draft: DraftSummary; superseded: true; validation_err: null }
@@ -631,7 +632,7 @@ export function submitDraft(
   if (!path) throw new ApiError(400, "invalid_request");
   return requestJson<unknown>("", path, {
     method: "POST",
-    json: { completion },
+    json: { completion, ...(ifUpdatedAt ? { if_updated_at: ifUpdatedAt } : {}) },
     csrf,
   }).then(({ status, body }) => {
     const record = (value: unknown): value is Record<string, unknown> =>

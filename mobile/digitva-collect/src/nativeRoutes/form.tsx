@@ -45,12 +45,14 @@ import {
 } from "../drafts";
 import { SessionRevokedError, SignInRequiredError } from "../auth";
 import { canStartDeathInterview } from "../deathWorkflow";
-import { questionnaireDefault, questionnaireLocales, t } from "../i18n";
+import { questionnaireDefault, questionnaireLocales, t, UI_LOCALES } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
 import { initialDataFromPrefill } from "../prefill";
 import {
   getCachedReferenceData,
+  draftSyncDefaults,
+  fetchCaseDetail,
   isUploadable,
   startsDirectly,
   targetsFrom,
@@ -58,6 +60,7 @@ import {
   type ProjectSettings,
   type ReferenceData,
 } from "../sync";
+import { reconcileCaseDraft } from "../draftSync";
 import { applyTranslations } from "../translations";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
@@ -109,6 +112,31 @@ function isDraftConfig(value: unknown): value is DraftConfig {
     (config.translationVersion === undefined ||
       typeof config.translationVersion === "number")
   );
+}
+
+function withEnvelopeLocale(config: DraftConfig, value: unknown): DraftConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("invalid_draft_envelope");
+  }
+  const envelope = value as Record<string, unknown>;
+  const next = { ...config };
+  if (Object.prototype.hasOwnProperty.call(envelope, "locale")) {
+    if (typeof envelope.locale !== "string" || !UI_LOCALES.some(({ code }) => code === envelope.locale)) {
+      throw new Error("invalid_draft_locale");
+    }
+    next.locale = envelope.locale;
+  }
+  if (Object.prototype.hasOwnProperty.call(envelope, "translation_version")) {
+    if (
+      typeof envelope.translation_version !== "number" ||
+      !Number.isInteger(envelope.translation_version) ||
+      envelope.translation_version < 0
+    ) {
+      throw new Error("invalid_draft_translation_version");
+    }
+    next.translationVersion = envelope.translation_version;
+  }
+  return next;
 }
 
 function mergeProjectPrefill(
@@ -221,7 +249,7 @@ export default function Form() {
       try {
         const [
           referenceData,
-          existingDraft,
+          localDraft,
           savedConfig,
           foundCase,
           registration,
@@ -236,6 +264,10 @@ export default function Form() {
             ? getRegistration(db, params.clientDeathId)
             : Promise.resolve(undefined),
         ]);
+        let existingDraft = localDraft;
+        let caseDetail = foundCase;
+        let draftConflict = false;
+        let importedDraft = false;
         const hostProjectId =
           params.projectId ??
           existingDraft?.project_id ??
@@ -246,6 +278,40 @@ export default function Form() {
           setMessage(t("referenceDataUnavailable"));
           return;
         }
+        if (params.deathId) {
+          try {
+            caseDetail = await fetchCaseDetail(account.user_id, db, params.deathId, {
+              expectedProjectId: hostProjectId,
+            });
+            if (!active || generation !== loadGeneration.current) return;
+            const project = referenceData?.projects.find(
+              ({ project: candidate }) => candidate.project_id === hostProjectId,
+            )?.project;
+            const reconciled = await reconcileCaseDraft(
+              account.user_id,
+              db,
+              caseDetail,
+              existingDraft,
+              draftId,
+              project ? draftSyncDefaults(project) : undefined,
+            );
+            existingDraft = reconciled.draft;
+            draftConflict = reconciled.conflict;
+            importedDraft = reconciled.imported;
+            if (existingDraft && existingDraft.id !== draftId) {
+              router.replace({
+                pathname: "/form",
+                params: { ...params, draftId: existingDraft.id },
+              });
+              return;
+            }
+          } catch (error) {
+            // A saved interview can still be opened when only the network is unavailable.
+            if (!(error instanceof TypeError) || !existingDraft) throw error;
+            caseDetail = foundCase;
+          }
+          if (!active || generation !== loadGeneration.current) return;
+        }
         let host = await resolveDraftHost(db, draftId, {
           ...params,
           projectId: hostProjectId,
@@ -254,7 +320,7 @@ export default function Form() {
         if (
           !existingDraft &&
           params.deathId &&
-          (!foundCase || !foundCase.prefill || !canStartDeathInterview(foundCase.state))
+          (!caseDetail || !caseDetail.prefill || !canStartDeathInterview(caseDetail.state))
         ) {
           router.back();
           return;
@@ -299,9 +365,12 @@ export default function Form() {
           existingDraft &&
           isDraftConfig(savedConfig) &&
           savedConfig.projectId === hostProjectId;
+        const hasServerBase = Boolean(
+          existingDraft?.server_draft_id && existingDraft.base_updated_at,
+        );
         if (
           (!referenceData && !hasSavedConfig) ||
-          (existingDraft && !hasSavedConfig)
+          (existingDraft && !hasSavedConfig && !importedDraft && !hasServerBase)
         ) {
           setBlockedReferenceData(true);
           setMessage(t("referenceDataUnavailable"));
@@ -333,16 +402,36 @@ export default function Form() {
           setMessage(t("referenceDataUnavailable"));
           return;
         }
-        const config =
+        let config =
           isDraftConfig(savedConfig) && savedConfig.projectId === hostProjectId
             ? savedConfig
             : configFromReference(project!);
-        if (!hasSavedConfig) await setMeta(db, draftConfigKey(draftId), config);
+        const serverEnvelopeChanged = Boolean(
+          existingDraft?.server_draft_id &&
+            existingDraft.base_updated_at !== localDraft?.base_updated_at,
+        );
+        if (importedDraft || hasServerBase) {
+          const stored = await db.getFirstAsync<{ envelope: string }>(
+            "SELECT envelope FROM drafts WHERE id = ?",
+            [draftId],
+          );
+          if (!stored) throw new Error("draft_missing");
+          let envelope: unknown;
+          try {
+            envelope = JSON.parse(stored.envelope) as unknown;
+          } catch {
+            throw new Error("invalid_draft_envelope");
+          }
+          config = withEnvelopeLocale(config, envelope);
+        }
+        if (!hasSavedConfig || importedDraft || draftConflict || serverEnvelopeChanged || hasServerBase) {
+          await setMeta(db, draftConfigKey(draftId), config);
+        }
         if (!active || generation !== loadGeneration.current) return;
         if (
           project &&
           !host.prefill &&
-          (!params.deathId || !foundCase) &&
+          (!params.deathId || !caseDetail) &&
           params.siteId
         ) {
           host = {
@@ -455,6 +544,8 @@ export default function Form() {
       siteId: loaded.siteId,
       orgUnitId: loaded.orgUnitId,
       binding: loaded.binding,
+      locale: loaded.config.locale,
+      translationVersion: loaded.config.translationVersion,
     });
     return {
       ...store,

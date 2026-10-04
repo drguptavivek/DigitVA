@@ -33,6 +33,8 @@ export type DeviceTimedDraft = WhoVaDraft & {
   startedAt?: string;
   completedAt?: string;
   deviceClockAt?: string;
+  locale?: string;
+  translation_version?: number;
 };
 
 export interface DraftRow {
@@ -50,6 +52,23 @@ export interface DraftRow {
   /** A persistent upload refusal that needs interviewer attention. */
   upload_issue?: "hash_mismatch" | "answers_hash_invalid" | null;
   upload_issue_unique_id?: string | null;
+  /** Server draft identity is separate from the stable local submission id. */
+  server_draft_id?: string | null;
+  base_updated_at?: string | null;
+  draft_sync_dirty?: number;
+  draft_sync_blocked?: number;
+}
+
+/** An unfinished registered-case snapshot selected for one sync attempt. */
+export interface DraftSyncItem extends DraftRow {
+  project_id: string;
+  death_id: string;
+  envelope: string;
+  draft: DeviceTimedDraft;
+  server_draft_id: string | null;
+  base_updated_at: string | null;
+  draft_sync_dirty: number;
+  draft_sync_blocked: number;
 }
 
 /** The case a new draft belongs to, written on its first save. */
@@ -62,7 +81,8 @@ export interface DraftBinding {
   prefill?: unknown;
 }
 
-const ROW_COLUMNS = "id, project_id, site_id, org_unit_id, completed, updated_at, death_id, unique_id, client_death_id, upload_issue, upload_issue_unique_id";
+const ROW_COLUMNS = "id, project_id, site_id, org_unit_id, completed, updated_at, death_id, unique_id, client_death_id, upload_issue, upload_issue_unique_id, server_draft_id, base_updated_at, draft_sync_dirty, draft_sync_blocked";
+const LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 
 /**
  * Format a date as local ISO 8601 with a numeric offset and milliseconds.
@@ -87,12 +107,27 @@ function storedTimestamp(value: unknown): value is string {
 }
 
 /** Keep valid host timestamps from storage when the vendor decoder strips them. */
-function envelopeWithDeviceTimes(draft: WhoVaDraft, existingEnvelope: string | null, startedAt: string): DeviceTimedDraft {
+function envelopeWithDeviceTimes(
+  draft: WhoVaDraft,
+  existingEnvelope: string | null,
+  startedAt: string,
+  host: { locale?: string; translationVersion?: number }
+): DeviceTimedDraft {
   const existing = existingEnvelope ? JSON.parse(existingEnvelope) as Record<string, unknown> : {};
+  const locale = host.locale && LOCALE_RE.test(host.locale)
+    ? host.locale
+    : typeof existing.locale === "string" && LOCALE_RE.test(existing.locale) ? existing.locale : undefined;
+  const translationVersion = typeof host.translationVersion === "number" && Number.isInteger(host.translationVersion) && host.translationVersion >= 0
+    ? host.translationVersion
+    : typeof existing.translation_version === "number" && Number.isInteger(existing.translation_version) && existing.translation_version >= 0
+      ? existing.translation_version
+      : undefined;
   return {
     ...draft,
     startedAt: storedTimestamp(existing.startedAt) ? existing.startedAt : startedAt,
-    ...(storedTimestamp(existing.completedAt) ? { completedAt: existing.completedAt } : {})
+    ...(storedTimestamp(existing.completedAt) ? { completedAt: existing.completedAt } : {}),
+    ...(locale ? { locale } : {}),
+    ...(translationVersion !== undefined ? { translation_version: translationVersion } : {})
   };
 }
 
@@ -140,6 +175,22 @@ export async function migrate(db: Db): Promise<void> {
   if (!columns.some((column) => column.name === "upload_issue_unique_id")) {
     await db.execAsync("ALTER TABLE drafts ADD COLUMN upload_issue_unique_id TEXT");
   }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "server_draft_id")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN server_draft_id TEXT");
+  }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "base_updated_at")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN base_updated_at TEXT");
+  }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "draft_sync_dirty")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN draft_sync_dirty INTEGER NOT NULL DEFAULT 1");
+  }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "draft_sync_blocked")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN draft_sync_blocked INTEGER NOT NULL DEFAULT 0");
+  }
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS cases (
       death_id TEXT PRIMARY KEY NOT NULL,
@@ -173,6 +224,17 @@ export async function migrate(db: Db): Promise<void> {
       await db.execAsync(`ALTER TABLE ${table} ADD COLUMN project_id TEXT`);
     }
   }
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS ix_drafts_sync_selection
+      ON drafts(project_id, id)
+      WHERE completed = 0 AND death_id IS NOT NULL AND draft_sync_blocked = 0 AND upload_issue IS NULL;
+    CREATE INDEX IF NOT EXISTS ix_drafts_sync_id
+      ON drafts(id)
+      WHERE completed = 0 AND death_id IS NOT NULL AND draft_sync_blocked = 0 AND upload_issue IS NULL;
+    CREATE INDEX IF NOT EXISTS ix_drafts_case_lookup
+      ON drafts(death_id, updated_at DESC, id)
+      WHERE death_id IS NOT NULL;
+  `);
   // Legacy downloaded cases have no safe project assignment. They can be
   // fetched again from the authoritative project list; retaining them could
   // expose a contact under the wrong project after a multi-project upgrade.
@@ -186,7 +248,7 @@ export async function migrate(db: Db): Promise<void> {
  */
 export function createDraftStore(
   db: Db,
-  host: { projectId: string; siteId: string; orgUnitId?: string | null; binding?: DraftBinding }
+  host: { projectId: string; siteId: string; orgUnitId?: string | null; binding?: DraftBinding; locale?: string; translationVersion?: number }
 ): WhoVaDraftStore {
   const binding = host.binding ?? { projectId: host.projectId };
   if (binding.projectId !== host.projectId) throw new Error("project_mismatch");
@@ -198,7 +260,7 @@ export function createDraftStore(
         [draft.id]
       );
       if (existing && existing.project_id !== host.projectId) throw new Error("project_mismatch");
-      const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt));
+      const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt, host));
       const params = [
           draft.id,
           host.projectId,
@@ -213,7 +275,7 @@ export function createDraftStore(
         ];
       const result = existing
         ? await db.runAsync(
-            `UPDATE drafts SET envelope = ?, updated_at = ?,
+            `UPDATE drafts SET envelope = ?, updated_at = ?, draft_sync_dirty = 1,
                upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
                upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
              WHERE id = ? AND envelope = ?`,
@@ -248,6 +310,36 @@ export async function getDraftRow(db: Db, id: string): Promise<DraftRow | null> 
   return db.getFirstAsync<DraftRow>(`SELECT ${ROW_COLUMNS} FROM drafts WHERE id = ?`, [id]);
 }
 
+/** Unfinished registered-case drafts that are eligible for device sync. */
+export async function unfinishedDraftsForSync(
+  db: Db,
+  projectId?: string,
+  afterId?: string,
+  limit = 100,
+): Promise<DraftSyncItem[]> {
+  const pageSize = Math.max(1, Math.min(200, Math.trunc(limit) || 100));
+  const filters = [
+    "completed = 0",
+    "project_id IS NOT NULL",
+    "death_id IS NOT NULL",
+    "draft_sync_blocked = 0",
+    "upload_issue IS NULL",
+    ...(projectId ? ["project_id = ?"] : []),
+    ...(afterId ? ["id > ?"] : [])
+  ];
+  const params: Bind[] = [
+    ...(projectId ? [projectId] : []),
+    ...(afterId ? [afterId] : []),
+    pageSize
+  ];
+  const rows = await db.getAllAsync<Omit<DraftSyncItem, "draft">>(
+    `SELECT ${ROW_COLUMNS}, envelope FROM drafts
+     WHERE ${filters.join(" AND ")} ORDER BY id LIMIT ?`,
+    params
+  );
+  return rows.map((row) => ({ ...row, draft: JSON.parse(row.envelope) as DeviceTimedDraft }));
+}
+
 /** The prefill a draft started from, or undefined. */
 export async function getDraftPrefill<T>(db: Db, id: string): Promise<T | undefined> {
   const row = await db.getFirstAsync<{ prefill: string | null }>("SELECT prefill FROM drafts WHERE id = ?", [id]);
@@ -258,7 +350,7 @@ export async function getDraftPrefill<T>(db: Db, id: string): Promise<T | undefi
 export async function draftForCase(db: Db, key: { deathId?: string; clientDeathId?: string }): Promise<DraftRow | null> {
   if (key.deathId) {
     return db.getFirstAsync<DraftRow>(
-      `SELECT ${ROW_COLUMNS} FROM drafts WHERE death_id = ? ORDER BY updated_at DESC`,
+      `SELECT ${ROW_COLUMNS} FROM drafts WHERE death_id = ? ORDER BY updated_at DESC, id LIMIT 1`,
       [key.deathId]
     );
   }
@@ -311,7 +403,7 @@ export async function setDraftUploadIssue(
  * rather than have it resent and refused on every sync.
  */
 export async function reopenDraft(db: Db, id: string): Promise<void> {
-  await db.runAsync("UPDATE drafts SET completed = 0, completion = NULL WHERE id = ?", [id]);
+  await db.runAsync("UPDATE drafts SET completed = 0, completion = NULL, draft_sync_dirty = 1 WHERE id = ?", [id]);
 }
 
 export interface CompletedDraft {

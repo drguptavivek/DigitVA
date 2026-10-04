@@ -88,6 +88,7 @@ jest.mock("../src/cases", () => {
   const actual = jest.requireActual("../src/cases") as Record<string, unknown>;
   return {
     ...actual,
+    getCase: jest.fn(async () => mockDetail),
     listCases: jest.fn(async () => [mockDetail]),
     listRegistrations: jest.fn(async () => []),
     listActions: jest.fn(async () => []),
@@ -105,6 +106,14 @@ jest.mock("../src/sync", () => ({
     projects: [],
   })),
   refreshReferenceData: jest.fn(async () => undefined),
+}));
+jest.mock("../src/draftSync", () => ({
+  reconcileCaseDraft: jest.fn(async (_user: string, _db: unknown, _detail: unknown, local: unknown) => ({
+    draft: local,
+    conflict: false,
+    message: null,
+    imported: false,
+  })),
 }));
 jest.mock("../src/ui", () => {
   const R = jest.requireActual("react") as any;
@@ -205,6 +214,70 @@ describe("native case detail workflow", () => {
         params: expect.objectContaining({ deathId: "d1" }),
       }),
     );
+    await act(async () => tree!.unmount());
+  });
+
+  it("resumes the imported server draft with its stable local id", async () => {
+    const localId = "11111111-1111-4111-8111-111111111111";
+    const localDraft = {
+      id: localId,
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      death_id: "d1",
+      unique_id: "VA-001",
+      client_death_id: null,
+    };
+    (
+      jest.requireMock("../src/draftSync").reconcileCaseDraft as jest.Mock
+    ).mockResolvedValueOnce({
+      draft: localDraft,
+      conflict: false,
+      message: null,
+      imported: true,
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Case />);
+    });
+    await settle();
+    await act(async () =>
+      tree!.root.findByProps({ "data-label": "resumeInterview" }).props.onClick(),
+    );
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/form",
+        params: expect.objectContaining({ draftId: localId, deathId: "d1" }),
+      }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("resumes a saved case draft from the authorized cache when offline", async () => {
+    const localDraft = {
+      id: "11111111-1111-4111-8111-111111111111",
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      death_id: "d1",
+      unique_id: "VA-001",
+      client_death_id: null,
+    };
+    (jest.requireMock("../src/drafts").draftForCase as jest.Mock).mockResolvedValueOnce(localDraft);
+    (jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock).mockRejectedValueOnce(
+      new TypeError("Network request failed"),
+    );
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Case />);
+    });
+    await settle();
+    expect(tree!.root.findByProps({ "data-label": "resumeInterview" })).toBeDefined();
+    expect(jest.requireMock("../src/cases").getCase).toHaveBeenCalledWith(mockDb, "d1");
     await act(async () => tree!.unmount());
   });
 

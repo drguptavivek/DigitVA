@@ -15,7 +15,7 @@ jest.mock("../src/client/api", () => ({
   getIntakeContext: jest.fn(async () => ({})),
   getDraft: jest.fn(), getProjectFormOptions: jest.fn(), getInstrumentTranslations: jest.fn(), getCaseDetail: jest.fn(), startDraft: jest.fn(), submitDraft: jest.fn()
 }));
-jest.mock("../src/client/serverDraftStore", () => ({ServerDraftStore: jest.fn().mockImplementation(() => ({load: jest.fn(async () => ({})), flush: jest.fn(async () => undefined), getLocaleMetadata: () => ({}), restoreLocaleMetadata: jest.fn(), setLocaleMetadata: jest.fn()}))}));
+jest.mock("../src/client/serverDraftStore", () => ({ServerDraftStore: jest.fn().mockImplementation(() => ({load: jest.fn(async () => ({})), flush: jest.fn(async () => undefined), getLocaleMetadata: () => ({}), getServerUpdatedAt: () => "revision-1", restoreLocaleMetadata: jest.fn(), setLocaleMetadata: jest.fn()}))}));
 jest.mock("@drguptavivek/who-2022-va", () => ({createWhoVa2022Instrument: () => ({id: "WHO", version: "1", sections: [], questions: []})}), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
 
@@ -33,7 +33,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {draftId: "draft-1"};
   setUiLocale("en");
-  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P"}, envelope: {locale: "hi", translation_version: 7}, prefill: {}});
+  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P", updated_at: "revision-1"}, envelope: {locale: "hi", translation_version: 7}, prefill: {}});
   (getProjectFormOptions as jest.Mock).mockResolvedValue({form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}], translation_versions: {hi: 9}});
   (getInstrumentTranslations as jest.Mock).mockRejectedValue(new ClientApiError(404, "not_found"));
   mockRouter.replace.mockClear();
@@ -126,7 +126,7 @@ it("returns to collection after a normal 201 draft submission", async () => {
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);
   await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
-  expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, mockBootstrap.csrf);
+  expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, mockBootstrap.csrf, "revision-1");
   expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
   await act(async () => tree.unmount());
 });
@@ -149,5 +149,18 @@ it("stays on the interview when the submit acknowledgement is malformed", async 
   await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
   expect(mockRouter.replace).not.toHaveBeenCalled();
   expect(JSON.stringify(tree.toJSON())).toContain("HTTP 200 malformed_response");
+  await act(async () => tree.unmount());
+});
+
+it("shows the server stale-draft explanation and stays on the interview", async () => {
+  (submitDraft as jest.Mock).mockRejectedValue(new ClientApiError(409, "draft_stale", undefined, undefined, {
+    error: "This interview was also edited on another device; reload before saving."
+  }));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).toContain("This interview was also edited on another device; reload before saving.");
   await act(async () => tree.unmount());
 });

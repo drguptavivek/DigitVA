@@ -5,11 +5,11 @@
  *    each acknowledgement rebinds the drafts and actions waiting on it;
  * 2. queued contact attempts and visit dates (idempotent on client_attempt_id;
  *    a visit is idempotent by value);
- * 3. completed interviews (POST /submissions, idempotent on client_draft_id),
- *    with their case's death_id, so a case registered and interviewed offline
- *    arrives registration first;
- * 4. the outstanding-work report (what is still on the phone);
- * 5. the case download (GET /cases, every page), replacing the stored cases.
+ * 3. unfinished registered-case drafts (POST /drafts/sync), after any
+ *    offline registration has supplied its server death id;
+ * 4. completed interviews (POST /submissions, idempotent on client_draft_id);
+ * 5. the outstanding-work report (what is still on the phone);
+ * 6. the case download (GET /cases, every page), replacing the stored cases.
  *
  * Each item is deleted once the server acknowledges it. A 422 reopens it for
  * editing (a draft goes back to in progress; a registration or action is
@@ -23,6 +23,7 @@
  * Logs carry client ids and error codes only, never answers or names.
  */
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
+import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import {
@@ -55,10 +56,12 @@ import {
   reopenDraft,
   setDraftUploadIssue,
   setMeta,
+  unfinishedDraftsForSync,
   type CompletedDraft,
   type Completion,
   type Db
 } from "./drafts";
+import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { questionnaireLocales } from "./i18n";
 import type { Translations } from "./translations";
 
@@ -67,6 +70,7 @@ export interface SyncResult {
   failed: number;
   remaining: number;
   supersededUniqueIds: string[];
+  draftConflictIds?: string[];
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
@@ -75,6 +79,7 @@ export const INCOMPLETE_OUTCOMES = ["partially_completed", "respondent_unavailab
 /** The case download: pages of the server's maximum, at most this many (5000 cases). */
 export const CASE_PAGE_SIZE = 200;
 export const CASE_PAGES_MAX = 25;
+const DRAFT_SYNC_PAGE_SIZE = 100;
 
 /** Reference settings are stable project configuration, not live work. */
 export const REFERENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -87,6 +92,16 @@ const BUNDLED_INSTRUMENT_CODE = "WHO_2022_VA";
 const BUNDLED_INSTRUMENT_VERSION = "2026081401";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Compose the current project instrument identity for validating imported drafts. */
+export function draftSyncDefaults(project: ProjectSettings): DraftSyncDefaults {
+  const instrumentCode = project.form_options?.form_types?.find((item) => item.is_default)?.instrument_code;
+  if (instrumentCode && instrumentCode !== BUNDLED_INSTRUMENT_CODE) throw new Error("instrument_incompatible");
+  const instrument = createWhoVa2022Instrument(project.form_options?.enabled_extensions ?? []);
+  const currentSection = instrument.sections[0]?.name;
+  if (!currentSection) throw new Error("instrument_incompatible");
+  return { instrumentId: instrument.id, instrumentVersion: instrument.version, currentSection };
+}
 
 /** Whether the server will take this interview: the form said valid, or the interviewer recorded an incomplete outcome. */
 export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, completion: Completion | null): boolean {
@@ -141,11 +156,13 @@ async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unk
 export async function syncInterviewer(
   userId: string,
   db: Db,
-  onSuperseded?: (uniqueId: string) => void
+  onSuperseded?: (uniqueId: string) => void,
+  onDraftConflict?: (draftId: string) => void
 ): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
+  const draftConflictIds: string[] = [];
 
   // The authoritative project list is refreshed before any outbound work so
   // revoked projects are purged before their queued payloads are considered.
@@ -197,6 +214,38 @@ export async function syncInterviewer(
       console.warn(`case action refused id=${action.client_id} status=${refused.status} code=${refused.code ?? "-"}`);
       if ([404, 409, 422].includes(refused.status)) await setActionState(db, action.client_id, "needs_edit");
       failed += 1;
+    }
+  }
+
+  // Page by stable local id so a large encrypted draft queue stays bounded.
+  // Query one authorized project at a time; each item is sent sequentially.
+  for (const { project } of referenceData.projects) {
+    let afterId: string | undefined;
+    while (true) {
+      const snapshots = await unfinishedDraftsForSync(
+        db,
+        project.project_id,
+        afterId,
+        DRAFT_SYNC_PAGE_SIZE,
+      );
+      if (snapshots.length === 0) break;
+      for (const item of snapshots) {
+        afterId = item.id;
+        if (!authorizedProjects.has(item.project_id) || !item.death_id) continue;
+        try {
+          const result = await syncDraftSnapshot(userId, db, item);
+          if (result.conflict) {
+            draftConflictIds.push(item.id);
+            onDraftConflict?.(item.id);
+          }
+          if (result.applied) sent += 1;
+        } catch (error) {
+          const refused = refusal(error);
+          console.warn(`draft sync refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
+          failed += 1;
+        }
+      }
+      if (snapshots.length < DRAFT_SYNC_PAGE_SIZE) break;
     }
   }
 
@@ -282,7 +331,13 @@ export async function syncInterviewer(
     }
   });
   await refreshCases(userId, db, referenceData);
-  return { sent, failed, remaining, supersededUniqueIds };
+  return {
+    sent,
+    failed,
+    remaining,
+    supersededUniqueIds,
+    ...(draftConflictIds.length ? { draftConflictIds } : {})
+  };
 }
 
 /**

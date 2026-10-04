@@ -26,43 +26,47 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **Deploy notes for `digitva-5hmc`** (landed): production refuses (403 +
-   log) any non-public request that never consulted authz
-   (`AUTHZ_ENFORCE_CONSULTED`, off in dev/test). Grants are cached in Redis
-   (`digitva_authz:` keys, 5-min TTL). After any migration, restore or raw
-   SQL data fix that changes grants, projects, sites, pairs, forms or units,
-   bump the global version (every cached entry becomes unreachable):
+1. **One `/api/v1` for every client (epic `digitva-ntct`,
+   `docs/policy/api-v1.md`, design `.tasks/digitva-339w-access-summary.md`).**
+   Owner 2026-10-04: one route set, either credential (cookie + CSRF or
+   device bearer), identical bodies, server decides; no legacy mobile app,
+   so device-only routes are removed, not kept. Landed: credential layer
+   (`uzhq`), `GET /api/v1/me/access` + `POST /api/v1/me/terms` (`339w`),
+   `/api/v1/intake/*` with Jinja moved and `/intake/api/*` + device intake
+   copies removed (`dz3n`), `{error, code}` on every `/api/` error from the
+   gates. Next: `digitva-ad02` -- device sign-in to `/api/v1/auth/*`
+   (sessions/refresh replies carry `access`), remove `/api/v1/device/*`
+   (bootstrap, units, instruments copy) and `/api/v1/client/bootstrap`.
+   Then the Expo session moves the app onto the contract (route list in
+   `docs/current-state/api-v1.md` and `device-collection-api.md`).
+2. **Deploy notes.** Bump `STATIC_ASSET_VERSION` with the API release (cached
+   old intake scripts call removed routes). `digitva-5hmc`: production
+   refuses any non-public request that never consulted authz
+   (`AUTHZ_ENFORCE_CONSULTED`); grants are cached in Redis
+   (`digitva_authz:` keys, 5-min TTL); after any migration, restore or raw
+   SQL fix that changes grants, projects, sites, pairs, forms or units, bump
+   the global version:
    `docker compose exec -T minerva_app_service uv run --no-sync python -c
-   "import os,time,redis; redis.from_url(os.environ['REDIS_URL']).set('digitva_authz:gv', f'reset-{int(time.time())}')"`
-   (or wait 5 minutes). Redis runs allkeys-lru;
-   versions are random tokens so eviction never revives an old entry.
-2. **Deploy order** `digitva-p6fs.25` (Expo session): the app's terms screen
-   and `terms_required` handling must ship before or with the 9an9 backend;
-   a current app build shows `terms_required` as an error.
+   "import os,time,redis; redis.from_url(os.environ['REDIS_URL']).set('digitva_authz:gv', f'reset-{int(time.time())}')"`.
+   `digitva-p6fs.25`: the app's terms screen ships before or with the 9an9
+   backend.
 3. Run `tests/migrations` on its own DB, never in the same run as the main
    suite (it breaks setup there).
 4. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
 5. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
    `ready_for_coding` source, area overview EXPLAIN, open-submission repair
-   gate, KPI cache vs pair status). Intake now has its own grant-only
-   `web_intake_service.reachable_unit_ids` (yw11); `project_wide_grant_exists`
-   is gone.
-6. Expo (`digitva-p6fs`): auth contract for the app is
-   `docs/current-state/authentication-and-onboarding.md`. Device sign-in
-   takes email or mobile; `user.email` may be null. `p6fs.4` coding/review
-   workspaces, `p6fs.5` device acceptance. Device case contract (p6fs.24,
-   on main): `docs/current-state/device-collection-api.md` -- bootstrap
-   `projects`, `project_id` required, `/cases` = browser list per project,
-   `/cases/<id>` detail with full contacts; the Expo app must adopt it
-   (p6fs.22/.23). Device `/units` stays per project with no site (owner,
-   2026-10-04: the unit tree is the scope; `docs/policy/web-intake.md`).
+   gate, KPI cache vs pair status).
+6. Expo (`digitva-p6fs`): `p6fs.4` coding/review workspaces, `p6fs.5` device
+   acceptance; both on the one `/api/v1` contract once `ad02` lands. A
+   signed-in worker's unit tree, not the site, is the scope
+   (`docs/policy/web-intake.md`).
 7. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
    retention, `digitva-t6q` death_reporter role, `digitva-kfi` Android
    rewrite, `digitva-35x` duplicate hint, `digitva-kmk.5` Android release,
    `digitva-ej1` intake attachments, `digitva-ddv.2` production release,
    `digitva-sn1.1.7`, `digitva-cts`, `digitva-hln`, `digitva-ddv.5`,
-   `digitva-fb5`.
+   `digitva-fb5`, flaky `test_odk_site_mappings`.
 
 ## Production release notes (this session)
 

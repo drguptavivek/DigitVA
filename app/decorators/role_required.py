@@ -94,7 +94,6 @@ API_PATH_PREFIXES = (
     "/api/",
     "/admin/api/",
     "/data-management/api/",
-    "/intake/api/",
 )
 
 # Attribute stamped on the wrapper this decorator returns, holding the tuple of
@@ -146,7 +145,7 @@ def role_required(*roles):
                     request.path, request.method, request.remote_addr,
                 )
                 if is_api:
-                    return jsonify({"error": "Authentication required."}), 401
+                    return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
                 return redirect(url_for("va_auth.va_login", next=request.url))
 
             # ── Layer 2: Active-status ────────────────────────────────────────
@@ -157,7 +156,7 @@ def role_required(*roles):
                 )
                 logout_user()
                 if is_api:
-                    return jsonify({"error": "Authentication required."}), 401
+                    return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
                 return redirect(url_for("va_auth.va_login"))
 
             # ── Layer 3: Role check (authz decides) ─────────────────────────
@@ -169,7 +168,7 @@ def role_required(*roles):
                     current_user.get_id(), role_label, request.path, request.remote_addr,
                 )
                 if is_api:
-                    return jsonify({"error": f"{role_label} access is required."}), 403
+                    return jsonify({"error": f"{role_label} access is required.", "code": "forbidden"}), 403
                 va_permission_abortwithflash(f"{role_label} access is required.", 403)
 
             return f(*args, **kwargs)

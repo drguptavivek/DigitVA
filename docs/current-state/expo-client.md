@@ -3,7 +3,7 @@ title: Expo Client Hosting And Bootstrap
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Expo Client Hosting And Bootstrap
@@ -22,7 +22,7 @@ links. An anonymous browser receives a JSON `401` and the
 `/vaauth/valogin?next=/app/` login URL instead of an HTML login redirect.
 Bootstrap responses are never cached. Browser intake
 answers remain server-side drafts, saved and submitted through the existing
-`/intake/api/` endpoints: death registration takes and returns
+`/api/v1/intake/` endpoints: death registration takes and returns
 `date_of_birth_partial` (`YYYY-MM` or `YYYY`) beside `date_of_birth`, and the
 server re-applies locked prefill answers on every draft save and submit,
 whatever the client sends (docs/policy/web-intake.md); native offline collection continues to use

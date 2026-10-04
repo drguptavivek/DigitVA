@@ -378,8 +378,7 @@ While `pw_reset_t_and_c` is false, every endpoint except `static`,
 
 - a page answers **302 to `/profile/force-password-change`** (the name is
   historical; no password changes there);
-- a JSON path (`/api/`, `/admin/api/`, `/data-management/api/`,
-  `/intake/api/`) answers **403**
+- a JSON path (`/api/`, `/admin/api/`, `/data-management/api/`) answers **403**
   `{"error": "terms_required", "code": "terms_required", "redirect_url": "/profile/force-password-change"}`
   with `Cache-Control: no-store`, never a redirect;
 - `/api/v1/client/bootstrap` keeps its older code: 403
@@ -761,9 +760,8 @@ response (errors and redirects included) is `Cache-Control: no-store`.
   "links": {
     "login": "/vaauth/valogin?next=/app/",
     "logout": "/vaauth/valogout",
-    "intakeBootstrap": "/intake/api/bootstrap",
-    "intakeCases": "/intake/api/cases",
-    "intakeDrafts": "/intake/api/drafts",
+    "intakeCases": "/api/v1/intake/cases",
+    "intakeDrafts": "/api/v1/intake/drafts",
     "coding": "/coding/",
     "reviewing": "/reviewing/"
   }

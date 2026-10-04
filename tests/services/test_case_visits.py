@@ -346,22 +346,22 @@ class CaseVisitTests(BaseTestCase):
         self._login(str(self.alice.user_id))
         base = {"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": "Api Case",
                 "deceased_sex": "male", "date_of_death": _dod()}
-        response = self._post("/intake/api/deaths", {**base, "informant_phone": "5555555555"})
-        self.assertEqual(response.status_code, 400)
+        response = self._post("/api/v1/intake/deaths", {**base, "informant_phone": "5555555555"})
+        self.assertEqual(response.status_code, 422)
         self.assertIn("mobile", response.get_json()["error"])
 
-        response = self._post("/intake/api/deaths", {
+        response = self._post("/api/v1/intake/deaths", {
             **base, "informant_phone": "+91 98765 43210", "informant_phone_2": "07012345678",
             "address_house_street": "4 Mill Lane", "address_village_ward": "Kheda", "address_landmark": "School",
         })
         self.assertEqual(response.status_code, 201, response.get_json())
-        death = response.get_json()["death"]
+        death = response.get_json()["case"]
         stored = db.session.get(VaDeathRegister, death["death_id"])
         self.assertEqual((stored.informant_phone, stored.informant_phone_2), ("9876543210", "7012345678"))
         self.assertEqual((stored.address_house_street, stored.address_village_ward, stored.address_landmark),
                          ("4 Mill Lane", "Kheda", "School"))
 
-        rows = {r["death_id"]: r for r in self.client.get("/intake/api/cases?limit=200").get_json()["cases"]}
+        rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?limit=200").get_json()["cases"]}
         self.assertIn(death["death_id"], rows)
         self.assertEqual(rows[death["death_id"]]["informant_phone_masked"], "******3210")
         self.assertNotIn("informant_phone", rows[death["death_id"]])
@@ -369,9 +369,9 @@ class CaseVisitTests(BaseTestCase):
     def test_api_actions_need_csrf_and_scope(self):
         case = self._register()
         db.session.commit()
-        visit = f"/intake/api/cases/{case.death_id}/visit"
-        attempts = f"/intake/api/cases/{case.death_id}/attempts"
-        pause = f"/intake/api/cases/{case.death_id}/pause"
+        visit = f"/api/v1/intake/cases/{case.death_id}/visit"
+        attempts = f"/api/v1/intake/cases/{case.death_id}/attempts"
+        pause = f"/api/v1/intake/cases/{case.death_id}/pause"
 
         self._login(str(self.bob.user_id))
         for path, body in ((visit, {"next_visit_at": _at(days=1)}), (attempts, {"outcome": "no_answer"}),
@@ -391,11 +391,11 @@ class CaseVisitTests(BaseTestCase):
         response = self._post(attempts, {"outcome": "no_answer", "next_visit_at": _at(days=2)})
         self.assertEqual(response.status_code, 201, response.get_json())
         ack = response.get_json()["case"]
-        self.assertEqual(ack["status"], "not_reachable")
+        self.assertEqual(ack["state"], "not_reachable")
         self.assertIsNotNone(ack["next_visit_at"])
         self.assertNotIn("deceased_name", ack)
         response = self._post(visit, {"next_visit_at": _at(days=4)})
-        self.assertEqual((response.status_code, response.get_json()["case"]["status"]), (200, "scheduled"))
+        self.assertEqual((response.status_code, response.get_json()["case"]["state"]), (200, "scheduled"))
         # Pause needs an interview in progress.
         response = self._post(pause, {"reason": "other"})
         self.assertEqual(response.status_code, 409)
@@ -405,9 +405,9 @@ class CaseVisitTests(BaseTestCase):
         intake_svc.log_contact_attempt(self.alice, case.death_id, outcome="no_answer")
         db.session.commit()
         self._login(str(self.alice.user_id))
-        response = self._post(f"/intake/api/cases/{case.death_id}/attempts", {"outcome": "refused"})
+        response = self._post(f"/api/v1/intake/cases/{case.death_id}/attempts", {"outcome": "refused"})
         self.assertEqual(response.status_code, 201, response.get_json())
-        self.assertEqual(response.get_json()["case"]["status"], "refused")
+        self.assertEqual(response.get_json()["case"]["state"], "refused")
         self.assertEqual(len(self._attempts(case)), 2)
 
     def test_pages_render_the_new_controls(self):

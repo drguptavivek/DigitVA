@@ -18,7 +18,7 @@
   </div>
 </div>
 
-<section id="intake-worklist" data-user-tz="{{ current_user.timezone or 'Asia/Kolkata' }}" aria-label="Worklist">
+<section id="intake-worklist" data-csrf="{{ csrf_token() }}" data-user-tz="{{ current_user.timezone or 'Asia/Kolkata' }}" aria-label="Worklist">
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
     <ul class="nav nav-pills nav-fill flex-grow-1 small" id="intake-tabs" role="tablist">
       <li class="nav-item" role="presentation"><button type="button" class="nav-link px-2 py-1" data-tab="visit" role="tab">To visit <span class="badge text-bg-light" data-count="visit">0</span></button></li>
@@ -35,5 +35,6 @@
   <p class="text-muted small d-none" id="intake-worklist-empty">No cases here.</p>
   <button type="button" class="btn btn-sm btn-outline-secondary w-100 d-none" id="intake-load-more">Load more</button>
 </section>
+<script id="intake-context" type="application/json">{{ context | tojson }}</script>
 <script src="{{ url_for('static', filename='js/intake/intake_worklist.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 {% endblock %}

@@ -226,7 +226,7 @@ def create_app(config_class=None):
         limit = limit_mb * 1024 * 1024 + 64 * 1024
         request.max_content_length = limit
         if request.content_length is not None and request.content_length > limit:
-            return jsonify({"error": f"The upload exceeds the {limit_mb} MB limit."}), 413
+            return jsonify({"error": f"The upload exceeds the {limit_mb} MB limit.", "code": "payload_too_large"}), 413
         return None
 
     # Fail closed before anything can serve an attachment: an S3 store with a
@@ -314,7 +314,7 @@ def create_app(config_class=None):
         from app.decorators.role_required import API_PATH_PREFIXES
 
         if request.path.startswith(API_PATH_PREFIXES):
-            return jsonify({"error": "Authentication required."}), 401
+            return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
         flash(login.login_message, login.login_message_category)
         return redirect(login_url(login.login_view, next_url=request.url))
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
@@ -495,7 +495,7 @@ def create_app(config_class=None):
             )
             message = abuse_ban_message()
             if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
-                response = jsonify({"error": message})
+                response = jsonify({"error": message, "code": "temporarily_blocked"})
             else:
                 response = app.response_class(
                     f"{message}\n",
@@ -553,7 +553,8 @@ def create_app(config_class=None):
             ):
                 return jsonify(
                     {
-                        "error": "Site is under maintenance. Only admin login is allowed right now."
+                        "error": "Site is under maintenance. Only admin login is allowed right now.",
+                        "code": "maintenance",
                     }
                 ), 401
             return redirect(url_for("va_auth.va_login"))
@@ -568,6 +569,7 @@ def create_app(config_class=None):
             'va_auth.verify_email',
             'va_auth.resend_verification',
             'api_v1.profile_api.accept_terms',
+            'api_v1.me_api.accept_terms',
             # Bearer calls that must work while the terms are pending
             # (onboarding policy 5.4): sign out, and accept.
             'api_v1.device.end_session',
@@ -617,6 +619,7 @@ def create_app(config_class=None):
     # between the two pages forever.
     _FACTOR_SETUP_EXEMPT_ENDPOINTS = {
         "static", "health.health_check", "profile.view", "profile.force_password_change",
+        "api_v1.me_api.accept_terms",
     }
 
     @app.before_request
@@ -685,14 +688,14 @@ def create_app(config_class=None):
                     "code": "factor_setup_required",
                     "redirect_url": url_for("profile.view") + "#passkeys-card",
                 }), 403
-            return jsonify({"error": "factor_setup_required"}), 403
+            return jsonify({"error": "factor_setup_required", "code": "factor_setup_required"}), 403
         return redirect(url_for("profile.view") + "#passkeys-card")
 
     @app.after_request
     def apply_static_cache_headers(response):
         # Browser intake carries identifiers and questionnaire answers. This
         # applies to errors and redirects as well as successful JSON responses.
-        if request.path.startswith(("/intake/api/", "/api/v1/client/")):
+        if request.path.startswith(("/api/v1/client/", "/api/v1/me/")):
             response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/static/") and response.status_code == 200:
             response.cache_control.public = True

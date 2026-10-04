@@ -258,7 +258,7 @@ class PossibleDuplicateTests(BaseTestCase):
         subject = self._case(unit="PDB1")
         twin = self._case(unit="PDB2")
         db.session.commit()
-        url = f"/intake/api/cases/{subject.death_id}/possible-duplicates"
+        url = f"/api/v1/intake/cases/{subject.death_id}/possible-duplicates"
 
         self._login(self.alice_id)
         response = self.client.get(url)
@@ -269,13 +269,13 @@ class PossibleDuplicateTests(BaseTestCase):
         # Id, unit and state only: never the other case's identity or contact.
         self.assertEqual(set(rows[0]), {"death_id", "unique_id", "unit_name", "state", "score"})
 
-        worklist = self.client.get("/intake/api/cases").get_json()["cases"]
+        worklist = self.client.get("/api/v1/intake/cases").get_json()["cases"]
         row = {r["death_id"]: r for r in worklist}[str(subject.death_id)]
         self.assertEqual([d["unique_id"] for d in row["possible_duplicates"]], [twin.unique_id])
 
         self._login(self.carol_id)
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertEqual(self.client.get("/intake/api/cases/not-a-uuid/possible-duplicates").status_code, 404)
+        self.assertEqual(self.client.get("/api/v1/intake/cases/not-a-uuid/possible-duplicates").status_code, 404)
 
     def test_a_possible_duplicate_never_blocks_submit(self):
         self._case(name="Ravi Kumar", sex="male")

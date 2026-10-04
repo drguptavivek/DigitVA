@@ -327,7 +327,7 @@ def reauth_passkey():
 
 @bp.post("/terms")
 @login_required
-@limiter.limit("5 per minute", key_func=_rate_limit_key)
+@limiter.shared_limit("5 per minute", scope="api_v1_terms", key_func=_rate_limit_key)  # one counter with /me/terms
 def accept_terms():
     """The app's terms screen for a browser session (onboarding policy 5.4):
     records the acceptance exactly as the web terms page does. Body

@@ -129,6 +129,7 @@ SELF_SERVICE_ENDPOINTS = {
     "profile.force_password_change": "The signed-in user's own forced password change.",
     "api_v1.profile_api.get_profile": "Own profile.",
     "api_v1.profile_api.accept_terms": "Own terms acceptance.",
+    "api_v1.me_api.accept_terms": "Own terms acceptance (same view as profile's).",
     "api_v1.profile_api.dismiss_passkey_nudge": "Own UI preference.",
     "api_v1.profile_api.generate_password": "Own password.",
     "api_v1.profile_api.list_passkeys": "Own passkeys.",
@@ -193,7 +194,7 @@ def _refusal():
     from app.decorators.role_required import API_PATH_PREFIXES
 
     if request.path.startswith(API_PATH_PREFIXES):
-        return jsonify({"error": "Access denied."}), 403
+        return jsonify({"error": "Access denied.", "code": "forbidden"}), 403
     abort(403)
 
 

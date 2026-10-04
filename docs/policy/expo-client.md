@@ -43,9 +43,8 @@ uses the same-origin session cookie and returns:
   "links": {
     "login": "/vaauth/valogin?next=/app/",
     "logout": "/vaauth/valogout",
-    "intakeBootstrap": "/intake/api/bootstrap",
-    "intakeCases": "/intake/api/cases",
-    "intakeDrafts": "/intake/api/drafts",
+    "intakeCases": "/api/v1/intake/cases",
+    "intakeDrafts": "/api/v1/intake/drafts",
     "coding": "/coding/",
     "reviewing": "/reviewing/"
   }

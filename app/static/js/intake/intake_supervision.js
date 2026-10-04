@@ -1,5 +1,5 @@
 // Interview supervision page (/intake/supervision): cases in the caller's
-// supervisor scope over GET /intake/api/supervision/cases, with resolve flag,
+// supervisor scope over GET /api/v1/intake/supervision/cases, with resolve flag,
 // mark duplicate, cancel and reopen (digitva-vzk.8, policy
 // docs/policy/web-intake.md, "Supervisors").
 //
@@ -96,7 +96,7 @@
   }
 
   function listUrl(cursor) {
-    var url = '/intake/api/supervision/cases?';
+    var url = '/api/v1/intake/supervision/cases?';
     url += TAB === 'flags' ? 'flagged=true' : 'state=' + encodeURIComponent(STATE);
     return url + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
   }
@@ -213,10 +213,10 @@
       ev.preventDefault();
       var body = Object.assign({ reason: reason.value.trim() }, fixed, more ? more() : {});
       submit.disabled = true;
-      api('/intake/api/supervision/cases/' + encodeURIComponent(row.death_id) + '/' + path, 'POST', body).then(function (res) {
+      api('/api/v1/intake/supervision/cases/' + encodeURIComponent(row.death_id) + '/' + path, 'POST', body).then(function (res) {
         submit.disabled = false;
         if (!res.ok) { alertBox('danger', res.data.error || 'Could not save.'); return; }
-        var waiting = res.data.death && res.data.death.pending_flag;
+        var waiting = res.data.case && res.data.case.pending_flag;
         alertBox(waiting ? 'warning' : 'success', waiting
           ? 'Case ' + row.unique_id + ' is already coded: the duplicate waits for a supervisor who is also its data manager.'
           : done + ' for case ' + row.unique_id + '.');
@@ -247,7 +247,7 @@
   // ponytail: first 200 supervised cases by recent activity (the API's page
   // cap); a server-side search by case id is the upgrade when scopes grow.
   function loadKeptOptions(picker, row) {
-    api('/intake/api/supervision/cases?limit=200').then(function (res) {
+    api('/api/v1/intake/supervision/cases?limit=200').then(function (res) {
       picker.replaceChildren();
       if (!res.ok) { picker.add(new Option(res.data.error || 'Could not load cases.', '')); return; }
       var options = (res.data.cases || []).filter(function (c) {

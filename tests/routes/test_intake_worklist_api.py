@@ -63,7 +63,7 @@ class IntakeWorklistApiTests(BaseTestCase):
 
     def _register(self, name="Bina Sahu"):
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json={
                 "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": name,
                 "deceased_sex": "female",
@@ -72,13 +72,13 @@ class IntakeWorklistApiTests(BaseTestCase):
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 201, response.get_json())
-        return response.get_json()["death"]
+        return response.get_json()["case"]
 
     def test_worklist_lists_team_cases_with_counts_and_no_contact_details(self):
         self._login(self.interviewer_id)
         death = self._register()
 
-        response = self.client.get("/intake/api/cases?mine=true&state=registered")
+        response = self.client.get("/api/v1/intake/cases?mine=true&state=registered")
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
         rows = {row["death_id"]: row for row in body["cases"]}
@@ -95,7 +95,7 @@ class IntakeWorklistApiTests(BaseTestCase):
     def test_worklist_refuses_junk_parameters(self):
         self._login(self.interviewer_id)
         for query in ("mine=maybe", "state=va_submitted", "limit=ten", "cursor=zzz"):
-            response = self.client.get(f"/intake/api/cases?{query}")
+            response = self.client.get(f"/api/v1/intake/cases?{query}")
             self.assertEqual(response.status_code, 400, query)
             self.assertIn("error", response.get_json())
 
@@ -103,20 +103,20 @@ class IntakeWorklistApiTests(BaseTestCase):
         self._login(self.interviewer_id)
         registered = self._register()
         response = self.client.post(
-            "/intake/api/drafts", json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID},
+            "/api/v1/intake/drafts", json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID},
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 201, response.get_json())
         draft = response.get_json()["draft"]
         self.assertIsNotNone(draft["death_id"])
 
-        rows = {r["death_id"]: r for r in self.client.get("/intake/api/cases").get_json()["cases"]}
+        rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases").get_json()["cases"]}
         self.assertIn(draft["death_id"], rows)
         self.assertTrue(rows[draft["death_id"]]["details_pending"])
         self.assertEqual(rows[draft["death_id"]]["my_draft_id"], draft["draft_id"])
         # The death register list stays the register: direct starts are not in it.
         listed = self.client.get(
-            f"/intake/api/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}"
+            f"/api/v1/intake/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}"
         ).get_json()["deaths"]
         self.assertIn(registered["death_id"], [d["death_id"] for d in listed])
         self.assertNotIn(draft["death_id"], [d["death_id"] for d in listed])
@@ -125,7 +125,7 @@ class IntakeWorklistApiTests(BaseTestCase):
         self._login(self.interviewer_id)
         kept = self._register()
         other = self._register(name="Bina S")
-        url = f"/intake/api/cases/{other['death_id']}/flags"
+        url = f"/api/v1/intake/cases/{other['death_id']}/flags"
         body = {"kind": "duplicate", "duplicate_of": kept["death_id"], "reason": "same death"}
 
         self.assertEqual(self.client.post(url, json=body).status_code, 400)
@@ -133,5 +133,5 @@ class IntakeWorklistApiTests(BaseTestCase):
 
         response = self.client.post(url, json=body, headers=self._csrf_headers())
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["pending_flag"], "duplicate")
-        self.assertEqual(response.get_json()["death"]["status"], "registered")
+        self.assertEqual(response.get_json()["case"]["pending_flag"], "duplicate")
+        self.assertEqual(response.get_json()["case"]["state"], "registered")

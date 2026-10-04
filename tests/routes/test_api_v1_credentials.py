@@ -7,7 +7,7 @@ Outside /api/v1/ a bearer opens nothing. Device enrolment helpers are reused
 from tests/routes/test_device_api.py.
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from unittest import mock
 
 from app import db, limiter
@@ -93,7 +93,7 @@ class ApiV1CredentialTests(BaseTestCase):
     def test_unauthenticated_calls_keep_the_json_401(self):
         response = self.client.get(PROFILE)
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.get_json(), {"error": "Authentication required."})
+        self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
 
     # ── CSRF ───────────────────────────────────────────────────────────────
 
@@ -120,6 +120,84 @@ class ApiV1CredentialTests(BaseTestCase):
         db.session.expire_all()
         self.assertEqual(db.session.get(VaUsers, self.interviewer.user_id).timezone, "America/New_York")
         self.assertNotEqual(db.session.get(VaUsers, self.teammate.user_id).timezone, "America/New_York")
+
+    # ── intake (/api/v1/intake) ────────────────────────────────────────────
+
+    INTAKE = "/api/v1/intake"
+
+    def _death(self, **extra):
+        return {
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": "Cred Case",
+            "deceased_sex": "male", "date_of_death": date.today().isoformat(), "age_years": 60, **extra,
+        }
+
+    def test_intake_get_gives_the_same_body_to_a_bearer_and_a_cookie(self):
+        tokens = self._tokens()
+        self._login(str(self.interviewer.user_id))
+        self.assertEqual(self.client.post(
+            f"{self.INTAKE}/deaths", json=self._death(), headers=self._csrf_headers()).status_code, 201)
+        cookie = self.client.get(f"{self.INTAKE}/cases")
+        bearer = self._bearer_only_client().get(f"{self.INTAKE}/cases", headers=self._bearer(tokens))
+        self.assertEqual((cookie.status_code, bearer.status_code), (200, 200))
+        self.assertEqual(cookie.headers["Cache-Control"], "no-store")
+        self.assertTrue(cookie.get_json()["cases"])
+        self.assertEqual(bearer.get_json(), cookie.get_json())
+
+    def test_intake_post_needs_csrf_for_a_cookie_and_none_for_a_bearer(self):
+        tokens = self._tokens()
+        self._login(str(self.interviewer.user_id))
+        refused = self.client.post(f"{self.INTAKE}/deaths", json=self._death())
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.get_json()["code"], "csrf_failed")
+        ok = self.client.post(f"{self.INTAKE}/deaths", json=self._death(), headers=self._csrf_headers())
+        self.assertEqual(ok.status_code, 201, ok.get_json())
+        self.assertEqual(ok.get_json()["case"]["deceased"]["name"], "Cred Case")
+
+        bearer = self._bearer_only_client().post(
+            f"{self.INTAKE}/deaths", json=self._death(deceased_name="Bearer Case"), headers=self._bearer(tokens))
+        self.assertEqual(bearer.status_code, 201, bearer.get_json())
+        self.assertEqual(bearer.get_json()["case"]["deceased"]["name"], "Bearer Case")
+        self.assertNotIn("Set-Cookie", bearer.headers)
+
+    def test_unknown_route_and_wrong_method_answer_a_json_code(self):
+        self._login(str(self.interviewer.user_id))
+        missing = self.client.get(f"{self.INTAKE}/no-such-route")
+        self.assertEqual((missing.status_code, missing.get_json()["code"]), (404, "not_found"))
+        wrong = self.client.delete(f"{self.INTAKE}/cases", headers=self._csrf_headers())
+        self.assertEqual((wrong.status_code, wrong.get_json()["code"]), (405, "method_not_allowed"))
+        page = self.client.get("/no-such-page")
+        self.assertEqual(page.status_code, 404)
+        self.assertIsNone(page.get_json(silent=True))
+
+    def test_prefill_policy_is_per_project_and_outstanding_needs_a_device_session(self):
+        tokens = self._tokens()
+        policy = f"{self.INTAKE}/projects/{self.PROJECT_ID}/prefill-policy"
+        bearer = self._bearer_only_client().get(policy, headers=self._bearer(tokens))
+        self.assertEqual(bearer.status_code, 200, bearer.get_json())
+        self.assertIn("direct", bearer.get_json())
+        report = {"count": 0}
+        recorded = self._bearer_only_client().post(
+            f"{self.INTAKE}/outstanding", json=report, headers=self._bearer(tokens))
+        self.assertEqual(recorded.status_code, 204)
+        self._login(str(self.interviewer.user_id))
+        self.assertEqual(self.client.get(policy).get_json(), bearer.get_json())
+        other = self.client.get(f"{self.INTAKE}/projects/NOPE99/prefill-policy")
+        self.assertEqual((other.status_code, other.get_json()["code"]), (403, "project_forbidden"))
+        cookie = self.client.post(f"{self.INTAKE}/outstanding", json=report, headers=self._csrf_headers())
+        self.assertEqual((cookie.status_code, cookie.get_json()["code"]), (403, "device_session_required"))
+
+    def test_the_removed_intake_and_device_routes_are_gone(self):
+        tokens = self._tokens()
+        self.assertEqual(self.client.get(f"{self.INTAKE}/cases", headers=self._bearer(tokens)).status_code, 200)
+        self._login(str(self.interviewer.user_id))
+        for method, path in (
+            ("get", "/intake/api/bootstrap"), ("get", "/intake/api/cases"), ("get", "/intake/api/drafts"),
+            ("post", "/intake/api/deaths"),
+            ("get", "/api/v1/device/cases"), ("post", "/api/v1/device/deaths"),
+            ("post", "/api/v1/device/submissions"), ("post", "/api/v1/device/outstanding"),
+        ):
+            response = getattr(self.client, method)(path, headers=self._csrf_headers())
+            self.assertEqual(response.status_code, 404, path)
 
     # ── revocation ─────────────────────────────────────────────────────────
 
@@ -160,7 +238,6 @@ class ApiV1CredentialTests(BaseTestCase):
         headers = self._bearer(tokens)
         self.assertEqual(
             self.client.get(f"/admin/api/projects/{self.PROJECT_ID}/devices", headers=headers).status_code, 401)
-        self.assertEqual(self.client.get("/intake/api/bootstrap", headers=headers).status_code, 401)
         self.assertEqual(self.client.get("/intake/", headers=headers).status_code, 302)
         self.assertEqual(self.client.get("/profile/", headers=headers).status_code, 302)
 

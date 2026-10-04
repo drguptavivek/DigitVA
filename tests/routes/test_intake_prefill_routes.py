@@ -132,7 +132,7 @@ class IntakePrefillRouteTests(BaseTestCase):
     def test_register_api_keeps_parents_names_and_form_page_embeds_the_age(self):
         self._login(self.interviewer_id)
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json={
                 "project_id": self.PROJECT_ID, "site_id": self.SITE_ID,
                 "deceased_name": "Gopal Das", "deceased_sex": "male",
@@ -142,11 +142,11 @@ class IntakePrefillRouteTests(BaseTestCase):
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 201, response.get_json())
-        death = response.get_json()["death"]
-        self.assertEqual((death["father_name"], death["mother_name"]), ("Hari Das", "Radha Devi"))
+        death = response.get_json()["case"]
+        self.assertEqual((death["prefill"]["answers"]["Id10061"], death["prefill"]["answers"]["Id10062"]), ("Hari Das", "Radha Devi"))
 
         draft = self.client.post(
-            "/intake/api/drafts",
+            "/api/v1/intake/drafts",
             json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "death_id": death["death_id"]},
             headers=self._csrf_headers(),
         ).get_json()["draft"]

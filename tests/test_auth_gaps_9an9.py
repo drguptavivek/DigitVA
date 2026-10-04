@@ -425,7 +425,7 @@ class SignedOutJsonTests(OnboardingTestBase):
         for path in (f"{PROFILE}/", f"{PROFILE}/passkeys"):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 401, path)
-            self.assertEqual(response.get_json(), {"error": "Authentication required."})
+            self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
         posted = self.client.post(f"{PROFILE}/terms", json={"accept_terms": True},
                                   headers=self._csrf_headers())
         self.assertEqual(posted.status_code, 401)

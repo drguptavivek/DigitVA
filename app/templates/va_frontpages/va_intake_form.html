@@ -51,8 +51,8 @@ import { renderPossibleDuplicates, touchesIdentity } from "{{ url_for('static', 
 
 const DRAFT = {{ draft | tojson }};
 const PREFILL = {{ prefill | tojson }};
-const API = "/intake/api/drafts/" + encodeURIComponent(DRAFT.draft_id);
-let CSRF = "";
+const API = "/api/v1/intake/drafts/" + encodeURIComponent(DRAFT.draft_id);
+const CSRF = {{ csrf_token() | tojson }};
 const $ = (id) => document.getElementById(id);
 const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.classList.add("d-none"); return; } el.className = `alert alert-${kind} small py-2`; el.textContent = msg; };
 // Pinned deceased summary (digitva-wdj): name, date of death, age, sex only
@@ -185,13 +185,13 @@ async function writeDraft(draft) {
 // failed check just leaves the banner as it was.
 async function checkDuplicates() {
   if (!DRAFT.death_id) return;
-  const res = await api("/intake/api/cases/" + encodeURIComponent(DRAFT.death_id) + "/possible-duplicates");
+  const res = await api("/api/v1/intake/cases/" + encodeURIComponent(DRAFT.death_id) + "/possible-duplicates");
   if (res.ok) renderPossibleDuplicates($("wv-duplicates"), res.data.possible_duplicates || [], flagDuplicate);
 }
 
 async function flagDuplicate(candidate, button) {
   button.disabled = true;
-  const res = await api("/intake/api/cases/" + encodeURIComponent(DRAFT.death_id) + "/flags", "POST",
+  const res = await api("/api/v1/intake/cases/" + encodeURIComponent(DRAFT.death_id) + "/flags", "POST",
     { kind: "duplicate", duplicate_of: candidate.death_id });
   if (!res.ok) { button.disabled = false; alertBox("danger", res.data.error || "Could not flag the case."); return; }
   // The case now waits for a supervisor; the API gives a flagged case no hints.
@@ -392,10 +392,6 @@ function renderLocalePicker(el, options, locale, onChange) {
 }
 
 async function main() {
-  const boot = await api("/intake/api/bootstrap");
-  if (!boot.ok) { alertBox("danger", boot.data.error || "Could not load."); return; }
-  CSRF = boot.data.csrf_token;
-
   const opts = await api("/api/v1/organization/" + encodeURIComponent(DRAFT.project_id) + "/form-options");
   if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
   const options = opts.data;

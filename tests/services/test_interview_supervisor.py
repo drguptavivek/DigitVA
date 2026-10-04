@@ -399,7 +399,7 @@ class InterviewSupervisorTests(BaseTestCase):
         sibling = self._register(unit=self.c2)
         db.session.commit()
         self._login(str(self.sam.user_id))
-        response = self.client.get("/intake/api/supervision/cases")
+        response = self.client.get("/api/v1/intake/supervision/cases")
         self.assertEqual(response.status_code, 200, response.get_json())
         rows = {r["death_id"]: r for r in response.get_json()["cases"]}
         self.assertIn(str(inside.death_id), rows)
@@ -414,15 +414,15 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertNotIn("address", row)
 
         for query in ("flagged=maybe", "state=va_submitted", "limit=ten", "cursor=zzz"):
-            self.assertEqual(self.client.get(f"/intake/api/supervision/cases?{query}").status_code, 400)
+            self.assertEqual(self.client.get(f"/api/v1/intake/supervision/cases?{query}").status_code, 400)
 
     def test_the_supervisor_api_refuses_plain_interviewers(self):
         case = self._register()
         db.session.commit()
         self._login(str(self.ian.user_id))
-        self.assertEqual(self.client.get("/intake/api/supervision/cases").status_code, 403)
+        self.assertEqual(self.client.get("/api/v1/intake/supervision/cases").status_code, 403)
         response = self.client.post(
-            f"/intake/api/supervision/cases/{case.death_id}/cancel",
+            f"/api/v1/intake/supervision/cases/{case.death_id}/cancel",
             json={"reason": "x"}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 403)
@@ -433,45 +433,45 @@ class InterviewSupervisorTests(BaseTestCase):
         sibling = self._register(unit=self.c2)
         db.session.commit()
         self._login(str(self.sam.user_id))
-        url = f"/intake/api/supervision/cases/{inside.death_id}/cancel"
+        url = f"/api/v1/intake/supervision/cases/{inside.death_id}/cancel"
 
         self.assertEqual(self.client.post(url, json={"reason": "wrong"}).status_code, 400)
         self.assertEqual(db.session.get(VaDeathRegister, inside.death_id).status, "registered")
 
         response = self.client.post(
-            f"/intake/api/supervision/cases/{sibling.death_id}/cancel",
+            f"/api/v1/intake/supervision/cases/{sibling.death_id}/cancel",
             json={"reason": "wrong"}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 404)
         response = self.client.post(
-            f"/intake/api/supervision/cases/{uuid.uuid4()}/reopen",
+            f"/api/v1/intake/supervision/cases/{uuid.uuid4()}/reopen",
             json={"reason": "x"}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 404)
 
         response = self.client.post(url, json={"reason": "wrong"}, headers=self._csrf_headers())
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["status"], "cancelled")
+        self.assertEqual(response.get_json()["case"]["state"], "cancelled")
 
         response = self.client.post(
-            f"/intake/api/supervision/cases/{inside.death_id}/reopen",
+            f"/api/v1/intake/supervision/cases/{inside.death_id}/reopen",
             json={"reason": "real death"}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["status"], "registered")
+        self.assertEqual(response.get_json()["case"]["state"], "registered")
 
     def test_resolving_a_flag_through_the_api(self):
         case = self._register()
         cases.flag_case(case, actor=self.ian, kind="cancel", reason="registered in error")
         db.session.commit()
         self._login(str(self.sam.user_id))
-        url = f"/intake/api/supervision/cases/{case.death_id}/resolve-flag"
+        url = f"/api/v1/intake/supervision/cases/{case.death_id}/resolve-flag"
         self.assertEqual(
             self.client.post(url, json={"confirm": "yes"}, headers=self._csrf_headers()).status_code, 400
         )
         response = self.client.post(url, json={"confirm": True, "reason": "error"}, headers=self._csrf_headers())
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["status"], "cancelled")
+        self.assertEqual(response.get_json()["case"]["state"], "cancelled")
 
     def test_reactivating_a_grant_rechecks_the_cadre_flag(self):
         row = self._grant_row(
@@ -512,13 +512,14 @@ class InterviewSupervisorTests(BaseTestCase):
         db.session.commit()
         self._login(str(self.sam.user_id))
         response = self.client.post(
-            f"/intake/api/supervision/cases/{case.death_id}/resolve-flag",
+            f"/api/v1/intake/supervision/cases/{case.death_id}/resolve-flag",
             json={"confirm": False, "reason": "not an error"}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 200, response.get_json())
-        body = response.get_json()["death"]
+        body = response.get_json()["case"]
         self.assertEqual(body["unique_id"], case.unique_id)
-        for key in ("deceased_name", "informant_phone", "address", "abha_number"):
+        self.assertIn("registered_by_name", body)  # the supervisor list's row, not the interviewer's detail
+        for key in ("informant", "informant_phone", "informant_phone_masked", "address", "abha_number", "prefill", "links"):
             self.assertNotIn(key, body)
 
     # ── audit grant and cadre, supervision page (digitva-vzk.8) ────────────
@@ -608,9 +609,9 @@ class InterviewSupervisorTests(BaseTestCase):
         self._register()
         db.session.commit()
         self._login(str(self.dana.user_id))
-        self.assertTrue(self.client.get("/intake/api/supervision/cases").get_json()["cases"])
+        self.assertTrue(self.client.get("/api/v1/intake/supervision/cases").get_json()["cases"])
         self._login(str(self.olga.user_id))
-        response = self.client.get("/intake/api/supervision/cases")
+        response = self.client.get("/api/v1/intake/supervision/cases")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"cases": [], "counts": {}, "next_cursor": None})
 
@@ -618,7 +619,7 @@ class InterviewSupervisorTests(BaseTestCase):
         self._register(informant_phone="9876543210")
         db.session.commit()
         self._login(str(self.sam.user_id))
-        row = self.client.get("/intake/api/supervision/cases").get_json()["cases"][0]
+        row = self.client.get("/api/v1/intake/supervision/cases").get_json()["cases"][0]
         self.assertIn("registered_by_name", row)
         for key in ("informant_phone_masked", "informant_phone_2_masked", "informant_phone", "address"):
             self.assertNotIn(key, row)
@@ -628,14 +629,14 @@ class InterviewSupervisorTests(BaseTestCase):
         sibling = self._register(unit=self.c2)
         db.session.commit()
         self._login(str(self.sam.user_id))
-        url = f"/intake/api/supervision/cases/{duplicate.death_id}/duplicate"
+        url = f"/api/v1/intake/supervision/cases/{duplicate.death_id}/duplicate"
         body = {"duplicate_of": str(kept.death_id), "reason": "same death"}
 
         self.assertEqual(self.client.post(url, json=body).status_code, 400)  # no CSRF token
         response = self.client.post(url, json={"duplicate_of": str(sibling.death_id)}, headers=self._csrf_headers())
         self.assertEqual(response.status_code, 404)
         response = self.client.post(
-            f"/intake/api/supervision/cases/{sibling.death_id}/duplicate",
+            f"/api/v1/intake/supervision/cases/{sibling.death_id}/duplicate",
             json={"duplicate_of": str(kept.death_id)}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 404)
@@ -644,7 +645,7 @@ class InterviewSupervisorTests(BaseTestCase):
 
         response = self.client.post(url, json=body, headers=self._csrf_headers())
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["status"], "duplicate")
+        self.assertEqual(response.get_json()["case"]["state"], "duplicate")
         stored = db.session.get(VaDeathRegister, duplicate.death_id)
         db.session.refresh(stored)
         self.assertEqual(stored.duplicate_of_death_id, kept.death_id)
@@ -660,12 +661,12 @@ class InterviewSupervisorTests(BaseTestCase):
         db.session.commit()
         self._login(str(self.sam.user_id))
         response = self.client.post(
-            f"/intake/api/supervision/cases/{coded.death_id}/duplicate",
+            f"/api/v1/intake/supervision/cases/{coded.death_id}/duplicate",
             json={"duplicate_of": str(kept.death_id)}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(response.get_json()["death"]["pending_flag"], "duplicate")
-        self.assertEqual(response.get_json()["death"]["status"], "submitted")
+        self.assertEqual(response.get_json()["case"]["pending_flag"], "duplicate")
+        self.assertEqual(response.get_json()["case"]["state"], "submitted")
 
     # ── the In-charge and project_pi (digitva-0wc stage 5) ─────────────────
 

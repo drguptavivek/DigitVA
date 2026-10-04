@@ -115,7 +115,8 @@ class ClientBootstrapTests(BaseTestCase):
             {"intake": False, "coding": True, "reviewing": False},
         )
         self.assertNotIn("email", body["user"])
-        self.assertEqual(body["links"]["intakeBootstrap"], "/intake/api/bootstrap")
+        self.assertEqual(body["links"]["intakeCases"], "/api/v1/intake/cases")
+        self.assertNotIn("intakeBootstrap", body["links"])
         self.assertEqual(body["links"]["coding"], "/coding/")
         login_url = urlsplit(body["links"]["login"])
         # An already authenticated account is sent to its landing page.
@@ -174,12 +175,12 @@ class ClientBootstrapTests(BaseTestCase):
             body["capabilities"],
             {"intake": True, "coding": True, "reviewing": True},
         )
-        intake_response = self.client.get("/intake/api/bootstrap")
+        intake_response = self.client.get("/api/v1/intake/cases")
         self.assertEqual(intake_response.status_code, 200)
         self.assertEqual(intake_response.headers.get("Cache-Control"), "no-store")
 
     def test_anonymous_intake_error_is_not_cached(self):
-        response = self.client.get("/intake/api/bootstrap")
+        response = self.client.get("/api/v1/intake/cases")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 

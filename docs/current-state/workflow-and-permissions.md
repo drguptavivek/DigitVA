@@ -800,7 +800,7 @@ Grant scope is resolved back to forms and submissions as follows:
   duplicate needs a data-manager shaped grant (`data_manager`, In-charge, tree
   `project_pi`). The role gates `VaUsers.is_interview_supervisor()` and
   `is_site_pi()` (no form argument) wrap `authz.effective_roles` since stage 5
-  (`role_required("interview_supervisor")`), the API `/intake/api/supervision/`
+  (`role_required("interview_supervisor")`), the API `/api/v1/intake/supervision/`
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)
 

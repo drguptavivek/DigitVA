@@ -433,7 +433,7 @@ a place for names, phone numbers or addresses).
   predicate `case_transition_service.is_interview_supervisor_for` (unit-grant
   subtree of `interview_supervisor` or `data_manager`, plus `data_manager`
   project and site grants); the supervisor API under
-  `/intake/api/supervision/` (list, resolve flag, cancel, reopen). Confirming a duplicate excludes its submission
+  `/api/v1/intake/supervision/` (list, resolve flag, cancel, reopen). Confirming a duplicate excludes its submission
   from every coding reader through `app/services/duplicate_exclusion.py` and
   revokes any active coding or reviewing allocation (`digitva-vzk.7`; see
   coding-workflow-state-machine.md, "Confirmed Duplicate Cases").
@@ -458,7 +458,7 @@ a place for names, phone numbers or addresses).
     supervision list API drops the masked phones too). Actions: confirm or
     reject a flag, mark duplicate, cancel and reopen, each with a reason
     under the warning "no names, phone numbers or addresses".
-  - **Direct duplicate mark** `POST /intake/api/supervision/cases/<id>/duplicate`
+  - **Direct duplicate mark** `POST /api/v1/intake/supervision/cases/<id>/duplicate`
     (`duplicate_of`, `reason`): a supervisor without an interviewer grant
     marks a case as a duplicate of another supervised case of the same
     project; both cases outside the caller's supervision read as 404. It is
@@ -620,14 +620,19 @@ reused (it is legal only from `screening_pending`, `smartva_pending` and
 - Phones are validated (Indian mobile format) and **masked in lists**; shown in
   full only on the case page.
 - **Single-case detail** (owner, 2026-10-03, `digitva-p6fs.24`). One case's
-  detail (`GET /intake/api/cases/<death_id>` in the browser, `GET
-  /api/v1/device/cases/<death_id>` in the native app) shows the full contact
+  detail (`GET /api/v1/intake/cases/<death_id>`, one route for the browser and
+  the native app) shows the full contact
   details: informant name, both full phones, the household address fields and
   the remarks. Lists (the worklist, which the device lists per project, and
-  supervision) stay masked. The browser and device detail are one body; the
-  device adds only the case's prefill for offline interviews. The detail's
-  own fields never carry ABHA, the parents' names, other users' ids or
-  client ids, and it is answered `Cache-Control: no-store`.
+  supervision) stay masked. The detail is one body for every client, and the
+  reply of every single-case action; it carries the case's links and, only
+  when the caller may start or resume the interview (they hold its active
+  draft, or the case is open and no other interviewer's draft holds it), its
+  prefill for offline interviews, which includes ABHA and the parents' names.
+  For a case another interviewer started or one already submitted, duplicate
+  or cancelled, the `prefill` key is absent. The detail's own fields never
+  carry ABHA, the parents' names, other users' ids or client ids, and it is
+  answered `Cache-Control: no-store`.
   Its visibility is exactly the worklist's (team cases in scope, see "Who
   sees which cases"; "details pending" for its starter only), in any state; a
   case outside it, or an unknown id, is 404. `va_sid` is null unless the
@@ -849,20 +854,19 @@ Details the baseline left open, fixed by the implementation
   case to the state recorded before it became terminal.
 - **Flags:** a case carries at most one pending flag (`duplicate` naming the
   kept case in the same project, or `cancel` with a reason);
-  `POST /intake/api/cases/<death_id>/flags`.
+  `POST /api/v1/intake/cases/<death_id>/flags`.
 - **Submission rule unchanged** (valid form and `Id10013`) until the
   `interview_outcome` question is built (built: `digitva-vzk.2`); a submission moves its case to
   `submitted`. A direct start whose answers lack the minimum identity is
   refused at submit (422).
-- **Lists:** `GET /intake/api/deaths` stays the death register
+- **Lists:** `GET /api/v1/intake/deaths` stays the death register
   (`source = register` only) and still accepts the old status names
   `va_in_progress` and `va_submitted` as filters. The worklist is
-  `GET /intake/api/cases` (`mine`, `state`, `limit` up to 200, `cursor`), sorted
+  `GET /api/v1/intake/cases` (`mine`, `state`, `limit` up to 200, `cursor`), sorted
   by last activity until phase 5 adds visit dates (superseded: see "Built in
   phase 5"); its rows carry no informant name, phone or address. Since
-  `digitva-p6fs.24` it is answered `Cache-Control: no-store`, and the device
-  case list (`GET /api/v1/device/cases`) is the same list restricted to one
-  project.
+  `digitva-p6fs.24` it is answered `Cache-Control: no-store`, and takes an
+  optional `project_id` to restrict it to one project.
 
 ### Built in phase 4 (digitva-vzk.6, 2026-09-30)
 
@@ -870,7 +874,7 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
 `app/static/js/intake/intake_worklist.js`) replaces the "My drafts" and
 "Registered deaths" lists. No schema change.
 
-- **One list** over `GET /intake/api/cases`: team cases by default, a **Mine
+- **One list** over `GET /api/v1/intake/cases`: team cases by default, a **Mine
   only** switch, tabs **To visit** (registered, scheduled, not reachable,
   paused), **In progress** (in progress, details pending) and **Done**
   (submitted, refused; duplicate and cancelled shown as **Closed**). Tab counts
@@ -884,7 +888,7 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
 - **Primary action:** **Resume** opens the caller's own draft; otherwise
   **Start** (registered, scheduled, paused, not reachable), **Restart**
   (refused) or **Resume** (in progress, details pending) calls
-  `POST /intake/api/drafts` with the case. A second interviewer on a case
+  `POST /api/v1/intake/drafts` with the case. A second interviewer on a case
   with someone else's draft still gets the 409 message until team drafts land.
 - **Secondary actions:** **Flag duplicate** (the kept case picked from cases in
   scope of the same project, the 200 most recently active) and **Flag for
@@ -916,14 +920,14 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   last four digits.
 - **Visit dates** are ISO date-times with a timezone (the page sends the
   browser's local time as UTC), from yesterday to a year ahead.
-- **Set visit** (`POST /intake/api/cases/<death_id>/visit`, body
+- **Set visit** (`POST /api/v1/intake/cases/<death_id>/visit`, body
   `next_visit_at` or `null`) on a case waiting for a visit (registered,
   scheduled, not reachable, paused): a date moves registered and not reachable
   to `scheduled` (audit `visit_scheduled`) and only changes the date on
   scheduled or paused; `null` moves scheduled back to `registered` (audit
   `visit_cleared`) and only clears the date elsewhere. A date-only change
   writes no audit row.
-- **Log attempt** (`POST /intake/api/cases/<death_id>/attempts`, body
+- **Log attempt** (`POST /api/v1/intake/cases/<death_id>/attempts`, body
   `outcome`, optional `next_visit_at`) on the same states writes one
   `map_case_contact_attempts` row (outcome, time, next date, user; no notes)
   and sets `last_contact_at`:
@@ -937,10 +941,10 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
     date change. Chosen so a reached family without a date keeps its
     appointment, and because `paused -> scheduled` is not a transition.
   Audit actions are `contact_<outcome>` when the state changes.
-- **Pause** (`POST /intake/api/cases/<death_id>/pause`, body `reason`,
+- **Pause** (`POST /api/v1/intake/cases/<death_id>/pause`, body `reason`,
   optional `next_visit_at`): `in_progress -> paused`; the reason is a code
   (`respondent_busy`, `respondent_left`, `needs_other_respondent`, `other`),
-  never free text. **Resume** is the existing start: `POST /intake/api/drafts`
+  never free text. **Resume** is the existing start: `POST /api/v1/intake/drafts`
   with the case moves `paused -> in_progress`. Starting or resuming an
   interview clears `next_visit_at`.
 - **Scope and CSRF:** the three POSTs resolve the case through `get_death`
@@ -987,7 +991,7 @@ its name and date of death.
 - **Scope:** candidates are limited to the caller's worklist reach
   (`_worklist_scope`), so the hint never names a case the caller cannot open;
   a match outside it is not shown to that caller.
-- **Case API:** `GET /intake/api/cases/<death_id>/possible-duplicates`
+- **Case API:** `GET /api/v1/intake/cases/<death_id>/possible-duplicates`
   (interviewer; the case through `get_death`, out of scope reads as 404):
   up to 50, most similar first, each with `death_id`, `unique_id`,
   `unit_name`, `state` and `score`. No name, sex, date, phone or address.

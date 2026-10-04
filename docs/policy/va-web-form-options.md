@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-29
+last_updated: 2026-10-04
 ---
 
 # VA Web Form Options Contract
@@ -321,7 +321,7 @@ is for narration recordings, and its codes are a different axis (`khasi` there,
 still the only engine that gates data entry — a field interviewer's session
 is validated exactly as before, question by question, as they type. What
 changed is what happens once `completion.valid` reaches the server in
-`POST /intake/api/drafts/<id>/submit`.
+`POST /api/v1/intake/drafts/<id>/submit`.
 
 `app/services/web_form_relevance_service.py` is a second, independent
 evaluation of the same composed instrument (WHO base plus every enabled

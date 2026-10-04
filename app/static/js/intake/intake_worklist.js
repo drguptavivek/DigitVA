@@ -1,5 +1,5 @@
 // VA Intake dashboard (/intake/): project/site and unit pickers for new
-// entries, and the interviewer worklist over GET /intake/api/cases
+// entries, and the interviewer worklist over GET /api/v1/intake/cases
 // (digitva-vzk.6, policy docs/policy/web-intake.md, "The list").
 //
 // Path A rules (docs/policy/field-data-collection.md): no case data in URLs
@@ -9,7 +9,7 @@
 (function () {
   var CSRF = '', CONTEXT = [], SCOPE = null;
   // Units for the picker come from the organization tree API, not from
-  // bootstrap's grant-derived context: a project- or site-scoped interviewer
+  // the page's grant-derived context: a project- or site-scoped interviewer
   // grant reaches every unit of the project, but interviewer_context() only
   // lists units from unit-scoped grants, so it would show an empty dropdown
   // for exactly the callers who most need one (see the server-side rule in
@@ -203,9 +203,12 @@
     deathLink.href = '/intake/deaths/new?project_id=' + encodeURIComponent(c.project_id) + '&site_id=' + encodeURIComponent(c.site_id) + (unitId() ? '&org_unit_id=' + encodeURIComponent(unitId()) : '');
   }
 
-  api('/intake/api/bootstrap').then(function (res) {
-    if (!res.ok) { alertBox('danger', res.data.error || 'Could not load intake context.'); return; }
-    CSRF = res.data.csrf_token; CONTEXT = res.data.context || [];
+  // The page renders the CSRF token and the interviewer context (its
+  // project-site scopes) into the template; nothing is fetched for them. Runs
+  // after the rest of this script has defined its state.
+  Promise.resolve().then(function () {
+    CSRF = $('intake-worklist').dataset.csrf || '';
+    try { CONTEXT = JSON.parse($('intake-context').textContent) || []; } catch (e) { CONTEXT = []; }
     initWorklist();
     var sel = $('intake-scope');
     CONTEXT.forEach(function (c) { sel.add(new Option(c.project_id + ' / ' + c.site_id + ' — ' + c.project_name, scopeKey(c))); });
@@ -341,7 +344,7 @@
   // direct start, or the case for a register-first one).
   function openDraft(body, button) {
     if (button) button.disabled = true;
-    api('/intake/api/drafts', 'POST', body).then(function (res) {
+    api('/api/v1/intake/drafts', 'POST', body).then(function (res) {
       if (!res.ok) {
         if (button) button.disabled = false;
         alertBox('danger', res.data.error || 'Could not start the questionnaire.');
@@ -357,7 +360,7 @@
 
   // ---- Worklist ----
   //
-  // One list over GET /intake/api/cases (team cases in scope across every
+  // One list over GET /api/v1/intake/cases (team cases in scope across every
   // project-site of the caller's interviewer grants, newest activity first,
   // keyset-paged). Tabs group case states; counts come from the API's
   // per-state counts, which ignore the state filter but honour "Mine".
@@ -445,7 +448,7 @@
       : 'Team cases in your scope.';
     if (reset) { NEXT_CURSOR = null; rows.replaceChildren(); }
     more.disabled = true;
-    var url = '/intake/api/cases?state=' + encodeURIComponent(TABS[TAB].join(','))
+    var url = '/api/v1/intake/cases?state=' + encodeURIComponent(TABS[TAB].join(','))
       + '&mine=' + (MINE ? 'true' : 'false')
       + (NEXT_CURSOR ? '&cursor=' + encodeURIComponent(NEXT_CURSOR) : '');
     api(url).then(function (res) {
@@ -597,7 +600,7 @@
     form.appendChild(buttons);
     function send(payload) {
       submit.disabled = true;
-      api('/intake/api/cases/' + encodeURIComponent(row.death_id) + '/' + path, 'POST', payload).then(function (res) {
+      api('/api/v1/intake/cases/' + encodeURIComponent(row.death_id) + '/' + path, 'POST', payload).then(function (res) {
         submit.disabled = false;
         if (!res.ok) { alertBox('danger', res.data.error || 'Could not save.'); return; }
         alertBox('success', done);
@@ -675,7 +678,7 @@
       var body = { kind: kind, reason: reason.value.trim() };
       if (picker) body.duplicate_of = picker.value;
       submit.disabled = true;
-      api('/intake/api/cases/' + encodeURIComponent(row.death_id) + '/flags', 'POST', body).then(function (res) {
+      api('/api/v1/intake/cases/' + encodeURIComponent(row.death_id) + '/flags', 'POST', body).then(function (res) {
         submit.disabled = false;
         if (!res.ok) { alertBox('danger', res.data.error || 'Could not flag the case.'); return; }
         alertBox('success', 'Case ' + row.unique_id + ' flagged. A supervisor will confirm or reject it.');
@@ -688,7 +691,7 @@
   // ponytail: first 200 cases by recent activity (the API's page cap); a
   // server-side search by case id is the upgrade when scopes outgrow that.
   function loadDuplicateOptions(picker, row) {
-    api('/intake/api/cases?limit=200').then(function (res) {
+    api('/api/v1/intake/cases?limit=200').then(function (res) {
       picker.replaceChildren();
       if (!res.ok) { picker.add(new Option(res.data.error || 'Could not load cases.', '')); return; }
       var suggested = row.possible_duplicates || [];

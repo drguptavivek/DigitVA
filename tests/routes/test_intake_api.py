@@ -1,13 +1,16 @@
-"""Tests for the /intake pages and JSON API (app/routes/intake.py).
+"""Tests for the /intake pages (app/routes/intake.py) and the /api/v1/intake JSON API
+(app/routes/api/intake.py).
 
 The route layer is thin, so these cover what only it can decide:
   - unauthenticated and non-interviewer callers are refused (401/403), with
-    JSON for /intake/api/* and a redirect/abort for the pages
+    JSON for /api/v1/intake/* and a redirect/abort for the pages
   - browser-originated state changes require the X-CSRFToken header
-  - the happy path: bootstrap -> register a death -> start a draft -> save a
+  - the happy path: register a death -> start a draft -> save a
     section -> submit, each committing its own step
   - WebIntakeError maps to its status code and rolls the session back
 """
+import json
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -32,6 +35,14 @@ from app.models import (
 from app.services import organization_service as org
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
+
+
+def _page_context(client):
+    """The scope list the dashboard renders for its script."""
+    html = client.get("/intake/").get_data(as_text=True)
+    found = re.search(r'<script id="intake-context" type="application/json">(.*?)</script>', html, re.S)
+    assert found is not None
+    return json.loads(found.group(1))
 
 
 class IntakeApiTests(BaseTestCase):
@@ -115,7 +126,7 @@ class IntakeApiTests(BaseTestCase):
 
     def _start_draft(self, **body):
         response = self.client.post(
-            "/intake/api/drafts",
+            "/api/v1/intake/drafts",
             json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, **body},
             headers=self._csrf_headers(),
         )
@@ -125,18 +136,18 @@ class IntakeApiTests(BaseTestCase):
     # ── authentication and role ────────────────────────────────────────────
 
     def test_api_requires_authentication_with_json_401(self):
-        response = self.client.get("/intake/api/bootstrap")
+        response = self.client.get("/api/v1/intake/cases")
         self.assertEqual(response.status_code, 401)
         self.assertIn("error", response.get_json())
 
     def test_api_requires_the_interviewer_role(self):
         self._login(self.base_coder_id)
-        response = self.client.get("/intake/api/bootstrap")
+        response = self.client.get("/api/v1/intake/cases")
         self.assertEqual(response.status_code, 403)
         self.assertIn("interviewer", response.get_json()["error"])
 
         response = self.client.post(
-            "/intake/api/deaths", json=self._death_payload(), headers=self._csrf_headers()
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers()
         )
         self.assertEqual(response.status_code, 403)
 
@@ -168,11 +179,11 @@ class IntakeApiTests(BaseTestCase):
     def test_state_changing_calls_require_the_csrf_header(self):
         self._login(self.interviewer_id)
         self.assertEqual(
-            self.client.post("/intake/api/deaths", json=self._death_payload()).status_code, 400
+            self.client.post("/api/v1/intake/deaths", json=self._death_payload()).status_code, 400
         )
         self.assertEqual(
             self.client.post(
-                "/intake/api/drafts",
+                "/api/v1/intake/drafts",
                 json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID},
             ).status_code,
             400,
@@ -181,62 +192,112 @@ class IntakeApiTests(BaseTestCase):
 
     def test_reads_do_not_require_the_csrf_header(self):
         self._login(self.interviewer_id)
-        self.assertEqual(self.client.get("/intake/api/bootstrap").status_code, 200)
-        self.assertEqual(self.client.get("/intake/api/drafts").status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/intake/drafts").status_code, 200)
 
-    # ── bootstrap ──────────────────────────────────────────────────────────
+    # ── page context (no bootstrap route: the page renders it) ─────────────
 
-    def test_bootstrap_returns_csrf_token_user_and_scope(self):
+    def test_dashboard_renders_csrf_token_and_scope_for_its_script(self):
         self._login(self.interviewer_id)
-        body = self.client.get("/intake/api/bootstrap").get_json()
-
-        self.assertEqual(body["csrf_header_name"], "X-CSRFToken")
-        self.assertTrue(body["csrf_token"])
-        self.assertEqual(body["user"]["user_id"], self.interviewer_id)
+        html = self.client.get("/intake/").get_data(as_text=True)
+        found = re.search(r'id="intake-worklist" data-csrf="([^"]+)"', html)
+        self.assertIsNotNone(found)
+        context = _page_context(self.client)
         self.assertEqual(
-            [(c["project_id"], c["site_id"]) for c in body["context"]],
+            [(c["project_id"], c["site_id"]) for c in context],
             [(self.PROJECT_ID, self.SITE_ID)],
         )
-        self.assertEqual(body["context"][0]["web_intake_mode"], "both")
+        self.assertEqual(context[0]["web_intake_mode"], "both")
+        self.assertEqual(self.client.get("/intake/api/bootstrap").status_code, 404)
 
     # ── case detail (digitva-p6fs.24) ──────────────────────────────────────
 
     def test_case_detail_is_for_interviewers_in_scope_with_full_contacts(self):
-        url = f"/intake/api/cases/{uuid.uuid4()}"
+        url = f"/api/v1/intake/cases/{uuid.uuid4()}"
         self.assertEqual(self.client.get(url).status_code, 401)
         self._login(self.base_coder_id)
         self.assertEqual(self.client.get(url).status_code, 403)
 
         self._login(self.interviewer_id)
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertEqual(self.client.get("/intake/api/cases/not-a-uuid").status_code, 404)
+        self.assertEqual(self.client.get("/api/v1/intake/cases/not-a-uuid").status_code, 404)
         created = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(informant_name="Mohan Das", informant_phone="9876543210",
                                      address_village_ward="Ward 4", father_name="Hari Das"),
             headers=self._csrf_headers(),
         )
         self.assertEqual(created.status_code, 201, created.get_json())
-        death_id = created.get_json()["death"]["death_id"]
+        death_id = created.get_json()["case"]["death_id"]
 
-        response = self.client.get(f"/intake/api/cases/{death_id}")
+        response = self.client.get(f"/api/v1/intake/cases/{death_id}")
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         case = response.get_json()["case"]
         self.assertEqual(case["informant"]["phone"], "9876543210")
         self.assertEqual(case["informant"]["name"], "Mohan Das")
         self.assertEqual(case["household_address"]["village_ward"], "Ward 4")
-        self.assertNotIn("Hari Das", response.get_data(as_text=True))
+        # The detail's own fields carry no parents' names; its prefill, for an
+        # interview started offline, keeps what it always carried.
+        self.assertNotIn("Hari Das", json.dumps({k: v for k, v in case.items() if k != "prefill"}))
+        self.assertEqual(case["prefill"]["answers"]["Id10007"], "Mohan Das")
         self.assertIsNone(case["my_draft_id"])
         self.assertNotIn("form", case["links"])
-        self.assertEqual(case["links"]["start_interview"], "/intake/api/drafts")
-        self.assertEqual(case["links"]["visit"], f"/intake/api/cases/{death_id}/visit")
+        self.assertEqual(case["links"]["start_interview"], "/api/v1/intake/drafts")
+        self.assertEqual(case["links"]["visit"], f"/api/v1/intake/cases/{death_id}/visit")
 
         draft = self._start_draft(death_id=death_id)
-        case = self.client.get(f"/intake/api/cases/{death_id}").get_json()["case"]
+        case = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
         self.assertEqual(case["my_draft_id"], draft["draft_id"])
         self.assertEqual(case["links"]["form"], f"/intake/form/{draft['draft_id']}")
         self.assertEqual(case["state"], "in_progress")
+
+    def test_case_detail_carries_prefill_only_for_a_caller_who_may_start_or_resume(self):
+        self._login(self.interviewer_id)
+        created = self.client.post(
+            "/api/v1/intake/deaths",
+            json=self._death_payload(informant_name="Mohan Das", father_name="Hari Das"),
+            headers=self._csrf_headers(),
+        )
+        death_id = created.get_json()["case"]["death_id"]
+        # Startable: the registrant's own reply and detail carry the prefill.
+        self.assertIn("prefill", created.get_json()["case"])
+        self.assertEqual(self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]["prefill"]["answers"]["Id10061"], "Hari Das")
+
+        other = self._get_or_make_user("api.prefill.other@test.local", "IntakeApi123")
+        db.session.add(VaUserAccessGrants(
+            user_id=other.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID, notes="prefill rule interviewer", grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+        self._login(str(other.user_id))
+        detail = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
+        self.assertIn("prefill", detail)  # open case, no draft: any interviewer in scope may start it
+
+        # Another interviewer's draft holds the case: the key is absent for the rest, present for the holder.
+        self._login(self.interviewer_id)
+        draft = self._start_draft(death_id=death_id)
+        mine = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
+        self.assertEqual(mine["my_draft_id"], draft["draft_id"])
+        self.assertIn("prefill", mine)
+        self._login(str(other.user_id))
+        response = self.client.get(f"/api/v1/intake/cases/{death_id}")
+        self.assertEqual(response.status_code, 200)
+        held = response.get_json()["case"]
+        self.assertEqual(held["unique_id"], mine["unique_id"])
+        self.assertNotIn("prefill", held)
+        self.assertNotIn("Hari Das", json.dumps(held))
+
+        # A closed case: absent even for its registrant.
+        self._login(self.interviewer_id)
+        closed_id = self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(father_name="Ram Das"), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+        db.session.get(VaDeathRegister, closed_id).status = "submitted"
+        db.session.flush()
+        closed = self.client.get(f"/api/v1/intake/cases/{closed_id}").get_json()["case"]
+        self.assertEqual(closed["state"], "submitted")
+        self.assertNotIn("prefill", closed)
 
     # ── happy path ─────────────────────────────────────────────────────────
 
@@ -244,15 +305,15 @@ class IntakeApiTests(BaseTestCase):
         self._login(self.interviewer_id)
 
         response = self.client.post(
-            "/intake/api/deaths", json=self._death_payload(), headers=self._csrf_headers()
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers()
         )
         self.assertEqual(response.status_code, 201, response.get_json())
-        death = response.get_json()["death"]
+        death = response.get_json()["case"]
         self.assertTrue(death["unique_id"].startswith(f"{self.SITE_ID}-"))
-        self.assertEqual(death["status"], "registered")
+        self.assertEqual(death["state"], "registered")
 
         listed = self.client.get(
-            f"/intake/api/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}"
+            f"/api/v1/intake/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}"
         ).get_json()["deaths"]
         self.assertIn(death["death_id"], [d["death_id"] for d in listed])
 
@@ -261,7 +322,7 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(draft["unique_id"], death["unique_id"])
 
         saved = self.client.patch(
-            f"/intake/api/drafts/{draft['draft_id']}",
+            f"/api/v1/intake/drafts/{draft['draft_id']}",
             json={
                 "sections": {"consent": {"Id10013": "yes"}, "background": {"Id10019": "female"}},
                 "current_section": "background",
@@ -280,12 +341,12 @@ class IntakeApiTests(BaseTestCase):
             2,
         )
 
-        fetched = self.client.get(f"/intake/api/drafts/{draft['draft_id']}").get_json()
+        fetched = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()
         self.assertEqual(fetched["envelope"]["currentSection"], "background")
         self.assertEqual(fetched["envelope"]["data"]["Id10013"], "yes")
 
         submitted = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={
                 "completion": {
                     "valid": True,
@@ -324,7 +385,7 @@ class IntakeApiTests(BaseTestCase):
         draft = self._start_draft()
 
         submitted = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={
                 "completion": {
                     "valid": True,
@@ -412,9 +473,9 @@ class IntakeApiTests(BaseTestCase):
         draftStore.save() -- see docs/policy/web-intake.md."""
         self._login(self.interviewer_id)
         death = self.client.post(
-            "/intake/api/deaths", json=self._death_payload(deceased_name="Bina Sahu"),
+            "/api/v1/intake/deaths", json=self._death_payload(deceased_name="Bina Sahu"),
             headers=self._csrf_headers(),
-        ).get_json()["death"]
+        ).get_json()["case"]
         draft = self._start_draft(death_id=death["death_id"])
         body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
 
@@ -485,29 +546,29 @@ class IntakeApiTests(BaseTestCase):
         self._login(self.interviewer_id)
 
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(deceased_sex="other"),
             headers=self._csrf_headers(),
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 422)
 
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(project_id=self.BASE_PROJECT_ID, site_id=self.BASE_SITE_ID),
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 403)
 
         self.assertEqual(
-            self.client.get("/intake/api/drafts/not-a-uuid").status_code, 404
+            self.client.get("/api/v1/intake/drafts/not-a-uuid").status_code, 404
         )
         self.assertEqual(
-            self.client.get("/intake/api/deaths").status_code, 400
+            self.client.get("/api/v1/intake/deaths").status_code, 400
         )
 
         draft = self._start_draft()
         response = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={"completion": {"valid": False, "data": {"Id10013": "yes"}}},
             headers=self._csrf_headers(),
         )
@@ -519,7 +580,7 @@ class IntakeApiTests(BaseTestCase):
         self._login(self.interviewer_id)
         draft = self._start_draft()
         response = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={"completion": {"valid": False, "data": {
                 "Id10013": "yes",
                 "Id10017": "Bina",
@@ -540,11 +601,11 @@ class IntakeApiTests(BaseTestCase):
         self._login(self.interviewer_id)
         before = db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister))
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(date_of_death=(date.today() + timedelta(days=1)).isoformat()),
             headers=self._csrf_headers(),
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 422)
         self.assertEqual(
             db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister)), before
         )
@@ -554,20 +615,20 @@ class IntakeApiTests(BaseTestCase):
     def test_register_api_accepts_and_returns_a_partial_birth_date(self):
         self._login(self.interviewer_id)
         response = self.client.post(
-            "/intake/api/deaths", json=self._death_payload(date_of_birth_partial="1953"),
+            "/api/v1/intake/deaths", json=self._death_payload(date_of_birth_partial="1953"),
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 201, response.get_json())
-        self.assertEqual(response.get_json()["death"]["date_of_birth_partial"], "1953")
+        self.assertEqual(response.get_json()["case"]["deceased"]["date_of_birth_partial"], "1953")
         both = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(date_of_birth_partial="1953-02", date_of_birth="1953-02-11"),
             headers=self._csrf_headers(),
         )
-        self.assertEqual(both.status_code, 400)
+        self.assertEqual(both.status_code, 422)
 
-        draft = self._start_draft(death_id=response.get_json()["death"]["death_id"])
-        prefill = self.client.get(f"/intake/api/drafts/{draft['draft_id']}").get_json()["prefill"]
+        draft = self._start_draft(death_id=response.get_json()["case"]["death_id"])
+        prefill = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["prefill"]
         self.assertEqual(
             (prefill["answers"]["Id10020"], prefill["answers"]["dob_precision"], prefill["answers"]["dob_year"]),
             ("no", "year", "1953-01-01"),
@@ -594,10 +655,10 @@ class IntakeApiTests(BaseTestCase):
         org.set_unit_va_presets(self.PROJECT_ID, district.org_unit_id, hiv_mortality="high", malaria_mortality=None)
         self._login(self.interviewer_id)
         death = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json=self._death_payload(org_unit_id=str(district.org_unit_id), abha_number="12345678901234"),
             headers=self._csrf_headers(),
-        ).get_json()["death"]
+        ).get_json()["case"]
         draft = self._start_draft(death_id=death["death_id"])
         return draft, {
             "Id10010": "Field Worker", "Id10010b": "female",
@@ -606,10 +667,10 @@ class IntakeApiTests(BaseTestCase):
 
     def _save(self, draft, sections):
         response = self.client.patch(
-            f"/intake/api/drafts/{draft['draft_id']}", json={"sections": sections}, headers=self._csrf_headers(),
+            f"/api/v1/intake/drafts/{draft['draft_id']}", json={"sections": sections}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 200, response.get_json())
-        return self.client.get(f"/intake/api/drafts/{draft['draft_id']}").get_json()["envelope"]["data"]
+        return self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["envelope"]["data"]
 
     def _submit(self, draft, data):
         answers = {
@@ -618,7 +679,7 @@ class IntakeApiTests(BaseTestCase):
             "narr_language": "english", **data,
         }
         response = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={"completion": {"valid": True, "issues": [], "data": answers}}, headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 201, response.get_json())
@@ -654,12 +715,12 @@ class IntakeApiTests(BaseTestCase):
     def test_discard_frees_the_death_for_a_new_draft(self):
         self._login(self.interviewer_id)
         death = self.client.post(
-            "/intake/api/deaths", json=self._death_payload(), headers=self._csrf_headers()
-        ).get_json()["death"]
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers()
+        ).get_json()["case"]
         draft = self._start_draft(death_id=death["death_id"])
 
         response = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/discard", headers=self._csrf_headers()
+            f"/api/v1/intake/drafts/{draft['draft_id']}/discard", headers=self._csrf_headers()
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["draft"]["status"], "discarded")
@@ -738,7 +799,7 @@ class WebOnlyProjectIntakeTests(BaseTestCase):
         # Before: no form at all, so the interviewer cannot even reach /intake/.
         self.assertEqual(self._web_forms(), [])
         self._login(self.interviewer_id)
-        self.assertEqual(self.client.get("/intake/api/bootstrap").status_code, 403)
+        self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 403)
 
         self._login(self.base_admin_id)
         response = self.client.put(
@@ -755,13 +816,13 @@ class WebOnlyProjectIntakeTests(BaseTestCase):
 
         # After: the same interviewer is now in scope and can start a draft.
         self._login(self.interviewer_id)
-        body = self.client.get("/intake/api/bootstrap").get_json()
+        context = _page_context(self.client)
         self.assertEqual(
-            [(c["project_id"], c["site_id"]) for c in body["context"]],
+            [(c["project_id"], c["site_id"]) for c in context],
             [(self.PROJECT_ID, self.SITE_ID)],
         )
         started = self.client.post(
-            "/intake/api/drafts",
+            "/api/v1/intake/drafts",
             json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID},
             headers=self._csrf_headers(),
         )
@@ -829,15 +890,15 @@ class WebOnlyProjectIntakeTests(BaseTestCase):
         self.assertTrue(unit_user.is_interviewer())
 
         self._login(str(unit_user.user_id))
-        body = self.client.get("/intake/api/bootstrap").get_json()
+        context = _page_context(self.client)
         self.assertEqual(
-            [(c["project_id"], c["site_id"]) for c in body["context"]],
+            [(c["project_id"], c["site_id"]) for c in context],
             [(self.PROJECT_ID, self.SITE_ID)],
         )
         self.assertEqual(
-            [u["unit_code"] for u in body["context"][0]["org_units"]], ["WBP01"]
+            [u["unit_code"] for u in context[0]["org_units"]], ["WBP01"]
         )
 
     def test_the_role_gate_stays_shut_without_any_interviewer_grant(self):
         self._login(self.base_coder_id)
-        self.assertEqual(self.client.get("/intake/api/bootstrap").status_code, 403)
+        self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 403)

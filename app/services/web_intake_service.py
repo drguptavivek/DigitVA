@@ -1651,7 +1651,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
     return draft
 
 
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, completion: dict, device_id: uuid.UUID) -> VaWebIntakeDraft:
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, completion: dict, device_id: uuid.UUID | None = None) -> VaWebIntakeDraft:
     """Store and submit one completed device interview; returns its draft.
 
     The same path as a web submit: ``start_draft`` (scope, case, prefill) in
@@ -1662,13 +1662,15 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     ``valid: true`` the upload needs an incomplete ``interview_outcome``
     pick, exactly as on the web. Idempotency is the caller's
     (``find_device_upload`` first; ``client_draft_id`` is unique).
+    *device_id* is the uploading device's id, None for a browser-cookie request.
     """
     if not isinstance(envelope, dict) or not isinstance(envelope.get("data"), dict):
         raise WebIntakeError("draft.data must be an object of answers.")
     data = envelope["data"]
     _check_device_answers(data)
     meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
-    meta["deviceId"] = str(device_id)
+    if device_id is not None:
+        meta["deviceId"] = str(device_id)
     completion = {
         "valid": completion.get("valid") is True,
         "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
@@ -1688,7 +1690,8 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
         death_id=death_id, own_copy=True,
     )
     draft.client_draft_id = client_draft_id
-    draft.meta = {**(draft.meta or {}), "deviceId": meta.pop("deviceId")}
+    if device_id is not None:
+        draft.meta = {**(draft.meta or {}), "deviceId": meta.pop("deviceId")}
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
     submit_draft(draft, user, completion=completion, intake_source="device")
     return draft
@@ -1745,11 +1748,28 @@ def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict,
     return parts
 
 
-def case_prefill(user: VaUsers, death: VaDeathRegister) -> dict:
-    """What the web form page prefills for *death*: the device detail's
+def case_prefill(user: VaUsers, death: VaDeathRegister, my_draft_id: uuid.UUID | None) -> dict | None:
+    """What the web form page prefills for *death*: the case detail's
     ``prefill``, so an interview started offline opens prefilled. Carries the
     questionnaire's own answers (informant's and parents' names, address,
-    ABHA), never a phone number."""
+    ABHA), never a phone number.
+
+    Only for a caller who may start or resume the interview, as
+    ``start_draft`` decides: they hold the case's active draft (*my_draft_id*),
+    or the case is open and has no active draft. Otherwise None (a closed
+    case, or one another interviewer's draft holds): the identifiers are not
+    theirs to read.
+    """
+    if my_draft_id is None:
+        if death.status in _SUPERSEDED_CASE_STATES:
+            return None
+        other_draft = db.session.scalar(
+            sa.select(VaWebIntakeDraft.draft_id).where(
+                VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft"
+            ).limit(1)
+        )
+        if other_draft is not None:
+            return None
     return _prefill_from_death(death, user, death.org_unit_id)
 
 
@@ -1805,17 +1825,6 @@ def find_device_attempt(user: VaUsers, death_id: object, client_attempt_id: uuid
     if attempt.by_user_id != user.user_id or not same_case:
         raise WebIntakeError("That client_attempt_id is already in use.", 409)
     return get_death(user, attempt.death_id)
-
-
-def serialize_case_ack(death: VaDeathRegister) -> dict:
-    """A visit's or attempt's reply: the case's new state and dates only."""
-    return {
-        "death_id": str(death.death_id),
-        "unique_id": death.unique_id,
-        "status": death.status,
-        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
-        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -2013,8 +2022,7 @@ _TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
 
 def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
                   context: list[dict] | None = None) -> dict:
-    """The worklist response both case lists serve (browser
-    ``/intake/api/cases``, device ``/api/v1/device/cases`` with its project):
+    """The worklist response ``GET /api/v1/intake/cases`` serves:
     ``{"cases": [row + possible_duplicates], "counts", "next_cursor"}``.
 
     *args* is the request's query string: ``mine`` (true/false), ``state``
@@ -2254,6 +2262,21 @@ def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
     return death
 
 
+def supervised_case_row(death: VaDeathRegister) -> tuple:
+    """``(case, unit_name, registered_by_name, started_by_name)`` for a case
+    the caller supervises (``list_supervised_cases``' row, for an action's
+    reply), without re-running the list query."""
+    unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
+    registrant = db.session.get(VaUsers, death.registered_by) if death.registered_by else None
+    starter = db.session.get(VaUsers, death.started_by_user_id) if death.started_by_user_id else None
+    return (
+        death,
+        unit.unit_name if unit else None,
+        registrant.name if registrant else None,
+        starter.name if starter else None,
+    )
+
+
 def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
                           cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
     """Every case in the supervisor's scope, "details pending" included.
@@ -2380,7 +2403,9 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
-    or client ids (docs/policy/web-intake.md, "Single-case detail"); the
+    or client ids: the ABHA and parents' names come only in the API's
+    ``prefill`` (``case_prefill``), only to a caller who may start or resume
+    the interview (docs/policy/web-intake.md, "Single-case detail"). The
     submission id (``va_sid``) only to the case's starter, whose interview
     it is."""
     started_by_me = death.started_by_user_id == user.user_id

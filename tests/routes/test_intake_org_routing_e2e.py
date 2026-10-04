@@ -167,7 +167,7 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
         self._login(self.interviewer_id)
 
         registered = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json={
                 "project_id": self.PROJECT_ID,
                 "site_id": self.SITE_ID,
@@ -180,11 +180,11 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
             headers=self._csrf_headers(),
         )
         self.assertEqual(registered.status_code, 201, registered.get_json())
-        death = registered.get_json()["death"]
+        death = registered.get_json()["case"]
         self.assertEqual(death["org_unit_id"], str(org_unit_id))
 
         started = self.client.post(
-            "/intake/api/drafts",
+            "/api/v1/intake/drafts",
             json={
                 "project_id": self.PROJECT_ID,
                 "site_id": self.SITE_ID,
@@ -197,7 +197,7 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
         self.assertEqual(draft["org_unit_id"], str(org_unit_id))
 
         saved = self.client.patch(
-            f"/intake/api/drafts/{draft['draft_id']}",
+            f"/api/v1/intake/drafts/{draft['draft_id']}",
             json={
                 "sections": {
                     "consent": {"Id10013": "yes"},
@@ -211,7 +211,7 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
         self.assertEqual(saved.status_code, 200, saved.get_json())
 
         submitted = self.client.post(
-            f"/intake/api/drafts/{draft['draft_id']}/submit",
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={
                 "completion": {
                     "valid": True,
@@ -307,7 +307,7 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
     def test_registering_without_a_unit_is_refused_over_http(self):
         self._login(self.interviewer_id)
         response = self.client.post(
-            "/intake/api/deaths",
+            "/api/v1/intake/deaths",
             json={
                 "project_id": self.PROJECT_ID,
                 "site_id": self.SITE_ID,
@@ -317,7 +317,7 @@ class IntakeOrgRoutingEndToEndTests(BaseTestCase):
             },
             headers=self._csrf_headers(),
         )
-        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertEqual(response.status_code, 422, response.get_json())
         self.assertIn("organization unit", response.get_json()["error"])
         self.assertEqual(
             db.session.scalar(

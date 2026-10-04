@@ -17,6 +17,8 @@ from app.routes.api import (  # noqa: E402, F401
     icd10,
     icd11,
     instruments,
+    intake,
+    me,
     nqa,
     organization,
     profile,
@@ -51,6 +53,8 @@ api_v1.register_blueprint(doris_clinical.bp, url_prefix="/doris-clinical")
 api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(icd11.bp, url_prefix="/icd11")
 api_v1.register_blueprint(instruments.bp, url_prefix="/instruments")
+api_v1.register_blueprint(intake.bp, url_prefix="/intake")
+api_v1.register_blueprint(me.bp, url_prefix="/me")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(organization.bp, url_prefix="/organization")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")

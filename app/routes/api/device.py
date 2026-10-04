@@ -13,24 +13,26 @@ any other kind of authentication (a browser's session cookie included). Errors a
 before anything reads them, the rate limiter's key functions included.
 """
 
-import uuid
-from contextlib import contextmanager
 from datetime import UTC, datetime
 
-from flask import Blueprint, g, jsonify, request, url_for
+from flask import Blueprint, g, jsonify, request
 from flask_login import current_user, login_required
-from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import csrf, db, limiter
 from app.decorators import role_required
-from app.models import AuthDevice, VaProjectMaster
+from app.models import VaProjectMaster
 from app.routes.api.instruments import translations_response
 from app.routes.api.organization import (
     form_options_payload,
     served_instrument_locales,
     units_payload,
 )
+from app.routes.api.request_helpers import error as _error
+from app.routes.api.request_helpers import intake_error as _intake_error_body
+from app.routes.api.request_helpers import interviewer_context as _interviewer_context
+from app.routes.api.request_helpers import parse_body
+from app.routes.api.request_helpers import request_project_id as _request_project_id
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
@@ -45,20 +47,12 @@ _UNAUTHENTICATED = devices.UNAUTHENTICATED_ENDPOINTS
 #: Bearer endpoints open while the terms are pending (onboarding policy 5.4).
 _TERMS_EXEMPT = frozenset({"end_session", "accept_terms"})
 
-#: Request body caps: one interview upload; the outstanding-work report (up
-#: to OUTSTANDING_MAX_IDS case ids, draft UUIDs and registration UUIDs, about
-#: 150 KB at worst, also accepted on refresh); every other (small) call.
-SUBMISSION_MAX_BYTES = 2 * 1024 * 1024
+#: Request body caps: the refresh call (it may carry the outstanding-work
+#: report: up to OUTSTANDING_MAX_IDS case ids, draft UUIDs and registration
+#: UUIDs, about 150 KB at worst); every other (small) call.
 REPORT_MAX_BYTES = 256 * 1024
 BODY_MAX_BYTES = 16 * 1024
-_REPORT_ENDPOINTS = frozenset({"report_outstanding", "refresh_session"})
-
-#: WebIntakeError carries a status only; the contract wants a machine code.
-_INTAKE_CODES = {400: "invalid_request", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid_interview"}
-
-
-def _error(message, code, status_code):
-    return jsonify({"error": message, "code": code}), status_code
+_REPORT_ENDPOINTS = frozenset({"refresh_session"})
 
 
 def _body_limit() -> int:
@@ -66,23 +60,14 @@ def _body_limit() -> int:
     wherever that is: the limiter's key functions read the body in an
     app-level hook that runs before this blueprint's own."""
     endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
-    if endpoint == "submit_interview":
-        limit = SUBMISSION_MAX_BYTES
-    elif endpoint in _REPORT_ENDPOINTS:
-        limit = REPORT_MAX_BYTES
-    else:
-        limit = BODY_MAX_BYTES
+    limit = REPORT_MAX_BYTES if endpoint in _REPORT_ENDPOINTS else BODY_MAX_BYTES
     request.max_content_length = limit
     return limit
 
 
 def _body() -> dict:
     _body_limit()
-    try:
-        body = request.get_json(silent=True)
-    except RecursionError:  # absurdly nested JSON within the size cap
-        return {}
-    return body if isinstance(body, dict) else {}
+    return parse_body()
 
 
 def _body_key(name):
@@ -140,7 +125,7 @@ def _device_auth_error(exc):
 @bp.errorhandler(intake_svc.WebIntakeError)
 def _intake_error(exc):
     db.session.rollback()
-    return _error(str(exc), _INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code)
+    return _intake_error_body(exc)
 
 
 # ---------------------------------------------------------------------------
@@ -265,88 +250,6 @@ def bootstrap():
     })
 
 
-@bp.post("/submissions")
-@role_required("interviewer")
-def submit_interview():
-    """One completed interview, idempotent on ``client_draft_id``: a resend
-    returns the first result with 200."""
-    p = _body()
-    try:
-        client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
-    except ValueError:
-        return _error("client_draft_id must be a UUID.", "invalid_request", 400)
-    site_id = p.get("site_id")
-    if not isinstance(site_id, str) or not site_id.strip():
-        return _error("site_id is required.", "invalid_request", 400)
-    envelope = p.get("draft")
-    completion = p.get("completion")
-    if not isinstance(completion, dict):
-        # The package's completion result carries valid/issues beside data.
-        completion = envelope if isinstance(envelope, dict) else {}
-
-    project_id = _request_project_id(p)
-    existing = intake_svc.find_device_upload(current_user, client_draft_id)
-    if existing is not None:
-        return jsonify(intake_svc.serialize_device_upload(existing)), 200
-    device = db.session.get(AuthDevice, g.device_session.device_id)
-    try:
-        draft = intake_svc.submit_device_interview(
-            current_user,
-            project_id=project_id,
-            client_draft_id=client_draft_id,
-            site_id=site_id.strip(),
-            org_unit_id=p.get("org_unit_id") or None,
-            death_id=p.get("death_id") or None,
-            envelope=envelope,
-            completion=completion,
-            device_id=device.device_id,
-        )
-        db.session.commit()
-    except IntegrityError:
-        # A concurrent resend of the same client_draft_id won the unique index.
-        db.session.rollback()
-        existing = intake_svc.find_device_upload(current_user, client_draft_id)
-        if existing is None:
-            raise
-        return jsonify(intake_svc.serialize_device_upload(existing)), 200
-    return jsonify(intake_svc.serialize_device_upload(draft)), 201
-
-
-@bp.post("/outstanding")
-@role_required("interviewer")
-def report_outstanding():
-    p = _body()
-    devices.record_outstanding(
-        g.device_session, p.get("count"), p.get("unique_ids"), p.get("client_draft_ids"), p.get("client_death_ids")
-    )
-    db.session.commit()
-    return "", 204
-
-
-def _interviewer_context() -> list[dict]:
-    """``interviewer_context`` of the caller, computed once per request. Kept
-    in the WSGI environ, not ``g``, which can outlive the request (as
-    ``authz.resolve_grants``)."""
-    context = request.environ.get("digitva.interviewer_context")
-    if context is None:
-        context = request.environ["digitva.interviewer_context"] = intake_svc.interviewer_context(current_user)
-    return context
-
-
-def _request_project_id(p: dict | None = None) -> str:
-    """The ``project_id`` the request names (query string, or the JSON body
-    *p* of a POST): required (400 ``invalid_request``), and one of the
-    interviewer's projects (403 ``project_forbidden``, alike whether it
-    exists or not). The device's enrolment project plays no part."""
-    raw = (request.args if p is None else p).get("project_id")
-    if raw in (None, "") or not isinstance(raw, str):
-        raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
-    project_id = raw.strip()
-    if not any(e["project_id"] == project_id for e in _interviewer_context()):
-        raise devices.DeviceAuthError("You have no interviewer access in that project.", "project_forbidden", 403)
-    return project_id
-
-
 @bp.get("/units")
 @role_required("interviewer")
 @limiter.limit("120 per minute")
@@ -382,163 +285,3 @@ def instrument_translations(instrument_code, locale):
     if isinstance(response, tuple):  # the shared endpoint's 404
         return _error("Translation not found.", "not_found", 404)
     return response
-
-
-# ---------------------------------------------------------------------------
-# Offline cases (phase 3, digitva-kmk.4)
-# ---------------------------------------------------------------------------
-
-#: The register form's fields (app/routes/intake.py ``api_register_death``).
-_REGISTER_FIELDS = (
-    "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
-    "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
-    "address_village_ward", "address_landmark", "informant_name", "informant_phone",
-    "informant_phone_2", "remarks", "father_name", "mother_name",
-)
-
-
-def _client_id(p: dict, name: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(str(p.get(name)))
-    except ValueError:
-        raise devices.DeviceAuthError(f"{name} must be a UUID.", "invalid_request", 400) from None
-
-
-@contextmanager
-def _unprocessable(code):
-    """A content refusal (400) from the intake service becomes 422 *code*,
-    which the app answers by reopening the item for editing."""
-    try:
-        yield
-    except intake_svc.WebIntakeError as exc:
-        if exc.status_code != 400:
-            raise
-        raise devices.DeviceAuthError(str(exc), code, 422) from None
-
-
-def _no_store(response):
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
-@bp.get("/cases")
-@role_required("interviewer")
-@limiter.limit("120 per minute")
-def list_cases():
-    """The browser worklist (``/intake/api/cases``) of one project:
-    ``web_intake_service.worklist_page`` with the same query (``mine``,
-    ``state``, ``limit``, ``cursor``) and body, plus required ``project_id``.
-    The app downloads its active cases with ``state=`` and then each case's
-    detail (docs/policy/field-data-collection.md)."""
-    project_id = _request_project_id()
-    return _no_store(jsonify(
-        intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=_interviewer_context())
-    ))
-
-
-def _case_body(death, unit_name, my_draft_id) -> dict:
-    """The device's case body: the browser detail's ``case``
-    (``serialize_case_detail``), plus ``prefill`` for an interview started
-    offline, and this API's links."""
-    body = intake_svc.serialize_case_detail(current_user, death, unit_name, my_draft_id)
-    body["prefill"] = intake_svc.case_prefill(current_user, death)
-    body["links"] = {
-        "self": url_for(".case_detail", death_id=death.death_id),
-        "attempts": url_for(".log_attempt", death_id=death.death_id),
-        "visit": url_for(".set_visit", death_id=death.death_id),
-    }
-    return body
-
-
-@bp.get("/cases/<death_id>")
-@role_required("interviewer")
-@limiter.limit("120 per minute")
-def case_detail(death_id):
-    """One case with its full contact details and prefill, visible as the
-    worklist would list it, in any of the interviewer's projects; otherwise
-    404. The app keeps it offline only while the case is active
-    (docs/policy/field-data-collection.md)."""
-    row = intake_svc.get_case_detail(current_user, death_id, context=_interviewer_context())
-    return _no_store(jsonify({"case": _case_body(*row)}))
-
-
-def _registered_case(death) -> dict:
-    """A registration's reply: the case's detail body, as ``/cases/<id>``."""
-    return _case_body(*intake_svc.case_row(current_user, death))
-
-
-@bp.post("/deaths")
-@role_required("interviewer")
-def register_death():
-    """A death registered offline, idempotent on ``client_death_id``: a
-    resend returns the same case with 200. Body: ``site_id``,
-    ``org_unit_id``, and the web register form's fields."""
-    p = _body()
-    client_death_id = _client_id(p, "client_death_id")
-    site_id = p.get("site_id")
-    if not isinstance(site_id, str) or not site_id.strip():
-        return _error("site_id is required.", "invalid_request", 400)
-    if any(isinstance(p.get(k), (dict, list)) for k in _REGISTER_FIELDS):
-        return _error("Registration fields must be text or numbers.", "invalid_registration", 422)
-    project_id = _request_project_id(p)
-    existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
-    if existing is not None:
-        return _no_store(jsonify({"case": _registered_case(existing)})), 200
-    try:
-        with _unprocessable("invalid_registration"):
-            death = intake_svc.register_death(
-                current_user,
-                project_id=project_id,
-                site_id=site_id.strip(),
-                org_unit_id=p.get("org_unit_id") or None,
-                client_death_id=client_death_id,
-                **{k: p.get(k) for k in _REGISTER_FIELDS},
-            )
-        db.session.commit()
-    except IntegrityError:
-        # A concurrent resend of the same client_death_id won the unique index.
-        db.session.rollback()
-        existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
-        if existing is None:
-            raise
-        return _no_store(jsonify({"case": _registered_case(existing)})), 200
-    return _no_store(jsonify({"case": _registered_case(death)})), 201
-
-
-@bp.post("/cases/<death_id>/attempts")
-@role_required("interviewer")
-def log_attempt(death_id):
-    """A contact attempt logged offline, idempotent on ``client_attempt_id``:
-    a resend returns the case with 200 and logs nothing. Body: ``outcome``,
-    optional ``next_visit_at``."""
-    p = _body()
-    client_attempt_id = _client_id(p, "client_attempt_id")
-    existing = intake_svc.find_device_attempt(current_user, death_id, client_attempt_id)
-    if existing is not None:
-        return jsonify({"case": intake_svc.serialize_case_ack(existing)}), 200
-    try:
-        with _unprocessable("invalid_attempt"):
-            death = intake_svc.log_contact_attempt(
-                current_user, death_id, outcome=str(p.get("outcome") or ""),
-                next_visit_at=p.get("next_visit_at"), client_attempt_id=client_attempt_id,
-            )
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-        existing = intake_svc.find_device_attempt(current_user, death_id, client_attempt_id)
-        if existing is None:
-            raise
-        return jsonify({"case": intake_svc.serialize_case_ack(existing)}), 200
-    return jsonify({"case": intake_svc.serialize_case_ack(death)}), 201
-
-
-@bp.post("/cases/<death_id>/visit")
-@role_required("interviewer")
-def set_visit(death_id):
-    """Set (or clear, with ``null``) a case's next visit. Idempotent by
-    value, so no client id is stored: a resend sets the same date."""
-    p = _body()
-    with _unprocessable("invalid_visit"):
-        death = intake_svc.set_visit(current_user, death_id, next_visit_at=p.get("next_visit_at"))
-    db.session.commit()
-    return jsonify({"case": intake_svc.serialize_case_ack(death)}), 200

@@ -39,7 +39,7 @@
 (function () {
   var params = new URLSearchParams(window.location.search);
   var SCOPE = { project_id: params.get('project_id'), site_id: params.get('site_id'), org_unit_id: params.get('org_unit_id') || null };
-  var CSRF = '';
+  var CSRF = {{ csrf_token() | tojson }};
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function api(url, method, body) {
@@ -49,7 +49,6 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
   function alertBox(msg) { var el = $('death-alert'); if (!msg) { el.classList.add('d-none'); return; } el.className = 'alert alert-danger small py-2'; el.textContent = msg; }
-  api('/intake/api/bootstrap').then(function (res) { if (res.ok) CSRF = res.data.csrf_token; else alertBox(res.data.error || 'Could not load.'); });
   function save(startAfter) {
     alertBox();
     var form = $('death-form');
@@ -57,12 +56,12 @@
     var body = Object.assign({}, SCOPE);
     new FormData(form).forEach(function (v, k) { body[k] = v; });
     $('death-save').disabled = $('death-save-start').disabled = true;
-    api('/intake/api/deaths', 'POST', body).then(function (res) {
+    api('/api/v1/intake/deaths', 'POST', body).then(function (res) {
       $('death-save').disabled = $('death-save-start').disabled = false;
       if (!res.ok) { alertBox(res.data.error || 'Could not save.'); return; }
-      var d = res.data.death;
+      var d = res.data.case;
       if (startAfter) {
-        api('/intake/api/drafts', 'POST', { project_id: d.project_id, site_id: d.site_id, org_unit_id: d.org_unit_id, death_id: d.death_id }).then(function (r2) {
+        api('/api/v1/intake/drafts', 'POST', { project_id: d.project_id, site_id: d.site_id, org_unit_id: d.org_unit_id, death_id: d.death_id }).then(function (r2) {
           if (!r2.ok) { alertBox(r2.data.error || 'Saved, but the questionnaire could not be started.'); return; }
           window.location.href = '/intake/form/' + r2.data.draft.draft_id;
         });
@@ -70,7 +69,7 @@
       }
       form.reset();
       var out = $('death-result'); out.classList.remove('d-none');
-      out.innerHTML = 'Death registered with id <strong><code>' + esc(d.unique_id) + '</code></strong> for ' + esc(d.deceased_name) + '. <a href="/intake/">Back to intake</a>.';
+      out.innerHTML = 'Death registered with id <strong><code>' + esc(d.unique_id) + '</code></strong> for ' + esc(d.deceased.name) + '. <a href="/intake/">Back to intake</a>.';
     });
   }
   $('death-form').addEventListener('submit', function (e) { e.preventDefault(); save(false); });

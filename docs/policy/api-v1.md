@@ -10,8 +10,8 @@ last_updated: 2026-10-04
 
 Owner decisions, 2026-10-04 (`digitva-339w`). Baseline for every frontend:
 the Jinja Flask pages' scripts, the Expo app in a browser, and the Expo app
-on Android and iOS. Not yet built; the current routes are listed under
-"Today" so the migration can be tracked.
+on Android and iOS. Partly built; "State" below tracks what is done
+and what remains.
 
 ## Rules
 
@@ -56,17 +56,37 @@ mentor-institute member, coding tester):
   through a data manager, In-charge or project PI grant, since the server
   refuses a pin through a coder grant.
 
-## Today (to converge)
+## State (2026-10-04)
+
+Done:
+
+- One credential layer: a device token or the browser cookie on every
+  `/api/v1` route (account security stays browser-only).
+- One intake route set, `/api/v1/intake/*`, either credential. The
+  `/intake/api/*` routes and the device intake copies are gone.
+- One error body `{"error", "code"}` on `/api/` paths: the role gate, the
+  login gate, CSRF (`csrf_failed`), rate limits (`rate_limited`) and, under
+  `/api/v1/`, 404 and 405 carry a `code`. Blueprints outside the client
+  contract (analytics, coding, data management, reviewing, ...) still answer
+  some inline errors without one.
+- Content refusals (deaths, attempts, visits) are always 422 with a specific
+  code; single-case actions reply `{"case": <detail>}` (supervisor actions:
+  the supervisor list's row shape under the same key). The case detail
+  carries `prefill` only for a caller who may start or resume the interview.
+
+Remaining:
 
 | Same thing | Current routes |
 | --- | --- |
-| Bootstrap | `/api/v1/device/bootstrap`, `/intake/api/bootstrap`, `/api/v1/client/bootstrap` |
+| Bootstrap | `/api/v1/device/bootstrap`, `/api/v1/client/bootstrap` (to `/api/v1/auth/*` and `/api/v1/me/access`; removal tracked in `digitva-ad02`) |
 | Unit list | `/api/v1/device/units`, `/api/v1/organization/<project>/units` |
-| Cases | `/api/v1/device/cases*`, `/intake/api/cases*` |
-| Error body | device `{error, code}`; `/intake/api/*` `{error}` only |
+| Instruments | `/api/v1/device/instruments/*`, `/api/v1/instruments/*` |
+| Device sign-in | `/api/v1/device/*` (to `/api/v1/auth/*`) |
 | User object | `user_id` in most; `id` in `/api/v1/client/bootstrap` |
 
-A device token is accepted only under `/api/v1/device/` today
-([Expo Web Client Boundary](expo-client.md)); rule 1 replaces that fence
-with per-route authorisation. Old routes stay until every client has moved
-(backward compatibility), then go.
+No legacy mobile app exists (owner, 2026-10-04): device-only routes are
+removed as their replacements land, not kept alongside them. The Jinja pages
+are the only legacy client and move onto the same routes.
+
+Deploy note: bump `STATIC_ASSET_VERSION` with this release; cached old intake
+scripts call the removed `/intake/api/*` routes and read the old reply shapes.

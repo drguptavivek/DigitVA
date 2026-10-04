@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Current Data Model
@@ -515,7 +515,7 @@ its case at once). `status` is the case state, written only by
   or follow-up date and the latest contact attempt. Index
   `ix_va_death_register_next_visit (next_visit_at, updated_at, death_id)`
   serves the worklist sort (next visit, undated last, then last activity) and
-  its keyset paging (`GET /intake/api/cases`). Starting an interview clears
+  its keyset paging (`GET /api/v1/intake/cases`). Starting an interview clears
   `next_visit_at`.
 - `informant_phone_2` (String(32)) beside `informant_phone`; both hold a
   validated Indian mobile as 10 digits for rows registered from phase 5 on

@@ -147,7 +147,7 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertNotIn("Id10003", units[str(root_id)]["answers"])
         # The device detail's prefill is the web form's for that case.
         case = self._register()
-        self.assertEqual(intake_svc.case_prefill(self.interviewer, case),
+        self.assertEqual(intake_svc.case_prefill(self.interviewer, case, None),
                          intake_svc._prefill_from_death(case, self.interviewer, case.org_unit_id))
 
     def test_registered_case_prefills_every_map_row(self):

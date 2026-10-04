@@ -403,6 +403,10 @@ def va_logging(app):
                 _safe_current_user_email(),
                 status_code,
             )
+            # Not a 404/403/500, which va_errors answers: the 405 stays here
+            # so the abuse counter above still sees it.
+            if status_code == 405 and request.path.startswith("/api/v1/"):
+                return jsonify({"error": "Method not allowed.", "code": "method_not_allowed"}), 405
             return e
 
         error_logger.error(
@@ -418,7 +422,7 @@ def va_logging(app):
 
         db.session.rollback()
         if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
-            return jsonify({"error": "Internal server error."}), 500
+            return jsonify({"error": "Internal server error.", "code": "server_error"}), 500
         return render_template("va_errors/va_500.html"), 500
 
     setup_slow_query_logging(

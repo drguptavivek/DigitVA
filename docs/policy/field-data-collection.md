@@ -34,7 +34,7 @@ policy to be amended first.
 - **No questionnaire answer, attachment or identifier is persisted on the
   device.** Drafts live server-side (`va_web_intake_drafts` and its section
   rows); the page's `draftStore` writes every save through
-  `/intake/api/...`. See [Web Intake Policy](web-intake.md).
+  `/api/v1/intake/...`. See [Web Intake Policy](web-intake.md).
 - Authentication is the ordinary Flask-Login session cookie with
   `X-CSRFToken` on every state change. No long-lived credential is issued.
 - Losing connectivity means losing only answers typed since the last section
@@ -174,7 +174,8 @@ stay debug-only and must not collect real interviews until C4 is settled.
 list since `digitva-p6fs.24`): the device's case list is the browser
 worklist of one project. The app downloads the cases in active states
 (waiting for a visit, refused, in progress) with that list and then each
-case's detail (with its prefill) into the encrypted store, and replaces them
+case's detail (with its prefill, which the server sends only for a case the
+worker may start or resume) into the encrypted store, and replaces them
 on every refresh, so a case that leaves the active states leaves the phone:
 no history is kept. Deaths
 registered, contact attempts logged and visit dates set offline are queued

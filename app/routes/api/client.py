@@ -46,9 +46,8 @@ def bootstrap():
             "links": {
                 "login": login_url,
                 "logout": url_for("va_auth.va_logout"),
-                "intakeBootstrap": "/intake/api/bootstrap",
-                "intakeCases": "/intake/api/cases",
-                "intakeDrafts": "/intake/api/drafts",
+                "intakeCases": "/api/v1/intake/cases",
+                "intakeDrafts": "/api/v1/intake/drafts",
                 "coding": "/coding/",
                 "reviewing": "/reviewing/",
             },

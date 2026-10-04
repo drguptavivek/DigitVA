@@ -17,6 +17,9 @@ The main session plans, decides, reviews results and commits. It delegates:
 - **Reads, audits, reviews: Sonnet or Haiku.** `code-reviewer`,
   `security-reviewer`, `auditor`, `Explore`. Read-only. Ask for verified
   findings with `file:line`, nothing speculative.
+- **Code search: semble first.** For "where does X happen" questions use
+  `mcp__semble__search` (load it with ToolSearch if deferred) and tell every
+  agent to do the same; grep only for an exact name or every occurrence.
 - **Tests: one dedicated read-only runner (Sonnet or Luna, low effort).** The
   main session keeps it for the whole session and sends it test orders. It runs pytest and reports
   exact counts and full tracebacks. It never edits. One runner at a time per

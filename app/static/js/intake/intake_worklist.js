@@ -503,6 +503,11 @@
       meta.appendChild(el('span', 'badge text-bg-warning', 'Possible duplicate of '
         + row.possible_duplicates.map(function (d) { return d.unique_id; }).join(', ')));
     }
+    if (row.other_draft_active) {
+      // Only that a teammate has a draft and when it started, never who.
+      meta.appendChild(document.createTextNode(' '));
+      meta.appendChild(el('span', 'badge text-bg-warning', 'Another interviewer started this on ' + formatWhen(row.other_draft_started_at)));
+    }
     item.appendChild(meta);
 
     var actions = el('div', 'd-flex flex-wrap gap-2 mt-2');

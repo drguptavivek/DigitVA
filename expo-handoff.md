@@ -92,6 +92,16 @@ all three. Same rules apply to `POST /intake/drafts/sync` (section 3).
 
 ## 3. Parallel interviews, part A (`digitva-xz83`, server built)
 
+Frontend implemented (`digitva-xz83.1`): native and browser case rows/details
+show nonblocking warnings without interviewer identity; cached native warnings
+state their last-sync freshness. Open in-progress cases can start with server
+prefill. Browser superseded submissions return to collection with a notice.
+Verified: 30 Jest suites, 287 tests, TypeScript, web and Android JS exports;
+independent quality audit found no material issues. Physical-device acceptance
+remains separate. Part B waits for the section 4 backend contract.
+Frontend commit `78346d82` is pushed; the app child bead is closed. The local
+Flask-hosted web export has been refreshed from the verified build.
+
 Case rows (`GET /api/v1/intake/cases`) and case detail (`GET /cases/<id>`
 and every case reply) gain:
 
@@ -118,3 +128,43 @@ Other changes the app sees:
   submit is 201 with `superseded: false`).
 
 Part B (phone in-progress draft sync, newer-save-wins) follows in section 4.
+
+## 4. Phone in-progress draft sync, part B (`digitva-xz83`, server built)
+
+Frontend in progress (`digitva-xz83.2`): separate Luna writers own native
+storage/transport, native integration and browser revision guards. Local
+replacement is snapshot-guarded; unsynced phone edits go through the server
+conflict resolver before downloading a newer draft. Combined validation and
+quality audit are pending.
+
+One draft per interviewer per case, continued on the phone or in the browser.
+At each sync the phone uploads every unfinished draft of a registered case:
+
+`POST /api/v1/intake/drafts/sync` (bearer):
+
+- `project_id`, `site_id`, `death_id` (required), `org_unit_id`
+- `client_draft_id` (the phone draft's UUID; the same id later goes on the
+  final `POST /submissions`)
+- `answers_json`, `answers_sha256` (exactly as section 1)
+- `draft`: envelope meta (`startedAt`, `currentSection`, ...)
+- `savedAt`: device time of the last local save; `deviceClockAt`: device
+  clock now (both ISO with offset, required)
+- `base_updated_at`: the server draft's `updated_at` the phone last
+  downloaded, or `null` if never
+
+Reply 200 `{draft, kept: "incoming"|"server", conflict, answers_sha256, message, envelope}`:
+
+- `kept: "incoming"`: the phone's version is now the draft. Store
+  `draft.updated_at` as the next `base_updated_at`.
+- `kept: "server"`: a newer browser save won. Replace the local draft with
+  `envelope.data`; the phone version is kept on the server as history.
+- `conflict: true`: show `message` ("This interview was also edited on
+  another device; the newer version was kept.").
+- Errors: 422 as section 1 plus bad times (`invalid_interview`); 400 without
+  `death_id`; 409 `conflict` when the case is closed (stop syncing that draft
+  and keep it; it uploads as a superseded copy at completion).
+
+Opening a case: if the case row has `my_draft_id`, fetch
+`GET /api/v1/intake/drafts/<my_draft_id>` and continue from its `envelope`
+(newer than local by `draft.updated_at` vs your last `base_updated_at`).
+Resends are safe: the same version twice writes nothing.

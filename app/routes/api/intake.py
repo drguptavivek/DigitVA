@@ -59,7 +59,7 @@ def _body_limit():
     endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
     if endpoint in _UNCAPPED:
         return None
-    if endpoint == "submit_interview":
+    if endpoint in ("submit_interview", "sync_draft"):
         limit = SUBMISSION_MAX_BYTES
     elif endpoint == "report_outstanding":
         limit = REPORT_MAX_BYTES
@@ -374,8 +374,13 @@ def get_draft(draft_id):
 @bp.patch("/drafts/<draft_id>")
 @role_required("interviewer")
 def save_draft(draft_id):
+    """Browser autosave. Optional ``if_updated_at``: the ``draft.updated_at`` of
+    the last reply the page saw; a newer saved version (the phone's sync) is
+    409 ``draft_stale`` and nothing is written."""
     p = parse_body()
-    draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
+    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
+    if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
+        return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
     written = intake_svc.save_draft_sections(
         draft,
         sections=p.get("sections") or {},
@@ -385,6 +390,43 @@ def save_draft(draft_id):
     )
     db.session.commit()
     return jsonify({"saved_sections": written, "draft": intake_svc.serialize_draft(draft)})
+
+
+@bp.post("/drafts/sync")
+@role_required("interviewer")
+def sync_draft():
+    """The phone's in-progress interview, into the caller's one open draft of
+    the case (web-intake.md "Parallel interviews"). Body: ``project_id``,
+    ``site_id``, ``org_unit_id``, ``death_id`` (required), ``client_draft_id``
+    (UUID), ``answers_json`` + ``answers_sha256`` (as ``/submissions``),
+    ``draft`` (envelope meta), ``savedAt`` and ``deviceClockAt`` (ISO 8601 with
+    offset, required), ``base_updated_at`` (``draft.updated_at`` of the phone's
+    last download or sync reply, null if never). Replies 200
+    ``{draft, kept: incoming|server, conflict, answers_sha256, message,
+    envelope}`` (``envelope`` only when ``kept`` is ``server``). A resend is a
+    no-op with the same reply; 422 ``invalid_interview`` /
+    ``answers_hash_*`` store nothing."""
+    p = parse_body()
+    try:
+        client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
+    except ValueError:
+        return error("client_draft_id must be a UUID.", "invalid_request", 400)
+    site_id = _site_id(p)
+    envelope = p.get("draft")
+    if not isinstance(envelope, dict):
+        return error("draft must be an object.", "invalid_interview", 422)
+    project_id = request_project_id(p)
+    data, answers_sha256, refusal = _parse_upload_answers(p)
+    if refusal is not None:
+        return refusal
+    reply = intake_svc.sync_device_draft(
+        current_user, project_id=project_id, site_id=site_id, org_unit_id=p.get("org_unit_id") or None,
+        death_id=p.get("death_id") or None, client_draft_id=client_draft_id, envelope=envelope,
+        data=data, answers_sha256=answers_sha256, saved_at=p.get("savedAt"),
+        device_clock_at=p.get("deviceClockAt"), base_updated_at=p.get("base_updated_at"),
+    )
+    db.session.commit()
+    return jsonify(reply)
 
 
 @bp.post("/drafts/<draft_id>/discard")
@@ -400,7 +442,11 @@ def discard_draft(draft_id):
 @role_required("interviewer")
 def submit_draft(draft_id):
     p = parse_body()
-    draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
+    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
+    # Same stale-tab guard as autosave: a tab that missed the phone's newer
+    # version must not submit its own silently.
+    if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
+        return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
     submission = intake_svc.submit_draft(draft, current_user, completion=p.get("completion") or {})
     if submission is None:
         # A teammate's complete submission won: this copy is kept, not routed.

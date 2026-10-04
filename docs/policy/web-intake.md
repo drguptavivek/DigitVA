@@ -428,11 +428,20 @@ carry `other_draft_active` and `other_draft_started_at`; discarding a draft
 returns an `in_progress` case to `registered` only when no other open draft
 remains.
 
-Not built yet (`digitva-xz83`, part B):
+Built (`digitva-xz83`, part B): `POST /api/v1/intake/drafts/sync` puts the
+phone's in-progress draft into the interviewer's one open draft of the case,
+with the conflict rule above (corrected save time, whole-version, loser kept
+as a `replaced` draft row, the notice in the reply); a browser save carries
+`if_updated_at` and a stale one is refused 409 `draft_stale`; the worklist
+shows the other-draft warning. The reply to the final upload is unchanged:
+`POST /submissions` with the same `client_draft_id` completes the same draft.
+Contract: [Device Collection API](../current-state/device-collection-api.md),
+"Draft sync".
 
-- The phone keeps unfinished drafts locally only: the in-progress draft sync
-  between phone and server, the "edited on another device" notice and the
-  stale-browser-tab guard.
+Not built (`digitva-xz83`): the Android app's side of the sync (`mobile/`),
+and a browser answer the interviewer *clears* after a phone win comes back
+from the phone's copy on reload (cleared answers are absent from a browser
+section, so the phone's old value is not removed).
 
 ### Supervisors
 

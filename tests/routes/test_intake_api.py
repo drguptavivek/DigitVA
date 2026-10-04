@@ -9,10 +9,11 @@ The route layer is thin, so these cover what only it can decide:
     section -> submit, each committing its own step
   - WebIntakeError maps to its status code and rolls the session back
 """
+import hashlib
 import json
 import re
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import sqlalchemy as sa
 
@@ -788,6 +789,237 @@ class IntakeApiTests(BaseTestCase):
 
         again = self._start_draft(death_id=death["death_id"])
         self.assertNotEqual(again["draft_id"], draft["draft_id"])
+
+    # ── phone in-progress sync (digitva-xz83 part B) ───────────────────────
+
+    def _case(self):
+        self._login(self.interviewer_id)
+        return self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+
+    def _sync(self, case_id, answers, *, cid, saved_ago=0, clock_behind=0, base=None, **over):
+        """A phone sync: the save is *saved_ago* seconds old on a device clock
+        *clock_behind* seconds behind the server."""
+        now = datetime.now(UTC)
+        clock = now - timedelta(seconds=clock_behind)
+        body = {
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "death_id": case_id,
+            "client_draft_id": str(cid), "draft": {"startedAt": clock.isoformat(), "currentSection": "consented"},
+            "answers_json": json.dumps(answers, separators=(",", ":")),
+            "savedAt": (clock - timedelta(seconds=saved_ago)).isoformat(), "deviceClockAt": clock.isoformat(),
+            "base_updated_at": base,
+        }
+        body.update(over)
+        if "answers_sha256" not in body:
+            body["answers_sha256"] = hashlib.sha256(body["answers_json"].encode()).hexdigest()
+        return self.client.post("/api/v1/intake/drafts/sync", json=body, headers=self._csrf_headers())
+
+    def _browser_save(self, draft_id, sections, **extra):
+        return self.client.patch(
+            f"/api/v1/intake/drafts/{draft_id}", json={"sections": sections, **extra}, headers=self._csrf_headers())
+
+    def _rows(self, death_id, status=None):
+        stmt = sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(str(death_id)), VaWebIntakeDraft.user_id == self.interviewer.user_id)
+        if status:
+            stmt = stmt.where(VaWebIntakeDraft.status == status)
+        return db.session.scalars(stmt).all()
+
+    def _answers(self, draft):
+        db.session.refresh(draft)
+        return {k: v for sec in draft.sections for k, v in sec.data.items()}
+
+    def test_sync_creates_the_draft_from_a_phone_and_a_resend_is_a_no_op(self):
+        death_id, cid = self._case(), uuid.uuid4()
+        first = self._sync(death_id, {"Id10013": "yes", "Id10019": "female"}, cid=cid)
+        self.assertEqual(first.status_code, 200, first.get_json())
+        body = first.get_json()
+        self.assertEqual((body["kept"], body["conflict"], body["message"]), ("incoming", False, None))
+        self.assertNotIn("envelope", body)
+        (draft,) = self._rows(death_id)
+        self.assertEqual((draft.status, draft.client_draft_id), ("draft", None))  # never matches find_device_upload
+        self.assertEqual(body["answers_sha256"], draft.answers_sha256)
+        self.assertEqual(self._answers(draft), {"Id10013": "yes", "Id10019": "female"})
+        self.assertEqual(db.session.get(VaDeathRegister, death_id).status, "in_progress")
+        self.assertEqual(body["draft"]["updated_at"], draft.updated_at.isoformat())
+
+        again = self._sync(death_id, {"Id10013": "yes", "Id10019": "female"}, cid=cid)
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.get_json()["draft"], body["draft"])
+        self.assertEqual(len(self._rows(death_id)), 1)
+
+    def test_phone_newer_than_the_browser_wins_and_keeps_the_browser_version(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        self._browser_save(draft["draft_id"], {"background": {"Id10019": "male", "Id10017": "Web"}})
+        response = self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        self.assertEqual(response.status_code, 200, response.get_json())
+        body = response.get_json()
+        self.assertEqual((body["kept"], body["conflict"]), ("incoming", True))
+        self.assertIn("also edited on another device", body["message"])
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertEqual(self._answers(live), {"Id10019": "female"})
+        (old,) = self._rows(death_id, "replaced")
+        self.assertEqual((old.meta["source"], old.meta["replacedDraftId"], old.client_draft_id),
+                         ("web", draft["draft_id"], None))
+        self.assertEqual(self._answers(old), {"Id10019": "male", "Id10017": "Web"})
+        self.assertEqual(len(self._rows(death_id, "draft")), 1)
+
+    def test_a_phone_that_saw_the_current_version_continues_it_without_conflict(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        saved = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}).get_json()["draft"]
+        response = self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4(), base=saved["updated_at"])
+        body = response.get_json()
+        self.assertEqual((body["kept"], body["conflict"]), ("incoming", False))
+        self.assertEqual(self._rows(death_id, "replaced"), [])
+
+    def test_browser_newer_than_the_phone_is_kept_and_the_phone_version_goes_to_history(self):
+        death_id, cid = self._case(), uuid.uuid4()
+        first = self._sync(death_id, {"Id10019": "female"}, cid=cid).get_json()
+        self._browser_save(first["draft"]["draft_id"], {"background": {"Id10019": "male"}},
+                           if_updated_at=first["draft"]["updated_at"])
+        later = uuid.uuid4()
+        response = self._sync(death_id, {"Id10019": "undetermined"}, cid=later, saved_ago=3600,
+                              base=first["draft"]["updated_at"])
+        body = response.get_json()
+        self.assertEqual((body["kept"], body["conflict"]), ("server", True))
+        self.assertEqual(body["envelope"]["data"]["Id10019"], "male")
+        self.assertIsNone(body["answers_sha256"])  # content is the browser's now
+        (old,) = self._rows(death_id, "replaced")
+        self.assertEqual((old.meta["source"], old.meta["clientDraftId"]), ("device", str(later)))
+        self.assertEqual(self._answers(old), {"Id10019": "undetermined"})
+        # A resend of the losing sync does not pile up history.
+        self._sync(death_id, {"Id10019": "undetermined"}, cid=later, saved_ago=3600, base=first["draft"]["updated_at"])
+        self.assertEqual(len(self._rows(death_id, "replaced")), 1)
+
+    def _aged_browser_draft(self, seconds):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}})
+        row = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        row.updated_at = datetime.now(UTC) - timedelta(seconds=seconds)
+        db.session.commit()
+        return death_id
+
+    def test_clock_skew_is_corrected_before_the_two_versions_are_compared(self):
+        # Raw, the phone's save (10 min behind, 5 s old) predates the browser's
+        # save a minute ago; corrected it is 5 s old on the server's clock.
+        death_id = self._aged_browser_draft(60)
+        skewed = self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4(), saved_ago=5, clock_behind=600)
+        self.assertEqual(skewed.get_json()["kept"], "incoming")
+        # The same save on a correct clock is genuinely older: the browser wins.
+        death_id = self._aged_browser_draft(60)
+        honest = self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4(), saved_ago=605)
+        self.assertEqual(honest.get_json()["kept"], "server")
+
+    def test_a_bad_hash_or_time_is_422_and_stores_nothing(self):
+        death_id = self._case()
+        cid = uuid.uuid4()
+        cases = [
+            ({"answers_sha256": "0" * 64}, "answers_hash_invalid"),
+            ({"answers_sha256": None}, "answers_hash_required"),
+            ({"savedAt": "2026-10-04 10:00:00"}, "invalid_interview"),
+            ({"savedAt": None}, "invalid_interview"),
+            ({"deviceClockAt": None}, "invalid_interview"),
+            ({"base_updated_at": "yesterday"}, "invalid_interview"),
+            ({"draft": {"startedAt": "10:00"}}, "invalid_interview"),
+        ]
+        for over, code in cases:
+            response = self._sync(death_id, {"Id10019": "female"}, cid=cid, **over)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (422, code), over)
+        self.assertEqual(self._rows(death_id), [])
+        self.assertEqual(db.session.get(VaDeathRegister, death_id).status, "registered")
+        missing = self._sync(death_id, {}, cid=cid, death_id=None)
+        self.assertEqual(missing.status_code, 400)
+
+    def test_a_closed_case_refuses_the_sync(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        submitted = self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit", headers=self._csrf_headers(),
+            json={"completion": {"valid": True, "issues": [], "data": {
+                "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                "narr_language": "english"}}})
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        response = self._sync(death_id, {"Id10019": "male"}, cid=uuid.uuid4())
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "conflict"))
+        self.assertEqual(len(self._rows(death_id)), 1)
+
+    def test_a_stale_browser_save_is_409_draft_stale_and_writes_nothing(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        stale = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, if_updated_at=before)
+        self.assertEqual((stale.status_code, stale.get_json()["code"]), (409, "draft_stale"))
+        self.assertIn("also edited on another device", stale.get_json()["error"])
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertEqual(self._answers(live), {"Id10019": "female"})
+        current = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["draft"]["updated_at"]
+        fresh = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, if_updated_at=current)
+        self.assertEqual(fresh.status_code, 200, fresh.get_json())
+        # Without if_updated_at a save works as before.
+        self.assertEqual(self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}).status_code, 200)
+        self.assertEqual(self._browser_save(draft["draft_id"], {}, if_updated_at="garbage").status_code, 400)
+
+    def test_a_stale_tab_cannot_submit_and_opening_the_form_does_not_date_the_draft(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        # A locale-only save (what opening the form sends) writes no answer.
+        opened = self.client.patch(
+            f"/api/v1/intake/drafts/{draft['draft_id']}",
+            json={"sections": {}, "meta": {"locale": "en"}, "if_updated_at": before},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(opened.status_code, 200, opened.get_json())
+        self.assertEqual(opened.get_json()["draft"]["updated_at"], before)
+        self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        stale = self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
+            json={"if_updated_at": before, "completion": {"valid": True, "issues": [], "data": {"Id10019": "male"}}},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual((stale.status_code, stale.get_json()["code"]), (409, "draft_stale"))
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertEqual((live.status, live.va_sid), ("draft", None))
+
+    def test_a_browser_key_overrides_the_phones_value_with_no_section_merge(self):
+        death_id = self._case()
+        synced = self._sync(death_id, {"Id10019": "female", "Id10017": "Bina"}, cid=uuid.uuid4()).get_json()
+        draft_id = synced["draft"]["draft_id"]
+        self.assertEqual(
+            self._browser_save(draft_id, {"background": {"Id10019": "male"}},
+                               if_updated_at=synced["draft"]["updated_at"]).status_code, 200)
+        fetched = self.client.get(f"/api/v1/intake/drafts/{draft_id}").get_json()
+        self.assertEqual(fetched["envelope"]["data"], {"Id10019": "male", "Id10017": "Bina"})
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        self.assertIsNone(live.answers_sha256)
+        device = next(sec for sec in live.sections if sec.section_name == "device")
+        self.assertEqual(device.data, {"Id10017": "Bina"})
+
+    def test_the_final_upload_after_syncs_completes_the_same_draft(self):
+        death_id, cid = self._case(), uuid.uuid4()
+        answers = {"Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                   "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                   "narr_language": "english"}
+        self._sync(death_id, {"Id10013": "yes"}, cid=cid)
+        self._sync(death_id, answers, cid=cid, saved_ago=1)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == cid)), 0)
+        (draft,) = self._rows(death_id)
+        text = json.dumps(answers, separators=(",", ":"))
+        response = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json={
+            "client_draft_id": str(cid), "project_id": self.PROJECT_ID, "site_id": self.SITE_ID,
+            "death_id": death_id, "draft": {"startedAt": datetime.now(UTC).isoformat()},
+            "completion": {"valid": True, "issues": []}, "answers_json": text,
+            "answers_sha256": hashlib.sha256(text.encode()).hexdigest()})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        rows = self._rows(death_id)
+        self.assertEqual([(r.draft_id, r.status, r.client_draft_id) for r in rows], [(draft.draft_id, "submitted", cid)])
 
 
 class WebOnlyProjectIntakeTests(BaseTestCase):

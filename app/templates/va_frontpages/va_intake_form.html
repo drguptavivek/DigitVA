@@ -151,6 +151,21 @@ let debounceTimer;
 let waiters = [];
 let writing = Promise.resolve();
 
+// The server's updated_at of the last version this page saw (from the page, a
+// load or a save reply). Sent with every save so the server refuses one made
+// over a newer version (the phone's sync): 409 draft_stale, nothing written.
+let draftUpdatedAt = DRAFT.updated_at;
+
+async function patchDraft(body, opts) {
+  const res = await api(API, "PATCH", { ...body, if_updated_at: draftUpdatedAt }, opts);
+  if (res.status === 409 && res.data.code === "draft_stale") {
+    throw new Error(`${res.data.error} Reload this page to continue; this change was not saved.`);
+  }
+  if (!res.ok) throw new Error(res.data.error || "Save failed.");
+  draftUpdatedAt = res.data.draft.updated_at;
+  return res;
+}
+
 async function writeDraft(draft) {
   // Refuse to PATCH anything until load() has established a baseline for
   // this draft (digitva-ybz belt and braces, alongside the package's own
@@ -169,8 +184,7 @@ async function writeDraft(draft) {
   if (Object.keys(changed).length === 0 && draft.currentSection === lastSavedSection) return;
 
   const meta = { schemaVersion: draft.schemaVersion, formVersion: draft.formVersion, instrumentId: draft.instrumentId, instrumentVersion: draft.instrumentVersion, createdAt: draft.createdAt, updatedAt: draft.updatedAt };
-  const res = await api(API, "PATCH", { sections: changed, meta, current_section: draft.currentSection }, { keepalive: unloading });
-  if (!res.ok) throw new Error(res.data.error || "Save failed.");
+  const res = await patchDraft({ sections: changed, meta, current_section: draft.currentSection }, { keepalive: unloading });
   for (const [name, answers] of Object.entries(changed)) lastSaved[name] = JSON.stringify(answers);
   lastSavedSection = draft.currentSection;
   if (!unloading && touchesIdentity(changed, sectionOf)) checkDuplicates().catch(() => {});
@@ -224,6 +238,7 @@ const draftStore = {
     const res = await api(API);
     if (!res.ok) throw new Error(res.data.error || "Could not load the draft.");
     const envelope = res.data.envelope;
+    draftUpdatedAt = res.data.draft.updated_at;
     lastSaved = Object.fromEntries(Object.entries(splitBySection(envelope.data)).map(([k, v]) => [k, JSON.stringify(v)]));
     lastSavedSection = envelope.currentSection;
     if (!Object.keys(envelope.data || {}).length) {
@@ -306,8 +321,10 @@ async function translationsFor(instrumentCode, locale) {
 // Fire-and-forget: a failed PATCH must not block a locale switch, and the next
 // answer's save restamps the meta anyway.
 function recordLocale(locale, version) {
-  api(API, "PATCH", { sections: {}, meta: { locale: locale, translation_version: version } })
-    .catch(() => {});
+  // Queued behind any save in flight: two PATCHes sent together would both
+  // carry the same updated_at and the second would read as stale.
+  writing = writing.catch(() => {}).then(() => patchDraft({ sections: {}, meta: { locale: locale, translation_version: version } }));
+  writing.catch(() => {});
 }
 
 // English beside the translation ("English alongside the translation" in
@@ -433,7 +450,7 @@ async function main() {
     alertBox("info", "Submitting…");
     try { await flushDraft(); } catch (err) { /* surfaced by who-va-draft-error */ }
     await checkDuplicates().catch(() => {});  // refreshed before submit; never gates it
-    const res = await api(API + "/submit", "POST", { completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
+    const res = await api(API + "/submit", "POST", { if_updated_at: draftUpdatedAt, completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
     if (res.data.superseded) {
       alertBox("warning", `Another interviewer already submitted case ${DRAFT.unique_id}. Your copy was kept, not sent to coding.`);

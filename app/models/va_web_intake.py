@@ -31,7 +31,7 @@ CASE_SOURCES = ("register", "direct")
 CASE_FLAGS = ("duplicate", "cancel")
 #: Outcome of one contact attempt (``map_case_contact_attempts``); no notes.
 CONTACT_OUTCOMES = ("reached", "no_answer", "wrong_number", "moved", "refused")
-WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded", "superseded")
+WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded", "superseded", "replaced")
 DEATH_SEX_VALUES = ("male", "female", "undetermined", "unknown")
 
 # Human-readable id numbers come from this sequence (gaps are expected).
@@ -312,9 +312,11 @@ class VaWebIntakeDraft(db.Model):
     # Prefill the page applies on first load (deceased, interviewer, location).
     prefill: so.Mapped[dict] = so.mapped_column(JSONB, nullable=False, default=dict)
     current_section: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
-    # draft | submitted | discarded | superseded. ``superseded`` is a device
-    # upload for a case already closed (a teammate's complete submission won):
-    # kept with its answers, never submitted or routed to coding.
+    # draft | submitted | discarded | superseded | replaced. ``superseded`` is a
+    # device upload for a case already closed (a teammate's complete submission
+    # won): kept with its answers, never submitted or routed to coding.
+    # ``replaced`` is the losing version of a draft edited in two places
+    # (phone and browser): history only, never editable or submitted.
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="draft", server_default="draft"
     )

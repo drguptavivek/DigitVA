@@ -1206,11 +1206,14 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     # answer is put back, not refused (see submit_draft).
     locked = _draft_locked_answers(draft)
     written = 0
+    browser_keys: set = set()
     for name, answers in sections.items():
         if not isinstance(name, str) or not _SECTION_NAME_RE.match(name):
             raise WebIntakeError(f"Invalid section name {name!r}.")
         if not isinstance(answers, dict):
             raise WebIntakeError(f"Section {name!r} must be an object of answers.")
+        if name != DEVICE_SECTION:
+            browser_keys.update(answers)
         row = existing.get(name)
         answers = _enforce_locked(answers, locked, row.data if row is not None else None)
         if row is None:
@@ -1221,6 +1224,16 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
             row.data = answers
             row.saved_at = _utcnow()
         written += 1
+    device_row = existing.get(DEVICE_SECTION)
+    if browser_keys:
+        # A browser save over a phone-won draft is no longer the phone's
+        # content, and its answers beat the phone's for the same questions
+        # (no section merge: web-intake.md "Parallel interviews").
+        # ponytail: an answer the browser *cleared* is absent from its section,
+        # so the phone's old value for it survives; clear it by key if that bites.
+        draft.answers_sha256 = None
+        if device_row is not None and browser_keys & set(device_row.data or {}):
+            device_row.data = {k: v for k, v in device_row.data.items() if k not in browser_keys}
     if meta:
         keep = {k: meta[k] for k in _ENVELOPE_META_KEYS if k in meta}
         keep.update(locale_meta)
@@ -1229,7 +1242,10 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         if not _SECTION_NAME_RE.match(str(current_section)):
             raise WebIntakeError("Invalid current section.")
         draft.current_section = str(current_section)
-    draft.updated_at = _utcnow()
+    if written:
+        # Only an answer write dates the draft: a locale or position save from
+        # merely opening the form must not outrank a newer phone save.
+        draft.updated_at = _utcnow()
     if written and draft.death_id:
         death = db.session.get(VaDeathRegister, draft.death_id)
         # Identity follows the form only for a direct start, which only its
@@ -1792,6 +1808,157 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
     submit_draft(draft, user, completion=completion, intake_source="device")
     return draft
+
+
+#: Section holding the answers of a draft version that lost an edit conflict.
+HISTORY_SECTION = "history"
+SYNC_MESSAGE = "This interview was also edited on another device; the newer version was kept."
+
+
+def lock_draft_for_browser_write(draft: VaWebIntakeDraft) -> VaWebIntakeDraft:
+    """Take the case lock a phone sync takes (``start_draft``), then re-read
+    the draft, so a browser save or submit and a concurrent sync serialise and
+    the stale check below sees the committed version."""
+    if draft.death_id:
+        cases.lock_case(db.session.get(VaDeathRegister, draft.death_id))
+        db.session.refresh(draft)
+        if draft.status != "draft":
+            raise WebIntakeError("This draft is no longer editable.", 409)
+    return draft
+
+
+def draft_is_stale(draft: VaWebIntakeDraft, if_updated_at: object) -> bool:
+    """True when a browser save made on an older view (*if_updated_at*, the
+    ``updated_at`` of the last reply it saw) would overwrite a newer version.
+    400 when not an ISO 8601 time with an offset."""
+    seen = _device_time(if_updated_at)
+    if seen is None:
+        raise WebIntakeError("if_updated_at must be an ISO 8601 time with a UTC offset.")
+    return seen != draft.updated_at
+
+
+def _merged_answers(draft: VaWebIntakeDraft) -> dict:
+    merged: dict = {}
+    for row in draft.sections:
+        merged.update(row.data or {})
+    return merged
+
+
+def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None, meta: dict) -> None:
+    """Keep a losing version of *draft* as a ``replaced`` draft row: same case,
+    owner and form, answers in one ``history`` section, no client id (the
+    unique index on it must not match) and not ``draft`` (so the one-open-draft
+    index ignores it)."""
+    row = VaWebIntakeDraft(
+        project_id=draft.project_id, site_id=draft.site_id, org_unit_id=draft.org_unit_id,
+        death_id=draft.death_id, form_id=draft.form_id, user_id=draft.user_id, unique_id=draft.unique_id,
+        meta={"replacedDraftId": str(draft.draft_id), **meta}, prefill={},
+        status="replaced", answers_sha256=sha256,
+    )
+    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=answers))
+    db.session.add(row)
+
+
+def _sync_reply(draft: VaWebIntakeDraft, kept: str, conflict: bool) -> dict:
+    reply = {
+        "draft": serialize_draft(draft),
+        "kept": kept,
+        "conflict": conflict,
+        "answers_sha256": draft.answers_sha256,
+        "message": SYNC_MESSAGE if conflict else None,
+    }
+    if kept == "server":
+        reply["envelope"] = load_draft_envelope(draft)  # the phone replaces its copy
+    return reply
+
+
+def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, death_id: object | None, client_draft_id: uuid.UUID, envelope: dict, data: dict, answers_sha256: str, saved_at: object, device_clock_at: object, base_updated_at: object | None) -> dict:
+    """Sync a phone's in-progress interview into the interviewer's one open
+    draft of the case (web-intake.md "Parallel interviews"); returns the reply.
+
+    The newer save wins, whole (no section merge): the phone's ``saved_at``
+    corrected by the device clock's drift (``now - device_clock_at`` is how old
+    the save is on the device, so the correction needs no absolute clock),
+    against the draft's last save (``updated_at``, or the corrected phone time
+    of an earlier phone win nobody has edited since). A tie goes to the phone,
+    which is received later. The loser is kept as a ``replaced`` row. A conflict
+    is a draft the phone had not seen (``base_updated_at`` is the ``updated_at``
+    of its last download or sync reply, None if never); without one the phone
+    simply continues the draft and always wins. A resend is a no-op.
+    Never sets the draft's ``client_draft_id``: only the final upload does.
+    Refusals (all before anything is written): 422 for the times, 400
+    without a case, and ``start_draft``'s own (a closed case is 409).
+    """
+    saved = _device_time(saved_at)
+    clock = _device_time(device_clock_at)
+    if saved is None or clock is None:
+        raise WebIntakeError("savedAt and deviceClockAt must be ISO 8601 times with a UTC offset.", 422)
+    base = None
+    if base_updated_at is not None:
+        base = _device_time(base_updated_at)
+        if base is None:
+            raise WebIntakeError("base_updated_at must be null or an ISO 8601 time with a UTC offset.", 422)
+    check_device_times(envelope)
+    if not death_id:
+        raise WebIntakeError("death_id is required.")
+    now = _utcnow()
+    draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id)
+    meta = draft.meta or {}
+    last = meta.get("lastSync") or {}
+    cid = str(client_draft_id)
+    # The phone's own earlier version, untouched since: the same draft
+    # continuing, never a conflict.
+    from_phone = draft.answers_sha256 is not None and last.get("clientDraftId") == cid
+    if from_phone and draft.answers_sha256 == answers_sha256:
+        return _sync_reply(draft, "incoming", bool(last.get("conflict")))
+    has_content = bool(draft.sections)
+    effective = min(now, now - (clock - saved))
+    # An untouched phone win is dated by its corrected save time, not by the
+    # (later) moment it was received.
+    phone_won = draft.answers_sha256 is not None and meta.get("effectiveSavedAt")
+    current = datetime.fromisoformat(meta["effectiveSavedAt"]) if phone_won else draft.updated_at
+    conflict = has_content and not from_phone and (base is None or base != draft.updated_at)
+    if has_content and (conflict or from_phone):
+        incoming_wins = effective >= current
+    else:
+        incoming_wins = True
+    source = "device" if phone_won else "web"
+    if not incoming_wins:
+        if conflict and not db.session.scalar(sa.select(sa.exists().where(
+            VaWebIntakeDraft.death_id == draft.death_id,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "replaced",
+            VaWebIntakeDraft.answers_sha256 == answers_sha256,
+            VaWebIntakeDraft.meta["clientDraftId"].astext == cid,
+        ))):
+            _keep_history(draft, data, sha256=answers_sha256, meta={
+                "source": "device", "clientDraftId": cid, "savedAt": saved.isoformat(),
+                "effectiveSavedAt": effective.isoformat(), "receivedAt": now.isoformat(),
+            })
+            db.session.flush()
+        return _sync_reply(draft, "server", conflict)
+    if conflict:
+        _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
+            "source": source, "effectiveSavedAt": current.isoformat(), "receivedAt": now.isoformat(),
+        })
+    for row in [r for r in draft.sections if r.section_name != DEVICE_SECTION]:
+        draft.sections.remove(row)
+    draft.answers_sha256 = answers_sha256
+    stored = {k: envelope[k] for k in ("startedAt",) if k in envelope}
+    draft.meta = {
+        **meta, **stored,
+        "effectiveSavedAt": effective.isoformat(),
+        "clockSkewSeconds": round((now - clock).total_seconds()),
+        "lastSync": {"clientDraftId": cid, "conflict": conflict},
+    }
+    section = envelope.get("currentSection")
+    save_draft_sections(
+        draft, sections={DEVICE_SECTION: data},
+        meta={k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope} or None,
+        current_section=section if isinstance(section, str) and section else None, actor=user,
+    )
+    log.info("device draft synced | unique_id=%s | conflict=%s | by=%s", draft.unique_id, conflict, user.user_id)
+    return _sync_reply(draft, "incoming", conflict)
 
 
 def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:

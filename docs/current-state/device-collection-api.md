@@ -363,12 +363,76 @@ behaviour.
   phone) ends the device; a worker with no active project left gets
   `session_revoked` and the app wipes.
 
+## Draft sync (`digitva-xz83` part B)
+
+Policy: [Web Intake](../policy/web-intake.md) "Parallel interviews". No
+migration (draft `status` is free text; `replaced` is new).
+
+`POST /api/v1/intake/drafts/sync` (role interviewer, either credential, CSRF
+for a cookie; body cap 2 MB). The phone's in-progress interview for a
+registered case, into the caller's one open draft of it.
+
+- **Body**: `project_id`, `site_id`, `death_id` (required; 400 without),
+  `org_unit_id`, `client_draft_id` (UUID), `answers_json` +
+  `answers_sha256` (exactly as `/submissions`, same 422 codes), `draft`
+  (envelope meta: `currentSection`, `startedAt`, `schemaVersion`, ... as the
+  upload), `savedAt` (the phone's last local save) and `deviceClockAt` (the
+  phone's clock now), both ISO 8601 with a UTC offset and required, and
+  `base_updated_at` (the `draft.updated_at` of the phone's last download or
+  sync reply, `null` if never).
+- **Reply 200** `{draft, kept, conflict, answers_sha256, message, envelope}`:
+  `draft` is `serialize_draft` (`updated_at` is the next `base_updated_at`);
+  `kept` is `incoming` (the phone's version is the draft) or `server` (the
+  draft's own is newer; `envelope` is then present and the phone replaces
+  its copy); `conflict` is true when the draft had changed somewhere the
+  phone had not seen (draft has content and `base_updated_at` is null or not
+  the draft's `updated_at`); `message` is "This interview was also edited on
+  another device; the newer version was kept." when `conflict`, else null;
+  `answers_sha256` is the draft's content hash while it is the phone's
+  untouched version, else null.
+- **Errors** (nothing stored): 422 `answers_hash_required`,
+  `answers_hash_invalid`, `invalid_interview` (answers not an object,
+  too large or deep; `savedAt`, `deviceClockAt`, `base_updated_at` or
+  `draft.startedAt` unparsable or offset-less); 400 `invalid_request` (no
+  `death_id`, bad `client_draft_id`); 409 `conflict` when the case is
+  `submitted`, `duplicate` or `cancelled` (`start_draft`'s refusal, which
+  the case lock makes safe against a concurrent submit); 403/404 as
+  `start_draft`.
+- **Rule** (`web_intake_service.sync_device_draft`): save age on the device
+  is `deviceClockAt - savedAt`, so the phone's save is dated `now - that` on
+  the server clock (never later than now); the stored `clockSkewSeconds`
+  is `now - deviceClockAt`. The draft is dated by `updated_at`, or by its
+  stored `effectiveSavedAt` while it is an untouched phone version. The phone
+  wins ties and always wins when it saw the current version or is itself the
+  draft's last writer. The loser (only on a conflict) is kept as a
+  `va_web_intake_drafts` row with `status = 'replaced'`, `client_draft_id`
+  NULL, one `history` section, `meta {replacedDraftId, source: web|device,
+  effectiveSavedAt, receivedAt}` (`clientDraftId` for a losing phone
+  version). A phone win replaces every section with one `device` section
+  (locked answers enforced as in any save); a server win writes no change to
+  the draft (so a browser tab's `updated_at` stays valid). A browser save
+  over a phone version removes the phone's value for every question it wrote.
+- **Idempotent**: a resend of the draft's current phone version
+  (`answers_sha256` and `client_draft_id` as stored in `meta.lastSync`)
+  answers 200 with the same reply and writes nothing; a resend of a losing
+  version finds its `replaced` row and stores no second one.
+- The draft's `client_draft_id` is never set by a sync (a sync must not
+  match `find_device_upload`); the final `POST /submissions` with the same
+  `client_draft_id` completes this draft through `start_draft`.
+- **Browser guard**: `PATCH /drafts/<id>` takes optional `if_updated_at` (the
+  `draft.updated_at` of the last GET/PATCH reply). A different current value
+  is 409 `draft_stale` with the message above and nothing written; an
+  unparsable value is 400; without it a save works as before. The form sends
+  it with every save and asks the interviewer to reload on a 409.
+
 ## Not built
 
 - Admin UI for per-session revocation (device revoke ends all its sessions).
 - Attachments (phase 3, deferred).
 - The admin Devices card shows the unsent count only, not the registration
   ids (they are in the JSON).
+- The Android app's draft sync client (`mobile/`), and a supervisor view of
+  `replaced` copies.
 - A supervisor view of superseded copies and telling the interviewer in the
   web list.
 

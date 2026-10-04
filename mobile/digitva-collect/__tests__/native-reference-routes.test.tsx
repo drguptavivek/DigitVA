@@ -18,6 +18,8 @@ let mockParams: {
 let mockReference: unknown;
 let mockCachedReference: unknown;
 let mockCachedCases: unknown[] = [];
+let mockSubmittedRevisions: unknown[] = [];
+let mockLocalRevisions: unknown[] = [];
 
 function pack(mode = "both", projectId = "P1") {
   const project = {
@@ -92,6 +94,10 @@ jest.mock("../src/drafts", () => ({
     remove: jest.fn(),
   })),
   markCompleted: jest.fn(),
+}));
+jest.mock("../src/revisions", () => ({
+  fetchSubmittedRevisions: jest.fn(async () => mockSubmittedRevisions),
+  listLocalRevisions: jest.fn(async () => mockLocalRevisions),
 }));
 jest.mock("../src/cases", () => {
   const actual = jest.requireActual("../src/cases") as Record<string, unknown>;
@@ -312,8 +318,16 @@ beforeEach(() => {
   mockReference = pack();
   mockCachedReference = mockReference;
   mockCachedCases = [];
+  mockSubmittedRevisions = [];
+  mockLocalRevisions = [];
   (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockImplementation(
     async () => [],
+  );
+  (jest.requireMock("../src/revisions").fetchSubmittedRevisions as jest.Mock).mockImplementation(
+    async () => mockSubmittedRevisions,
+  );
+  (jest.requireMock("../src/revisions").listLocalRevisions as jest.Mock).mockImplementation(
+    async () => mockLocalRevisions,
   );
   (getCachedReferenceData as jest.Mock).mockImplementation(
     async () => mockReference,
@@ -324,6 +338,123 @@ beforeEach(() => {
 });
 
 describe("native project-aware routes", () => {
+  it("loads only authorized submitted metadata and opens its revise route on tap", async () => {
+    const summary = {
+      draft_id: "server-draft-1",
+      project_id: "P1",
+      site_id: "S1",
+      death_id: null,
+      va_sid: "va-1",
+      unique_id: "VA-SUBMITTED",
+      status: "submitted",
+      updated_at: "2026-10-05T00:00:00Z",
+    };
+    mockSubmittedRevisions = [summary, { ...summary, draft_id: "other", project_id: "P2" }];
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+
+    expect(jest.requireMock("../src/revisions").fetchSubmittedRevisions).toHaveBeenCalledWith("u1");
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("VA-SUBMITTED");
+    expect(rendered).not.toContain('"other"');
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    const revise = tree!.root.findByProps({ "data-label": "reviseInterview" });
+    await act(async () => revise.props.onClick());
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/revision",
+      params: { userId: "u1", draftId: "server-draft-1", projectId: "P1", siteId: "S1", vaSid: "va-1" },
+    });
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps the offline worklist when submitted metadata cannot be fetched", async () => {
+    const { fetchSubmittedRevisions } = jest.requireMock("../src/revisions") as {
+      fetchSubmittedRevisions: jest.Mock;
+    };
+    fetchSubmittedRevisions.mockRejectedValue(new Error("offline"));
+    mockLocalRevisions = [{
+      draft_id: "local-revision-1",
+      project_id: "P1",
+      unique_id: "VA-LOCAL",
+      state: "editing",
+      updated_at: "2026-10-05T00:00:00Z",
+      refusal_code: null,
+    }];
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("revisionRetry");
+    expect(rendered).toContain("VA-LOCAL");
+    expect(rendered).toContain("interviewsTitle");
+    await act(async () => tree!.unmount());
+  });
+
+  it("drops a submitted metadata response after foreground refresh revokes its project", async () => {
+    mockCachedReference = pack("both", "P1");
+    mockReference = pack("both", "P1");
+    mockSubmittedRevisions = [{
+      draft_id: "current-draft",
+      project_id: "P2",
+      site_id: "S1",
+      death_id: null,
+      va_sid: "va-current",
+      unique_id: "VA-CURRENT",
+      status: "submitted",
+    }];
+    let resolveOldList!: (rows: unknown[]) => void;
+    const { fetchSubmittedRevisions } = jest.requireMock("../src/revisions") as {
+      fetchSubmittedRevisions: jest.Mock;
+    };
+    fetchSubmittedRevisions
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveOldList = resolve; }),
+      )
+      .mockImplementationOnce(async () => mockSubmittedRevisions);
+
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+
+    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("VA-REVOKED");
+    mockReference = pack("both", "P2");
+    const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
+    await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
+    await settle();
+    await settle();
+
+    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify(tree!.toJSON())).toContain("VA-CURRENT");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("VA-REVOKED");
+    await act(async () => {
+      resolveOldList([{
+        draft_id: "revoked-draft",
+        project_id: "P1",
+        site_id: "S1",
+        death_id: null,
+        va_sid: "va-revoked",
+        unique_id: "VA-REVOKED",
+        status: "submitted",
+      }]);
+    });
+    await settle();
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("VA-CURRENT");
+    expect(rendered).not.toContain("VA-REVOKED");
+    expect(tree!.root.findAllByProps({ "data-label": "reviseInterview" })).toHaveLength(1);
+    expect(mockRouter.push).not.toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: "/revision" }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
   it("opens an imported server draft with its locale and current project config", async () => {
     const id = "11111111-1111-4111-8111-111111111111";
     const row = {

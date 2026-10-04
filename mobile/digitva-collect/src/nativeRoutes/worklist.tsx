@@ -29,6 +29,12 @@ import { listDrafts, type Db, type DraftRow } from "../drafts";
 import { t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import {
+  fetchSubmittedRevisions,
+  listLocalRevisions,
+  type RevisionRow,
+  type SubmittedRevisionSummary,
+} from "../revisions";
+import {
   getCachedReferenceData,
   fetchCasePage,
   refreshReferenceData,
@@ -59,6 +65,29 @@ function otherDraftWarning(value: string | null | undefined): string {
   return date ? t("otherDraftActiveAt", { date }) : t("otherDraftActive");
 }
 
+function localRevisionStatus(row: RevisionRow): string {
+  switch (row.refusal_code) {
+    case "revision_locked":
+      return t("revisionLocked");
+    case "case_already_submitted":
+      return t("revisionAlreadySubmitted");
+    case "case_closed":
+      return t("revisionCaseClosed");
+    case "case_state_conflict":
+      return t("revisionCaseConflict");
+    case "outcome_regression":
+      return t("revisionOutcomeRegression");
+    case "invalid_reason":
+    case "required_finish_partial":
+      return t("revisionInvalidReason");
+    case "not_found":
+      return t("revisionUnavailable");
+    default:
+      if (row.state === "ready") return t("revisionSaved");
+      return row.state === "attention" ? t("revisionRetry") : t("draftInProgress");
+  }
+}
+
 function fieldValue(
   label: string,
   value: string | number | null | undefined,
@@ -78,6 +107,10 @@ export default function Worklist() {
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [revisions, setRevisions] = useState<RevisionRow[]>([]);
+  const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>([]);
+  const [submittedRevisionsLoaded, setSubmittedRevisionsLoaded] = useState(false);
+  const [submittedRevisionsError, setSubmittedRevisionsError] = useState(false);
   const [cases, setCases] = useState<CaseDetail[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
   const [onlineCases, setOnlineCases] = useState<CaseRow[]>([]);
@@ -95,6 +128,7 @@ export default function Worklist() {
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
+  const submittedRequestGenerationRef = useRef(0);
   const selectedProjectRef = useRef<string | undefined>(undefined);
   const referenceDataRef =
     useRef<Awaited<ReturnType<typeof getCachedReferenceData>>>(undefined);
@@ -103,6 +137,26 @@ export default function Worklist() {
 
   const setReference = useCallback(
     (next: Awaited<ReturnType<typeof getCachedReferenceData>>) => {
+      const previousProjects = new Set(
+        referenceDataRef.current?.projects.map(({ project }) => project.project_id) ?? [],
+      );
+      const authorizedProjects = new Set(
+        next?.projects.map(({ project }) => project.project_id) ?? [],
+      );
+      const authorizationChanged =
+        previousProjects.size !== authorizedProjects.size ||
+        [...previousProjects].some((projectId) => !authorizedProjects.has(projectId));
+      if (authorizationChanged) {
+        submittedRequestGenerationRef.current += 1;
+        setSubmittedRevisions((rows) => rows.filter((row) => authorizedProjects.has(row.project_id)));
+        setSubmittedRevisionsLoaded(false);
+        setSubmittedRevisionsError(false);
+        setSelectedProjectId((selected) =>
+          selected && authorizedProjects.has(selected)
+            ? selected
+            : next?.projects[0]?.project.project_id,
+        );
+      }
       referenceDataRef.current = next;
       setReferenceData(next);
     },
@@ -110,19 +164,30 @@ export default function Worklist() {
   );
 
   const isCurrent = useCallback(
-    () => Boolean(account && account.user_id === userId && focusedRef.current),
+    () =>
+      Boolean(
+        account &&
+          account.user_id === userId &&
+          focusedRef.current &&
+          isUnlocked(account.user_id),
+      ),
     [account, userId],
   );
 
   const clearVisible = useCallback(() => {
     focusedRef.current = false;
     onlineRequestGenerationRef.current += 1;
+    submittedRequestGenerationRef.current += 1;
     selectedProjectRef.current = undefined;
     dbRef.current = undefined;
     referenceDataRef.current = undefined;
     setDb(undefined);
     setReferenceData(undefined);
     setDrafts([]);
+    setRevisions([]);
+    setSubmittedRevisions([]);
+    setSubmittedRevisionsLoaded(false);
+    setSubmittedRevisionsError(false);
     setCases([]);
     setRegistrations([]);
     setQueued(0);
@@ -145,14 +210,16 @@ export default function Worklist() {
 
   const loadLocal = useCallback(
     async (handle: Db, current: () => boolean = () => true) => {
-      const [d, c, r, a] = await Promise.all([
+      const [d, c, r, a, localRevisions] = await Promise.all([
         listDrafts(handle),
         listCases(handle),
         listRegistrations(handle),
         listActions(handle),
+        listLocalRevisions(handle),
       ]);
       if (!current()) return;
       setDrafts(d);
+      setRevisions(localRevisions);
       setCases(c);
       setRegistrations(r);
       setQueued(a.length);
@@ -175,6 +242,9 @@ export default function Worklist() {
         setCases([]);
         setRegistrations([]);
         setQueued(0);
+        setSubmittedRevisions([]);
+        setSubmittedRevisionsLoaded(false);
+        setSubmittedRevisionsError(false);
         setMessage(errorText(error));
         return;
       }
@@ -184,6 +254,9 @@ export default function Worklist() {
       } catch (storageError) {
         if (current()) {
           setReference(undefined);
+          setSubmittedRevisions([]);
+          setSubmittedRevisionsLoaded(false);
+          setSubmittedRevisionsError(false);
           setMessage(errorText(storageError));
         }
         return;
@@ -233,6 +306,29 @@ export default function Worklist() {
     [clearVisible, reload, router],
   );
 
+  const loadSubmittedInterviews = useCallback(
+    async (projectIds: Set<string>, current: () => boolean = () => true) => {
+      if (!account) return;
+      const generation = ++submittedRequestGenerationRef.current;
+      setSubmittedRevisionsError(false);
+      try {
+        const rows = await fetchSubmittedRevisions(account.user_id);
+        if (!current() || generation !== submittedRequestGenerationRef.current) return;
+        setSubmittedRevisions(rows.filter((row) => projectIds.has(row.project_id)));
+        setSubmittedRevisionsLoaded(true);
+      } catch (error) {
+        if (!current() || generation !== submittedRequestGenerationRef.current) return;
+        if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
+          await handleError(error);
+          return;
+        }
+        setSubmittedRevisionsError(true);
+        setSubmittedRevisionsLoaded(false);
+      }
+    },
+    [account, handleError],
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (!account) return;
@@ -260,6 +356,10 @@ export default function Worklist() {
           const cached = await getCachedReferenceData(handle);
           if (!active) return;
           setReference(cached);
+          void loadSubmittedInterviews(
+            new Set(cached?.projects.map(({ project }) => project.project_id) ?? []),
+            () => active && isCurrent(),
+          );
           const firstProject = cached?.projects[0]?.project.project_id;
           setSelectedProjectId((current) =>
             current &&
@@ -277,6 +377,9 @@ export default function Worklist() {
               : await refreshReferenceData(account.user_id, handle);
             if (active) {
               setReference(fresh);
+              const authorizedProjectIds = new Set(
+                fresh?.projects.map(({ project }) => project.project_id) ?? [],
+              );
               setSelectedProjectId((current) =>
                 current &&
                 fresh?.projects.some(
@@ -284,6 +387,10 @@ export default function Worklist() {
                 )
                   ? current
                   : fresh?.projects[0]?.project.project_id,
+              );
+              void loadSubmittedInterviews(
+                authorizedProjectIds,
+                () => active && isCurrent(),
               );
               if (forceRefresh) await refreshCases(account.user_id, handle);
               await loadLocal(handle, () => active && isCurrent());
@@ -318,6 +425,7 @@ export default function Worklist() {
       clearVisible,
       handleError,
       isCurrent,
+      loadSubmittedInterviews,
       loadLocal,
       recoverAfterRefreshFailure,
       refreshCases,
@@ -345,10 +453,14 @@ export default function Worklist() {
       const handle = dbRef.current;
       if (!handle) return;
       void refreshReferenceData(account.user_id, handle, { force: true })
-        .then(async (fresh) => {
-          if (isCurrent()) {
-            setReference(fresh);
-            await loadLocal(handle, isCurrent);
+      .then(async (fresh) => {
+        if (isCurrent()) {
+          setReference(fresh);
+          const authorizedProjectIds = new Set(
+            fresh?.projects.map(({ project }) => project.project_id) ?? [],
+          );
+          void loadSubmittedInterviews(authorizedProjectIds, isCurrent);
+          await loadLocal(handle, isCurrent);
             setMessage("");
           }
         })
@@ -369,6 +481,7 @@ export default function Worklist() {
     account,
     handleError,
     isCurrent,
+    loadSubmittedInterviews,
     loadLocal,
     recoverAfterRefreshFailure,
     setReference,
@@ -397,6 +510,10 @@ export default function Worklist() {
       setReference(fresh);
       await refreshCases(account.user_id, db);
       await loadLocal(db, isCurrent);
+      const authorizedProjectIds = new Set(
+        fresh?.projects.map(({ project }) => project.project_id) ?? [],
+      );
+      await loadSubmittedInterviews(authorizedProjectIds, isCurrent);
       if (projectId) {
         const page = await fetchCasePage(account.user_id, projectId, {
           limit: 50,
@@ -424,6 +541,39 @@ export default function Worklist() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function refreshSubmittedInterviews() {
+    const currentReference = referenceDataRef.current;
+    if (!currentReference) return;
+    await loadSubmittedInterviews(
+      new Set(currentReference.projects.map(({ project }) => project.project_id)),
+      isCurrent,
+    );
+  }
+
+  function openRevision(summary: SubmittedRevisionSummary | RevisionRow) {
+    if (
+      !account ||
+      !db ||
+      !isUnlocked(account.user_id) ||
+      !referenceDataRef.current?.projects.some(
+        ({ project }) => project.project_id === summary.project_id,
+      )
+    ) {
+      setMessage(t("revisionUnavailable"));
+      return;
+    }
+    router.push({
+      pathname: "/revision",
+      params: {
+        userId: account.user_id,
+        draftId: summary.draft_id,
+        projectId: summary.project_id,
+        siteId: summary.site_id,
+        vaSid: summary.va_sid,
+      },
+    });
   }
 
   async function loadOnlineMore() {
@@ -508,7 +658,7 @@ export default function Worklist() {
       await reload();
       router.replace("/");
     };
-    const unsent = drafts.length + registrations.length + queued;
+    const unsent = drafts.length + registrations.length + queued + revisions.length;
     if (unsent === 0) {
       void doSignOut();
       return;
@@ -541,6 +691,19 @@ export default function Worklist() {
   const visibleDrafts = selectedProjectId
     ? drafts.filter((row) => row.project_id === selectedProjectId)
     : drafts;
+  const authorizedProjectIds = new Set(
+    referenceData?.projects.map(({ project }) => project.project_id) ?? [],
+  );
+  const visibleRevisions = revisions.filter(
+    (row) =>
+      authorizedProjectIds.has(row.project_id) &&
+      (!selectedProjectId || row.project_id === selectedProjectId),
+  );
+  const visibleSubmittedRevisions = submittedRevisions.filter(
+    (row) =>
+      authorizedProjectIds.has(row.project_id) &&
+      (!selectedProjectId || row.project_id === selectedProjectId),
+  );
   return (
     <Screen title={t("worklistTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
@@ -823,6 +986,58 @@ export default function Worklist() {
           ) : null}
           {draft.upload_issue === "answers_hash_invalid" ? (
             <Text style={styles.error}>{t("draftHashInvalidAttention")}</Text>
+          ) : null}
+        </Pressable>
+      ))}
+      <Text style={styles.text} accessibilityRole="header">
+        {t("submittedInterviewsTitle")}
+      </Text>
+      {submittedRevisionsError ? (
+        <>
+          <Text style={styles.muted}>{t("revisionRetry")}</Text>
+          <Button
+            kind="secondary"
+            label={t("refresh")}
+            disabled={!referenceData}
+            onPress={() => void refreshSubmittedInterviews()}
+          />
+        </>
+      ) : null}
+      {submittedRevisionsLoaded && visibleSubmittedRevisions.length === 0 ? (
+        <Text style={styles.muted}>{t("noSubmittedInterviews")}</Text>
+      ) : null}
+      {visibleSubmittedRevisions.map((row) => (
+        <View key={row.draft_id} style={styles.card}>
+          <Text style={styles.text}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          {otherDraftDate(row.updated_at) ? (
+            <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
+          ) : null}
+          <Button
+            kind="secondary"
+            label={t("reviseInterview")}
+            disabled={!db || !isUnlocked(account.user_id)}
+            onPress={() => openRevision(row)}
+          />
+        </View>
+      ))}
+      {visibleRevisions.length > 0 ? (
+        <Text style={styles.text} accessibilityRole="header">
+          {t("revisionTitle")}
+        </Text>
+      ) : null}
+      {visibleRevisions.map((row) => (
+        <Pressable
+          key={`revision-${row.draft_id}`}
+          accessibilityRole="button"
+          style={styles.card}
+          onPress={() => openRevision(row)}
+        >
+          <Text style={styles.text}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          <Text style={row.state === "attention" ? styles.error : styles.muted}>
+            {localRevisionStatus(row)}
+          </Text>
+          {otherDraftDate(row.updated_at) ? (
+            <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
           ) : null}
         </Pressable>
       ))}

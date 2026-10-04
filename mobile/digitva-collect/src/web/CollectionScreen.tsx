@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { getCases, getDrafts, getIntakeContext, type CaseRow, type DraftSummary, type IntakeBootstrap } from "../client/api";
+import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisions";
 import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
 import { Button, stateLabel, useUiStyles } from "../ui";
@@ -27,6 +28,7 @@ export default function CollectionScreen() {
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [submitted, setSubmitted] = useState<SubmittedRevisionSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -55,9 +57,10 @@ export default function CollectionScreen() {
       setMessage("");
       try {
         const nextIntake = await loadIntake();
-        const [caseResult, draftResult] = await Promise.all([
+        const [caseResult, draftResult, submittedResult] = await Promise.all([
           getCases(bootstrap.links.intakeCases, bootstrap.csrf),
-          getDrafts(bootstrap.links.intakeDrafts, bootstrap.csrf)
+          getDrafts(bootstrap.links.intakeDrafts, bootstrap.csrf),
+          getSubmittedRevisions(bootstrap.csrf)
         ]);
         if (!isCurrent()) return;
         setIntake(nextIntake);
@@ -65,6 +68,7 @@ export default function CollectionScreen() {
         rememberCasePreviews(bootstrap, caseResult.cases ?? []);
         setNextCursor(caseResult.next_cursor ?? null);
         setDrafts(draftResult.drafts ?? []);
+        setSubmitted(submittedResult);
       } catch (error) {
         if (isCurrent()) setMessage(browserErrorText(error));
       } finally {
@@ -100,6 +104,7 @@ export default function CollectionScreen() {
     setIntake(undefined);
     setCases([]);
     setDrafts([]);
+    setSubmitted([]);
     setNextCursor(null);
     setMessage("");
     setBusy(false);
@@ -153,6 +158,23 @@ export default function CollectionScreen() {
               <Text style={styles.text}>{draft.unique_id ?? draft.draft_id}</Text>
               <Text style={styles.muted}>{draft.current_section ?? t("draftInProgress")}</Text>
               <Button label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: draft.draft_id } })} />
+            </View>
+          ))}
+          <Text style={styles.headline}>{t("submittedInterviewsTitle")}</Text>
+          {submitted.length === 0 ? <Text style={styles.muted}>{t("noSubmittedInterviews")}</Text> : null}
+          {submitted.map((draft) => (
+            <View key={draft.draft_id} style={styles.card}>
+              <Text style={styles.text}>{draft.unique_id ?? draft.draft_id}</Text>
+              <Text style={styles.muted}>{draft.updated_at ?? draft.site_name ?? draft.site_id}</Text>
+              <Button
+                label={t("reviseInterview")}
+                onPress={() => router.push({ pathname: "/interview", params: {
+                  revisionDraftId: draft.draft_id,
+                  revisionProjectId: draft.project_id,
+                  revisionSiteId: draft.site_id,
+                  revisionVaSid: draft.va_sid,
+                } })}
+              />
             </View>
           ))}
           <Text style={styles.headline}>{t("reportedDeaths")}</Text>

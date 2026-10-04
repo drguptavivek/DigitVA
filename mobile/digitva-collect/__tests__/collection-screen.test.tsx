@@ -14,8 +14,9 @@ const mockBootstrapB = {
 };
 let mockCurrentBootstrap = mockBootstrap;
 let mockParams: { superseded?: string } = {};
+const mockRouterPush = jest.fn();
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => mockParams }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({
     bootstrap: mockCurrentBootstrap
@@ -26,6 +27,7 @@ jest.mock("../src/client/api", () => ({
   getCases: jest.fn(),
   getDrafts: jest.fn()
 }));
+jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({ t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
@@ -36,10 +38,12 @@ jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: Rea
 
 import CollectionScreen from "../src/web/CollectionScreen";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
+import { getSubmittedRevisions } from "../src/client/revisions";
 
 const mockGetIntakeContext = getIntakeContext as jest.Mock;
 const mockGetCases = getCases as jest.Mock;
 const mockGetDrafts = getDrafts as jest.Mock;
+const mockGetSubmittedRevisions = getSubmittedRevisions as jest.Mock;
 
 const mockIntake = {
   context: [{ project_id: "P1", site_id: "S1", web_intake_mode: "both" }]
@@ -59,6 +63,8 @@ describe("CollectionScreen refresh", () => {
     mockGetIntakeContext.mockResolvedValue(mockIntake);
     mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
     mockGetDrafts.mockResolvedValue({ drafts: [] });
+    mockGetSubmittedRevisions.mockResolvedValue([]);
+    mockRouterPush.mockClear();
   });
 
   it("loads once on mount and refreshes only when explicitly requested", async () => {
@@ -146,6 +152,27 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain('"otherDraftActive"');
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows submitted interviews from metadata and opens revision only on request", async () => {
+    mockGetSubmittedRevisions.mockResolvedValue([{
+      draft_id: "d1", project_id: "p1", site_id: "s1", va_sid: "va1", status: "submitted",
+      unique_id: "case-1", created_at: "2026-10-04T10:00:00Z", updated_at: "2026-10-04T11:00:00Z"
+    }]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("submittedInterviewsTitle");
+    expect(rendered).toContain("case-1");
+    expect(mockGetSubmittedRevisions).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    const revise = tree!.root.findAll((node) => node.props["data-label"] === "reviseInterview")[0];
+    await act(async () => revise?.props.onClick());
+    expect(mockRouterPush).toHaveBeenCalledWith({ pathname: "/interview", params: {
+      revisionDraftId: "d1", revisionProjectId: "p1", revisionSiteId: "s1", revisionVaSid: "va1"
+    } });
     await act(async () => tree!.unmount());
   });
 });

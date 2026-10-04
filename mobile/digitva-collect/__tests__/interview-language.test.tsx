@@ -3,24 +3,44 @@ import { act, create } from "react-test-renderer";
 
 const mockChoose = jest.fn(async () => undefined);
 const mockBootstrap = {csrf: {header: "X-CSRFToken", token: "csrf"}, links: {intakeDrafts: "/api/v1/intake/drafts", intakeCases: "/api/v1/intake/cases"}};
-let mockParams: {draftId?: string; deathId?: string} = {draftId: "draft-1"};
+let mockParams: {draftId?: string; deathId?: string; revisionDraftId?: string; revisionProjectId?: string; revisionSiteId?: string; revisionVaSid?: string} = {draftId: "draft-1"};
 const mockRouter = {back: jest.fn(), replace: jest.fn()};
 jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams}));
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockBootstrap, chooseUiLocale: mockChoose})}));
 jest.mock("../src/theme", () => ({useTheme: () => ({colors: {}})}));
-jest.mock("../src/ui", () => ({Button: () => null, useUiStyles: () => ({})}));
+jest.mock("../src/ui", () => ({
+  Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
+  useUiStyles: () => ({}),
+}));
 jest.mock("../src/web/common", () => ({WebShell: ({children}: {children: ReactNode}) => <>{children}</>, browserErrorText: (error: Error) => error.message}));
 jest.mock("../src/client/api", () => ({
   ...jest.requireActual("../src/client/api"),
   getIntakeContext: jest.fn(async () => ({})),
   getDraft: jest.fn(), getProjectFormOptions: jest.fn(), getInstrumentTranslations: jest.fn(), getCaseDetail: jest.fn(), startDraft: jest.fn(), submitDraft: jest.fn()
 }));
-jest.mock("../src/client/serverDraftStore", () => ({ServerDraftStore: jest.fn().mockImplementation(() => ({load: jest.fn(async () => ({})), flush: jest.fn(async () => undefined), getLocaleMetadata: () => ({}), getServerUpdatedAt: () => "revision-1", restoreLocaleMetadata: jest.fn(), setLocaleMetadata: jest.fn()}))}));
-jest.mock("@drguptavivek/who-2022-va", () => ({createWhoVa2022Instrument: () => ({id: "WHO", version: "1", sections: [], questions: []})}), {virtual: true});
+jest.mock("../src/client/revisions", () => ({
+  ...jest.requireActual("../src/client/revisions"),
+  getRevisionDetail: jest.fn(),
+  postRevision: jest.fn(),
+}));
+jest.mock("../src/client/serverDraftStore", () => ({
+  ServerDraftStore: jest.fn().mockImplementation(function (this: Record<string, unknown>) {
+    Object.assign(this, {
+      load: jest.fn(async () => ({})),
+      flush: jest.fn(async () => undefined),
+      getLocaleMetadata: () => ({}),
+      getServerUpdatedAt: () => "revision-1",
+      restoreLocaleMetadata: jest.fn(),
+      setLocaleMetadata: jest.fn(),
+    });
+  }),
+}));
+jest.mock("@drguptavivek/who-2022-va", () => ({createWhoVa2022Instrument: () => ({id: "WHO", version: "1", sections: [], questions: []}), WHO_VA_FORM_VERSION: "2022"}), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
 
 import InterviewScreen from "../src/web/InterviewScreen";
 import { ClientApiError, getCaseDetail, getDraft, getProjectFormOptions, getInstrumentTranslations, startDraft, submitDraft } from "../src/client/api";
+import { getRevisionDetail, postRevision } from "../src/client/revisions";
 import { ServerDraftStore } from "../src/client/serverDraftStore";
 import { WhoVaForm } from "@drguptavivek/who-2022-va/web";
 import { t, setUiLocale } from "../src/i18n";
@@ -38,6 +58,21 @@ beforeEach(() => {
   (getInstrumentTranslations as jest.Mock).mockRejectedValue(new ClientApiError(404, "not_found"));
   mockRouter.replace.mockClear();
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise; });
+  return { promise, resolve };
+}
+
+function submittedDetail(id: string) {
+  return {
+    draft: { draft_id: id, project_id: "P", site_id: "S", status: "submitted", va_sid: `sid-${id}`, created_at: "2026-10-04T10:00:00+05:30", updated_at: "2026-10-04T11:00:00+05:30" },
+    envelope: { schemaVersion: 1, formVersion: "2022", id, instrumentId: "WHO", instrumentVersion: "1", currentSection: "s1", createdAt: "2026-10-04T10:00:00+05:30", updatedAt: "2026-10-04T11:00:00+05:30", data: { Id10007: id, interview_outcome: "partially_completed" } },
+    prefill: { lockedQuestionNames: [] },
+    answers_sha256: null,
+  };
+}
 
 it("starts a later-page case using its authorized detail by id", async () => {
   mockParams = {deathId: "later-page"};
@@ -129,6 +164,65 @@ it("returns to collection after a normal 201 draft submission", async () => {
   expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, mockBootstrap.csrf, "revision-1");
   expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
   await act(async () => tree.unmount());
+});
+
+it("keeps a valid revision editable and refuses the POST when consent is missing", async () => {
+  mockParams = { revisionDraftId: "d1", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-d1" };
+  (getRevisionDetail as jest.Mock).mockReset().mockResolvedValue(submittedDetail("d1"));
+  (postRevision as jest.Mock).mockReset();
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const reasonButton = tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"))[0];
+  expect(reasonButton).toBeDefined();
+  await act(async () => { reasonButton?.props.onPress(); });
+  const form = tree.root.findByType(WhoVaForm);
+  const store = form.props.draftStore;
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
+  expect(postRevision).not.toHaveBeenCalled();
+  expect(store.getCurrent().data).toMatchObject({ Id10007: "d1", interview_outcome: "partially_completed" });
+  expect(JSON.stringify(tree.toJSON())).toContain(t("revisionConsentRequired"));
+  await act(async () => tree.unmount());
+});
+
+it("does not remount a newer revision when an older same-account request resolves late", async () => {
+  const first = deferred<ReturnType<typeof submittedDetail>>();
+  const second = deferred<ReturnType<typeof submittedDetail>>();
+  mockParams = { revisionDraftId: "d1", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-d1" };
+  (getRevisionDetail as jest.Mock).mockImplementation((_endpoint, id: string) => id === "d1" ? first.promise : second.promise);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  expect((getRevisionDetail as jest.Mock).mock.calls.map(([ , id]) => id)).toEqual(["d1"]);
+
+  mockParams = { revisionDraftId: "d2", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-d2" };
+  await act(async () => { tree.update(<InterviewScreen />); });
+  expect((getRevisionDetail as jest.Mock).mock.calls.map(([ , id]) => id)).toEqual(["d1", "d2"]);
+
+  await act(async () => { second.resolve(submittedDetail("d2")); await Promise.resolve(); });
+  const form = tree.root.findByType(WhoVaForm);
+  const currentStore = form.props.draftStore;
+  const currentDraft = currentStore.getCurrent();
+  currentStore.save({ ...currentDraft, data: { ...currentDraft.data, Id10007: "edited-d2" } });
+  await act(async () => { form.props.onChange(); });
+
+  await act(async () => { first.resolve(submittedDetail("d1")); await Promise.resolve(); });
+  const mountedForm = tree.root.findByType(WhoVaForm);
+  expect(mountedForm.props.draftStore).toBe(currentStore);
+  expect(mountedForm.props.draftStore.getCurrent().data.Id10007).toBe("edited-d2");
+  expect((getRevisionDetail as jest.Mock).mock.calls.map(([ , id]) => id)).toEqual(["d1", "d2"]);
+  await act(async () => tree.unmount());
+});
+
+it("does not continue initialization after the screen unmounts", async () => {
+  const pending = deferred<ReturnType<typeof submittedDetail>>();
+  mockParams = { revisionDraftId: "d1", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-d1" };
+  (getRevisionDetail as jest.Mock).mockReturnValue(pending.promise);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  expect(getRevisionDetail).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+
+  await act(async () => { pending.resolve(submittedDetail("d1")); await Promise.resolve(); });
+  expect(mockChoose).not.toHaveBeenCalled();
 });
 
 it("returns to collection with a notice after a superseded 200 response", async () => {

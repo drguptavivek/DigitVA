@@ -14,3 +14,4 @@ export const Register = BrowserNativeRoute;
 export const SignIn = BrowserNativeRoute;
 export const Unlock = BrowserNativeRoute;
 export const Worklist = BrowserNativeRoute;
+export const Revision = BrowserNativeRoute;

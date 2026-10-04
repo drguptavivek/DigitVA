@@ -19,6 +19,7 @@ import {
   markCompleted,
   migrate,
   purgeProjectData,
+  projectIds,
   setMeta,
   setDraftUploadIssue,
   unfinishedDraftsForSync,
@@ -266,6 +267,22 @@ describe("draft store", () => {
     await setMeta(db, "bootstrap", { context: [] });
     await setMeta(db, "bootstrap", { context: [{ site_id: "S" }] });
     expect(await getMeta(db, "bootstrap")).toEqual({ context: [{ site_id: "S" }] });
+  });
+
+  it("keeps revision work out of normal draft counts and purges it with its project", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("normal", "2026-09-30T01:00:00Z"));
+    await db.runAsync(
+      "INSERT INTO revision_drafts (draft_id, project_id, state, updated_at, row_json) VALUES (?, ?, ?, ?, ?)",
+      ["revision", "PROJECT2", "ready", "2026-09-30T02:00:00Z", '{"answers":"encrypted"}']
+    );
+
+    expect(await countDrafts(db)).toBe(1);
+    expect(await completedDrafts(db)).toEqual([]);
+    expect(await projectIds(db)).toEqual(["PROJECT1", "PROJECT2"]);
+    await purgeProjectData(db, "PROJECT2");
+    expect(await db.getFirstAsync("SELECT draft_id FROM revision_drafts WHERE draft_id = ?", ["revision"])).toBeNull();
+    expect(await countDrafts(db)).toBe(1);
   });
 
   it("surfaces a draft-config delete failure during project purge", async () => {

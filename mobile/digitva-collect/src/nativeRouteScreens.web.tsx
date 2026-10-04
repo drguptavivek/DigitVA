@@ -5,6 +5,7 @@ export {
   Home,
   PinSetup,
   Register,
+  Revision,
   SignIn,
   Unlock,
   Worklist

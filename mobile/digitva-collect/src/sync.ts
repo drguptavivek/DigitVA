@@ -62,6 +62,7 @@ import {
   type Db
 } from "./drafts";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
+import { syncQueuedRevisions } from "./revisions";
 import { questionnaireLocales } from "./i18n";
 import type { Translations } from "./translations";
 
@@ -71,6 +72,7 @@ export interface SyncResult {
   remaining: number;
   supersededUniqueIds: string[];
   draftConflictIds?: string[];
+  revisionAttentionIds?: string[];
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
@@ -320,6 +322,10 @@ export async function syncInterviewer(
     }
   }
 
+  const revisionSync = await syncQueuedRevisions(userId, db, authorizedProjects);
+  sent += revisionSync.sent;
+  failed += revisionSync.failed;
+
   const remaining = await countDrafts(db);
   await authedRequest(userId, `${INTAKE_API}/outstanding`, {
     method: "POST",
@@ -336,7 +342,8 @@ export async function syncInterviewer(
     failed,
     remaining,
     supersededUniqueIds,
-    ...(draftConflictIds.length ? { draftConflictIds } : {})
+    ...(draftConflictIds.length ? { draftConflictIds } : {}),
+    ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {})
   };
 }
 

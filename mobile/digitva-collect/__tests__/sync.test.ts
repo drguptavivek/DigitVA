@@ -27,6 +27,7 @@ jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async ()
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
 import { fetchCaseDetail, fetchCasePage, getCachedReferenceData, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { getCase, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -713,6 +714,76 @@ describe("sync upload ordering", () => {
     expect(retryDraft.deviceClockAt).not.toBe(firstDraft.deviceClockAt);
     expect(calls.filter((call) => call.url.endsWith("/sessions/refresh"))).toHaveLength(1);
     expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("refreshes once after a revision 401 while keeping its frozen answers and refreshing only deviceClockAt", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const revisionDraft = {
+      ...draft(DRAFT, { interview_outcome: "completed", Id10013: "yes" }),
+      locale: "en",
+      translation_version: 3
+    };
+    const submitted = {
+      draft_id: DRAFT, project_id: PROJECT, site_id: SITE, death_id: DEATH,
+      unique_id: "U-1", va_sid: "va-sid-1", status: "submitted", updated_at: "2026-10-01T00:00:00Z"
+    };
+    server((call) => {
+      if (call.url.endsWith("/drafts?status=submitted")) return json(200, { drafts: [submitted] });
+      if (call.url.endsWith(`/drafts/${DRAFT}`)) return json(200, {
+        draft: submitted,
+        envelope: revisionDraft,
+        prefill: {},
+        answers_sha256: "a".repeat(64)
+      });
+      return json(200, {});
+    });
+    await beginRevision(USER, db, DRAFT);
+    const queued = await queueRevision(db, DRAFT, "interviewer_correction", { valid: true, issues: [] });
+
+    let revisionAttempts = 0;
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/sessions/refresh")) return json(200, {
+        access_token: "fresh-access", access_expires_at: "2026-10-01T19:00:00Z",
+        refresh_token: "fresh-refresh", refresh_expires_at: "2026-10-02T19:00:00Z", access: access()
+      });
+      if (call.url.endsWith("/revisions")) {
+        if (revisionAttempts++ === 0) {
+          jest.setSystemTime(new Date("2026-10-01T18:31:01Z"));
+          return json(401, { code: "token_expired" });
+        }
+        return json(200, {
+          changed: false, va_sid: "va-sid-1", payload_version_id: "payload-1",
+          answers_sha256: call.body?.answers_sha256, outcome: "completed", workflow_state: "smartva_pending"
+        });
+      }
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
+    try {
+      await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+    } finally {
+      jest.useRealTimers();
+    }
+
+    const uploads = calls.filter((call) => call.url.endsWith("/revisions"));
+    expect(uploads).toHaveLength(2);
+    expect(uploads[0].auth).toBe("Bearer a");
+    expect(uploads[1].auth).toBe("Bearer fresh-access");
+    expect(uploads[0].body?.answers_json).toBe(queued.frozen_json);
+    expect(uploads[1].body?.answers_json).toBe(queued.frozen_json);
+    expect(uploads[0].body?.answers_sha256).toBe(queued.answers_sha256);
+    expect(uploads[1].body?.answers_sha256).toBe(queued.answers_sha256);
+    const firstDraft = uploads[0].body?.draft as { deviceClockAt?: string; startedAt?: string };
+    const retryDraft = uploads[1].body?.draft as { deviceClockAt?: string; startedAt?: string };
+    expect(firstDraft.startedAt).toBeUndefined();
+    expect(retryDraft.startedAt).toBeUndefined();
+    expect(retryDraft.deviceClockAt).not.toBe(firstDraft.deviceClockAt);
+    expect(calls.filter((call) => call.url.endsWith("/sessions/refresh"))).toHaveLength(1);
+    expect(await getRevisionRow(db, DRAFT)).toBeNull();
   });
 
   it("stores hash mismatch and skips the same draft on later syncs", async () => {

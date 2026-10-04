@@ -217,6 +217,13 @@ export async function migrate(db: Db): Promise<void> {
       state TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS revision_drafts (
+      draft_id TEXT PRIMARY KEY NOT NULL,
+      project_id TEXT NOT NULL,
+      state TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      row_json TEXT NOT NULL
+    );
   `);
   for (const table of ["drafts", "cases", "registrations", "case_actions"] as const) {
     const tableColumns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`, []);
@@ -234,6 +241,8 @@ export async function migrate(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS ix_drafts_case_lookup
       ON drafts(death_id, updated_at DESC, id)
       WHERE death_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS ix_revision_drafts_sync
+      ON revision_drafts(state, draft_id);
   `);
   // Legacy downloaded cases have no safe project assignment. They can be
   // fetched again from the authoritative project list; retaining them could
@@ -505,6 +514,7 @@ export async function projectIds(db: Db): Promise<string[]> {
      UNION SELECT project_id FROM cases WHERE project_id IS NOT NULL
      UNION SELECT project_id FROM registrations WHERE project_id IS NOT NULL
      UNION SELECT project_id FROM case_actions WHERE project_id IS NOT NULL
+     UNION SELECT project_id FROM revision_drafts
      ORDER BY project_id`,
     []
   );
@@ -557,6 +567,7 @@ export async function purgeProjectData(db: Db, projectId: string): Promise<void>
     [`project:${projectId}:%`, projectId]
   );
   await db.runAsync("DELETE FROM drafts WHERE project_id = ?", [projectId]);
+  await db.runAsync("DELETE FROM revision_drafts WHERE project_id = ?", [projectId]);
   await db.runAsync("DELETE FROM cases WHERE project_id = ?", [projectId]);
   await db.runAsync("DELETE FROM registrations WHERE project_id = ?", [projectId]);
   await db.runAsync("DELETE FROM case_actions WHERE project_id = ?", [projectId]);

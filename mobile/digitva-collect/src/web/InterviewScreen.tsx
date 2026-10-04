@@ -1,5 +1,6 @@
 import {
   createWhoVa2022Instrument,
+  WHO_VA_FORM_VERSION,
   type SubmissionData,
   type InstrumentDefinition,
   type SubmissionValidationResult
@@ -11,10 +12,12 @@ import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "rea
 
 import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
+import { RevisionMemoryStore } from "../client/revisionMemoryStore";
+import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
 import { useAppState } from "../AppState";
-import { questionnaireDefault, questionnaireLocales, t } from "../i18n";
+import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { useTheme } from "../theme";
 import { applyTranslations } from "../translations";
 import { Button, useUiStyles } from "../ui";
@@ -35,33 +38,116 @@ function interviewErrorText(error: unknown): string {
   return browserErrorText(error);
 }
 
+function revisionErrorText(error: unknown): string {
+  if (!(error instanceof ClientApiError)) return browserErrorText(error);
+  const errorKeys: Record<string, StringKey> = {
+    not_found: "revisionUnavailable",
+    revision_locked: "revisionLocked",
+    case_state_conflict: "revisionCaseConflict",
+    case_closed: "revisionCaseClosed",
+    case_already_submitted: "revisionAlreadySubmitted",
+    outcome_regression: "revisionOutcomeRegression",
+    invalid_reason: "revisionInvalidReason",
+    answers_hash_required: "serverValidation",
+    answers_hash_invalid: "serverValidation",
+    invalid_interview: "serverValidation"
+  };
+  const key = errorKeys[error.code ?? ""];
+  return key ? t(key) : browserErrorText(error);
+}
+
+/** Normalize legacy empty identity placeholders and reject a different composed instrument before the form mounts. */
+export function normalizeRevisionEnvelope(
+  envelope: RevisionDetail["envelope"],
+  instrument: InstrumentDefinition
+): RevisionDetail["envelope"] {
+  if (
+    (envelope.formVersion && envelope.formVersion !== WHO_VA_FORM_VERSION) ||
+    (envelope.instrumentId && envelope.instrumentId !== instrument.id) ||
+    (envelope.instrumentVersion && envelope.instrumentVersion !== instrument.version)
+  ) {
+    throw new Error("revision_instrument_mismatch");
+  }
+  return {
+    ...envelope,
+    formVersion: envelope.formVersion || WHO_VA_FORM_VERSION,
+    instrumentId: envelope.instrumentId || instrument.id,
+    instrumentVersion: envelope.instrumentVersion || instrument.version,
+  };
+}
+
 export default function InterviewScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ draftId?: string; deathId?: string; projectId?: string; siteId?: string; orgUnitId?: string }>();
+  const params = useLocalSearchParams<{
+    draftId?: string;
+    revisionDraftId?: string;
+    revisionProjectId?: string;
+    revisionSiteId?: string;
+    revisionVaSid?: string;
+    deathId?: string;
+    projectId?: string;
+    siteId?: string;
+    orgUnitId?: string;
+  }>();
   const { bootstrap, chooseUiLocale } = useAppState();
   const styles = useUiStyles();
   const theme = useTheme();
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [draftId, setDraftId] = useState(params.draftId);
   const [draft, setDraft] = useState<DraftResponse>();
+  const [revision, setRevision] = useState<RevisionDetail>();
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
   const [locale, setLocale] = useState("en");
   const [locales, setLocales] = useState<FormOptions["available_locales"]>([]);
-  const [store, setStore] = useState<ServerDraftStore>();
+  const [store, setStore] = useState<ServerDraftStore | RevisionMemoryStore>();
   const [controller, setController] = useState<WhoVaDraftController>();
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [translationFallback, setTranslationFallback] = useState(false);
   const [message, setMessage] = useState("");
+  const [revisionReason, setRevisionReason] = useState<RevisionReasonCode>();
+  const [needsNewSnapshot, setNeedsNewSnapshot] = useState(false);
+  const [loadedBootstrap, setLoadedBootstrap] = useState(bootstrap);
+  const bootstrapRef = useRef(bootstrap);
+  const generationRef = useRef(0);
+  const initializationGenerationRef = useRef(0);
+  const revisionGenerationRef = useRef(0);
+  const pendingRevisionRef = useRef<RevisionSnapshot | undefined>(undefined);
+  if (bootstrapRef.current !== bootstrap) {
+    bootstrapRef.current = bootstrap;
+    generationRef.current += 1;
+    pendingRevisionRef.current = undefined;
+  }
   const draftPrefill = draft?.prefill as Prefill | undefined;
 
-  const initialise = useCallback(async () => {
+  const initialise = useCallback(async (isInitializationActive: () => boolean) => {
     if (!bootstrap) return;
+    const generation = generationRef.current;
+    const isCurrent = () => isInitializationActive() && generationRef.current === generation && bootstrapRef.current === bootstrap;
+    if (!isCurrent()) return;
+    setLoadedBootstrap(undefined);
     const nextIntake = await getIntakeContext(bootstrap.csrf);
+    if (!isCurrent()) return;
     setIntake(nextIntake);
-    let nextDraftId = draftId;
+    let nextDraftId = params.draftId;
+    let nextRevision: RevisionDetail | undefined;
+    if (params.revisionDraftId) {
+      if (!params.revisionProjectId || !params.revisionSiteId || !params.revisionVaSid) {
+        throw new ClientApiError(400, "malformed_response");
+      }
+      nextRevision = await getRevisionDetail(bootstrap.links.intakeDrafts, params.revisionDraftId, bootstrap.csrf, {
+        draft_id: params.revisionDraftId,
+        project_id: params.revisionProjectId,
+        site_id: params.revisionSiteId,
+        va_sid: params.revisionVaSid,
+      });
+      if (!isCurrent()) return;
+      nextDraftId = nextRevision.draft.draft_id;
+      setDraftId(nextDraftId);
+    }
     if (!nextDraftId && params.deathId) {
       const { case: caseRow } = await getCaseDetail(bootstrap.links.intakeCases, params.deathId, bootstrap.csrf);
+      if (!isCurrent()) return;
       if (!caseRow?.prefill) throw new Error("caseActionsUnavailable");
       if (!caseRow.project_id || !caseRow.site_id) throw new Error("case_context_missing");
       const started = await startDraft(
@@ -74,6 +160,7 @@ export default function InterviewScreen() {
         },
         bootstrap.csrf
       );
+      if (!isCurrent()) return;
       nextDraftId = started.draft.draft_id;
       setDraftId(nextDraftId);
     }
@@ -89,56 +176,97 @@ export default function InterviewScreen() {
         },
         bootstrap.csrf
       );
+      if (!isCurrent()) return;
       nextDraftId = started.draft.draft_id;
       setDraftId(nextDraftId);
     }
     if (!nextDraftId) throw new Error("draft_missing");
-    const nextDraft = await getDraft(bootstrap.links.intakeDrafts, nextDraftId, bootstrap.csrf);
+    const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, bootstrap.csrf);
+    if (!isCurrent()) return;
     const options = await getProjectFormOptions(nextDraft.draft.project_id, bootstrap.csrf);
+    if (!isCurrent()) return;
     const base = createWhoVa2022Instrument(options.enabled_extensions ?? []);
+    const normalizedRevision = nextRevision
+      ? {
+          ...nextRevision,
+          envelope: normalizeRevisionEnvelope(nextRevision.envelope, base),
+        }
+      : undefined;
     const savedLocale = nextDraft.envelope.locale;
     const nextLocale = savedLocale ?? questionnaireDefault(options.available_locales, options.default_locale);
     const translated = await translatedInstrument(base, nextLocale, options, bootstrap.csrf);
+    if (!isCurrent()) return;
     const nextInstrument = translated.instrument;
     setTranslationFallback(translated.fallback);
     await chooseUiLocale(nextLocale);
+    if (!isCurrent()) return;
     const sectionOf = new Map(base.questions.map((question) => [question.name, question.sectionPath.at(-1) ?? "_root"]));
     const prefill = nextDraft.prefill as Prefill;
-    const initialData = initialDataFromPrefill(prefill) as SubmissionData;
-    const nextStore = new ServerDraftStore({
-      endpoint: bootstrap.links.intakeDrafts,
-      csrf: bootstrap.csrf,
-      sectionOf,
-      initialData,
-      identity: {
-        instrumentId: nextInstrument.id,
-        instrumentVersion: nextInstrument.version,
-        firstSection: nextInstrument.sections[0]?.name ?? ""
-      },
-      locale: nextLocale,
-      translationVersion: nextDraft.envelope.translation_version ?? options.translation_versions?.[nextLocale] ?? 0,
-      onError: (error) => setMessage(interviewErrorText(error))
-    });
-    await nextStore.load(nextDraftId);
+    const prefillData = initialDataFromPrefill(prefill) as SubmissionData;
+    const initialData = normalizedRevision
+      ? { ...prefillData, ...normalizedRevision.envelope.data }
+      : prefillData;
+    const nextStore = normalizedRevision
+      ? new RevisionMemoryStore({ ...normalizedRevision.envelope, data: initialData })
+      : new ServerDraftStore({
+          endpoint: bootstrap.links.intakeDrafts,
+          csrf: bootstrap.csrf,
+          sectionOf,
+          initialData,
+          identity: {
+            instrumentId: nextInstrument.id,
+            instrumentVersion: nextInstrument.version,
+            firstSection: nextInstrument.sections[0]?.name ?? ""
+          },
+          locale: nextLocale,
+          translationVersion: nextDraft.envelope.translation_version ?? options.translation_versions?.[nextLocale] ?? 0,
+          onError: (error) => { if (isCurrent()) setMessage(interviewErrorText(error)); }
+        });
+    if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
+    if (!isCurrent()) return;
     setDraft(nextDraft);
+    setRevision(normalizedRevision);
     setLocale(nextLocale);
     setLocales(questionnaireLocales(options.available_locales));
     setInstrument(nextInstrument);
     setStore(nextStore);
-  }, [bootstrap, chooseUiLocale, draftId, params.deathId, params.orgUnitId, params.projectId, params.siteId]);
+    setLoadedBootstrap(bootstrap);
+  }, [bootstrap, chooseUiLocale, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId]);
 
   useEffect(() => {
-    void initialise().catch((error) => {
+    setIntake(undefined);
+    setDraftId(params.draftId);
+    setDraft(undefined);
+    setRevision(undefined);
+    setInstrument(undefined);
+    setStore(undefined);
+    setController(undefined);
+    setDirty(false);
+    setRevisionReason(undefined);
+    setNeedsNewSnapshot(false);
+    setMessage("");
+    setLoadedBootstrap(undefined);
+    revisionGenerationRef.current = 0;
+    pendingRevisionRef.current = undefined;
+  }, [bootstrap, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId]);
+
+  useEffect(() => {
+    let active = true;
+    const requestBootstrap = bootstrap;
+    const initializationGeneration = ++initializationGenerationRef.current;
+    const isCurrent = () => active && initializationGenerationRef.current === initializationGeneration && bootstrapRef.current === requestBootstrap;
+    void initialise(isCurrent).catch((error) => {
+      if (!isCurrent()) return;
       if (error instanceof ClientApiError && [401, 403].includes(error.status)) {
         setInstrument(undefined);
         setStore(undefined);
       }
-      setMessage(interviewErrorText(error));
+      setMessage(params.revisionDraftId ? revisionErrorText(error) : interviewErrorText(error));
     });
-  }, [initialise]);
+    return () => { active = false; };
+  }, [bootstrap, initialise, params.revisionDraftId]);
 
-  // Browsers do not reliably await asynchronous unload work. Warn while dirty
-  // and attempt a flush; in-app navigation uses beforeNavigate and waits.
+  // Browser navigation warns before losing a revision held only in memory.
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -146,7 +274,7 @@ export default function InterviewScreen() {
         event.preventDefault();
         event.returnValue = "";
       }
-      void controller?.saveDraft().then(() => store?.flush()).catch(() => undefined);
+      void controller?.saveDraft().then(() => store instanceof ServerDraftStore ? store.flush() : undefined).catch(() => undefined);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
@@ -170,80 +298,187 @@ export default function InterviewScreen() {
 
   const switchLocale = useCallback(async (nextLocale: string): Promise<boolean> => {
     if (!bootstrap || !intake || !draft || !instrument || !store) return false;
+    const generation = generationRef.current;
+    const isCurrent = () => generationRef.current === generation && bootstrapRef.current === bootstrap;
     setBusy(true);
     setMessage("");
-    const previousMetadata = store.getLocaleMetadata();
+    const previousMetadata = store instanceof ServerDraftStore ? store.getLocaleMetadata() : undefined;
     try {
       if (nextLocale === locale) {
         await chooseUiLocale(nextLocale);
         return true;
       }
       await controller?.saveDraft();
-      await store.flush();
+      if (store instanceof ServerDraftStore) await store.flush();
       const options = await getProjectFormOptions(draft.draft.project_id, bootstrap.csrf);
+      if (!isCurrent()) return false;
       const next = await translatedInstrument(createWhoVa2022Instrument(options.enabled_extensions ?? []), nextLocale, options, bootstrap.csrf);
-      store.setLocaleMetadata(nextLocale, options.translation_versions?.[nextLocale] ?? 0);
-      // Persist the selected locale and the exact served translation before
-      // remounting the form. The remount calls store.load(), so a metadata-only
-      // change must already be on the server before the old form disappears.
+      if (!isCurrent()) return false;
+      const translationVersion = options.translation_versions?.[nextLocale] ?? 0;
+      store.setLocaleMetadata(nextLocale, translationVersion);
+      // Keep the selected locale with the mounted revision and preserve the
+      // existing server-save behavior for an ordinary draft.
       await controller?.saveDraft();
-      await store.flush();
+      if (store instanceof ServerDraftStore) await store.flush();
+      if (!isCurrent()) return false;
       await chooseUiLocale(nextLocale);
+      if (!isCurrent()) return false;
       setInstrument(next.instrument);
       setTranslationFallback(next.fallback);
       setLocale(nextLocale);
       return true;
     } catch (error) {
-      store.restoreLocaleMetadata(previousMetadata);
+      if (store instanceof ServerDraftStore && previousMetadata) store.restoreLocaleMetadata(previousMetadata);
       if (error instanceof ClientApiError && [401, 403].includes(error.status)) {
         setInstrument(undefined);
         setStore(undefined);
       }
-      setMessage(browserErrorText(error));
+      if (isCurrent()) setMessage(browserErrorText(error));
       return false;
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }, [bootstrap, chooseUiLocale, controller, draft, instrument, intake, locale, store]);
 
+  async function sendRevisionSnapshot(snapshot: RevisionSnapshot) {
+    if (!bootstrap) return;
+    const accountGeneration = generationRef.current;
+    const isCurrent = () => generationRef.current === accountGeneration && bootstrapRef.current === bootstrap;
+    setBusy(true);
+    try {
+      const acknowledgement = await postRevision(bootstrap.csrf, snapshot);
+      if (!isCurrent() || pendingRevisionRef.current !== snapshot) return;
+      pendingRevisionRef.current = undefined;
+      setRevision((current) => current ? {
+        ...current,
+        answers_sha256: acknowledgement.answers_sha256,
+        envelope: {
+          ...current.envelope,
+          data: { ...current.envelope.data, interview_outcome: acknowledgement.outcome },
+        },
+      } : current);
+      if (revisionReason === "finish_partial" && !isPartialOutcome(acknowledgement.outcome)) {
+        setRevisionReason(undefined);
+      }
+      if (revisionGenerationRef.current === snapshot.generation) {
+        setDirty(false);
+        router.replace("/collection");
+      } else {
+        setDirty(true);
+        setMessage(acknowledgement.changed ? t("revisionSaved") : t("revisionNoCodingChange"));
+      }
+    } catch (error) {
+      if (isCurrent() && error instanceof ClientApiError && [404, 409, 422].includes(error.status)) {
+        pendingRevisionRef.current = undefined;
+        setNeedsNewSnapshot(true);
+      }
+      if (isCurrent()) setMessage(revisionErrorText(error));
+    } finally {
+      if (isCurrent()) setBusy(false);
+    }
+  }
+
   async function complete(result: SubmissionValidationResult) {
     if (!bootstrap || !draftId || !store) return;
+    const accountGeneration = generationRef.current;
+    const isCurrent = () => generationRef.current === accountGeneration && bootstrapRef.current === bootstrap;
     setBusy(true);
     setMessage("");
     try {
       await controller?.saveDraft();
-      await store.flush();
-      const submission = await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: result.valid, issues: result.issues }, bootstrap.csrf, store.getServerUpdatedAt());
+      if (!isCurrent()) return;
+      if (store instanceof RevisionMemoryStore) {
+        let snapshot = pendingRevisionRef.current;
+        if (!snapshot) {
+          if (!revision || !revisionReason) {
+            setMessage(t("revisionInvalidReason"));
+            return;
+          }
+          const current = store.getCurrent();
+          if (!current) throw new ClientApiError(404, "not_found");
+          const wasPartial = isPartialOutcome(revision.envelope.data.interview_outcome);
+          const nextOutcome = revisionOutcome(current.data, result.valid);
+          if (!nextOutcome) {
+            setMessage(result.valid ? t("revisionConsentRequired") : t("serverValidation"));
+            return;
+          }
+          if ((wasPartial && nextOutcome === "completed" && revisionReason !== "finish_partial") ||
+              (revisionReason === "finish_partial" && (!wasPartial || nextOutcome !== "completed"))) {
+            setMessage(t("revisionInvalidReason"));
+            return;
+          }
+          snapshot = await createRevisionSnapshot({
+            vaSid: revision.draft.va_sid,
+            reasonCode: revisionReason,
+            data: current.data,
+            completion: { valid: result.valid, issues: result.issues },
+            draft: { ...(current.startedAt ? { startedAt: current.startedAt } : {}) },
+            generation: revisionGenerationRef.current,
+          });
+          if (!isCurrent()) return;
+          pendingRevisionRef.current = snapshot;
+          setNeedsNewSnapshot(false);
+        }
+        await sendRevisionSnapshot(snapshot);
+        return;
+      }
+      if (store instanceof ServerDraftStore) await store.flush();
+      const submission = await submitDraft(
+        bootstrap.links.intakeDrafts,
+        draftId,
+        { valid: result.valid, issues: result.issues },
+        bootstrap.csrf,
+        store instanceof ServerDraftStore ? store.getServerUpdatedAt() : undefined,
+      );
+      if (!isCurrent()) return;
       router.replace(submission.superseded
         ? { pathname: "/collection", params: { superseded: "1" } }
         : "/collection");
     } catch (error) {
-      setMessage(interviewErrorText(error));
+      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
 
   async function leave() {
+    const requestBootstrap = bootstrap;
+    const generation = generationRef.current;
+    const isCurrent = () => bootstrapRef.current === requestBootstrap && generationRef.current === generation;
     try {
       await controller?.saveDraft();
-      await store?.flush();
+      if (!isCurrent()) return;
+      if (store instanceof RevisionMemoryStore && dirty) {
+        setMessage(t("revisionUnsavedWarning"));
+        return;
+      }
+      if (store instanceof ServerDraftStore) await store.flush();
+      if (!isCurrent()) return;
       router.back();
     } catch (error) {
-      setMessage(interviewErrorText(error));
+      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
     }
   }
 
   const beforeNavigate = useCallback(async () => {
+    const requestBootstrap = bootstrap;
+    const generation = generationRef.current;
+    const isCurrent = () => bootstrapRef.current === requestBootstrap && generationRef.current === generation;
     try {
       await controller?.saveDraft();
-      await store?.flush();
+      if (!isCurrent()) return false;
+      if (store instanceof RevisionMemoryStore && dirty) {
+        setMessage(t("revisionUnsavedWarning"));
+        return false;
+      }
+      if (store instanceof ServerDraftStore) await store.flush();
+      if (!isCurrent()) return false;
       return true;
     } catch (error) {
-      setMessage(interviewErrorText(error));
+      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
       return false;
     }
-  }, [controller, store]);
+  }, [bootstrap, controller, dirty, store]);
 
   const localeLabel = useMemo(() => locales?.find((entry) => entry.code === locale)?.label ?? locale, [locale, locales]);
   const availableLocales = locales ?? [];
@@ -276,7 +511,7 @@ export default function InterviewScreen() {
 
   return (
     <WebShell
-      title={t("interviewTitle")}
+      title={t(revision ? "revisionTitle" : "interviewTitle")}
       beforeNavigate={beforeNavigate}
       headerAction={availableLocales.length ? (
         <QuestionnaireLanguageMenu
@@ -288,12 +523,58 @@ export default function InterviewScreen() {
         />
       ) : null}
     >
-      {instrument && store && draftId ? (
+      {loadedBootstrap === bootstrap && instrument && store && draftId ? (
         <>
           <View style={styles.row}>
             <Button kind="secondary" label={t("backToCollection")} onPress={() => void leave()} />
-            <Button loading={busy} kind="secondary" label={t("save")} onPress={() => void store.flush().catch((error) => setMessage(browserErrorText(error)))} />
+            {store instanceof ServerDraftStore ? (
+              <Button loading={busy} kind="secondary" label={t("save")} onPress={() => void store.flush().catch((error) => setMessage(browserErrorText(error)))} />
+            ) : null}
           </View>
+          {revision ? (
+            <View>
+              <Text style={styles.headline}>{t("revisionReason")}</Text>
+              {([
+                ["interviewer_correction", "revisionReasonInterviewerCorrection", "revisionReasonMessageInterviewerCorrection"],
+                ["respondent_correction", "revisionReasonRespondentCorrection", "revisionReasonMessageRespondentCorrection"],
+                ["more_information", "revisionReasonMoreInformation", "revisionReasonMessageMoreInformation"],
+                ...(isPartialOutcome(revision.envelope.data.interview_outcome)
+                  ? [["finish_partial", "revisionReasonFinishPartial", "revisionReasonMessageFinishPartial"]]
+                  : [])
+              ] as Array<[RevisionReasonCode, StringKey, StringKey]>).map(([code, labelKey]) => (
+                <Button
+                  key={code}
+                  kind="secondary"
+                  label={`${t(labelKey)}${revisionReason === code ? " ✓" : ""}`}
+                  onPress={() => {
+                    if (!pendingRevisionRef.current && !busy) {
+                      setRevisionReason(code);
+                      setNeedsNewSnapshot(false);
+                    }
+                  }}
+                />
+              ))}
+              {revisionReason ? (
+                <Text style={styles.muted}>
+                  {t(({
+                    interviewer_correction: "revisionReasonMessageInterviewerCorrection",
+                    respondent_correction: "revisionReasonMessageRespondentCorrection",
+                    more_information: "revisionReasonMessageMoreInformation",
+                    finish_partial: "revisionReasonMessageFinishPartial"
+                  } as const)[revisionReason])}
+                </Text>
+              ) : null}
+              {pendingRevisionRef.current ? (
+                <Button
+                  kind="secondary"
+                  loading={busy}
+                  label={t("revisionRetry")}
+                  onPress={() => { const snapshot = pendingRevisionRef.current; if (snapshot && !busy) void sendRevisionSnapshot(snapshot); }}
+                />
+              ) : null}
+              {needsNewSnapshot ? <Text style={styles.muted}>{t("revisionNewSnapshot")}</Text> : null}
+            </View>
+          ) : null}
           {translationFallback ? <Text style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
@@ -306,9 +587,13 @@ export default function InterviewScreen() {
               draftStore={store}
               autoSaveDraftOnChange
               onDraftController={setController}
-              onChange={() => setDirty(true)}
-              onDraftSaved={() => setDirty(false)}
-              onDraftError={(error) => setMessage(browserErrorText(error))}
+              onChange={() => {
+                if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
+                setNeedsNewSnapshot(false);
+                setDirty(true);
+              }}
+              onDraftSaved={() => { if (store instanceof ServerDraftStore) setDirty(false); }}
+              onDraftError={(error) => setMessage(revision ? revisionErrorText(error) : browserErrorText(error))}
               onComplete={(result) => void complete(result)}
               lockedQuestionNames={draftPrefill?.lockedQuestionNames}
               portalThemeStyle={webFormStyle}

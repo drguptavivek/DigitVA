@@ -345,6 +345,12 @@ a place for names, phone numbers or addresses).
   continue or finish its interview. Every interviewer sees every case in their
   scope. Scope is the existing grant reach (project, project-site or unit
   subtree; see "Role gate vs scope").
+- **A signed-in worker gets their whole tree** (owner, 2026-10-04,
+  `digitva-yw11`). In a project with an organization tree the unit, not the
+  site, is the scope: the unit list a worker gets on sign-in (browser picker
+  and device `/units`) is every unit below their granted units, choosable,
+  plus the units they report up to, shown as fixed context. Sites are the
+  older concept; the device unit list takes no site parameter.
 - **Who sees which cases** (owner, 2026-10-03, `digitva-p6fs.24`). The death
   list (registrations and their contacts) is shared by every interviewer of a
   unit. A worker may hold interviewer grants on several units, in one project

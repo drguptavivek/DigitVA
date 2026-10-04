@@ -55,10 +55,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    on main): `docs/current-state/device-collection-api.md` -- bootstrap
    `projects`, `project_id` required, `/cases` = browser list per project,
    `/cases/<id>` detail with full contacts; the Expo app must adopt it
-   (p6fs.22/.23). Device `/units` takes no site, so with a site grant on any
-   site of the project it offers the whole tree and the create at another
-   site may refuse the unit (403); an optional `site_id` there would need
-   the owner (the browser picker already sends one, `digitva-yw11`).
+   (p6fs.22/.23). Device `/units` stays per project with no site (owner,
+   2026-10-04: the unit tree is the scope; `docs/policy/web-intake.md`).
 7. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
    retention, `digitva-t6q` death_reporter role, `digitva-kfi` Android
    rewrite, `digitva-35x` duplicate hint, `digitva-kmk.5` Android release,

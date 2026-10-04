@@ -5,8 +5,8 @@ from flask import Blueprint, jsonify
 from flask_login import current_user, login_required
 
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflowEvent
-from app.services.authz import READ_EVENTS, can
+from app.models import VaSubmissionWorkflowEvent
+from app.services.authz import READ_EVENTS, Reason, can
 
 bp = Blueprint("workflow", __name__)
 
@@ -16,14 +16,15 @@ bp = Blueprint("workflow", __name__)
 def get_events(va_sid: str):
     """Return the workflow event history for a submission.
 
-    Access is per submission, not per form: the same ``VIEW`` scope as the
-    submission page, evaluated against the submission's current routing.
+    Access is per submission, not per form: events are part of viewing the
+    submission, so the answer is the page's ``VIEW`` scope
+    (``authz.READ_EVENTS``, digitva-0wc F13), evaluated against the
+    submission's current routing. authz also answers "not found".
     """
-    submission = db.session.get(VaSubmissions, va_sid)
-    if not submission:
+    decision = can(current_user, READ_EVENTS, va_sid)
+    if decision.reason is Reason.NOT_FOUND:
         return jsonify({"error": "Submission not found."}), 404
-
-    if not _may_read_events(current_user, submission):
+    if not decision:
         return jsonify({"error": "Access denied."}), 403
 
     events = db.session.scalars(
@@ -51,11 +52,3 @@ def get_events(va_sid: str):
         }
     )
 
-
-def _may_read_events(user, submission) -> bool:
-    """Whether *user* may read this one submission's workflow history.
-
-    Events are part of viewing the submission, so the answer is the page's:
-    the ``VIEW`` scope (``authz.READ_EVENTS``, digitva-0wc F13).
-    """
-    return can(user, READ_EVENTS, submission.va_sid)

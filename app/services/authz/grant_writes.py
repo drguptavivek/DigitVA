@@ -34,6 +34,7 @@ from app.services.authz.actions import (
     PI_NEVER_ASSIGNS,
     Reason,
 )
+from app.services.authz.consulted import mark_consulted
 from app.services.authz.grants import Grant, ResolvedGrants, resolve_grants
 from app.services.authz.predicates import _ALLOWED, Decision, _deny, _subtree_select
 
@@ -164,6 +165,7 @@ def can_grant(
     themselves (a data manager may not revoke their own data_manager grant,
     dm-user-grant-management.md, "Toggle").
     """
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(actor)
     if g.is_admin:
         return _ALLOWED
@@ -247,6 +249,7 @@ def _list_clause(g: ResolvedGrants, actor: Grant) -> sa.ColumnElement:
 
 def grant_list_filter(actor, *, _grants: ResolvedGrants | None = None) -> sa.ColumnElement:
     """Predicate over ``VaUserAccessGrants``: the grants *actor* may manage."""
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(actor)
     if g.is_admin:
         return sa.true()

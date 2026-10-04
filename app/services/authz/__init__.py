@@ -28,10 +28,13 @@ workflow services.
   per-user redaction rule).
 
 Every answer is derived from one per-request ``ResolvedGrants``
-(``resolve_grants``; a grant write calls ``invalidate``) and the ``RULES``
-table. Policy: docs/policy/access-control-model.md.
+(``resolve_grants``, cached in Redis across requests by ``grant_cache``; a
+grant write calls ``invalidate``) and the ``RULES`` table. Each decision
+marks the request consulted (``consulted``; unconsulted requests are logged
+and, in production, refused). Policy: docs/policy/access-control-model.md.
 """
 
+from app.services.authz import grant_cache  # noqa: F401  registers the session hooks
 from app.services.authz.actions import (
     DEMO_VIRTUAL_ROLES,
     READ_ATTACHMENTS,
@@ -51,6 +54,7 @@ from app.services.authz.grants import (
     Grant,
     ResolvedGrants,
     invalidate,
+    invalidate_all,
     resolve_grants,
 )
 from app.services.authz.predicates import (
@@ -62,6 +66,7 @@ from app.services.authz.predicates import (
     reachable_unit_ids,
     reaches,
     require,
+    role_flags,
     scope_filter,
 )
 from app.services.authz.predicates import _active_pair as active_pair
@@ -91,10 +96,12 @@ __all__ = [
     "effective_roles",
     "grant_list_filter",
     "invalidate",
+    "invalidate_all",
     "reachable_unit_ids",
     "reaches",
     "redacts_pii",
     "require",
+    "role_flags",
     "resolve_grants",
     "scope_filter",
     "subtree_select",

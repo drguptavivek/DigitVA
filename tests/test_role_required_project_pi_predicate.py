@@ -15,8 +15,10 @@ Three things are asserted here:
      (docs/policy/access-control-model.md, "Closed projects")
   b. that both argument orders return identical statuses for an admin, a
      project PI and a plain user
-  c. that the gate costs exactly one EXISTS statement, with
-     get_project_pi_projects() as the discriminating positive control
+  c. that the gate costs one grant resolution per request whatever the
+     number of roles asked (digitva-5hmc: the gate reads
+     authz.effective_roles), with get_project_pi_projects() as the
+     discriminating positive control
 """
 
 import importlib
@@ -123,14 +125,11 @@ class ProjectPiPredicateTests(BaseTestCase):
 
     # ── c. cost class ────────────────────────────────────────────────────────
 
-    def test_the_gate_costs_one_exists_and_does_not_fetch_project_ids(self):
-        """The discriminator is the SELECT list, not the word EXISTS.
-
-        Both statements contain EXISTS — ``active_project_condition`` is a
-        correlated EXISTS and both queries AND it in. What changed is what the
-        outer SELECT returns: a boolean rather than every PI project id. So the
-        positive control asserts the scope query still fetches the column, and
-        the gate asserts it does not.
+    def test_the_gate_costs_one_resolution_per_request_for_every_role(self):
+        """The gate reads ``authz.effective_roles`` (digitva-5hmc): the user's
+        grants resolve once per request (two statements, neither fetching the
+        PI project ids the way ``get_project_pi_projects`` does), and every
+        further gate in that request is free.
         """
         user = self.base_project_pi_user
         # Touch the identity before listening, so a lazy refresh of the user row
@@ -142,14 +141,14 @@ class ProjectPiPredicateTests(BaseTestCase):
 
         user.get_project_pi_projects()
         self.assertEqual(len(statements), 1, statements)
-        scope_sql = statements[0]
-        self.assertIn("SELECT va_user_access_grants.project_id", scope_sql)
-        self.assertFalse(scope_sql.lstrip().upper().startswith("SELECT EXISTS"))
+        self.assertIn("SELECT va_user_access_grants.project_id", statements[0])
 
         statements.clear()
-        self.assertTrue(_ROLE_METHODS["project_pi"](user))
-        self.assertEqual(len(statements), 1, statements)
-        gate_sql = statements[0]
-        self.assertIn("EXISTS", gate_sql.upper())
-        # The point of the change: the gate returns a boolean, not the id set.
-        self.assertTrue(gate_sql.lstrip().upper().startswith("SELECT EXISTS"))
+        with self.app.test_request_context("/api/probe"):
+            self.assertTrue(_ROLE_METHODS["project_pi"](user))
+            self.assertEqual(len(statements), 2, statements)
+            self.assertNotIn("SELECT va_user_access_grants.project_id", statements[0])
+            statements.clear()
+            self.assertFalse(_ROLE_METHODS["admin"](user))
+            self.assertTrue(_ROLE_METHODS["project_pi"](user))
+            self.assertEqual(statements, [])

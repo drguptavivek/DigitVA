@@ -813,7 +813,15 @@ window) stay with the workflow services. The legacy `permission` JSONB column is
   sign-in, sign-out, password reset and verification links, the app's own
   static assets (CSS, JavaScript, fonts, icons, images shipped with the
   code), health checks and the public landing/help pages. Each entry states
-  why. **VA interview attachments are never static and never public**:
+  why. A second reviewed list covers signed-in **own-account** endpoints
+  that touch only the signed-in person's own account or session, or public
+  reference data: their profile, terms acceptance, password, passkeys,
+  reauthentication, second factor, timezone, ending their own device
+  session, ICD-10 search and questionnaire strings, and data-free page
+  shells whose data comes from authz-decided APIs (owner decision
+  2026-10-04). Signing in is their check; they never return another
+  person's or any submission's data. Both lists live in
+  `app/services/authz/consulted.py`, each entry with its reason. **VA interview attachments are never static and never public**:
   photos, documents, narration audio and any other file belonging to a
   submission are served only through the attachment and media routes,
   which decide with authz (`READ_ATTACHMENTS`) on every request; they must

@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
@@ -13,7 +14,9 @@ from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaForms,
     VaProjectSites,
+    VaStatuses,
     VaUserAccessGrants,
 )
 from tests.base import BaseTestCase
@@ -84,6 +87,16 @@ class ClientBootstrapTests(BaseTestCase):
         resolve.assert_not_called()
 
     def test_authenticated_bootstrap_exposes_role_capabilities_and_csrf(self):
+        # Capabilities follow the role gates (authz.effective_roles): a coder
+        # grant opens coding once its pair has an active form (digitva-5hmc).
+        now = datetime.now(UTC)
+        self._ensure_base_research_project_and_site()
+        db.session.add(VaForms(
+            form_id="BASE01BS0101", project_id=self.BASE_PROJECT_ID, site_id=self.BASE_SITE_ID,
+            odk_form_id="CLIENT_BOOT", odk_project_id="95", form_type="WHO VA 2022",
+            form_status=VaStatuses.active, form_registered_at=now, form_updated_at=now,
+        ))
+        db.session.flush()
         self._login(self.base_coder_id)
         response = self.client.get(BOOTSTRAP)
 
@@ -108,6 +121,15 @@ class ClientBootstrapTests(BaseTestCase):
         self.assertEqual(self.client.get(body["links"]["login"]).status_code, 302)
         self.assertEqual(login_url.path, "/vaauth/valogin")
         self.assertEqual(parse_qs(login_url.query)["next"], ["/app/"])
+
+    def test_a_coder_whose_pair_has_no_form_is_not_offered_coding(self):
+        """The coding gate refuses this coder (no active form in reach), so
+        bootstrap does not offer a tab that would 403."""
+        self._login(self.base_coder_id)
+        body = self.client.get(BOOTSTRAP).get_json()
+        self.assertIn("coding", body["capabilities"])
+        self.assertFalse(body["capabilities"]["coding"])
+        self.assertEqual(self.client.get("/coding/").status_code, 403)
 
     def test_capabilities_follow_authoritative_roles_for_intake_and_review(self):
         from app.models import VaForms, VaStatuses

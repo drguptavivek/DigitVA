@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -187,7 +187,7 @@ The decorator performs these checks in order:
 
 1. **Authentication check**: `current_user.is_authenticated` — if false, respond with 401
 2. **Active-status check**: `current_user.user_status == VaStatuses.active` — if false, `logout_user()` + respond with 401
-3. **Role check**: At least one role matches via `_ROLE_METHODS[role](current_user)` — if none match, respond with 403
+3. **Role check**: At least one role matches via `_ROLE_METHODS[role](current_user)` — if none match, respond with 403. Every grant role's predicate is `role in authz.effective_roles(user)` (digitva-5hmc): one per-request grant resolution answers every gate, and the check marks the request as decided by authz (`app/services/authz/consulted.py`). A project or pair grant of a form-resolved role (coder, coding_tester, reviewer, interviewer) opens its gate only once it reaches an active form, as the old form-resolved predicates did (`Grant.opens_gate`). Only `mentor_institute_admin`, a membership flag, keeps a `VaUsers` predicate.
 
 ### HTTP status codes (MUST match frontend expectations)
 
@@ -246,9 +246,11 @@ Every scope decision runs through one package; the old per-role helpers on
 | `reachable_unit_ids(user, project_id, roles)` | Units of a project the user may browse (unit picker, area dashboard) | Tree browsing |
 | `redacts_pii(user)` | Whether personal data is redacted for this viewer | Rendering |
 
-`VaUsers.is_*` stay as role-gate predicates for `_ROLE_METHODS` and the
-templates; `is_data_manager`, `is_site_pi` and `is_interview_supervisor` read
-`effective_roles`. The `get_*_va_forms` getters (and `is_coder(form)` and
+`role_required` gates read `effective_roles` (digitva-5hmc). `VaUsers.is_*`
+stay as role predicates for templates and landing pages; `is_data_manager`,
+`is_site_pi` and `is_interview_supervisor` read `authz.role_flags`, the same
+answer without marking the request as decided (templates call them on every
+page). The `get_*_va_forms` getters (and `is_coder(form)` and
 friends) answer form-level questions only, such as which forms to offer; a
 decision about one submission is `require`/`can`. The legacy `permission` JSONB column is kept but never read (digitva-d3y5: production holds only coder and sitepi keys, which were already ignored).
 

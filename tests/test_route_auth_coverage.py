@@ -38,6 +38,7 @@ from app.decorators.role_required import (
     ROLE_MARKER_ATTR,
     role_required,
 )
+from app.services.authz.consulted import PUBLIC_ENDPOINTS
 
 # Depth cap for the __wrapped__ walk. Real stacks are two or three deep; the cap
 # plus the identity set below mean a self-referential or absurd chain fails the
@@ -49,131 +50,9 @@ _LOGIN_REQUIRED_CO_QUALNAME = "login_required.<locals>.decorated_view"
 
 # ── Allowlist ────────────────────────────────────────────────────────────────
 
-PUBLIC_BY_DESIGN = frozenset({
-    # Static asset serving; Flask's own endpoint, no application data.
-    "static",
-    # Public Expo assets contain no case data. The bootstrap guards identity
-    # in its body and returns JSON 401 before exposing any session metadata.
-    "expo_client.expo_index",
-    "expo_client.expo_asset",
-    "api_v1.client_api.bootstrap",
-    # Liveness probe for the container orchestrator; must answer before login.
-    "health.health_check",
-    # The login form and its POST. Cannot require a session to create one.
-    "va_auth.va_login",
-    # Step 2 of login (password, alongside the later passkey path). Guarded in
-    # body, not by decorator: it requires a live pre-auth session state (set
-    # by the email step) and redirects to va_login without one, and it never
-    # looks the user up until POST -- see docs/policy/authentication-factors.md
-    # section 1.
-    "va_auth.va_login_password",
-    # Passkey sign-in options + verify, step 2's other path. Same reasoning
-    # as va_login_password: guarded in body by the live pre-auth session
-    # state, not by a decorator. The options response carries no
-    # allowCredentials and nothing derived from the pre-auth email, so it is
-    # identical for every account (section 1); verify checks the credential
-    # belongs to the pre-auth email's account before anything else.
-    "va_auth.va_login_passkey_options",
-    "va_auth.va_login_passkey_verify",
-    # Step 3 of login (TOTP or recovery code), only for users who must give a
-    # second factor. Same reasoning as va_login_password: guarded in body by
-    # the pre-auth state, and unreachable there unless the password step
-    # already verified the password and set second_factor_user_id on that
-    # same state -- see docs/policy/authentication-factors.md section 3.
-    "va_auth.va_login_second_factor",
-    # "I have a code": redeems a one-time code issued by a data manager and
-    # shows a server-generated password once. Cannot need a session (the
-    # holder has no password yet); CAPTCHA-gated and rate-limited per IP and
-    # per number (docs/policy/mobile-sign-in.md section 3).
-    "va_auth.va_login_redeem_code",
-    # JSON GET issuing a signed proof-of-work challenge for the email step.
-    # No user or session data; the challenge is meaningless without solving
-    # it, and pow_captcha_service.verify_challenge is what a session
-    # ultimately depends on, not this endpoint.
-    "va_auth.va_login_captcha_challenge",
-    # POST-only logout. Unwrapped but not public in effect: the body starts with
-    # `if current_user.is_anonymous: return redirect(...)`, so an anonymous POST
-    # is a redirect and nothing else. Checks current_user itself.
-    "va_auth.va_logout",
-    # Banner polled by the login page before a session exists; returns only the
-    # active maintenance window, no user or submission data.
-    "va_auth.site_maintenance_status",
-    # Account-recovery and first-login flows. All four are reachable only with a
-    # signed token or an email address, and by definition run with no session.
-    "va_auth.forgot_password",
-    "va_auth.reset_password",
-    "va_auth.resend_verification",
-    "va_auth.verify_email",
-    # Break-glass CLI's magic link (docs/policy/authentication-factors.md
-    # section 8): reachable only with a valid, single-use, one-hour token
-    # (token_service, purpose "factor_reset"), by definition with no session.
-    "va_auth.factor_reset",
-    # The public home page (/, /index, /vaindex). The system has a dedicated
-    # login page; the landing page is what an anonymous visitor lands on and
-    # renders no user data.
-    "va_main.va_index",
-    # Streams a WHO VA reference PDF from a fixed on-disk registry
-    # (WHO_VA_DOCUMENTS); the slug must be a registry key, so no arbitrary read.
-    # Published WHO material, deliberately readable without an account.
-    "va_main.who_va_document",
-    # Help index. Renders the shell; the page list is filtered per user by
-    # `_visible_pages`, which treats anonymous as holding no roles, so an
-    # anonymous visitor sees only the `roles=None` pages.
-    "help.index",
-    # A single help page, public by design *and* role-filtered in the body:
-    # `_user_has_role(current_user, page_info[4])` aborts 403 for a page whose
-    # registry entry names roles. That in-body filtering is the guard for the
-    # role-restricted pages and must stay; only the `roles=None` pages
-    # (getting-started, authentication, password-reset, email-verification,
-    # user-roles, profile) render for anonymous visitors, and those are the
-    # sign-in and account instructions a logged-out user needs.
-    "help.page",
-    # Index of the curated user-facing engineering docs. Public by design: the
-    # curated list in ENGINEERING_DOCS is the published documentation set.
-    "help.docs_index",
-    # Renders one curated repo markdown doc (ENGINEERING_DOCS) as HTML. The slug
-    # must be a registry key and `_render_md` blocks traversal, so the exposure
-    # is exactly that curated list, which is published by design.
-    "help.doc_page",
-    # WHO_2022_VA_2026 ICD-to-VA-cause mapping list and its CSV. Reference data
-    # only (codes, titles, VA causes, row notes), GET only and rate-limited;
-    # published by design (docs/policy/icd10-to-icd11-transition.md section 7).
-    "help.va_code_mappings",
-    "help.va_code_mappings_csv",
-    # Its sub-pages (digitva-xud): the ICD-10 vs ICD-11 compare view and the
-    # ICD-11 catalogue with each code's mapping and coding state, and its CSV.
-    # The same reference data plus the WHO ICD-11 hierarchy and the coding
-    # policy flags; GET only, rate-limited, published by the same section 7.
-    "help.va_code_mappings_compare",
-    "help.va_code_mappings_unmapped",
-    "help.va_code_mappings_unmapped_csv",
-    # Live coding-search demo sub-page of icd-codes (digitva-zm1): same
-    # in-body `_user_has_role` + abort(403) guard as `help.page`, checked
-    # against the icd-codes registry entry's roles.
-    "help.icd_codes_search_demo",
-    # Published ICD reference browsers from the public help pages. These
-    # serve classification and mapping metadata only, never submission data.
-    "help.icd10_codes_browser",
-    "help.icd10_codes_browser_children",
-    "help.icd10_codes_browser_csv",
-    "help.icd10_codes_browser_node",
-    "help.icd10_codes_browser_search",
-    "help.icd11_codes_browser",
-    "help.icd11_codes_browser_children",
-    "help.icd11_codes_browser_csv",
-    "help.icd11_codes_browser_node",
-    "help.icd11_codes_browser_search",
-    # Device API (Path B, .tasks/2026-09-30-android-collection-app.md): the
-    # three calls that create a device session and so cannot require one.
-    # Enrol is gated in body by a one-time, expiring, hashed enrolment code
-    # (404 for anything else); sessions by the device secret plus password
-    # and any second factor; refresh by a live refresh token, with reuse
-    # revoking the session. All rate-limited. Every other device route is
-    # behind the blueprint's bearer-session check and a role/login guard.
-    "api_v1.device.enroll",
-    "api_v1.device.open_session",
-    "api_v1.device.refresh_session",
-})
+# The reviewed list lives with the authz consultation check, one place for
+# both tests (app/services/authz/consulted.py), each entry with its reason.
+PUBLIC_BY_DESIGN = frozenset(PUBLIC_ENDPOINTS)
 
 _ALLOWED = PUBLIC_BY_DESIGN
 
@@ -279,8 +158,8 @@ def test_every_route_is_guarded_or_allowlisted(app):
         "An unguarded route fails open and serves every visitor:\n"
         f"{_format(offenders)}\n\n"
         "Fix by decorating the view with @role_required(...), or -- if it must "
-        "be reachable unauthenticated -- add it to PUBLIC_BY_DESIGN in this "
-        "module with a one-line reason."
+        "be reachable unauthenticated -- add it to PUBLIC_ENDPOINTS in "
+        "app/services/authz/consulted.py with a one-line reason."
     )
 
 

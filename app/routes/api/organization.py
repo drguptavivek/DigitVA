@@ -127,16 +127,18 @@ def project_units(project_id: str):
     ``org_unit_id`` against the reachable set independently of this flag.
     """
     project_id = (project_id or "").strip().upper()
-    project = db.session.get(VaProjectMaster, project_id)
-    if project is None or project.project_status != VaStatuses.active:
-        return _error("Project not found.", 404)
-
+    role_error = None
     try:
         role = _parse_role(request.args.get("role"))
     except ValueError as exc:
-        return _error(str(exc), 400)
-
+        role, role_error = None, str(exc)
+    # authz decides first; the refusals keep their order (404, 400, 403).
     reachable = _reachable_unit_ids(project_id, role)
+    project = db.session.get(VaProjectMaster, project_id)
+    if project is None or project.project_status != VaStatuses.active:
+        return _error("Project not found.", 404)
+    if role_error:
+        return _error(role_error, 400)
     if reachable is not None and not reachable:
         return _error("You do not have access to that project.", 403)
 
@@ -634,11 +636,11 @@ def project_form_options(project_id: str):
     for everyone who may see the project at all.
     """
     project_id = (project_id or "").strip().upper()
+    # authz decides first; the refusals keep their order (404, then 403).
+    reachable = _reachable_unit_ids(project_id, None)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
         return _error("Project not found.", 404)
-
-    reachable = _reachable_unit_ids(project_id, None)
     if reachable is not None and not reachable:
         return _error("You do not have access to that project.", 403)
 

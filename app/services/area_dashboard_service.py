@@ -195,7 +195,12 @@ def resolve_area_scope(user, project_id: str, project_name: str | None = None) -
     A project is a tree project when it has an active organization level
     (``projects_with_org_tree``), the same test the coding scope enforcement
     and the data manager's unit rollup use.
+
+    No grant of any role (``authz.effective_roles`` empty) is no area
+    anywhere, decided before the project is even looked up.
     """
+    if not authz.effective_roles(user):
+        return None
     if project_name is None:
         project_name = db.session.scalar(
             sa.select(VaProjectMaster.project_name).where(
@@ -571,6 +576,8 @@ def area_projects(user) -> list[dict]:
     to hold grants on many projects.
     """
     projects = []
+    if not authz.effective_roles(user):
+        return projects
     for project_id, project_name in candidate_projects(user):
         scope = resolve_area_scope(user, project_id, project_name)
         if scope is None:

@@ -423,6 +423,18 @@ class Config:
     AUTH_FACTOR_ENFORCE_FROM = os.environ.get("AUTH_FACTOR_ENFORCE_FROM", "").strip()
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+
+    # docs/policy/access-control-model.md, "Every access goes through authz".
+    # A signed-in request to a non-exempt endpoint that authz never decided is
+    # refused 403 (always logged; app/services/authz/consulted.py). On in
+    # production only; tests turn it on where they probe for it.
+    AUTHZ_ENFORCE_CONSULTED = True
+    # Resolved grants cached in Redis across requests (authz/grant_cache.py),
+    # through the Flask-Caching Redis client. Off in tests: fixtures write
+    # grants behind the ORM's back between requests.
+    AUTHZ_GRANT_CACHE_ENABLED = True
+    AUTHZ_GRANT_CACHE_PREFIX = "digitva_authz:"
+    AUTHZ_GRANT_CACHE_TTL_SECONDS = 300
     ICD11_API_BASE_URL = os.environ.get(
         "ICD11_API_BASE_URL", "http://icd_api_service"
     ).rstrip("/")
@@ -447,6 +459,8 @@ class Config:
 
 class TestConfig(Config):
     TESTING = True
+    AUTHZ_ENFORCE_CONSULTED = False
+    AUTHZ_GRANT_CACHE_ENABLED = False
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False
@@ -517,6 +531,7 @@ class TestConfig(Config):
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    AUTHZ_ENFORCE_CONSULTED = False
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False

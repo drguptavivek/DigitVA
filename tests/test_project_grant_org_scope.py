@@ -23,11 +23,10 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUserAccessGrants,
 )
-from app.routes.api.workflow import _may_read_events
 from app.services import org_unit_routing_service as routing
 from app.services import organization_service as org
 from app.services.attachment_service import can_access_submission_attachment
-from app.services.authz import Action, Reason, can, scope_filter
+from app.services.authz import READ_EVENTS, Action, Reason, can, scope_filter
 from app.services.coder_workflow_service import (
     AllocationError,
     allocate_pick_form,
@@ -127,7 +126,7 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
         for sid in sids:
             # Viewing never depends on the coding scope level.
             self.assertTrue(can(self.user, Action.VIEW, sid))
-            self.assertTrue(_may_read_events(self.user, db.session.get(VaSubmissions, sid)))
+            self.assertTrue(can(self.user, READ_EVENTS, sid))
             self.assertEqual(bool(can(self.user, WORK[role], sid)), codes)
         self.assertEqual(self._listed(role), set(sids) if codes else set())
 
@@ -227,7 +226,7 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
                 for sid in ("qsc-routed", "qsc-unrouted"):
                     self.assertFalse(can(self.user, Action.VIEW, sid))
                     self.assertFalse(can(self.user, WORK[role], sid))
-                    self.assertFalse(_may_read_events(self.user, db.session.get(VaSubmissions, sid)))
+                    self.assertFalse(can(self.user, READ_EVENTS, sid))
                 listed = set(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
                     VaSubmissions.va_form_id == self.OTHER_FORM_ID,
                     scope_filter(self.user, WORK[role]),

@@ -361,7 +361,7 @@ Lists: `scope_filter(user, CODE)` AND the pool filters (`CODER_READY_POOL_STATES
 - Wide grants are tiny lists (`project_id IN`, `(project_id, site_id) IN`), fine as bind parameters.
 - No new index is needed. `va_forms (project_id, site_id)` has no composite index that I could see (**unverified**; `va_forms` is a few hundred rows, so a scan of it inside the subquery is cheap).
 - The KPI cache key (dm_kpi_scope.py:164-169) must digest the resolved grants, not `site_ids|unit_ids`, once `DmScope` is built from authz; `ResolvedGrants.digest()` (sha1 of the sorted grant tuples) does that.
-- No cross-request caching of grants: a revoked grant must bite on the next request.
+- No cross-request caching of grants: a revoked grant must bite on the next request. *(Reversed 2026-10-04, digitva-5hmc: a versioned Redis cache bumped after commit, 5-minute TTL; docs/current-state/workflow-and-permissions.md.)*
 
 ## 7. Staged migration
 

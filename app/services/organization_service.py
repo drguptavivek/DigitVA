@@ -844,6 +844,10 @@ def _rewrite_subtree_paths(project_id: str, old_path: str, new_path: str) -> Non
     Unit codes are unique per project only, so the same path can exist in
     another project; the ``project_id`` filter keeps the rewrite in this one.
     """
+    # Raw SQL escapes the ORM hooks that bump the grant cache.
+    from app.services.authz import invalidate_all
+
+    invalidate_all()
     db.session.execute(
         sa.text(
             """
@@ -993,6 +997,10 @@ def set_unit_active(project_id: str, org_unit_id: object, active: bool) -> int:
         unit.is_active = True
         db.session.flush()
         return 1
+    # Raw SQL escapes the ORM hooks that bump the grant cache.
+    from app.services.authz import invalidate_all
+
+    invalidate_all()
     result = db.session.execute(
         sa.text(
             """

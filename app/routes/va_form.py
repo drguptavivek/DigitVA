@@ -17,7 +17,7 @@ from flask import (
     request,
     url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 from werkzeug.utils import secure_filename
 
 from app import cache as flask_cache
@@ -673,7 +673,14 @@ def _require_partial_write(va_sid, va_partial, va_action, va_actiontype) -> None
 
 
 @va_form.route("/<va_sid>/<va_partial>", methods=["GET", "POST"])
-@login_required
+# Every grant role: the gate decides (authz.effective_roles) before
+# va_validate_permissions turns away a malformed URL; which submission and
+# action the user may open is its authz.require (digitva-5hmc).
+@role_required(
+    "admin", "coder", "coding_tester", "reviewer", "data_manager", "site_pi",
+    "project_pi", "interviewer", "interview_supervisor", "collaborator",
+    "collaborator_pii",
+)
 @va_validate_permissions()
 def renderpartial(va_sid, va_partial):
     va_submission = db.session.get(VaSubmissions, va_sid)

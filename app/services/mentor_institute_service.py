@@ -415,6 +415,10 @@ def _deactivate_institute_grants(institute: MasMentorInstitute, user_id) -> int:
             sa.not_(_covered_by_institutes(user_id, VaUserAccessGrants.org_unit_id)),
         )
     )
+    # A Core UPDATE escapes the ORM hooks that bump the grant cache.
+    from app.services.authz import invalidate
+
+    invalidate(user_id)
     return db.session.execute(
         sa.update(VaUserAccessGrants)
         .where(VaUserAccessGrants.grant_id.in_(grant_ids))

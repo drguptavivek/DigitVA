@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Workflow And Permissions
@@ -681,11 +681,48 @@ lists), `can_grant` / `grant_list_filter` (grant writes and lists),
 device unit list and the area dashboard), `coding_gate_waivers` and
 `redacts_pii`. All of it is computed from one per-request `ResolvedGrants`.
 
-The user model keeps role-gate predicates (`is_coder()`, `is_reviewer()`,
-`is_site_pi()`, `is_data_manager()`, `is_viewer()` and friends, used by
-`role_required._ROLE_METHODS` and the templates; `is_data_manager`,
-`is_site_pi` and `is_interview_supervisor` read `effective_roles`; none takes
-a form argument since digitva-a00o) and the form getters
+`role_required` decides through `effective_roles` (digitva-5hmc). A project or
+pair grant of coder, coding_tester, reviewer or interviewer opens its gate
+only once it reaches an active form (coder and coding_tester on an active
+pair), the rule the form-resolved user predicates always had
+(`Grant.opens_gate`); unit grants open regardless.
+
+**Every request is decided by authz (digitva-5hmc).** Each decision (the
+`role_required` gate, `effective_roles`, `can`/`require`, `scope_filter`,
+`reaches`, `codes_as_tester`, `reachable_unit_ids`, `can_grant`,
+`grant_list_filter`) marks the request. `app/services/authz/consulted.py`
+wraps every registered view at `create_app`, except the reviewed
+`PUBLIC_ENDPOINTS` (no session) and `SELF_SERVICE_ENDPOINTS` (signed in; own
+account, reference data, or the area page shell), each with its reason. A
+signed-in request whose view finishes without a decision is logged
+(endpoint, user id) and, with `AUTHZ_ENFORCE_CONSULTED` (on in production,
+off in development and tests), refused 403. The check sees the view's
+outcome before any body is sent, so a streamed response must decide in the
+view body. A refused view has already run: enforcement stops exposure, and
+`tests/test_route_authz_probe.py` (every rule and method as a user with no
+grant, the body-decided rules as one user per role) keeps writes behind
+authz. Anonymous requests are left to the authentication guards.
+
+**Resolved grants are cached in Redis across requests (digitva-5hmc).** This
+reverses the earlier "no cross-request grant cache" design
+(`.tasks/digitva-0wc-design.md` section 9). `authz/grant_cache.py` keys an
+entry by user, a per-user version and a global version, 5-minute TTL, JSON
+through the Flask-Caching Redis client (`AUTHZ_GRANT_CACHE_ENABLED`, off in
+tests). Session hooks bump the versions after commit: the user's for any
+`va_user_access_grants` row or a `user_status`/`auth_session_version` change;
+the global one for a project's status, coding-scope settings or demo switch,
+a project-site, an org level or unit, or a form's status. Core statements
+call `authz.invalidate` / `invalidate_all` (mentor-staff grant withdrawal,
+org-unit path rewrites and subtree deactivation). Redis down or an
+unparsable entry: the database answers. `can` still reads the submission's
+routing from the database. Only in requests; Celery and CLI resolve fresh.
+
+The user model keeps role predicates (`is_coder()`, `is_reviewer()`,
+`is_site_pi()`, `is_data_manager()`, `is_viewer()` and friends, used by the
+templates and landing pages; `is_data_manager`, `is_site_pi` and
+`is_interview_supervisor` read `authz.role_flags`, `effective_roles` without
+marking the request; none takes a form argument since digitva-a00o) and the
+form getters
 (`get_coder_va_forms()`, `get_coding_tester_va_forms()`, ...) that answer
 which forms to offer. Neither decides one submission: form- or
 submission-level reach is `authz.can` / `scope_filter`.

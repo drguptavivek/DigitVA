@@ -86,8 +86,17 @@ class _StubUser:
 
 
 def _call_decorated_view(monkeypatch, roles, user, path="/api/probe"):
-    """Run a view gated on `roles` as `user`, returning (sentinel | response)."""
+    """Run a view gated on `roles` as `user`, returning (sentinel | response).
+
+    The gate reads ``authz.effective_roles`` (digitva-5hmc); the stub's true
+    ``is_<role>`` predicates stand in for the roles it holds.
+    """
     monkeypatch.setattr(_decorator_module, "current_user", user)
+    monkeypatch.setattr(
+        _decorator_module,
+        "effective_roles",
+        lambda u: frozenset(name[3:] for name, held in u._predicates.items() if held),
+    )
 
     @role_required(*roles)
     def view():

@@ -41,10 +41,15 @@ from app.services.org_grant_service import (
 )
 
 _ENVIRON_KEY = "digitva.authz"
+_BYPASS_KEY = "digitva.authz.bypass_cache"
 
 _P = VaAccessScopeTypes.project
 _PS = VaAccessScopeTypes.project_site
 _U = VaAccessScopeTypes.org_unit
+
+# Roles whose gate opens on a project or pair grant only once it reaches a form.
+_NEEDS_FORM_ON_ACTIVE_PAIR = frozenset({VaAccessRoles.coder, VaAccessRoles.coding_tester})
+_NEEDS_FORM = frozenset({VaAccessRoles.reviewer, VaAccessRoles.interviewer})
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,12 @@ class Grant:
     unit_depth: int | None = None         # the unit's level depth
     unit_path: str | None = None          # the unit's ltree path, for subtree tests in Python
     virtual: bool = False                 # demo-training grant (design 2.6)
+    # Opens its role gate (effective_roles). False only for a project or pair
+    # grant of a form-resolved role that reaches no active form yet: coder and
+    # coding_tester need one on an active pair, reviewer and interviewer any
+    # (the legacy VaUsers._get_granted_va_forms rule, digitva-5hmc). Scope is
+    # never read from it.
+    opens_gate: bool = True
 
     @property
     def is_wide(self) -> bool:
@@ -185,6 +196,19 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
     unit = sa.orm.aliased(MasOrgUnit, name="authz_grant_unit")
     level = sa.orm.aliased(MasOrgLevel, name="authz_grant_level")
     project_id = sa.func.coalesce(grant.project_id, site.project_id, unit.project_id)
+    form = sa.orm.aliased(VaForms, name="authz_gate_form")
+    pair = sa.orm.aliased(VaProjectSites, name="authz_gate_pair")
+    form_in_reach = sa.and_(
+        form.project_id == project_id,
+        form.form_status == VaStatuses.active,
+        sa.or_(grant.scope_type != VaAccessScopeTypes.project_site, form.site_id == site.site_id),
+    )
+    any_form = sa.exists(sa.select(1).where(form_in_reach))
+    form_on_active_pair = sa.exists(sa.select(1).where(form_in_reach, sa.exists(sa.select(1).where(
+        pair.project_id == form.project_id,
+        pair.site_id == form.site_id,
+        pair.project_site_status == VaStatuses.active,
+    ))))
     rows = db.session.execute(
         sa.select(
             grant.role,
@@ -195,6 +219,8 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
             grant.org_unit_id,
             level.depth,
             sa.cast(unit.path, sa.Text).label("unit_path"),
+            any_form.label("any_form"),
+            form_on_active_pair.label("form_on_active_pair"),
         )
         .select_from(grant)
         .outerjoin(site, sa.and_(
@@ -231,8 +257,19 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
             org_unit_id=row.org_unit_id,
             unit_depth=row.depth,
             unit_path=row.unit_path,
+            opens_gate=_opens_gate(row),
         ))
     return is_admin, grants
+
+
+def _opens_gate(row) -> bool:
+    if row.scope_type == _U:
+        return True
+    if row.role in _NEEDS_FORM_ON_ACTIVE_PAIR:
+        return bool(row.form_on_active_pair)
+    if row.role in _NEEDS_FORM:
+        return bool(row.any_form)
+    return True
 
 
 def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
@@ -300,21 +337,52 @@ def resolve_grants(user) -> ResolvedGrants:
     Kept in the WSGI environ, not ``flask.g``: the app context (and so ``g``)
     can outlive a request and would hand one user's grants to the next
     (same reason as dm_kpi_scope.dm_scope). Outside a request (Celery, CLI,
-    direct service calls) it resolves fresh every time. No cross-request
-    cache: a revoked grant bites on the next request.
+    direct service calls) it resolves fresh every time.
+
+    Across requests the resolution is cached in Redis (``grant_cache``,
+    digitva-5hmc; this reverses the earlier "no cross-request cache" design,
+    .tasks/digitva-0wc-design.md section 9): versioned keys bumped after every
+    commit that changes grants or the reach they resolve to, a 5-minute TTL
+    behind them, and the database whenever Redis cannot answer.
     """
+    from app.services.authz import grant_cache
+
     user_id = user.user_id
     if not has_request_context():
         return _resolve(user_id)
     memo = request.environ.setdefault(_ENVIRON_KEY, {})
     resolved = memo.get(user_id)
     if resolved is None:
-        resolved = memo[user_id] = _resolve(user_id)
+        # After invalidate() in this request the cache still holds the old
+        # version until commit: read the database instead.
+        bypass = request.environ.get(_BYPASS_KEY, set())
+        if "*" in bypass or user_id in bypass:
+            resolved = memo[user_id] = _resolve(user_id)
+        else:
+            resolved = memo[user_id] = grant_cache.load(user_id, _resolve)
     return resolved
 
 
 def invalidate(user_id: uuid.UUID) -> None:
-    """Forget the memoised grants of *user_id*; every grant write calls it so
-    a grant written and used in one request is seen."""
+    """Forget *user_id*'s grants: the request memo now, the Redis cache when
+    the session next commits. Every grant write calls it so a grant written
+    and used in one request is seen; ORM writes bump the cache anyway
+    (``grant_cache``), Core statements depend on this call."""
+    from app.services.authz import grant_cache
+
+    grant_cache.defer_user_bump(db.session(), user_id)
     if has_request_context():
         request.environ.get(_ENVIRON_KEY, {}).pop(user_id, None)
+        request.environ.setdefault(_BYPASS_KEY, set()).add(user_id)
+
+
+def invalidate_all() -> None:
+    """Every user's cached grants, when the session next commits: for a Core
+    statement that changes many users' reach (an org-unit path rewrite or
+    subtree deactivation) and so escapes the ORM hooks."""
+    from app.services.authz import grant_cache
+
+    grant_cache.defer_global_bump(db.session())
+    if has_request_context():
+        request.environ.pop(_ENVIRON_KEY, None)
+        request.environ.setdefault(_BYPASS_KEY, set()).add("*")

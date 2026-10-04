@@ -269,6 +269,10 @@ def create_app(config_class=None):
     register_blueprints(app)
     from app.routes.expo_client import expo_client
     app.register_blueprint(expo_client)
+    # After every blueprint: wrap each non-exempt view so a request authz
+    # never decided is logged, and refused where AUTHZ_ENFORCE_CONSULTED.
+    from app.services.authz import consulted as authz_consulted
+    authz_consulted.install(app)
     from app.routes.va_errors import register_error_handlers
     register_error_handlers(app)
     from app.logging import va_logging

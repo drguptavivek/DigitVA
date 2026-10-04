@@ -28,6 +28,10 @@ For web routes: redirect to login (401) or flash + abort(403).
 
 This decorator subsumes @login_required — do not stack both.
 
+The role check is authz's: every grant role's gate is
+``role in authz.effective_roles(user)`` (digitva-5hmc), and passing Layer 3
+marks the request as decided by authz (app/services/authz/consulted.py).
+
 Role names are checked against _ROLE_METHODS when the decorator is applied, so
 an unknown or misspelled name fails at import rather than turning into a route
 that silently 403s everyone.
@@ -46,30 +50,38 @@ from flask import jsonify, redirect, request, url_for
 from flask_login import current_user, logout_user
 
 from app.models import VaStatuses
+from app.services.authz import effective_roles
+from app.services.authz.consulted import mark_consulted
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
 )
 
 log = logging.getLogger(__name__)
 
+def _opens(role):
+    """The gate of a grant role: authz.effective_roles says (digitva-5hmc)."""
+    return lambda user: role in effective_roles(user)
+
+
+# The routable role names (validated at decoration time) and each one's gate.
+# Every grant role reads ``authz.effective_roles``, one per-request
+# resolution for all of them; collaborator / collaborator_pii have identical
+# reach there (PII visibility is viewer_pii_service.should_redact_pii).
 _ROLE_METHODS = {
-    "admin":          lambda u: u.is_admin(),
-    "coder":          lambda u: u.is_coder(),
-    "coding_tester":  lambda u: u.is_coding_tester(),
-    "reviewer":       lambda u: u.is_reviewer(),
-    "data_manager":   lambda u: u.is_data_manager(),
-    "site_pi":        lambda u: u.is_site_pi(),
-    "project_pi":     lambda u: u.is_project_pi(),
-    "interviewer":    lambda u: u.is_interviewer(),
-    "interview_supervisor": lambda u: u.is_interview_supervisor(),
+    "admin":          _opens("admin"),
+    "coder":          _opens("coder"),
+    "coding_tester":  _opens("coding_tester"),
+    "reviewer":       _opens("reviewer"),
+    "data_manager":   _opens("data_manager"),
+    "site_pi":        _opens("site_pi"),
+    "project_pi":     _opens("project_pi"),
+    "interviewer":    _opens("interviewer"),
+    "interview_supervisor": _opens("interview_supervisor"),
     # Not a grant role: a flag on an institute membership (staff management
-    # only, never grants).
+    # only, never grants), so effective_roles does not answer it.
     "mentor_institute_admin": lambda u: u.is_mentor_institute_admin(),
-    # collaborator / collaborator_pii: identical reach, so both spellings
-    # gate on the same check. What differs (PII visibility) is decided by
-    # viewer_pii_service.should_redact_pii, not by route access.
-    "collaborator":     lambda u: u.is_viewer(),
-    "collaborator_pii": lambda u: u.is_viewer(),
+    "collaborator":     _opens("collaborator"),
+    "collaborator_pii": _opens("collaborator_pii"),
 }
 
 
@@ -148,7 +160,8 @@ def role_required(*roles):
                     return jsonify({"error": "Authentication required."}), 401
                 return redirect(url_for("va_auth.va_login"))
 
-            # ── Layer 3: Role check ──────────────────────────────────────────
+            # ── Layer 3: Role check (authz decides) ─────────────────────────
+            mark_consulted()
             if not any(_ROLE_METHODS[role](current_user) for role in roles):
                 role_label = " or ".join(roles)
                 log.warning(

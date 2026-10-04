@@ -41,6 +41,7 @@ from app.services.authz.actions import (
     Lens,
     Reason,
 )
+from app.services.authz.consulted import mark_consulted
 from app.services.authz.grants import Grant, ResolvedGrants, resolve_grants
 from app.services.authz.supervision import supervising_grant
 
@@ -288,6 +289,7 @@ def reaches(user, lens: Lens, va_sid, *, _grants: ResolvedGrants | None = None) 
     it as that role. A role flag such as ``VaUsers.is_reviewer()`` is not
     enough, because the demo-training grants make it true for everyone.
     """
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(user)
     clauses = _lens_predicate(g, lens)
     if not clauses:
@@ -307,6 +309,7 @@ def codes_as_tester(user, va_sid, *, _grants: ResolvedGrants | None = None) -> b
     as tester output and never becomes the case's result
     (access-control-model.md, ``coding_tester``).
     """
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(user)
     coder, tester, virtual = _lens_groups(g, Lens.CODE_CODER)
 
@@ -340,6 +343,7 @@ def reachable_unit_ids(
     not a project's tree. Web intake keeps its own grant-only variant with
     no admin bypass (``web_intake_service._reachable_unit_ids``).
     """
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(user)
     if g.is_admin:
         return None
@@ -365,6 +369,7 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     ``sa.true()`` for an admin on a bypassed action, ``sa.false()`` when no
     lens applies. ``_grants`` is a test seam: a hand-built ``ResolvedGrants``.
     """
+    mark_consulted()
     if action not in RULES:
         raise ValueError(f"{action!r} has no submission predicate")
     g = _grants if _grants is not None else resolve_grants(user)
@@ -399,6 +404,7 @@ def can(user, action: Action, target, *, _grants: ResolvedGrants | None = None) 
     ``SITE_PI_REPORT``; a ``VaDeathRegister`` row for ``SUPERVISE_INTAKE``.
     ``LIST_DATA`` has no target: use ``scope_filter``.
     """
+    mark_consulted()
     g = _grants if _grants is not None else resolve_grants(user)
     if action is Action.ROUTE_PIN and isinstance(target, tuple):
         return _can_pin_to(g, target)
@@ -594,9 +600,19 @@ def effective_roles(user, *, _grants: ResolvedGrants | None = None) -> frozenset
     ``interview_supervisor``; an active demo-training project counts as
     every role in ``DEMO_VIRTUAL_ROLES``. ``mentor_institute_admin`` is a
     membership flag, not a grant, and is not answered here.
+
+    A decision (marks the request consulted). The ``VaUsers.is_*`` role
+    helpers call ``role_flags`` instead: templates and context processors
+    call them on every page, which must not count as a route deciding.
     """
+    mark_consulted()
+    return role_flags(user, _grants=_grants)
+
+
+def role_flags(user, *, _grants: ResolvedGrants | None = None) -> frozenset[str]:
+    """``effective_roles`` without marking the request consulted."""
     g = _grants if _grants is not None else resolve_grants(user)
-    roles = {grant.role.value for grant in g.grants}
+    roles = {grant.role.value for grant in g.grants if grant.opens_gate}
     if g.is_admin:
         roles.add(_R.admin.value)
     oversees = any(

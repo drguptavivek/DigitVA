@@ -26,10 +26,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. `digitva-5hmc` (P1) every app access through authz with a Redis grant
-   cache (policy written in `access-control-model.md`; attachments never
-   static). Route probe test first, then refuse in production. Touches every
-   route: run it alone.
+1. **Deploy notes for `digitva-5hmc`** (landed): production refuses (403 +
+   log) any non-public request that never consulted authz
+   (`AUTHZ_ENFORCE_CONSULTED`, off in dev/test). Grants are cached in Redis
+   (`digitva_authz:` keys, 5-min TTL). After any migration, restore or raw
+   SQL data fix that changes grants, projects, sites, pairs, forms or units,
+   bump the global version (every cached entry becomes unreachable):
+   `docker compose exec -T minerva_app_service uv run --no-sync python -c
+   "import os,time,redis; redis.from_url(os.environ['REDIS_URL']).set('digitva_authz:gv', f'reset-{int(time.time())}')"`
+   (or wait 5 minutes). Redis runs allkeys-lru;
+   versions are random tokens so eviction never revives an old entry.
 2. **Deploy order** `digitva-p6fs.25` (Expo session): the app's terms screen
    and `terms_required` handling must ship before or with the 9an9 backend;
    a current app build shows `terms_required` as an error.

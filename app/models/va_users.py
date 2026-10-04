@@ -214,9 +214,9 @@ class VaUsers(UserMixin, db.Model):
         Opens the role gate only: which cases the user supervises is
         ``case_transition_service.is_interview_supervisor_for``.
         """
-        from app.services.authz import effective_roles
+        from app.services.authz.predicates import role_flags
 
-        return "interview_supervisor" in effective_roles(self)
+        return "interview_supervisor" in role_flags(self)
 
     def is_coding_tester(self):
         """Role gate only; which submissions the user codes is authz's."""
@@ -225,9 +225,9 @@ class VaUsers(UserMixin, db.Model):
     def is_site_pi(self):
         """The role gate, as ``authz.effective_roles`` says (a live site_pi
         grant on a pair or a unit, the In-charge). Scope is authz's."""
-        from app.services.authz import effective_roles
+        from app.services.authz.predicates import role_flags
 
-        return "site_pi" in effective_roles(self)
+        return "site_pi" in role_flags(self)
 
     def is_reviewer(self):
         """Role gate only; which submissions the user reviews is authz's."""
@@ -250,9 +250,9 @@ class VaUsers(UserMixin, db.Model):
         a data_manager grant at any scope, site_pi at a unit (the In-charge)
         and project_pi on a tree project (policy: access-control-model.md,
         "Role To Scope Rules"). Opens the gate only; scope is authz's."""
-        from app.services.authz import effective_roles
+        from app.services.authz.predicates import role_flags
 
-        return "data_manager" in effective_roles(self)
+        return "data_manager" in role_flags(self)
 
     def is_mentor_institute_admin(self) -> bool:
         """Administers a mentoring institute (flag on the membership, not a grant)."""

@@ -16,6 +16,7 @@ from flask_login import current_user, login_required
 
 from app import limiter
 from app.services import area_dashboard_service as area
+from app.services import authz
 
 bp = Blueprint("area_api", __name__)
 
@@ -44,7 +45,13 @@ def projects():
 
 
 def _area_params():
-    """(project, unit, site) from the query string, or an error response."""
+    """(project, unit, site) from the query string, or an error response.
+
+    No grant of any role is no area anywhere: authz decides that first, so
+    such a user is told "not found" whatever the parameters.
+    """
+    if not authz.effective_roles(current_user):
+        return None, (jsonify({"error": "Not found."}), 404)
     project_id, unit_id, site_id = _param("project"), _param("unit"), _param("site")
     if not project_id:
         return None, (jsonify({"error": "project is required."}), 400)

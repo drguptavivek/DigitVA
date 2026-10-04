@@ -59,7 +59,7 @@ describe("host-supplied instrument UI strings", () => {
     expect(element.textContent).toContain("मृत्यु की तारीख");
     expect(element.textContent).toContain("अनुभाग");
     expect(element.textContent).toContain("दिन-माह-वर्ष (DD-MMM-YYYY)");
-    expect(ariaLabels(element)).toContain("प्रारूप सहेजें");
+    expect(ariaLabels(element)).toContain("जवाब सेव करें");
     expect(ariaLabels(element)).not.toContain("Save draft");
     const issue = element.validate().issues.find((item) => item.question === "death_date");
     expect(issue?.message).toBe("मृत्यु की तारीख आवश्यक है");
@@ -79,7 +79,7 @@ describe("host-supplied instrument UI strings", () => {
 
     overridden.uiTranslations = undefined;
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(ariaLabels(overridden)).toContain("प्रारूप सहेजें");
+    expect(ariaLabels(overridden)).toContain("जवाब सेव करें");
   });
 
   it("falls back to English per string the built-in pack lacks", () => {

@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { InstrumentDefinition, ValidationIssue } from "../src/index.js";
 import { formatDdMmmYyyy, isoFromParts, localizedMonthNames } from "../src/ui/date-value.js";
-import { stepperFits } from "../src/ui/section-navigation.js";
+import { createSectionNavigation, stepperFits } from "../src/ui/section-navigation.js";
+import { ENGLISH_UI_MESSAGES } from "../src/i18n.js";
 import hindi from "../src/languages/hi.js";
 import { WhoVaForm } from "../src/web.js";
 
@@ -152,6 +153,82 @@ describe("DD-MMM-YYYY date parts", () => {
   });
 });
 
+describe("compact section navigation", () => {
+  const domProps = ({
+    testID,
+    style,
+    accessibilityRole,
+    accessibilityState,
+    accessibilityLabel,
+    ...props
+  }: Record<string, unknown>) => ({
+    ...props,
+    ...(testID ? { "data-testid": testID } : {}),
+    ...(accessibilityLabel ? { "aria-label": accessibilityLabel } : {}),
+    ...(accessibilityRole ? { role: accessibilityRole } : {})
+  });
+  const View = React.forwardRef<HTMLDivElement, Record<string, unknown>>(({ children, ...props }, ref) => (
+    <div ref={ref} {...(domProps(props) as React.HTMLAttributes<HTMLDivElement>)}>
+      {children as React.ReactNode}
+    </div>
+  ));
+  const Text = ({ children, ...props }: Record<string, unknown>) => (
+    <span {...(domProps(props) as React.HTMLAttributes<HTMLSpanElement>)}>{children as React.ReactNode}</span>
+  );
+  const Pressable = React.forwardRef<HTMLButtonElement, Record<string, unknown>>(
+    ({ children, onPress, ...props }, ref) => (
+      <button
+        ref={ref}
+        type="button"
+        onClick={onPress as (() => void) | undefined}
+        {...(domProps(props) as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+      >
+        {children as React.ReactNode}
+      </button>
+    )
+  );
+  const ScrollView = View;
+
+  it("keeps the section-list opener separate from direct stepper dot selection", async () => {
+    const { SectionHeaderBar } = createSectionNavigation({ View, Text, Pressable, ScrollView });
+    const onOpen = vi.fn();
+    const onSelect = vi.fn();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <SectionHeaderBar
+          current={2}
+          items={[
+            { name: "one", label: "1. One", status: "complete", active: false, depth: 0 },
+            { name: "two", label: "2. Two", status: "started", active: true, depth: 0 },
+            { name: "three", label: "3. Three", status: "empty", active: false, depth: 0 }
+          ]}
+          messages={ENGLISH_UI_MESSAGES}
+          moreToCome={false}
+          onOpen={onOpen}
+          onSelect={onSelect}
+          open={false}
+          toggleRef={{ current: null }}
+          total={3}
+        />
+      );
+    });
+    const dots = container.querySelectorAll<HTMLButtonElement>('[data-testid="section-header-dot"]');
+    expect(dots).toHaveLength(3);
+    expect(dots[1]?.getAttribute("aria-current")).toBe("step");
+    expect(dots[1]?.getAttribute("aria-label")).toContain("started");
+    await act(async () => dots[2]?.click());
+    expect(onSelect).toHaveBeenCalledWith("three");
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-testid="section-drawer-toggle"]')?.click()
+    );
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    root.unmount();
+  });
+});
+
 describe("inline validation messages", () => {
   it("shows the short required message inline while the payload keeps the full one", async () => {
     const { container, root, issues } = await mount();
@@ -206,7 +283,7 @@ describe("attachment controls without a host service", () => {
 describe("horizontal stepper fit", () => {
   it("collapses rather than overflowing at tablet and phone widths", () => {
     // 820px tablet less the form's 16px gutters; 600px less the same.
-    expect(stepperFits(788, 17)).toBe(true);
+    expect(stepperFits(788, 17)).toBe(false);
     expect(stepperFits(788, 30)).toBe(false);
     expect(stepperFits(568, 17)).toBe(false);
     expect(stepperFits(568, 30)).toBe(false);

@@ -11,6 +11,7 @@ import {
   isRetainedPdfAttachment,
   type ImageAttachmentPolicy
 } from "../attachments.js";
+import { validateAnswer } from "../engine/validation.js";
 import type {
   AnswerValue,
   AttachmentCandidate,
@@ -129,6 +130,8 @@ export interface WhoVaQuestionControlPrimitives {
   DateInput?: React.ElementType | undefined;
   /** A native select (web); see WhoVaPrimitiveSet.Select. */
   Select?: React.ElementType | undefined;
+  /** Select primitive reserved for partial date selectors. */
+  PartialSelect?: React.ElementType | undefined;
   Pressable: React.ElementType;
   Image?: React.ElementType | undefined;
   /**
@@ -184,7 +187,16 @@ export function dateBounds(question: InstrumentQuestion): { min?: string; max?: 
 }
 
 export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrimitives) {
-  const { View, Text: PrimitiveText, TextInput, DateInput, Select, Pressable, Image } = primitives;
+  const {
+    View,
+    Text: PrimitiveText,
+    TextInput,
+    DateInput,
+    Select,
+    PartialSelect,
+    Pressable,
+    Image
+  } = primitives;
   const RichText = primitives.RichText;
 
   /**
@@ -831,6 +843,163 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  function DateSelector({
+    appearance,
+    data,
+    hasIssues,
+    label,
+    locale,
+    messages,
+    onAnswer,
+    onDraftIssue,
+    question,
+    readOnly,
+    value
+  }: {
+    appearance: "month-year" | "year";
+    data: SubmissionData;
+    hasIssues: boolean;
+    label: string;
+    locale: string;
+    messages: WhoVaUiMessages;
+    onAnswer: (value: AnswerValue | undefined) => void;
+    onDraftIssue: (draft: string | undefined, issue?: ValidationIssue) => void;
+    question: InstrumentQuestion;
+    readOnly: boolean | undefined;
+    value: string | undefined;
+  }) {
+    const SelectControl = PartialSelect as React.ElementType;
+    const fromValue = (iso: string | undefined) => {
+      const match = iso ? /^(\d{4})-(\d{2})-01$/.exec(iso) : null;
+      return match ? { month: match[2] ?? "", year: match[1] ?? "" } : { month: "", year: "" };
+    };
+    const [parts, setParts] = useState(() => fromValue(value));
+    const [shownFor, setShownFor] = useState(value);
+    if (shownFor !== value) {
+      setShownFor(value);
+      if (value !== undefined || parts.month || parts.year) setParts(fromValue(value));
+    }
+    const months = useMemo(
+      () =>
+        localizedMonthNames(locale).map((name, index) => ({
+          value: String(index + 1).padStart(2, "0"),
+          label: name
+        })),
+      [locale]
+    );
+    const { min, max } = dateBounds(question);
+    const thisYear = new globalThis.Date().getFullYear();
+    const minYear = min ? Number(min.slice(0, 4)) : thisYear - 151;
+    const maxYear = max ? Number(max.slice(0, 4)) : thisYear;
+    const years = useMemo(
+      () => Array.from({ length: Math.max(0, maxYear - minYear + 1) }, (_, index) => String(maxYear - index)),
+      [maxYear, minYear]
+    );
+    const boundedMonths = useMemo(() => {
+      if (appearance !== "month-year" || !parts.year) return months;
+      return months.filter(({ value: month }) => {
+        const candidate = `${parts.year}-${month}-01`;
+        const lower = min ? `${min.slice(0, 7)}-01` : undefined;
+        const upper = max ? `${max.slice(0, 7)}-01` : undefined;
+        return (!lower || candidate >= lower) && (!upper || candidate <= upper);
+      });
+    }, [appearance, max, min, months, parts.year]);
+    const monthOptions = boundedMonths;
+    const commit = (next: { month: string; year: string }) => {
+      const previousParts = parts;
+      const previousShownFor = shownFor;
+      setParts(next);
+      const complete =
+        /^\d{4}$/.test(next.year) && (appearance === "year" || /^(0[1-9]|1[0-2])$/.test(next.month));
+      if (complete) {
+        const iso = `${next.year}-${appearance === "year" ? "01" : next.month}-01`;
+        const issue = validateAnswer(question, iso, data, locale, messages)[0];
+        const lower = min ? `${min.slice(0, 7)}-01` : undefined;
+        const upper = max ? `${max.slice(0, 7)}-01` : undefined;
+        const outsideStaticBounds =
+          (lower !== undefined && iso < lower) || (upper !== undefined && iso > upper);
+        if (issue || outsideStaticBounds) {
+          const yearChanged = appearance === "month-year" && next.year !== previousParts.year;
+          if (yearChanged && outsideStaticBounds) {
+            setParts({ month: "", year: next.year });
+            // Keep the controlled answer as the synchronization anchor while
+            // the user reselects the now-invalid month.
+            setShownFor(value);
+          } else {
+            setParts(previousParts);
+            setShownFor(previousShownFor);
+          }
+          onDraftIssue(
+            undefined,
+            issue ?? {
+              question: question.name,
+              code: "constraint",
+              message: messages.invalidConstraint(label)
+            }
+          );
+          return;
+        }
+        onAnswer(iso);
+        setParts(next);
+        setShownFor(iso);
+        onDraftIssue(undefined);
+      } else {
+        onAnswer(undefined);
+        setParts(next);
+        setShownFor(undefined);
+        onDraftIssue(undefined);
+      }
+    };
+    const partStyle = [questionControlStyles.input, questionControlStyles.datePart];
+    return (
+      <View>
+        <View
+          accessibilityRole="none"
+          role="group"
+          style={[
+            questionControlStyles.dateGroup,
+            hasIssues && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly
+          ]}
+        >
+          {appearance === "month-year" ? (
+            <SelectControl
+              accessibilityLabel={messages.month}
+              disabled={readOnly}
+              emptyOptionLabel={messages.selectDate}
+              onValueChange={(month: string) => {
+                if (!readOnly) commit({ ...parts, month });
+              }}
+              options={monthOptions}
+              style={[...partStyle, questionControlStyles.datePartMonth]}
+              testID={`question-${question.name}-month`}
+              value={parts.month}
+            />
+          ) : null}
+          <SelectControl
+            accessibilityLabel={messages.year}
+            disabled={readOnly}
+            emptyOptionLabel={messages.selectDate}
+            onValueChange={(year: string) => {
+              if (!readOnly) commit({ ...parts, year });
+            }}
+            options={years.map((year) => ({ value: year, label: year }))}
+            style={[...partStyle, questionControlStyles.datePartYear]}
+            testID={`question-${question.name}-year`}
+            value={parts.year}
+          />
+        </View>
+        <PrimitiveText
+          accessibilityLabel={label}
+          style={questionControlStyles.formatHint}
+          testID={`question-${question.name}-format`}
+        >
+          {appearance === "month-year" ? `${messages.month} / ${messages.year}` : messages.year}
+        </PrimitiveText>
+      </View>
+    );
+  }
+
   function DatePickerButton({
     question,
     value,
@@ -913,6 +1082,24 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       onDraftIssue?.(question.name, issue ?? incompleteDateIssue(question, next, locale, messages));
     };
 
+    if (hasAppearance(question, "month-year") && PartialSelect) {
+      return (
+        <DateSelector
+          appearance="month-year"
+          data={data}
+          hasIssues={hasIssues}
+          label={label}
+          locale={locale}
+          messages={messages}
+          onAnswer={onAnswer}
+          onDraftIssue={updateDraft}
+          question={question}
+          readOnly={readOnly}
+          value={typeof value === "string" ? value : undefined}
+        />
+      );
+    }
+
     if (hasAppearance(question, "month-year")) {
       return (
         <DateTextInput
@@ -934,6 +1121,24 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               onAnswer
             );
           }}
+        />
+      );
+    }
+
+    if (hasAppearance(question, "year") && PartialSelect) {
+      return (
+        <DateSelector
+          appearance="year"
+          data={data}
+          hasIssues={hasIssues}
+          label={label}
+          locale={locale}
+          messages={messages}
+          onAnswer={onAnswer}
+          onDraftIssue={updateDraft}
+          question={question}
+          readOnly={readOnly}
+          value={typeof value === "string" ? value : undefined}
         />
       );
     }

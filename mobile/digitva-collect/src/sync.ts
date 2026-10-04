@@ -15,22 +15,29 @@
  * editing (a draft goes back to in progress; a registration or action is
  * marked needs_edit); a 404/409 on an action also marks it needs_edit, since
  * it can no longer apply and would be refused on every sync. Also the
- * per-interviewer reference data the device API serves (bootstrap,
- * organization units, form translations), cached in that interviewer's own
+ * per-interviewer reference data (access-scoped organization units, form
+ * options, prefill policy and translations), cached in that interviewer's own
  * database and wiped with it.
  *
  * Logs carry client ids and error codes only, never answers or names.
  */
-import { ApiError, DEVICE_API } from "./api";
+import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import {
   acknowledgeRegistration,
+  ACTIVE_CASE_STATES,
+  deleteCase,
+  getCase,
+  isCaseDetail,
+  isActiveCaseState,
   deleteAction,
   listActions,
   listRegistrations,
   replaceCases,
   setActionState,
   setRegistrationState,
+  upsertCase,
+  type CaseDetail,
   type CaseRow
 } from "./cases";
 import {
@@ -40,12 +47,15 @@ import {
   draftIds,
   draftUniqueIds,
   getMeta,
+  projectIds,
+  purgeProjectData,
   reopenDraft,
   setMeta,
   type CompletedDraft,
   type Completion,
   type Db
 } from "./drafts";
+import { questionnaireLocales } from "./i18n";
 import type { Translations } from "./translations";
 
 export interface SyncResult {
@@ -61,6 +71,16 @@ export const INCOMPLETE_OUTCOMES = ["partially_completed", "respondent_unavailab
 export const CASE_PAGE_SIZE = 200;
 export const CASE_PAGES_MAX = 25;
 
+/** Reference settings are stable project configuration, not live work. */
+export const REFERENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const REFERENCE_META_KEY = "referenceData";
+const REFERENCE_ATTEMPT_META_KEY = "referenceDataAttemptAt";
+const BUNDLED_INSTRUMENT_CODE = "WHO_2022_VA";
+// Keep this cache identity tied to the generated instrument shipped by the
+// vendored package. The device bootstrap's instrument_version is a web
+// bundle checksum, so it is intentionally not compared to this value.
+const BUNDLED_INSTRUMENT_VERSION = "2026081401";
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Whether the server will take this interview: the form said valid, or the interviewer recorded an incomplete outcome. */
@@ -74,25 +94,59 @@ export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, 
 function refusal(error: unknown): ApiError {
   if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
   if (!(error instanceof ApiError)) throw error;
+  if (error.status === 403) throw error;
   return error;
+}
+
+function acknowledgedCase(body: unknown): { deathId: string; state: string } {
+  if (!body || typeof body !== "object") throw new Error("invalid_case_ack");
+  const acknowledged = (body as { case?: unknown }).case;
+  if (!acknowledged || typeof acknowledged !== "object") throw new Error("invalid_case_ack");
+  const deathId = (acknowledged as { death_id?: unknown }).death_id;
+  // Offline submission serialization still exposes the case's `status`; case
+  // action replies use the unified detail field `state`.
+  const state = (acknowledged as { state?: unknown }).state ?? (acknowledged as { status?: unknown }).status;
+  if (typeof deathId !== "string" || deathId.length === 0 || typeof state !== "string" || state.length === 0) {
+    throw new Error("invalid_case_ack");
+  }
+  return { deathId, state };
+}
+
+async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unknown): Promise<void> {
+  if (!body || typeof body !== "object" || !("case" in body)) return;
+  const acknowledged = (body as { case?: unknown }).case;
+  if (!acknowledged || typeof acknowledged !== "object") return;
+  const deathId = (acknowledged as { death_id?: unknown }).death_id;
+  const state = (acknowledged as { state?: unknown }).state;
+  if (typeof deathId === "string" && deathId.length > 0 && typeof state === "string" && !isActiveCaseState(state)) {
+    await deleteCase(db, projectId, deathId);
+  }
 }
 
 export async function syncInterviewer(userId: string, db: Db): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
 
+  // The authoritative project list is refreshed before any outbound work so
+  // revoked projects are purged before their queued payloads are considered.
+  const referenceData = await refreshReferenceData(userId, db, { force: true });
+  const authorizedProjects = new Set(referenceData.projects.map(({ project }) => project.project_id));
+
   for (const reg of await listRegistrations(db)) {
+    if (!authorizedProjects.has(reg.project_id)) continue;
     if (reg.state !== "pending") continue;
     try {
-      const { body } = await authedRequest<{ case: CaseRow }>(userId, `${DEVICE_API}/deaths`, {
+      const { body } = await authedRequest<{ case: CaseDetail }>(userId, `${INTAKE_API}/deaths`, {
         method: "POST",
         body: {
+          project_id: reg.project_id,
           client_death_id: reg.client_death_id,
           site_id: reg.site_id,
           ...(reg.org_unit_id ? { org_unit_id: reg.org_unit_id } : {}),
           ...reg.fields
         }
       });
+      if (!isCaseDetail(body?.case) || body.case.project_id !== reg.project_id) throw new Error("invalid_case_detail");
       await acknowledgeRegistration(db, reg.client_death_id, body.case);
       sent += 1;
     } catch (error) {
@@ -104,16 +158,18 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
   }
 
   for (const action of await listActions(db)) {
+    if (!authorizedProjects.has(action.project_id)) continue;
     if (action.state !== "pending" || !action.death_id) continue; // waits for its registration
-    const path = `${DEVICE_API}/cases/${encodeURIComponent(action.death_id)}/${action.kind === "attempt" ? "attempts" : "visit"}`;
+    const path = `${INTAKE_API}/cases/${encodeURIComponent(action.death_id)}/${action.kind === "attempt" ? "attempts" : "visit"}`;
     try {
-      await authedRequest(userId, path, {
+      const acknowledgement = await authedRequest<unknown>(userId, path, {
         method: "POST",
         body:
           action.kind === "attempt"
             ? { client_attempt_id: action.client_id, ...action.body }
             : { next_visit_at: action.body.next_visit_at ?? null }
       });
+      await purgeTerminalAcknowledgement(db, action.project_id, acknowledgement.body);
       await deleteAction(db, action.client_id);
       sent += 1;
     } catch (error) {
@@ -125,13 +181,15 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
   }
 
   for (const item of await completedDrafts(db)) {
+    if (!item.project_id || !authorizedProjects.has(item.project_id)) continue;
     if (!isUploadable(item.draft.data, item.completion)) continue; // stays on the phone, counted as remaining
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
     try {
-      await authedRequest(userId, `${DEVICE_API}/submissions`, {
+      const acknowledgement = await authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
         body: {
           client_draft_id: item.id,
+          project_id: item.project_id,
           site_id: item.site_id,
           ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
           ...(item.death_id ? { death_id: item.death_id } : {}),
@@ -139,6 +197,9 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] }
         }
       });
+      const acknowledged = acknowledgedCase(acknowledgement.body);
+      if (item.death_id && acknowledged.deathId !== item.death_id) throw new Error("invalid_case_ack");
+      await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
       await deleteDraft(db, item.id);
       sent += 1;
     } catch (error) {
@@ -152,7 +213,7 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
   }
 
   const remaining = await countDrafts(db);
-  await authedRequest(userId, `${DEVICE_API}/outstanding`, {
+  await authedRequest(userId, `${INTAKE_API}/outstanding`, {
     method: "POST",
     body: {
       count: remaining,
@@ -161,7 +222,7 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
       client_death_ids: (await listRegistrations(db)).map((reg) => reg.client_death_id)
     }
   });
-  await refreshCases(userId, db);
+  await refreshCases(userId, db, referenceData);
   return { sent, failed, remaining };
 }
 
@@ -171,71 +232,618 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
  * started by a teammate) leaves the phone. A failure part way leaves the
  * stored cases as they were.
  */
-export async function refreshCases(userId: string, db: Db): Promise<CaseRow[]> {
-  const rows: CaseRow[] = [];
-  let cursor: string | null = null;
-  for (let page = 0; page < CASE_PAGES_MAX; page += 1) {
-    const query: string = `?limit=${CASE_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const { body } = await authedRequest<{ cases: CaseRow[]; next_cursor: string | null }>(
-      userId,
-      `${DEVICE_API}/cases${query}`
-    );
-    rows.push(...body.cases);
-    cursor = body.next_cursor;
-    if (!cursor) break;
-  }
-  await replaceCases(db, rows);
-  return rows;
+export interface CasePageOptions {
+  state?: string;
+  mine?: boolean;
+  cursor?: string;
+  limit?: number;
 }
 
-/**
- * GET /bootstrap and /units and cache both in the interviewer's own
- * database. A 403 on /units (no unit reachable) clears the cached tree, so
- * the picker offers nothing rather than a stale choice.
- */
-export async function refreshBootstrap(userId: string, db: Db): Promise<{ bootstrap: Bootstrap; units?: Units }> {
-  const { body } = await authedRequest<Bootstrap>(userId, `${DEVICE_API}/bootstrap`);
-  await setMeta(db, "bootstrap", body);
-  let units: Units | undefined;
+export async function fetchCasePage(
+  userId: string,
+  projectId: string,
+  options: CasePageOptions = {}
+): Promise<{ cases: CaseRow[]; counts?: Record<string, number>; next_cursor: string | null }> {
+  const limit = options.limit ?? CASE_PAGE_SIZE;
+  if (!Number.isInteger(limit) || limit < 1 || limit > CASE_PAGE_SIZE) throw new Error("case_page_limit");
+  const params = new URLSearchParams({ project_id: projectId, limit: String(limit) });
+  if (options.state) params.set("state", options.state);
+  if (options.mine !== undefined) params.set("mine", String(options.mine));
+  if (options.cursor) params.set("cursor", options.cursor);
+  const { body } = await authedRequest<{
+    cases: CaseRow[];
+    counts?: Record<string, number>;
+    next_cursor?: string | null;
+  }>(userId, `${INTAKE_API}/cases?${params.toString()}`);
+  if (!body || !Array.isArray(body.cases)) throw new Error("invalid_case_page");
+  return { cases: body.cases, counts: body.counts, next_cursor: body.next_cursor ?? null };
+}
+
+export async function fetchCaseDetail(
+  userId: string,
+  db: Db,
+  deathId: string,
+  options: { persist?: boolean; expectedProjectId?: string } = {}
+): Promise<CaseDetail> {
+  let body: { case: CaseDetail };
   try {
-    units = (await authedRequest<Units>(userId, `${DEVICE_API}/units`)).body;
+    body = (await authedRequest<{ case: CaseDetail }>(
+      userId,
+      `${INTAKE_API}/cases/${encodeURIComponent(deathId)}`
+    )).body;
   } catch (error) {
-    if (!(error instanceof ApiError && error.status === 403)) throw error;
+    if (error instanceof ApiError && error.status === 404) {
+      const cached = await getCase(db, deathId);
+      if (cached) await deleteCase(db, cached.project_id, deathId);
+    }
+    if (error instanceof TypeError) {
+      const cached = await getCase(db, deathId);
+      if (
+        cached &&
+        isActiveCaseState(cached.state) &&
+        (!options.expectedProjectId || cached.project_id === options.expectedProjectId) &&
+        await cachedProjectIsAuthorized(db, cached.project_id)
+      ) {
+        return cached;
+      }
+    }
+    throw error;
   }
-  await setMeta(db, "units", units ?? null);
-  return { bootstrap: body, units };
+  const detail = body?.case;
+  if (!isCaseDetail(detail) || detail.death_id !== deathId) {
+    throw new Error("invalid_case_detail");
+  }
+  if (options.expectedProjectId && detail.project_id !== options.expectedProjectId) {
+    throw new Error("project_mismatch");
+  }
+  if (options.persist !== false) {
+    if (!(await cachedProjectIsAuthorized(db, detail.project_id))) throw new Error("project_forbidden");
+    if (isActiveCaseState(detail.state)) await upsertCase(db, detail);
+    else await deleteCase(db, detail.project_id, deathId);
+  }
+  return detail;
+}
+
+async function cachedProjectIsAuthorized(db: Db, projectId: string): Promise<boolean> {
+  const reference = await getCachedReferenceData(db);
+  return Boolean(reference?.projects.some(({ project }) => project.project_id === projectId));
+}
+
+/** Download every active case for every authorized project atomically per project. */
+export async function refreshCases(
+  userId: string,
+  db: Db,
+  referenceData?: ReferenceData
+): Promise<CaseDetail[]> {
+  const reference = referenceData ?? (await getCachedReferenceData(db));
+  if (!reference) throw new Error("reference_data_required");
+  const all: CaseDetail[] = [];
+  const activeState = ACTIVE_CASE_STATES.join(",");
+  for (const { project } of reference.projects) {
+    const rows: CaseRow[] = [];
+    let cursor: string | undefined;
+    let complete = false;
+    for (let page = 0; page < CASE_PAGES_MAX; page += 1) {
+      const result = await fetchCasePage(userId, project.project_id, {
+        state: activeState,
+        cursor,
+        limit: CASE_PAGE_SIZE
+      });
+      rows.push(...result.cases);
+      cursor = result.next_cursor ?? undefined;
+      if (!cursor) {
+        complete = true;
+        break;
+      }
+    }
+    if (!complete) throw new Error("case_page_limit");
+    const details: CaseDetail[] = [];
+    for (const row of rows) {
+      if (row.project_id !== project.project_id) throw new Error("project_mismatch");
+      let detail: CaseDetail;
+      try {
+        detail = await fetchCaseDetail(userId, db, row.death_id, {
+          persist: false,
+          expectedProjectId: project.project_id
+        });
+      } catch (error) {
+        // A case can disappear between the page and its detail request. It is
+        // already absent from the authoritative list, so purge its stale copy
+        // and continue downloading the rest of this project.
+        if (error instanceof ApiError && error.status === 404) continue;
+        throw error;
+      }
+      if (isActiveCaseState(detail.state)) details.push(detail);
+    }
+    await replaceCases(db, project.project_id, details);
+    all.push(...details);
+  }
+  return all;
+}
+
+/** The complete, validated settings pack retained for offline form use. */
+export interface ReferenceData {
+  bootstrap: Bootstrap;
+  projects: ProjectReferenceData[];
+}
+
+interface ReferencePack {
+  bootstrap: Bootstrap;
+  projects: Array<ProjectReferenceData & { translations: Record<string, Translations | null> }>;
+  /** Version of the instrument shipped in this Expo bundle. */
+  bundledInstrumentVersion: string;
+  readyAt: number;
+}
+
+/** One refresh per database/interviewer, even when several screens focus together. */
+const referenceRefreshes = new WeakMap<Db, Map<string, Promise<ReferenceData>>>();
+
+function configuredTranslationLocales(project: ProjectSettings): string[] {
+  return questionnaireLocales(project.form_options?.available_locales)
+    .map((locale) => locale.code).filter((locale) => locale !== "en").sort();
+}
+
+function compatibleBootstrap(bootstrap: Bootstrap): boolean {
+  // The server's `instrument_version` identifies the shared form bundle. The
+  // form type is the stable contract shared by the API and this package.
+  return validBootstrapShape(bootstrap) && bootstrap.projects.length > 0 && bootstrap.projects.every((project) => {
+    const code = project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code;
+    return (code ?? BUNDLED_INSTRUMENT_CODE) === BUNDLED_INSTRUMENT_CODE;
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function validProjectSettings(value: unknown): value is ProjectSettings {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.project_id !== "string" ||
+    value.project_id.length === 0 ||
+    typeof value.project_name !== "string" ||
+    typeof value.web_intake_mode !== "string" ||
+    !["off", "direct", "death_register", "both"].includes(value.web_intake_mode) ||
+    !Array.isArray(value.sites) ||
+    !isRecord(value.form_options) ||
+    !isRecord(value.prefill_policy)
+  ) {
+    return false;
+  }
+  const policy = value.prefill_policy;
+  if (
+    !isRecord(policy.direct) ||
+    !isRecord(policy.units) ||
+    !isRecord(policy.answer_fields) ||
+    !Array.isArray(policy.locked_fields)
+  ) {
+    return false;
+  }
+  return value.sites.every((site) => {
+    if (!isRecord(site) || typeof site.project_id !== "string" || site.project_id !== value.project_id || typeof site.site_id !== "string" || site.site_id.length === 0) {
+      return false;
+    }
+    return site.web_intake_mode === undefined || ["off", "direct", "death_register", "both"].includes(String(site.web_intake_mode));
+  });
+}
+
+function validBootstrapShape(value: unknown): value is Bootstrap {
+  if (!isRecord(value) || !isRecord(value.user) || typeof value.user.user_id !== "string" || typeof value.user.name !== "string" || typeof value.instrument_version !== "string" || !Array.isArray(value.projects)) {
+    return false;
+  }
+  const ids = new Set<string>();
+  return value.projects.every((project) => {
+    if (!validProjectSettings(project) || ids.has(project.project_id)) return false;
+    ids.add(project.project_id);
+    return true;
+  });
+}
+
+function exposedReference(pack: ReferencePack): ReferenceData {
+  return { bootstrap: pack.bootstrap, projects: pack.projects.map(({ project, units }) => ({ project, units })) };
+}
+
+async function readReferencePack(db: Db): Promise<ReferencePack | undefined> {
+  try {
+    const pack = await getMeta<ReferencePack>(db, REFERENCE_META_KEY);
+    if (!pack || !pack.bootstrap || !Array.isArray(pack.bootstrap.projects) || !Array.isArray(pack.projects)) {
+      return undefined;
+    }
+    return pack;
+  } catch (error) {
+    // Only malformed JSON is an unusable cache row. Surface database errors so
+    // callers do not mistake storage failures for an ordinary cache miss.
+    if (error instanceof SyntaxError) return undefined;
+    throw error;
+  }
 }
 
 /**
- * A locale's questionnaire strings from /device/instruments/.../translations,
+ * Reconcile an already downloaded settings pack with a fresh access summary.
+ * This intentionally performs no network work: stable form options and
+ * translations remain cached while project/site/unit reach is replaced by the
+ * authoritative grant snapshot.
+ */
+export async function reconcileReferenceAccess(
+  db: Db,
+  access: AccessSummary,
+): Promise<ReferenceData | undefined> {
+  const previous = await readReferencePack(db);
+  const authorized = new Map(
+    access.projects
+      .filter((project) => project.grants.some((grant) => grant.role === "interviewer"))
+      .map((project) => [project.project_id, project]),
+  );
+  const localProjectIds = new Set(await projectIds(db));
+  for (const item of previous?.projects ?? []) localProjectIds.add(item.project.project_id);
+  for (const projectId of localProjectIds) {
+    if (!authorized.has(projectId)) await purgeProjectData(db, projectId);
+  }
+  if (!previous || !referenceIsComplete(previous)) return undefined;
+
+  const projects: ReferencePack["projects"] = [];
+  for (const item of previous.projects) {
+    const accessProject = authorized.get(item.project.project_id);
+    if (!accessProject) continue;
+    const project: ProjectSettings = {
+      ...item.project,
+      sites: accessProject.sites
+        .filter((site) => site.roles.includes("interviewer"))
+        .map((site) => ({
+          project_id: accessProject.project_id,
+          site_id: site.site_id,
+          site_name: site.site_name,
+          web_intake_mode: item.project.web_intake_mode,
+        })),
+    };
+    const units: Units | null = accessProject.has_tree
+      ? {
+          scoped: true,
+          levels: accessProject.levels ?? [],
+          units: (accessProject.units ?? []).filter((unit) =>
+            unit.selectable ? unit.roles.includes("interviewer") : true,
+          ),
+        }
+      : { scoped: false, levels: [], units: [] };
+    projects.push({ ...item, project, units });
+  }
+  const normalizedBootstrap: Bootstrap = {
+    user: access.user,
+    instrument_version: previous.bootstrap.instrument_version,
+    projects: projects.map(({ project }) => project),
+  };
+  if (!compatibleBootstrap(normalizedBootstrap)) {
+    throw new Error("instrument_incompatible");
+  }
+  const next: ReferencePack = {
+    ...previous,
+    bootstrap: normalizedBootstrap,
+    projects,
+    readyAt: Date.now(),
+  };
+  await setMeta(db, REFERENCE_META_KEY, next);
+  await setMeta(db, "bootstrap", normalizedBootstrap);
+  for (const { project, units } of projects) {
+    await setMeta(db, "project", project, project.project_id);
+    await setMeta(db, "units", units, project.project_id);
+  }
+  return exposedReference(next);
+}
+
+function referenceIsComplete(pack: ReferencePack | undefined): pack is ReferencePack {
+  if (
+    !pack ||
+    pack.bundledInstrumentVersion !== BUNDLED_INSTRUMENT_VERSION ||
+    !validBootstrapShape(pack.bootstrap) ||
+    !compatibleBootstrap(pack.bootstrap) ||
+    !Number.isFinite(pack.readyAt)
+  ) {
+    return false;
+  }
+  return pack.projects.every(({ project, translations }) =>
+    configuredTranslationLocales(project).every((locale) => Object.prototype.hasOwnProperty.call(translations, locale))
+  );
+}
+
+function referenceIsFresh(pack: ReferencePack | undefined, now = Date.now()): pack is ReferencePack {
+  return (
+    referenceIsComplete(pack) &&
+    Number.isFinite(pack.readyAt) &&
+    now >= pack.readyAt &&
+    now - pack.readyAt < REFERENCE_MAX_AGE_MS
+  );
+}
+
+/** Return a complete compatible settings pack, including when it is stale but offline. */
+export async function getCachedReferenceData(db: Db): Promise<ReferenceData | undefined> {
+  const pack = await readReferencePack(db);
+  return referenceIsComplete(pack) ? exposedReference(pack) : undefined;
+}
+
+/** Explicit bootstrap refresh retained for callers that only need reference state. */
+export async function refreshBootstrap(userId: string, db: Db): Promise<ReferenceData> {
+  return refreshReferenceData(userId, db, { force: true });
+}
+
+async function fetchTranslation(
+  userId: string,
+  db: Db,
+  projectId: string,
+  code: string,
+  locale: string,
+  version: number | undefined
+): Promise<Translations | null> {
+  const key = `translations:${code}:${locale}:${version ?? "?"}`;
+  const cached = await getMeta<Translations>(db, key, projectId);
+  if (cached) return cached;
+  const path = `/api/v1/instruments/${encodeURIComponent(code)}/translations/${encodeURIComponent(locale)}?project_id=${encodeURIComponent(projectId)}`;
+  try {
+    const { body } = await authedRequest<Translations>(userId, path);
+    return body && typeof body === "object" ? body : null;
+  } catch (error) {
+    if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
+    if (error instanceof ApiError) {
+      if (error.status === 404) return null;
+      throw error;
+    }
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
+async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack> {
+  const access = parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
+  const accessProjects = access.projects.filter((project) => project.grants.some((grant) => grant.role === "interviewer"));
+  const authorized = new Set(accessProjects.map((project) => project.project_id));
+  // Older app versions stored a different reference shape under this key.
+  // Treat it as absent so a malformed cache cannot block a fresh bootstrap.
+  const previous = await readReferencePack(db);
+  const localProjectIds = new Set(await projectIds(db));
+  for (const project of previous?.projects ?? []) localProjectIds.add(project.project.project_id);
+  for (const projectId of localProjectIds) {
+    if (!authorized.has(projectId)) await purgeProjectData(db, projectId);
+  }
+  const removedFromPrevious = previous?.projects.some(({ project }) => !authorized.has(project.project_id)) ?? false;
+  if (previous && removedFromPrevious) {
+    await setMeta(db, REFERENCE_META_KEY, {
+      ...previous,
+      bootstrap: {
+        ...previous.bootstrap,
+        user: access.user,
+        projects: previous.projects.filter(({ project }) => authorized.has(project.project_id)).map(({ project }) => project),
+      },
+      // Keep only authorized projects visible while units/translations are
+      // being rebuilt, but deliberately mark this intermediate pack
+      // incomplete so a partial refresh cannot masquerade as a complete one.
+      projects: previous.projects.filter(({ project }) => authorized.has(project.project_id)),
+      bundledInstrumentVersion: "partial",
+      readyAt: 0
+    });
+  }
+  // Clear project compatibility keys while rebuilding. This prevents a later
+  // options/prefill failure from restoring a revoked project through a legacy
+  // cache reader while the complete reference pack is rebuilt.
+  await db.runAsync("DELETE FROM meta WHERE key IN ('units', 'project') OR key LIKE 'translations:%'", []);
+  const settings = await Promise.all(accessProjects.map(async (accessProject) => {
+      const formOptions = await fetchProjectFormOptions(userId, accessProject.project_id);
+      const prefillPolicy = await fetchPrefillPolicy(userId, accessProject.project_id);
+      if (!["off", "direct", "death_register", "both"].includes(String(formOptions.web_intake_mode)) || typeof formOptions.instrument_version !== "string") {
+        throw new Error("instrument_incompatible");
+      }
+      const sites = accessProject.sites
+        .filter((site) => site.roles.includes("interviewer"))
+        .map((site) => ({
+          project_id: accessProject.project_id,
+          site_id: site.site_id,
+          site_name: site.site_name,
+          web_intake_mode: String(formOptions.web_intake_mode),
+        }));
+      const project: ProjectSettings = {
+        project_id: accessProject.project_id,
+        project_name: accessProject.project_name,
+        web_intake_mode: String(formOptions.web_intake_mode),
+        sites,
+        form_options: formOptions,
+        prefill_policy: prefillPolicy,
+      };
+      const units: Units | null = accessProject.has_tree
+        ? {
+            scoped: true,
+            levels: accessProject.levels ?? [],
+            // Keep only interviewer reach plus the non-selectable ancestor
+            // rows the server supplies as context for that reach.
+            units: (accessProject.units ?? []).filter((unit) => unit.selectable ? unit.roles.includes("interviewer") : true),
+          }
+        : { scoped: false, levels: [], units: [] };
+      const translations = await loadTranslations(userId, db, project);
+      return { project, units, translations };
+    }));
+  const projects: ReferencePack["projects"] = [];
+  projects.push(...settings);
+  const normalizedBootstrap: Bootstrap = {
+    user: access.user,
+    instrument_version: settings[0]?.project.form_options.instrument_version ?? "",
+    projects: settings.map(({ project }) => project),
+  };
+  // Validate the normalized, access-scoped settings before returning or
+  // publishing them. Bootstrap metadata is temporary and cannot certify the
+  // shared form-options or prefill-policy responses.
+  if (!compatibleBootstrap(normalizedBootstrap)) {
+    throw new Error("instrument_incompatible");
+  }
+  return {
+    bootstrap: normalizedBootstrap,
+    projects,
+    bundledInstrumentVersion: BUNDLED_INSTRUMENT_VERSION,
+    readyAt: Date.now()
+  };
+}
+
+async function fetchProjectFormOptions(userId: string, projectId: string): Promise<ProjectSettings["form_options"]> {
+  const { body } = await authedRequest<unknown>(userId, `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`);
+  if (!isRecord(body)) throw new Error("invalid_form_options");
+  return body as ProjectSettings["form_options"];
+}
+
+async function fetchPrefillPolicy(userId: string, projectId: string): Promise<PrefillPolicy> {
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/projects/${encodeURIComponent(projectId)}/prefill-policy`);
+  if (!isRecord(body)) throw new Error("invalid_prefill_policy");
+  return body as unknown as PrefillPolicy;
+}
+
+async function loadTranslations(userId: string, db: Db, project: ProjectSettings): Promise<Record<string, Translations | null>> {
+  const code = project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE;
+  const translations: Record<string, Translations | null> = {};
+  for (const locale of configuredTranslationLocales(project)) {
+    translations[locale] = await fetchTranslation(
+      userId,
+      db,
+      project.project_id,
+      code,
+      locale,
+      project.form_options?.translation_versions?.[locale]
+    );
+  }
+  return translations;
+}
+
+/**
+ * Fetch and atomically publish the complete reference pack. An automatic
+ * failed attempt is throttled for 24 hours; an explicit force always retries.
+ * The prior complete pack remains available when any request fails.
+ */
+export function refreshReferenceData(
+  userId: string,
+  db: Db,
+  options: { force?: boolean } = {}
+): Promise<ReferenceData> {
+  let byUser = referenceRefreshes.get(db);
+  if (!byUser) {
+    byUser = new Map();
+    referenceRefreshes.set(db, byUser);
+  }
+  const existing = byUser.get(userId);
+  if (existing) {
+    // A forced sync waits for an in-flight automatic request, then performs
+    // its own authoritative request instead of inheriting a throttled cache.
+    if (!options.force) return existing;
+    const queued = existing.then(
+      () => refreshReferenceDataOnce(userId, db, true),
+      () => refreshReferenceDataOnce(userId, db, true)
+    );
+    let pending!: Promise<ReferenceData>;
+    pending = queued.finally(() => {
+      if (byUser?.get(userId) === pending) byUser.delete(userId);
+    });
+    byUser.set(userId, pending);
+    return pending;
+  }
+
+  let pending!: Promise<ReferenceData>;
+  pending = refreshReferenceDataOnce(userId, db, options.force === true).finally(() => {
+    if (byUser?.get(userId) === pending) byUser.delete(userId);
+  });
+  byUser.set(userId, pending);
+  return pending;
+}
+
+async function refreshReferenceDataOnce(userId: string, db: Db, force: boolean): Promise<ReferenceData> {
+  const previous = await readReferencePack(db);
+  const previousComplete = referenceIsComplete(previous) ? previous : undefined;
+  if (!force && referenceIsFresh(previousComplete)) return exposedReference(previousComplete);
+
+  if (!force) {
+    const attemptedAt = await getMeta<number>(db, REFERENCE_ATTEMPT_META_KEY);
+    if (typeof attemptedAt === "number" && Date.now() - attemptedAt < REFERENCE_MAX_AGE_MS) {
+      if (previousComplete) return exposedReference(previousComplete);
+      throw new Error("reference_refresh_throttled");
+    }
+  }
+
+  let next: ReferencePack;
+  try {
+    next = await loadReferenceData(userId, db);
+  } catch (error) {
+    // Authentication/session failures and malformed or incompatible responses
+    // must reach the caller. Only a known fetch-network failure may fall back
+    // to an older pack during an automatic refresh.
+    if (!(error instanceof TypeError)) throw error;
+    // This timestamp is deliberately separate from readyAt: a failed refresh
+    // must not make a previous successful pack look newly fetched.
+    await setMeta(db, REFERENCE_ATTEMPT_META_KEY, Date.now());
+    const current = await readReferencePack(db);
+    const sanitized = referenceIsComplete(current) ? current : undefined;
+    if (sanitized && !force) return exposedReference(sanitized);
+    if (previousComplete && !force) {
+      // Once a valid new bootstrap has been published, never fall back to a
+      // complete pack that still contains a project it revoked. A network
+      // failure before bootstrap remains eligible for the old-pack fallback.
+      const currentIds = current?.bootstrap && validBootstrapShape(current.bootstrap)
+        ? new Set(current.bootstrap.projects.map((project) => project.project_id))
+        : undefined;
+      const removedProject = currentIds && previousComplete.projects.some(({ project }) => !currentIds.has(project.project_id));
+      if (!removedProject) return exposedReference(previousComplete);
+    }
+    throw error;
+  }
+
+  // Publish compatibility keys only before the single complete-pack write.
+  // If any of these writes fail, the previous complete pack is untouched and
+  // the storage error reaches the caller.
+  await setMeta(db, "bootstrap", next.bootstrap);
+  for (const { project, units, translations } of next.projects) {
+    await setMeta(db, "project", project, project.project_id);
+    await setMeta(db, "units", units, project.project_id);
+    for (const [locale, translation] of Object.entries(translations)) {
+      if (!translation) continue;
+      const version = project.form_options?.translation_versions?.[locale];
+      await setMeta(db, `translations:${project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE}:${locale}:${version ?? "?"}`, translation, project.project_id);
+    }
+  }
+  await setMeta(db, REFERENCE_META_KEY, next);
+  // The complete pack is already durable; failure to clear the retry marker
+  // must not make a successful refresh look like a failed one.
+  await setMeta(db, REFERENCE_ATTEMPT_META_KEY, 0);
+  return exposedReference(next);
+}
+
+/**
+ * A locale's questionnaire strings from /api/v1/instruments/.../translations,
  * cached per version (the bootstrap's `translation_versions`) so an edited
- * locale is fetched again. English needs none. Any failure falls back to
- * English for this form, as the web form does.
+ * locale is fetched again. English needs none. A missing translation or fetch
+ * network error returns null for English fallback; API and storage failures
+ * propagate.
  */
 export async function translationsFor(
   userId: string,
   db: Db,
+  projectId: string,
   code: string,
   locale: string,
   version: number | undefined
 ): Promise<Translations | null> {
   if (locale === "en") return null;
-  const key = `translations:${code}:${locale}:${version ?? "?"}`;
-  const cached = await getMeta<Translations>(db, key);
-  if (cached) return cached;
-  try {
-    const path = `${DEVICE_API}/instruments/${encodeURIComponent(code)}/translations/${encodeURIComponent(locale)}`;
-    const { body } = await authedRequest<Translations>(userId, path);
-    await setMeta(db, key, body);
-    return body;
-  } catch {
-    return null;
+  const completePack = await readReferencePack(db);
+  if (
+    referenceIsComplete(completePack) &&
+    completePack.projects.some(({ project, translations }) =>
+      project.project_id === projectId &&
+      (project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE) === code &&
+      project.form_options?.translation_versions?.[locale] === version &&
+      Object.prototype.hasOwnProperty.call(translations, locale)
+    )
+  ) {
+    return completePack.projects.find(({ project }) => project.project_id === projectId)?.translations[locale] ?? null;
   }
+  const body = await fetchTranslation(userId, db, projectId, code, locale, version);
+  if (body) await setMeta(db, `translations:${code}:${locale}:${version ?? "?"}`, body, projectId);
+  return body;
 }
 
 export interface Target {
   key: string;
   label: string;
+  projectId: string;
   siteId: string;
   orgUnitId?: string;
 }
@@ -246,16 +854,17 @@ export interface Target {
  * a tree but no cached units (never fetched, or none reachable) it offers
  * nothing: an interview with no unit could not be routed to a coder.
  */
-export function targetsFrom(bootstrap: Bootstrap | undefined, units: Units | null | undefined): Target[] {
-  const sites = bootstrap?.context ?? [];
-  if (!units) return [];
+export function targetsFrom(project: ProjectSettings | undefined, units: Units | null | undefined): Target[] {
+  const sites = project?.sites ?? [];
+  if (!project || !units) return [];
   const choices = units.units.filter((unit) => unit.selectable && unit.is_active !== false);
   return sites.flatMap((entry) => {
     const site = entry.site_name ?? entry.site_id;
-    if (units.levels.length === 0) return [{ key: entry.site_id, label: site, siteId: entry.site_id }];
+    if (units.levels.length === 0) return [{ key: `${project.project_id}:${entry.site_id}`, label: site, projectId: project.project_id, siteId: entry.site_id }];
     return choices.map((unit) => ({
-      key: `${entry.site_id}:${unit.org_unit_id}`,
+      key: `${project.project_id}:${entry.site_id}:${unit.org_unit_id}`,
       label: `${site} · ${unit.unit_name}`,
+      projectId: project.project_id,
       siteId: entry.site_id,
       orgUnitId: unit.org_unit_id
     }));
@@ -263,37 +872,63 @@ export function targetsFrom(bootstrap: Bootstrap | undefined, units: Units | nul
 }
 
 /** Whether a site's project mode takes death registrations (web_intake_service._mode_allows). */
-export function registersDeaths(bootstrap: Bootstrap | undefined, siteId?: string): boolean {
-  return (bootstrap?.context ?? []).some(
-    (entry) => (!siteId || entry.site_id === siteId) && ["death_register", "both"].includes(entry.web_intake_mode ?? "")
-  );
+export function registersDeaths(project: ProjectSettings | undefined, siteId?: string): boolean {
+  return Boolean(project && project.sites.some(
+    (entry) => (!siteId || entry.site_id === siteId) && ["death_register", "both"].includes(entry.web_intake_mode ?? project.web_intake_mode)
+  ));
+}
+
+/** Whether a site starts a questionnaire directly, without a death record. */
+export function startsDirectly(project: ProjectSettings | undefined, siteId?: string): boolean {
+  return Boolean(project && project.sites.some(
+    (entry) => (!siteId || entry.site_id === siteId) && ["direct", "both"].includes(entry.web_intake_mode ?? project.web_intake_mode)
+  ));
 }
 
 /**
  * The fields this app reads. `form_options` is the project's form-options
  * body (the same one the web form reads from /api/v1/organization/<p>/form-options).
  */
-export interface Bootstrap {
-  user?: { user_id: string; name: string };
-  context: Array<{
-    project_id: string;
-    project_name?: string;
-    site_id: string;
-    site_name?: string;
-    /** off, direct, death_register or both (web_intake_service.WEB_INTAKE_MODES). */
+export interface PrefillPolicy {
+  direct: import("@drguptavivek/who-2022-va").WhoVaHostPrefill;
+  units: Record<string, { answers: import("@drguptavivek/who-2022-va").SubmissionData; lockedQuestionNames: string[] }>;
+  answer_fields: Record<string, string>;
+  locked_fields: string[];
+}
+
+export interface ProjectSettings {
+  project_id: string;
+  project_name: string;
+  /** off, direct, death_register or both. */
+  web_intake_mode: string;
+  sites: Array<{ project_id: string; site_id: string; site_name?: string; web_intake_mode?: string }>;
+  form_options: {
     web_intake_mode?: string;
-  }>;
-  instrument_version?: string;
-  form_options?: {
+    instrument_version?: string;
     enabled_extensions?: string[];
     form_types?: Array<{ instrument_code: string | null; is_default: boolean }>;
     available_locales?: Array<{ code: string; label: string; under_review?: boolean }>;
     default_locale?: string;
     translation_versions?: Record<string, number>;
   };
+  prefill_policy: PrefillPolicy;
 }
 
-/** GET /device/units: the /api/v1/organization/<p>/units?role=interviewer body. */
+export interface ProjectReferenceData {
+  project: ProjectSettings;
+  units: Units | null;
+}
+
+export interface Bootstrap {
+  user: { user_id: string; name: string };
+  instrument_version: string;
+  projects: ProjectSettings[];
+}
+
+/** Shared `/api/v1/me/access` response used to scope native collection. */
+export type { AccessProject, AccessSummary } from "./api";
+
+/** Access-scoped organization units retained for offline target pickers. */
 export interface Units {
   scoped: boolean;
   levels: Array<{ level_code: string; level_name: string; depth: number }>;
@@ -305,5 +940,7 @@ export interface Units {
     path: string;
     is_active?: boolean;
     selectable: boolean;
+    roles?: string[];
+    can_code?: boolean;
   }>;
 }

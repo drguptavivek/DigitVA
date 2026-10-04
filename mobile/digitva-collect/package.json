@@ -18,6 +18,7 @@
   "dependencies": {
     "@drguptavivek/who-2022-va": "file:../../vendor/who-va-2022",
     "@expo/metro-runtime": "~57.0.16",
+    "@expo/ui": "~57.0.21",
     "@react-native-community/datetimepicker": "9.1.0",
     "expo": "^57.0.7",
     "expo-camera": "~57.0.6",
@@ -35,7 +36,8 @@
     "react-native": "^0.86.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/jest": "29.5.14",

@@ -181,6 +181,8 @@ const WebDateInput = React.forwardRef<HTMLInputElement, WebDateInputProps>(funct
 
 interface WebSelectProps {
   accessibilityLabel?: string;
+  disabled?: boolean;
+  emptyOptionLabel?: string;
   onValueChange: (value: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
   style?: unknown;
@@ -190,7 +192,7 @@ interface WebSelectProps {
 
 /** A native <select>, themed like the inputs; used for the month of a date. */
 const WebSelect = React.forwardRef<HTMLSelectElement, WebSelectProps>(function WebSelect(
-  { accessibilityLabel, onValueChange, options, style, testID, value },
+  { accessibilityLabel, disabled, emptyOptionLabel, onValueChange, options, style, testID, value },
   ref
 ) {
   const themed = applyWebTheme(style);
@@ -201,12 +203,13 @@ const WebSelect = React.forwardRef<HTMLSelectElement, WebSelectProps>(function W
     <select
       aria-label={accessibilityLabel}
       data-testid={testID}
+      disabled={disabled}
       onChange={(event) => onValueChange(event.currentTarget.value)}
       ref={ref}
       style={{ background: "transparent", font: "inherit", ...flattenedStyle } as React.CSSProperties}
       value={value}
     >
-      <option value="" />
+      <option value="">{emptyOptionLabel ?? ""}</option>
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -341,6 +344,7 @@ export const WhoVaForm = createWhoVaForm(
     TextInput,
     DateInput: WebDateInput,
     Select: WebSelect,
+    PartialSelect: WebSelect,
     Pressable,
     ScrollView,
     Image,
@@ -360,6 +364,7 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   TextInput,
   DateInput: WebDateInput,
   Select: WebSelect,
+  PartialSelect: WebSelect,
   Pressable,
   Image
 });

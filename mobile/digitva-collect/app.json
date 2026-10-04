@@ -5,13 +5,16 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "platforms": [
-      "android"
+      "android",
+      "ios",
+      "web"
     ],
     "scheme": "digitvacollect",
     "plugins": [
       "expo-router",
       "expo-localization",
       "expo-secure-store",
+      "./plugins/with-android-dev-support",
       [
         "expo-sqlite",
         {
@@ -26,6 +29,9 @@
         }
       ]
     ],
+    "experiments": {
+      "baseUrl": "/app"
+    },
     "android": {
       "package": "org.digitva.collect",
       "permissions": [
@@ -38,6 +44,10 @@
         "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "allowBackup": false
+    },
+    "web": {
+      "output": "single",
+      "bundler": "metro"
     }
   }
 }

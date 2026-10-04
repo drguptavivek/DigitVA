@@ -76,6 +76,8 @@ interface WhoVaFormCommonProps {
   draftId?: string;
   draftStore?: WhoVaDraftStore;
   lockedQuestionNames?: Iterable<string>;
+  /** Custom web theme variables to carry into the modal section drawer portal. */
+  portalThemeStyle?: unknown;
   onReady?: (session: WhoVaSession) => void;
   onChange?: (data: SubmissionData, snapshot: SessionSnapshot) => void;
   onValidation?: (issues: ValidationIssue[]) => void;
@@ -114,6 +116,8 @@ export interface WhoVaPrimitiveSet {
   DateInput?: React.ElementType;
   /** A native select (web); the month of a date falls back to a numeric box without it. */
   Select?: React.ElementType;
+  /** Select primitive reserved for partial date selectors. */
+  PartialSelect?: React.ElementType;
   Pressable: React.ElementType;
   ScrollView: React.ElementType;
   Image?: React.ElementType;
@@ -306,6 +310,7 @@ export function createWhoVaForm(
     TextInput: primitives.TextInput,
     DateInput: primitives.DateInput,
     Select: primitives.Select,
+    PartialSelect: primitives.PartialSelect,
     Pressable,
     Image: primitives.Image,
     platform: primitives.platform
@@ -1255,6 +1260,7 @@ export function createWhoVaForm(
                 messages={messages}
                 moreToCome={moreToCome}
                 onOpen={() => setDrawerOpen(true)}
+                onSelect={switchSection}
                 open={drawerOpen}
                 toggleRef={drawerToggleRef}
                 total={snapshot.visibleSectionCount}
@@ -1285,6 +1291,7 @@ export function createWhoVaForm(
           onClose={() => setDrawerOpen(false)}
           onSelect={switchSection}
           open={medium && drawerOpen}
+          portalThemeStyle={props.portalThemeStyle}
           toggleRef={drawerToggleRef}
         />
       </View>

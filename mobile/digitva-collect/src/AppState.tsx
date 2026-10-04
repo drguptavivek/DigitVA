@@ -18,14 +18,24 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode
+  type ReactNode,
 } from "react";
 import { AppState as NativeAppState } from "react-native";
 
-import { loadAccounts, loadDevice, type Account, type Device } from "./auth";
+import {
+  loadAccounts,
+  loadDevice,
+  subscribeAccountChanges,
+  subscribeAccessChanges,
+  type Account,
+  type Device,
+} from "./auth";
 import { createAutoLock, type AutoLock } from "./autoLock";
 import { setUiLocale } from "./i18n";
-import { anyUnlocked, lockAll } from "./interviewerDb";
+import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
+import { errorText } from "./ui";
+import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
+import type { ClientBootstrap } from "./client/api";
 
 const UI_LOCALE_KEY = "ui_locale";
 
@@ -42,8 +52,17 @@ interface AppState {
   unlocked(): void;
   /** Restart the idle timer (touches are caught at the root; the form reports its saves). */
   activity(): void;
+  /** Clear a transient foreground/access error after a successful retry. */
+  clearError(): void;
   /** Run `hook` before the next lock; returns the unregister function. */
   onBeforeLock(hook: () => Promise<void>): () => void;
+  /** Browser-only session fields; absent on native. */
+  authenticated?: boolean;
+  bootstrap?: ClientBootstrap;
+  loginUrl?: string;
+  actionCode?: "terms_required" | "factor_setup_required";
+  error?: string;
+  logout?: () => Promise<void>;
 }
 
 const Context = createContext<AppState | undefined>(undefined);
@@ -54,22 +73,38 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
+  const [error, setError] = useState<string>();
   const router = useRouter();
   const beforeLock = useRef(new Set<() => Promise<void>>());
+  const accountsRef = useRef<Account[]>([]);
   const autoLock = useRef<AutoLock | undefined>(undefined);
 
   const lockNow = useCallback(async () => {
     if (!anyUnlocked()) return;
-    for (const hook of [...beforeLock.current]) await hook().catch(() => undefined);
-    await lockAll();
-    router.replace("/");
-    setLockVersion((v) => v + 1);
+    try {
+      for (const hook of [...beforeLock.current]) await hook();
+    } catch (lockError) {
+      setError(errorText(lockError));
+      return;
+    }
+    try {
+      await lockAll();
+      setError(undefined);
+      router.replace("/");
+      setLockVersion((v) => v + 1);
+    } catch (lockError) {
+      setError(errorText(lockError));
+    }
   }, [router]);
 
   useEffect(() => {
-    const timer = createAutoLock(() => void lockNow());
+    const timer = createAutoLock(() => {
+      void lockNow().catch((lockError) => setError(errorText(lockError)));
+    });
     autoLock.current = timer;
-    const subscription = NativeAppState.addEventListener("change", (state) => timer.appStateChanged(state));
+    const subscription = NativeAppState.addEventListener("change", (state) =>
+      timer.appStateChanged(state),
+    );
     return () => {
       subscription.remove();
       timer.stop();
@@ -87,10 +122,72 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reload = useCallback(async () => {
-    const [nextDevice, nextAccounts] = await Promise.all([loadDevice(), loadAccounts()]);
+    const [nextDevice, nextAccounts] = await Promise.all([
+      loadDevice(),
+      loadAccounts(),
+    ]);
     setDevice(nextDevice);
     setAccounts(nextAccounts);
   }, []);
+
+  const flushBeforeRefresh = useCallback(async () => {
+    for (const hook of [...beforeLock.current]) await hook();
+  }, []);
+
+  const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
+    if (!isUnlocked(userId)) return;
+    await flushBeforeRefresh();
+    const handle = await openInterviewerDb(userId);
+    await reconcileReferenceAccess(handle, access);
+    setError(undefined);
+    setLockVersion((version) => version + 1);
+    await reload();
+  }, [flushBeforeRefresh, reload]);
+
+  const refreshUnlocked = useCallback(async () => {
+    try {
+      await flushBeforeRefresh();
+    } catch (refreshError) {
+      setError(errorText(refreshError));
+      throw refreshError;
+    }
+    setError(undefined);
+    for (const account of accountsRef.current) {
+      if (!isUnlocked(account.user_id)) continue;
+      const handle = await openInterviewerDb(account.user_id);
+      try {
+        await refreshReferenceData(account.user_id, handle, { force: true });
+      } catch (refreshError) {
+        if (refreshError instanceof TypeError) continue;
+        setError(errorText(refreshError));
+        throw refreshError;
+      }
+      setLockVersion((version) => version + 1);
+    }
+    await reload();
+  }, [flushBeforeRefresh, reload]);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  useEffect(
+    () =>
+      subscribeAccountChanges(() => {
+        void reload();
+      }),
+    [reload],
+  );
+
+  useEffect(
+    () => subscribeAccessChanges((userId, access) =>
+      reconcileAccess(userId, access).catch((accessError) => {
+        setError(errorText(accessError));
+        throw accessError;
+      }),
+    ),
+    [reconcileAccess],
+  );
 
   useEffect(() => {
     void (async () => {
@@ -101,10 +198,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })();
   }, [reload]);
 
+  useEffect(() => {
+    let previous = NativeAppState.currentState;
+    const subscription = NativeAppState.addEventListener("change", (next) => {
+      if (next === "active" && previous !== "active") {
+        void refreshUnlocked().catch((refreshError) => setError(errorText(refreshError)));
+      }
+      previous = next;
+    });
+    return () => subscription.remove();
+  }, [refreshUnlocked]);
+
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
     await SecureStore.setItemAsync(UI_LOCALE_KEY, code);
   }, []);
+
+  const clearError = useCallback(() => setError(undefined), []);
 
   const value = useMemo(
     () => ({
@@ -118,15 +228,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       lockNow,
       unlocked,
       activity,
-      onBeforeLock
+      clearError,
+      onBeforeLock,
+      error,
     }),
-    [ready, device, accounts, uiLocale, reload, chooseUiLocale, lockVersion, lockNow, unlocked, activity, onBeforeLock]
+    [
+      ready,
+      device,
+      accounts,
+      uiLocale,
+      reload,
+      chooseUiLocale,
+      lockVersion,
+      lockNow,
+      unlocked,
+      activity,
+      clearError,
+      onBeforeLock,
+      error,
+    ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function useAppState(): AppState {
   const state = useContext(Context);
-  if (!state) throw new Error("useAppState must be used inside AppStateProvider");
+  if (!state)
+    throw new Error("useAppState must be used inside AppStateProvider");
   return state;
 }

@@ -1,5 +1,5 @@
 /**
- * JSON calls to the DigitVA device API (`/api/v1/device`). Errors follow the
+ * JSON calls to the DigitVA API (`/api/v1`). Errors follow the
  * contract `{"error": "<message>", "code": "<machine_code>"}`; the message is
  * never logged, only the status and code.
  */
@@ -7,45 +7,609 @@
 export class ApiError extends Error {
   constructor(
     public status: number,
-    public code: string | undefined
+    public code: string | undefined,
+    public readonly redirectUrl?: string,
+    public readonly csrf?: ClientCsrf
   ) {
     super(`HTTP ${status}${code ? ` ${code}` : ""}`);
     this.name = "ApiError";
   }
 }
 
-export const DEVICE_API = "/api/v1/device";
+export const AUTH_API = "/api/v1/auth";
+
+export const INTAKE_API = "/api/v1/intake";
+
+import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
+import type { Translations } from "./translations";
+
+export interface AccessUnit {
+  org_unit_id: string;
+  unit_code: string;
+  unit_name: string;
+  level_code: string;
+  path: string;
+  is_active: boolean;
+  selectable: boolean;
+  roles: string[];
+  can_code: boolean;
+}
+
+export interface AccessProject {
+  project_id: string;
+  project_name: string;
+  has_tree: boolean;
+  grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean }>;
+  sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
+  units?: AccessUnit[];
+  levels?: Array<{ level_code: string; level_name: string; depth: number }>;
+}
+
+export interface AccessSummary {
+  user: { user_id: string; name: string };
+  is_admin: boolean;
+  demo_coding: { available: boolean; project_ids: string[] };
+  projects: AccessProject[];
+}
+
+/** Validate the access boundary before using server data to populate action pickers. */
+export function parseAccessSummary(value: unknown): AccessSummary {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
+  const strings = (item: unknown): item is string[] => Array.isArray(item) && item.every((part) => typeof part === "string");
+  if (!record(value) || !record(value.user) || typeof value.user.user_id !== "string" || typeof value.user.name !== "string" ||
+      typeof value.is_admin !== "boolean" || !record(value.demo_coding) || typeof value.demo_coding.available !== "boolean" ||
+      !strings(value.demo_coding.project_ids) || !Array.isArray(value.projects)) throw new ApiError(200, "malformed_response");
+  for (const project of value.projects) {
+    if (!record(project) || typeof project.project_id !== "string" || typeof project.project_name !== "string" ||
+        typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites)) throw new ApiError(200, "malformed_response");
+    for (const grant of project.grants) {
+      if (!record(grant) || typeof grant.role !== "string" || !["project", "project_site", "org_unit"].includes(String(grant.scope)) ||
+          (grant.scope === "project_site" && typeof grant.site_id !== "string") ||
+          (grant.scope === "org_unit" && (typeof grant.org_unit_id !== "string" || typeof grant.unit_name !== "string")) ||
+          (["coder", "coding_tester", "reviewer"].includes(grant.role) && typeof grant.codes !== "boolean")) throw new ApiError(200, "malformed_response");
+    }
+    for (const site of project.sites) {
+      if (!record(site) || typeof site.site_id !== "string" || typeof site.site_name !== "string" || !strings(site.roles)) throw new ApiError(200, "malformed_response");
+    }
+    if (project.has_tree && (!Array.isArray(project.units) || !Array.isArray(project.levels))) throw new ApiError(200, "malformed_response");
+    if (Array.isArray(project.units)) for (const unit of project.units) {
+      if (!record(unit) || !["org_unit_id", "unit_code", "unit_name", "level_code", "path"].every((field) => typeof unit[field] === "string") ||
+          !strings(unit.roles) || typeof unit.selectable !== "boolean" || typeof unit.can_code !== "boolean" || typeof unit.is_active !== "boolean") throw new ApiError(200, "malformed_response");
+    }
+    if (Array.isArray(project.levels)) for (const level of project.levels) {
+      if (!record(level) || typeof level.level_code !== "string" || typeof level.level_name !== "string" || typeof level.depth !== "number") throw new ApiError(200, "malformed_response");
+    }
+  }
+  return value as unknown as AccessSummary;
+}
+
+/** Refresh current grants for either credential; a refusal propagates unchanged. */
+export async function getAccessSummary(csrf?: ClientCsrf, server = "", token?: string): Promise<AccessSummary> {
+  return parseAccessSummary((await requestJson<unknown>(server, "/api/v1/me/access", { csrf, token })).body);
+}
+
+/** Navigation is advisory; each action remains authorised by the server. */
+export function accessCapabilities(access: AccessSummary): ClientBootstrap["capabilities"] {
+  const grants = access.projects.flatMap((project) => project.grants);
+  return {
+    intake: grants.some((grant) => grant.role === "interviewer"),
+    coding: access.projects.some((project) => project.has_tree
+      ? project.units?.some((unit) => unit.selectable && unit.can_code)
+      : project.grants.some((grant) => ["coder", "coding_tester"].includes(grant.role) && grant.codes)) || access.demo_coding.available,
+    reviewing: grants.some((grant) => grant.role === "reviewer")
+  };
+}
+
+/** Keep ancestors as tree context; only interviewer reach is selectable. */
+export function intakeContextFromAccess(access: AccessSummary): IntakeContextEntry[] {
+  return access.projects.flatMap((project) => {
+    if (!project.grants.some((grant) => grant.role === "interviewer")) return [];
+    const units = project.units?.filter((unit) => !unit.selectable || unit.roles.includes("interviewer"));
+    return project.sites.filter((site) => site.roles.includes("interviewer")).map((site) => ({
+      project_id: project.project_id, project_name: project.project_name, site_id: site.site_id, site_name: site.site_name,
+      org_units: units
+    }));
+  });
+}
+
+export interface ClientCsrf {
+  header: string;
+  token: string;
+}
+
+export interface ClientLinks {
+  login: string;
+  logout: string;
+  intakeCases: string;
+  intakeDrafts: string;
+  coding?: string;
+  reviewing?: string;
+}
+
+export interface ClientBootstrap {
+  user: { user_id: string; name: string };
+  csrf: ClientCsrf;
+  capabilities: { intake: boolean; coding: boolean; reviewing: boolean };
+  access: AccessSummary;
+  links: ClientLinks;
+}
+
+export interface AuthenticationRequired {
+  authenticated: false;
+  loginUrl: string;
+  actionCode?: "terms_required" | "factor_setup_required";
+  csrf?: ClientCsrf;
+}
+
+export interface AuthenticatedBootstrap {
+  authenticated: true;
+  bootstrap: ClientBootstrap;
+}
+
+export type BootstrapResult = AuthenticationRequired | AuthenticatedBootstrap;
+
+export { ApiError as ClientApiError };
+
+export interface IntakeContextEntry {
+  project_id: string;
+  project_name?: string;
+  site_id: string;
+  site_name?: string;
+  web_intake_mode?: string;
+  org_units?: Array<{
+    org_unit_id: string;
+    unit_code?: string;
+    unit_name?: string;
+    level_code?: string;
+    level_name?: string;
+    path?: string;
+    is_active?: boolean;
+    selectable?: boolean;
+  }>;
+}
+
+export interface FormOptions {
+  web_intake_mode?: "off" | "direct" | "death_register" | "both";
+  instrument_version?: string;
+  project_id?: string;
+  enabled_extensions?: string[];
+  form_types?: Array<{ instrument_code: string | null; is_default: boolean }>;
+  available_locales?: Array<{
+    code: string;
+    label: string;
+    under_review?: boolean;
+  }>;
+  default_locale?: string;
+  translation_versions?: Record<string, number>;
+  intake_note?: string | null;
+}
+
+export interface IntakeBootstrap {
+  user?: { user_id: string; name: string };
+  context: IntakeContextEntry[];
+  form_options?: FormOptions;
+  instrument_version?: string;
+  /** Server-provided action links; callers must not reconstruct prefixed paths. */
+  links?: { deaths?: string; drafts?: string; cases?: string };
+}
+
+export interface CaseRow {
+  death_id: string;
+  unique_id: string;
+  deceased_name?: string;
+  deceased_sex?: string;
+  date_of_death?: string;
+  age_years?: number | null;
+  status?: string;
+  state?: string;
+  project_id?: string;
+  site_id?: string;
+  site_name?: string;
+  org_unit_id?: string | null;
+  org_unit_name?: string | null;
+  unit_name?: string | null;
+  informant_phone_masked?: string | null;
+  informant_phone_2_masked?: string | null;
+  last_contact_at?: string | null;
+  next_visit_at?: string | null;
+  my_draft_id?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CaseDetailDeceased {
+  name?: string | null;
+  sex?: string | null;
+  age_years?: number | null;
+  date_of_birth?: string | null;
+  date_of_birth_partial?: string | null;
+  date_of_death?: string | null;
+  place_of_death?: string | null;
+}
+
+export interface CaseDetailAddress {
+  address?: string | null;
+  house_street?: string | null;
+  village_ward?: string | null;
+  landmark?: string | null;
+}
+
+export interface CaseDetailInformant {
+  name?: string | null;
+  phone?: string | null;
+  phone_2?: string | null;
+}
+
+export interface CaseDetailLinks {
+  self?: string;
+  attempts?: string;
+  visit?: string;
+  start_interview?: string;
+  form?: string;
+}
+
+export interface CaseDetail extends CaseRow {
+  prefill?: Record<string, unknown>;
+  deceased?: CaseDetailDeceased | null;
+  household_address?: CaseDetailAddress | null;
+  informant?: CaseDetailInformant | null;
+  remarks?: string | null;
+  details_pending?: boolean;
+  pending_flag?: string | null;
+  registered_by_me?: boolean;
+  started_by_me?: boolean;
+  va_sid?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  links?: CaseDetailLinks;
+}
+
+export interface DraftSummary {
+  draft_id: string;
+  unique_id?: string;
+  project_id: string;
+  site_id: string;
+  site_name?: string;
+  org_unit_id?: string | null;
+  org_unit_name?: string | null;
+  death_id?: string | null;
+  status?: string;
+  current_section?: string | null;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface DraftEnvelope extends WhoVaDraft {
+  data: SubmissionData;
+  locale?: string;
+  translation_version?: number;
+}
+
+export interface DraftResponse {
+  draft: DraftSummary;
+  envelope: DraftEnvelope;
+  prefill: Record<string, unknown>;
+}
+
+export interface RegistrationInput {
+  project_id: string;
+  site_id: string;
+  org_unit_id?: string;
+  deceased_name: string;
+  deceased_sex: string;
+  date_of_death: string;
+  date_of_birth?: string;
+  date_of_birth_partial?: string;
+  age_years?: string;
+  abha_number?: string;
+  abha_address?: string;
+  place_of_death?: string;
+  address?: string;
+  address_house_street?: string;
+  address_village_ward?: string;
+  address_landmark?: string;
+  informant_name?: string;
+  father_name?: string;
+  mother_name?: string;
+  informant_phone?: string;
+  informant_phone_2?: string;
+  remarks?: string;
+}
+
+export interface ClientRequestOptions {
+  method?: string;
+  json?: unknown;
+  csrf?: ClientCsrf;
+  signal?: AbortSignal;
+  /** Accept the Flask logout redirect without following its HTML landing page. */
+  allowRedirect?: boolean;
+}
+
+function sameOriginRedirect(response: Response): string | undefined {
+  if (!response.redirected || typeof window === "undefined") return undefined;
+  try {
+    const target = new URL(response.url, window.location.href);
+    return target.origin === window.location.origin
+      ? target.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeActionUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  if (typeof window === "undefined") return undefined;
+  try {
+    const target = new URL(value, window.location.href);
+    return target.origin === window.location.origin
+      ? target.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
- * Send one request and parse its JSON body. Non-2xx throws ApiError; a
- * network failure throws the fetch TypeError unchanged (the caller treats it
- * as "offline" and keeps local data).
+ * Send JSON with bearer or cookie credentials. Refusals expose only status/code;
+ * malformed success and HTML redirects fail explicitly, while network errors propagate.
  */
 export async function requestJson<T>(
   server: string,
   path: string,
-  init: { method?: string; body?: unknown; token?: string } = {}
-): Promise<{ status: number; body: T }> {
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (init.body !== undefined) headers["content-type"] = "application/json";
-  if (init.token) headers.authorization = `Bearer ${init.token}`;
+  options: ClientRequestOptions & { body?: unknown; token?: string } = {},
+): Promise<{ status: number; body: T; csrf?: ClientCsrf }> {
+  const json = options.body !== undefined ? options.body : options.json;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (json !== undefined) headers["Content-Type"] = "application/json";
+  if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
+  else if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
   const response = await fetch(`${server}${path}`, {
-    method: init.method ?? "GET",
+    method: options.method ?? "GET",
+    credentials: options.token !== undefined || server ? "omit" : "include",
+    cache: "no-store",
     headers,
-    body: init.body === undefined ? undefined : JSON.stringify(init.body)
+    body: json === undefined ? undefined : JSON.stringify(json),
+    signal: options.signal,
+    redirect: options.allowRedirect ? "manual" : "follow",
   });
-  const text = await response.text();
-  let body: unknown = undefined;
-  if (text) {
+  const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
+  const csrf = typeof csrfToken === "string" && csrfToken.trim() ? { header: "X-CSRFToken", token: csrfToken } : undefined;
+  if (response.status === 204) return { status: 204, body: undefined as T };
+  const contentType = response.headers.get("content-type") ?? "";
+  let body: Record<string, unknown> = {};
+  let malformedJson = false;
+  if (contentType.includes("json")) {
     try {
-      body = JSON.parse(text);
+      const parsed = await response.json();
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        body = parsed as Record<string, unknown>;
+      } else {
+        malformedJson = true;
+      }
     } catch {
-      body = undefined;
+      malformedJson = true;
+      body = {};
     }
+  } else {
+    await response.text().catch(() => undefined);
+  }
+  const redirectUrl = sameOriginRedirect(response);
+  const manualRedirect =
+    options.allowRedirect &&
+    (response.status === 0 ||
+      response.type === "opaqueredirect" ||
+      (response.status >= 300 && response.status < 400));
+  if (manualRedirect) return { status: response.status, body: body as T };
+  if (response.redirected || !contentType.includes("json")) {
+    throw new ApiError(
+      response.status,
+      "redirected_response",
+      redirectUrl,
+    );
+  }
+  if (malformedJson && response.ok) {
+    throw new ApiError(
+      response.status,
+      "malformed_response",
+      redirectUrl,
+    );
   }
   if (!response.ok) {
-    const code = typeof (body as { code?: unknown })?.code === "string" ? (body as { code: string }).code : undefined;
-    throw new ApiError(response.status, code);
+    const code =
+      typeof body.code === "string"
+        ? body.code
+        : undefined;
+    if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(new Event("digitva-access-stale"));
+    }
+    throw new ApiError(response.status, code, redirectUrl, csrf);
   }
-  return { status: response.status, body: body as T };
+  return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
+}
+
+/** Cookie-session wrapper over the same transport used by bearer clients. */
+export async function requestClientJson<T>(path: string, options: ClientRequestOptions = {}): Promise<T> {
+  const internalPath = safeActionUrl(path);
+  if (!internalPath) throw new ApiError(400, "invalid_request");
+  return (await requestJson<T>("", internalPath, options)).body;
+}
+
+/** Build browser session state from the shared access body and cookie-only CSRF header. */
+export async function fetchClientBootstrap(): Promise<BootstrapResult> {
+  const login = "/vaauth/valogin?next=%2Fapp%2F";
+  try {
+    const response = await requestJson<unknown>("", "/api/v1/me/access");
+    const access = parseAccessSummary(response.body);
+    if (!response.csrf) throw new ApiError(200, "malformed_response");
+    return { authenticated: true, bootstrap: {
+      user: access.user, csrf: response.csrf, access,
+      capabilities: accessCapabilities(access),
+      links: { login, logout: "/vaauth/valogout", coding: "/coding/", reviewing: "/reviewing/", intakeCases: `${INTAKE_API}/cases`, intakeDrafts: `${INTAKE_API}/drafts` }
+    } };
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "unauthorized") {
+      return { authenticated: false, loginUrl: login };
+    }
+    if (error instanceof ApiError && error.status === 403 &&
+        (error.code === "terms_required" || error.code === "factor_setup_required")) {
+      return { authenticated: false,
+        loginUrl: error.code === "terms_required" ? "/profile/force-password-change" : "/profile/#passkeys-card",
+        actionCode: error.code, ...(error.csrf ? { csrf: error.csrf } : {})
+      };
+    }
+    throw error;
+  }
+}
+
+/** Combine grant-scoped interviewer pickers with project form options; missing mode stays disabled. */
+export async function getIntakeContext(csrf: ClientCsrf): Promise<IntakeBootstrap> {
+  const access = await getAccessSummary(csrf);
+  const contexts = intakeContextFromAccess(access);
+  const projectIds = [...new Set(contexts.map((entry) => entry.project_id))];
+  const options = await Promise.all(projectIds.map(async (projectId) => ({
+    projectId, options: await getProjectFormOptions(projectId, csrf)
+  })));
+  const byProject = new Map(options.map((entry) => [entry.projectId, entry.options]));
+  return {
+    user: access.user,
+    context: contexts.map((entry) => ({ ...entry, web_intake_mode: byProject.get(entry.project_id)?.web_intake_mode })),
+    links: { deaths: `${INTAKE_API}/deaths`, drafts: `${INTAKE_API}/drafts`, cases: `${INTAKE_API}/cases` }
+  };
+}
+
+/** Read project options and reject malformed intake mode or instrument version. */
+export async function getProjectFormOptions(
+  projectId: string,
+  csrf: ClientCsrf,
+): Promise<FormOptions> {
+  const options = await requestClientJson<FormOptions>(
+    `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`,
+    { csrf },
+  );
+  if (!options || typeof options !== "object" || Array.isArray(options) ||
+      (options.web_intake_mode !== undefined && !["off", "direct", "death_register", "both"].includes(options.web_intake_mode)) ||
+      (options.instrument_version !== undefined && typeof options.instrument_version !== "string")) {
+    throw new ApiError(200, "malformed_response");
+  }
+  return options;
+}
+
+export function getInstrumentTranslations(
+  instrumentCode: string,
+  locale: string,
+  csrf: ClientCsrf,
+): Promise<Translations> {
+  return requestClientJson<Translations>(
+    `/api/v1/instruments/${encodeURIComponent(instrumentCode)}/translations/${encodeURIComponent(locale)}`,
+    { csrf },
+  );
+}
+
+export function getCases(
+  link: string,
+  csrf: ClientCsrf,
+  cursor?: string | null,
+): Promise<{
+  cases: CaseRow[];
+  counts?: Record<string, number>;
+  next_cursor?: string | null;
+}> {
+  const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return requestClientJson(`${link}${suffix}`, { csrf });
+}
+
+export function getCaseDetail(
+  link: string,
+  deathId: string,
+  csrf: ClientCsrf,
+): Promise<{ case: CaseDetail }> {
+  const base = link.replace(/\/+$/, "");
+  return requestClientJson(`${base}/${encodeURIComponent(deathId)}`, { csrf });
+}
+
+export type CaseActionAck = CaseDetail;
+
+export function logContactAttempt(
+  link: string,
+  deathId: string,
+  body: {
+    outcome: "reached" | "no_answer" | "wrong_number" | "moved" | "refused";
+    next_visit_at?: string;
+  },
+  csrf: ClientCsrf,
+): Promise<{ case: CaseActionAck }> {
+  const base = link.replace(/\/+$/, "");
+  return requestClientJson(`${base}/${encodeURIComponent(deathId)}/attempts`, {
+    method: "POST",
+    json: body,
+    csrf,
+  });
+}
+
+export function setCaseVisit(
+  link: string,
+  deathId: string,
+  body: { next_visit_at: string | null },
+  csrf: ClientCsrf,
+): Promise<{ case: CaseActionAck }> {
+  const base = link.replace(/\/+$/, "");
+  return requestClientJson(`${base}/${encodeURIComponent(deathId)}/visit`, {
+    method: "POST",
+    json: body,
+    csrf,
+  });
+}
+
+export function getDrafts(
+  link: string,
+  csrf: ClientCsrf,
+): Promise<{ drafts: DraftSummary[] }> {
+  return requestClientJson(link, { csrf });
+}
+
+export function registerDeath(
+  link: string,
+  input: RegistrationInput,
+  csrf: ClientCsrf,
+): Promise<{ case: CaseDetail }> {
+  return requestClientJson(link, { method: "POST", json: input, csrf });
+}
+
+export function startDraft(
+  link: string,
+  input: {
+    project_id: string;
+    site_id: string;
+    org_unit_id?: string;
+    death_id?: string;
+  },
+  csrf: ClientCsrf,
+): Promise<{ draft: DraftSummary }> {
+  return requestClientJson(link, { method: "POST", json: input, csrf });
+}
+
+export function getDraft(
+  link: string,
+  draftId: string,
+  csrf: ClientCsrf,
+): Promise<DraftResponse> {
+  return requestClientJson(`${link}/${encodeURIComponent(draftId)}`, { csrf });
+}
+
+export function submitDraft(
+  link: string,
+  draftId: string,
+  completion: { valid: boolean; issues: unknown[] },
+  csrf: ClientCsrf,
+): Promise<{
+  va_sid: string;
+  draft: DraftSummary;
+  validation_err?: unknown[];
+}> {
+  return requestClientJson(`${link}/${encodeURIComponent(draftId)}/submit`, {
+    method: "POST",
+    json: { completion },
+    csrf,
+  });
 }

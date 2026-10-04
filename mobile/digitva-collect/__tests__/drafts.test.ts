@@ -15,6 +15,7 @@ import {
   listDrafts,
   markCompleted,
   migrate,
+  purgeProjectData,
   setMeta,
   type Db
 } from "../src/drafts";
@@ -53,11 +54,11 @@ describe("draft store", () => {
   });
 
   it("saves, loads and updates a draft without moving its site", async () => {
-    const store = createDraftStore(db, { siteId: "SITE1", orgUnitId: "unit-1" });
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", orgUnitId: "unit-1" });
     await store.save(draft("a", "2026-09-30T01:00:00Z", { Id10007: "x" }));
     expect((await store.load!("a"))?.data).toEqual({ Id10007: "x" });
 
-    const otherHost = createDraftStore(db, { siteId: "SITE2" });
+    const otherHost = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE2" });
     await otherHost.save(draft("a", "2026-09-30T02:00:00Z", { Id10007: "y" }));
     const rows = await listDrafts(db);
     expect(rows).toHaveLength(1);
@@ -66,7 +67,7 @@ describe("draft store", () => {
   });
 
   it("returns undefined for an unknown draft and removes one", async () => {
-    const store = createDraftStore(db, { siteId: "SITE1" });
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     expect(await store.load!("missing")).toBeUndefined();
     await store.save(draft("a", "2026-09-30T01:00:00Z"));
     expect(await countDrafts(db)).toBe(1);
@@ -75,7 +76,7 @@ describe("draft store", () => {
   });
 
   it("lists only completed drafts for upload, with their envelopes", async () => {
-    const store = createDraftStore(db, { siteId: "SITE1" });
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     await store.save(draft("a", "2026-09-30T01:00:00Z"));
     await store.save(draft("b", "2026-09-30T02:00:00Z", { Id10007: "z" }));
     expect(await completedDrafts(db)).toEqual([]);
@@ -112,5 +113,18 @@ describe("draft store", () => {
     await setMeta(db, "bootstrap", { context: [] });
     await setMeta(db, "bootstrap", { context: [{ site_id: "S" }] });
     expect(await getMeta(db, "bootstrap")).toEqual({ context: [{ site_id: "S" }] });
+  });
+
+  it("surfaces a draft-config delete failure during project purge", async () => {
+    await setMeta(db, "draft-config:one", { projectId: "PROJECT1" });
+    const failing: Db = {
+      ...db,
+      runAsync: async (sql, params) => {
+        if (sql === "DELETE FROM meta WHERE key = ?") throw new Error("storage failure");
+        return db.runAsync(sql, params);
+      }
+    };
+    await expect(purgeProjectData(failing, "PROJECT1")).rejects.toThrow("storage failure");
+    expect(await getMeta(db, "draft-config:one")).toEqual({ projectId: "PROJECT1" });
   });
 });

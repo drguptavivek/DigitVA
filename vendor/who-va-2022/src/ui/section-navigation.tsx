@@ -6,9 +6,10 @@
  *   Nested sections are indented under their parent, and a parent that is
  *   not itself a page (it holds no questions) is shown as a plain heading.
  * - Medium and narrow forms: a horizontal stepper across the top with only
- *   the current section named beneath it. When the circles would crowd, it
- *   collapses to "done - current - remaining" instead of shrinking. Tapping
- *   it opens a flyout drawer holding the vertical stepper.
+ *   the current section named beneath it. Each visible dot selects its
+ *   section; when the touch targets would crowd, it collapses to
+ *   "done - current - remaining". The labelled Sections row opens a flyout
+ *   drawer holding the vertical stepper.
  *
  * The visible list changes as answers gate sections in and out (three
  * sections before consent, fifteen to twenty after), so items are keyed by
@@ -63,19 +64,20 @@ const STATUS_SUFFIX: Record<SectionNavStatus, string> = {
 };
 
 /**
- * Circle diameter, the gap either side of a connecting line and the shortest
- * line that still reads as one: a circle needs DIAMETER + 2 * GAP + MIN_LINE
- * of row width after the first. The strip has no padding, so the measured
- * row width is the available width.
+ * Circle diameter, touch target, the gap either side of a connecting line and
+ * the shortest line that still reads as one. The measured row width is the
+ * available width, so fit is based on the real keyboard/touch target rather
+ * than the small visual circle inside it.
  */
 const STEP_DIAMETER = 20;
+const STEP_TOUCH_TARGET = 48;
 const STEP_GAP = 6;
 const STEP_MIN_LINE = 12;
 
-/** True when `count` circles joined by lines fit in `width` without shrinking. */
+/** True when `count` stepper targets joined by lines fit in `width` without shrinking. */
 export function stepperFits(width: number, count: number): boolean {
   if (count <= 1) return true;
-  return STEP_DIAMETER + (count - 1) * (STEP_DIAMETER + 2 * STEP_GAP + STEP_MIN_LINE) <= width;
+  return STEP_TOUCH_TARGET + (count - 1) * (STEP_TOUCH_TARGET + 2 * STEP_GAP + STEP_MIN_LINE) <= width;
 }
 const MAX_INDENT = 2;
 const INDENT = 16;
@@ -266,10 +268,10 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
   }
 
   /**
-   * The horizontal stepper on a medium or narrow form. The whole strip is the
-   * drawer's toggle: it shows progress and names the current section, and
-   * tapping it opens the full list. Collapses to done - current - remaining
-   * rather than shrinking when the sections outnumber the circles that fit.
+   * The horizontal stepper on a medium or narrow form. Each visible dot is a
+   * direct section control; the labelled Sections row below it opens the full
+   * list. It collapses to done - current - remaining rather than shrinking
+   * when the sections outnumber the touch targets that fit.
    */
   function SectionHeaderBar({
     current,
@@ -277,6 +279,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     messages,
     moreToCome,
     onOpen,
+    onSelect,
     open,
     toggleRef,
     total
@@ -286,6 +289,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     messages: WhoVaUiMessages;
     moreToCome: boolean;
     onOpen: () => void;
+    onSelect: (name: string) => void;
     open: boolean;
     toggleRef: React.MutableRefObject<unknown>;
     total: number;
@@ -303,22 +307,12 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     const position = messages.sectionProgress(current, total);
     const title = active ? sectionTitle(active) : "";
     // Where the current circle sits, so its name can start beneath it.
-    const pitch = items.length > 1 ? (width - STEP_DIAMETER) / (items.length - 1) : 0;
+    const pitch = items.length > 1 ? (width - STEP_TOUCH_TARGET) / (items.length - 1) : 0;
     const labelOffset = collapsed ? 0 : Math.max(0, Math.min(Math.round(activeIndex * pitch), width - 220));
 
     return (
-      <Pressable
-        ref={toggleRef}
-        accessibilityLabel={`${messages.sections}: ${position}${title ? ` · ${title}` : ""}`}
-        accessibilityRole="button"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onPress={onOpen}
-        style={navStyles.header}
-        testID="section-drawer-toggle"
-      >
+      <View style={navStyles.header}>
         <View
-          aria-hidden="true"
           style={navStyles.strip}
           testID="section-progress"
           onLayout={(event: { nativeEvent: { layout: { width: number } } }) =>
@@ -331,14 +325,34 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
               <View
                 style={[navStyles.stripLine, navStyles.stripLineDone, { flexGrow: Math.max(1, activeIndex) }]}
               />
-              <StepCircle item={active} small />
+              <Pressable
+                accessibilityLabel={`${active.label}${STATUS_SUFFIX[active.status]}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: true }}
+                aria-current="step"
+                onPress={() => onSelect(active.name)}
+                style={navStyles.dotButton}
+                testID="section-header-dot"
+              >
+                <StepCircle item={active} small />
+              </Pressable>
               <View style={[navStyles.stripLine, { flexGrow: Math.max(1, total - current) }]} />
               <Text style={navStyles.stripCount}>{messages.sectionsRemaining(total - current)}</Text>
             </>
           ) : (
             items.map((item, index) => (
               <React.Fragment key={item.name}>
-                <StepCircle item={item} small />
+                <Pressable
+                  accessibilityLabel={`${item.label}${STATUS_SUFFIX[item.status]}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: item.active }}
+                  aria-current={item.active ? "step" : undefined}
+                  onPress={() => onSelect(item.name)}
+                  style={navStyles.dotButton}
+                  testID="section-header-dot"
+                >
+                  <StepCircle item={item} small />
+                </Pressable>
                 {index < items.length - 1 ? (
                   <View style={[navStyles.stripLine, index < activeIndex && navStyles.stripLineDone]} />
                 ) : null}
@@ -346,7 +360,17 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
             ))
           )}
         </View>
-        <View style={navStyles.headerRow}>
+        <Pressable
+          ref={toggleRef}
+          accessibilityLabel={`${messages.sections}: ${position}${title ? ` · ${title}` : ""}`}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onPress={onOpen}
+          style={navStyles.headerRow}
+          testID="section-drawer-toggle"
+        >
           <View style={[navStyles.headerLead, { marginLeft: labelOffset }]}>
             <Text numberOfLines={1} style={navStyles.headerText}>
               {position}
@@ -354,8 +378,8 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
             {moreToCome ? <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text> : null}
           </View>
           <Text style={navStyles.headerHint}>{`☰ ${messages.sections}`}</Text>
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
     );
   }
 
@@ -372,6 +396,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     onClose,
     onSelect,
     open,
+    portalThemeStyle,
     toggleRef
   }: {
     items: readonly SectionNavItem[];
@@ -380,6 +405,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     onClose: () => void;
     onSelect: (name: string) => void;
     open: boolean;
+    portalThemeStyle?: unknown;
     toggleRef: React.MutableRefObject<unknown>;
   }) {
     const panelRef = useRef<unknown>(null);
@@ -422,7 +448,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     };
 
     const overlay = (
-      <View style={navStyles.overlay} testID="section-drawer-overlay">
+      <View style={[navStyles.overlay, portalThemeStyle]} testID="section-drawer-overlay">
         <Pressable
           accessibilityLabel={messages.close}
           accessibilityRole="button"
@@ -584,6 +610,12 @@ export const navStyles = {
     flexDirection: "row" as const,
     overflow: "hidden" as const,
     width: "100%"
+  },
+  dotButton: {
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    minHeight: STEP_TOUCH_TARGET,
+    minWidth: STEP_TOUCH_TARGET
   },
   stripLine: withWebTheme(
     { backgroundColor: "#dce6e1", flexBasis: 0, flexGrow: 1, height: 2, minWidth: 12 },

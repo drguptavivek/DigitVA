@@ -68,7 +68,7 @@ vi.mock("react-native-svg", () => {
   };
 });
 
-import { WhoVaForm } from "../src/native.js";
+import { WhoVaForm, WhoVaQuestionControls } from "../src/native.js";
 
 const nativeInstrument: InstrumentDefinition = {
   id: "native-renderer-test",
@@ -98,8 +98,23 @@ const nativeInstrument: InstrumentDefinition = {
       sectionPath: ["dates"]
     },
     {
-      name: "notes",
+      name: "exact_date",
       order: 2,
+      sourceRow: 3,
+      sourceType: "date",
+      dataType: "date",
+      control: "date",
+      label: { en: "Exact date" },
+      hint: {},
+      guidance: {},
+      required: false,
+      readOnly: false,
+      constraintMessage: {},
+      sectionPath: ["dates"]
+    },
+    {
+      name: "notes",
+      order: 3,
       sourceRow: 4,
       sourceType: "text",
       dataType: "string",
@@ -153,6 +168,32 @@ describe("native renderer integration", () => {
     expect(container.textContent).toContain("Details");
     expect(container.querySelector('[data-testid="question-notes"]')).not.toBeNull();
 
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the exact native date month as a numeric input", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const question = nativeInstrument.questions.find((candidate) => candidate.name === "exact_date")!;
+
+    await act(async () => {
+      root.render(
+        <WhoVaQuestionControls.Date
+          question={question}
+          value={undefined}
+          data={{}}
+          locale="en"
+          issues={[]}
+          onAnswer={() => undefined}
+        />
+      );
+    });
+
+    expect(container.querySelector('[data-testid="question-exact_date-month"]')).toHaveProperty(
+      "tagName",
+      "INPUT"
+    );
     await act(async () => root.unmount());
   });
 

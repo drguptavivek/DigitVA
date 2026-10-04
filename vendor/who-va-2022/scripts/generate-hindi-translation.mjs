@@ -12,7 +12,7 @@ const languageConfig = {
     ui: {
       sectionProgress: "अनुभाग {current} / {total}",
       back: "वापस",
-      saveDraft: "प्रारूप सहेजें",
+      saveDraft: "जवाब सेव करें",
       saving: "सहेजा जा रहा है…",
       next: "आगे",
       complete: "पूरा करें",
@@ -34,7 +34,7 @@ const languageConfig = {
       previewIntro: "अब तक दर्ज उत्तरों की समीक्षा करें। बदलाव करने के लिए प्रपत्र पर वापस जाएँ।",
       noAnswers: "अभी तक कोई उत्तर दर्ज नहीं किया गया है।",
       backToForm: "प्रपत्र पर वापस जाएँ",
-      previewAnswers: "उत्तरों का पूर्वावलोकन",
+      previewAnswers: "डेटा देखें",
       yes: "हाँ",
       no: "नहीं",
       recorded: "दर्ज किया गया"

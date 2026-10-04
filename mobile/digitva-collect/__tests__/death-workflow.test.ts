@@ -3,7 +3,8 @@ import { canFollowUpDeath, canStartDeathInterview, deathPhoneUrl } from "../src/
 it("offers interview actions only in known startable states", () => {
   expect(canStartDeathInterview("registered")).toBe(true);
   expect(canStartDeathInterview("refused")).toBe(true);
-  for (const state of ["submitted", "cancelled", "duplicate", "in_progress", "unknown"]) {
+  expect(canStartDeathInterview("in_progress")).toBe(true);
+  for (const state of ["submitted", "cancelled", "duplicate", "unknown"]) {
     expect(canStartDeathInterview(state)).toBe(false);
   }
 });

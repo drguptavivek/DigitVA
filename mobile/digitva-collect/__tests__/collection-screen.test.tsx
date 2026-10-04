@@ -13,8 +13,9 @@ const mockBootstrapB = {
   links: { intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 let mockCurrentBootstrap = mockBootstrap;
+let mockParams: { superseded?: string } = {};
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({
     bootstrap: mockCurrentBootstrap
@@ -25,7 +26,7 @@ jest.mock("../src/client/api", () => ({
   getCases: jest.fn(),
   getDrafts: jest.fn()
 }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
+jest.mock("../src/i18n", () => ({ t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
   stateLabel: (state: string) => state,
@@ -54,6 +55,7 @@ describe("CollectionScreen refresh", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCurrentBootstrap = mockBootstrap;
+    mockParams = {};
     mockGetIntakeContext.mockResolvedValue(mockIntake);
     mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
     mockGetDrafts.mockResolvedValue({ drafts: [] });
@@ -125,6 +127,25 @@ describe("CollectionScreen refresh", () => {
     await settle();
     expect(tree!.root.findAll((node) => node.props["data-label"] === "newDeath")).toHaveLength(canRegister ? 1 : 0);
     expect(tree!.root.findAll((node) => node.props["data-label"] === "newInterview")).toHaveLength(canStart ? 1 : 0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows active other-draft warnings with the start time and a superseded notice", async () => {
+    const startedAt = "2026-10-04T10:30:00Z";
+    mockParams = { superseded: "1" };
+    mockGetCases.mockResolvedValue({ cases: [
+      { death_id: "timed", unique_id: "A-001", other_draft_active: true, other_draft_started_at: startedAt },
+      { death_id: "unknown", unique_id: "A-002", other_draft_active: true, other_draft_started_at: "invalid" },
+      { death_id: "inactive", unique_id: "A-003", other_draft_active: false, other_draft_started_at: startedAt }
+    ], next_cursor: null });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(`otherDraftActiveAt:${new Date(startedAt).toLocaleString()}`);
+    expect(rendered).toContain('"otherDraftActive"');
+    expect(rendered).toContain("supersededInterviewNotice");
+    expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
     await act(async () => tree!.unmount());
   });
 });

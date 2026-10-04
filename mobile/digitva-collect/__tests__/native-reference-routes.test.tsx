@@ -189,6 +189,9 @@ jest.mock("../src/i18n", () => ({
     if (key === "supersededInterviewNotice") {
       return "A teammate’s interview of this case was submitted first; yours is kept.";
     }
+    if (key === "otherDraftActiveAt") {
+      return `${key} ${values?.date ?? ""}`;
+    }
     return key;
   },
   uiLocale: () => "en",
@@ -284,6 +287,77 @@ beforeEach(() => {
 });
 
 describe("native project-aware routes", () => {
+  it("shows the cached other-draft warning without blocking case details", async () => {
+    const startedAt = "2026-01-02T03:04:05.000Z";
+    mockCachedCases = [
+      {
+        death_id: "d1",
+        project_id: "P1",
+        unique_id: "VA-CACHED",
+        state: "registered",
+        site_id: "S1",
+        deceased: {
+          name: "Cached case",
+          age_years: null,
+          sex: null,
+          date_of_death: null,
+        },
+        other_draft_active: true,
+        other_draft_started_at: startedAt,
+      },
+    ];
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
+    );
+    expect(rendered).toContain("otherDraftSyncNotice");
+    const viewDetails = tree!.root.findByProps({
+      "data-label": "viewDetails",
+    });
+    expect(Boolean(viewDetails.props.disabled)).toBe(false);
+    await act(async () => viewDetails.props.onClick());
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: "/case" }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows a generic warning for an invalid online other-draft timestamp", async () => {
+    (fetchCasePage as jest.Mock).mockResolvedValueOnce({
+      cases: [
+        {
+          death_id: "d1",
+          project_id: "P1",
+          unique_id: "VA-ONLINE",
+          state: "registered",
+          deceased_name: "Online case",
+          other_draft_active: true,
+          other_draft_started_at: "invalid-date",
+        },
+      ],
+      next_cursor: null,
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    await act(async () =>
+      tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
+    );
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("otherDraftActive");
+    expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).not.toContain("otherDraftActiveAt");
+    await act(async () => tree!.unmount());
+  });
+
   it("keeps project settings separate and passes the selected project to direct starts", async () => {
     const p2 = pack("direct", "P2") as {
       bootstrap: { projects: unknown[] };

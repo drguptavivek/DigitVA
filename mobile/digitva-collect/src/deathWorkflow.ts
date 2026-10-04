@@ -1,6 +1,13 @@
 /** Presentation gates mirror the case workflow; server authorization remains authoritative. */
 export function canStartDeathInterview(state: string): boolean {
-  return ["registered", "scheduled", "paused", "not_reachable", "refused"].includes(state);
+  return [
+    "registered",
+    "scheduled",
+    "in_progress",
+    "paused",
+    "not_reachable",
+    "refused",
+  ].includes(state);
 }
 
 export function canFollowUpDeath(state: string): boolean {

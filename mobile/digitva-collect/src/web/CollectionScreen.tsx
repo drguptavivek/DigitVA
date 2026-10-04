@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -21,6 +21,7 @@ const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "cl
 
 export default function CollectionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ superseded?: string }>();
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -110,6 +111,11 @@ export default function CollectionScreen() {
 
   return (
     <WebShell title={t("reportedDeaths")}>
+      {params.superseded === "1" ? (
+        <Text style={styles.muted} accessibilityRole="alert">
+          {t("supersededInterviewNotice")}
+        </Text>
+      ) : null}
       {!bootstrap?.capabilities.intake ? (
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
       ) : (
@@ -161,6 +167,11 @@ export default function CollectionScreen() {
                 {row.unit_name || row.org_unit_name ? ` · ${row.unit_name ?? row.org_unit_name}` : ""}
                 {row.date_of_death ? ` · ${row.date_of_death}` : ""}
               </Text>
+              {row.other_draft_active === true ? (
+                <Text style={styles.error} accessibilityRole="alert">
+                  {otherDraftNotice(row.other_draft_started_at)}
+                </Text>
+              ) : null}
               <Button
                 kind="secondary"
                 label={t("viewDetails")}
@@ -176,4 +187,14 @@ export default function CollectionScreen() {
       )}
     </WebShell>
   );
+}
+
+function otherDraftNotice(startedAt: string | null | undefined): string {
+  if (typeof startedAt === "string") {
+    const date = new Date(startedAt);
+    if (!Number.isNaN(date.getTime())) {
+      return t("otherDraftActiveAt", { date: date.toLocaleString() });
+    }
+  }
+  return t("otherDraftActive");
 }

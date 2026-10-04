@@ -46,6 +46,19 @@ function displayDate(value: string | null | undefined): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toLocaleDateString();
 }
 
+/** Format a server timestamp for the other-interviewer warning, if valid. */
+function otherDraftDate(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleString();
+}
+
+/** Show the server time when usable, otherwise the generic active warning. */
+function otherDraftWarning(value: string | null | undefined): string {
+  const date = otherDraftDate(value);
+  return date ? t("otherDraftActiveAt", { date }) : t("otherDraftActive");
+}
+
 function fieldValue(
   label: string,
   value: string | number | null | undefined,
@@ -620,6 +633,14 @@ export default function Worklist() {
         <View key={row.death_id} style={styles.card}>
           <Text style={styles.text}>{row.deceased?.name ?? row.unique_id}</Text>
           <Text style={styles.muted}>{row.unique_id}</Text>
+          {row.other_draft_active === true ? (
+            <>
+              <Text style={styles.muted}>
+                {otherDraftWarning(row.other_draft_started_at)}
+              </Text>
+              <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
+            </>
+          ) : null}
           {[
             fieldValue(
               t("fieldAge").replace(/\s*\*\s*$/, ""),
@@ -676,6 +697,14 @@ export default function Worklist() {
               <Text style={styles.muted}>
                 {row.unique_id} · {stateLabel(row.state)}
               </Text>
+              {row.other_draft_active === true ? (
+                <>
+                  <Text style={styles.muted}>
+                    {otherDraftWarning(row.other_draft_started_at)}
+                  </Text>
+                  <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
+                </>
+              ) : null}
               <Button
                 kind="secondary"
                 label={t("viewDetails")}

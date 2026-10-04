@@ -34,6 +34,12 @@ The reported-deaths list opens case details for follow-up, visit scheduling,
 and starting or resuming an interview. Both clients fetch authorized details by
 case ID, independently of list pagination, including full informant contacts,
 household address and remarks. List summaries contain masked phones.
+Case rows and details warn when another interviewer has an open interview,
+using the earliest start time without naming the person. On native, the
+warning reflects the last successful sync. It does not block an authorized
+interviewer from starting with the case's server-provided prefill.
+If a teammate submits first, the browser treats its superseded interview
+as a successful retained copy and shows a notice on the collection screen.
 Native downloaded cases are the active follow-up subset, while unsynced local
 registrations retain their entered household and contact details in the encrypted
 store. Only a full phone number can open the dialler after an explicit tap.

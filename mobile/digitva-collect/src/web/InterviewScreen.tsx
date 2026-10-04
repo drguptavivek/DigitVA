@@ -204,8 +204,10 @@ export default function InterviewScreen() {
     try {
       await controller?.saveDraft();
       await store.flush();
-      await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: result.valid, issues: result.issues }, bootstrap.csrf);
-      router.replace("/collection");
+      const submission = await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: result.valid, issues: result.issues }, bootstrap.csrf);
+      router.replace(submission.superseded
+        ? { pathname: "/collection", params: { superseded: "1" } }
+        : "/collection");
     } catch (error) {
       setMessage(browserErrorText(error));
     } finally {

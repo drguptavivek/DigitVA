@@ -214,6 +214,8 @@ export interface CaseRow {
   last_contact_at?: string | null;
   next_visit_at?: string | null;
   my_draft_id?: string | null;
+  other_draft_active?: boolean;
+  other_draft_started_at?: string | null;
   [key: string]: unknown;
 }
 
@@ -621,14 +623,40 @@ export function submitDraft(
   draftId: string,
   completion: { valid: boolean; issues: unknown[] },
   csrf: ClientCsrf,
-): Promise<{
-  va_sid: string;
-  draft: DraftSummary;
-  validation_err?: unknown[];
-}> {
-  return requestClientJson(`${link}/${encodeURIComponent(draftId)}/submit`, {
+): Promise<
+  | { va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[] }
+  | { va_sid: null; draft: DraftSummary; superseded: true; validation_err: null }
+> {
+  const path = safeActionUrl(`${link}/${encodeURIComponent(draftId)}/submit`);
+  if (!path) throw new ApiError(400, "invalid_request");
+  return requestJson<unknown>("", path, {
     method: "POST",
     json: { completion },
     csrf,
+  }).then(({ status, body }) => {
+    const record = (value: unknown): value is Record<string, unknown> =>
+      !!value && typeof value === "object" && !Array.isArray(value);
+    if (!record(body)) throw new ApiError(status, "malformed_response");
+    const draft = record(body.draft) &&
+      typeof body.draft.draft_id === "string" &&
+      typeof body.draft.project_id === "string" &&
+      typeof body.draft.site_id === "string";
+    if (
+      status === 201 && draft && typeof body.va_sid === "string" && body.va_sid.length > 0 &&
+      body.superseded === false && Array.isArray(body.validation_err)
+    ) {
+      return body as unknown as {
+        va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[];
+      };
+    }
+    if (
+      status === 200 && draft && body.va_sid === null &&
+      body.superseded === true && body.validation_err === null
+    ) {
+      return body as unknown as {
+        va_sid: null; draft: DraftSummary; superseded: true; validation_err: null;
+      };
+    }
+    throw new ApiError(status, "malformed_response");
   });
 }

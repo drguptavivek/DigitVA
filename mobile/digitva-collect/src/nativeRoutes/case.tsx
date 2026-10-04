@@ -46,6 +46,19 @@ function displayDate(value: string | null | undefined): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toLocaleDateString();
 }
 
+/** Format a server timestamp for the other-interviewer warning, if valid. */
+function otherDraftDate(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleString();
+}
+
+/** Show the server time when usable, otherwise the generic active warning. */
+function otherDraftWarning(value: string | null | undefined): string {
+  const date = otherDraftDate(value);
+  return date ? t("otherDraftActiveAt", { date }) : t("otherDraftActive");
+}
+
 function detailLine(
   label: string,
   value: string | number | null | undefined,
@@ -397,6 +410,14 @@ export default function Case() {
       {found ? (
         <View style={{ gap: 4 }}>
           <Text style={styles.muted}>{found.unique_id}</Text>
+          {found.other_draft_active === true ? (
+            <>
+              <Text style={styles.muted}>
+                {otherDraftWarning(found.other_draft_started_at)}
+              </Text>
+              <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
+            </>
+          ) : null}
           {[
             detailLine(
               t("fieldAge").replace(/\s*\*\s*$/, ""),

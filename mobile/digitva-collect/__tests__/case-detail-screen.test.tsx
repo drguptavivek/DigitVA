@@ -36,7 +36,7 @@ jest.mock("../src/i18n", () => ({
 }));
 jest.mock("../src/deathWorkflow", () => ({
   canFollowUpDeath: () => true,
-  canStartDeathInterview: () => true,
+  canStartDeathInterview: (state: string) => ["registered", "in_progress"].includes(state),
   deathPhoneUrl: (phone?: string) =>
     phone ? "tel:" + phone.replace(/\s/g, "") : undefined,
 }));
@@ -172,6 +172,29 @@ describe("web reported death details", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("shows the active other-draft start time without naming the interviewer", async () => {
+    const startedAt = "2026-10-04T10:30:00Z";
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_draft_active: true, other_draft_started_at: startedAt } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(`otherDraftActiveAt${new Date(startedAt).toLocaleString()}`);
+    expect(rendered).not.toContain("interviewer name");
+    await act(async () => tree!.unmount());
+  });
+
+  it("uses the generic active warning for an invalid start time", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_draft_active: true, other_draft_started_at: "invalid" } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain('"otherDraftActive"');
+    expect(rendered).not.toContain("otherDraftActiveAt");
+    await act(async () => tree!.unmount());
+  });
+
   it("shows the server error and no contact details for an unauthorized or missing case", async () => {
     mockGetCaseDetail.mockRejectedValueOnce(new Error("not_found"));
     let tree: ReturnType<typeof create>;
@@ -264,6 +287,19 @@ describe("web reported death details", () => {
   });
 
   it("starts a new interview when the case includes prefill", async () => {
+    mockStartDraft.mockResolvedValue({ draft: { draft_id: "new-draft" } });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const start = tree.root.findByProps({ "data-label": "startInterview" });
+    expect(start.props.disabled).toBe(false);
+    await act(async () => start.props.onClick());
+    expect(mockStartDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", { project_id: "P1", site_id: "S1", death_id: "death-1" }, mockBootstrap.csrf);
+    await act(async () => tree.unmount());
+  });
+
+  it("allows a new interview on an active case held by another interviewer when prefill is present", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, state: "in_progress", prefill: { deceased_name: "Asha Devi" }, other_draft_active: true } });
     mockStartDraft.mockResolvedValue({ draft: { draft_id: "new-draft" } });
     let tree!: ReturnType<typeof create>;
     await act(async () => { tree = create(<CaseDetailScreen />); });

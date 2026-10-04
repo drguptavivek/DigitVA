@@ -175,6 +175,62 @@ describe("native case detail workflow", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("keeps parallel interview start available and shows the stale warning", async () => {
+    const startedAt = "2026-01-02T03:04:05.000Z";
+    (
+      jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock
+    ).mockResolvedValue({
+      ...mockDetail,
+      state: "in_progress",
+      other_draft_active: true,
+      other_draft_started_at: startedAt,
+      prefill: {},
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Case />);
+    });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
+    );
+    expect(rendered).toContain("otherDraftSyncNotice");
+    const start = tree!.root.findByProps({ "data-label": "startInterview" });
+    expect(start.props.disabled).toBe(false);
+    await act(async () => start.props.onClick());
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/form",
+        params: expect.objectContaining({ deathId: "d1" }),
+      }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps terminal cases unavailable for a new interview", async () => {
+    (
+      jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock
+    ).mockResolvedValue({
+      ...mockDetail,
+      state: "cancelled",
+      other_draft_active: true,
+      prefill: {},
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Case />);
+    });
+    await settle();
+    expect(
+      tree!.root.findAllByProps({ "data-label": "startInterview" }),
+    ).toHaveLength(0);
+    expect(
+      tree!.root.findByProps({ children: "caseActionsUnavailable" }),
+    ).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+
   it("loads details by id, shows full authorized contacts and only calls manually", async () => {
     let tree: ReturnType<typeof create>;
     await act(async () => {

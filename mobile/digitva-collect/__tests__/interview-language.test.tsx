@@ -13,14 +13,14 @@ jest.mock("../src/web/common", () => ({WebShell: ({children}: {children: ReactNo
 jest.mock("../src/client/api", () => ({
   ...jest.requireActual("../src/client/api"),
   getIntakeContext: jest.fn(async () => ({})),
-  getDraft: jest.fn(), getProjectFormOptions: jest.fn(), getInstrumentTranslations: jest.fn(), getCaseDetail: jest.fn(), startDraft: jest.fn()
+  getDraft: jest.fn(), getProjectFormOptions: jest.fn(), getInstrumentTranslations: jest.fn(), getCaseDetail: jest.fn(), startDraft: jest.fn(), submitDraft: jest.fn()
 }));
 jest.mock("../src/client/serverDraftStore", () => ({ServerDraftStore: jest.fn().mockImplementation(() => ({load: jest.fn(async () => ({})), flush: jest.fn(async () => undefined), getLocaleMetadata: () => ({}), restoreLocaleMetadata: jest.fn(), setLocaleMetadata: jest.fn()}))}));
 jest.mock("@drguptavivek/who-2022-va", () => ({createWhoVa2022Instrument: () => ({id: "WHO", version: "1", sections: [], questions: []})}), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
 
 import InterviewScreen from "../src/web/InterviewScreen";
-import { ClientApiError, getCaseDetail, getDraft, getProjectFormOptions, getInstrumentTranslations, startDraft } from "../src/client/api";
+import { ClientApiError, getCaseDetail, getDraft, getProjectFormOptions, getInstrumentTranslations, startDraft, submitDraft } from "../src/client/api";
 import { ServerDraftStore } from "../src/client/serverDraftStore";
 import { WhoVaForm } from "@drguptavivek/who-2022-va/web";
 import { t, setUiLocale } from "../src/i18n";
@@ -36,6 +36,7 @@ beforeEach(() => {
   (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P"}, envelope: {locale: "hi", translation_version: 7}, prefill: {}});
   (getProjectFormOptions as jest.Mock).mockResolvedValue({form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}], translation_versions: {hi: 9}});
   (getInstrumentTranslations as jest.Mock).mockRejectedValue(new ClientApiError(404, "not_found"));
+  mockRouter.replace.mockClear();
 });
 
 it("starts a later-page case using its authorized detail by id", async () => {
@@ -116,5 +117,37 @@ it("blocks a deep-linked new interview when the valid case detail omits prefill"
   expect(getCaseDetail).toHaveBeenCalled();
   expect(startDraft).not.toHaveBeenCalled();
   expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+  await act(async () => tree.unmount());
+});
+
+it("returns to collection after a normal 201 draft submission", async () => {
+  (submitDraft as jest.Mock).mockResolvedValue({ va_sid: "sid-1", draft: { draft_id: "draft-1", project_id: "P", site_id: "S" }, superseded: false, validation_err: [] });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
+  expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, mockBootstrap.csrf);
+  expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+  await act(async () => tree.unmount());
+});
+
+it("returns to collection with a notice after a superseded 200 response", async () => {
+  (submitDraft as jest.Mock).mockResolvedValue({ va_sid: null, draft: { draft_id: "draft-1", project_id: "P", site_id: "S" }, superseded: true, validation_err: null });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { superseded: "1" } });
+  await act(async () => tree.unmount());
+});
+
+it("stays on the interview when the submit acknowledgement is malformed", async () => {
+  (submitDraft as jest.Mock).mockRejectedValue(new ClientApiError(200, "malformed_response"));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).toContain("HTTP 200 malformed_response");
   await act(async () => tree.unmount());
 });

@@ -42,6 +42,8 @@ export interface CaseRow {
   registered_by_me: boolean;
   started_by_me: boolean;
   my_draft_id: string | null;
+  other_draft_active?: boolean;
+  other_draft_started_at?: string | null;
   va_sid: string | null;
   created_at: string;
   updated_at: string;

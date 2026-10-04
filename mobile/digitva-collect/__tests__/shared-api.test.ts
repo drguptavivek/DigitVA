@@ -1,7 +1,7 @@
 import {
   ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
   getIntakeContext, intakeContextFromAccess, parseAccessSummary, registerDeath,
-  requestClientJson, requestJson, type AccessSummary
+  requestClientJson, requestJson, submitDraft, type AccessSummary
 } from "../src/api";
 
 const csrf = { header: "X-CSRFToken", token: "csrf" };
@@ -177,6 +177,33 @@ it("reads case from registration replies without requiring prefill", async () =>
   const result = await registerDeath("/api/v1/intake/deaths", { project_id: "P1", site_id: "S1", deceased_name: "Name", deceased_sex: "female", date_of_death: "2026-10-01" }, csrf);
   expect(result.case.death_id).toBe("d1");
   expect(result.case.prefill).toBeUndefined();
+});
+
+it("validates normal and superseded draft submission acknowledgements by status", async () => {
+  const draft = { draft_id: "draft-1", project_id: "P1", site_id: "S1" };
+  const fetch = jest.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(response({ va_sid: "sid-1", draft, superseded: false, validation_err: [] }, 201))
+    .mockResolvedValueOnce(response({ va_sid: null, draft, superseded: true, validation_err: null }, 200));
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, csrf))
+    .resolves.toEqual({ va_sid: "sid-1", draft, superseded: false, validation_err: [] });
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-2", { valid: true, issues: [] }, csrf))
+    .resolves.toEqual({ va_sid: null, draft, superseded: true, validation_err: null });
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+    "/api/v1/intake/drafts/draft-1/submit",
+    "/api/v1/intake/drafts/draft-2/submit"
+  ]);
+  expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual(["POST", "POST"]);
+});
+
+it.each([
+  [200, { va_sid: null, draft: { draft_id: "d", project_id: "P", site_id: "S" }, superseded: false, validation_err: null }],
+  [200, { va_sid: "sid", draft: { draft_id: "d", project_id: "P", site_id: "S" }, superseded: true, validation_err: null }],
+  [201, { va_sid: null, draft: { draft_id: "d", project_id: "P", site_id: "S" }, superseded: true, validation_err: null }],
+  [201, { va_sid: "sid", draft: { draft_id: "d", project_id: "P" }, superseded: false, validation_err: [] }]
+])("rejects malformed submit response combinations at HTTP %s", async (status, body) => {
+  jest.spyOn(globalThis, "fetch").mockResolvedValue(response(body, status));
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, csrf))
+    .rejects.toMatchObject({ status, code: "malformed_response" });
 });
 
 it("an explicitly empty bearer token never falls back to a cookie", async () => {

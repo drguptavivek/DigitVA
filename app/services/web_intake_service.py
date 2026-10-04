@@ -2094,9 +2094,9 @@ def prefill_policy(user: VaUsers, project_id: str) -> dict:
     for every unit the caller may pick (``_reachable_unit_ids``; None means
     every active unit). ``answer_fields``/``locked_fields``: which register
     columns become which answers. Name, sex, dates and age go to
-    ``prefill.deceased`` and the package maps them; age and partial birth
-    date brackets and the place-of-death matching are conditional and not
-    described here.
+    ``prefill.deceased`` and the package maps them; the registered age lock,
+    the partial birth date and the place-of-death matching are conditional,
+    so they arrive per case in the case detail's ``prefill``, not here.
 
     ponytail: ``units`` grows with the reachable tree, as ``/units`` does.
     """

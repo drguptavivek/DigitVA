@@ -111,6 +111,24 @@ class GrantCacheTests(AuthzFixtureMixin, BaseTestCase):
         self.assertGreater(ttl, 0)
         self.assertLessEqual(ttl, 300)
 
+    def test_every_key_it_writes_has_an_expiry(self):
+        # Redis runs volatile-lru: a key without a TTL is never evicted.
+        user = self.users["dm_ta"]
+        self._resolve(user)  # seeds gv and uv, writes the entry
+        self._assert_all_keys_expire(3)
+        # Bump both versions the way a grant write does, then re-check.
+        with flask.current_app.test_request_context("/"):
+            grants.invalidate(user.user_id)
+            grants.invalidate_all()
+            db.session.commit()
+        self._assert_all_keys_expire(3)
+
+    def _assert_all_keys_expire(self, expected):
+        keys = list(self.redis.scan_iter(self.prefix + "*"))
+        self.assertEqual(len(keys), expected)  # gv, uv, entry: subject present
+        for key in keys:
+            self.assertGreater(self.redis.ttl(key), 0, key)
+
     def test_the_entry_holds_no_personal_data(self):
         user = self.users["mixed"]
         self.assertTrue(user.email and user.name)

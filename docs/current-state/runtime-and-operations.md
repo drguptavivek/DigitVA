@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-04
 ---
 
 # Runtime And Operations
@@ -93,6 +93,7 @@ Current behavior:
 - the app reaches the WHO API at `ICD11_API_BASE_URL=http://icd_api_service` inside Compose; assessment browsers use the authenticated DigitVA route described in [ICD-11 Embedded Coding Tool in Assessments](../policy/icd11-ect-production.md)
 - the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
 - redis is bound to host port `6379`
+- redis runs `--maxmemory 64mb --maxmemory-policy volatile-lru` and is shared by the Celery broker and result backend (db 0), Flask-Caching, flask-limiter and the authz grant cache. `volatile-lru` evicts only keys that have a TTL, so Celery's queue lists, `unacked` structures and `_kombu.binding.*` sets (no TTL) are never evicted while caches still shrink under pressure (`allkeys-lru` could drop queued tasks). Every cache-like key the app writes therefore needs an expiry: Flask-Caching calls pass a positive `timeout` (never `0`/`None`), the sweep locks use `set(..., ex=ttl)`, flask-limiter sets its counters' expiry itself, Celery results expire after the default `result_expires` (1 day; `task_ignore_result` is on), and the authz grant cache sets `ex=` on entries and on its `gv`/`uv:<user>` version keys (1 day, re-seeded with a random token when missing). If the broker side alone fills 64 MB, Redis refuses writes (`OOM`) rather than evicting queue data: raise `--maxmemory` then. Deploy note: an existing deployment keeps `allkeys-lru` until its Redis container is recreated from the new compose file (`docker compose up -d minerva_redis_service`; queued, unacknowledged tasks are lost on recreate, so drain the queues first outside dev); confirm with `redis-cli CONFIG GET maxmemory-policy`.
 - source code is mounted into the container via `.:/app`
 - a named `minerva_venv` volume preserves the image's `/app/.venv` from the host mount and is shared by the app, Celery worker, and Celery beat services
 - the app, Celery worker, and Celery beat services now build for the host's native Docker architecture by default; when changing host architecture or switching between emulated/native builds, recreate the shared `minerva_venv` volume so compiled wheels are rebuilt consistently

@@ -20,6 +20,9 @@ lookups". The cache is an accelerator, never the authority:
 - Redis unavailable, or no Redis backend: the database answers that request
   (never more permissive). An entry that fails to parse is discarded. A
   bump lost while Redis is down is covered by the TTL.
+- Every key carries an expiry (the version keys one day, see
+  ``_VERSION_TTL_SECONDS``): Redis runs ``volatile-lru``, which only evicts
+  keys that have one, so a TTL-less key here would be unevictable clutter.
 
 Uses the Flask-Caching Redis client (``CACHE_REDIS_URL``) directly, with
 JSON values: Flask-Caching would pickle them, and a cache entry is not
@@ -65,6 +68,11 @@ _GLOBAL_COLUMNS = {
     MasOrgUnit: None,   # any column: path, parent, level, is_active, project
     MasOrgLevel: None,
 }
+
+
+# A version key that expires or is evicted is re-seeded with a fresh random
+# token (entry_key), so the expiry costs one database read, never a stale hit.
+_VERSION_TTL_SECONDS = 24 * 60 * 60
 
 
 def _client():
@@ -195,7 +203,7 @@ def load(user_id: uuid.UUID, resolve) -> ResolvedGrants:
 
 def entry_key(client, prefix: str, user_id) -> str | None:
     """The entry key under the current global and per-user versions. A
-    missing version (first use, or evicted under allkeys-lru) is seeded with
+    missing version (first use, expired, or evicted) is seeded with
     a fresh random token, never read as 0: a counter that restarted could
     match an older, more permissive entry. None if Redis would not keep one."""
     version_keys = (prefix + "gv", f"{prefix}uv:{user_id}")
@@ -203,7 +211,7 @@ def entry_key(client, prefix: str, user_id) -> str | None:
     if None in versions:
         for name, value in zip(version_keys, versions):
             if value is None:
-                client.set(name, secrets.token_hex(8), nx=True)
+                client.set(name, secrets.token_hex(8), nx=True, ex=_VERSION_TTL_SECONDS)
         versions = client.mget(*version_keys)
         if None in versions:
             return None
@@ -278,6 +286,8 @@ def _bump(session):
     # evicted or restarted version can never line up with an old entry. A
     # lost bump leaves the old grants for at most the TTL, so it is an error.
     if pending["global"]:
-        _quietly(client.set, prefix + "gv", secrets.token_hex(8), level=logging.ERROR)
+        _quietly(client.set, prefix + "gv", secrets.token_hex(8),
+                 ex=_VERSION_TTL_SECONDS, level=logging.ERROR)
     for user_id in pending["users"]:
-        _quietly(client.set, f"{prefix}uv:{user_id}", secrets.token_hex(8), level=logging.ERROR)
+        _quietly(client.set, f"{prefix}uv:{user_id}", secrets.token_hex(8),
+                 ex=_VERSION_TTL_SECONDS, level=logging.ERROR)

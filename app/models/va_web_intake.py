@@ -31,7 +31,7 @@ CASE_SOURCES = ("register", "direct")
 CASE_FLAGS = ("duplicate", "cancel")
 #: Outcome of one contact attempt (``map_case_contact_attempts``); no notes.
 CONTACT_OUTCOMES = ("reached", "no_answer", "wrong_number", "moved", "refused")
-WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded")
+WEB_DRAFT_STATUSES = ("draft", "submitted", "discarded", "superseded")
 DEATH_SEX_VALUES = ("male", "female", "undetermined", "unknown")
 
 # Human-readable id numbers come from this sequence (gaps are expected).
@@ -272,6 +272,14 @@ class VaWebIntakeDraft(db.Model):
             "client_draft_id",
             unique=True,
             postgresql_where=sa.text("client_draft_id IS NOT NULL"),
+        ),
+        # One open draft per interviewer per case (parallel interviews).
+        sa.Index(
+            "uq_va_web_intake_drafts_user_death_open",
+            "death_id",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text("status = 'draft' AND death_id IS NOT NULL"),
         ),
     )
 

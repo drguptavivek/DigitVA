@@ -11,6 +11,7 @@ Covers:
   - the worklist: team cases in scope only, "details pending" for its starter
     only, the mine and state filters, keyset paging
 """
+import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
 
@@ -28,6 +29,7 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
     VaUserAccessGrants,
+    VaWebIntakeDraft,
 )
 from app.models.mas_organization import MasOrgLevel, MasOrgUnit
 from app.services import case_transition_service as cases
@@ -294,6 +296,124 @@ class CaseWorklistTests(BaseTestCase):
             sa.event.remove(db.engine, "before_cursor_execute", record)
         self.assertEqual(case.status, "in_progress")
 
+    # ── parallel interviews (digitva-xz83) ─────────────────────────────────
+
+    def _start(self, user, case):
+        return intake_svc.start_draft(user, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+                                      death_id=case.death_id)
+
+    def _row(self, user, case):
+        return intake_svc.serialize_worklist_row(user, *intake_svc.get_case_detail(user, case.death_id))
+
+    def test_two_interviewers_each_hold_a_draft_and_see_the_warning_only(self):
+        case = self._register()
+        mine = self._start(self.alice, case)
+        theirs = self._start(self.bob, case)
+        self.assertNotEqual(mine.draft_id, theirs.draft_id)
+        self.assertEqual(case.status, "in_progress")
+        for me, other, my_draft in ((self.alice, self.bob, mine), (self.bob, self.alice, theirs)):
+            row = self._row(me, case)
+            self.assertEqual(row["my_draft_id"], str(my_draft.draft_id))
+            self.assertIs(row["other_draft_active"], True)
+            self.assertIsNotNone(row["other_draft_started_at"])
+            self.assertNotIn(str(other.user_id), json.dumps(row))
+            self.assertNotIn(other.name, json.dumps(row))
+            # Both are prefilled: the other's draft does not withhold it.
+            detail = intake_svc.get_case_detail(me, case.death_id)
+            self.assertIsNotNone(intake_svc.case_prefill(me, detail[0], None))
+            self.assertIsNotNone(intake_svc.case_prefill(me, detail[0], detail[2]))
+        # The same signal through the list query, and the lone draft's own case.
+        listed = {r["death_id"]: r for r in intake_svc.worklist_page(self.alice, {})["cases"]}
+        self.assertIs(listed[str(case.death_id)]["other_draft_active"], True)
+        alone = self._register()
+        self._start(self.alice, alone)
+        self.assertIs(self._row(self.alice, alone)["other_draft_active"], False)
+        self.assertIsNone(self._row(self.alice, alone)["other_draft_started_at"])
+        self.assertIs(self._row(self.bob, alone)["other_draft_active"], True)
+
+    def test_the_same_interviewer_starting_twice_gets_the_same_draft(self):
+        case = self._register()
+        first = self._start(self.alice, case)
+        self.assertEqual(self._start(self.alice, case).draft_id, first.draft_id)
+        self.assertEqual(
+            db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft)
+                              .where(VaWebIntakeDraft.death_id == case.death_id)), 1)
+
+    def test_a_second_open_draft_for_one_interviewer_and_case_is_refused_by_the_database(self):
+        case = self._register()
+        first = self._start(self.alice, case)
+        clone = VaWebIntakeDraft(
+            project_id=first.project_id, site_id=first.site_id, death_id=first.death_id,
+            form_id=first.form_id, user_id=first.user_id, unique_id=first.unique_id,
+        )
+        with self.assertRaises(sa.exc.IntegrityError), db.session.begin_nested():
+            db.session.add(clone)
+            db.session.flush()
+
+    def test_a_browser_submit_after_a_teammate_won_is_kept_as_a_superseded_copy(self):
+        case = self._register(deceased_name="Asha Devi")
+        mine = self._start(self.alice, case)
+        theirs = self._start(self.bob, case)
+        won = intake_svc.submit_draft(theirs, self.bob, completion=self._completion())
+        self.assertEqual(case.status, "submitted")
+        before = (case.deceased_name, case.deceased_sex, case.va_sid, case.updated_at)
+        late = self._completion(Id10017="Other", Id10018="Name")
+        self.assertIsNone(intake_svc.submit_draft(mine, self.alice, completion=late))
+        self.assertEqual(mine.status, "superseded")
+        self.assertIsNotNone(mine.submitted_at)
+        self.assertIsNone(mine.va_sid)
+        self.assertEqual(
+            {row.section_name: row.data for row in mine.sections}[intake_svc.FINAL_SECTION]["Id10017"], "Other")
+        self.assertEqual(before, (case.deceased_name, case.deceased_sex, case.va_sid, case.updated_at))
+        self.assertEqual(case.va_sid, won.va_sid)
+        # Only the interviewer whose draft became the submission sees its id,
+        # not the one who first started the case.
+        self.assertEqual(self._row(self.bob, case)["va_sid"], won.va_sid)
+        self.assertIsNone(self._row(self.alice, case)["va_sid"])
+        self.assertIs(self._row(self.alice, case)["started_by_me"], True)
+
+    def test_a_retried_submit_of_the_winning_draft_does_not_turn_it_into_a_copy(self):
+        case = self._register()
+        mine = self._start(self.alice, case)
+        won = intake_svc.submit_draft(mine, self.alice, completion=self._completion())
+        db.session.flush()
+        # A second request loaded the draft before the first committed.
+        sa.orm.attributes.set_committed_value(mine, "status", "draft")
+        with self.assertRaises(cases.WebIntakeError) as refused:
+            intake_svc.submit_draft(mine, self.alice, completion=self._completion())
+        self.assertEqual(refused.exception.status_code, 409)
+        db.session.refresh(mine)
+        self.assertEqual((mine.status, mine.va_sid), ("submitted", won.va_sid))
+
+    def test_a_refused_or_partial_submit_on_a_shared_case_leaves_its_identity(self):
+        case = self._register(deceased_name="Asha Devi")
+        self._start(self.alice, case)
+        theirs = self._start(self.bob, case)
+        partial = {**self._completion(Id10017="Other", Id10018="Name", interview_outcome="partially_completed"),
+                   "valid": False}
+        intake_svc.submit_draft(theirs, self.bob, completion=partial)
+        self.assertEqual(case.status, "paused")
+        self.assertEqual(case.deceased_name, "Asha Devi")
+
+    def test_a_closed_case_shows_no_other_draft_warning(self):
+        case = self._register()
+        self._start(self.alice, case)
+        theirs = self._start(self.bob, case)
+        self.assertIs(self._row(self.bob, case)["other_draft_active"], True)
+        intake_svc.submit_draft(theirs, self.bob, completion=self._completion())
+        self.assertEqual(case.status, "submitted")
+        # Alice's draft is still open on the closed case; Bob is not warned.
+        self.assertIs(self._row(self.bob, case)["other_draft_active"], False)
+
+    def test_discarding_keeps_the_case_in_progress_while_another_draft_is_open(self):
+        case = self._register()
+        mine = self._start(self.alice, case)
+        theirs = self._start(self.bob, case)
+        intake_svc.discard_draft(mine, self.alice)
+        self.assertEqual(case.status, "in_progress")
+        intake_svc.discard_draft(theirs, self.bob)
+        self.assertEqual(case.status, "registered")
+
     def test_a_reason_longer_than_the_audit_column_is_refused(self):
         case = self._register()
         with self.assertRaises(cases.WebIntakeError):
@@ -329,7 +449,7 @@ class CaseWorklistTests(BaseTestCase):
         self.assertEqual((last.action, last.from_state, last.to_state),
                          ("identity_captured", "draft_identity", "in_progress"))
 
-    def test_form_edits_flow_back_to_a_registered_case(self):
+    def test_form_edits_reach_a_registered_case_only_at_submit(self):
         case = self._register(deceased_name="Asha Devi")
         draft = intake_svc.start_draft(self.alice, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
                                        death_id=case.death_id)
@@ -338,11 +458,13 @@ class CaseWorklistTests(BaseTestCase):
             draft, sections={"info": {"Id10017": "Asha", "Id10018": "Kumari", "Id10019": "bogus"}},
             actor=self.alice,
         )
+        # A save by one draft holder never rewrites a shared case's identity.
+        self.assertEqual(case.deceased_name, "Asha Devi")
+        intake_svc.submit_draft(draft, self.alice, completion=self._completion(
+            Id10017="Asha", Id10018="Kumari", Id10019="bogus"))
         self.assertEqual(case.deceased_name, "Asha Kumari")
-        # An invalid or empty answer never blanks what the case holds.
+        # An invalid answer never blanks what the case holds.
         self.assertEqual(case.deceased_sex, "female")
-        intake_svc.save_draft_sections(draft, sections={"info": {"Id10017": ""}}, actor=self.alice)
-        self.assertEqual(case.deceased_name, "Asha Kumari")
 
     def test_submitting_a_direct_start_moves_its_case_to_submitted(self):
         draft = self._direct()

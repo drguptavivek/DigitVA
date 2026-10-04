@@ -9,6 +9,13 @@ rewrites this file as beads land; the Expo session closes the app beads.
 
 ## 1. Answers hash on upload (`digitva-2bxa`, server built)
 
+Frontend implemented (`digitva-2bxa.1`): exact JSON/hash upload, matching
+acknowledgement and snapshot purge, persistent conflict handling, one hash
+retry, immediate superseded notices, request deadlines and atomic case refresh.
+Verified with section 2: 271 tests, TypeScript, web/Android JS exports and
+independent code-quality audit passed. Physical-device acceptance is separate.
+Frontend commit `bcdd4983` is pushed; both app child beads are closed.
+
 The server refuses the old request shape, so ship this with the next build.
 
 `POST /api/v1/intake/submissions`, request adds:
@@ -54,6 +61,11 @@ App must:
 
 ## 2. Interview times and clock skew (`digitva-latk`, server built)
 
+Frontend implemented (`digitva-latk.1`): local-offset start/completion times
+survive autosave; each HTTP upload attempt, including an authentication retry,
+gets a fresh device clock reading. Unknown legacy completion times are omitted.
+Verified with section 1 as recorded above.
+
 `POST /api/v1/intake/submissions`, in the `draft` envelope (each optional,
 each ISO 8601 with a UTC offset, e.g. `2026-10-01T10:45:00+05:30` or `...Z`):
 
@@ -77,3 +89,32 @@ times.
 App must: record `completedAt` in `markCompleted` (`src/drafts.ts`), update it
 on a repeat completion, record `startedAt` when a draft is created, and send
 all three. Same rules apply to `POST /intake/drafts/sync` (section 3).
+
+## 3. Parallel interviews, part A (`digitva-xz83`, server built)
+
+Case rows (`GET /api/v1/intake/cases`) and case detail (`GET /cases/<id>`
+and every case reply) gain:
+
+- `other_draft_active`: bool, another interviewer holds an open draft.
+- `other_draft_started_at`: ISO time or `null`, when the earliest such draft
+  started. The other person is never named.
+
+Show a warning on the row and in detail ("Another interviewer started this
+interview on <date>"); it is only as fresh as the last sync.
+
+Other changes the app sees:
+
+- `prefill` is on case detail for every interviewer who can see an open case,
+  even when someone else holds a draft.
+- `va_sid` on rows/detail is shown only to the interviewer whose interview
+  became the submission (not the case starter). `started_by_me` is unchanged.
+- `POST /drafts` never answers 409 for another interviewer's draft; the same
+  interviewer always gets their one open draft back.
+- An upload (`POST /submissions`) for a case where this interviewer has an
+  open server draft (started in the browser) completes that draft: one
+  interview, not two.
+- `POST /drafts/<id>/submit` on a case a teammate already submitted: 200
+  `{va_sid: null, draft, superseded: true, validation_err: null}` (normal
+  submit is 201 with `superseded: false`).
+
+Part B (phone in-progress draft sync, newer-save-wins) follows in section 4.

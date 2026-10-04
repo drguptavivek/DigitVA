@@ -558,7 +558,10 @@ a state change the attempt causes is also audited in `map_case_transitions`.
 
 Migration `d7a3c9e1f5b2` (digitva-kmk.1): `va_web_intake_drafts.client_draft_id`
 (the Android app's draft UUID, unique where not null) and a draft status
-`superseded` (a device upload for a closed case, kept, never submitted);
+`superseded` (a device upload, or a browser submit, for a closed case, kept,
+never submitted; migration `e6a2c9d4f1b7`, digitva-xz83, adds the partial
+unique index `uq_va_web_intake_drafts_user_death_open` on `(death_id,
+user_id)` where `status = 'draft'`: one open draft per interviewer per case);
 `auth_device_enrolment_codes`, `auth_devices` and `auth_device_sessions`
 hold hashed enrolment codes, device secrets and tokens. See
 [Device Collection API](device-collection-api.md).

@@ -150,12 +150,14 @@ def list_cases():
     return jsonify(intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=interviewer_context()))
 
 
-def _case_body(death, unit_name, my_draft_id) -> dict:
+def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False) -> dict:
     """The case with its full contact details (``serialize_case_detail``), this
     API's links, and the ``prefill`` an interview started offline needs, only
     when the caller may start or resume the interview (``case_prefill``);
     otherwise the key is absent."""
-    body = intake_svc.serialize_case_detail(current_user, death, unit_name, my_draft_id)
+    body = intake_svc.serialize_case_detail(
+        current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission
+    )
     prefill = intake_svc.case_prefill(current_user, death, my_draft_id)
     if prefill is not None:
         body["prefill"] = prefill
@@ -400,6 +402,12 @@ def submit_draft(draft_id):
     p = parse_body()
     draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
     submission = intake_svc.submit_draft(draft, current_user, completion=p.get("completion") or {})
+    if submission is None:
+        # A teammate's complete submission won: this copy is kept, not routed.
+        db.session.commit()
+        return jsonify(
+            {"va_sid": None, "draft": intake_svc.serialize_draft(draft), "superseded": True, "validation_err": None}
+        )
     # Re-derived server/client disagreements (beads digitva-cal.2), never
     # blocking: surfaced here so a field problem is debuggable, not just
     # logged. No answer value is ever in these entries.
@@ -410,6 +418,7 @@ def submit_draft(draft_id):
         {
             "va_sid": submission.va_sid,
             "draft": intake_svc.serialize_draft(draft),
+            "superseded": False,
             "validation_err": validation_err,
         }
     ), 201

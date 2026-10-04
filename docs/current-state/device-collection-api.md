@@ -154,8 +154,10 @@ enrolment calls and the CLI stay here:
 ## Uploads
 
 `submit_device_interview` runs the web path in the named project only:
-`start_draft` (scope, case, prefill) with `own_copy=True`, so an active web
-draft on the case is never reused or merged; the envelope's `data` saved as
+`start_draft` (scope, case, prefill), which returns the interviewer's own open
+draft on the case when there is one (one open draft per interviewer per case;
+the upload completes it and sets its `client_draft_id` and `answers_sha256`;
+another interviewer's draft is never touched); the envelope's `data` saved as
 one section named `device` (taken from the request's `answers_json`, not from `draft.data`); then `submit_draft` with `intake_source =
 "device"` (payload `DeviceID` `digitva-device`). The draft records
 `meta.deviceId` and `meta.interviewOutcome`.
@@ -242,7 +244,8 @@ behaviour.
   `details_pending`, `deceased_name`, `deceased_sex`, `age_years`,
   `date_of_death`, `pending_flag`, `next_visit_at`, `last_contact_at`,
   `informant_phone_masked`, `informant_phone_2_masked`, `registered_by_me`,
-  `started_by_me`, `my_draft_id`, `va_sid`, `created_at`, `updated_at`)
+  `started_by_me`, `my_draft_id`, `other_draft_active`,
+  `other_draft_started_at`, `va_sid`, `created_at`, `updated_at`)
   plus `possible_duplicates` (`[{death_id, unique_id}]`, up to three, from
   the whole scope); `counts` per state cover the scope, the project and
   `mine` but not `state`. Every state in scope is listed; the app picks its
@@ -252,9 +255,15 @@ behaviour.
   already has `next_cursor` null). Phones masked (`******1234`), no
   informant name, address or prefill. `Cache-Control: no-store`.
 - **`va_sid`** (the submission id) in a list row and in the detail only
-  when the caller started the case (`started_by_me`), else null: interview
+  to the interviewer whose draft became the submission, else null: interview
   forms are their interviewer's own. The supervision list keeps it for
   every case.
+- **`other_draft_active`** (bool) and **`other_draft_started_at`** (ISO time
+  or null): another interviewer holds an open draft on the case, and the
+  earliest `created_at` among those drafts. Never the other user's name or id;
+  only as fresh as that draft's last sync. Computed in the same query as the
+  row (`_worklist_select`), from `ix_va_web_intake_drafts_death` and
+  `uq_va_web_intake_drafts_user_death_open`. Not in supervision rows.
 - **Detail.** `GET /intake/cases/<death_id>` returns `{"case": ...}` built by
   `get_case_detail` (one query over `_worklist_select` with
   `_worklist_scope`, every project of the worker's) and
@@ -266,14 +275,15 @@ behaviour.
   `household_address {address, house_street, village_ward, landmark}`,
   `informant {name, phone, phone_2}` in full, `remarks`, `next_visit_at`,
   `last_contact_at`, `registered_by_me`, `started_by_me`, `my_draft_id`,
-  `va_sid`, `created_at`, `updated_at`. No ABHA, parents' names, other
+  `other_draft_active`, `other_draft_started_at`, `va_sid`, `created_at`,
+  `updated_at`. No ABHA, parents' names, other
   users' ids, client ids or duplicate ids. `no-store`. With `prefill`
   (`case_prefill`, the object the web form page receives for the case, so an
   interview started offline opens prefilled; it carries the questionnaire's
   own answers, ABHA and parents' names included, never a phone) only when the
-  caller may start or resume the interview: they hold the case's active draft,
-  or the case is open (not submitted, duplicate or cancelled) and no other
-  interviewer's draft holds it. Otherwise the key is absent. The same body,
+  caller may start or resume the interview: they hold the case's own draft, or
+  the case is open (not submitted, duplicate or cancelled); another
+  interviewer's draft does not matter. Otherwise the key is absent. The same body,
   prefill rule included, is the reply of every interviewer single-case action
   (`POST /intake/deaths`, `/cases/<id>/flags`, `/visit`, `/attempts`, `/pause`).
   `links`: `{self, attempts, visit, start_interview}` plus `form`

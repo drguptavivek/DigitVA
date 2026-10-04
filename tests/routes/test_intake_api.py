@@ -252,6 +252,45 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(case["links"]["form"], f"/intake/form/{draft['draft_id']}")
         self.assertEqual(case["state"], "in_progress")
 
+    def test_browser_submit_after_a_teammate_won_replies_superseded_and_leaves_the_case(self):
+        self._login(self.interviewer_id)
+        death_id = self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+        other = self._get_or_make_user("api.parallel.other@test.local", "IntakeApi123")
+        db.session.add(VaUserAccessGrants(
+            user_id=other.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID, notes="parallel interviewer", grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+        mine = self._start_draft(death_id=death_id)
+        self._login(str(other.user_id))
+        theirs = self._start_draft(death_id=death_id)
+        self.assertNotEqual(mine["draft_id"], theirs["draft_id"])
+
+        def completion(**data):
+            return {"completion": {"valid": True, "issues": [], "data": {
+                "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                "narr_language": "english", **data}}}
+
+        won = self.client.post(f"/api/v1/intake/drafts/{theirs['draft_id']}/submit",
+                               json=completion(), headers=self._csrf_headers())
+        self.assertEqual(won.status_code, 201, won.get_json())
+        self._login(self.interviewer_id)
+        late = self.client.post(f"/api/v1/intake/drafts/{mine['draft_id']}/submit",
+                                json=completion(Id10017="Other"), headers=self._csrf_headers())
+        self.assertEqual(late.status_code, 200, late.get_json())
+        body = late.get_json()
+        self.assertIsNone(body["va_sid"])
+        self.assertIs(body["superseded"], True)
+        self.assertIsNone(body["validation_err"])
+        self.assertEqual(body["draft"]["status"], "superseded")
+        case = db.session.get(VaDeathRegister, death_id)
+        self.assertEqual((case.status, case.deceased_name, case.va_sid), ("submitted", "Bina Sahu", won.get_json()["va_sid"]))
+        # The case detail still hides the winner's submission id from this interviewer.
+        self.assertIsNone(self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]["va_sid"])
+
     def test_case_detail_carries_prefill_only_for_a_caller_who_may_start_or_resume(self):
         self._login(self.interviewer_id)
         created = self.client.post(
@@ -274,7 +313,8 @@ class IntakeApiTests(BaseTestCase):
         detail = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
         self.assertIn("prefill", detail)  # open case, no draft: any interviewer in scope may start it
 
-        # Another interviewer's draft holds the case: the key is absent for the rest, present for the holder.
+        # Another interviewer's draft does not withhold it: both are prefilled, and the
+        # other gets the warning (a flag and a time, never who).
         self._login(self.interviewer_id)
         draft = self._start_draft(death_id=death_id)
         mine = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
@@ -285,8 +325,13 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         held = response.get_json()["case"]
         self.assertEqual(held["unique_id"], mine["unique_id"])
-        self.assertNotIn("prefill", held)
-        self.assertNotIn("Hari Das", json.dumps(held))
+        self.assertEqual(held["prefill"]["answers"]["Id10061"], "Hari Das")
+        self.assertIs(held["other_draft_active"], True)
+        self.assertIsNotNone(held["other_draft_started_at"])
+        self.assertIsNone(held["my_draft_id"])
+        self.assertNotIn(self.interviewer_id, json.dumps(held))
+        self._login(self.interviewer_id)
+        self.assertIs(self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]["other_draft_active"], False)
 
         # A closed case: absent even for its registrant.
         self._login(self.interviewer_id)
@@ -369,6 +414,7 @@ class IntakeApiTests(BaseTestCase):
         va_sid = submitted.get_json()["va_sid"]
         self.assertIsNotNone(db.session.get(VaSubmissions, va_sid))
         self.assertEqual(submitted.get_json()["draft"]["status"], "submitted")
+        self.assertIs(submitted.get_json()["superseded"], False)
         self.assertEqual(
             db.session.get(VaDeathRegister, death["death_id"]).status, "submitted"
         )

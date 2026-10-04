@@ -286,8 +286,8 @@ the case, the worklist API), phase 4 (the worklist page) and phase 5 (visits,
 contact attempts, pause, phones and address) are built; see "Built in phases 2
 and 3", "Built in phase 4" and "Built in phase 5" at the end of this section
 for the details they fixed. The rest is not built yet, and the
-"Baseline" bullets above (own drafts only, one author per draft, 409 for a
-second interviewer) remain the running behaviour until parallel interviews land (`digitva-xz83`).
+"Baseline" bullets above (own drafts only, one author per draft) hold; a
+second interviewer now gets their own copy (see "Parallel interviews").
 
 ### The case
 
@@ -364,9 +364,9 @@ a place for names, phone numbers or addresses).
   still governs the project's other sites. Interview forms (answers) stay
   their interviewer's own; the case's submission id (`va_sid`) is shown in
   the worklist rows (browser and device) and the single-case detail only to
-  the worker who started the case's interview (to change under "Parallel
-  interviews": the worker whose draft became the submission). The
-  supervision list keeps it for every case.
+  the worker whose draft became the submission (see "Parallel interviews"),
+  not to whoever first started the case. The supervision list keeps it for
+  every case.
 - **Own draft per interviewer** (owner, 2026-10-04, `digitva-xz83`),
   replacing the earlier "one shared draft per death" and "only its author may
   edit": each interviewer edits only their own copy. Each save records who
@@ -413,17 +413,26 @@ Owner, 2026-10-04 (`digitva-xz83`).
   as **superseded copies** on web and device alike: answers kept, no
   submission, no routing. The interviewer is told their copy was superseded.
 
-Not built yet (`digitva-xz83`):
+Built (`digitva-xz83`, part A): `case_prefill` no longer looks at other
+drafts; `start_draft` returns the caller's own open draft (a partial unique
+index, `uq_va_web_intake_drafts_user_death_open` on `(death_id, user_id)` where
+`status = 'draft'`, enforces one per interviewer per case) and never refuses
+for another interviewer's; a device upload completes the interviewer's own
+open draft on the case when there is one; `save_draft_sections` syncs identity
+only for a direct start (`draft_identity`) and `submit_draft` only for the
+winning submit; a browser submit on an already closed case stores the draft
+as `superseded` (final answers kept in the `final` section, no submission, no
+routing, case untouched) and answers 200 `superseded: true`; `va_sid` goes to
+the interviewer whose draft became the submission; list rows and case detail
+carry `other_draft_active` and `other_draft_started_at`; discarding a draft
+returns an `in_progress` case to `registered` only when no other open draft
+remains.
 
-- `case_prefill` (`app/services/web_intake_service.py`) withholds the prefill
-  when another interviewer holds a draft, and `start_draft` answers 409 to a
-  second start.
-- The phone keeps unfinished drafts locally only, and `submit_device_interview`
-  always opens a new copy (`own_copy=True`).
-- `save_draft_sections` calls `_sync_case_identity` on every save, by any
-  draft holder (`app/services/web_intake_service.py`, ~line 1217).
-- `va_sid` visibility is tied to `started_by_user_id`.
-- The `other_draft_active` warning does not exist in code.
+Not built yet (`digitva-xz83`, part B):
+
+- The phone keeps unfinished drafts locally only: the in-progress draft sync
+  between phone and server, the "edited on another device" notice and the
+  stale-browser-tab guard.
 
 ### Supervisors
 
@@ -945,8 +954,8 @@ The worklist page (`/intake/`, `app/templates/va_frontpages/va_intake.html`,
   **Start** (registered, scheduled, paused, not reachable), **Restart**
   (refused) or **Resume** (in progress, details pending) calls
   `POST /api/v1/intake/drafts` with the case. A second interviewer on a case
-  with someone else's draft still gets the 409 message until parallel
-  interviews land (`digitva-xz83`; see "Parallel interviews").
+  with someone else's draft starts their own copy; the row warns with
+  `other_draft_active` (see "Parallel interviews").
 - **Secondary actions:** **Flag duplicate** (the kept case picked from cases in
   scope of the same project, the 200 most recently active) and **Flag for
   cancel** (reason required, 200 characters), both with the warning "No

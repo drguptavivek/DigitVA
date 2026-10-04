@@ -992,15 +992,15 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, own_copy: bool = False) -> VaWebIntakeDraft:
+def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None) -> VaWebIntakeDraft:
     """Open (or return the caller's own) draft for a case, or start directly.
 
     A direct start creates its case at once (``source = direct``,
     ``draft_identity``); the draft's answers fill the identity in.
 
-    ``own_copy`` (device uploads) always opens a new draft, ignoring any
-    active draft on the case: a device copy is that interviewer's own
-    attempt, never merged into the team's server draft (web-intake.md).
+    One open draft per interviewer per case: another interviewer's draft never
+    blocks a start, each gets their own copy (web-intake.md "Parallel
+    interviews").
     """
     mode = get_web_intake_mode(project_id)
     death = get_death(user, death_id) if death_id else None
@@ -1010,7 +1010,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         if death.project_id != project_id or death.site_id != site_id:
             raise WebIntakeError("Death entry belongs to another project or site.")
         # Serialises starts on one case: the second waits here, then sees the
-        # first one's active draft below instead of opening another.
+        # caller's own open draft below instead of opening another.
         death = cases.lock_case(death)
         if death.status == "submitted":
             raise WebIntakeError("A questionnaire has already been submitted for this death.", 409)
@@ -1018,12 +1018,12 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             raise WebIntakeError("This case is closed.", 409)
         existing = db.session.scalar(
             sa.select(VaWebIntakeDraft).where(
-                VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft"
+                VaWebIntakeDraft.death_id == death.death_id,
+                VaWebIntakeDraft.user_id == user.user_id,
+                VaWebIntakeDraft.status == "draft",
             )
         )
-        if existing is not None and not own_copy:
-            if existing.user_id != user.user_id:
-                raise WebIntakeError("Another interviewer already has a draft for this death.", 409)
+        if existing is not None:
             _begin_interview(death, user)
             return existing
         org_unit_id = death.org_unit_id
@@ -1190,10 +1190,11 @@ _DEVICE_TIME_KEYS = ("startedAt", "completedAt")
 def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
-    The draft's case takes its identity from the merged answers of every saved
-    section (a save sends only the sections that changed). *actor* is the
-    saver, recorded when a direct start leaves ``draft_identity``; it defaults
-    to the draft's owner, the only user who may save it.
+    A direct start's case (``draft_identity``) takes its identity from the
+    merged answers of every saved section (a save sends only the sections that
+    changed); any other case takes it at submit. *actor* is the saver,
+    recorded when the case leaves ``draft_identity``; it defaults to the
+    draft's owner, the only user who may save it.
     """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
@@ -1231,23 +1232,42 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     draft.updated_at = _utcnow()
     if written and draft.death_id:
         death = db.session.get(VaDeathRegister, draft.death_id)
-        merged: dict = {}
-        for row in draft.sections:
-            merged.update(row.data or {})
-        _sync_case_identity(death, merged, actor or db.session.get(VaUsers, draft.user_id))
-        death.updated_at = draft.updated_at  # the worklist sorts by last activity
+        # Identity follows the form only for a direct start, which only its
+        # starter sees; on a shared case it updates at the winning submit.
+        if death.status == "draft_identity":
+            merged: dict = {}
+            for row in draft.sections:
+                merged.update(row.data or {})
+            _sync_case_identity(death, merged, actor or db.session.get(VaUsers, draft.user_id))
+        if death.status not in _SUPERSEDED_CASE_STATES:
+            death.updated_at = draft.updated_at  # the worklist sorts by last activity
     db.session.flush()
     return written
 
 
 def discard_draft(draft: VaWebIntakeDraft, actor: VaUsers | None = None) -> None:
-    """Discard a draft. Its case waits for a new interview (``registered``);
-    a direct start discarded before it had an identity is cancelled."""
+    """Discard a draft. Its case waits for a new interview (``registered``)
+    unless another interviewer still holds an open draft on it; a direct start
+    discarded before it had an identity is cancelled."""
     draft.status = "discarded"
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if death is not None:
+        # Under the case lock, so two concurrent discards (or a discard racing
+        # a teammate's start) see each other's drafts.
+        death = cases.lock_case(death)
     actor = actor or db.session.get(VaUsers, draft.user_id)
     if death is not None and death.status == "in_progress":
-        cases.transition(death, "registered", actor=actor, action="draft_discarded")
+        others_open = db.session.scalar(
+            sa.select(
+                sa.exists().where(
+                    VaWebIntakeDraft.death_id == death.death_id,
+                    VaWebIntakeDraft.status == "draft",
+                    VaWebIntakeDraft.draft_id != draft.draft_id,
+                )
+            )
+        )
+        if not others_open:
+            cases.transition(death, "registered", actor=actor, action="draft_discarded")
     elif death is not None and death.status == "draft_identity":
         cases.transition(death, "cancelled", actor=actor, action="draft_discarded")
     db.session.flush()
@@ -1441,14 +1461,38 @@ def _visit_note(data: dict) -> dict:
     return note
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions:
+#: Case states a submit is kept for as a superseded copy instead of
+#: submitted: a teammate's complete submission won, or a supervisor closed
+#: the case. Never refused, so nothing is left stuck on the phone or page.
+_SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
+#: Section holding a browser draft's final answers when it is superseded.
+FINAL_SECTION = "final"
+
+
+def _supersede_draft(draft: VaWebIntakeDraft, data: dict, completion: dict) -> None:
+    """Keep a draft whose case was closed meanwhile (a teammate's complete
+    submission won): final answers stored, no submission, no routing, the case
+    left exactly as it is. The browser's saved sections may lack the last
+    edits, which only the submit carries, so they are kept as one more section."""
+    draft.sections.append(VaWebIntakeDraftSection(section_name=FINAL_SECTION, data=data))
+    draft.status = "superseded"
+    draft.submitted_at = _utcnow()
+    draft.client_valid = completion.get("valid") is True
+    draft.client_issue_count = len(completion.get("issues") or [])
+    db.session.flush()
+    log.info("draft kept as superseded copy | unique_id=%s | by=%s", draft.unique_id, draft.user_id)
+
+
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions | None:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
     and moves the case to ``submitted`` (first complete submission wins);
     ``refused`` and the incomplete outcomes are routed to ``consent_refused``
     (no SmartVA, no allocation) and leave the case waiting
-    (``OUTCOME_CASE_STATES``).
+    (``OUTCOME_CASE_STATES``). A draft whose case is already closed
+    (``_SUPERSEDED_CASE_STATES``) becomes a ``superseded`` copy and the result
+    is None.
     """
     if draft.status != "draft":
         raise WebIntakeError("This draft has already been submitted.", 409)
@@ -1467,7 +1511,22 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
     visit_note: dict = {}
     if death is not None:
-        _sync_case_identity(death, data, user)
+        # Under the case lock, so a teammate's concurrent winning submit is
+        # seen here and this one is kept as a superseded copy, and before any
+        # identity sync, so a closed case's identity is never rewritten.
+        death = cases.lock_case(death)
+        # Re-read under the lock: a double or retried submit of this same
+        # draft that won meanwhile must not turn the winner into a copy.
+        if db.session.scalar(sa.select(VaWebIntakeDraft.status).where(VaWebIntakeDraft.draft_id == draft.draft_id)) != "draft":
+            raise WebIntakeError("This draft has already been submitted.", 409)
+        if death.status in _SUPERSEDED_CASE_STATES:
+            _supersede_draft(draft, data, completion)
+            return None
+        # Identity comes from a direct start's own (only) draft or from the
+        # winning complete submit, never from a refused or partial one on a
+        # shared case.
+        if death.status == "draft_identity" or outcome == "completed":
+            _sync_case_identity(death, data, user)
         # A refusal needs no identity: WHO asks it after consent, so a direct
         # start refused at consent never has one. The submission is stored as
         # refused and the nameless case closes as cancelled, the only closed
@@ -1603,10 +1662,6 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
 #: The one section a device upload's answers are stored under: the app sends
 #: the whole envelope at once, not section-wise saves.
 DEVICE_SECTION = "device"
-#: Case states a device upload is kept for as a superseded copy instead of
-#: submitted: a teammate's complete submission won, or a supervisor closed
-#: the case. Never refused, so nothing is left stuck on the phone.
-_SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
 #: Bounds on a device upload's answers, checked before anything is stored
 #: (the request itself is capped at 2 MB by the device blueprint). Answers
 #: are flat values, choice lists and small attachment/audit objects.
@@ -1689,8 +1744,10 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     """Store and submit one completed device interview; returns its draft.
 
     The same path as a web submit: ``start_draft`` (scope, case, prefill) in
-    *project_id* only, the answers saved through ``save_draft_sections``,
-    then ``submit_draft`` with ``intake_source = device``. A case already
+    *project_id* only, which returns the interviewer's own open draft on the
+    case when there is one (the upload completes it), the answers saved
+    through ``save_draft_sections``, then ``submit_draft`` with
+    ``intake_source = device``. A case already
     closed is kept as a superseded copy instead (``_store_superseded_copy``).
     *completion* is ``{valid, issues}`` from the app's form engine; without
     ``valid: true`` the upload needs an incomplete ``interview_outcome``
@@ -1727,7 +1784,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
             )
     draft = start_draft(
         user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
-        death_id=death_id, own_copy=True,
+        death_id=death_id,
     )
     draft.client_draft_id = client_draft_id
     draft.answers_sha256 = answers_sha256
@@ -1796,37 +1853,22 @@ def case_prefill(user: VaUsers, death: VaDeathRegister, my_draft_id: uuid.UUID |
     ABHA), never a phone number.
 
     Only for a caller who may start or resume the interview, as
-    ``start_draft`` decides: they hold the case's active draft (*my_draft_id*),
-    or the case is open and has no active draft. Otherwise None (a closed
-    case, or one another interviewer's draft holds): the identifiers are not
-    theirs to read.
+    ``start_draft`` decides: they hold the case's own draft (*my_draft_id*),
+    or the case is open (another interviewer's draft does not matter).
+    Otherwise None (a closed case): the identifiers are not theirs to read.
     """
-    if my_draft_id is None:
-        if death.status in _SUPERSEDED_CASE_STATES:
-            return None
-        other_draft = db.session.scalar(
-            sa.select(VaWebIntakeDraft.draft_id).where(
-                VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft"
-            ).limit(1)
-        )
-        if other_draft is not None:
-            return None
+    if my_draft_id is None and death.status in _SUPERSEDED_CASE_STATES:
+        return None
     return _prefill_from_death(death, user, death.org_unit_id)
 
 
 def case_row(user: VaUsers, death: VaDeathRegister) -> tuple:
-    """``(case, unit_name, my_draft_id)`` for a case the caller already holds
-    in scope (an offline registration's reply), without re-running the
-    worklist query."""
-    unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
-    my_draft_id = db.session.scalar(
-        sa.select(VaWebIntakeDraft.draft_id).where(
-            VaWebIntakeDraft.death_id == death.death_id,
-            VaWebIntakeDraft.status == "draft",
-            VaWebIntakeDraft.user_id == user.user_id,
-        ).limit(1)
+    """A ``_worklist_select`` row for a case the caller already holds in scope
+    (an offline registration's reply): the worklist query for that one case,
+    without its scope."""
+    return tuple(
+        db.session.execute(_worklist_select(user).where(VaDeathRegister.death_id == death.death_id)).one()
     )
-    return death, unit.unit_name if unit else None, my_draft_id
 
 
 def get_device_case(user: VaUsers, project_id: str, death_id: object) -> VaDeathRegister:
@@ -1978,11 +2020,29 @@ def _mine_condition(user: VaUsers):
 
 
 def _worklist_select(user: VaUsers):
-    """``SELECT (case, unit_name, my_draft_id)``: a worklist row, with the
-    caller's own resumable web draft. The caller adds the scope."""
+    """``SELECT (case, unit_name, my_draft_id, other_draft_started_at,
+    my_submission)``: a worklist row, with the caller's own resumable web
+    draft (at most one, ``uq_va_web_intake_drafts_user_death_open``, so the
+    join never repeats a case), when the earliest other interviewer's open
+    draft started (None without one) and whether the caller's draft is the
+    case's submission. One query for all of them. The caller adds the scope."""
     my_draft = aliased(VaWebIntakeDraft)
+    other = aliased(VaWebIntakeDraft)
+    won = aliased(VaWebIntakeDraft)
+    other_started = (
+        sa.select(sa.func.min(other.created_at))
+        .where(
+            other.death_id == VaDeathRegister.death_id, other.status == "draft", other.user_id != user.user_id,
+            # A closed case has no live other interview to warn about.
+            VaDeathRegister.status.not_in(tuple(_SUPERSEDED_CASE_STATES)),
+        )
+        .scalar_subquery()
+    )
     return (
-        sa.select(VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id)
+        sa.select(
+            VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id,
+            other_started.label("other_draft_started_at"), (won.draft_id.is_not(None)).label("my_submission"),
+        )
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
         .outerjoin(
             my_draft,
@@ -1990,6 +2050,18 @@ def _worklist_select(user: VaUsers):
                 my_draft.death_id == VaDeathRegister.death_id,
                 my_draft.status == "draft",
                 my_draft.user_id == user.user_id,
+            ),
+        )
+        # A join, not EXISTS: PostgreSQL hashes an EXISTS into one scan of all
+        # the caller's submitted drafts, a join probes ``death_id`` per case.
+        # Matches at most one row: a submission belongs to one draft.
+        .outerjoin(
+            won,
+            sa.and_(
+                won.death_id == VaDeathRegister.death_id,
+                won.user_id == user.user_id,
+                won.status == "submitted",
+                won.va_sid == VaDeathRegister.va_sid,
             ),
         )
     )
@@ -2000,7 +2072,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
                   project_id: str | None = None, context: list[dict] | None = None) -> dict:
     """Team cases in the interviewer's scope, soonest next visit first.
 
-    Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
+    Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
+    my_submission), ...], "counts":
     {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
     [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
     duplicates (up to three a case) from one query. ``counts`` cover the scope and
@@ -2097,7 +2170,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
 
 
 def get_case_detail(user: VaUsers, death_id: object, *, context: list[dict] | None = None) -> tuple:
-    """One case as ``(case, unit_name, my_draft_id)``, visible exactly when the
+    """One case as a ``_worklist_select`` row, visible exactly when the
     worklist would list it (``_worklist_scope``, every project of the
     caller's), in any state. Unknown, out of scope or a malformed id: 404.
     ``context``: the caller's ``interviewer_context``, if already computed."""
@@ -2406,11 +2479,14 @@ def serialize_death(death: VaDeathRegister) -> dict:
 
 
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                           my_draft_id: uuid.UUID | None) -> dict:
+                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
+                           my_submission: bool = False) -> dict:
     """One worklist row (browser and device lists). No informant name or
     address, and phones masked (``******1234``): the list shows who died, not
-    how to reach the family. ``va_sid`` only for the case's starter: the
-    interview form is its interviewer's own."""
+    how to reach the family. ``va_sid`` only for the interviewer whose draft
+    became the submission (*my_submission*): the interview form is its
+    interviewer's own. ``other_draft_active`` / ``other_draft_started_at``
+    warn that another interviewer holds an open draft, never who."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -2433,23 +2509,26 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
-        "va_sid": death.va_sid if death.started_by_user_id == user.user_id else None,
+        "other_draft_active": other_draft_started_at is not None,
+        "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
+        "va_sid": death.va_sid if my_submission else None,
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
 
 
 def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                          my_draft_id: uuid.UUID | None) -> dict:
+                          my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
+                          my_submission: bool = False) -> dict:
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
     or client ids: the ABHA and parents' names come only in the API's
     ``prefill`` (``case_prefill``), only to a caller who may start or resume
     the interview (docs/policy/web-intake.md, "Single-case detail"). The
-    submission id (``va_sid``) only to the case's starter, whose interview
-    it is."""
-    started_by_me = death.started_by_user_id == user.user_id
+    submission id (``va_sid``) only to the interviewer whose draft became the
+    submission (*my_submission*); ``other_draft_active`` and
+    ``other_draft_started_at`` as in ``serialize_worklist_row``."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -2485,9 +2564,11 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
         "registered_by_me": death.registered_by == user.user_id,
-        "started_by_me": started_by_me,
+        "started_by_me": death.started_by_user_id == user.user_id,
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
-        "va_sid": death.va_sid if started_by_me else None,
+        "other_draft_active": other_draft_started_at is not None,
+        "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
+        "va_sid": death.va_sid if my_submission else None,
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
@@ -2499,10 +2580,11 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     decision 13), without the informant's phones: the supervisor list does not
     contact families."""
     row = serialize_worklist_row(user, death, unit_name, None)
-    for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked"):
+    for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked",
+                "other_draft_active", "other_draft_started_at"):
         row.pop(key)
     # Supervisors oversee every interview in scope, so they keep every va_sid
-    # (the starter-only rule is the interviewer lists').
+    # (the submitter-only rule is the interviewer lists').
     row["va_sid"] = death.va_sid
     row["registered_by_name"] = registered_by_name
     row["started_by_name"] = started_by_name

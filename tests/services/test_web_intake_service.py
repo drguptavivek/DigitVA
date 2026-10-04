@@ -485,7 +485,7 @@ class WebIntakeServiceTests(BaseTestCase):
         )
         self.assertEqual(first.draft_id, second.draft_id)
 
-    def test_start_draft_rejects_another_interviewers_draft_for_the_same_death(self):
+    def test_start_draft_gives_a_second_interviewer_their_own_draft_for_the_same_death(self):
         other = self._get_or_make_user("web.interviewer2@test.local", "WebIntake123")
         db.session.add(VaUserAccessGrants(
             user_id=other.user_id,
@@ -497,16 +497,23 @@ class WebIntakeServiceTests(BaseTestCase):
         ))
         db.session.flush()
         death = self._register_death()
-        intake_svc.start_draft(
+        first = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
             death_id=death.death_id,
         )
-        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
-            intake_svc.start_draft(
-                other, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
-                death_id=death.death_id,
-            )
-        self.assertEqual(ctx.exception.status_code, 409)
+        second = intake_svc.start_draft(
+            other, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            death_id=death.death_id,
+        )
+        self.assertNotEqual(first.draft_id, second.draft_id)
+        self.assertEqual(second.user_id, other.user_id)
+        self.assertEqual(first.death_id, second.death_id)
+        # Each keeps their own copy on a repeat start.
+        again = intake_svc.start_draft(
+            other, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            death_id=death.death_id,
+        )
+        self.assertEqual(again.draft_id, second.draft_id)
 
     def test_get_draft_is_owner_only(self):
         other = self._get_or_make_user("web.interviewer3@test.local", "WebIntake123")

@@ -19,7 +19,7 @@ of one project (identical rows), case detail (full contacts, worklist scope,
 no-store, the browser body plus prefill), the required ``project_id``,
 the multi-project bootstrap and a session that lasts while any project grant
 remains; the owner access rules (several units and projects, a wider grant
-beside a unit grant, ``va_sid`` for the case starter only, list tie-breaks).
+beside a unit grant, ``va_sid`` for the submitting interviewer only, list tie-breaks).
 """
 import hashlib
 import json
@@ -1897,7 +1897,7 @@ class DeviceApiTests(BaseTestCase):
             self.assertEqual([len(p) for p in pages], sizes, limit)
             self.assertEqual([i for p in pages for i in p], expected, limit)
 
-    def test_va_sid_only_to_the_case_starter_in_list_and_detail(self):
+    def test_va_sid_only_to_the_interviewer_whose_draft_became_the_submission(self):
         _device, tokens = self._session()
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         theirs = self._web_case(deceased_name="Teammate Interview")
@@ -1925,6 +1925,50 @@ class DeviceApiTests(BaseTestCase):
         death = db.session.get(VaDeathRegister, theirs.death_id)
         self.assertEqual(intake_svc.serialize_supervised_row(self.interviewer, death, None, None, None)["va_sid"],
                          their_sid)
+
+    def test_va_sid_goes_to_the_submitter_not_the_case_starter(self):
+        _device, tokens = self._session()
+        teammate = self._get_or_make_user("device.teammate@test.local", PASSWORD)
+        _device2, teammate_tokens = self._session(email="device.teammate@test.local")
+        case = self._web_case(deceased_name="Shared Interview")
+        # The teammate starts the case in the browser; this interviewer's upload wins.
+        intake_svc.start_draft(teammate, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=case.death_id)
+        db.session.commit()
+        before = self._detail(tokens, case.death_id).get_json()["case"]
+        self.assertIs(before["other_draft_active"], True)
+        self.assertIsNotNone(before["other_draft_started_at"])
+        sid = self._upload(tokens, death_id=str(case.death_id)).get_json()["va_sid"]
+        self.assertTrue(sid)
+        self.assertEqual(self._detail(tokens, case.death_id).get_json()["case"]["va_sid"], sid)
+        theirs = self._detail(teammate_tokens, case.death_id).get_json()["case"]
+        self.assertIsNone(theirs["va_sid"])
+        self.assertIs(theirs["started_by_me"], True)
+        # The case row in the list agrees.
+        listed = {row["death_id"]: row["va_sid"] for row in self._cases(tokens).get_json()["cases"]}
+        self.assertEqual(listed[str(case.death_id)], sid)
+        listed = {row["death_id"]: row["va_sid"] for row in self._cases(teammate_tokens).get_json()["cases"]}
+        self.assertIsNone(listed[str(case.death_id)])
+
+    def test_upload_completes_the_interviewers_own_open_browser_draft(self):
+        _device, tokens = self._session()
+        case = self._web_case(deceased_name="Resumed Interview")
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=case.death_id)
+        draft_id = draft.draft_id
+        db.session.commit()
+        client_draft_id = uuid.uuid4()
+        response = self._upload(tokens, client_draft_id=client_draft_id, death_id=str(case.death_id))
+        self.assertEqual(response.status_code, 201, response.get_json())
+        rows = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == case.death_id, VaWebIntakeDraft.user_id == self.interviewer.user_id)).all()
+        self.assertEqual([r.draft_id for r in rows], [draft_id])
+        self.assertEqual((rows[0].status, rows[0].client_draft_id, rows[0].va_sid),
+                         ("submitted", client_draft_id, response.get_json()["va_sid"]))
+        self.assertTrue(rows[0].answers_sha256)
+        self.assertIs(response.get_json()["superseded"], False)
+        # A resend is still the same result.
+        again = self._upload(tokens, client_draft_id=client_draft_id, death_id=str(case.death_id))
+        self.assertEqual(again.get_json()["va_sid"], response.get_json()["va_sid"])
 
     # ── outstanding ────────────────────────────────────────────────────────
 

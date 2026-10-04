@@ -435,7 +435,11 @@ async function main() {
     await checkDuplicates().catch(() => {});  // refreshed before submit; never gates it
     const res = await api(API + "/submit", "POST", { completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
-    alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
+    if (res.data.superseded) {
+      alertBox("warning", `Another interviewer already submitted case ${DRAFT.unique_id}. Your copy was kept, not sent to coding.`);
+    } else {
+      alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
+    }
     setTimeout(() => { window.location.href = "/intake/"; }, 1500);
   });
   checkDuplicates().catch(() => {});

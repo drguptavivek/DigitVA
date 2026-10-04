@@ -46,9 +46,15 @@ mentor-institute member, coding tester):
   with an organization tree the user's unit tree: every unit below their
   granted units plus the units they report up to (context, not
   selectable), each unit tagged with the roles that reach it. Not the full
-  project tree.
-- Whether some roles need units outside that set (cross-unit work) is being
-  checked from the code before the shape is final.
+  project tree, except where the user's reach is the full tree: a project
+  or site grant, a project PI, or an admin.
+- Checked against the code (2026-10-04): no role acts on or picks units
+  outside that set. Units outside it reach a client only as names on rows
+  it is already shown (the person lookup's posts, a case's own unit);
+  unrouted cases have no unit. A picker for one action filters the tree by
+  the role tags: the pin and reroute picker offers only units reached
+  through a data manager, In-charge or project PI grant, since the server
+  refuses a pin through a coder grant.
 
 ## Today (to converge)
 

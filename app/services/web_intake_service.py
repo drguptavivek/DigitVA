@@ -1153,6 +1153,8 @@ def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
         "currentSection": draft.current_section or meta.get("currentSection", ""),
         "createdAt": meta.get("createdAt", draft.created_at.isoformat()),
         "updatedAt": meta.get("updatedAt", draft.updated_at.isoformat()),
+        # Only when recorded: an older draft has no slice identity to echo.
+        **{k: meta[k] for k in _DEFINITION_IDENTITY_KEYS if k in meta},
         "data": data,
     }
 
@@ -1219,8 +1221,16 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
         cases.transition(death, "in_progress", actor=actor, action="identity_captured")
 
 
+#: Which served form slice the answers were filled on: the SHA-256 of its body
+#: and the conditional extensions it contained (``instrumentVersion`` is the
+#: composed version). Kept so a device can fetch exactly that slice again
+#: (field-data-collection.md "Form definition from the server").
+_DEFINITION_IDENTITY_KEYS = ("definitionSha256", "definitionExtensions")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_EXTENSION_NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}")
+_MAX_DEFINITION_EXTENSIONS = 16
 #: Draft meta keys a client (browser save or device envelope) may set.
-_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt")
+_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt", *_DEFINITION_IDENTITY_KEYS)
 #: The device's interview start and completion times (ISO 8601 with offset),
 #: taken from the checked device envelope only: a browser save cannot set
 #: them, so it cannot choose the date ``today()`` is evaluated at.
@@ -1241,6 +1251,8 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     # Validated before anything is written, so a bad locale cannot leave the
     # answers saved and the meta refused.
     locale_meta = _clean_locale_meta(meta) if meta else {}
+    if meta:
+        check_definition_identity(meta)
     existing = {row.section_name: row for row in draft.sections}
     # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
     # answer is put back, not refused (see submit_draft).
@@ -1916,7 +1928,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
                     409, "case_state_conflict",
                 )
 
-    meta = {**(draft.meta or {}), **{k: envelope[k] for k in _DEVICE_TIME_KEYS if k in envelope}}
+    meta = {
+        **(draft.meta or {}),
+        **{k: envelope[k] for k in (*_DEVICE_TIME_KEYS, *_DEFINITION_IDENTITY_KEYS) if k in envelope},
+    }
     # The original submit time and source: SubmissionDate, the masked id and
     # the default end time stay as they were, so they never read as a change.
     submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else draft.submitted_at
@@ -2053,10 +2068,28 @@ def check_device_answers(data: dict) -> None:
         stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
 
 
+def check_definition_identity(meta: dict) -> None:
+    """Refuse (422) a ``definitionSha256`` that is not 64 lowercase hex or a
+    ``definitionExtensions`` that is not a short list of extension names.
+    Absent is fine (an older app, a browser form)."""
+    sha = meta.get("definitionSha256")
+    if "definitionSha256" in meta and not (isinstance(sha, str) and _SHA256_RE.fullmatch(sha)):
+        raise WebIntakeError("definitionSha256 must be 64 lowercase hex characters.", 422)
+    names = meta.get("definitionExtensions")
+    if "definitionExtensions" in meta and not (
+        isinstance(names, list)
+        and len(names) <= _MAX_DEFINITION_EXTENSIONS
+        and all(isinstance(n, str) and _EXTENSION_NAME_RE.fullmatch(n) for n in names)
+    ):
+        raise WebIntakeError("definitionExtensions must be a short list of extension names.", 422)
+
+
 def check_device_times(envelope: dict) -> None:
     """Refuse (422) an envelope whose ``startedAt``, ``completedAt`` or
-    ``deviceClockAt`` is present but not an ISO 8601 time with a UTC offset.
+    ``deviceClockAt`` is present but not an ISO 8601 time with a UTC offset, or
+    whose definition identity is malformed (``check_definition_identity``).
     Absent is fine (an older app)."""
+    check_definition_identity(envelope)
     for field in ("startedAt", "completedAt", "deviceClockAt"):
         if field in envelope and _device_time(envelope[field]) is None:
             raise WebIntakeError(f"draft.{field} must be an ISO 8601 time with a UTC offset.", 422)

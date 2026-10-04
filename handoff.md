@@ -18,8 +18,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3378 passed, 6 min, on 2026-10-04; `test_odk_site_mappings` flakes under load). Narrow tasks to Sonnet/Luna, broad
-> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `c4e8a1f7d2b3`. This backend
+> (3505 passed, 6 min, on 2026-10-05; `test_odk_site_mappings` flakes under load; two full runs on one DB collide and hang, so recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
+> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `h2n5q8t1v4w7`. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
@@ -39,25 +39,22 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `instruments/.../translations`; `/api/v1/device/*`,
    `/api/v1/client/bootstrap` and `/intake/api/*` are gone. The Expo app is
    on it (`digitva-ntct.1` closed). Remaining, in order:
-   a. **Field collection integrity** (owner decisions 2026-10-04, policy
-      written, nothing built; owner said hold execution until told). Each
-      bead has a server half (this session) and an app half (Expo session,
-      give it the exact contract). Order: `digitva-2bxa` answers sent as an
-      exact JSON string + SHA-256 the server verifies, 409 `hash_mismatch`
-      the app must handle, app request timeout; `digitva-latk` start,
-      completion, upload times + clock skew; `digitva-xz83` one draft per
-      interviewer carried across phone and browser, prefill for all,
-      other-draft warning, newer save wins, identity only from the submitted
-      draft; `digitva-xuf9` form versions endpoint (version + activated_at);
-      `digitva-6pwq` server serves each project's composed form JSON;
-      `digitva-bhpl` revisions matching ODK (`interviewer_revision` audit
-      reason); `digitva-hdrv` polled notifications (Postgres table, Redis
-      latest-id cache, no FCM/Expo push). Policy:
-      `docs/policy/interview-revisions.md`, `docs/policy/web-intake.md`
-      "Parallel interviews", `docs/policy/field-data-collection.md`
-      ("Interview times", "Upload integrity", "Form version", "Form
-      definition from the server"). Bug found: `digitva-w5jw` Celery broker
-      shares the 64 MB allkeys-lru Redis.
+   a. **Field collection integrity: server halves built** (2026-10-04/05):
+      `2bxa` answers hash, `latk` times + skew, `xz83` one draft per
+      interviewer + phone draft sync, `bhpl` revisions + send-back/reopen
+      (coding restarts at once), `xuf9`/`6pwq` served form + versions +
+      re-check by version, `hdrv` polled notifications, `w5jw` closed.
+      Each server bead stays open until its app half lands; the contracts
+      are in `expo-handoff.md` (sections 1-7) and the app beads are
+      `2bxa.1`, `latk.1`, `xz83.2`, `bhpl.2`, `6pwq.1`, `hdrv.1`.
+      **Urgent for the Expo session:** section 1; dev already refuses the old
+      upload shape (422 `answers_hash_required`). `digitva-6pwq.2`
+      (historical form slice by version + extensions, asked for by the Expo
+      session) is built; served bytes are canonical (sorted keys). Follow-up: `digitva-jcll` (DM
+      dashboard and KPIs count send-backs as ODK upstream changes).
+      Manual check owed: the browser form's stale-tab 409 (`draft_stale`)
+      and the worklist other-draft badge were not driven in a browser
+      (login has a proof-of-work CAPTCHA).
    b. `digitva-xl43` coding and review workspace API: case content by
       category and the Step 1 / final COD steps are server HTML partials
       (`va_form.renderpartial`) today, so no app can code or review;
@@ -67,7 +64,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       review of those blueprints.
    Open owner question: fold form-options and prefill-policy into
    `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).
-2. **Deploy notes.** Bump `STATIC_ASSET_VERSION` with the API release (cached
+2. **Deploy notes.** This field-collection release: migrations
+   `d5f1b8a3c6e2`, `e6a2c9d4f1b7` (fails loudly if a user has two open
+   drafts on one case: check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`,
+   `h2n5q8t1v4w7`. Recreate Redis to pick up `volatile-lru` (drain the
+   Celery queues first; `CONFIG GET maxmemory-policy`). Restart the Celery
+   worker so the notification purge beat row is seeded. Rebuild
+   `app/data/who-va-2022.composed.json` (`cd tooling/who-va-2022 && npm run
+   build:composed-instrument`) after any `vendor/who-va-2022` change. The
+   app build with `expo-handoff.md` section 1 must ship with this server.
+   Earlier notes: Bump `STATIC_ASSET_VERSION` with the API release (cached
    old intake scripts call removed routes). `digitva-5hmc`: production
    refuses any non-public request that never consulted authz
    (`AUTHZ_ENFORCE_CONSULTED`); grants are cached in Redis
@@ -110,25 +116,23 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   coder, reviewer or coding_tester grant.
 - Dev has a test account "Test ASHA Mobile" (mobile 9000000111, landing page
   set to coder by mistake); remove or fix.
-- Drop finished test DBs: `minerva_test_runner`, `minerva_test_fix`.
-- Review 10 (`digitva-4lv4`): a coder or reviewer whose allocation leaves
-  their scope is refused (403, API returns null), not released; the row
-  clears with the 1-hour stale release. Coder history cache can show a
-  rerouted case for up to 300 s. Admin may now sync a form on a deactivated
-  pair. A site data manager's coder roster now shows only its own pairs'
-  coders.
+- `minerva_test_runner` is the full-suite DB; drop `minerva_test_fix` and any
+  `minerva_test_<bead>` left after its commit.
+- Review 10 behaviour changes: see closed bead `digitva-4lv4`.
 
 ## Proposals parked (plan only, need owner discussion)
 
-- `digitva-394` training module: separate `/training/` blueprint, same
-  user DB, practice interviews in `trn_*` tables only, trainer role on a
-  mentor unit, certification gates real intake. Cases: the 6 cause-chain
-  examples in the 2026 PCVA manual plus WHO ICD-11 mortality training
-  material (owner has WHO permission to adapt). Depends on the mentor-institute stages above.
-- `digitva-vjt` default roles per cadre, pre-ticked at grant time.
-- `digitva-5op` district team views translations and suggests changes.
+`digitva-394` training module (`/training/`, `trn_*` tables, trainer role,
+certification gates intake), `digitva-vjt` default roles per cadre,
+`digitva-5op` district team suggests translation changes.
 
 ## Open owner decisions
+
+- Defaults taken 2026-10-04/05 (confirm or change): a completed phone upload
+  older than a browser save of the same draft is still submitted (browser
+  version kept); a revision changing only irrelevant answers stores the raw
+  answers but makes no coding version; a revision keeps the stored locked
+  answers; a send-back can be cancelled by the data manager's reject.
 
 - Picking "refused" while consent is yes is refused (422).
 - Prefill name split: first word given name, rest surname.

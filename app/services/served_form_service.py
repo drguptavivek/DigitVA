@@ -16,7 +16,11 @@ SHA-256, so a client revalidates for free.
 
 ``version`` identifies the composed (all-extensions) definition, not a
 project's slice of it: every project's body carries the same ``version`` and a
-different ``sha256``.
+different ``sha256``. The slice is identified by (``version``, ``extensions``),
+the body's top-level ``extensions`` (the sorted conditional extensions it
+contains); a client keeps that pair with its sha256 and can fetch the exact
+slice again later with :func:`historical_definition`, from the full definition
+recorded for that version, whatever the project enables today.
 """
 from __future__ import annotations
 
@@ -52,6 +56,14 @@ class ServedFormUnavailable(RuntimeError):
     """The composed definition file is missing or unreadable."""
 
 
+class UnknownVersion(LookupError):
+    """No such version is recorded for the instrument."""
+
+
+class InvalidExtensions(ValueError):
+    """Extensions outside the version's tag vocabulary."""
+
+
 @dataclass(frozen=True)
 class ServedDefinition:
     body: bytes
@@ -78,12 +90,15 @@ def composed_version() -> str:
     return composed_definition()["version"]
 
 
+def _vocabulary(definition: dict) -> frozenset[str]:
+    return frozenset(
+        tag for kind in ("sections", "questions") for item in definition[kind] for tag in item.get("extensions", ())
+    )
+
+
 @lru_cache(maxsize=1)
 def _tag_vocabulary() -> frozenset[str]:
-    composed = composed_definition()
-    return frozenset(
-        tag for kind in ("sections", "questions") for item in composed[kind] for tag in item.get("extensions", ())
-    )
+    return _vocabulary(composed_definition())
 
 
 def filter_definition(composed: dict, enabled: Iterable[str]) -> dict:
@@ -109,20 +124,67 @@ def filter_definition(composed: dict, enabled: Iterable[str]) -> dict:
     }
 
 
-@lru_cache(maxsize=64)
-def _serve(enabled: frozenset[str]) -> ServedDefinition:
-    definition = filter_definition(composed_definition(), enabled)
-    body = json.dumps(definition, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+@lru_cache(maxsize=4)
+def _stored_definition(version: str) -> tuple[dict, frozenset[str]]:
+    """The full tagged definition recorded for an older *version* and its tag
+    vocabulary, read from the database once per process. Rows are insert-only,
+    so the copy never goes stale; a miss raises (and so is never cached: the
+    version may be recorded a moment later)."""
+    try:
+        definition = db.session.scalar(
+            sa.select(MasInstrumentVersions.definition).where(
+                MasInstrumentVersions.instrument_code == INSTRUMENT_CODE, MasInstrumentVersions.version == version
+            )
+        )
+    except sa.exc.SQLAlchemyError as exc:
+        db.session.rollback()
+        raise ServedFormUnavailable(f"recorded versions could not be read: {exc}") from exc
+    if definition is None:
+        raise UnknownVersion(version)
+    return definition, _vocabulary(definition)
+
+
+def _served(full: dict, enabled: frozenset[str]) -> ServedDefinition:
+    definition = {**filter_definition(full, enabled), "extensions": sorted(enabled)}
+    # Canonical bytes (sorted keys): an older version is re-served from its
+    # JSONB copy, which does not keep key order, and must hash exactly as it
+    # did when first served from the file.
+    body = json.dumps(definition, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return ServedDefinition(
         body=body, sha256=hashlib.sha256(body).hexdigest(), version=definition["version"],
         gzip_body=gzip.compress(body, compresslevel=9, mtime=0),
     )
 
 
+@lru_cache(maxsize=32)  # at most 2^5 conditional-extension sets
+def _serve_current(enabled: frozenset[str]) -> ServedDefinition:
+    return _served(composed_definition(), enabled)
+
+
+@lru_cache(maxsize=8)  # separate and small: recovery fetches cannot evict the hot entries
+def _serve_historical(version: str, enabled: frozenset[str]) -> ServedDefinition:
+    return _served(_stored_definition(version)[0], enabled)
+
+
 def served_definition(enabled_extensions: Iterable[str]) -> ServedDefinition:
     """Bytes, SHA-256 and version of a project's definition, built once per
     distinct set of enabled conditional extensions."""
-    return _serve(frozenset(enabled_extensions) & _tag_vocabulary())
+    return _serve_current(frozenset(enabled_extensions) & _tag_vocabulary())
+
+
+def historical_definition(version: str, extensions: Iterable[str]) -> ServedDefinition:
+    """The slice (*version*, *extensions*) exactly as it was served, for a
+    client that lost its copy. Raises :class:`UnknownVersion` for a version not
+    recorded and :class:`InvalidExtensions` for extensions the version does not
+    contain. The current version is served from the file (the same cache entry
+    as :func:`served_definition`), older ones from their recorded definition."""
+    chosen = frozenset(extensions)
+    vocabulary = _tag_vocabulary() if version == composed_version() else _stored_definition(version)[1]
+    if not chosen <= vocabulary:
+        raise InvalidExtensions(", ".join(sorted(chosen - vocabulary)))
+    if version == composed_version():
+        return _serve_current(chosen)
+    return _serve_historical(version, chosen)
 
 
 # (instrument_code, version) pairs this process has already written; the table

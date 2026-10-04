@@ -414,6 +414,27 @@ Built (server half, `digitva-6pwq`, 2026-10-05):
   distinct set of enabled extensions; ETag `"<sha256>"` and
   `X-Definition-SHA256`, `Cache-Control: private, no-cache`, 304 on
   `If-None-Match`. The SHA-256 is not in the body.
+- Slice identity and historical fetch (`digitva-6pwq.2`). `version` names the
+  composed (all-extensions) definition, so one version has up to 32 project
+  slices. Every body therefore carries a top-level `extensions`: the sorted
+  conditional extensions it contains. A slice is identified by
+  (`version`, `extensions`) and verified by its SHA-256. The same route takes
+  `?version=<v>&extensions=a,b` (both or neither; empty `extensions` = none)
+  and serves that exact slice from the full definition recorded for `v` in
+  `mas_instrument_versions`, with the same body shape, headers, gzip and 304.
+  404 `version_unknown` (never recorded here), 422 `invalid_extensions` (names
+  outside that version's tags), 400 when only one param is given. The
+  authorization is the project access check alone: the project need not enable
+  those extensions today, since its settings may have changed since the draft
+  was filled. The current version with extensions equal to the project's
+  returns the same bytes as the default call. The draft envelope stores
+  `instrumentVersion`, `definitionSha256` and `definitionExtensions`
+  (`web_intake_service._ENVELOPE_META_KEYS`; validated: 64 lowercase hex, at
+  most 16 names of `[a-z][a-z0-9_]{0,31}`; 422 otherwise) and the server
+  echoes them in the draft envelope. After cache loss the app fetches by
+  version and extensions, verifies the SHA-256 and never substitutes the
+  current or bundled form; if the fetch fails the interview is preserved and
+  the app fails visibly.
 
 Not built yet (`digitva-6pwq`), the app half:
 

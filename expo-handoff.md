@@ -224,16 +224,10 @@ Frontend in progress (`digitva-6pwq.1`): section 5 is pushed. A separate Luna
 writer is building raw UTF-8 transport/hash verification, the engine-version
 export and the app-version authentication handshake. Current definition
 download, cache retention and draft version pinning are actionable.
-Historical recovery needs an additional backend contract:
-the current definition endpoint serves only the current project slice, while
-the versions endpoint returns metadata. Please provide an authorized way to
-download a named historical project definition (`digitva-6pwq.2`). Until that contract exists,
-a missing historical cache must preserve the interview and fail visibly;
-the app must not substitute today's form.
-The original slice also needs a durable identity: a composed version can have
-multiple project hashes, but draft meta currently neither accepts nor returns
-a definition hash or extension snapshot. Historical recovery must identify the
-original slice, including when the project's extensions change.
+Historical recovery is built (`digitva-6pwq.2`); see "Historical slice" below.
+Frontend recovery helper is now assigned to a separate Luna writer using that
+contract. Cache and rendering integration follow shared-helper verification;
+section 6 is still in progress, and no historical fallback substitution is allowed.
 
 - `GET /api/v1/organization/<project>/form-options`: `instrument_version` is
   now the composed version (e.g. `2026081401-3833e95fb5`, not the bundle
@@ -248,6 +242,20 @@ original slice, including when the project's extensions change.
   404 unknown project or other instrument, 503 `unavailable`.
 - `GET /api/v1/instruments/WHO_2022_VA/versions`: `{current, versions:
   [{version, activated_at}]}` newest first.
+- Every body also carries top-level `extensions`: the sorted conditional
+  extensions in the slice. The slice identity is (`version`, `extensions`);
+  the SHA-256 verifies it.
+- Historical slice: `GET /api/v1/instruments/WHO_2022_VA/definition?project_id=<p>&version=<v>&extensions=a,b`
+  (both or neither; `extensions=` empty = none). Same body, headers, gzip and
+  304 as above. 404 `version_unknown` (version never recorded), 422
+  `invalid_extensions` (names outside that version's tags), 400 `invalid_request`
+  (only one param). Authorization is the project access check; the project need
+  not enable those extensions today. Current version with the project's current
+  extensions returns the same bytes as the default call.
+- Envelope meta (`draft` object on `/drafts/sync`, PATCH `meta`, `/submissions`,
+  revisions) now accepts `definitionSha256` (64 lowercase hex) and
+  `definitionExtensions` (at most 16 names, `[a-z][a-z0-9_]{0,31}`); malformed
+  is 422. `GET /drafts/<id>` and the sync reply's `envelope` echo them when set.
 
 App must:
 
@@ -261,6 +269,11 @@ App must:
 3. A draft stays on the version it started with; send that version as the
    envelope `instrumentVersion` (the server re-checks the upload against that
    version's rules).
+   Store the slice with it in the envelope: `definitionSha256` (the
+   `X-Definition-SHA256` you verified) and `definitionExtensions` (the body's
+   `extensions`). On cache loss fetch by `version` + `extensions`, verify the
+   SHA-256 against the stored `definitionSha256`, and never substitute the
+   current or bundled form: on failure keep the answers and fail visibly.
 4. Bundled form stays the fallback until the first download. Block **new**
    interviews (never uploads) when no current definition the engine can run
    is available: "update the app".

@@ -180,6 +180,16 @@ one section named `device` (taken from the request's `answers_json`, not from `d
   `d5f1b8a3c6e2`) as received, before locked answers are overwritten or
   irrelevant answers stripped, on the normal and the superseded path, and is
   echoed as `answers_sha256` in the result. `draft.data` is no longer read.
+- **Form slice identity** (`digitva-6pwq.2`). The `draft` envelope may carry
+  `definitionSha256` (64 lowercase hex) and `definitionExtensions` (list of at
+  most 16 names, `[a-z][a-z0-9_]{0,31}`) beside `instrumentVersion`: the exact
+  served slice the answers were filled on. Malformed is 422 `invalid_interview`
+  (`check_definition_identity`, via `check_device_times`; the browser PATCH
+  path 422s too). They are kept in the draft meta by `/drafts/sync`, PATCH,
+  `/submissions` and `/submissions/<va_sid>/revisions`, and `GET /drafts/<id>`
+  and the sync reply's `envelope` echo them when recorded. Fetch the slice
+  with `GET /instruments/<code>/definition?project_id=&version=&extensions=`
+  ([api-v1.md](api-v1.md)).
 - **Interview times and clock skew** (`digitva-latk`; policy "Interview
   times"). The `draft` envelope may carry `startedAt` and `completedAt` (the
   device's interview start and completion) and `deviceClockAt` (the device

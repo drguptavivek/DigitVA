@@ -156,6 +156,107 @@ class InstrumentDefinitionApiTests(BaseTestCase):
         self.assertEqual(
             self._get(headers={"Accept-Encoding": "gzip", "If-None-Match": plain.headers["ETag"]}).status_code, 304)
 
+    # -- historical slice ---------------------------------------------------
+
+    OLD = "2026010101-aaaaaaaaaa"
+
+    def _old_version(self):
+        """A recorded older version: tagged definition with two extensions."""
+        def q(name, *tags):
+            return {"name": name, "type": "text", **({"extensions": list(tags)} if tags else {})}
+
+        db.session.add(MasInstrumentVersions(
+            instrument_code=CODE, version=self.OLD, activated_at=datetime(2026, 1, 1, tzinfo=UTC),
+            definition={"version": self.OLD, "engineVersion": 1, "sections": [],
+                        "questions": [q("base"), q("only_abha", "abha"), q("only_md", "medical_records")]},
+        ))
+        db.session.commit()
+        svc._stored_definition.cache_clear()
+        self.addCleanup(svc._stored_definition.cache_clear)
+
+    def _old(self, extensions, **kwargs):
+        return self._get(f"{DEFINITION_URL}&version={self.OLD}&extensions={extensions}", **kwargs)
+
+    def test_the_body_names_its_extensions(self):
+        self.assertEqual(self._get().get_json()["extensions"], ["death_summary", "medical_records"])  # defaults
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.social_autopsy_enabled = True
+        db.session.commit()
+        self.assertEqual(self._get().get_json()["extensions"], ["death_summary", "medical_records", "social_autopsy"])
+
+    def test_a_slice_re_served_from_its_stored_copy_hashes_exactly_as_first_served(self):
+        # The JSONB copy does not keep key order; the bytes must not depend on it.
+        svc.record_served_version()
+        svc._stored_definition.cache_clear()
+        svc._serve_historical.cache_clear()
+        self.addCleanup(svc._serve_historical.cache_clear)
+        for chosen in (frozenset(), frozenset({"abha"}), frozenset({"death_summary", "medical_records"})):
+            with self.subTest(extensions=sorted(chosen)):
+                first = svc.served_definition(chosen)
+                again = svc._serve_historical(svc.composed_version(), chosen)
+                self.assertEqual(again.sha256, first.sha256)
+                self.assertEqual(again.body, first.body)
+
+    def test_a_recorded_older_version_is_served_as_the_slice_it_was(self):
+        self._old_version()
+        response = self._old("abha")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual((body["version"], body["extensions"]), (self.OLD, ["abha"]))
+        self.assertEqual([q["name"] for q in body["questions"]], ["base", "only_abha"])
+        sha = hashlib.sha256(response.data).hexdigest()
+        self.assertEqual(response.headers["X-Definition-SHA256"], sha)
+        self.assertEqual(response.headers["ETag"], f'"{sha}"')
+        # Another slice of the same version is another sha; none/empty is allowed.
+        none = self._old("")
+        self.assertEqual([q["name"] for q in none.get_json()["questions"]], ["base"])
+        self.assertNotEqual(none.headers["X-Definition-SHA256"], sha)
+        both = self._old("medical_records,abha")
+        self.assertEqual(both.get_json()["extensions"], ["abha", "medical_records"])
+        self.assertEqual(both.data, self._old("abha,medical_records,abha").data)
+        # The project need not enable it today (social autopsy is off here).
+        self.assertEqual(self._old("abha").data, response.data)
+
+    def test_the_historical_route_revalidates_with_the_etag_and_gzips(self):
+        self._old_version()
+        first = self._old("abha")
+        again = self._old("abha", headers={"If-None-Match": first.headers["ETag"]})
+        self.assertEqual((again.status_code, again.data), (304, b""))
+        packed = self._old("abha", headers={"Accept-Encoding": "gzip"})
+        self.assertEqual(packed.headers["Content-Encoding"], "gzip")
+        self.assertEqual(gzip.decompress(packed.data), first.data)
+
+    def test_the_current_version_with_matching_extensions_is_byte_identical_to_the_default(self):
+        default = self._get()
+        extensions = ",".join(default.get_json()["extensions"])
+        explicit = self._get(f"{DEFINITION_URL}&version={svc.composed_version()}&extensions={extensions}")
+        self.assertEqual(explicit.status_code, 200)
+        self.assertEqual(explicit.data, default.data)
+        self.assertEqual(explicit.headers["X-Definition-SHA256"], default.headers["X-Definition-SHA256"])
+
+    def test_an_unrecorded_version_is_404_version_unknown(self):
+        response = self._get(f"{DEFINITION_URL}&version=1999010101-ffffffffff&extensions=")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (404, "version_unknown"))
+
+    def test_extensions_outside_the_versions_tags_are_422(self):
+        self._old_version()
+        for url in (
+            f"{DEFINITION_URL}&version={self.OLD}&extensions=abha,nope",
+            f"{DEFINITION_URL}&version={self.OLD}&extensions=social_autopsy",  # real, but not in that version
+            f"{DEFINITION_URL}&version={svc.composed_version()}&extensions=nope",
+        ):
+            response = self._get(url)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_extensions"), url)
+
+    def test_version_and_extensions_are_given_together(self):
+        self.assertEqual(self._get(f"{DEFINITION_URL}&version={svc.composed_version()}").status_code, 400)
+        self.assertEqual(self._get(f"{DEFINITION_URL}&extensions=abha").status_code, 400)
+
+    def test_the_historical_route_needs_project_access(self):
+        self._old_version()
+        self._login(str(self.no_grant.user_id))
+        self.assertEqual(self.client.get(f"{DEFINITION_URL}&version={self.OLD}&extensions=").status_code, 403)
+
     def test_a_failed_version_record_backs_off_instead_of_retrying_every_request(self):
         with mock.patch.object(svc.db.session, "begin_nested", side_effect=RuntimeError("no table")) as nested:
             svc.record_served_version()

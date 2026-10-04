@@ -907,6 +907,41 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(again.get_json()["draft"], body["draft"])
         self.assertEqual(len(self._rows(death_id)), 1)
 
+    def test_the_definition_slice_identity_persists_through_sync_and_is_echoed(self):
+        death_id = self._case()
+        sha = "ab" * 32
+        identity = {"instrumentVersion": "2026100501-aaaaaaaaaa", "definitionSha256": sha,
+                    "definitionExtensions": ["abha", "medical_records"]}
+        envelope = {"startedAt": datetime.now(UTC).isoformat(), "currentSection": "consented", **identity}
+        response = self._sync(death_id, {"Id10013": "yes"}, cid=uuid.uuid4(), draft=envelope)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        (draft,) = self._rows(death_id)
+        self.assertEqual({k: draft.meta[k] for k in identity}, identity)
+        got = self.client.get(f"/api/v1/intake/drafts/{draft.draft_id}").get_json()["envelope"]
+        self.assertEqual({k: got[k] for k in identity}, identity)
+        # A browser save may carry it too, and a draft without it echoes none.
+        later = {"definitionSha256": "cd" * 32, "definitionExtensions": []}
+        self.assertEqual(self._browser_save(draft.draft_id, {}, meta=later).status_code, 200)
+        got = self.client.get(f"/api/v1/intake/drafts/{draft.draft_id}").get_json()["envelope"]
+        self.assertEqual((got["definitionSha256"], got["definitionExtensions"]), ("cd" * 32, []))
+        plain = self._start_draft(death_id=self._case())
+        self.assertNotIn(
+            "definitionSha256", self.client.get(f"/api/v1/intake/drafts/{plain['draft_id']}").get_json()["envelope"])
+
+    def test_a_malformed_definition_slice_identity_is_refused_and_stores_nothing(self):
+        death_id = self._case()
+        for bad in (
+            {"definitionSha256": "XYZ"}, {"definitionSha256": 5}, {"definitionExtensions": "abha"},
+            {"definitionExtensions": ["Bad Name"]}, {"definitionExtensions": ["a"] * 17},
+        ):
+            response = self._sync(death_id, {"Id10013": "yes"}, cid=uuid.uuid4(),
+                                  draft={"startedAt": datetime.now(UTC).isoformat(), **bad})
+            self.assertEqual(response.status_code, 422, bad)
+        self.assertEqual(self._rows(death_id), [])
+        draft = self._start_draft(death_id=death_id)
+        self.assertEqual(
+            self._browser_save(draft["draft_id"], {}, meta={"definitionSha256": "nope"}).status_code, 422)
+
     def test_phone_newer_than_the_browser_wins_and_keeps_the_browser_version(self):
         death_id = self._case()
         draft = self._start_draft(death_id=death_id)

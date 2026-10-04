@@ -95,7 +95,13 @@ class ServedDefinitionTests(unittest.TestCase):
         self.assertEqual(body["engineVersion"], 1)
         self.assertNotIn("sha256", body)
         expected = svc.filter_definition(svc.composed_definition(), {"abha"})
-        self.assertEqual(body, json.loads(json.dumps(expected)))
+        self.assertEqual(body, json.loads(json.dumps({**expected, "extensions": ["abha"]})))
+
+    def test_the_body_names_its_slice_sorted_and_limited_to_conditional_extensions(self):
+        self.assertEqual(json.loads(svc.served_definition([]).body)["extensions"], [])
+        served = svc.served_definition(["medical_records", "digitva_core", "abha"])
+        self.assertEqual(json.loads(served.body)["extensions"], ["abha", "medical_records"])
+        self.assertEqual(json.loads(svc.served_definition(CONDITIONAL).body)["extensions"], sorted(CONDITIONAL))
 
     def test_one_serialization_per_distinct_set_of_conditional_extensions(self):
         a = svc.served_definition(["digitva_core", "abha", "geography"])

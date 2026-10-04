@@ -136,6 +136,16 @@ def instrument_definition(instrument_code: str):
     (``"<sha256>"``) and the ``X-Definition-SHA256`` header, never part of the
     body. ``If-None-Match`` with that ETag gets a bodiless 304. ``Cache-Control:
     private, no-cache``: a client may keep the body but must revalidate.
+
+    The body's top-level ``extensions`` lists the conditional extensions the
+    slice contains: (``version``, ``extensions``) with the SHA-256 identifies
+    it. To fetch an exact earlier slice (a draft filled on it, cache lost) pass
+    both ``?version=<recorded version>&extensions=a,b`` (empty = none): 404
+    ``version_unknown`` for a version this server never recorded, 422
+    ``invalid_extensions`` for names outside that version's tags, 400 when only
+    one of the two is given. The project check above is the only authorization;
+    the project need not enable those extensions today. Same body shape,
+    headers, gzip and 304 handling.
     """
     from app.routes.api.organization import form_options_project, project_instrument_and_extensions
 
@@ -149,8 +159,19 @@ def instrument_definition(instrument_code: str):
     served_code, extensions = project_instrument_and_extensions(project)
     if code != served_form_service.INSTRUMENT_CODE or code != served_code:
         return _json_error("Definition not found.", 404, "not_found")
+    version = (request.args.get("version") or "").strip()
+    if bool(version) != ("extensions" in request.args):
+        return _json_error("version and extensions are given together.", 400, "invalid_request")
     try:
-        served = served_form_service.served_definition(extensions)
+        if version:
+            requested = {name.strip() for name in request.args["extensions"].split(",") if name.strip()}
+            served = served_form_service.historical_definition(version, requested)
+        else:
+            served = served_form_service.served_definition(extensions)
+    except served_form_service.UnknownVersion:
+        return _json_error("Form version not found.", 404, "version_unknown")
+    except served_form_service.InvalidExtensions:
+        return _json_error("Unknown extensions for that form version.", 422, "invalid_extensions")
     except served_form_service.ServedFormUnavailable:
         log.exception("instrument_definition: composed definition unavailable")
         return _json_error("The form definition is unavailable.", 503, "unavailable")

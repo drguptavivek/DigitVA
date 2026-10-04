@@ -46,12 +46,17 @@ from app.services.web_form_instruments import (
     instrument_locale_catalogue,
 )
 from app.services.web_intake_service import resolve_intake_note
+from app.utils.who_va_bundle import who_va_bundle_version
 
 bp = Blueprint("organization_api", __name__)
 
 
-def _error(message: str, status_code: int = 400):
-    return jsonify({"error": message}), status_code
+_STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
+                 409: "conflict", 503: "unavailable"}
+
+
+def _error(message: str, status_code: int = 400, code: str | None = None):
+    return jsonify({"error": message, "code": code or _STATUS_CODES.get(status_code, "error")}), status_code
 
 
 def _parse_role(raw: str | None) -> "VaAccessRoles | None":
@@ -157,8 +162,8 @@ def project_units(project_id: str):
 
 def units_payload(project_id: str, reachable: set | None, *, include_inactive: bool = False) -> dict:
     """The ``/units`` body for *project_id*, narrowed to *reachable* (None:
-    the whole tree); the caller decides access. Also served by the device
-    API's ``/units`` (app/routes/api/device.py)."""
+    the whole tree); the caller decides access. Also used by
+    ``GET /api/v1/me/access`` (access_summary_service)."""
     levels = org.list_levels(project_id, include_inactive=include_inactive)
     units = org.list_units(project_id, include_inactive=include_inactive)
     if reachable is not None:
@@ -667,8 +672,7 @@ def served_instrument_locales(project: VaProjectMaster) -> tuple[str, set[str]]:
 
 
 def form_options_payload(project: VaProjectMaster) -> dict:
-    """The form-options body for *project*; the caller decides access. Also
-    served inside the device bootstrap (app/routes/api/device.py)."""
+    """The form-options body for *project*; the caller decides access."""
     project_id = project.project_id
     active = _active_languages()
     form_types = _project_form_types(project)
@@ -703,4 +707,8 @@ def form_options_payload(project: VaProjectMaster) -> dict:
         "translation_versions": translation_versions,
         "narration_languages": narration_languages,
         "show_guidance": project.web_intake_show_guidance,
+        # What the removed device bootstrap carried, per project and global:
+        # which capture paths are open, and the vendored form bundle in use.
+        "web_intake_mode": project.web_intake_mode or "off",
+        "instrument_version": who_va_bundle_version(),
     }

@@ -143,7 +143,7 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
 **Built, server side** (`digitva-kmk.1`, 2026-09-30): enrolment codes and
 QR, device enrolment, interviewer sessions with the second factor and the
 grant check, hashed opaque tokens with rotation and reuse revocation,
-device revoke, bootstrap, idempotent upload with the superseded-copy path,
+device revoke, access summary, idempotent upload with the superseded-copy path,
 and the outstanding-work report
 ([Device Collection API](../current-state/device-collection-api.md)).
 Hardened (`digitva-kmk.6`): request and answer size bounds, the 90-day
@@ -208,7 +208,7 @@ and does not limit access (it stays the device's admin home: listed and
 revoked there, and its closure ends the device). The session lasts while the
 worker has at least one authorized project and is revoked
 (`session_revoked`) when none remains. When a project drops out of the
-bootstrap's project list the app deletes that project's local data (drafts,
+access summary's project list the app deletes that project's local data (drafts,
 cases, contact details), as it deletes a store on `session_revoked`. The
 browser (Path A, PWA included) is unchanged: no multi-project persistence
 and no offline storage.

@@ -195,10 +195,7 @@ def create_app(config_class=None):
         if request_bearer_token(request) is None:
             return None
         # Sign-in endpoints take no token: a client may still send its stale one.
-        if (
-            request.path.startswith("/api/v1/device/")
-            and (request.endpoint or "").rsplit(".", 1)[-1] in UNAUTHENTICATED_ENDPOINTS
-        ):
+        if request.endpoint in UNAUTHENTICATED_ENDPOINTS:
             return None
         user = load_user_from_device_token(request)
         if user is None:
@@ -570,10 +567,9 @@ def create_app(config_class=None):
             'va_auth.resend_verification',
             'api_v1.profile_api.accept_terms',
             'api_v1.me_api.accept_terms',
-            # Bearer calls that must work while the terms are pending
-            # (onboarding policy 5.4): sign out, and accept.
-            'api_v1.device.end_session',
-            'api_v1.device.accept_terms',
+            # Sign-out must work while the terms are pending (onboarding
+            # policy 5.4); accepting is me_api.accept_terms above.
+            'api_v1.auth_api.end_session',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
             if is_bearer:
@@ -583,11 +579,8 @@ def create_app(config_class=None):
                 }), 403
             from app.decorators.role_required import API_PATH_PREFIXES
 
-            # The browser Expo client already reads this older code; every
-            # other JSON path gets terms_required (onboarding policy 5.4).
-            if request.endpoint == "api_v1.client_api.bootstrap":
-                code = "password_change_required"
-            elif request.path.startswith(API_PATH_PREFIXES):
+            # Every JSON path gets terms_required (onboarding policy 5.4).
+            if request.path.startswith(API_PATH_PREFIXES):
                 code = "terms_required"
             else:
                 return redirect(url_for('profile.force_password_change'))
@@ -598,6 +591,11 @@ def create_app(config_class=None):
             })
             response.status_code = 403
             response.headers["Cache-Control"] = "no-store"
+            # A browser client with pending terms cannot reach me/access for
+            # its CSRF token, so the refusal carries one for POST me/terms.
+            from flask_wtf.csrf import generate_csrf
+
+            response.headers["X-CSRFToken"] = generate_csrf()
             return response
 
     # docs/policy/authentication-factors.md section 6: once
@@ -634,11 +632,10 @@ def create_app(config_class=None):
         # cache: a bearer request never writes one. Sign-in and sign-out
         # stay reachable.
         if request_bearer_token(request) is not None:
-            endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
             if (
                 not current_user.is_authenticated
-                or endpoint in UNAUTHENTICATED_ENDPOINTS
-                or endpoint == "end_session"
+                or request.endpoint in UNAUTHENTICATED_ENDPOINTS
+                or request.endpoint == "api_v1.auth_api.end_session"
                 or not totp_service.enforcement_active()
                 or not (current_user.is_admin() or current_user.is_data_manager())
                 or totp_service.has_any_factor(current_user.user_id)
@@ -682,12 +679,6 @@ def create_app(config_class=None):
         from app.decorators.role_required import API_PATH_PREFIXES
 
         if request.path.startswith(API_PATH_PREFIXES):
-            if request.endpoint == "api_v1.client_api.bootstrap":
-                return jsonify({
-                    "error": "factor_setup_required",
-                    "code": "factor_setup_required",
-                    "redirect_url": url_for("profile.view") + "#passkeys-card",
-                }), 403
             return jsonify({"error": "factor_setup_required", "code": "factor_setup_required"}), 403
         return redirect(url_for("profile.view") + "#passkeys-card")
 
@@ -695,7 +686,7 @@ def create_app(config_class=None):
     def apply_static_cache_headers(response):
         # Browser intake carries identifiers and questionnaire answers. This
         # applies to errors and redirects as well as successful JSON responses.
-        if request.path.startswith(("/api/v1/client/", "/api/v1/me/")):
+        if request.path.startswith("/api/v1/me/"):
             response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/static/") and response.status_code == 200:
             response.cache_control.public = True

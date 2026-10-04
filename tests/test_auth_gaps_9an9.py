@@ -150,10 +150,10 @@ class DeviceTermsTests(OnboardingTestBase):
     def _sign_in(self):
         _row, code = devices.create_enrolment_code(self.PROJECT_ID, actor=self.base_admin_user)
         db.session.commit()
-        device = self.client.post("/api/v1/device/enroll", json={
+        device = self.client.post("/api/v1/auth/enroll", json={
             "code": code, "device_name": "Terms phone", "platform": "android",
         }).get_json()
-        return self.client.post("/api/v1/device/sessions", json={
+        return self.client.post("/api/v1/auth/sessions", json={
             "device_id": device["device_id"], "device_secret": device["device_secret"],
             "email": self.person.email, "password": PASSWORD,
         })
@@ -164,27 +164,27 @@ class DeviceTermsTests(OnboardingTestBase):
         tokens = response.get_json()
         self.assertIs(tokens["terms_required"], True)
         bearer = {"Authorization": f"Bearer {tokens['access_token']}"}
-        refused = self.client.get("/api/v1/device/bootstrap", headers=bearer)
+        refused = self.client.get("/api/v1/me/access", headers=bearer)
         self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "terms_required"))
-        bad = self.client.post("/api/v1/device/terms", json={}, headers=bearer)
+        bad = self.client.post("/api/v1/me/terms", json={}, headers=bearer)
         self.assertEqual((bad.status_code, bad.get_json()["code"]), (400, "invalid_request"))
-        accepted = self.client.post("/api/v1/device/terms", json={"accept_terms": True}, headers=bearer)
+        accepted = self.client.post("/api/v1/me/terms", json={"accept_terms": True}, headers=bearer)
         self.assertEqual(accepted.status_code, 200, accepted.get_json())
         db.session.refresh(self.person)
         self.assertTrue(self.person.pw_reset_t_and_c)
         [event] = _events(self.person.user_id, "terms_accepted")
         self.assertEqual(event.detail, {"via": "device"})
-        self.assertEqual(self.client.get("/api/v1/device/bootstrap", headers=bearer).status_code, 200)
+        self.assertEqual(self.client.get("/api/v1/me/access", headers=bearer).status_code, 200)
         self.assertIs(self._sign_in().get_json()["terms_required"], False)
 
     def test_sign_out_stays_open_while_terms_are_pending(self):
         tokens = self._sign_in().get_json()
         self.assertIs(tokens["terms_required"], True)
         bearer = {"Authorization": f"Bearer {tokens['access_token']}"}
-        self.assertEqual(self.client.delete("/api/v1/device/sessions/current", headers=bearer).status_code, 204)
+        self.assertEqual(self.client.delete("/api/v1/auth/sessions/current", headers=bearer).status_code, 204)
 
-    def test_device_terms_needs_a_bearer_token(self):
-        response = self.client.post("/api/v1/device/terms", json={"accept_terms": True})
+    def test_terms_need_a_credential(self):
+        response = self.client.post("/api/v1/me/terms", json={"accept_terms": True}, headers=self._csrf_headers())
         self.assertEqual((response.status_code, response.get_json()["code"]), (401, "unauthorized"))
         db.session.refresh(self.person)
         self.assertFalse(self.person.pw_reset_t_and_c)

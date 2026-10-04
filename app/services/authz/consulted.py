@@ -57,9 +57,6 @@ PUBLIC_ENDPOINTS = {
               "the probe asserts it.",
     "expo_client.expo_index": "Public Expo web-app shell; no case data.",
     "expo_client.expo_asset": "Public Expo bundle assets; no case data.",
-    "api_v1.client_api.bootstrap": "Answers identity for the client shell: JSON 401 "
-                                   "before any session metadata; authenticates, "
-                                   "does not authorize.",
     "health.health_check": "Liveness probe; must answer before login.",
     "va_auth.va_login": "Sign-in form and its POST; cannot require a session.",
     "va_auth.va_login_password": "Two-step login, password step: guarded in body by "
@@ -109,11 +106,11 @@ PUBLIC_ENDPOINTS = {
     "help.icd11_codes_browser_csv": "Published ICD-11 reference browser.",
     "help.icd11_codes_browser_node": "Published ICD-11 reference browser.",
     "help.icd11_codes_browser_search": "Published ICD-11 reference browser.",
-    "api_v1.device.enroll": "Device enrol: authenticates (one-time hashed enrolment "
+    "api_v1.auth_api.enroll": "Device enrol: authenticates (one-time hashed enrolment "
                             "code), does not authorize; rate-limited.",
-    "api_v1.device.open_session": "Device sign-in: authenticates (device secret, "
+    "api_v1.auth_api.open_session": "Device sign-in: authenticates (device secret, "
                                   "password, second factor), does not authorize.",
-    "api_v1.device.refresh_session": "Device session refresh: authenticates (live "
+    "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
 }
 
@@ -148,10 +145,8 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.totp_status": "Own TOTP factor.",
     "api_v1.profile_api.update_interviewer_profile": "Own year of birth and sex.",
     "api_v1.profile_api.update_timezone": "Own timezone.",
-    "api_v1.device.accept_terms": "Own terms acceptance from the device; open before "
-                                  "any role (onboarding policy 5.4).",
-    "api_v1.device.end_session": "Own device sign-out; must work after a grant is "
-                                 "withdrawn.",
+    "api_v1.auth_api.end_session": "Own device sign-out; must work after a grant is "
+                                   "withdrawn.",
     "api_v1.icd10_api.icd10_search": "ICD-10 reference search; the same data the public "
                                      "help browser serves.",
     "api_v1.instruments_api.instrument_translations": "Questionnaire strings of a "

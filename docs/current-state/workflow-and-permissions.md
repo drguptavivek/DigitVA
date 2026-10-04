@@ -1122,7 +1122,7 @@ in `sign_in_codes` (masked number, `no-store`, never logged); new email
 accounts get the verification email only.
 
 **Device sign-in** (`device_auth_service.open_session`, `POST
-/api/v1/device/sessions`) reads the contract's `email` field as an email or a
+/api/v1/auth/sessions`) reads the contract's `email` field as an email or a
 mobile number, resolved like the web login (`mobile_login` only); an unknown,
 shared or malformed number, and a mobile-only account that never redeemed a
 code, get the same `invalid_credentials`; the per-account rate-limit key uses

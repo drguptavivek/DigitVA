@@ -26,19 +26,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **One `/api/v1` for every client (epic `digitva-ntct`,
-   `docs/policy/api-v1.md`, design `.tasks/digitva-339w-access-summary.md`).**
-   Owner 2026-10-04: one route set, either credential (cookie + CSRF or
-   device bearer), identical bodies, server decides; no legacy mobile app,
-   so device-only routes are removed, not kept. Landed: credential layer
-   (`uzhq`), `GET /api/v1/me/access` + `POST /api/v1/me/terms` (`339w`),
-   `/api/v1/intake/*` with Jinja moved and `/intake/api/*` + device intake
-   copies removed (`dz3n`), `{error, code}` on every `/api/` error from the
-   gates. Next: `digitva-ad02` -- device sign-in to `/api/v1/auth/*`
-   (sessions/refresh replies carry `access`), remove `/api/v1/device/*`
-   (bootstrap, units, instruments copy) and `/api/v1/client/bootstrap`.
-   Then the Expo session moves the app onto the contract (route list in
-   `docs/current-state/api-v1.md` and `device-collection-api.md`).
+1. **One `/api/v1` for every client is done on the backend** (epic
+   `digitva-ntct`; policy `docs/policy/api-v1.md`, route reference
+   `docs/current-state/api-v1.md`). Either credential on every route;
+   sign-in at `/api/v1/auth/*` (replies carry `access`); `GET /api/v1/me/access`;
+   `/api/v1/intake/*`; `/api/v1/device/*`, `/api/v1/client/bootstrap` and
+   `/intake/api/*` are gone. Next: the Expo session moves `mobile/` onto it
+   (it is broken against main until then). Open owner question: fold
+   form-options and prefill-policy into `me/access` (recommended: no).
+   Some blueprints outside the client contract (analytics, coding, DM,
+   reviewing) still answer inline errors without `code`.
 2. **Deploy notes.** Bump `STATIC_ASSET_VERSION` with the API release (cached
    old intake scripts call removed routes). `digitva-5hmc`: production
    refuses any non-public request that never consulted authz

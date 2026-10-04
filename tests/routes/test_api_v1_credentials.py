@@ -195,6 +195,7 @@ class ApiV1CredentialTests(BaseTestCase):
             ("post", "/intake/api/deaths"),
             ("get", "/api/v1/device/cases"), ("post", "/api/v1/device/deaths"),
             ("post", "/api/v1/device/submissions"), ("post", "/api/v1/device/outstanding"),
+            ("get", "/api/v1/client/bootstrap"),
         ):
             response = getattr(self.client, method)(path, headers=self._csrf_headers())
             self.assertEqual(response.status_code, 404, path)
@@ -211,7 +212,7 @@ class ApiV1CredentialTests(BaseTestCase):
         _device, tokens = self._session(email="cred.interviewer@test.local")
         self.assertEqual(self.client.get(PROFILE, headers=self._bearer(tokens)).status_code, 200)
         self.assertEqual(
-            self.client.delete("/api/v1/device/sessions/current", headers=self._bearer(tokens)).status_code, 204)
+            self.client.delete("/api/v1/auth/sessions/current", headers=self._bearer(tokens)).status_code, 204)
         self.assertEqual(self.client.get(PROFILE, headers=self._bearer(tokens)).status_code, 401)
 
     # ── no cookie ──────────────────────────────────────────────────────────
@@ -222,13 +223,13 @@ class ApiV1CredentialTests(BaseTestCase):
         calls = [
             self.client.get(PROFILE, headers=self._bearer(tokens)),
             self.client.patch(TIMEZONE, json={"timezone": "UTC"}, headers=self._bearer(tokens)),
-            self.client.get("/api/v1/client/bootstrap", headers=self._bearer(tokens)),  # writes the session
+            self.client.get("/api/v1/me/access", headers=self._bearer(tokens)),  # would write the session (CSRF token)
         ]
         for response in calls:
             self.assertIn(response.status_code, (200, 401, 403))
             self.assertNotIn("Set-Cookie", response.headers)
-        self.assertEqual(calls[0].status_code, 200)
-        self.assertEqual(calls[1].status_code, 200)
+        self.assertEqual([c.status_code for c in calls], [200, 200, 200])
+        self.assertNotIn("X-CSRFToken", calls[2].headers)
 
     # ── scope ──────────────────────────────────────────────────────────────
 
@@ -280,7 +281,7 @@ class ApiV1CredentialTests(BaseTestCase):
             self.assertNotIn("Set-Cookie", response.headers)
             # Signing out stays reachable.
             self.assertNotEqual(
-                self.client.delete("/api/v1/device/sessions/current", headers=self._bearer(tokens)).status_code, 403)
+                self.client.delete("/api/v1/auth/sessions/current", headers=self._bearer(tokens)).status_code, 403)
         # A factor-holder, or enforcement off, is not held.
         with mock.patch.object(VaUsers, "is_data_manager", return_value=True), \
                 mock.patch("app.services.totp_service.enforcement_active", return_value=False):

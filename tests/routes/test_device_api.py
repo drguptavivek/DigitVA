@@ -1,9 +1,9 @@
-"""Device API for the Android collection app (Path B, bead digitva-kmk.1).
+"""Sign-in API (/api/v1/auth) and the device credential across /api/v1 (beads digitva-kmk.1, digitva-ad02).
 
 Contract: .tasks/2026-09-30-android-collection-app.md ("API contract").
 Covers enrolment, sign-in (password, second factor, grant, revoked device,
 rate limit), refresh rotation and reuse, grant withdrawal, bearer scoping
-(never outside /api/v1/device, never a cookie inside it), bootstrap scope,
+(never outside /api/v1, a cookie works wherever a bearer does), the access body,
 idempotent upload, scope refusals, superseded copies, the outstanding-work
 report, the admin endpoints (admin only, CSRF) and that no credential
 reaches the logs. Hardening (bead digitva-kmk.6): body caps and answer
@@ -60,7 +60,8 @@ from app.services.runtime_form_sync_service import _ensure_legacy_project_site_r
 from tests.base import BaseTestCase
 
 PASSWORD = "DeviceApi123!"
-API = "/api/v1/device"
+API = "/api/v1/auth"
+ME_ACCESS = "/api/v1/me/access"
 INTAKE = "/api/v1/intake"
 
 
@@ -203,6 +204,27 @@ class DeviceApiTests(BaseTestCase):
             self._device_for[response.get_json()["refresh_token"]] = device
         return response
 
+    def _units(self, project_id, headers):
+        return self.client.get(f"/api/v1/organization/{project_id}/units", query_string={"role": "interviewer"},
+                               headers=headers)
+
+    def _bootstrap(self, headers):
+        """What the removed device bootstrap served, from its replacements: the
+        interviewer projects of ``/me/access``, each with its form options and
+        prefill policy."""
+        access = self.client.get(ME_ACCESS, headers=headers).get_json()
+        projects = []
+        for entry in access["projects"]:
+            if not any(g["role"] == "interviewer" for g in entry["grants"]):
+                continue
+            pid = entry["project_id"]
+            projects.append({
+                "project_id": pid, "project_name": entry["project_name"], "sites": entry["sites"],
+                "form_options": self.client.get(f"/api/v1/organization/{pid}/form-options", headers=headers).get_json(),
+                "prefill_policy": self.client.get(f"{INTAKE}/projects/{pid}/prefill-policy", headers=headers).get_json(),
+            })
+        return {"user": access["user"], "projects": projects}
+
     def _upload(self, tokens, client_draft_id=None, **body):
         payload = {
             "client_draft_id": str(client_draft_id or uuid.uuid4()),
@@ -267,7 +289,7 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session()
         self.assertEqual(
             set(tokens), {"access_token", "access_expires_at", "refresh_token", "refresh_expires_at", "user",
-             "terms_required"}
+             "terms_required", "access"}
         )
         self.assertIs(tokens["terms_required"], False)
         self.assertEqual(tokens["user"]["user_id"], str(self.interviewer.user_id))
@@ -504,8 +526,8 @@ class DeviceApiTests(BaseTestCase):
         self.assertNotEqual(new["refresh_token"], tokens["refresh_token"])
         self.assertNotEqual(new["access_token"], tokens["access_token"])
         # The new access token works, the old one does not.
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(new)).status_code, 200)
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(new)).status_code, 200)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 401)
 
     def _age_rotation(self, user, seconds=120):
         """Move the session's last rotation out of the grace window."""
@@ -525,7 +547,7 @@ class DeviceApiTests(BaseTestCase):
         # (the only code on which the app wipes the interviewer's store).
         again = self._refresh(new["refresh_token"])
         self.assertEqual((again.status_code, again.get_json()["code"]), (401, "refresh_reused"))
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(new)).status_code, 401)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(new)).status_code, 401)
         row = db.session.scalar(sa.select(AuthDeviceSession).where(
             AuthDeviceSession.user_id == self.interviewer.user_id))
         self.assertEqual(row.revoked_reason, "refresh_reuse")
@@ -631,7 +653,7 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session(email="device.teammate@test.local")
         self.teammate.bump_session_version()
         db.session.commit()
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 401)
         response = self._refresh(tokens["refresh_token"])
         # session_ended, not session_revoked: a forgotten-password reset must
         # not make the phone destroy that interviewer's unsent interviews.
@@ -644,28 +666,47 @@ class DeviceApiTests(BaseTestCase):
     def test_sign_out_ends_the_session(self):
         _device, tokens = self._session()
         self.assertEqual(self.client.delete(f"{API}/sessions/current", headers=self._bearer(tokens)).status_code, 204)
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 401)
         self.assertEqual(self._refresh(tokens["refresh_token"]).get_json()["code"], "session_revoked")
 
     # ── bearer scope ───────────────────────────────────────────────────────
 
-    def test_bearer_token_is_not_accepted_outside_the_device_api(self):
+    def test_bearer_token_is_not_accepted_outside_the_api(self):
         _device, tokens = self._session()
-        # Present first: the token does open the device API.
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 200)
+        # Present first: the token does open /api/v1.
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 200)
         self.assertEqual(self.client.get("/intake/", headers=self._bearer(tokens)).status_code, 302)
 
-    def test_a_cookie_session_is_not_accepted_inside_the_device_api(self):
+    def test_a_cookie_session_has_no_device_session_to_end(self):
         self._login(str(self.interviewer.user_id))
         self.assertEqual(self.client.get(f"{INTAKE}/cases").status_code, 200)
-        response = self.client.get(f"{API}/bootstrap")
+        self.assertEqual(self.client.get(ME_ACCESS).status_code, 200)
+        response = self.client.delete(f"{API}/sessions/current")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (401, "unauthorized"))
+
+    def test_signed_out_and_empty_bearer_are_unauthorized(self):
+        response = self.client.get(ME_ACCESS)
         self.assertEqual((response.status_code, response.get_json()["code"]), (401, "unauthorized"))
         self.assertEqual(self._upload({"access_token": ""}).status_code, 401)
+
+    def test_removed_device_and_client_paths_are_gone(self):
+        _device, tokens = self._session()
+        bearer = self._bearer(tokens)
+        # Present first: the replacements answer.
+        self.assertEqual(self.client.get(ME_ACCESS, headers=bearer).status_code, 200)
+        self.assertEqual(self.client.post("/api/v1/me/terms", json={}, headers=bearer).status_code, 400)
+        for method, path in (
+            ("get", "/api/v1/device/bootstrap"), ("get", "/api/v1/device/units"),
+            ("post", "/api/v1/device/terms"), ("post", "/api/v1/device/sessions"),
+            ("post", "/api/v1/device/enroll"), ("get", "/api/v1/device/instruments/X/translations/en"),
+            ("get", "/api/v1/client/bootstrap"),
+        ):
+            self.assertEqual(getattr(self.client, method)(path, headers=bearer).status_code, 404, path)
 
     def test_device_responses_set_no_cookie(self):
         device, tokens = self._session()
         responses = [
-            self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)),
+            self.client.get(ME_ACCESS, headers=self._bearer(tokens)),
             self._refresh(tokens["refresh_token"]),
             self._sign_in(device),
         ]
@@ -674,15 +715,41 @@ class DeviceApiTests(BaseTestCase):
             self.assertIn(response.status_code, (200, 201))
             self.assertNotIn("Set-Cookie", response.headers)
 
-    # ── bootstrap ──────────────────────────────────────────────────────────
+    # ── access in the sign-in reply ────────────────────────────────────────
 
-    def test_bootstrap_is_the_projects_list_only(self):
+    def test_sign_in_and_refresh_carry_the_me_access_body(self):
+        device, tokens = self._session()
+        access = self.client.get(ME_ACCESS, headers=self._bearer(tokens)).get_json()
+        self.assertEqual(access["user"]["user_id"], str(self.interviewer.user_id))
+        self.assertEqual(tokens["access"], access)
+        self.assertEqual(self._bootstrap(self._bearer(tokens))["user"], access["user"])
+        refreshed = self._refresh(tokens["refresh_token"])
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertEqual(refreshed.get_json()["access"], access)
+
+    def test_me_access_sets_the_csrf_header_for_a_cookie_and_never_a_bearer(self):
         _device, tokens = self._session()
-        body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
-        self.assertEqual(set(body), {"user", "instrument_version", "projects"})
-        self.assertEqual(body["user"]["user_id"], str(self.interviewer.user_id))
-        self.assertEqual(set(body["projects"][0]),
-                         {"project_id", "project_name", "web_intake_mode", "sites", "form_options", "prefill_policy"})
+        bearer = self.client.get(ME_ACCESS, headers=self._bearer(tokens))
+        self.assertEqual(bearer.status_code, 200)
+        self.assertNotIn("X-CSRFToken", bearer.headers)
+        self.assertNotIn("Set-Cookie", bearer.headers)
+        self._login(str(self.interviewer.user_id))
+        cookie = self.client.get(ME_ACCESS)
+        self.assertEqual(cookie.status_code, 200)
+        self.assertTrue(cookie.headers["X-CSRFToken"])
+        self.assertEqual(cookie.get_json(), bearer.get_json())
+
+    def test_pending_terms_still_get_access_in_the_reply(self):
+        user = self._get_or_make_user("device.terms@test.local", PASSWORD)
+        self._grant(user, self.PROJECT_ID)
+        user.pw_reset_t_and_c = False
+        db.session.commit()
+        device = self._enrol()
+        response = self._sign_in(device, email="device.terms@test.local")
+        self.assertEqual(response.status_code, 201, response.get_json())
+        body = response.get_json()
+        self.assertTrue(body["terms_required"])
+        self.assertEqual([p["project_id"] for p in body["access"]["projects"]], [self.PROJECT_ID])
 
     # ── submissions ────────────────────────────────────────────────────────
 
@@ -856,14 +923,7 @@ class DeviceApiTests(BaseTestCase):
 
     def test_project_id_is_required(self):
         _device, tokens = self._session()
-        bearer = self._bearer(tokens)
-        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
-        from app.routes.api.organization import served_instrument_locales
-
-        code, _ = served_instrument_locales(project)
         refusals = [
-            self.client.get(f"{API}/units", headers=bearer),
-            self.client.get(f"{API}/instruments/{code}/translations/en", headers=bearer),
             self._register(tokens, project_id=None),
             self._upload(tokens, project_id=""),
         ]
@@ -871,8 +931,7 @@ class DeviceApiTests(BaseTestCase):
             self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"),
                              response.request.path)
         # Present: the same calls answer.
-        self.assertEqual(self.client.get(f"{API}/units", query_string={"project_id": self.PROJECT_ID},
-                                         headers=bearer).status_code, 200)
+        self.assertEqual(self._cases(tokens, project_id=self.PROJECT_ID).status_code, 200)
 
     def test_cases_page_with_a_cursor_and_refuse_a_bad_limit(self):
         _device, tokens = self._session()
@@ -1188,22 +1247,26 @@ class DeviceApiTests(BaseTestCase):
         db.session.commit()
 
         _device, tokens = self._session(email="device.unit@test.local")
-        here = {"project_id": self.PROJECT_ID}
-        body = self.client.get(f"{API}/units", query_string=here, headers=self._bearer(tokens)).get_json()
+        body = self._units(self.PROJECT_ID, self._bearer(tokens)).get_json()
         self.assertTrue(body["scoped"])
         self.assertEqual(body["project_id"], self.PROJECT_ID)
         self.assertEqual({u["unit_code"] for u in body["units"]}, {"D1", "P1"})
         self.assertEqual({lvl["level_code"] for lvl in body["levels"]}, {"district", "phc"})
 
         _device2, project_tokens = self._session()
-        whole = self.client.get(f"{API}/units", query_string=here, headers=self._bearer(project_tokens)).get_json()
+        whole = self._units(self.PROJECT_ID, self._bearer(project_tokens)).get_json()
         self.assertFalse(whole["scoped"])
         self.assertEqual({u["unit_code"] for u in whole["units"]}, {"D1", "P1", "D2"})
         self.assertTrue(all(u["selectable"] for u in whole["units"]))
 
-    def test_units_need_a_bearer_token(self):
+    def test_units_need_a_credential_and_a_cookie_gets_the_same_tree(self):
+        _device, tokens = self._session()
+        bearer = self._units(self.PROJECT_ID, self._bearer(tokens))
+        self.assertEqual(bearer.status_code, 200)
         self._login(str(self.interviewer.user_id))
-        self.assertEqual(self.client.get(f"{API}/units").status_code, 401)
+        self.assertEqual(self._units(self.PROJECT_ID, {}).get_json(), bearer.get_json())
+        signed_out = _FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        self.assertEqual(signed_out.get(f"/api/v1/organization/{self.PROJECT_ID}/units").status_code, 401)
 
     def test_translations_only_for_the_projects_instrument_and_locales(self):
         from app.models.mas_instrument_locales import LIFECYCLE_APPROVED, MasInstrumentLocales
@@ -1221,7 +1284,7 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session()
 
         def get(locale, instrument=code):
-            return self.client.get(f"{API}/instruments/{instrument}/translations/{locale}",
+            return self.client.get(f"/api/v1/instruments/{instrument}/translations/{locale}",
                                    query_string={"project_id": self.PROJECT_ID}, headers=self._bearer(tokens))
 
         # Every instrument locale is served while the project names none...
@@ -1345,12 +1408,12 @@ class DeviceApiTests(BaseTestCase):
 
     def test_bootstrap_lists_every_authorized_project(self):
         _device, tokens = self._session()
-        body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
+        body = self._bootstrap(self._bearer(tokens))
         projects = {p["project_id"]: p for p in body["projects"]}
         self.assertEqual(set(projects), {self.PROJECT_ID, self.OTHER_PROJECT_ID})
         other = projects[self.OTHER_PROJECT_ID]
         self.assertEqual(other["project_name"], f"Device {self.OTHER_PROJECT_ID}")
-        self.assertEqual(other["web_intake_mode"], "both")
+        self.assertEqual(other["form_options"]["web_intake_mode"], "both")
         self.assertEqual([s["site_id"] for s in other["sites"]], [self.OTHER_SITE_ID])
         self.assertEqual(other["form_options"]["project_id"], self.OTHER_PROJECT_ID)
         for key in ("config_version", "enabled_extensions", "translation_versions"):
@@ -1362,7 +1425,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(policy["units"], {})
         # The teammate (enrolment project only) gets one project.
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
-        teammate = self.client.get(f"{API}/bootstrap", headers=self._bearer(teammate_tokens)).get_json()
+        teammate = self._bootstrap(self._bearer(teammate_tokens))
         self.assertEqual([p["project_id"] for p in teammate["projects"]], [self.PROJECT_ID])
 
     def test_prefill_policy_units_match_a_direct_start(self):
@@ -1383,20 +1446,18 @@ class DeviceApiTests(BaseTestCase):
         self.assertNotIn(str(away.death_id), first)
         second = [row["death_id"] for row in self._cases(tokens, project_id=self.OTHER_PROJECT_ID).get_json()["cases"]]
         self.assertEqual(second, [str(away.death_id)])
-        units = self.client.get(f"{API}/units", query_string={"project_id": self.OTHER_PROJECT_ID},
-                                headers=self._bearer(tokens))
+        units = self._units(self.OTHER_PROJECT_ID, self._bearer(tokens))
         self.assertEqual((units.status_code, units.get_json()["project_id"]), (200, self.OTHER_PROJECT_ID))
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         # ``project_id`` is an optional filter on the case list: without it, every
         # project of the interviewer's.
         unfiltered = {row["death_id"] for row in self.client.get(f"{INTAKE}/cases", headers=self._bearer(tokens)).get_json()["cases"]}
         self.assertLessEqual({str(home.death_id), str(away.death_id)}, unfiltered)
-        for path in (f"{INTAKE}/cases", f"{API}/units"):
-            for project_id in (self.OTHER_PROJECT_ID, "NOPE99"):
-                refused = self.client.get(path, query_string={"project_id": project_id},
-                                          headers=self._bearer(teammate_tokens))
-                self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "project_forbidden"),
-                                 (path, project_id))
+        for project_id in (self.OTHER_PROJECT_ID, "NOPE99"):
+            refused = self.client.get(f"{INTAKE}/cases", query_string={"project_id": project_id},
+                                      headers=self._bearer(teammate_tokens))
+            self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "project_forbidden"), project_id)
+        self.assertEqual(self._units(self.OTHER_PROJECT_ID, self._bearer(teammate_tokens)).status_code, 403)
 
     def test_mutations_hold_to_the_named_project(self):
         _device, tokens = self._session()
@@ -1457,15 +1518,15 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(self._sign_in(device).status_code, 201)
         bearer = self._bearer(response.get_json())
-        body = self.client.get(f"{API}/bootstrap", headers=bearer).get_json()
+        body = self._bootstrap(bearer)
         self.assertEqual([p["project_id"] for p in body["projects"]], [self.OTHER_PROJECT_ID])
         self.assertIsNotNone(body["projects"][0]["form_options"])
         code, _ = served_instrument_locales(db.session.get(VaProjectMaster, self.OTHER_PROJECT_ID))
-        path = f"{API}/instruments/{code}/translations/en"
+        path = f"/api/v1/instruments/{code}/translations/en"
         named = self.client.get(path, query_string={"project_id": self.OTHER_PROJECT_ID}, headers=bearer)
         self.assertEqual(named.status_code, 200)
         enrolment = self.client.get(path, query_string={"project_id": self.PROJECT_ID}, headers=bearer)
-        self.assertEqual((enrolment.status_code, enrolment.get_json()["code"]), (403, "project_forbidden"))
+        self.assertEqual((enrolment.status_code, enrolment.get_json()["code"]), (403, "forbidden"))
         # The last grant goes: revoked, and no new sign-in.
         self._withdraw(self.OTHER_PROJECT_ID)
         gone = self._refresh(response.get_json()["refresh_token"])
@@ -1531,7 +1592,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(self._detail(tokens, in_d2.death_id).status_code, 200)
         self.assertEqual(self._detail(tokens, in_d3.death_id).status_code, 404)
         self.assertEqual(self._detail(tokens, pending.death_id).status_code, 404)
-        body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
+        body = self._bootstrap(self._bearer(tokens))
         policy = {p["project_id"]: p for p in body["projects"]}[self.PROJECT_ID]["prefill_policy"]
         self.assertEqual(set(policy["units"]), {str(units[c].org_unit_id) for c in ("D1", "P1", "D2")})
 
@@ -1556,7 +1617,7 @@ class DeviceApiTests(BaseTestCase):
         self._unit_grant(worker, b["B1"])
         _device, tokens = self._session(email="device.two.projects@test.local")
 
-        body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
+        body = self._bootstrap(self._bearer(tokens))
         projects = {p["project_id"]: p for p in body["projects"]}
         self.assertEqual(set(projects), {self.PROJECT_ID, self.OTHER_PROJECT_ID})
         self.assertEqual(set(projects[self.PROJECT_ID]["prefill_policy"]["units"]), {str(a["A1"].org_unit_id)})
@@ -1564,8 +1625,7 @@ class DeviceApiTests(BaseTestCase):
 
         for project_id, code in ((self.PROJECT_ID, "A1"), (self.OTHER_PROJECT_ID, "B1")):
             self.assertEqual(self._ids(self._cases(tokens, project_id=project_id)), {ids[code]})
-            units = self.client.get(f"{API}/units", query_string={"project_id": project_id},
-                                    headers=self._bearer(tokens)).get_json()
+            units = self._units(project_id, self._bearer(tokens)).get_json()
             self.assertEqual({u["unit_code"] for u in units["units"]}, {code})
         self.assertEqual(self._detail(tokens, ids["B1"]).status_code, 200)
         for code in ("A2", "B2"):
@@ -1614,8 +1674,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(self._detail(tokens, d2_there.death_id).status_code, 404)
         # The per-project picker has no site: it offers the union over sites,
         # the whole tree some site's grant allows.
-        picker = self.client.get(f"{API}/units", query_string={"project_id": self.PROJECT_ID},
-                                 headers=self._bearer(tokens)).get_json()
+        picker = self._units(self.PROJECT_ID, self._bearer(tokens)).get_json()
         self.assertEqual({u["unit_code"] for u in picker["units"]}, {"D1", "D2"})
         self.assertFalse(picker["scoped"])
 
@@ -1764,7 +1823,7 @@ class DeviceApiTests(BaseTestCase):
 
     def test_admin_revoke_kills_every_session_on_the_device(self):
         device, tokens = self._session()
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 200)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 200)
         self._login(str(self.base_admin_id))
         listed = self.client.get(f"/admin/api/projects/{self.PROJECT_ID}/devices").get_json()["devices"]
         self.assertEqual(listed[0]["device_id"], device["device_id"])
@@ -1775,7 +1834,7 @@ class DeviceApiTests(BaseTestCase):
         revoked = self.client.post(f"/admin/api/devices/{device['device_id']}/revoke", headers=self._csrf_headers())
         self.assertEqual(revoked.get_json()["sessions_ended"], 1)
         self.client.delete_cookie("session")
-        self.assertEqual(self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).status_code, 401)
+        self.assertEqual(self.client.get(ME_ACCESS, headers=self._bearer(tokens)).status_code, 401)
         self.assertEqual(self._refresh(tokens["refresh_token"]).get_json()["code"], "session_revoked")
 
     # ── logs ───────────────────────────────────────────────────────────────

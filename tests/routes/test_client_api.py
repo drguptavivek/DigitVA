@@ -1,14 +1,13 @@
-"""Expo browser bootstrap and same-origin export hosting."""
+"""Expo web access (GET /api/v1/me/access) and same-origin export hosting."""
 
 import os
 import tempfile
 import unittest
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest import mock
-from urllib.parse import parse_qs, urlsplit
 
 import sqlalchemy as sa
+from flask import g
 
 from app import db
 from app.models import (
@@ -21,11 +20,14 @@ from app.models import (
 )
 from tests.base import BaseTestCase
 
-BOOTSTRAP = "/api/v1/client/bootstrap"
+ME_ACCESS = "/api/v1/me/access"
 
 
-class ClientBootstrapTests(BaseTestCase):
-    def test_factor_setup_returns_real_recovery_destination(self):
+class ExpoWebAccessTests(BaseTestCase):
+    """Expo web learns who is signed in, its access and its CSRF token from
+    GET /api/v1/me/access (the removed /api/v1/client/bootstrap)."""
+
+    def test_factor_setup_gate_answers_json_403(self):
         previous = self.app.config.get("AUTH_FACTOR_ENFORCE_FROM")
         self.addCleanup(lambda: self.app.config.__setitem__("AUTH_FACTOR_ENFORCE_FROM", previous))
         self.app.config["AUTH_FACTOR_ENFORCE_FROM"] = "2000-01-01"
@@ -38,143 +40,103 @@ class ClientBootstrapTests(BaseTestCase):
         db.session.flush()
         self._login(self.base_coder_id)
 
-        response = self.client.get(BOOTSTRAP)
+        response = self.client.get(ME_ACCESS)
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.get_json()["code"], "factor_setup_required")
-        action = response.get_json()["redirect_url"]
-        self.assertTrue(action.endswith("#passkeys-card"))
-        self.assertEqual(self.client.get(action).status_code, 200)
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 
-    def test_required_password_change_remains_enforced_as_json(self):
+    def test_pending_terms_remain_enforced_as_json(self):
         self.base_coder_user.pw_reset_t_and_c = False
         db.session.flush()
         self._login(self.base_coder_id)
+        from flask import g
+        g.pop("csrf_token", None)  # the harness keeps one g across requests
 
-        response = self.client.get(BOOTSTRAP)
+        response = self.client.get(ME_ACCESS)
 
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.get_json()["code"], "password_change_required")
+        self.assertEqual(response.get_json()["code"], "terms_required")
         self.assertTrue(response.get_json()["redirect_url"].startswith("/profile/"))
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        # The refusal carries a CSRF token, so the app can accept the terms
+        # itself without reaching me/access first.
+        token = response.headers.get("X-CSRFToken")
+        self.assertTrue(token)
+        g.pop("csrf_token", None)
+        accepted = self.client.post("/api/v1/me/terms", json={"accept_terms": True},
+                                    headers={"X-CSRFToken": token})
+        self.assertEqual(accepted.status_code, 200, accepted.get_data(as_text=True))
+        self.assertEqual(self.client.get(ME_ACCESS).status_code, 200)
 
-    def test_anonymous_bootstrap_is_json_401_and_never_cached(self):
-        response = self.client.get(BOOTSTRAP)
+    def test_signed_out_is_json_401_and_never_cached(self):
+        response = self.client.get(ME_ACCESS)
 
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(
-            response.get_json(),
-            {
-                "code": "authentication_required",
-                "login_url": "/vaauth/valogin?next=/app/",
-            },
-        )
+        self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
         self.assertEqual(response.content_type, "application/json")
-        self.assertEqual(self.client.get(response.get_json()["login_url"]).status_code, 200)
+        # The documented sign-in page the client goes to on that 401.
+        self.assertEqual(self.client.get("/vaauth/valogin").status_code, 200)
 
-    def test_unresolvable_bearer_token_is_refused_on_bootstrap(self):
+    def test_unresolvable_bearer_token_is_refused(self):
         # /api/v1 takes a bearer too (digitva-uzhq): a bad one is a 401, never
-        # the anonymous bootstrap answer.
+        # an anonymous answer.
         with mock.patch("app.services.device_auth_service.resolve_access_token", return_value=None) as resolve:
-            response = self.client.get(
-                BOOTSTRAP,
-                headers={"Authorization": "Bearer a-device-token"},
-            )
+            response = self.client.get(ME_ACCESS, headers={"Authorization": "Bearer a-device-token"})
 
         resolve.assert_called_once()
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
 
-    def test_authenticated_bootstrap_exposes_role_capabilities_and_csrf(self):
-        # Capabilities follow the role gates (authz.effective_roles): a coder
-        # grant opens coding once its pair has an active form (digitva-5hmc).
-        now = datetime.now(UTC)
-        self._ensure_base_research_project_and_site()
-        db.session.add(VaForms(
-            form_id="BASE01BS0101", project_id=self.BASE_PROJECT_ID, site_id=self.BASE_SITE_ID,
-            odk_form_id="CLIENT_BOOT", odk_project_id="95", form_type="WHO VA 2022",
-            form_status=VaStatuses.active, form_registered_at=now, form_updated_at=now,
-        ))
-        db.session.flush()
+    def test_signed_in_gets_access_and_a_csrf_token_in_the_header(self):
         self._login(self.base_coder_id)
-        response = self.client.get(BOOTSTRAP)
+        response = self.client.get(ME_ACCESS)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertTrue(response.headers["X-CSRFToken"])
         body = response.get_json()
-        self.assertEqual(body["user"], {
-            "id": self.base_coder_id,
-            "name": self.base_coder_user.name,
-        })
-        self.assertEqual(body["csrf"]["header"], "X-CSRFToken")
-        self.assertTrue(body["csrf"]["token"])
-        self.assertEqual(
-            body["capabilities"],
-            {"intake": False, "coding": True, "reviewing": False},
-        )
-        self.assertNotIn("email", body["user"])
-        self.assertEqual(body["links"]["intakeCases"], "/api/v1/intake/cases")
-        self.assertNotIn("intakeBootstrap", body["links"])
-        self.assertEqual(body["links"]["coding"], "/coding/")
-        login_url = urlsplit(body["links"]["login"])
+        self.assertEqual(body["user"], {"user_id": self.base_coder_id, "name": self.base_coder_user.name})
+        self.assertNotIn("csrf", body)
         # An already authenticated account is sent to its landing page.
-        self.assertEqual(self.client.get(body["links"]["login"]).status_code, 302)
-        self.assertEqual(login_url.path, "/vaauth/valogin")
-        self.assertEqual(parse_qs(login_url.query)["next"], ["/app/"])
+        self.assertEqual(self.client.get("/vaauth/valogin").status_code, 302)
 
-    def test_a_coder_whose_pair_has_no_form_is_not_offered_coding(self):
-        """The coding gate refuses this coder (no active form in reach), so
-        bootstrap does not offer a tab that would 403."""
+    def test_the_header_token_authorizes_a_json_write(self):
         self._login(self.base_coder_id)
-        body = self.client.get(BOOTSTRAP).get_json()
-        self.assertIn("coding", body["capabilities"])
-        self.assertFalse(body["capabilities"]["coding"])
-        self.assertEqual(self.client.get("/coding/").status_code, 403)
+        g.pop("csrf_token", None)  # the suite's app context outlives requests; production's g does not
+        token = self.client.get(ME_ACCESS).headers["X-CSRFToken"]
+        previous = self.app.config.get("WTF_CSRF_ENABLED")
+        self.addCleanup(lambda: self.app.config.__setitem__("WTF_CSRF_ENABLED", previous))
+        self.app.config["WTF_CSRF_ENABLED"] = True
+        refused = self.client.post("/api/v1/me/terms", json={})
+        self.assertNotEqual((refused.get_json(silent=True) or {}).get("code"), "invalid_request")
+        accepted = self.client.post("/api/v1/me/terms", json={}, headers={"X-CSRFToken": token})
+        self.assertEqual((accepted.status_code, accepted.get_json()["code"]), (400, "invalid_request"))
 
-    def test_capabilities_follow_authoritative_roles_for_intake_and_review(self):
-        from app.models import VaForms, VaStatuses
-
+    def test_an_interviewer_grant_shows_in_access_and_opens_intake(self):
         self._ensure_base_research_project_and_site()
         db.session.add(VaForms(
-            form_id="BASE01BS0101",
-            project_id=self.BASE_PROJECT_ID,
-            site_id=self.BASE_SITE_ID,
-            odk_form_id="ODK_CLIENT_BOOTSTRAP",
-            odk_project_id="7",
-            form_type="WHO VA 2022",
+            form_id="BASE01BS0101", project_id=self.BASE_PROJECT_ID, site_id=self.BASE_SITE_ID,
+            odk_form_id="ODK_CLIENT_ACCESS", odk_project_id="7", form_type="WHO VA 2022",
             form_status=VaStatuses.active,
         ))
         db.session.flush()
         project_site = self._base_project_site()
-        db.session.add_all(
-            [
-                VaUserAccessGrants(
-                    user_id=self.base_coder_user.user_id,
-                    role=VaAccessRoles.interviewer,
-                    scope_type=VaAccessScopeTypes.project_site,
-                    project_site_id=project_site.project_site_id,
-                    notes="client bootstrap test",
-                ),
-                VaUserAccessGrants(
-                    user_id=self.base_coder_user.user_id,
-                    role=VaAccessRoles.reviewer,
-                    scope_type=VaAccessScopeTypes.project_site,
-                    project_site_id=project_site.project_site_id,
-                    notes="client bootstrap test",
-                ),
-            ]
-        )
+        db.session.add(VaUserAccessGrants(
+            user_id=self.base_coder_user.user_id,
+            role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=project_site.project_site_id,
+            notes="client access test",
+        ))
         db.session.flush()
         self._login(self.base_coder_id)
 
-        body = self.client.get(BOOTSTRAP).get_json()
+        body = self.client.get(ME_ACCESS).get_json()
 
-        self.assertEqual(
-            body["capabilities"],
-            {"intake": True, "coding": True, "reviewing": True},
-        )
+        roles = {g["role"] for p in body["projects"] for g in p["grants"]}
+        self.assertIn("interviewer", roles)
         intake_response = self.client.get("/api/v1/intake/cases")
         self.assertEqual(intake_response.status_code, 200)
         self.assertEqual(intake_response.headers.get("Cache-Control"), "no-store")

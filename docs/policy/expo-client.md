@@ -16,7 +16,7 @@ This follows the browser path in the [Field Data Collection
 Policy](field-data-collection.md).
 
 The native collection app remains the offline path. It uses the existing
-encrypted device store and bearer device-session API. A device token is
+encrypted device store and bearer device sessions (`/api/v1/auth`). A device token is
 accepted on every `/api/v1/` route, same route and body as the browser
 session cookie; it cannot authenticate anything outside `/api/v1/` (the
 browser pages, `/admin/api`, `/intake`). A request carrying a bearer is
@@ -25,42 +25,27 @@ token is a 401 (never a fallback), it needs no `X-CSRFToken` and it never
 sets a cookie. Terms, maintenance and forced-password-change gates apply to
 both credentials.
 
-## Browser bootstrap
+## Browser access
 
 After the existing email, CAPTCHA, password or passkey and factor flow has
-completed, the browser calls `GET /api/v1/client/bootstrap`. The endpoint
-uses the same-origin session cookie and returns:
+completed, the browser calls `GET /api/v1/me/access` (there is no separate
+bootstrap route). It uses the same-origin session cookie and returns the
+user's whole access summary (`docs/policy/api-v1.md`; shape in
+`docs/current-state/api-v1.md`) and, for a cookie request only, the CSRF
+token in the `X-CSRFToken` response header, which the client sends back on
+every state change. The body is identical for the device bearer credential.
 
-```json
-{
-  "user": {"id": "<uuid>", "name": "<display name>"},
-  "csrf": {"header": "X-CSRFToken", "token": "<signed token>"},
-  "capabilities": {
-    "intake": true,
-    "coding": false,
-    "reviewing": false
-  },
-  "links": {
-    "login": "/vaauth/valogin?next=/app/",
-    "logout": "/vaauth/valogout",
-    "intakeCases": "/api/v1/intake/cases",
-    "intakeDrafts": "/api/v1/intake/drafts",
-    "coding": "/coding/",
-    "reviewing": "/reviewing/"
-  }
-}
-```
-
-The capability values are navigation hints. They are derived from the
-authoritative authorization role resolution, including the policy's demo
-project coding and reviewing roles. Every workflow API performs its own
-project, site and unit scope check. A client must never treat a capability or
+The summary is a set of navigation hints, derived from the authoritative
+authorization role resolution. Every workflow API performs its own project,
+site and unit scope check. A client must never treat a grant, capability or
 link as permission to read or change a record.
 
-An anonymous request receives JSON `401` with
-`{"code":"authentication_required","login_url":"/vaauth/valogin?next=/app/"}`.
-The response, including errors, is `Cache-Control: no-store`. No sign-in
-bypass, device-token fallback, or new authentication factor is introduced.
+An anonymous request receives JSON `401`
+`{"error": "Authentication required.", "code": "unauthorized"}`: the cue to
+send the browser to `/vaauth/valogin?next=/app/` (sign out:
+`/vaauth/valogout`). The response, including errors, is `Cache-Control:
+no-store`. No sign-in bypass, device-token fallback, or new authentication
+factor is introduced.
 
 ## Hosting and languages
 

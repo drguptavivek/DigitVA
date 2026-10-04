@@ -7,12 +7,11 @@ api_v1 = Blueprint("api_v1", __name__)
 from app.routes.api import (  # noqa: E402, F401
     analytics,
     area,
-    client,
+    auth,
     cod_buckets,
     coding,
     coding_search_demo,
     data_management,
-    device,
     doris_clinical,
     icd10,
     icd11,
@@ -43,12 +42,11 @@ from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E4
 
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(area.bp, url_prefix="/area")
-api_v1.register_blueprint(client.bp, url_prefix="/client")
+api_v1.register_blueprint(auth.bp, url_prefix="/auth")
 api_v1.register_blueprint(cod_buckets.bp, url_prefix="/cod-buckets")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
 api_v1.register_blueprint(coding_search_demo.bp, url_prefix="/coding-search-demo")
 api_v1.register_blueprint(data_management.bp, url_prefix="/data-management")
-api_v1.register_blueprint(device.bp, url_prefix="/device")
 api_v1.register_blueprint(doris_clinical.bp, url_prefix="/doris-clinical")
 api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(icd11.bp, url_prefix="/icd11")

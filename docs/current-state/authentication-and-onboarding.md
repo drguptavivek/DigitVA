@@ -22,7 +22,7 @@ Policies (intent): [account onboarding and passwords](../policy/account-onboardi
 [field data collection](../policy/field-data-collection.md),
 [Expo client](../policy/expo-client.md). Related current state:
 [device collection API](device-collection-api.md),
-[Expo client hosting and bootstrap](expo-client.md).
+[Expo client hosting and access](expo-client.md).
 
 Code:
 
@@ -31,7 +31,7 @@ Code:
 | Web login, code redemption, emailed links | `app/routes/va_auth.py` (blueprint `va_auth`, prefix `/vaauth`) |
 | Terms page | `app/routes/profile.py` (`/profile/force-password-change`) |
 | Profile JSON (password, reauth, passkeys, TOTP, recovery codes) | `app/routes/api/profile.py` (`/api/v1/profile`) |
-| Device API | `app/routes/api/device.py` (`/api/v1/device`), `app/services/device_auth_service.py` |
+| Sign-in API (device) | `app/routes/api/auth.py` (`/api/v1/auth`), `app/services/device_auth_service.py`; route reference: [API v1](api-v1.md) |
 | Device enrolment codes (admin) | `app/routes/admin_devices.py` |
 | Account creation, phone rules | `app/services/user_account_service.py` |
 | Sign-in codes, generated passwords | `app/services/mobile_sign_in_service.py` |
@@ -381,17 +381,17 @@ While `pw_reset_t_and_c` is false, every endpoint except `static`,
 - a JSON path (`/api/`, `/admin/api/`, `/data-management/api/`) answers **403**
   `{"error": "terms_required", "code": "terms_required", "redirect_url": "/profile/force-password-change"}`
   with `Cache-Control: no-store`, never a redirect;
-- `/api/v1/client/bootstrap` keeps its older code: 403
-  `{"error": "password_change_required", "code": "password_change_required", "redirect_url": ...}`.
+- Expo web reads `GET /api/v1/me/access` (section 7); it gets the same
+  `terms_required` as every other JSON path.
 
 The page posts `accept_terms` (required checkbox) and `csrf_token`; success
 records the acceptance (`accept_terms`: `pw_reset_t_and_c = True` and a
 `terms_accepted` event, `via: web`), flashes "Terms accepted successfully."
 and redirects to `/coding/` (`coding.dashboard`), not to `next`. POST is
 limited to 5 per minute. The JSON equivalents are `POST /api/v1/profile/terms`
-(browser session, section 8.3) and `POST /api/v1/device/terms` (device
-token, section 6.5); they record acceptance the same way (`via: api`,
-`via: device`). Accepting when already accepted changes and records nothing.
+(browser session, section 8.3) and `POST /api/v1/me/terms` (either
+credential, section 6.5); they record acceptance the same way (`via: api`,
+`via: device` for a bearer). Accepting when already accepted changes and records nothing.
 
 `pw_reset_t_and_c` is false on every new account and is set false again by
 the reset-link POST (section 5.2). Code redemption sets it (the code page
@@ -581,7 +581,7 @@ Signed in, `X-CSRFToken`, empty body, needs the reauthentication window,
 - Breach-check outage or email failure: 503 `{"error": <message>}`, nothing
   changed.
 
-## 6. Native app (device API)
+## 6. Native app (device sign-in, `/api/v1/auth`)
 
 Bearer only, CSRF-exempt, no cookies (`csrf.exempt(bp)`; a browser session
 cookie never satisfies these endpoints). Errors are
@@ -600,14 +600,14 @@ Refused 503 when `DEVICE_PUBLIC_URL` is plain http outside debug/testing
 (except `localhost`, `127.0.0.1`, `10.0.2.2`); 404 for an inactive or
 unknown project. CLI: `flask devices create-enrolment-code`.
 
-The app posts `POST /api/v1/device/enroll`
+The app posts `POST /api/v1/auth/enroll`
 `{"code", "device_name" (required, <= 64), "platform": "android", "app_version" (optional, <= 32)}`.
 201 `{"device_id", "device_secret", "project": {"project_id", "name"}, "server_time"}`.
 The code is consumed atomically; unknown, expired, revoked, used-up, or an
 inactive project: 404 `enrolment_invalid`. The secret is shown once and
 stored by the server only as a SHA-256 digest.
 
-### 6.2 Device sign-in: `POST /api/v1/device/sessions`
+### 6.2 Device sign-in: `POST /api/v1/auth/sessions`
 
 Body `{"device_id", "device_secret", "email", "password", "otp"?}`. The
 `email` field holds an email **or** a mobile number (field name kept for the
@@ -633,7 +633,7 @@ response says `terms_required: true` and the app shows its terms screen
 
 ### 6.3 Token responses
 
-`POST /sessions` (201) and `POST /sessions/refresh` (200) return:
+`POST /auth/sessions` (201) and `POST /auth/sessions/refresh` (200) return:
 
 ```json
 {
@@ -642,11 +642,14 @@ response says `terms_required: true` and the app shows its terms screen
   "refresh_token": "<opaque>",
   "refresh_expires_at": "<ISO 8601>",
   "user": {"user_id": "<uuid>", "name": "<display name>", "email": "<email or null>"},
-  "terms_required": false
+  "terms_required": false,
+  "access": {"user": {}, "is_admin": false, "projects": [], "demo_coding": {}}
 }
 ```
 
-`terms_required` is true while the account has not accepted the terms
+`access` is the exact `GET /api/v1/me/access` body for the user (shape in
+[API v1](api-v1.md)), shown even while terms are pending; it is display
+only, the terms gate is on requests. `terms_required` is true while the account has not accepted the terms
 (section 6.5); it is read from the account at each sign-in and refresh.
 
 `user.email` is `null` for a mobile-only account. The access token lives 15
@@ -656,7 +659,7 @@ minutes. The refresh token rotates on every use; its expiry slides by
 
 ### 6.4 Refresh and revoke
 
-`POST /api/v1/device/sessions/refresh`
+`POST /api/v1/auth/sessions/refresh`
 `{"refresh_token", "device_id", "device_secret"}` plus optional
 outstanding-work fields (`count`, `unique_ids`, `client_draft_ids`,
 `client_death_ids`). 30 per minute per IP. Refusals:
@@ -677,7 +680,7 @@ answer 401 `unauthorized` at once (`resolve_access_token` returns nothing);
 the next refresh then answers `session_ended`. A withdrawn grant is caught
 at the next refresh (within 15 minutes).
 
-`DELETE /api/v1/device/sessions/current` (bearer, any signed-in role, so a
+`DELETE /api/v1/auth/sessions/current` (bearer, any signed-in role, so a
 withdrawn interviewer can still sign out) revokes the session
 (`signed_out`) and answers 204. Admin: `POST /admin/api/devices/<device_id>/revoke`
 revokes the device and every session on it, answering
@@ -691,12 +694,12 @@ sign-in code accepts them (section 4.2), so a newly onboarded mobile-only
 person usually arrives with them accepted. When they are pending:
 
 1. `POST /sessions` succeeds (201) with `"terms_required": true`.
-2. Every bearer endpoint except `DELETE /sessions/current` and
-   `POST /terms` answers 403
+2. Every bearer endpoint except `DELETE /auth/sessions/current` and
+   `POST /me/terms` (or `POST /profile/terms`) answers 403
    `{"error": "Accept the terms of use to continue.", "code": "terms_required"}`.
 3. The app shows its own terms screen and, on acceptance, calls
-   `POST /api/v1/device/terms` with the bearer token and body
-   `{"accept_terms": true}` (no CSRF on the device API). Answers: 200
+   `POST /api/v1/me/terms` with the bearer token and body
+   `{"accept_terms": true}` (no CSRF for a bearer). Answers: 200
    `{"message": "Terms accepted.", "terms_accepted": true}`; 400
    `invalid_request` for any other body; 401 `unauthorized` without a live
    token. 5 per minute. It records `terms_accepted` (`via: device`), as the
@@ -704,11 +707,10 @@ person usually arrives with them accepted. When they are pending:
 4. The same access token then works: the gate reads the account on every
    request, so no re-sign-in or refresh is needed.
 
-`password_change_required` is no longer returned by device sign-in (it
-remains only on `/api/v1/client/bootstrap`, section 7). An app build that
-still waits for it will instead get tokens and then `terms_required` on its
-first data call: the app must handle `terms_required` (contract change,
-digitva-9an9).
+`password_change_required` is no longer returned anywhere (digitva-9an9,
+digitva-ad02): every JSON path answers `terms_required`. An app build that
+still waits for it will get tokens and then `terms_required` on its first
+data call: the app must handle `terms_required`.
 
 ### 6.6 Factor rules on the device
 
@@ -728,7 +730,7 @@ digitva-9an9).
 - The enrolment-enforcement redirect (section 3.4) never runs on a bearer
   request. The terms and maintenance gates run on every `/api/v1/` bearer
   request (`force_password_update`, JSON `terms_required` / `maintenance`;
-  exempt: sign-out, `POST /api/v1/device/terms`, `POST /api/v1/profile/terms`).
+  exempt: sign-out, `POST /api/v1/me/terms`, `POST /api/v1/profile/terms`).
 - **One credential rule for `/api/v1/`.** The `authenticate_bearer` hook
   (`app/__init__.py`, first `before_request`) authenticates an
   `Authorization: Bearer` request by the token alone and pins the user on the
@@ -737,62 +739,38 @@ digitva-9an9).
   fallback. Bearer requests skip CSRF (`csrf_protect_cookie_requests`; cookie
   requests keep it) and see an empty session that is never saved
   (`app/utils/bearer_session.py`), so they set no cookie. Outside `/api/v1/`
-  a bearer is ignored. The sign-in endpoints (`enroll`, `sessions`,
-  `sessions/refresh`) ignore a stale token.
+  a bearer is ignored. The sign-in endpoints (`/auth/enroll`, `/auth/sessions`,
+  `/auth/sessions/refresh`) ignore a stale token.
 
-## 7. Browser client bootstrap: `GET /api/v1/client/bootstrap`
+## 7. Browser client access: `GET /api/v1/me/access`
 
-**Working tree only (not at HEAD; design `.tasks/digitva-p6fs-design.md`,
-policy [Expo client](../policy/expo-client.md)).** `app/routes/api/client.py`,
-registered under `/api/v1/client` in the working tree's
-`app/routes/api/__init__.py`. Uses the ordinary session cookie. Every
-response (errors and redirects included) is `Cache-Control: no-store`.
+Expo web has no bootstrap route (`/api/v1/client/bootstrap` was removed,
+digitva-ad02). After the web sign-in it calls `GET /api/v1/me/access`
+([API v1](api-v1.md)) with the session cookie: 200 with the user's whole
+access, plus the CSRF token in the `X-CSRFToken` response header (cookie
+requests only; a bearer never gets one). The client sends that token back on
+every state change. Gates answer as on every JSON path:
 
-- Anonymous or inactive: 401
-  `{"code": "authentication_required", "login_url": "/vaauth/valogin?next=/app/"}`.
-- Signed in: 200
+- Signed out or inactive: 401 `{"error": "Authentication required.", "code":
+  "unauthorized"}`. The cue to go to the sign-in page `/vaauth/valogin?next=/app/`
+  (sign out: `/vaauth/valogout`); no route returns these URLs.
+- Terms not accepted: 403 `terms_required` with `redirect_url`; the client
+  accepts with `POST /api/v1/me/terms` (or `/profile/terms`).
+- Factor setup required: 403 `{"error": "factor_setup_required", "code":
+  "factor_setup_required"}`; the client goes to `/profile/#passkeys-card`.
+- Non-admin during maintenance: the app-wide gate (401 for a cookie session,
+  403 `maintenance` for a bearer).
 
-```json
-{
-  "user": {"id": "<uuid>", "name": "<display name>"},
-  "csrf": {"header": "X-CSRFToken", "token": "<signed token>"},
-  "capabilities": {"intake": true, "coding": false, "reviewing": false},
-  "links": {
-    "login": "/vaauth/valogin?next=/app/",
-    "logout": "/vaauth/valogout",
-    "intakeCases": "/api/v1/intake/cases",
-    "intakeDrafts": "/api/v1/intake/drafts",
-    "coding": "/coding/",
-    "reviewing": "/reviewing/"
-  }
-}
-```
-
-  `capabilities` come from `authz.effective_roles`: `intake` = interviewer,
-  `coding` = coder or coding_tester, `reviewing` = reviewer. They are
-  navigation hints; every workflow API checks scope itself.
-- Terms not accepted (`force_password_update`): 403
-  `{"error": "password_change_required", "code": "password_change_required", "redirect_url": "/profile/force-password-change"}`
-  for this endpoint (older code kept for the client); every other JSON
-  endpoint answers `terms_required` (section 3.5). The client accepts with
-  `POST /api/v1/profile/terms` (section 8.3).
-- Factor setup required (working-tree change in `enforce_factor_setup`):
-  403 `{"error": "factor_setup_required", "code": "factor_setup_required", "redirect_url": "/profile/#passkeys-card"}`
-  for this endpoint only.
-- Non-admin during maintenance: 401
-  `{"error": "Site is under maintenance. Only admin login is allowed right now."}`
-  (the app-wide gate).
-
-Until this ships, the HEAD behaviour for a browser client is: no bootstrap
-endpoint; `/api/v1/profile/` gives the signed-in user (section 8); the
-terms gate answers JSON calls with 403 `terms_required` (section 3.5).
+Navigation capabilities are no longer a server field: the client derives
+them from `grants` (a `coder` grant with `codes` opens coding, `reviewer`
+reviewing, `interviewer` intake) and every workflow API still checks scope.
 
 ## 8. API reference
 
 ### 8.1 Conventions
 
 - **CSRF.** `CSRFProtect` covers every POST, PUT, PATCH and DELETE except
-  `/api/v1/device/*` and every bearer-token request (and two unrelated exemptions). Server-rendered forms
+  `/api/v1/auth/*` and every bearer-token request (and two unrelated exemptions). Server-rendered forms
   carry a hidden `csrf_token` field; JSON calls send the token in the
   `X-CSRFToken` header (the only accepted header, `WTF_CSRF_HEADERS`). In
   production `WTF_CSRF_SSL_STRICT` also requires a same-origin `Referer`
@@ -863,22 +841,20 @@ signed-in user id.
 The 409 "You cannot remove your last sign-in factor." applies only to a
 privileged user after `AUTH_FACTOR_ENFORCE_FROM`.
 
-### 8.4 Device API (`/api/v1/device`, CSRF-exempt)
+### 8.4 Sign-in API (`/api/v1/auth`, CSRF-exempt)
 
 | Method, path | Auth | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- | --- |
-| POST `/enroll` | none | `{code, device_name, platform: "android", app_version?}` | 201 `{device_id, device_secret, project, server_time}`; 400 `invalid_request`; 404 `enrolment_invalid` | 10/min per IP | `device_enrolled` |
-| POST `/sessions` | device id + secret | `{device_id, device_secret, email (email or mobile), password, otp?}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed`, `second_factor_lockout`, `recovery_code_used` |
-| POST `/sessions/refresh` | device id + secret + refresh token | `{refresh_token, device_id, device_secret, count?, unique_ids?, client_draft_ids?, client_death_ids?}` | 200 token response; refusals in 6.4 | 30/min per IP | `device_session_revoked` |
-| DELETE `/sessions/current` | Bearer | none | 204 | default | `device_session_revoked` (`signed_out`) |
-| POST `/terms` | Bearer | `{"accept_terms": true}` | 200 `{message, terms_accepted: true}`; 400 `invalid_request`; 401 `unauthorized` | 5/min | `terms_accepted` (`device`) |
+| POST `/auth/enroll` | none | `{code, device_name, platform: "android", app_version?}` | 201 `{device_id, device_secret, project, server_time}`; 400 `invalid_request`; 404 `enrolment_invalid` | 10/min per IP | `device_enrolled` |
+| POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email or mobile), password, otp?}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed`, `second_factor_lockout`, `recovery_code_used` |
+| POST `/auth/sessions/refresh` | device id + secret + refresh token | `{refresh_token, device_id, device_secret, count?, unique_ids?, client_draft_ids?, client_death_ids?}` | 200 token response; refusals in 6.4 | 30/min per IP | `device_session_revoked` |
+| DELETE `/auth/sessions/current` | Bearer | none | 204 | default | `device_session_revoked` (`signed_out`) |
 
-With pending terms every bearer route except `DELETE /sessions/current` and
-`POST /terms` answers 403 `terms_required` (section 6.5).
+With pending terms every bearer route except `DELETE /auth/sessions/current`
+and `POST /api/v1/me/terms` answers 403 `terms_required` (section 6.5).
 
 Request bodies over 16 KB (256 KB on refresh) answer 413
-`payload_too_large`. Data endpoints (`/bootstrap`, `/units`, `/cases`,
-`/submissions`, ...): [device collection API](device-collection-api.md).
+`payload_too_large`. Data endpoints (`/me/access`, `/intake/*`, ...): [API v1](api-v1.md).
 
 ### 8.5 Admin and data-manager account endpoints
 
@@ -939,7 +915,7 @@ JSON:
 | Status, body | Where | Meaning |
 | --- | --- | --- |
 | 403 `{"error": "terms_required", "code": "terms_required", "redirect_url"}` | any signed-in JSON path (cookie session) except `POST /api/v1/profile/terms` | terms not accepted: show the terms, then `POST /api/v1/profile/terms` (pages still 302 to `/profile/force-password-change`) |
-| 403 `{"code": "terms_required"}` | `/api/v1/device/*` bearer calls except sign-out and `POST /terms` | terms not accepted: show the terms, then `POST /api/v1/device/terms` (section 6.5) |
+| 403 `{"code": "terms_required"}` | bearer calls except sign-out and `POST /api/v1/me/terms` | terms not accepted: show the terms, then `POST /api/v1/me/terms` (section 6.5) |
 | 409 `{"code": "email_unverified"}` | profile password generate | the account's email is unverified: verify it first, or get a sign-in code |
 | 403 `{"error": "factor_setup_required"}` | API paths | privileged user must enrol a passkey or TOTP at `/profile/#passkeys-card` |
 | 401 `{"error": "Authentication required."}` | `role_required` APIs | not signed in, or inactive |
@@ -949,8 +925,8 @@ JSON:
 | 503 `{"error": ...}` | profile password generate | breach check or email unavailable |
 | 429 | anywhere | rate limit |
 | 403 + `Retry-After` | anywhere | temporary IP ban |
-| device codes | `/api/v1/device/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `second_factor_required`, `second_factor_locked`, `no_interviewer_grant`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
-| working tree only | `/api/v1/client/bootstrap` | `authentication_required` (401), `password_change_required` (403 + `redirect_url`), `factor_setup_required` (403 + `redirect_url`) |
+| sign-in codes | `/api/v1/auth/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `second_factor_required`, `second_factor_locked`, `no_interviewer_grant`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
+| gate codes | every `/api/v1` route, `GET /api/v1/me/access` included | 401 `unauthorized`, 403 `terms_required` (+ `redirect_url` for a cookie), `factor_setup_required`, `maintenance` |
 
 ## 10. Things clients must never do
 
@@ -971,7 +947,7 @@ JSON:
 - Never call `/vaauth/valogin/password` or the passkey endpoints without the
   identifier step first; never cache or replay a CAPTCHA solution.
 - Never send a device bearer token anywhere but `/api/v1/`, and never
-  use a browser cookie session on the device API.
+  use a browser cookie session on `DELETE /api/v1/auth/sessions/current`.
 - Never wipe local interview data on any code except `session_revoked`;
   `session_ended`, `session_expired`, `refresh_reused` and
   `refresh_retry_race` mean "sign in again, keep data".
@@ -1001,7 +977,7 @@ working tree; they stay listed until that change is committed.
 3. **Closed: terms acceptance** (onboarding 5.2, 5.4): the code page
    requires the terms box and redemption records acceptance; JSON accept
    endpoints exist for a browser session (`POST /api/v1/profile/terms`) and
-   a device token (`POST /api/v1/device/terms`); JSON calls with pending
+   either credential (`POST /api/v1/me/terms`); JSON calls with pending
    terms get 403 `terms_required`, not a redirect; device sign-in succeeds
    with `terms_required: true` instead of refusing (sections 3.5, 4.2, 6.5).
 4. **Closed: profile generate** (onboarding section 6): an email account
@@ -1035,8 +1011,8 @@ working tree; they stay listed until that change is committed.
    every email by design.
 9. **Closed: stale comment** in `app/commands/auth.py` (the factor-reset
    link sets no password).
-10. **Browser bootstrap** ([Expo client policy](../policy/expo-client.md)):
-    not at HEAD; it exists in the working tree only (section 7).
+10. **Closed: browser bootstrap** ([Expo client policy](../policy/expo-client.md)):
+    replaced by `GET /api/v1/me/access` (section 7).
 11. **Closed: signed-out JSON**: `login_required` API routes, including
     `/api/v1/profile/*`, answer 401 `{"error": "Authentication required."}`
     instead of a 302 to the login page.

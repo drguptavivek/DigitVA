@@ -10,8 +10,7 @@ last_updated: 2026-10-04
 
 Owner decisions, 2026-10-04 (`digitva-339w`). Baseline for every frontend:
 the Jinja Flask pages' scripts, the Expo app in a browser, and the Expo app
-on Android and iOS. Partly built; "State" below tracks what is done
-and what remains.
+on Android and iOS. Built; "State" below records what shipped.
 
 ## Rules
 
@@ -74,15 +73,13 @@ Done:
   the supervisor list's row shape under the same key). The case detail
   carries `prefill` only for a caller who may start or resume the interview.
 
-Remaining:
-
-| Same thing | Current routes |
-| --- | --- |
-| Bootstrap | `/api/v1/device/bootstrap`, `/api/v1/client/bootstrap` (to `/api/v1/auth/*` and `/api/v1/me/access`; removal tracked in `digitva-ad02`) |
-| Unit list | `/api/v1/device/units`, `/api/v1/organization/<project>/units` |
-| Instruments | `/api/v1/device/instruments/*`, `/api/v1/instruments/*` |
-| Device sign-in | `/api/v1/device/*` (to `/api/v1/auth/*`) |
-| User object | `user_id` in most; `id` in `/api/v1/client/bootstrap` |
+Remaining: nothing (digitva-ad02). The device-only routes
+(`/api/v1/device/*`, `/api/v1/client/bootstrap`) are removed; sign-in is
+`/api/v1/auth/*`, a user's access is `GET /api/v1/me/access` (also in the
+sign-in and refresh replies), and the unit picker, form options, prefill
+policy and translations are the shared routes. Route reference:
+`docs/current-state/api-v1.md`. The one `user` object is `{user_id, name}`
+(`email` is added only in the sign-in reply's own `user`).
 
 No legacy mobile app exists (owner, 2026-10-04): device-only routes are
 removed as their replacements land, not kept alongside them. The Jinja pages

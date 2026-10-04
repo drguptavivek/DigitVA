@@ -2,7 +2,7 @@
 
 Baseline: docs/policy/field-data-collection.md ("Path B design"); design and
 API contract: .tasks/2026-09-30-android-collection-app.md. Routes:
-app/routes/api/device.py (device API) and app/routes/admin_devices.py
+app/routes/api/auth.py (sign-in API) and app/routes/admin_devices.py
 (enrolment codes, device list, revoke).
 
 Credentials. Enrolment codes, device secrets and access/refresh tokens are
@@ -67,10 +67,11 @@ from app.services.user_account_service import canonical_mobile
 
 log = logging.getLogger(__name__)
 
-DEVICE_API_PREFIX = "/api/v1/device/"
 API_V1_PREFIX = "/api/v1/"
-#: Device endpoints that create a session, so carry no valid bearer token.
-UNAUTHENTICATED_ENDPOINTS = frozenset({"enroll", "open_session", "refresh_session"})
+#: Sign-in endpoints (full endpoint names) that create a session, so carry no valid bearer token.
+UNAUTHENTICATED_ENDPOINTS = frozenset({
+    "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
+})
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30
 DEFAULT_SESSION_MAX_DAYS = 90

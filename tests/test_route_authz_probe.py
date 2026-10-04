@@ -62,7 +62,7 @@ ROLE_USERS = {
     "collaborator_pii": "collabpii_sp",
 }
 
-DEVICE_PREFIX = "/api/v1/device/"
+DEVICE_PREFIX = "/api/v1/auth/"
 _SKIP_METHODS = {"HEAD", "OPTIONS"}
 
 

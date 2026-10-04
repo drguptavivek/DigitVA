@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta, timezone
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, g, jsonify, request, session
 from flask_login import current_user, login_required
 
 from app import db, limiter
@@ -44,8 +44,12 @@ def _account_security_is_cookie_only():
 REAUTH_TTL = timedelta(minutes=10)
 
 
-def _error(message: str, status_code: int = 400):
-    return jsonify({"error": message}), status_code
+_STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
+                 409: "conflict", 503: "unavailable"}
+
+
+def _error(message: str, status_code: int = 400, code: str | None = None):
+    return jsonify({"error": message, "code": code or _STATUS_CODES.get(status_code, "error")}), status_code
 
 
 #: Reauthentication by passkey failed, whatever the reason.
@@ -79,7 +83,7 @@ def _reauthenticated_recently() -> bool:
 def _require_reauth():
     """Return an error response if reauthentication has expired, else None."""
     if not _reauthenticated_recently():
-        return _error("reauth_required", 401)
+        return _error("reauth_required", 401, "reauth_required")
     return None
 
 
@@ -335,10 +339,11 @@ def accept_terms():
     gate (``force_password_update``); CSRF via ``X-CSRFToken``."""
     from app.services.user_account_service import accept_terms as record_acceptance
 
+    request.max_content_length = 16 * 1024  # the device /terms cap
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or body.get("accept_terms") is not True:
         return jsonify({"error": "Please accept the terms of use.", "code": "invalid_request"}), 400
-    record_acceptance(current_user._get_current_object(), via="api")
+    record_acceptance(current_user._get_current_object(), via="device" if g.get("device_session") else "api")
     db.session.commit()
     return jsonify({"message": "Terms accepted.", "terms_accepted": True})
 

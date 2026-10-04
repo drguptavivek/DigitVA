@@ -1,4 +1,4 @@
-"""Request parsing shared by the device and intake API blueprints.
+"""Request parsing shared by the sign-in and intake API blueprints.
 
 Both answer ``{"error", "code"}``; both name the interviewer's project in the
 request, never taken from the device's enrolment.

@@ -18,15 +18,18 @@ Policy: docs/policy/va-web-form-options.md.
 """
 
 from flask import Blueprint, jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
 
-from app import limiter
+from app import db, limiter
+from app.models import VaProjectMaster, VaStatuses
+from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import (
     BASE_LOCALE,
     InstrumentTranslationError,
     export_translations,
     get_locale,
 )
+from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 from app.services.web_form_instruments import is_servable
 
 bp = Blueprint("instruments_api", __name__)
@@ -47,23 +50,44 @@ def instrument_translations(instrument_code: str, locale: str):
     instrument, an unknown locale and a ``draft`` one alike: whether a
     language exists but is still a draft is not something this endpoint's
     callers need to tell apart.
+
+    Optional ``?project_id=``: narrows to what that project serves (its
+    default form type's instrument and its ``available_locales``), and needs
+    a grant reaching the project, as ``/organization/<project>/form-options``
+    does. Anything else is 404, a project the caller cannot reach 403. The
+    offline app passes it; the browser form need not.
     """
-    return translations_response((instrument_code or "").strip().upper(), (locale or "").strip())
+    code = (instrument_code or "").strip().upper()
+    locale = (locale or "").strip()
+    project_id = (request.args.get("project_id") or "").strip().upper()
+    if project_id:
+        from app.routes.api.organization import served_instrument_locales
+
+        reachable = reachable_unit_ids(current_user, project_id, ROLES_ALLOWING_ORG_UNIT)
+        project = db.session.get(VaProjectMaster, project_id)
+        if project is None or project.project_status != VaStatuses.active:
+            return jsonify({"error": "Project not found.", "code": "not_found"}), 404
+        if reachable is not None and not reachable:
+            return jsonify({"error": "You do not have access to that project.", "code": "forbidden"}), 403
+        served_code, served_locales = served_instrument_locales(project)
+        if code != served_code or locale not in served_locales:
+            return jsonify({"error": "Translation not found.", "code": "not_found"}), 404
+    return translations_response(code, locale)
 
 
 def translations_response(code: str, locale: str):
     """One locale's strings as a response with its weak ETag (304 when the
     client's copy is current); 404 when not servable. The caller decides
-    access. Also served by the device API (app/routes/api/device.py)."""
+    access."""
     if locale != BASE_LOCALE:
         row = get_locale(code, locale)
         if row is None or not is_servable(row):
-            return jsonify({"error": "Translation not found."}), 404
+            return jsonify({"error": "Translation not found.", "code": "not_found"}), 404
 
     try:
         payload = export_translations(code, locale)
     except InstrumentTranslationError:
-        return jsonify({"error": "Translation not found."}), 404
+        return jsonify({"error": "Translation not found.", "code": "not_found"}), 404
 
     # Weak ETag: the body is regenerated per request, so byte equality is not
     # promised — semantic equality at this version is.

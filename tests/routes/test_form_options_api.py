@@ -245,7 +245,8 @@ class FormOptionsApiTests(BaseTestCase):
             {
                 "project_id", "config_version", "enabled_extensions", "form_types",
                 "default_locale", "available_locales", "narration_languages",
-                "show_guidance", "intake_note", "translation_versions",
+                "show_guidance", "intake_note", "translation_versions", "web_intake_mode",
+                "instrument_version",
             },
         )
         self.assertEqual(payload["project_id"], self.PROJECT)

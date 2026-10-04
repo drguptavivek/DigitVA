@@ -177,6 +177,37 @@ def create_app(config_class=None):
                 "`openssl rand -base64 32 | tr '+/' '-_'`."
             ) from exc
 
+    # /api/v1/ takes a session cookie or a device bearer token. Runs before
+    # every other hook (the logger, the limiter's key functions and the
+    # gates below all read the user): a bearer is authenticated alone, so the
+    # cookie on the same request is ignored, and a bad one is refused rather
+    # than falling back to the cookie.
+    @app.before_request
+    def authenticate_bearer():
+        from app.models.va_users import load_user_from_device_token
+        from app.services.device_auth_service import (
+            UNAUTHENTICATED_ENDPOINTS,
+            request_bearer_token,
+        )
+
+        g.bearer_auth = False
+        g.pop("device_session", None)
+        if request_bearer_token(request) is None:
+            return None
+        # Sign-in endpoints take no token: a client may still send its stale one.
+        if (
+            request.path.startswith("/api/v1/device/")
+            and (request.endpoint or "").rsplit(".", 1)[-1] in UNAUTHENTICATED_ENDPOINTS
+        ):
+            return None
+        user = load_user_from_device_token(request)
+        if user is None:
+            g._login_user = login.anonymous_user()  # no second lookup from the response logger
+            return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
+        g._login_user = user  # Flask-Login's per-request cache: skips the cookie loaders
+        g.bearer_auth = True
+        return None
+
     # CSRFProtect reads multipart form data in its before_request hook. Bound
     # organization imports before that hook can parse and spool an upload.
     @app.before_request
@@ -205,10 +236,36 @@ def create_app(config_class=None):
     db.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)
+    # CSRFProtect's own hook is switched off so the one below can skip bearer
+    # requests (no ambient credential, nothing to forge); every other request
+    # is checked exactly as before. Same slot in the hook order.
+    app.config["WTF_CSRF_CHECK_DEFAULT"] = False
     csrf.init_app(app)
+
+    @app.before_request
+    def csrf_protect_cookie_requests():
+        from app.services.device_auth_service import request_bearer_token
+
+        # Mirrors flask_wtf.csrf.CSRFProtect's hook minus the bearer case.
+        if (
+            not app.config["WTF_CSRF_ENABLED"]
+            or request.method not in app.config["WTF_CSRF_METHODS"]
+            or not request.endpoint
+            or request_bearer_token(request) is not None
+            or app.blueprints.get(request.blueprint) in csrf._exempt_blueprints
+        ):
+            return None
+        view = app.view_functions.get(request.endpoint)
+        if f"{view.__module__}.{view.__name__}" in csrf._exempt_views:
+            return None
+        csrf.protect()
+        return None
     
     app.config['SESSION_SQLALCHEMY'] = db
     sess_manager.init_app(app)
+    from app.utils.bearer_session import BearerBlindSessionInterface
+
+    app.session_interface = BearerBlindSessionInterface(app.session_interface)
 
     # Initialize rate limiter with Redis storage
     app.config.setdefault("RATELIMIT_STORAGE_URI", app.config.get("REDIS_URL", "redis://localhost:6379/0"))
@@ -451,28 +508,39 @@ def create_app(config_class=None):
             )
             return response
 
-        current_user_id = session.get("_user_id")
-        if not current_user_id:
-            return
-        # Flask-Login's session value is VaUsers.get_id(), "<uuid>" or
-        # "<uuid>:<version>" once a session version is set — see
-        # VaUsers.get_id / load_user.
-        raw_uid, _sep, _version = current_user_id.rpartition(":")
-        try:
-            current_user_id = uuid.UUID(raw_uid or current_user_id)
-        except (TypeError, ValueError):
-            return
-
         from app.models import VaUsers
+        from app.services.device_auth_service import request_bearer_token
 
-        fresh_user = db.session.get(VaUsers, current_user_id)
-        if fresh_user is None or not fresh_user.is_active:
-            return
+        # A bearer request has no session: its user is the one
+        # authenticate_bearer pinned. The gates below answer it in JSON.
+        is_bearer = request_bearer_token(request) is not None
+        if is_bearer:
+            if not g.get("bearer_auth"):
+                return
+            fresh_user = current_user._get_current_object()
+        else:
+            current_user_id = session.get("_user_id")
+            if not current_user_id:
+                return
+            # Flask-Login's session value is VaUsers.get_id(), "<uuid>" or
+            # "<uuid>:<version>" once a session version is set — see
+            # VaUsers.get_id / load_user.
+            raw_uid, _sep, _version = current_user_id.rpartition(":")
+            try:
+                current_user_id = uuid.UUID(raw_uid or current_user_id)
+            except (TypeError, ValueError):
+                return
+
+            fresh_user = db.session.get(VaUsers, current_user_id)
+            if fresh_user is None or not fresh_user.is_active:
+                return
 
         from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
         from flask_login import logout_user
 
         if not fresh_user.is_admin() and should_block_non_admin_after_cutoff():
+            if is_bearer:
+                return jsonify({"error": "Site is under maintenance.", "code": "maintenance"}), 403
             logout_user()
             flash(
                 "Site is under maintenance. Only admin login is allowed right now.",
@@ -500,8 +568,17 @@ def create_app(config_class=None):
             'va_auth.verify_email',
             'va_auth.resend_verification',
             'api_v1.profile_api.accept_terms',
+            # Bearer calls that must work while the terms are pending
+            # (onboarding policy 5.4): sign out, and accept.
+            'api_v1.device.end_session',
+            'api_v1.device.accept_terms',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
+            if is_bearer:
+                return jsonify({
+                    "error": "Accept the terms of use to continue.",
+                    "code": "terms_required",
+                }), 403
             from app.decorators.role_required import API_PATH_PREFIXES
 
             # The browser Expo client already reads this older code; every
@@ -546,14 +623,29 @@ def create_app(config_class=None):
     def enforce_factor_setup():
         if request.path.startswith("/static") or request.path == "/health":
             return None
-        # The device API is bearer-only and must never write a session
-        # (cookie); its sign-in already asked for any factor the user holds.
-        if request.path.startswith("/api/v1/device/"):
-            return None
+        from app.services import totp_service
+        from app.services.device_auth_service import UNAUTHENTICATED_ENDPOINTS, request_bearer_token
+
+        # A bearer token reaches every /api/v1 route, so a privileged user
+        # with no factor is held here too once enforcement is on. No session
+        # cache: a bearer request never writes one. Sign-in and sign-out
+        # stay reachable.
+        if request_bearer_token(request) is not None:
+            endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
+            if (
+                not current_user.is_authenticated
+                or endpoint in UNAUTHENTICATED_ENDPOINTS
+                or endpoint == "end_session"
+                or not totp_service.enforcement_active()
+                or not (current_user.is_admin() or current_user.is_data_manager())
+                or totp_service.has_any_factor(current_user.user_id)
+            ):
+                return None
+            response = jsonify({"error": "factor_setup_required", "code": "factor_setup_required"})
+            response.headers["Cache-Control"] = "no-store"
+            return response, 403
         if not current_user.is_authenticated:
             return None
-
-        from app.services import totp_service
 
         # Cheap checks first: until the deadline (or a break-glass reset)
         # nobody is held, so skip the grant queries entirely.

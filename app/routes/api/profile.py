@@ -23,6 +23,22 @@ from app.services.webauthn_service import (
 
 bp = Blueprint("profile_api", __name__)
 
+#: Reachable with a device bearer token. Everything else here (password,
+#: reauthentication, passkeys, TOTP, recovery codes) is account security and
+#: needs the browser session, so a stolen device token can never change it.
+_BEARER_ALLOWED = frozenset({"get_profile", "update_timezone", "update_interviewer_profile", "accept_terms"})
+
+
+@bp.before_request
+def _account_security_is_cookie_only():
+    from app.services.device_auth_service import request_bearer_token
+
+    endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
+    if request_bearer_token(request) is not None and endpoint not in _BEARER_ALLOWED:
+        return jsonify({"error": "Sign in on the web to manage account security.",
+                        "code": "cookie_session_required"}), 403
+    return None
+
 # docs/policy/authentication-factors.md section 7: registering, renaming or
 # revoking a passkey needs a sign-in or reauthentication within this window.
 REAUTH_TTL = timedelta(minutes=10)

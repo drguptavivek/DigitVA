@@ -74,17 +74,18 @@ class ClientBootstrapTests(BaseTestCase):
         self.assertEqual(response.content_type, "application/json")
         self.assertEqual(self.client.get(response.get_json()["login_url"]).status_code, 200)
 
-    def test_bearer_device_token_does_not_authenticate_browser_bootstrap(self):
-        with mock.patch("app.services.device_auth_service.resolve_access_token") as resolve:
+    def test_unresolvable_bearer_token_is_refused_on_bootstrap(self):
+        # /api/v1 takes a bearer too (digitva-uzhq): a bad one is a 401, never
+        # the anonymous bootstrap answer.
+        with mock.patch("app.services.device_auth_service.resolve_access_token", return_value=None) as resolve:
             response = self.client.get(
                 BOOTSTRAP,
                 headers={"Authorization": "Bearer a-device-token"},
             )
 
+        resolve.assert_called_once()
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.get_json()["code"], "authentication_required")
-        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
-        resolve.assert_not_called()
+        self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
 
     def test_authenticated_bootstrap_exposes_role_capabilities_and_csrf(self):
         # Capabilities follow the role gates (authz.effective_roles): a coder

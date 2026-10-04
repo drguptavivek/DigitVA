@@ -6,9 +6,9 @@ Policy: docs/policy/field-data-collection.md. Rules live in
 ``web_intake_service`` (uploads); this layer parses and serializes.
 
 No cookies: every call after sign-in carries ``Authorization: Bearer``,
-resolved by the request loader in app/models/va_users.py, and this
-blueprint refuses any other kind of authentication (a browser's session
-cookie included), which is what makes exempting it from CSRF safe. Errors are
+authenticated by the ``authenticate_bearer`` hook in app/__init__.py (the
+same credential every /api/v1 route accepts), and this blueprint refuses
+any other kind of authentication (a browser's session cookie included). Errors are
 ``{"error": ..., "code": ...}``. Request bodies are capped (``_body_limit``)
 before anything reads them, the rate limiter's key functions included.
 """
@@ -41,7 +41,7 @@ bp = Blueprint("device", __name__)
 csrf.exempt(bp)
 
 #: Endpoints reachable without a device session (they create one).
-_UNAUTHENTICATED = frozenset({"enroll", "open_session", "refresh_session"})
+_UNAUTHENTICATED = devices.UNAUTHENTICATED_ENDPOINTS
 #: Bearer endpoints open while the terms are pending (onboarding policy 5.4).
 _TERMS_EXEMPT = frozenset({"end_session", "accept_terms"})
 

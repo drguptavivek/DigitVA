@@ -68,6 +68,9 @@ from app.services.user_account_service import canonical_mobile
 log = logging.getLogger(__name__)
 
 DEVICE_API_PREFIX = "/api/v1/device/"
+API_V1_PREFIX = "/api/v1/"
+#: Device endpoints that create a session, so carry no valid bearer token.
+UNAUTHENTICATED_ENDPOINTS = frozenset({"enroll", "open_session", "refresh_session"})
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30
 DEFAULT_SESSION_MAX_DAYS = 90
@@ -115,6 +118,22 @@ class IssuedTokens:
     access_token: str
     refresh_token: str
     session: AuthDeviceSession
+
+
+def request_bearer_token(request) -> str | None:
+    """The token of an ``Authorization: Bearer`` header on an ``/api/v1/``
+    path ("" when the header names Bearer with no token), else None.
+
+    One definition of "a bearer request" for the credential pre-step, the
+    CSRF hook and the session interface. A header with another scheme, or
+    any path outside ``/api/v1/``, is not one: the cookie rules apply.
+    """
+    if not request.path.startswith(API_V1_PREFIX):
+        return None
+    scheme, _sep, token = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    return token.strip()
 
 
 def _now() -> datetime:

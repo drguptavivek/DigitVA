@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Expo Web Client Boundary
@@ -17,8 +17,13 @@ Policy](field-data-collection.md).
 
 The native collection app remains the offline path. It uses the existing
 encrypted device store and bearer device-session API. A device token is
-accepted only under `/api/v1/device/`; it cannot authenticate the browser
-client or any other API.
+accepted on every `/api/v1/` route, same route and body as the browser
+session cookie; it cannot authenticate anything outside `/api/v1/` (the
+browser pages, `/admin/api`, `/intake`). A request carrying a bearer is
+authenticated by it alone: a cookie on the same request is ignored, a bad
+token is a 401 (never a fallback), it needs no `X-CSRFToken` and it never
+sets a cookie. Terms, maintenance and forced-password-change gates apply to
+both credentials.
 
 ## Browser bootstrap
 

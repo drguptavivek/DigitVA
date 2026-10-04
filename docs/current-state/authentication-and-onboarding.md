@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -344,7 +344,7 @@ Maintenance is checked again before completing.
 ### 3.4 Enrolment window and forced factor setup
 
 `enforce_factor_setup` (every request except `/static`, `/health` and
-`/api/v1/device/`) applies to a signed-in privileged user when
+bearer-authenticated requests) applies to a signed-in privileged user when
 `AUTH_FACTOR_ENFORCE_FROM` (ISO date) has passed, or when the session
 carries `factor_setup_forced` (set by a break-glass factor-reset link). If
 the user has no passkey and no confirmed TOTP (cached per session in
@@ -355,6 +355,12 @@ the user has no passkey and no confirmed TOTP (cached per session in
   403 `{"error": "factor_setup_required"}`.
 - Exempt: `profile.view`, `profile.force_password_change`, every
   `va_auth.*` endpoint and every `/api/v1/profile/*` endpoint.
+- Bearer requests (device token on `/api/v1/*`): a privileged user with no
+  factor gets 403 `{"error": "factor_setup_required", "code":
+  "factor_setup_required"}` (`Cache-Control: no-store`) while enforcement is
+  on, nothing cached; device sign-in, refresh and sign-out stay open. A
+  break-glass reset is caught there too once enforcement is on, because
+  the user then holds no factor.
 
 No lock-out: password sign-in still works. Before the date nobody is held.
 After a password sign-in by a user with no passkey, the base template shows
@@ -707,6 +713,12 @@ digitva-9an9).
 
 ### 6.6 Factor rules on the device
 
+- Account security is browser-only: with a bearer token every
+  `/api/v1/profile/*` route except the profile read, time zone,
+  interviewer details and terms answers 403 `{"code":
+  "cookie_session_required"}` (password generate, reauthentication,
+  passkeys, TOTP, recovery codes).
+
 - No WebAuthn on the device API: a passkey cannot be used to sign in there.
 - When `needs_second_factor` is true the `otp` field is required and takes
   a TOTP code or a recovery code. A privileged user holding only passkeys
@@ -714,9 +726,20 @@ digitva-9an9).
 - Device lockout is counted per account from the audit trail (5 failures in
   15 minutes since the last successful device sign-in), separately from the
   web flow's per-pre-auth counter.
-- The enrolment-enforcement redirect (section 3.4) and the cookie terms
-  gate never run on `/api/v1/device/`; the device blueprint applies its own
-  terms gate (section 6.5).
+- The enrolment-enforcement redirect (section 3.4) never runs on a bearer
+  request. The terms and maintenance gates run on every `/api/v1/` bearer
+  request (`force_password_update`, JSON `terms_required` / `maintenance`;
+  exempt: sign-out, `POST /api/v1/device/terms`, `POST /api/v1/profile/terms`).
+- **One credential rule for `/api/v1/`.** The `authenticate_bearer` hook
+  (`app/__init__.py`, first `before_request`) authenticates an
+  `Authorization: Bearer` request by the token alone and pins the user on the
+  request, so a session or remember cookie on the same request is ignored; a
+  bad, expired or revoked token is 401 `unauthorized`, never a cookie
+  fallback. Bearer requests skip CSRF (`csrf_protect_cookie_requests`; cookie
+  requests keep it) and see an empty session that is never saved
+  (`app/utils/bearer_session.py`), so they set no cookie. Outside `/api/v1/`
+  a bearer is ignored. The sign-in endpoints (`enroll`, `sessions`,
+  `sessions/refresh`) ignore a stale token.
 
 ## 7. Browser client bootstrap: `GET /api/v1/client/bootstrap`
 
@@ -771,7 +794,7 @@ terms gate answers JSON calls with 403 `terms_required` (section 3.5).
 ### 8.1 Conventions
 
 - **CSRF.** `CSRFProtect` covers every POST, PUT, PATCH and DELETE except
-  `/api/v1/device/*` (and two unrelated exemptions). Server-rendered forms
+  `/api/v1/device/*` and every bearer-token request (and two unrelated exemptions). Server-rendered forms
   carry a hidden `csrf_token` field; JSON calls send the token in the
   `X-CSRFToken` header (the only accepted header, `WTF_CSRF_HEADERS`). In
   production `WTF_CSRF_SSL_STRICT` also requires a same-origin `Referer`
@@ -949,7 +972,7 @@ JSON:
   section 5.
 - Never call `/vaauth/valogin/password` or the passkey endpoints without the
   identifier step first; never cache or replay a CAPTCHA solution.
-- Never send a device bearer token anywhere but `/api/v1/device/`, and never
+- Never send a device bearer token anywhere but `/api/v1/`, and never
   use a browser cookie session on the device API.
 - Never wipe local interview data on any code except `session_revoked`;
   `session_ended`, `session_expired`, `refresh_reused` and

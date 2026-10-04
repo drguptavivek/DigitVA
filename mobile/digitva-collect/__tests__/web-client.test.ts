@@ -188,6 +188,21 @@ describe("browser client", () => {
       }),
     );
   });
+
+  it("polls the signed-in user's bounded notification metadata with cookie credentials", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(response({
+      status: 200,
+      body: { notifications: [], next_cursor: 12 },
+    }));
+
+    await expect(requestClientJson("/api/v1/me/notifications?after=12")).resolves.toEqual({
+      notifications: [], next_cursor: 12,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/v1/me/notifications?after=12",
+      expect.objectContaining({ method: "GET", credentials: "include", cache: "no-store" }),
+    );
+  });
 });
 
 describe("server draft store", () => {

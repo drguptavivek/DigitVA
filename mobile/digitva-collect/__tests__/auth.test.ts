@@ -13,6 +13,10 @@ jest.mock("expo-secure-store", () => ({
   ),
   deleteItemAsync: jest.fn(async (key: string) => void mockSecure.delete(key)),
 }));
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+  digestStringAsync: jest.fn(async (_algorithm: string, value: string) => `hash-${value}`),
+}));
 const mockDeleteDb = jest.fn(async (_userId: string) => undefined);
 jest.mock("../src/interviewerDb", () => ({
   deleteInterviewerDb: (id: string) => mockDeleteDb(id),
@@ -31,6 +35,7 @@ import {
   subscribeTermsChanges,
 } from "../src/auth";
 import { APP_VERSION } from "../src/appVersion";
+import { recordNotificationPoll } from "../src/notificationState";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -154,6 +159,25 @@ it("retains the terms flag returned at sign-in", async () => {
   expect(calls.some((call) => call.url.endsWith("/me/access"))).toBe(false);
   expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!)).not.toHaveProperty("access");
   expect(mockDeleteDb).not.toHaveBeenCalled();
+});
+
+it("clears notification cursors when a different account signs in", async () => {
+  seed({ access: "a", refresh: "r1" });
+  await recordNotificationPoll(USER, 12, true);
+  await recordNotificationPoll("other", 34, true);
+  await recordNotificationPoll("new-user", 56, true);
+  mockServer(() => json(201, {
+    access_token: "new-access",
+    access_expires_at: "",
+    refresh_token: "new-refresh",
+    refresh_expires_at: "",
+    user: { user_id: "new-user", name: "New" },
+    access: ACCESS,
+  }));
+
+  await signIn("new@example.org", "pw");
+
+  expect([...mockSecure.keys()].filter((key) => key.startsWith("notification_state."))).toEqual([]);
 });
 
 it("retains refreshed tokens and the terms flag when refresh opens the terms gate", async () => {

@@ -9,6 +9,7 @@ const mockSave = jest.fn(async () => undefined);
 const mockLockAll = jest.fn(async (..._args: unknown[]) => undefined);
 const mockOpenDb = jest.fn(async (..._args: unknown[]) => ({}) as never);
 const mockRefresh = jest.fn(async (..._args: unknown[]) => undefined);
+const mockNotificationRefresh = jest.fn(async (..._args: unknown[]) => false);
 const mockReconcile = jest.fn(async (..._args: unknown[]) => undefined);
 let mockAutoLockCallback: (() => void) | undefined;
 let mockAccessListener: ((userId: string, access: unknown) => Promise<void> | void) | undefined;
@@ -47,6 +48,10 @@ jest.mock("../src/sync", () => ({
   refreshReferenceData: (...args: unknown[]) => mockRefresh(...args),
   reconcileReferenceAccess: (...args: unknown[]) => mockReconcile(...args),
 }));
+jest.mock("../src/nativeNotificationSync", () => ({
+  refreshNativeNotifications: (...args: unknown[]) => mockNotificationRefresh(...args),
+  runNativeSync: jest.fn(async () => ({ sync: {}, reference: undefined })),
+}));
 
 import { AppStateProvider, useAppState } from "../src/AppState";
 
@@ -77,6 +82,7 @@ beforeEach(() => {
   mockLockAll.mockClear();
   mockOpenDb.mockClear();
   mockRefresh.mockClear();
+  mockNotificationRefresh.mockClear();
   mockReconcile.mockClear();
   mockAppStateListeners.clear();
   mockAutoLockCallback = undefined;

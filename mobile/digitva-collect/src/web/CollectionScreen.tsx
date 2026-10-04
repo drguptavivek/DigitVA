@@ -20,10 +20,23 @@ function sexLabel(value: string | null | undefined): string {
 
 const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "closed", "duplicate", "not_codeable"]);
 
+/** Browser-only refresh signal; native test and state interfaces omit it. */
+type BrowserNotificationRefresh = {
+  notificationGeneration?: number;
+  acknowledgeAuthoritativeRefresh?: (expectedRevision: number) => void;
+};
+
+/** Binds a refresh outcome to the notification revision it actually fetched. */
+type AuthoritativeRefreshResult = {
+  success: boolean;
+  revision: number;
+};
+
 export default function CollectionScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ superseded?: string }>();
-  const { bootstrap } = useAppState();
+  const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
+  const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
   const styles = useUiStyles();
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -32,7 +45,14 @@ export default function CollectionScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const refreshInFlight = useRef<{ generation: number; promise: Promise<void> } | undefined>(undefined);
+  const refreshInFlight = useRef<{ generation: number; promise: Promise<AuthoritativeRefreshResult> } | undefined>(undefined);
+  const notificationRevisionRef = useRef(notificationGeneration ?? 0);
+  const pendingNotificationRevision = useRef<number | undefined>(undefined);
+  const notificationRefreshInFlight = useRef<Promise<void> | undefined>(undefined);
+  const requestNotificationRefreshRef = useRef<((revision: number) => Promise<void>) | undefined>(undefined);
+  const acknowledgedNotificationRevision = useRef(0);
+  const mounted = useRef(false);
+  notificationRevisionRef.current = notificationGeneration ?? 0;
   const bootstrapRef = useRef(bootstrap);
   const generationRef = useRef(0);
   if (bootstrapRef.current !== bootstrap) {
@@ -41,17 +61,30 @@ export default function CollectionScreen() {
     refreshInFlight.current = undefined;
   }
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      generationRef.current += 1;
+      pendingNotificationRevision.current = undefined;
+      refreshInFlight.current = undefined;
+      notificationRefreshInFlight.current = undefined;
+    };
+  }, []);
+
   const loadIntake = useCallback(async () => {
     if (!bootstrap) throw new Error("authentication_required");
     return getIntakeContext(bootstrap.csrf);
   }, [bootstrap]);
 
   const refresh = useCallback(async () => {
-    if (!bootstrap) return;
+    const revision = notificationRevisionRef.current;
+    if (!bootstrap || bootstrapRef.current !== bootstrap) return { success: false, revision };
     const generation = generationRef.current;
-    const isCurrent = () => generationRef.current === generation && bootstrapRef.current === bootstrap;
-    if (refreshInFlight.current?.generation === generation) return refreshInFlight.current.promise;
-    let task!: Promise<void>;
+    const isCurrent = () => mounted.current && generationRef.current === generation && bootstrapRef.current === bootstrap;
+    const existingRefresh = refreshInFlight.current;
+    if (existingRefresh?.generation === generation) return existingRefresh.promise;
+    let task!: Promise<AuthoritativeRefreshResult>;
     task = (async () => {
       setBusy(true);
       setMessage("");
@@ -62,15 +95,17 @@ export default function CollectionScreen() {
           getDrafts(bootstrap.links.intakeDrafts, bootstrap.csrf),
           getSubmittedRevisions(bootstrap.csrf)
         ]);
-        if (!isCurrent()) return;
+        if (!isCurrent()) return { success: false, revision };
         setIntake(nextIntake);
         setCases(caseResult.cases ?? []);
         rememberCasePreviews(bootstrap, caseResult.cases ?? []);
         setNextCursor(caseResult.next_cursor ?? null);
         setDrafts(draftResult.drafts ?? []);
         setSubmitted(submittedResult);
+        return { success: true, revision };
       } catch (error) {
         if (isCurrent()) setMessage(browserErrorText(error));
+        return { success: false, revision };
       } finally {
         if (isCurrent()) setBusy(false);
         if (refreshInFlight.current?.promise === task) refreshInFlight.current = undefined;
@@ -79,6 +114,50 @@ export default function CollectionScreen() {
     refreshInFlight.current = { generation, promise: task };
     return task;
   }, [bootstrap, loadIntake]);
+
+  const requestNotificationRefresh = useCallback((revision: number) => {
+    if (!mounted.current) return Promise.resolve();
+    if (revision <= acknowledgedNotificationRevision.current) return Promise.resolve();
+    pendingNotificationRevision.current = Math.max(pendingNotificationRevision.current ?? revision, revision);
+    if (notificationRefreshInFlight.current) return notificationRefreshInFlight.current;
+
+    const generation = generationRef.current;
+    const accountId = bootstrapRef.current?.user.user_id;
+    let task!: Promise<void>;
+    task = (async () => {
+      while (pendingNotificationRevision.current !== undefined) {
+        if (!mounted.current) break;
+        const expectedRevision = pendingNotificationRevision.current;
+        pendingNotificationRevision.current = undefined;
+        if (expectedRevision <= acknowledgedNotificationRevision.current) continue;
+        const result = await refresh();
+        if (generationRef.current !== generation) {
+          if (mounted.current && bootstrapRef.current?.user.user_id === accountId) {
+            pendingNotificationRevision.current = Math.max(pendingNotificationRevision.current ?? expectedRevision, expectedRevision);
+          }
+          break;
+        }
+        if (!result.success) break;
+        acknowledgeAuthoritativeRefresh?.(result.revision);
+        acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+        if (result.revision < expectedRevision) {
+          pendingNotificationRevision.current = Math.max(pendingNotificationRevision.current ?? expectedRevision, expectedRevision);
+        }
+        if (notificationRevisionRef.current > result.revision) {
+          pendingNotificationRevision.current = Math.max(pendingNotificationRevision.current ?? notificationRevisionRef.current, notificationRevisionRef.current);
+        }
+      }
+    })();
+    notificationRefreshInFlight.current = task;
+    void task.finally(() => {
+      if (notificationRefreshInFlight.current === task) notificationRefreshInFlight.current = undefined;
+      if (mounted.current && pendingNotificationRevision.current !== undefined) {
+        void requestNotificationRefreshRef.current?.(pendingNotificationRevision.current);
+      }
+    });
+    return task;
+  }, [acknowledgeAuthoritativeRefresh, refresh]);
+  requestNotificationRefreshRef.current = requestNotificationRefresh;
 
   const loadMore = useCallback(async () => {
     if (!bootstrap || !nextCursor) return;
@@ -111,8 +190,21 @@ export default function CollectionScreen() {
   }, [bootstrap]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refresh().then((result) => {
+      if (result.success) {
+        acknowledgeAuthoritativeRefresh?.(result.revision);
+        acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+        if (pendingNotificationRevision.current !== undefined && pendingNotificationRevision.current <= result.revision) {
+          pendingNotificationRevision.current = undefined;
+        }
+      }
+    });
+  }, [acknowledgeAuthoritativeRefresh, refresh]);
+
+  useEffect(() => {
+    if (notificationGeneration === undefined || notificationGeneration === 0) return;
+    void requestNotificationRefresh(notificationGeneration);
+  }, [notificationGeneration, requestNotificationRefresh]);
 
   return (
     <WebShell title={t("reportedDeaths")}>
@@ -149,7 +241,14 @@ export default function CollectionScreen() {
               />
             );
           })}
-          <Button kind="secondary" loading={busy} label={t("refresh")} onPress={() => void refresh()} />
+          <Button kind="secondary" loading={busy} label={t("refresh")} onPress={() => {
+            void refresh().then((result) => {
+              if (result.success) {
+                acknowledgeAuthoritativeRefresh?.(result.revision);
+                acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+              }
+            });
+          }} />
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           <Text style={styles.headline}>{t("draftsTitle")}</Text>
           {drafts.length === 0 ? <Text style={styles.muted}>{t("noDrafts")}</Text> : null}

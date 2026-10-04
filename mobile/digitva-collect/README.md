@@ -287,6 +287,24 @@ After vendor changes, rebuild the package and refresh the installed package
 copy before exporting the app. Web and Android JavaScript exports do not install
 or validate a physical Android build.
 
+## Notification polling
+
+The inbox prompts an authoritative sync; notification rows never change case
+status directly. Foreground clients poll about once a minute and refresh normal
+data at least every 15 minutes, even when the inbox is empty. Browser cursors
+stay in account-scoped memory. Native cursors and pending-sync flags use
+account-scoped SecureStore metadata and are cleared on account reset.
+
+Android uses `expo-background-task` with a minimum 15-minute interval. Android
+chooses the actual schedule. A locked task only records notification metadata;
+interview data sync waits for unlock. iOS polls in the foreground. No FCM, Expo
+push service or OS notification permission is required. Background registration
+failure emits one generic diagnostic; foreground polling continues.
+
+These native modules require a rebuilt Android app. JavaScript export,
+autolinking and isolated prebuild have been checked; APK compilation and real
+device WorkManager scheduling still require Android build/device acceptance.
+
 ## Needs a real device
 
 Biometric enforcement: emulators do not require the biometric to release a

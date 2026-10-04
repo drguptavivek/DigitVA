@@ -42,7 +42,6 @@ import {
   refreshCases,
   registersDeaths,
   startsDirectly,
-  syncInterviewer,
   targetsFrom,
 } from "../sync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
@@ -104,7 +103,7 @@ export default function Worklist() {
     userId: string;
     refresh?: string;
   }>();
-  const { accounts, reload, lockNow, lockVersion } = useAppState();
+  const { accounts, reload, lockNow, lockVersion, syncAccount } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -638,14 +637,17 @@ export default function Worklist() {
     setMessage("");
     setSupersededUniqueIds([]);
     try {
-      const result = await syncInterviewer(account.user_id, db, (uniqueId) => {
-        if (isCurrentSync()) {
-          setSupersededUniqueIds((current) =>
-            current.includes(uniqueId) ? current : [...current, uniqueId],
-          );
-        }
-      }, () => {
-        if (isCurrentSync()) setDraftConflict(true);
+      const { sync: result, reference: fresh } = await syncAccount(account.user_id, db, {
+        onSuperseded: (uniqueId) => {
+          if (isCurrentSync()) {
+            setSupersededUniqueIds((current) =>
+              current.includes(uniqueId) ? current : [...current, uniqueId],
+            );
+          }
+        },
+        onDraftConflict: () => {
+          if (isCurrentSync()) setDraftConflict(true);
+        },
       });
       if (isCurrentSync()) {
         setMessage(
@@ -658,9 +660,6 @@ export default function Worklist() {
         setSupersededUniqueIds(result.supersededUniqueIds);
         if (result.draftConflictIds?.length) setDraftConflict(true);
       }
-      const fresh = await refreshReferenceData(account.user_id, db, {
-        force: true,
-      });
       if (isCurrentSync()) {
         setReference(fresh);
       }

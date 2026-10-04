@@ -36,6 +36,8 @@ import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interview
 import { errorText } from "./ui";
 import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
 import type { ClientBootstrap } from "./client/api";
+import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
+import type { Db } from "./drafts";
 
 const UI_LOCALE_KEY = "ui_locale";
 
@@ -48,6 +50,8 @@ interface AppState {
   chooseUiLocale(code: string): Promise<void>;
   /** Bumps on every lock or unlock so screens re-read isUnlocked(). */
   lockVersion: number;
+  /** Run a full upload/download while coalescing with notification sync. */
+  syncAccount(userId: string, db: Db, callbacks?: NativeSyncCallbacks): Promise<NativeSyncResult>;
   lockNow(): Promise<void>;
   unlocked(): void;
   /** Restart the idle timer (touches are caught at the root; the form reports its saves). */
@@ -78,6 +82,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const beforeLock = useRef(new Set<() => Promise<void>>());
   const accountsRef = useRef<Account[]>([]);
   const autoLock = useRef<AutoLock | undefined>(undefined);
+  const foregroundNotificationRefresh = useRef<(() => Promise<void>) | undefined>(undefined);
 
   const lockNow = useCallback(async () => {
     if (!anyUnlocked()) return;
@@ -115,6 +120,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const unlocked = useCallback(() => {
     autoLock.current?.activity();
     setLockVersion((v) => v + 1);
+    void foregroundNotificationRefresh.current?.();
   }, []);
   const onBeforeLock = useCallback((hook: () => Promise<void>) => {
     beforeLock.current.add(hook);
@@ -153,8 +159,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     setError(undefined);
     for (const account of accountsRef.current) {
-      if (!isUnlocked(account.user_id)) continue;
-      const handle = await openInterviewerDb(account.user_id);
+      if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+      const handle = isUnlocked(account.user_id)
+        ? await openInterviewerDb(account.user_id)
+        : undefined;
+      const didSync = await refreshNativeNotifications(account.user_id, handle);
+      if (didSync) {
+        setLockVersion((version) => version + 1);
+        continue;
+      }
+      if (!handle) continue;
       try {
         await refreshReferenceData(account.user_id, handle, { force: true });
       } catch (refreshError) {
@@ -166,6 +180,31 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     await reload();
   }, [flushBeforeRefresh, reload]);
+
+  const pollForegroundNotifications = useCallback(async () => {
+    try {
+      await flushBeforeRefresh();
+      for (const account of accountsRef.current) {
+        if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+        const handle = isUnlocked(account.user_id)
+          ? await openInterviewerDb(account.user_id)
+          : undefined;
+        const didSync = await refreshNativeNotifications(account.user_id, handle);
+        if (didSync) setLockVersion((version) => version + 1);
+      }
+      await reload();
+    } catch (pollError) {
+      setError(errorText(pollError));
+    }
+  }, [flushBeforeRefresh, reload]);
+
+  const syncAccount = useCallback(async (
+    userId: string,
+    handle: Db,
+    callbacks?: NativeSyncCallbacks,
+  ) => {
+    return runNativeSync(userId, handle, callbacks);
+  }, []);
 
   useEffect(() => {
     accountsRef.current = accounts;
@@ -200,14 +239,35 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let previous = NativeAppState.currentState;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const startTimer = () => {
+      if (timer) clearInterval(timer);
+      timer = setInterval(() => void pollForegroundNotifications(), 60_000);
+    };
+    const stopTimer = () => {
+      if (timer) clearInterval(timer);
+      timer = undefined;
+    };
+    foregroundNotificationRefresh.current = pollForegroundNotifications;
+    if (ready && previous === "active") {
+      void refreshUnlocked().catch((refreshError) => setError(errorText(refreshError)));
+      startTimer();
+    }
     const subscription = NativeAppState.addEventListener("change", (next) => {
       if (next === "active" && previous !== "active") {
         void refreshUnlocked().catch((refreshError) => setError(errorText(refreshError)));
+        startTimer();
+      } else if (next !== "active") {
+        stopTimer();
       }
       previous = next;
     });
-    return () => subscription.remove();
-  }, [refreshUnlocked]);
+    return () => {
+      stopTimer();
+      foregroundNotificationRefresh.current = undefined;
+      subscription.remove();
+    };
+  }, [ready, refreshUnlocked, pollForegroundNotifications]);
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
@@ -225,6 +285,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       reload,
       chooseUiLocale,
       lockVersion,
+      syncAccount,
       lockNow,
       unlocked,
       activity,
@@ -240,6 +301,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       reload,
       chooseUiLocale,
       lockVersion,
+      syncAccount,
       lockNow,
       unlocked,
       activity,

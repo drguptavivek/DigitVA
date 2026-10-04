@@ -103,13 +103,32 @@ jest.mock("../src/AppState", () => ({
   useAppState: () => {
     mockObservedLockVersion = mockLockVersion;
     return {
-    accounts: [mockAccount],
-    reload: mockReload,
-    lockNow: jest.fn(),
-    activity: jest.fn(),
-    onBeforeLock: jest.fn(() => jest.fn()),
-    chooseUiLocale: mockChooseUiLocale,
-    lockVersion: mockLockVersion,
+      accounts: [mockAccount],
+      reload: mockReload,
+      lockNow: jest.fn(),
+      activity: jest.fn(),
+      onBeforeLock: jest.fn(() => jest.fn()),
+      chooseUiLocale: mockChooseUiLocale,
+      lockVersion: mockLockVersion,
+      syncAccount: async (
+        userId: string,
+        db: unknown,
+        callbacks: {
+          onSuperseded?: (uniqueId: string) => void;
+          onDraftConflict?: (draftId: string) => void;
+        } = {},
+      ) => {
+        const sync = await jest.requireMock("../src/sync").syncInterviewer(
+          userId,
+          db,
+          callbacks.onSuperseded,
+          callbacks.onDraftConflict,
+        );
+        const reference = await jest
+          .requireMock("../src/sync")
+          .refreshReferenceData(userId, db, { force: true });
+        return { sync, reference };
+      },
     };
   },
 }));

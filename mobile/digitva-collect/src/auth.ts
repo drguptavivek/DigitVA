@@ -21,11 +21,8 @@ import * as SecureStore from "expo-secure-store";
 import { APP_VERSION } from "./appVersion";
 import { ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
-import {
-  deleteInterviewerDb,
-  unlockInterviewerDb,
-  type UnlockResult,
-} from "./interviewerDb";
+import type { UnlockResult } from "./interviewerDb";
+import { clearNotificationState, resetNotificationState } from "./notificationState";
 
 export { SessionRevokedError, SignInRequiredError } from "./authErrors";
 
@@ -228,11 +225,16 @@ export async function signIn(
     name: body.user.name,
     ...(body.terms_required ? { terms_required: true } : {}),
   };
+  const existingAccounts = await loadAccounts();
   await saveTokens(account.user_id, body);
-  const others = (await loadAccounts()).filter(
+  const others = existingAccounts.filter(
     (a) => a.user_id !== account.user_id,
   );
   await writeJson(ACCOUNTS_KEY, [...others, account]);
+  await Promise.all(
+    [...new Set([...existingAccounts.map(({ user_id }) => user_id), account.user_id])]
+      .map((userId) => resetNotificationState(userId)),
+  );
   await publishAccessSummary(account.user_id, body.access);
   return account;
 }
@@ -249,10 +251,13 @@ function saveTokens(userId: string, t: Tokens): Promise<void> {
 
 /** Wipe one interviewer: database, tokens, account entry. Nobody else's. */
 export async function wipeInterviewer(userId: string): Promise<void> {
+  const clearNotifications = clearNotificationState(userId);
+  const { deleteInterviewerDb } = require("./interviewerDb") as typeof import("./interviewerDb");
   await deleteInterviewerDb(userId);
   await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
   const remaining = (await loadAccounts()).filter((a) => a.user_id !== userId);
   await writeJson(ACCOUNTS_KEY, remaining);
+  await clearNotifications;
 }
 
 /** The server refused this interviewer's refresh without revoking: drop the dead tokens, flag the account, keep its data. */
@@ -289,6 +294,7 @@ export async function unlockInterviewer(
   userId: string,
   pin: string,
 ): Promise<UnlockResult> {
+  const { unlockInterviewerDb } = require("./interviewerDb") as typeof import("./interviewerDb");
   const result = await unlockInterviewerDb(userId, pin);
   if (!result.ok && result.wipe) await signOut(userId);
   return result;

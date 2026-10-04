@@ -21,6 +21,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MapCaseTransition,
+    MapUserNotification,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
@@ -350,6 +351,23 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(ctx.exception.status_code, 403)
         cases.reopen(case, actor=self.sam, reason="real")
         self.assertEqual(case.status, "registered")
+
+    def test_a_reopen_nudges_the_starter_but_not_the_supervisor(self):
+        case = self._register()
+        cases.transition(case, "cancelled", actor=self.ian, action="cancel_registration")
+        case.started_by_user_id = self.ian.user_id
+        db.session.flush()
+
+        cases.reopen(case, actor=self.sam, reason="real")
+
+        def rows(user):
+            return [
+                (r.kind, r.project_id, r.death_id, r.draft_id, r.va_sid)
+                for r in db.session.scalars(sa.select(MapUserNotification).where(MapUserNotification.user_id == user.user_id))
+            ]
+
+        self.assertEqual(rows(self.ian), [("case_reopened", case.project_id, case.death_id, None, None)])
+        self.assertEqual(rows(self.sam), [])
 
     def test_confirming_a_coded_submission_as_duplicate_needs_a_data_manager(self):
         kept = self._register()

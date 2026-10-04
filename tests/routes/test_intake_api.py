@@ -19,6 +19,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapUserNotification,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
@@ -291,6 +292,63 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual((case.status, case.deceased_name, case.va_sid), ("submitted", "Bina Sahu", won.get_json()["va_sid"]))
         # The case detail still hides the winner's submission id from this interviewer.
         self.assertIsNone(self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]["va_sid"])
+
+    def test_parallel_interviewers_are_nudged_when_a_draft_starts_and_when_a_teammate_wins(self):
+        self._login(self.interviewer_id)
+        death_id = self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+        users = {}
+        for name in ("a", "b", "c"):
+            user = self._get_or_make_user(f"api.nudge.{name}@test.local", "IntakeApi123")
+            db.session.add(VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+                project_id=self.PROJECT_ID, notes="nudge interviewer", grant_status=VaStatuses.active,
+            ))
+            users[name] = user
+        db.session.flush()
+
+        def rows(name):
+            db.session.expire_all()
+            return [
+                (r.kind, r.project_id, str(r.death_id), str(r.draft_id), r.va_sid)
+                for r in db.session.scalars(
+                    sa.select(MapUserNotification).where(MapUserNotification.user_id == users[name].user_id)
+                    .order_by(MapUserNotification.id))
+            ]
+
+        drafts = {}
+        for name in ("a", "b", "c"):
+            self._login(str(users[name].user_id))
+            drafts[name] = self._start_draft(death_id=death_id)["draft_id"]
+            self._start_draft(death_id=death_id)  # resuming one's own draft nudges nobody
+        def started(name):
+            return ("other_draft_started", self.PROJECT_ID, death_id, drafts[name], None)
+
+        self.assertEqual(rows("a"), [started("a"), started("a")])  # b and c started after a
+        self.assertEqual(rows("b"), [started("b")])  # c started after b
+        self.assertEqual(rows("c"), [])
+
+        self._login(str(users["c"].user_id))
+        won = self.client.post(f"/api/v1/intake/drafts/{drafts['c']}/submit", headers=self._csrf_headers(), json={
+            "completion": {"valid": True, "issues": [], "data": {
+                "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                "narr_language": "english"}}})
+        self.assertEqual(won.status_code, 201, won.get_json())
+        def closed(name):
+            return ("case_submitted_by_other", self.PROJECT_ID, death_id, drafts[name], None)
+
+        self.assertEqual(rows("a")[-1], closed("a"))
+        self.assertEqual(rows("b")[-1], closed("b"))
+        self.assertEqual((len(rows("a")), len(rows("b")), len(rows("c"))), (3, 2, 0))
+
+        # Their late submit becomes a superseded copy: the case is already closed, nobody is told again.
+        self._login(str(users["a"].user_id))
+        late = self.client.post(f"/api/v1/intake/drafts/{drafts['a']}/submit", headers=self._csrf_headers(), json={
+            "completion": {"valid": True, "issues": [], "data": {"Id10013": "yes", "narr_language": "english"}}})
+        self.assertEqual(late.status_code, 200, late.get_json())
+        self.assertEqual((len(rows("a")), len(rows("b")), len(rows("c"))), (3, 2, 0))
 
     def test_case_detail_carries_prefill_only_for_a_caller_who_may_start_or_resume(self):
         self._login(self.interviewer_id)

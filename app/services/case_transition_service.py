@@ -31,6 +31,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.va_web_intake import CASE_FLAGS
+from app.services import notification_service
 from app.services.authz import supervision
 from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
 
@@ -464,5 +465,14 @@ def reopen(case: VaDeathRegister, *, actor: VaUsers, reason: str | None = None) 
     _audit(case, actor=actor, action="reopen", from_state=from_state, to_state=previous, reason=reason,
            grant=grant)
     db.session.flush()
+    # The starter and anyone holding an open draft learn the case is open again.
+    holders = notification_service.open_draft_holders(case.death_id, exclude_user_id=actor.user_id)
+    recipients = list(holders)
+    if case.started_by_user_id not in (None, actor.user_id, *recipients):
+        recipients.insert(0, case.started_by_user_id)  # first, so the fan-out cap never drops it
+    notification_service.notify(
+        recipients, notification_service.CASE_REOPENED, project_id=case.project_id,
+        death_id=case.death_id, draft_id=holders,
+    )
     return case
 

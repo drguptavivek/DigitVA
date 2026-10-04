@@ -610,6 +610,12 @@ Current seeded periodic tasks:
 - database backup daily at `DB_BACKUP_DAILY_TIME` (default `01:30` UTC), a
   crontab schedule rather than an interval because the time of day matters —
   see [backup.md](backup.md)
+- notification purge daily, `purge_notifications_task`
+  ([`app/tasks/notification_tasks.py`](../../app/tasks/notification_tasks.py)):
+  deletes `map_user_notifications` rows older than 30 days, 5000 per statement,
+  one short transaction per batch, until none are left. Never raises; a missed
+  day only lengthens the next run. Redis keys `digitva_msg:last:<user_id>`
+  (5-minute TTL, config `NOTIFICATION_CACHE_PREFIX`) are a cache only.
 - attachment S3 upload sweep every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`
   (default `10`), `run_attachment_s3_upload` — copies up to 500 attachment
   blobs per sweep into the bucket and verifies each one. It is left scheduled

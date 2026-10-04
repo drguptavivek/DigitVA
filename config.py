@@ -435,6 +435,11 @@ class Config:
     AUTHZ_GRANT_CACHE_ENABLED = True
     AUTHZ_GRANT_CACHE_PREFIX = "digitva_authz:"
     AUTHZ_GRANT_CACHE_TTL_SECONDS = 300
+    # Latest notification id per user in Redis (notification_service.py): lets
+    # an empty poll skip the database. Raw client, so the key is exactly
+    # <prefix><user_id>. Off in tests, which turn it on with a prefix of their own.
+    NOTIFICATION_CACHE_ENABLED = True
+    NOTIFICATION_CACHE_PREFIX = "digitva_msg:last:"
     ICD11_API_BASE_URL = os.environ.get(
         "ICD11_API_BASE_URL", "http://icd_api_service"
     ).rstrip("/")
@@ -461,6 +466,7 @@ class TestConfig(Config):
     TESTING = True
     AUTHZ_ENFORCE_CONSULTED = False
     AUTHZ_GRANT_CACHE_ENABLED = False
+    NOTIFICATION_CACHE_ENABLED = False
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False

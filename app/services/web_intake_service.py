@@ -48,6 +48,7 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
+from app.services import notification_service
 from app.services import org_grant_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
@@ -1095,6 +1096,13 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
     )
     db.session.add(draft)
     db.session.flush()
+    if death_id:
+        # Other interviewers already holding an open draft on this case.
+        holders = notification_service.open_draft_holders(death.death_id, exclude_user_id=user.user_id)
+        notification_service.notify(
+            holders, notification_service.OTHER_DRAFT_STARTED, project_id=project_id,
+            death_id=death.death_id, draft_id=holders,
+        )
     log.info("web intake draft started | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, death.unique_id, user.user_id)
     return draft
 
@@ -1764,6 +1772,12 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             # The case's submission is the complete one; an earlier refused or
             # incomplete one stays linked through its draft only.
             death.va_sid = va_sid
+            # The case is closed: interviewers still holding an open draft on it.
+            holders = notification_service.open_draft_holders(death.death_id, exclude_user_id=user.user_id)
+            notification_service.notify(
+                holders, notification_service.CASE_SUBMITTED_BY_OTHER, project_id=draft.project_id,
+                death_id=death.death_id, draft_id=holders,
+            )
     db.session.flush()
     log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | outcome=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, outcome, len(references))
     return submission

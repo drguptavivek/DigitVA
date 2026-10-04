@@ -489,6 +489,17 @@ credential, CSRF for a cookie; body cap 2 MB). Code:
   the hash of the answers text held now (null for a browser submit). Every
   submit now stores the `final` section.
 
+## Notifications (`digitva-hdrv`)
+
+`GET /api/v1/me/notifications?after=<id>` (either credential; contract in
+`api-v1.md`) is how the app learns that sync is worth running. Poll on
+foreground, about every 60 s while the app is open, and from an Android
+background task; each non-empty reply is followed by the normal sync, and
+`next_cursor` is kept as the next `after`. The inbox is a nudge: do not act on
+a notification alone, a missed poll costs nothing, and ids and kinds carry no
+personal data. An empty poll is free for the server, so there is no need to back
+off, but do not poll faster than every 30 s.
+
 ## Not built
 
 - Admin UI for per-session revocation (device revoke ends all its sessions).

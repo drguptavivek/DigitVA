@@ -70,6 +70,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | Call | Notes |
 |---|---|
 | `GET /me/access` | The whole access body, below. Sets `X-CSRFToken` for a cookie request. |
+| `GET /me/notifications?after=<id>` | The caller's own notifications, below. Either credential. 120/min. |
 | `POST /me/terms` | Below. Also `POST /profile/terms` (the same view). |
 | `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. Other `role` values and none are the browsing views. |
 | `GET /organization/<project>/form-options` | `form_options_payload`: `config_version`, `enabled_extensions`, `form_types`, `intake_note`, `default_locale`, `available_locales`, `translation_versions`, `narration_languages`, `show_guidance`, `web_intake_mode` (which capture paths are open), `instrument_version` (the composed form version, `served_form_service.composed_version`), `definition_sha256` (the project's definition fingerprint). Any grant reaching the project. |
@@ -218,6 +219,34 @@ same codes for every `/api/v1` route; the old browser bootstrap's
 `password_change_required` and `redirect_url` are gone: terms are
 `terms_required`, factor setup goes to `/profile/#passkeys-card`); 429 over
 the limit. Response header (cookie request only): `X-CSRFToken`.
+
+## GET /api/v1/me/notifications (body)
+
+`app/routes/api/me.py`, `notification_service.poll`; policy
+`docs/policy/app-notifications.md`. Query `after` (default 0): the last
+`id` the client has seen; anything but a non-negative integer that fits a
+bigint is 400 `invalid_request`. Reply, rows with `id > after`, oldest first, at most 100:
+
+```json
+{"notifications": [{"id": 17, "kind": "revision_requested",
+  "created_at": "2026-10-05T09:30:00+00:00", "project_id": "ABC01",
+  "death_id": "<uuid>|null", "draft_id": "<uuid>|null", "va_sid": "<sid>|null"}],
+ "next_cursor": 17}
+```
+
+`next_cursor` is the last returned id, or `after` when there is nothing newer;
+send it as the next `after`. A reply of 100 rows may have more: poll again at
+once. Kinds: `revision_requested` (`va_sid`, `death_id`, `draft_id` of the
+submission's draft), `other_draft_started` and `case_submitted_by_other`
+(`death_id` and the recipient's own `draft_id`), `case_reopened` (`death_id`;
+`draft_id` for an open draft holder). An unknown kind is ignored by a client.
+
+Cost: Redis key `digitva_msg:last:<user_id>` (the newest id written, 5-minute
+TTL, raised after the event's commit) answers an up-to-date poll with no
+database query; otherwise one query on `(user_id, id)`. A complete read seeds
+an absent key. Redis errors fall back to the database. Rows are not guaranteed
+to commit in id order, so a concurrent event can be passed once; sync carries the
+state. Always `Cache-Control: no-store`.
 
 ## POST /api/v1/me/terms (body)
 

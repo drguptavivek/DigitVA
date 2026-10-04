@@ -19,6 +19,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapUserNotification,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaAllocation,
@@ -289,6 +290,32 @@ class InterviewSendBackTests(BaseTestCase):
                 VaSubmissionPayloadVersion.va_sid == va_sid, VaSubmissionPayloadVersion.version_status == "pending_upstream")),
             0,
         )
+
+    def _notifications(self, user):
+        db.session.expire_all()
+        return db.session.scalars(
+            sa.select(MapUserNotification).where(MapUserNotification.user_id == user.user_id).order_by(MapUserNotification.id)
+        ).all()
+
+    def test_a_send_back_and_a_reopen_each_nudge_the_interviewer_once_with_ids_only(self):
+        for opener, kind_user in ((self._send_back, self.coder_id), (self._reopen, self.dm_id)):
+            va_sid, _final = self._finalised()
+            draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.va_sid == va_sid))
+            before = len(self._notifications(self.interviewer))
+
+            self.assertEqual(opener(va_sid, kind_user).status_code, 200)
+
+            rows = self._notifications(self.interviewer)[before:]
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(
+                (row.kind, row.project_id, row.death_id, row.draft_id, row.va_sid),
+                ("revision_requested", self.PROJECT_ID, draft.death_id, draft.draft_id, va_sid),
+            )
+            # Nobody else is told, and a refused repeat adds nothing.
+            self.assertEqual(self._notifications(self.coder), [])
+            self.assertEqual(opener(va_sid, kind_user).status_code, 409)
+            self.assertEqual(len(self._notifications(self.interviewer)), before + 1)
 
     # ── a reviewer sends back ──────────────────────────────────────────────
 

@@ -26,6 +26,7 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services import case_transition_service as cases
+from app.services import notification_service
 from app.services.authz import Action, Reason, can, supervision
 from app.services.case_transition_service import WebIntakeError
 from app.services.coding_allocation_service import release_reviewer_session_for_send_back
@@ -127,8 +128,9 @@ def _sender(user, va_sid: str, state: str | None, coding, reviewing) -> Workflow
     raise WebIntakeError("You may not send this interview back.", 403)
 
 
-def _open_for_revision(user, va_sid: str, actor: WorkflowActor, *, transition_reason: str, reason_code: str) -> dict:
-    """The transition and its audit row, under the submission lock."""
+def _open_for_revision(user, va_sid: str, draft: VaWebIntakeDraft, actor: WorkflowActor, *, transition_reason: str, reason_code: str) -> dict:
+    """The transition, its audit row and the interviewer's nudge, under the
+    submission lock."""
     try:
         mark_upstream_change_detected(va_sid, reason=transition_reason, actor=actor)
     except WorkflowTransitionError as exc:
@@ -141,6 +143,11 @@ def _open_for_revision(user, va_sid: str, actor: WorkflowActor, *, transition_re
         va_audit_action=f"{transition_reason}:{reason_code}",
     ))
     db.session.flush()
+    if draft.user_id != user.user_id:
+        notification_service.notify(
+            [draft.user_id], notification_service.REVISION_REQUESTED, project_id=draft.project_id,
+            death_id=draft.death_id, draft_id=draft.draft_id, va_sid=va_sid,
+        )
     return {"va_sid": va_sid, "workflow_state": WORKFLOW_FINALIZED_UPSTREAM_CHANGED, "reason_code": reason_code}
 
 
@@ -158,7 +165,8 @@ def send_back_for_revision(user, va_sid: str, *, reason_code: str) -> dict:
     coding, reviewing = _scope(user, va_sid)
     db.session.get(VaSubmissions, va_sid, with_for_update=True)
     state = get_submission_workflow_state(va_sid)  # read under the lock
-    if _web_draft(va_sid) is None:
+    draft = _web_draft(va_sid)
+    if draft is None:
         raise WebIntakeError("Only a web or device interview can be sent back here; ODK has its own needs-revision path.", 409, "not_web_submission")
     if is_confirmed_duplicate(va_sid):
         raise WebIntakeError("This case is closed.", 409, "case_closed")
@@ -171,7 +179,7 @@ def send_back_for_revision(user, va_sid: str, *, reason_code: str) -> dict:
         except WorkflowTransitionError as exc:
             # The reviewer finalised or the session timed out meanwhile.
             raise WebIntakeError("The interview changed state; try again.", 409, "wrong_state") from exc
-    return _open_for_revision(user, va_sid, actor, transition_reason=SENT_BACK, reason_code=reason_code)
+    return _open_for_revision(user, va_sid, draft, actor, transition_reason=SENT_BACK, reason_code=reason_code)
 
 
 def reopen_for_revision(user, va_sid: str, *, reason_code: str) -> dict:
@@ -208,4 +216,4 @@ def reopen_for_revision(user, va_sid: str, *, reason_code: str) -> dict:
         raise WebIntakeError("This case is closed.", 409, "case_closed")
     if get_submission_workflow_state(va_sid) not in _REOPEN_STATES:
         raise WebIntakeError("Only an interview with a final COD can be reopened.", 409, "wrong_state")
-    return _open_for_revision(user, va_sid, actor, transition_reason=REOPENED, reason_code=reason_code)
+    return _open_for_revision(user, va_sid, draft, actor, transition_reason=REOPENED, reason_code=reason_code)

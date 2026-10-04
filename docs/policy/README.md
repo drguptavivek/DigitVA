@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Policy Docs
@@ -29,6 +29,7 @@ Current policy docs:
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Interview Revisions Policy](interview-revisions.md) — who may revise a submitted interview, when it locks, versions and answer fingerprints
 - [Migration Chaining Policy](migration-chaining.md) — chain onto committed revisions only, which head moves, why working-tree checks cannot verify it
+- [App Notifications Policy](app-notifications.md) — polled per-user nudges, ids and kinds only, 30-day retention
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import

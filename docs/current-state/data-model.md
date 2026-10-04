@@ -561,6 +561,19 @@ foreign keys to `va_user_access_grants` and `mas_cadre`, not indexed),
 `(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
 (cases a user registered, started or acted on).
 
+### `map_user_notifications`
+
+Migration `h2n5q8t1v4w7`, `digitva-hdrv`; policy `docs/policy/app-notifications.md`.
+One polled nudge per user per event: `id` (BIGINT identity, the poll cursor),
+`user_id` (FK `va_users`), `kind` (at most 32 characters: `revision_requested`,
+`other_draft_started`, `case_submitted_by_other`, `case_reopened`),
+`project_id`, `death_id`, `draft_id` and `va_sid` (all ids, nullable, no
+foreign key so a purge or case change never waits on them), `created_at`
+(default `now()`). No name, phone or answer. Named `map_*` because it maps a
+user to an event. Indexed on `(user_id, id)` (the poll) and `created_at` (the
+purge). Rows are inserted in the event's transaction by
+`notification_service.notify` and deleted after 30 days by a daily beat task.
+
 ### `map_case_contact_attempts`
 
 One row per attempt to reach a case's family: `attempt_id`, `death_id` (FK

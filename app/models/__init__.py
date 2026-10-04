@@ -14,6 +14,7 @@ from app.models.cod_search_telemetry import CodSearchTelemetry
 from app.models.map_icd10_legacy_reporting_alias import MapIcd10LegacyReportingAlias
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.models.map_user_notifications import MapUserNotification
 from app.models.mas_cod_bucket import (
     MapIcdCodBucket,
     MasCodBucketNode,
@@ -179,6 +180,7 @@ __all__ = [
     "MasVaCauseDefinition",
     "MapIcd10LegacyReportingAlias",
     "MapProjectOdk",
+    "MapUserNotification",
     "MapProjectSiteOdk",
     "MasFormTypes",
     "MasCategoryOrder",

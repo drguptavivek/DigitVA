@@ -178,11 +178,16 @@ Resends are safe: the same version twice writes nothing.
 
 ## 5. Revising a submitted interview (`digitva-bhpl`, part A server built)
 
-Frontend in progress (`digitva-bhpl.1`): separate Luna writers are building
-browser revisions and the encrypted native revision queue; native screens
-follow after the storage interface settles. The submitted list shows the
-server's newest 200 records as recent interviews. Send-back/reopen remains
-outside this part.
+Frontend implemented (`digitva-bhpl.1`, closed): separate Luna
+writers delivered browser revisions and the encrypted native revision queue
+and screens. The submitted list shows the server's newest 200 records as
+recent interviews. Direct interviews with no death-register ID are supported.
+Verified: 34 Jest suites, 358 tests, TypeScript and web/Android JS exports;
+the consumed backend revision API passed 19 tests and 15 subtests in an isolated
+database. Independent quality audit and re-audit passed after fixing revoked
+metadata and browser loading races. Commit `dc70dc49` is pushed, and the local
+Flask-served web index matches the refreshed verified build. Physical-device
+acceptance is separate. Send-back/reopen remains outside this part.
 
 Only the interviewer whose interview became the submission may revise it,
 while coding has not been finalised (send-back and reopen come in part B).
@@ -215,14 +220,20 @@ A partial interview (case paused) is finished by revising it with
 
 ## 6. Form versions and the server-served form (`digitva-xuf9`, `digitva-6pwq`, server built)
 
-Frontend planning (`digitva-6pwq.1`): section 5 lands first. Current definition
-download, exact-byte hash verification, cache retention and draft version pinning
-are actionable. Historical recovery needs an additional backend contract:
+Frontend in progress (`digitva-6pwq.1`): section 5 is pushed. A separate Luna
+writer is building raw UTF-8 transport/hash verification, the engine-version
+export and the app-version authentication handshake. Current definition
+download, cache retention and draft version pinning are actionable.
+Historical recovery needs an additional backend contract:
 the current definition endpoint serves only the current project slice, while
 the versions endpoint returns metadata. Please provide an authorized way to
 download a named historical project definition (`digitva-6pwq.2`). Until that contract exists,
 a missing historical cache must preserve the interview and fail visibly;
 the app must not substitute today's form.
+The original slice also needs a durable identity: a composed version can have
+multiple project hashes, but draft meta currently neither accepts nor returns
+a definition hash or extension snapshot. Historical recovery must identify the
+original slice, including when the project's extensions change.
 
 - `GET /api/v1/organization/<project>/form-options`: `instrument_version` is
   now the composed version (e.g. `2026081401-3833e95fb5`, not the bundle
@@ -255,3 +266,53 @@ App must:
    is available: "update the app".
 5. Keep narrowing `narr_language` choices to form-options
    `narration_languages` (the served definition carries the full list).
+
+## 7. Notifications (`digitva-hdrv`, server built)
+
+No Google FCM and no Expo push: the app polls. The inbox is a nudge to run the
+normal sync; sync stays the source of truth, so a missed poll costs nothing.
+
+`GET /api/v1/me/notifications?after=<id>` (cookie or bearer, any signed-in
+user, own rows only; 120/min). `after` defaults to 0; anything but a
+non-negative integer is 400 `invalid_request`; signed out is 401.
+
+```json
+{"notifications": [{"id": 17, "kind": "revision_requested",
+  "created_at": "2026-10-05T09:30:00+00:00", "project_id": "ABC01",
+  "death_id": "<uuid>|null", "draft_id": "<uuid>|null", "va_sid": "<sid>|null"}],
+ "next_cursor": 17}
+```
+
+Rows with `id > after`, oldest first, at most 100. `next_cursor` is the last
+returned id, or `after` when nothing is newer: store it (per signed-in user) and
+send it as the next `after`. Exactly 100 rows means there may be more: poll
+again at once.
+
+| `kind` | Meaning | Fields set |
+|---|---|---|
+| `revision_requested` | a coder, reviewer or supervisor sent your submitted interview back | `va_sid`, `death_id`, `draft_id` |
+| `other_draft_started` | another interviewer started a draft on a case where you hold one | `death_id`, your `draft_id` |
+| `case_submitted_by_other` | a teammate's complete submission closed a case where you hold a draft | `death_id`, your `draft_id` |
+| `case_reopened` | a supervisor reopened a case you started or hold a draft on | `death_id`, `draft_id` if you hold one |
+
+An unknown `kind` is ignored (new kinds may appear). Not built:
+`case_registered_in_my_unit` and `form_version_available` (the form-options
+`definition_sha256` already tells you at each sync).
+
+Polling rules:
+
+1. Poll on app foreground, then about every 60 s while the app is open (never
+   faster than every 30 s). An empty poll costs the server no database query.
+2. On Android also poll from a WorkManager task (`expo-background-task`); no
+   Google push. iOS polls on foreground only.
+3. A non-empty reply, or any doubt, means run the normal `/api/v1` sync and
+   re-read the data; never change local state from a notification alone. Show
+   at most a local nudge ("A case needs your attention"); never put names,
+   phones or answers in it (the rows hold none).
+4. Keep the cursor per user; clear it on sign-out or when a different user
+   signs in. Rows live 30 days: a cursor older than that just returns what is
+   left, so a long-absent app should sync regardless.
+5. Rows can, rarely, commit out of id order and one can be passed; this is why
+   the notification is only a nudge and a periodic sync still runs.
+6. A revoked session needs no notification: any call answers 401
+   `session_revoked`.

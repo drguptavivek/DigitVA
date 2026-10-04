@@ -180,7 +180,6 @@ def open_session():
     issued, user = devices.open_session(
         device_id=p.get("device_id"), device_secret=p.get("device_secret"),
         email=p.get("email"), password=p.get("password"), otp=p.get("otp"),
-        multi_project=p.get("multi_project") is True,
     )
     db.session.commit()
     return jsonify(devices.serialize_tokens(issued, user)), 201
@@ -191,13 +190,11 @@ def open_session():
 def refresh_session():
     """Rotate the refresh token, presented with the device's id and secret;
     optional ``count``/``unique_ids``/``client_draft_ids``/``client_death_ids`` record the
-    outstanding-work report in the same call. ``multi_project: true`` (sent
-    on every refresh by a multi-project app) keeps the session while any
-    project grant remains."""
+    outstanding-work report in the same call. The session lasts while the
+    worker has an interviewer grant in at least one project."""
     p = _body()
     issued, user = devices.refresh_session(
         p.get("refresh_token"), device_id=p.get("device_id"), device_secret=p.get("device_secret"),
-        multi_project=p.get("multi_project") is True,
     )
     # Pending terms refuse data calls (policy 5.4); the report is one.
     if "count" in p and user.pw_reset_t_and_c:
@@ -243,14 +240,10 @@ def accept_terms():
 @bp.get("/bootstrap")
 @role_required("interviewer")
 def bootstrap():
-    """The intake bootstrap. ``context`` and ``form_options`` are the
-    enrolment project's (what single-project apps read), or empty and null
-    with a null ``default_project_id`` once the interviewer has no grant
-    there (a multi-project session outlives it); ``projects`` has one
-    entry per project this interviewer may collect in, with its sites, form
-    options and offline prefill policy. No CSRF fields: there is no cookie
-    session here."""
-    device = db.session.get(AuthDevice, g.device_session.device_id)
+    """The intake bootstrap: ``projects`` has one entry per project this
+    interviewer may collect in, with its sites, form options and offline
+    prefill policy. Every other call names one of them as ``project_id``.
+    No CSRF fields: there is no cookie session here."""
     by_project: dict[str, list] = {}
     for entry in _interviewer_context():
         by_project.setdefault(entry["project_id"], []).append(entry)
@@ -266,13 +259,9 @@ def bootstrap():
             "form_options": form_options_payload(authorized),
             "prefill_policy": intake_svc.prefill_policy(current_user, project_id),
         })
-    enrolled = next((p for p in projects if p["project_id"] == device.project_id), None)
     return jsonify({
         "user": {"user_id": str(current_user.user_id), "name": current_user.name},
-        "context": by_project.get(device.project_id, []),
-        "form_options": enrolled["form_options"] if enrolled else None,
         "instrument_version": who_va_bundle_version(),
-        "default_project_id": device.project_id if enrolled else None,
         "projects": projects,
     })
 
@@ -296,7 +285,7 @@ def submit_interview():
         # The package's completion result carries valid/issues beside data.
         completion = envelope if isinstance(envelope, dict) else {}
 
-    project = _request_project(p)
+    project_id = _request_project_id(p)
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None:
         return jsonify(intake_svc.serialize_device_upload(existing)), 200
@@ -304,7 +293,7 @@ def submit_interview():
     try:
         draft = intake_svc.submit_device_interview(
             current_user,
-            project_id=project.project_id,
+            project_id=project_id,
             client_draft_id=client_draft_id,
             site_id=site_id.strip(),
             org_unit_id=p.get("org_unit_id") or None,
@@ -345,28 +334,18 @@ def _interviewer_context() -> list[dict]:
     return context
 
 
-def _requested_project_id(p: dict | None = None) -> str | None:
+def _request_project_id(p: dict | None = None) -> str:
     """The ``project_id`` the request names (query string, or the JSON body
-    *p* of a POST), validated against the interviewer's projects, or None
-    when it names none. Another project is 403 ``project_forbidden``, alike
-    whether it exists or not."""
+    *p* of a POST): required (400 ``invalid_request``), and one of the
+    interviewer's projects (403 ``project_forbidden``, alike whether it
+    exists or not). The device's enrolment project plays no part."""
     raw = (request.args if p is None else p).get("project_id")
-    if raw in (None, ""):
-        return None
-    project_id = str(raw).strip()
+    if raw in (None, "") or not isinstance(raw, str):
+        raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
+    project_id = raw.strip()
     if not any(e["project_id"] == project_id for e in _interviewer_context()):
         raise devices.DeviceAuthError("You have no interviewer access in that project.", "project_forbidden", 403)
     return project_id
-
-
-def _request_project(p: dict | None = None) -> VaProjectMaster:
-    """The named project (``_requested_project_id``), else the device's
-    enrolment project, unchecked as before: an older app sends no
-    ``project_id`` and its session is held to that project at refresh."""
-    project_id = _requested_project_id(p)
-    if project_id is None:
-        project_id = db.session.get(AuthDevice, g.device_session.device_id).project_id
-    return db.session.get(VaProjectMaster, project_id)
 
 
 @bp.get("/units")
@@ -374,15 +353,15 @@ def _request_project(p: dict | None = None) -> VaProjectMaster:
 @limiter.limit("120 per minute")
 def units():
     """The request project's organization units this interviewer may pick
-    (``project_id``, default the device's project):
+    (``project_id``, required):
     the ``/api/v1/organization/<project>/units?role=interviewer`` body, scoped
     by interviewer grants only (a unit grant sees its subtree, plus ancestors
     as ``selectable: false`` context; a project or site grant the whole tree)."""
-    project = _request_project()
-    reachable = reachable_unit_ids(current_user, project.project_id, frozenset({VaAccessRoles.interviewer}))
+    project_id = _request_project_id()
+    reachable = reachable_unit_ids(current_user, project_id, frozenset({VaAccessRoles.interviewer}))
     if reachable is not None and not reachable:
         return _error("You have no organization units in this project.", "forbidden", 403)
-    return jsonify(units_payload(project.project_id, reachable))
+    return jsonify(units_payload(project_id, reachable))
 
 
 @bp.get("/instruments/<instrument_code>/translations/<locale>")
@@ -391,14 +370,11 @@ def units():
 def instrument_translations(instrument_code, locale):
     """One locale's questionnaire strings: the ``/api/v1/instruments`` body
     and ETag, only for the instrument and locales the request project
-    serves (its form options' default form type and ``available_locales``).
-    With no ``project_id``, the enrolment project only while the
-    interviewer holds a grant there: 403 ``project_forbidden`` otherwise."""
+    serves (its form options' default form type and ``available_locales``);
+    ``project_id`` required."""
     code = (instrument_code or "").strip().upper()
     locale = (locale or "").strip()
-    project = _request_project()
-    if not any(e["project_id"] == project.project_id for e in _interviewer_context()):
-        raise devices.DeviceAuthError("You have no interviewer access in that project.", "project_forbidden", 403)
+    project = db.session.get(VaProjectMaster, _request_project_id())
     served_code, served_locales = served_instrument_locales(project)
     if code != served_code or locale not in served_locales:
         return _error("Translation not found.", "not_found", 404)
@@ -449,61 +425,29 @@ def _no_store(response):
 @role_required("interviewer")
 @limiter.limit("120 per minute")
 def list_cases():
-    """Worklist cases to take offline: the device project's cases in the
-    interviewer's scope waiting for a visit or refused, and their own
-    in-progress ones, each with the prefill an interview started offline
-    uses. Keyset-paged (``cursor``, ``limit`` clamped to 1..200); the app
-    reads every page and drops cases no longer listed. Optional
-    ``project_id`` (default the device's project)."""
-    limit, refused = _page_limit()
-    if refused:
-        return refused
-    project = _request_project()
-    result = intake_svc.list_worklist(
-        current_user,
-        cursor=request.args.get("cursor") or None,
-        limit=limit,
-        extra_filters=intake_svc.device_case_filters(current_user, project.project_id),
-        context=_interviewer_context(),
-    )
-    return _no_store(jsonify({
-        "cases": intake_svc.device_case_rows(current_user, result["cases"]),
-        "next_cursor": result["next_cursor"],
-    }))
+    """The browser worklist (``/intake/api/cases``) of one project:
+    ``web_intake_service.worklist_page`` with the same query (``mine``,
+    ``state``, ``limit``, ``cursor``) and body, plus required ``project_id``.
+    The app downloads its active cases with ``state=`` and then each case's
+    detail (docs/policy/field-data-collection.md)."""
+    project_id = _request_project_id()
+    return _no_store(jsonify(
+        intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=_interviewer_context())
+    ))
 
 
-def _page_limit():
-    """``limit`` from the query string, or a 400 response."""
-    try:
-        return int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT), None
-    except ValueError:
-        return None, _error("limit must be a whole number.", "invalid_request", 400)
-
-
-@bp.get("/history")
-@role_required("interviewer")
-@limiter.limit("120 per minute")
-def case_history():
-    """Every case of the request project in the interviewer's scope, any
-    state, newest registered first: worklist rows (phones masked, no
-    prefill), keyset-paged (``cursor``, ``limit`` 1..200), optional
-    comma-separated ``state``. An online listing; the app does not keep it."""
-    limit, refused = _page_limit()
-    if refused:
-        return refused
-    project = _request_project()
-    result = intake_svc.list_case_history(
-        current_user,
-        project_id=project.project_id,
-        states=[s for s in (request.args.get("state") or "").split(",") if s],
-        cursor=request.args.get("cursor") or None,
-        limit=limit,
-        context=_interviewer_context(),
-    )
-    return _no_store(jsonify({
-        "cases": [intake_svc.serialize_history_row(current_user, *row) for row in result["cases"]],
-        "next_cursor": result["next_cursor"],
-    }))
+def _case_body(death, unit_name, my_draft_id) -> dict:
+    """The device's case body: the browser detail's ``case``
+    (``serialize_case_detail``), plus ``prefill`` for an interview started
+    offline, and this API's links."""
+    body = intake_svc.serialize_case_detail(current_user, death, unit_name, my_draft_id)
+    body["prefill"] = intake_svc.case_prefill(current_user, death)
+    body["links"] = {
+        "self": url_for(".case_detail", death_id=death.death_id),
+        "attempts": url_for(".log_attempt", death_id=death.death_id),
+        "visit": url_for(".set_visit", death_id=death.death_id),
+    }
+    return body
 
 
 @bp.get("/cases/<death_id>")
@@ -511,21 +455,16 @@ def case_history():
 @limiter.limit("120 per minute")
 def case_detail(death_id):
     """One case with its full contact details and prefill, visible as the
-    worklist would list it, in any of the interviewer's projects (or only
-    ``project_id``'s when named); otherwise 404. The app keeps it offline
-    only while the case is in ``/cases`` (docs/policy/field-data-collection.md)."""
-    project_id = _requested_project_id()
-    death, unit_name, my_draft_id = intake_svc.get_case_detail(
-        current_user, death_id, project_id=project_id, context=_interviewer_context()
-    )
-    body = intake_svc.serialize_case_detail(current_user, death, unit_name, my_draft_id)
-    body["prefill"] = intake_svc.device_case_rows(current_user, [(death, unit_name, my_draft_id)])[0]["prefill"]
-    body["links"] = {
-        "self": url_for(".case_detail", death_id=death.death_id),
-        "attempts": url_for(".log_attempt", death_id=death.death_id),
-        "visit": url_for(".set_visit", death_id=death.death_id),
-    }
-    return _no_store(jsonify({"case": body}))
+    worklist would list it, in any of the interviewer's projects; otherwise
+    404. The app keeps it offline only while the case is active
+    (docs/policy/field-data-collection.md)."""
+    row = intake_svc.get_case_detail(current_user, death_id, context=_interviewer_context())
+    return _no_store(jsonify({"case": _case_body(*row)}))
+
+
+def _registered_case(death) -> dict:
+    """A registration's reply: the case's detail body, as ``/cases/<id>``."""
+    return _case_body(*intake_svc.case_row(current_user, death))
 
 
 @bp.post("/deaths")
@@ -541,15 +480,15 @@ def register_death():
         return _error("site_id is required.", "invalid_request", 400)
     if any(isinstance(p.get(k), (dict, list)) for k in _REGISTER_FIELDS):
         return _error("Registration fields must be text or numbers.", "invalid_registration", 422)
-    project = _request_project(p)
-    existing = intake_svc.find_device_registration(current_user, project.project_id, client_death_id)
+    project_id = _request_project_id(p)
+    existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
     if existing is not None:
-        return _no_store(jsonify({"case": intake_svc.device_case(current_user, existing)})), 200
+        return _no_store(jsonify({"case": _registered_case(existing)})), 200
     try:
         with _unprocessable("invalid_registration"):
             death = intake_svc.register_death(
                 current_user,
-                project_id=project.project_id,
+                project_id=project_id,
                 site_id=site_id.strip(),
                 org_unit_id=p.get("org_unit_id") or None,
                 client_death_id=client_death_id,
@@ -559,11 +498,11 @@ def register_death():
     except IntegrityError:
         # A concurrent resend of the same client_death_id won the unique index.
         db.session.rollback()
-        existing = intake_svc.find_device_registration(current_user, project.project_id, client_death_id)
+        existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
         if existing is None:
             raise
-        return _no_store(jsonify({"case": intake_svc.device_case(current_user, existing)})), 200
-    return _no_store(jsonify({"case": intake_svc.device_case(current_user, death)})), 201
+        return _no_store(jsonify({"case": _registered_case(existing)})), 200
+    return _no_store(jsonify({"case": _registered_case(death)})), 201
 
 
 @bp.post("/cases/<death_id>/attempts")
@@ -574,11 +513,9 @@ def log_attempt(death_id):
     optional ``next_visit_at``."""
     p = _body()
     client_attempt_id = _client_id(p, "client_attempt_id")
-    project = _request_project(p)
-    existing = intake_svc.find_device_attempt(current_user, project.project_id, death_id, client_attempt_id)
+    existing = intake_svc.find_device_attempt(current_user, death_id, client_attempt_id)
     if existing is not None:
         return jsonify({"case": intake_svc.serialize_case_ack(existing)}), 200
-    intake_svc.get_device_case(current_user, project.project_id, death_id)
     try:
         with _unprocessable("invalid_attempt"):
             death = intake_svc.log_contact_attempt(
@@ -588,7 +525,7 @@ def log_attempt(death_id):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        existing = intake_svc.find_device_attempt(current_user, project.project_id, death_id, client_attempt_id)
+        existing = intake_svc.find_device_attempt(current_user, death_id, client_attempt_id)
         if existing is None:
             raise
         return jsonify({"case": intake_svc.serialize_case_ack(existing)}), 200
@@ -601,8 +538,6 @@ def set_visit(death_id):
     """Set (or clear, with ``null``) a case's next visit. Idempotent by
     value, so no client id is stored: a resend sets the same date."""
     p = _body()
-    project = _request_project(p)
-    intake_svc.get_device_case(current_user, project.project_id, death_id)
     with _unprocessable("invalid_visit"):
         death = intake_svc.set_visit(current_user, death_id, next_visit_at=p.get("next_visit_at"))
     db.session.commit()

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 ---
 
 # Web Intake Policy
@@ -355,9 +355,9 @@ a place for names, phone numbers or addresses).
   grant beside a unit grant sees the whole site, while the unit grant alone
   still governs the project's other sites. Interview forms (answers) stay
   their interviewer's own; the case's submission id (`va_sid`) is shown in
-  the single-case detail and the device history only to the worker who
-  started the case's interview. Worklist and device case download rows
-  still carry `va_sid` for every case.
+  the worklist rows (browser and device) and the single-case detail only to
+  the worker who started the case's interview. The supervision list keeps
+  it for every case.
 - **One shared draft per death**, replacing "only its author may edit". Each
   save records who saved it; the audit trail keeps every interviewer who
   worked on the case.
@@ -617,9 +617,11 @@ reused (it is legal only from `screening_pending`, `smartva_pending` and
   detail (`GET /intake/api/cases/<death_id>` in the browser, `GET
   /api/v1/device/cases/<death_id>` in the native app) shows the full contact
   details: informant name, both full phones, the household address fields and
-  the remarks. Lists (worklist, device case download, device history,
-  supervision) stay masked. The detail never carries ABHA, the parents' names,
-  other users' ids or client ids, and is answered `Cache-Control: no-store`.
+  the remarks. Lists (the worklist, which the device lists per project, and
+  supervision) stay masked. The browser and device detail are one body; the
+  device adds only the case's prefill for offline interviews. The detail's
+  own fields never carry ABHA, the parents' names, other users' ids or
+  client ids, and it is answered `Cache-Control: no-store`.
   Its visibility is exactly the worklist's (team cases in scope, see "Who
   sees which cases"; "details pending" for its starter only), in any state; a
   case outside it, or an unknown id, is 404. `va_sid` is null unless the
@@ -628,7 +630,8 @@ reused (it is legal only from `screening_pending`, `smartva_pending` and
   [Field Data Collection](field-data-collection.md) ("Offline contact
   details"); the browser keeps nothing.
 - **Projects on a native device** (owner, 2026-10-03). A native device may
-  work in every project the worker is an interviewer in; the browser
+  work in every project the worker is an interviewer in, naming the project
+  on each project-scoped call (no default project); the browser
   (PWA included) keeps server-side project access only, with no
   multi-project persistence or offline storage.
 - **Contact attempts** record the outcome only (reached, no answer, wrong
@@ -850,7 +853,10 @@ Details the baseline left open, fixed by the implementation
   `va_in_progress` and `va_submitted` as filters. The worklist is
   `GET /intake/api/cases` (`mine`, `state`, `limit` up to 200, `cursor`), sorted
   by last activity until phase 5 adds visit dates (superseded: see "Built in
-  phase 5"); its rows carry no informant name, phone or address.
+  phase 5"); its rows carry no informant name, phone or address. Since
+  `digitva-p6fs.24` it is answered `Cache-Control: no-store`, and the device
+  case list (`GET /api/v1/device/cases`) is the same list restricted to one
+  project.
 
 ### Built in phase 4 (digitva-vzk.6, 2026-09-30)
 

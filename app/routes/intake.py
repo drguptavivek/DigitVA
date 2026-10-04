@@ -137,47 +137,20 @@ def api_register_death():
     return _handle(run)
 
 
-_TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
+_TRUE, _FALSE = intake_svc._TRUE, intake_svc._FALSE
 
 
 @intake.get("/api/cases")
 @role_required("interviewer")
 def api_worklist():
-    """Team cases in the caller's interviewer scope (the worklist).
-
-    Query: ``mine`` (true/false), ``state`` (comma-separated case states),
-    ``limit`` (clamped to 1..200), ``cursor`` (from ``next_cursor``).
-    """
-    mine_raw = (request.args.get("mine") or "").lower()
-    if mine_raw not in _TRUE + _FALSE:
-        return _json_error("mine must be true or false.", 400)
-    states = [s for s in (request.args.get("state") or "").split(",") if s]
-    try:
-        limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
-    except ValueError:
-        return _json_error("limit must be a whole number.", 400)
+    """Team cases in the caller's interviewer scope (the worklist), every
+    project: ``web_intake_service.worklist_page``, the device list's body.
+    Query: ``mine``, ``state``, ``limit``, ``cursor``. ``no-store``."""
 
     def run():
-        result = intake_svc.list_worklist(
-            current_user,
-            mine=mine_raw in _TRUE,
-            states=states,
-            cursor=request.args.get("cursor") or None,
-            limit=limit,
-        )
-        possible = result["possible_duplicates"]
-        cases = []
-        for row in result["cases"]:
-            serialized = intake_svc.serialize_worklist_row(current_user, *row)
-            serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
-            cases.append(serialized)
-        return jsonify(
-            {
-                "cases": cases,
-                "counts": result["counts"],
-                "next_cursor": result["next_cursor"],
-            }
-        )
+        response = jsonify(intake_svc.worklist_page(current_user, request.args))
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     return _handle(run)
 

@@ -106,7 +106,7 @@ __all__ = [
     "serialize_worklist_row",
     "serialize_case_detail",
     "get_case_detail",
-    "list_case_history",
+    "worklist_page",
     "prefill_policy",
 ]
 
@@ -840,7 +840,7 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     age-related is locked then, nor for an age that is not prefilled.
 
     ``unit_parts`` is the unit's ``(presets, org path
-    names)`` already resolved for a batch (``device_case_rows``); without it
+    names)`` already resolved for a batch (``prefill_policy``); without it
     both are queried here.
     """
     interviewer: dict = {"name": user.name, "id": str(user.user_id)}
@@ -1730,28 +1730,6 @@ def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
 # Device cases (Path B phase 3, digitva-kmk.4)
 # ---------------------------------------------------------------------------
 
-#: Case states a device downloads for offline visits: waiting for a visit, or
-#: refused (a refusal blocks nothing; any team member may restart it). An
-#: ``in_progress`` case is downloaded only by the interviewer who started it.
-DEVICE_CASE_STATES = ("registered", "scheduled", "not_reachable", "paused", "refused")
-
-
-def device_case_filters(user: VaUsers, project_id: str) -> list:
-    """``list_worklist`` extra filters for the device's case download: the
-    device's project, in ``DEVICE_CASE_STATES`` or the caller's own
-    ``in_progress`` cases."""
-    return [
-        VaDeathRegister.project_id == project_id,
-        sa.or_(
-            VaDeathRegister.status.in_(DEVICE_CASE_STATES),
-            sa.and_(
-                VaDeathRegister.status == "in_progress",
-                VaDeathRegister.started_by_user_id == user.user_id,
-            ),
-        ),
-    ]
-
-
 def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict, list[str]]]:
     """``{unit_id: (Id10002/Id10003 presets, org path names root first)}``
     for ``_prefill_from_death``'s ``unit_parts``, in three queries for any
@@ -1782,25 +1760,18 @@ def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict,
     return parts
 
 
-def device_case_rows(user: VaUsers, rows: list[tuple]) -> list[dict]:
-    """Worklist rows ``(case, unit_name, my_draft_id)`` serialized for the
-    device: ``serialize_worklist_row`` (phones masked, no informant name or
-    address in the row) plus ``prefill``, what the web form page gets for the
-    same case, so an interview started offline opens prefilled. The prefill
-    carries the informant's and parents' names, the address and ABHA (the
-    questionnaire's own answers) and never a phone number."""
-    parts = _unit_prefill_parts({row[0].org_unit_id for row in rows if row[0].org_unit_id})
-    serialized = []
-    for death, unit_name, my_draft_id in rows:
-        row = serialize_worklist_row(user, death, unit_name, my_draft_id)
-        unit_parts = parts.get(death.org_unit_id, ({}, [])) if death.org_unit_id else None
-        row["prefill"] = _prefill_from_death(death, user, death.org_unit_id, unit_parts)
-        serialized.append(row)
-    return serialized
+def case_prefill(user: VaUsers, death: VaDeathRegister) -> dict:
+    """What the web form page prefills for *death*: the device detail's
+    ``prefill``, so an interview started offline opens prefilled. Carries the
+    questionnaire's own answers (informant's and parents' names, address,
+    ABHA), never a phone number."""
+    return _prefill_from_death(death, user, death.org_unit_id)
 
 
-def device_case(user: VaUsers, death: VaDeathRegister) -> dict:
-    """One case in the ``/device/cases`` row shape (a registration's reply)."""
+def case_row(user: VaUsers, death: VaDeathRegister) -> tuple:
+    """``(case, unit_name, my_draft_id)`` for a case the caller already holds
+    in scope (an offline registration's reply), without re-running the
+    worklist query."""
     unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
     my_draft_id = db.session.scalar(
         sa.select(VaWebIntakeDraft.draft_id).where(
@@ -1809,11 +1780,11 @@ def device_case(user: VaUsers, death: VaDeathRegister) -> dict:
             VaWebIntakeDraft.user_id == user.user_id,
         ).limit(1)
     )
-    return device_case_rows(user, [(death, unit.unit_name if unit else None, my_draft_id)])[0]
+    return death, unit.unit_name if unit else None, my_draft_id
 
 
 def get_device_case(user: VaUsers, project_id: str, death_id: object) -> VaDeathRegister:
-    """A case in the caller's scope and the device's project, else 404."""
+    """A case in the caller's scope and in *project_id*, else 404."""
     death = get_death(user, death_id)
     if death.project_id != project_id:
         raise WebIntakeError("Death entry not found.", 404)
@@ -1823,7 +1794,7 @@ def get_device_case(user: VaUsers, project_id: str, death_id: object) -> VaDeath
 def find_device_registration(user: VaUsers, project_id: str, client_death_id: uuid.UUID) -> VaDeathRegister | None:
     """The case an earlier offline registration with *client_death_id*
     created, if any. Another user's id is a 409; a case since moved out of
-    the caller's scope or the device's project is a 404."""
+    the caller's scope or *project_id* is a 404."""
     death = db.session.scalar(
         sa.select(VaDeathRegister).where(VaDeathRegister.client_death_id == client_death_id)
     )
@@ -1834,8 +1805,7 @@ def find_device_registration(user: VaUsers, project_id: str, client_death_id: uu
     return get_device_case(user, project_id, death.death_id)
 
 
-def find_device_attempt(user: VaUsers, project_id: str, death_id: object,
-                        client_attempt_id: uuid.UUID) -> VaDeathRegister | None:
+def find_device_attempt(user: VaUsers, death_id: object, client_attempt_id: uuid.UUID) -> VaDeathRegister | None:
     """The case of an earlier attempt logged with *client_attempt_id*, if
     any. The id reused by another user or on another case is a 409."""
     attempt = db.session.scalar(
@@ -1849,7 +1819,7 @@ def find_device_attempt(user: VaUsers, project_id: str, death_id: object,
         same_case = False
     if attempt.by_user_id != user.user_id or not same_case:
         raise WebIntakeError("That client_attempt_id is already in use.", 409)
-    return get_device_case(user, project_id, attempt.death_id)
+    return get_death(user, attempt.death_id)
 
 
 def serialize_case_ack(death: VaDeathRegister) -> dict:
@@ -1992,7 +1962,7 @@ def _worklist_select(user: VaUsers):
 
 def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
                   cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
-                  extra_filters: list | None = None, context: list[dict] | None = None) -> dict:
+                  project_id: str | None = None, context: list[dict] | None = None) -> dict:
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id), ...], "counts":
@@ -2002,8 +1972,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     the *mine* filter but not *states*, so tabs can show their totals. Sorted
     by next visit (overdue first, undated last), then last activity newest
     first. Keyset-paged on (next_visit_at, updated_at, death_id).
-    ``extra_filters`` (SQL conditions) narrow the scope further, counts
-    included: the device case download (``device_case_filters``).
+    *project_id* narrows the scope to one project, counts included (the
+    device list); possible duplicates still come from the whole scope.
     ``context``: the caller's ``interviewer_context``, if already computed.
     """
     for state in states or []:
@@ -2013,7 +1983,9 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     scope = _worklist_scope(user, context)
     if scope is None:
         return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}}
-    base = [scope, *(extra_filters or [])]
+    base = [scope]
+    if project_id is not None:
+        base.append(VaDeathRegister.project_id == project_id)
     if mine:
         base.append(_mine_condition(user))
 
@@ -2051,11 +2023,49 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible}
 
 
-def get_case_detail(user: VaUsers, death_id: object, *, project_id: str | None = None,
-                    context: list[dict] | None = None) -> tuple:
+_TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
+
+
+def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
+                  context: list[dict] | None = None) -> dict:
+    """The worklist response both case lists serve (browser
+    ``/intake/api/cases``, device ``/api/v1/device/cases`` with its project):
+    ``{"cases": [row + possible_duplicates], "counts", "next_cursor"}``.
+
+    *args* is the request's query string: ``mine`` (true/false), ``state``
+    (comma-separated case states), ``limit`` (clamped to 1..200), ``cursor``
+    (from ``next_cursor``); a malformed one is a 400 WebIntakeError.
+    *project_id* and *context* as ``list_worklist``.
+    """
+    mine = (args.get("mine") or "").lower()
+    if mine not in _TRUE + _FALSE:
+        raise WebIntakeError("mine must be true or false.")
+    try:
+        limit = int(args.get("limit") or WORKLIST_PAGE_DEFAULT)
+    except ValueError:
+        raise WebIntakeError("limit must be a whole number.") from None
+    result = list_worklist(
+        user,
+        mine=mine in _TRUE,
+        states=[s for s in (args.get("state") or "").split(",") if s],
+        cursor=args.get("cursor") or None,
+        limit=limit,
+        project_id=project_id,
+        context=context,
+    )
+    possible = result["possible_duplicates"]
+    rows = []
+    for row in result["cases"]:
+        serialized = serialize_worklist_row(user, *row)
+        serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
+        rows.append(serialized)
+    return {"cases": rows, "counts": result["counts"], "next_cursor": result["next_cursor"]}
+
+
+def get_case_detail(user: VaUsers, death_id: object, *, context: list[dict] | None = None) -> tuple:
     """One case as ``(case, unit_name, my_draft_id)``, visible exactly when the
-    worklist would list it (``_worklist_scope``), in any state; narrowed to
-    *project_id* when given. Unknown, out of scope or a malformed id: 404.
+    worklist would list it (``_worklist_scope``, every project of the
+    caller's), in any state. Unknown, out of scope or a malformed id: 404.
     ``context``: the caller's ``interviewer_context``, if already computed."""
     try:
         death_uuid = uuid.UUID(str(death_id))
@@ -2064,49 +2074,12 @@ def get_case_detail(user: VaUsers, death_id: object, *, project_id: str | None =
     scope = _worklist_scope(user, context)
     if scope is None:
         raise WebIntakeError("Case not found.", 404)
-    filters = [scope, VaDeathRegister.death_id == death_uuid]
-    if project_id is not None:
-        filters.append(VaDeathRegister.project_id == project_id)
-    row = db.session.execute(_worklist_select(user).where(*filters).limit(1)).first()
+    row = db.session.execute(
+        _worklist_select(user).where(scope, VaDeathRegister.death_id == death_uuid).limit(1)
+    ).first()
     if row is None:
         raise WebIntakeError("Case not found.", 404)
     return tuple(row)
-
-
-def list_case_history(user: VaUsers, *, project_id: str, states: list[str] | None = None,
-                      cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
-                      context: list[dict] | None = None) -> dict:
-    """Every case of *project_id* in the caller's worklist scope, any state,
-    newest first (``created_at``, then ``death_id``), keyset-paged. Returns
-    ``{"cases": [(case, unit_name, my_draft_id), ...], "next_cursor"}``.
-    ``context``: the caller's ``interviewer_context``, if already computed.
-
-    ponytail: no (project_id, created_at) index; the project filter bounds the
-    sort. Add an index on ``(project_id, created_at, death_id)`` if a project
-    grows large.
-    """
-    for state in states or []:
-        if state not in CASE_STATES:
-            raise WebIntakeError(f"Unknown state {state!r}.")
-    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = _worklist_scope(user, context)
-    if scope is None:
-        return {"cases": [], "next_cursor": None}
-    filters = [scope, VaDeathRegister.project_id == project_id]
-    if states:
-        filters.append(VaDeathRegister.status.in_(states))
-    if cursor:
-        at, last_id = _decode_cursor(cursor)
-        filters.append(sa.tuple_(VaDeathRegister.created_at, VaDeathRegister.death_id) < (at, last_id))
-    rows = db.session.execute(
-        _worklist_select(user)
-        .where(*filters)
-        .order_by(VaDeathRegister.created_at.desc(), VaDeathRegister.death_id.desc())
-        .limit(limit + 1)
-    ).all()
-    page = [tuple(row) for row in rows[:limit]]
-    next_cursor = _encode_cursor(page[-1][0].created_at, page[-1][0].death_id) if len(rows) > limit else None
-    return {"cases": page, "next_cursor": next_cursor}
 
 
 def prefill_policy(user: VaUsers, project_id: str) -> dict:
@@ -2385,8 +2358,10 @@ def serialize_death(death: VaDeathRegister) -> dict:
 
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None) -> dict:
-    """One worklist row. No informant name or address, and phones masked
-    (``******1234``): the list shows who died, not how to reach the family."""
+    """One worklist row (browser and device lists). No informant name or
+    address, and phones masked (``******1234``): the list shows who died, not
+    how to reach the family. ``va_sid`` only for the case's starter: the
+    interview form is its interviewer's own."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -2409,7 +2384,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
-        "va_sid": death.va_sid,
+        "va_sid": death.va_sid if death.started_by_user_id == user.user_id else None,
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
@@ -2467,16 +2442,6 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     }
 
 
-def serialize_history_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                          my_draft_id: uuid.UUID | None) -> dict:
-    """A ``/history`` row: the worklist row, with ``va_sid`` only for a case
-    the caller started (interview forms are their interviewer's own)."""
-    row = serialize_worklist_row(user, death, unit_name, my_draft_id)
-    if not row["started_by_me"]:
-        row["va_sid"] = None
-    return row
-
-
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                              registered_by_name: str | None, started_by_name: str | None) -> dict:
     """A worklist row plus who registered and started the case (staff identity,
@@ -2485,6 +2450,9 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     row = serialize_worklist_row(user, death, unit_name, None)
     for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked"):
         row.pop(key)
+    # Supervisors oversee every interview in scope, so they keep every va_sid
+    # (the starter-only rule is the interviewer lists').
+    row["va_sid"] = death.va_sid
     row["registered_by_name"] = registered_by_name
     row["started_by_name"] = started_by_name
     row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None

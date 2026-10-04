@@ -83,10 +83,10 @@ SECOND_FACTOR_WINDOW = timedelta(minutes=15)
 #: every other reason answers session_revoked, on which the app wipes.
 _REUSE_REASONS = frozenset({"refresh_reuse", "refresh_retry_race"})
 #: Revocations that end the session but must not destroy unsent interviews:
-#: a password or factor reset, a deactivated account, a closed project. They
-#: answer session_ended (sign in again, keep data). Only a deliberate revoke
-#: of the device, a withdrawn grant or a sign-out answers session_revoked.
-_KEEP_DATA_REASONS = frozenset({"account_changed", "project_inactive"})
+#: a password or factor reset or a deactivated account. They answer
+#: session_ended (sign in again, keep data). A revoked device, a worker left
+#: with no active project, or a sign-out answers session_revoked (wipe).
+_KEEP_DATA_REASONS = frozenset({"account_changed"})
 #: Hosts an http:// DEVICE_PUBLIC_URL may name outside debug/testing.
 _PLAIN_HTTP_HOSTS = frozenset({"localhost", "127.0.0.1", "10.0.2.2"})
 ENROLMENT_DEFAULT_MINUTES = 60
@@ -160,22 +160,13 @@ def _project_active(project_id: str) -> bool:
     return project is not None and project.project_status == VaStatuses.active
 
 
-def has_interviewer_access(user: VaUsers, project_id: str) -> bool:
-    """An active interviewer grant (any scope) reaching *project_id*, through
-    the same resolution the intake bootstrap serves (``interviewer_context``),
-    so a session is never open for a project the app would get no scope in.
-    That resolution skips a project whose ``web_intake_mode`` is ``off``."""
-    from app.services.web_intake_service import interviewer_context
-
-    return any(entry["project_id"] == project_id for entry in interviewer_context(user))
-
-
-def _session_access(user: VaUsers, project_id: str, multi_project: bool) -> bool:
-    """The sign-in and refresh grant check. An app that sends
-    ``multi_project: true`` needs an interviewer grant in any project; an
-    older app keeps the check against the enrolment project *project_id*."""
-    if not multi_project:
-        return has_interviewer_access(user, project_id)
+def has_interviewer_access(user: VaUsers) -> bool:
+    """The sign-in and refresh grant check: an active interviewer grant (any
+    scope) in at least one project, through the resolution the bootstrap
+    serves (``interviewer_context``, which skips a project whose
+    ``web_intake_mode`` is ``off``), so a session never opens with nothing
+    to collect in. The enrolment project is not required: a device works in
+    every project the worker is an interviewer in."""
     from app.services.web_intake_service import interviewer_context
 
     return bool(interviewer_context(user))
@@ -266,6 +257,9 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
 
     secret = _new_secret()
     device = AuthDevice(
+        # The enrolment code's project: the device's admin home (listed and
+        # revoked there, ended when it closes). It does not limit which
+        # projects the device serves; every request names its project.
         project_id=consumed.project_id,
         name=name,
         platform=platform,
@@ -326,7 +320,9 @@ def _device_by_secret(device_id, device_secret) -> AuthDevice:
 
 def _authenticate_device(device_id, device_secret) -> AuthDevice:
     device = _device_by_secret(device_id, device_secret)
-    if device.revoked_at is not None or not _project_active(device.project_id):
+    # The enrolment project does not bound the device's life: a device serves
+    # every project its worker is an interviewer in, so only a revoke ends it.
+    if device.revoked_at is not None:
         raise DeviceAuthError("This device has been revoked.", "device_revoked", 403)
     return device
 
@@ -395,12 +391,10 @@ def _sign_in_user(identifier: str) -> VaUsers | None:
     return db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == mobile))
 
 
-def open_session(*, device_id, device_secret, email, password, otp=None,
-                 multi_project: bool = False) -> tuple[IssuedTokens, VaUsers]:
+def open_session(*, device_id, device_secret, email, password, otp=None) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
     with the device credential in place of the CAPTCHA). *email* is the
-    contract's field name; it holds an email or a mobile number.
-    *multi_project* widens the grant check (``_session_access``). Raises
+    contract's field name; it holds an email or a mobile number. Raises
     DeviceAuthError; a refused attempt is audited and committed. Caller
     commits a success."""
     device = _authenticate_device(device_id, device_secret)
@@ -449,9 +443,9 @@ def open_session(*, device_id, device_secret, email, password, otp=None,
                 detail={"remaining": totp_service.remaining_recovery_code_count(user.user_id)},
             )
 
-    if not _session_access(user, device.project_id, multi_project):
+    if not has_interviewer_access(user):
         _sign_in_failed(device, user, "no_interviewer_grant")
-        raise DeviceAuthError("You have no interviewer access in this device's project.", "no_interviewer_grant", 403)
+        raise DeviceAuthError("You have no interviewer access in any project.", "no_interviewer_grant", 403)
 
     session = AuthDeviceSession(
         device_id=device.device_id,
@@ -480,17 +474,16 @@ def _revoke(session: AuthDeviceSession, reason: str) -> None:
     log.warning("device session revoked | session=%s | reason=%s", session.session_id, reason)
 
 
-def _session_still_allowed(session: AuthDeviceSession, multi_project: bool = False) -> tuple[bool, str]:
-    """Whether a session may continue: device, project, account and grant."""
+def _session_still_allowed(session: AuthDeviceSession) -> tuple[bool, str]:
+    """Whether a session may continue: device not revoked, account unchanged
+    and at least one active project to collect in."""
     device = db.session.get(AuthDevice, session.device_id)
     if device is None or device.revoked_at is not None:
         return False, "device_revoked"
-    if not _project_active(device.project_id):
-        return False, "project_inactive"
     user = db.session.get(VaUsers, session.user_id)
     if user is None or not user.is_active or (user.auth_session_version or 0) != session.user_session_version:
         return False, "account_changed"
-    if not _session_access(user, device.project_id, multi_project):
+    if not has_interviewer_access(user):
         return False, "grant_withdrawn"
     return True, ""
 
@@ -508,11 +501,8 @@ def _revoked_error(session: AuthDeviceSession) -> DeviceAuthError:
     return DeviceAuthError("This session has been revoked.", "session_revoked", 401)
 
 
-def refresh_session(refresh_token, *, device_id, device_secret,
-                    multi_project: bool = False) -> tuple[IssuedTokens, VaUsers]:
+def refresh_session(refresh_token, *, device_id, device_secret) -> tuple[IssuedTokens, VaUsers]:
     """Rotate a refresh token presented with its device's id and secret.
-    *multi_project* widens the grant check, as at sign-in; the flag is per
-    request, so a multi-project app sends it on every refresh.
 
     Refusals, none of which asks the app to wipe except ``session_revoked``:
     - 401 ``device_invalid``: device id/secret missing, wrong, or not the
@@ -567,7 +557,7 @@ def refresh_session(refresh_token, *, device_id, device_secret,
         raise _revoked_error(session)
     if session.refresh_expires_at <= now or session.created_at + _session_max_age() <= now:
         raise DeviceAuthError("This session has expired; sign in again.", "session_expired", 401)
-    allowed, reason = _session_still_allowed(session, multi_project)
+    allowed, reason = _session_still_allowed(session)
     if not allowed:
         _revoke(session, reason)
         db.session.commit()

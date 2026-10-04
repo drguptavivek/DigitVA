@@ -14,12 +14,12 @@ translations, outstanding draft ids, and the enrolment QR URL check.
 Offline cases (bead digitva-kmk.4): the case download (scope, states,
 masking, prefill, paging), idempotent offline registration, attempts and
 visits, registration before upload, and outstanding registration ids.
-Expo backend (bead digitva-p6fs.24): case detail (full contacts, worklist
-scope, no-store), history paging, multi-project bootstrap and ``project_id``,
-and the ``multi_project`` sign-in and refresh check; the owner access rules
-(several units and projects, a wider grant beside a unit grant, ``va_sid``
-for the case starter only, history tie-breaks, a session past its enrolment
-project's grant).
+Expo backend (bead digitva-p6fs.24): the case list is the browser worklist
+of one project (identical rows), case detail (full contacts, worklist scope,
+no-store, the browser body plus prefill), the required ``project_id``,
+the multi-project bootstrap and a session that lasts while any project grant
+remains; the owner access rules (several units and projects, a wider grant
+beside a unit grant, ``va_sid`` for the case starter only, list tie-breaks).
 """
 import hashlib
 import json
@@ -211,6 +211,7 @@ class DeviceApiTests(BaseTestCase):
                       "currentSection": "consented", "createdAt": "2026-09-30T08:00:00+00:00",
                       "updatedAt": "2026-09-30T09:00:00+00:00", "data": _complete_answers()},
             "completion": {"valid": True, "issues": []},
+            "project_id": self.PROJECT_ID,
         }
         payload.update(body)
         return self.client.post(f"{API}/submissions", json=payload, headers=self._bearer(tokens))
@@ -377,7 +378,7 @@ class DeviceApiTests(BaseTestCase):
         for event in events:
             self.assertEqual(set(event.detail), {"device_id", "reason"})
 
-    def test_sign_in_needs_an_interviewer_grant_in_the_device_project(self):
+    def test_sign_in_needs_an_interviewer_grant_in_some_project(self):
         device = self._enrol()
         response = self._sign_in(device, email="device.outsider@test.local")
         self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_interviewer_grant"))
@@ -675,20 +676,13 @@ class DeviceApiTests(BaseTestCase):
 
     # ── bootstrap ──────────────────────────────────────────────────────────
 
-    def test_bootstrap_is_scoped_to_the_device_project(self):
+    def test_bootstrap_is_the_projects_list_only(self):
         _device, tokens = self._session()
-        # The interviewer's web bootstrap reaches both projects...
-        self._login(str(self.interviewer.user_id))
-        web = self.client.get("/intake/api/bootstrap").get_json()
-        self.assertEqual({c["project_id"] for c in web["context"]}, {self.PROJECT_ID, self.OTHER_PROJECT_ID})
-        # ...the device's only its own.
-        self.client.delete_cookie("session")
         body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
-        self.assertEqual([c["project_id"] for c in body["context"]], [self.PROJECT_ID])
+        self.assertEqual(set(body), {"user", "instrument_version", "projects"})
         self.assertEqual(body["user"]["user_id"], str(self.interviewer.user_id))
-        self.assertEqual(body["form_options"]["project_id"], self.PROJECT_ID)
-        self.assertIn("instrument_version", body)
-        self.assertNotIn("csrf_token", body)
+        self.assertEqual(set(body["projects"][0]),
+                         {"project_id", "project_name", "web_intake_mode", "sites", "form_options", "prefill_policy"})
 
     # ── submissions ────────────────────────────────────────────────────────
 
@@ -781,6 +775,7 @@ class DeviceApiTests(BaseTestCase):
     def _register(self, tokens, client_death_id=None, **fields):
         body = {
             "client_death_id": str(client_death_id or uuid.uuid4()), "site_id": self.SITE_ID,
+            "project_id": self.PROJECT_ID,
             "deceased_name": "Ram Lal Verma", "deceased_sex": "male",
             "date_of_death": (date.today() - timedelta(days=2)).isoformat(), "age_years": "58",
             "informant_name": "Sita Verma", "informant_phone": "+91 98765-43210",
@@ -789,6 +784,7 @@ class DeviceApiTests(BaseTestCase):
         return self.client.post(f"{API}/deaths", json=body, headers=self._bearer(tokens))
 
     def _cases(self, tokens, **params):
+        params.setdefault("project_id", self.PROJECT_ID)
         response = self.client.get(f"{API}/cases", query_string=params, headers=self._bearer(tokens))
         self.assertEqual(response.status_code, 200, response.get_json())
         return response
@@ -798,39 +794,86 @@ class DeviceApiTests(BaseTestCase):
             "client_attempt_id": str(client_attempt_id or uuid.uuid4()), "outcome": "no_answer", **body,
         }, headers=self._bearer(tokens))
 
-    def test_cases_lists_waiting_and_own_in_progress_cases_of_the_device_project_only(self):
+    #: The states an app downloads for offline visits (its choice, by ``state=``).
+    ACTIVE = "registered,scheduled,not_reachable,paused,refused,in_progress"
+
+    def test_cases_is_the_browser_worklist_of_one_project(self):
         _device, tokens = self._session()
         waiting = self._web_case(informant_phone="9876543210", informant_name="Mohan Das")
         refused = self._web_case(deceased_name="Refused Case")
         intake_svc.log_contact_attempt(self.interviewer, refused.death_id, outcome="refused")
-        mine = self._web_case(deceased_name="Mine Started")
-        intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=mine.death_id)
         theirs = self._web_case(user=self.teammate, deceased_name="Teammate Started")
         intake_svc.start_draft(self.teammate, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=theirs.death_id)
+        submitted = self._web_case(deceased_name="Submitted Case")
         other_project = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
         db.session.commit()
+        self.assertEqual(self._upload(tokens, death_id=str(submitted.death_id)).status_code, 201)
 
         response = self._cases(tokens)
         self.assertEqual(response.headers["Cache-Control"], "no-store")
-        rows = {row["death_id"]: row for row in response.get_json()["cases"]}
-        self.assertIn(str(waiting.death_id), rows)
-        self.assertIn(str(refused.death_id), rows)
-        self.assertIn(str(mine.death_id), rows)
-        self.assertNotIn(str(theirs.death_id), rows)
+        body = response.get_json()
+        self.assertEqual(set(body), {"cases", "counts", "next_cursor"})
+        rows = {row["death_id"]: row for row in body["cases"]}
+        # Every state in scope, the teammate's in-progress case included,
+        # and only the named project.
+        for death in (waiting, refused, theirs, submitted):
+            self.assertIn(str(death.death_id), rows)
         self.assertNotIn(str(other_project.death_id), rows)
+        self.assertEqual(body["counts"]["submitted"], 1)
 
         row = rows[str(waiting.death_id)]
         self.assertEqual(row["state"], "registered")
         self.assertEqual(row["informant_phone_masked"], "******3210")
+        self.assertIn("possible_duplicates", row)
+        self.assertNotIn("prefill", row)
         self.assertNotIn("9876543210", response.get_data(as_text=True))
-        prefill = row["prefill"]
-        self.assertEqual(set(prefill), {"interviewer", "deceased", "answers", "lockedQuestionNames"})
-        self.assertEqual(prefill["deceased"]["givenNames"], "Kamla")
-        self.assertEqual(prefill["deceased"]["surname"], "Devi")
-        self.assertEqual(prefill["answers"]["Id10007"], "Mohan Das")
-        self.assertEqual(prefill["interviewer"]["id"], str(self.interviewer.user_id))
-        # The same prefill the web form gets for this case.
-        self.assertEqual(prefill, intake_svc._prefill_from_death(waiting, self.interviewer, waiting.org_unit_id))
+
+        # The app's active download is the same list with state=.
+        active = {row["death_id"] for row in self._cases(tokens, state=self.ACTIVE).get_json()["cases"]}
+        self.assertIn(str(waiting.death_id), active)
+        self.assertIn(str(theirs.death_id), active)
+        self.assertNotIn(str(submitted.death_id), active)
+        mine = {row["death_id"] for row in self._cases(tokens, mine="true").get_json()["cases"]}
+        self.assertIn(str(waiting.death_id), mine)
+        self.assertNotIn(str(theirs.death_id), mine)
+
+    def test_device_and_browser_lists_return_identical_rows(self):
+        _device, tokens = self._session()
+        self._web_case(informant_phone="9876543210", deceased_name="Same Row")
+        self._web_case(deceased_name="Same Row")  # a possible duplicate of the first
+        self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
+        for params in ({}, {"state": "registered"}, {"mine": "true"}):
+            device = self._cases(tokens, **params).get_json()
+            self._login(str(self.interviewer.user_id))
+            browser = self.client.get("/intake/api/cases", query_string=params)
+            self.client.delete_cookie("session")
+            self.assertEqual(browser.headers["Cache-Control"], "no-store")
+            browser_rows = [r for r in browser.get_json()["cases"] if r["project_id"] == self.PROJECT_ID]
+            self.assertTrue(device["cases"], params)
+            self.assertEqual(json.dumps(device["cases"], sort_keys=True),
+                             json.dumps(browser_rows, sort_keys=True), params)
+        self.assertTrue(any(row["possible_duplicates"] for row in device["cases"]))
+
+    def test_project_id_is_required(self):
+        _device, tokens = self._session()
+        bearer = self._bearer(tokens)
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        from app.routes.api.organization import served_instrument_locales
+
+        code, _ = served_instrument_locales(project)
+        refusals = [
+            self.client.get(f"{API}/cases", headers=bearer),
+            self.client.get(f"{API}/units", headers=bearer),
+            self.client.get(f"{API}/instruments/{code}/translations/en", headers=bearer),
+            self._register(tokens, project_id=None),
+            self._upload(tokens, project_id=""),
+        ]
+        for response in refusals:
+            self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"),
+                             response.request.path)
+        # Present: the same calls answer.
+        self.assertEqual(self.client.get(f"{API}/units", query_string={"project_id": self.PROJECT_ID},
+                                         headers=bearer).status_code, 200)
 
     def test_cases_page_with_a_cursor_and_refuse_a_bad_limit(self):
         _device, tokens = self._session()
@@ -846,7 +889,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertIn(str(first.death_id), seen)
         self.assertIn(str(second.death_id), seen)
         self.assertEqual(len(seen), len(set(seen)))
-        bad = self.client.get(f"{API}/cases?limit=x", headers=self._bearer(tokens))
+        bad = self.client.get(f"{API}/cases?limit=x&project_id={self.PROJECT_ID}", headers=self._bearer(tokens))
         self.assertEqual((bad.status_code, bad.get_json()["code"]), (400, "invalid_request"))
         self.assertEqual(self.client.get(f"{API}/cases").status_code, 401)
 
@@ -857,8 +900,10 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(created.status_code, 201, created.get_json())
         case = created.get_json()["case"]
         self.assertEqual(case["state"], "registered")
-        self.assertEqual(case["informant_phone_masked"], "******3210")
-        self.assertNotIn("9876543210", created.get_data(as_text=True))
+        # The reply is the case's detail body, as GET /cases/<id>.
+        detail = self._detail(tokens, case["death_id"]).get_json()["case"]
+        self.assertEqual(case, detail)
+        self.assertEqual(case["informant"]["phone"], "9876543210")
         self.assertEqual(case["prefill"]["deceased"]["givenNames"], "Ram")
         death = db.session.get(VaDeathRegister, uuid.UUID(case["death_id"]))
         self.assertEqual((death.client_death_id, death.informant_phone), (client_death_id, "9876543210"))
@@ -904,8 +949,9 @@ class DeviceApiTests(BaseTestCase):
         # A late resend of the registration still answers with the same case.
         again = self._register(tokens, client_death_id)
         self.assertEqual((again.status_code, again.get_json()["case"]["state"]), (200, "submitted"))
-        # And the case leaves the download.
-        self.assertNotIn(case["death_id"], [row["death_id"] for row in self._cases(tokens).get_json()["cases"]])
+        # And the case leaves the active download.
+        active = self._cases(tokens, state=self.ACTIVE).get_json()["cases"]
+        self.assertNotIn(case["death_id"], [row["death_id"] for row in active])
 
     def test_offline_attempt_is_idempotent_on_client_attempt_id(self):
         from app.models import MapCaseContactAttempt
@@ -933,12 +979,14 @@ class DeviceApiTests(BaseTestCase):
 
     def test_offline_attempt_and_visit_refusals(self):
         _device, tokens = self._session()
+        _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         death = self._web_case()
+        # A project the teammate holds no grant in, an unknown and a malformed id.
         other_project = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
         for death_id in (other_project.death_id, uuid.uuid4(), "not-a-uuid"):
-            self.assertEqual(self._attempt(tokens, death_id).status_code, 404, death_id)
+            self.assertEqual(self._attempt(teammate_tokens, death_id).status_code, 404, death_id)
             visit = self.client.post(f"{API}/cases/{death_id}/visit", json={"next_visit_at": None},
-                                     headers=self._bearer(tokens))
+                                     headers=self._bearer(teammate_tokens))
             self.assertEqual(visit.status_code, 404, death_id)
         bad = self._attempt(tokens, death.death_id, outcome="gossip")
         self.assertEqual((bad.status_code, bad.get_json()["code"]), (422, "invalid_attempt"))
@@ -1141,14 +1189,15 @@ class DeviceApiTests(BaseTestCase):
         db.session.commit()
 
         _device, tokens = self._session(email="device.unit@test.local")
-        body = self.client.get(f"{API}/units", headers=self._bearer(tokens)).get_json()
+        here = {"project_id": self.PROJECT_ID}
+        body = self.client.get(f"{API}/units", query_string=here, headers=self._bearer(tokens)).get_json()
         self.assertTrue(body["scoped"])
         self.assertEqual(body["project_id"], self.PROJECT_ID)
         self.assertEqual({u["unit_code"] for u in body["units"]}, {"D1", "P1"})
         self.assertEqual({lvl["level_code"] for lvl in body["levels"]}, {"district", "phc"})
 
         _device2, project_tokens = self._session()
-        whole = self.client.get(f"{API}/units", headers=self._bearer(project_tokens)).get_json()
+        whole = self.client.get(f"{API}/units", query_string=here, headers=self._bearer(project_tokens)).get_json()
         self.assertFalse(whole["scoped"])
         self.assertEqual({u["unit_code"] for u in whole["units"]}, {"D1", "P1", "D2"})
         self.assertTrue(all(u["selectable"] for u in whole["units"]))
@@ -1173,7 +1222,8 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session()
 
         def get(locale, instrument=code):
-            return self.client.get(f"{API}/instruments/{instrument}/translations/{locale}", headers=self._bearer(tokens))
+            return self.client.get(f"{API}/instruments/{instrument}/translations/{locale}",
+                                   query_string={"project_id": self.PROJECT_ID}, headers=self._bearer(tokens))
 
         # Every instrument locale is served while the project names none...
         self.assertEqual(get("ta").status_code, 200)
@@ -1191,10 +1241,10 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(get("hi", instrument="PHMRC_ADULT").status_code, 404)
         self.assertEqual(get("xx").status_code, 404)
 
-    # ── case detail, history, multi-project (digitva-p6fs.24) ──────────────
+    # ── case detail, multi-project (digitva-p6fs.24) ───────────────────────
 
-    def _detail(self, tokens, death_id, **params):
-        return self.client.get(f"{API}/cases/{death_id}", query_string=params, headers=self._bearer(tokens))
+    def _detail(self, tokens, death_id):
+        return self.client.get(f"{API}/cases/{death_id}", headers=self._bearer(tokens))
 
     def _contact_case(self, **fields):
         return self._web_case(
@@ -1235,15 +1285,10 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session()
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         other_project = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
-        # A second authorized project: found without project_id, or with its own.
+        # A second authorized project: found, no project_id needed.
         self.assertEqual(self._detail(tokens, other_project.death_id).status_code, 200)
-        self.assertEqual(self._detail(tokens, other_project.death_id, project_id=self.OTHER_PROJECT_ID).status_code, 200)
-        # Named project differs from the case's: 404.
-        self.assertEqual(self._detail(tokens, other_project.death_id, project_id=self.PROJECT_ID).status_code, 404)
-        # A project the teammate has no grant in: 404 by id, 403 by name.
+        # A project the teammate has no grant in: 404.
         self.assertEqual(self._detail(teammate_tokens, other_project.death_id).status_code, 404)
-        named = self._detail(teammate_tokens, other_project.death_id, project_id=self.OTHER_PROJECT_ID)
-        self.assertEqual((named.status_code, named.get_json()["code"]), (403, "project_forbidden"))
         for death_id in (uuid.uuid4(), "not-a-uuid"):
             self.assertEqual(self._detail(tokens, death_id).status_code, 404)
         # "Details pending" is its starter's only.
@@ -1285,50 +1330,27 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(response.get_json()["case"]["informant"]["phone"], "9876543210")
         self.assertEqual(self.client.get(f"/intake/api/cases/{other_project.death_id}").status_code, 404)
 
-    def _history(self, tokens, **params):
-        return self.client.get(f"{API}/history", query_string=params, headers=self._bearer(tokens))
-
-    def test_history_pages_every_case_newest_first_in_any_state(self):
+    def test_device_and_browser_detail_bodies_match(self):
         _device, tokens = self._session()
-        cases = [self._web_case(deceased_name=f"History {n}", informant_phone="9876543210") for n in range(4)]
-        self.assertEqual(self._upload(tokens, death_id=str(cases[0].death_id)).status_code, 201)
-        self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
-        expected = [str(d.death_id) for d in sorted(
-            cases, key=lambda d: (d.created_at, d.death_id), reverse=True)]
-        seen, cursor = [], None
-        while True:
-            response = self._history(tokens, limit=3, **({"cursor": cursor} if cursor else {}))
-            self.assertEqual(response.status_code, 200, response.get_json())
-            self.assertEqual(response.headers["Cache-Control"], "no-store")
-            body = response.get_json()
-            self.assertLessEqual(len(body["cases"]), 3)
-            seen += [row["death_id"] for row in body["cases"]]
-            for row in body["cases"]:
-                self.assertNotIn("prefill", row)
-                self.assertEqual(row["informant_phone_masked"], "******3210")
-            self.assertNotIn("9876543210", response.get_data(as_text=True))
-            cursor = body["next_cursor"]
-            if not cursor:
-                break
-        self.assertEqual(seen, expected)
-        submitted = self._history(tokens, state="submitted").get_json()["cases"]
-        self.assertEqual([row["death_id"] for row in submitted], [str(cases[0].death_id)])
-        self.assertEqual(self._history(tokens, state="registered,submitted").status_code, 200)
-        for params in ({"limit": "x"}, {"state": "nonsense"}, {"cursor": "bad"}):
-            bad = self._history(tokens, **params)
-            self.assertEqual((bad.status_code, bad.get_json()["code"]), (400, "invalid_request"), params)
-        # /cases keeps its own semantics: the submitted case is not offered.
-        listed = [row["death_id"] for row in self._cases(tokens).get_json()["cases"]]
-        self.assertIn(str(cases[1].death_id), listed)
-        self.assertNotIn(str(cases[0].death_id), listed)
+        death = self._contact_case()
+        draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+                                       death_id=death.death_id)
+        db.session.commit()
+        device = self._detail(tokens, death.death_id).get_json()["case"]
+        self._login(str(self.interviewer.user_id))
+        browser = self.client.get(f"/intake/api/cases/{death.death_id}").get_json()["case"]
+        self.assertEqual(device["my_draft_id"], str(draft.draft_id))
+        self.assertIn("prefill", device)
+        self.assertEqual(set(browser["links"]), {"self", "attempts", "visit", "start_interview", "form"})
+        self.assertEqual(set(device["links"]), {"self", "attempts", "visit"})
+        for body in (device, browser):
+            body.pop("links")
+        device.pop("prefill")
+        self.assertEqual(device, browser)
 
     def test_bootstrap_lists_every_authorized_project(self):
         _device, tokens = self._session()
         body = self.client.get(f"{API}/bootstrap", headers=self._bearer(tokens)).get_json()
-        # Single-project keys keep the enrolment project.
-        self.assertEqual([c["project_id"] for c in body["context"]], [self.PROJECT_ID])
-        self.assertEqual(body["form_options"]["project_id"], self.PROJECT_ID)
-        self.assertEqual(body["default_project_id"], self.PROJECT_ID)
         projects = {p["project_id"]: p for p in body["projects"]}
         self.assertEqual(set(projects), {self.PROJECT_ID, self.OTHER_PROJECT_ID})
         other = projects[self.OTHER_PROJECT_ID]
@@ -1361,18 +1383,16 @@ class DeviceApiTests(BaseTestCase):
         _device, tokens = self._session()
         home = self._web_case(deceased_name="Home Case")
         away = self._web_case(deceased_name="Away Case", project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
-        default = [row["death_id"] for row in self._cases(tokens).get_json()["cases"]]
-        self.assertIn(str(home.death_id), default)
-        self.assertNotIn(str(away.death_id), default)
+        first = [row["death_id"] for row in self._cases(tokens, project_id=self.PROJECT_ID).get_json()["cases"]]
+        self.assertIn(str(home.death_id), first)
+        self.assertNotIn(str(away.death_id), first)
         second = [row["death_id"] for row in self._cases(tokens, project_id=self.OTHER_PROJECT_ID).get_json()["cases"]]
         self.assertEqual(second, [str(away.death_id)])
         units = self.client.get(f"{API}/units", query_string={"project_id": self.OTHER_PROJECT_ID},
                                 headers=self._bearer(tokens))
         self.assertEqual((units.status_code, units.get_json()["project_id"]), (200, self.OTHER_PROJECT_ID))
-        self.assertEqual(self._history(tokens, project_id=self.OTHER_PROJECT_ID).get_json()["cases"][0]["death_id"],
-                         str(away.death_id))
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
-        for path in ("/cases", "/units", "/history"):
+        for path in ("/cases", "/units"):
             for project_id in (self.OTHER_PROJECT_ID, "NOPE99"):
                 refused = self.client.get(f"{API}{path}", query_string={"project_id": project_id},
                                           headers=self._bearer(teammate_tokens))
@@ -1390,16 +1410,16 @@ class DeviceApiTests(BaseTestCase):
         wrong = self._upload(tokens, project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID,
                              death_id=str(home.death_id))
         self.assertEqual(wrong.status_code, 404)
-        # Attempts and visits: the default project, a named other project, an unauthorized one.
-        self.assertEqual(self._attempt(tokens, away.death_id).status_code, 404)
-        self.assertEqual(self._attempt(tokens, away.death_id, project_id=self.PROJECT_ID).status_code, 404)
-        self.assertEqual(self._attempt(tokens, away.death_id, project_id=self.OTHER_PROJECT_ID).status_code, 201)
+        # Attempts and visits are keyed by the case: any authorized project's
+        # case, no project_id; a project without a grant is 404.
+        self.assertEqual(self._attempt(tokens, away.death_id).status_code, 201)
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         self.assertEqual(self._attempt(teammate_tokens, away.death_id).status_code, 404)
         visit = self.client.post(f"{API}/cases/{away.death_id}/visit", json={"next_visit_at": None},
                                  headers=self._bearer(teammate_tokens))
         self.assertEqual(visit.status_code, 404)
-        named = self._attempt(teammate_tokens, away.death_id, project_id=self.OTHER_PROJECT_ID)
+        # A named project the teammate holds no grant in.
+        named = self._register(teammate_tokens, project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
         self.assertEqual((named.status_code, named.get_json()["code"]), (403, "project_forbidden"))
 
     def test_registration_then_interview_sync_in_a_second_project(self):
@@ -1428,38 +1448,47 @@ class DeviceApiTests(BaseTestCase):
         ).values(grant_status=VaStatuses.deactive))
         db.session.commit()
 
-    def test_without_multi_project_losing_the_enrolment_grant_still_revokes(self):
-        device, tokens = self._session()
-        self._withdraw(self.PROJECT_ID)
-        response = self._refresh(tokens["refresh_token"])
-        self.assertEqual((response.status_code, response.get_json()["code"]), (401, "session_revoked"))
-        refused = self._sign_in(device)
-        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
-
-    def test_multi_project_session_lasts_while_any_project_grant_remains(self):
+    def test_session_lasts_while_any_project_grant_remains(self):
         from app.routes.api.organization import served_instrument_locales
 
-        device, tokens = self._session(multi_project=True)
+        device, tokens = self._session()
+        # The enrolment project's grant goes: the device carries on in the other.
         self._withdraw(self.PROJECT_ID)
-        response = self._refresh(tokens["refresh_token"], multi_project=True)
+        response = self._refresh(tokens["refresh_token"])
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(self._sign_in(device, multi_project=True).status_code, 201)
+        self.assertEqual(self._sign_in(device).status_code, 201)
         bearer = self._bearer(response.get_json())
         body = self.client.get(f"{API}/bootstrap", headers=bearer).get_json()
         self.assertEqual([p["project_id"] for p in body["projects"]], [self.OTHER_PROJECT_ID])
         self.assertIsNotNone(body["projects"][0]["form_options"])
-        # The enrolment project's config is no longer served.
-        self.assertIsNone(body["form_options"])
-        self.assertEqual(body["context"], [])
-        self.assertIsNone(body["default_project_id"])
         code, _ = served_instrument_locales(db.session.get(VaProjectMaster, self.OTHER_PROJECT_ID))
         path = f"{API}/instruments/{code}/translations/en"
         named = self.client.get(path, query_string={"project_id": self.OTHER_PROJECT_ID}, headers=bearer)
         self.assertEqual(named.status_code, 200)
-        unnamed = self.client.get(path, headers=bearer)
-        self.assertEqual((unnamed.status_code, unnamed.get_json()["code"]), (403, "project_forbidden"))
+        enrolment = self.client.get(path, query_string={"project_id": self.PROJECT_ID}, headers=bearer)
+        self.assertEqual((enrolment.status_code, enrolment.get_json()["code"]), (403, "project_forbidden"))
+        # The last grant goes: revoked, and no new sign-in.
         self._withdraw(self.OTHER_PROJECT_ID)
-        gone = self._refresh(response.get_json()["refresh_token"], multi_project=True)
+        gone = self._refresh(response.get_json()["refresh_token"])
+        self.assertEqual((gone.status_code, gone.get_json()["code"]), (401, "session_revoked"))
+        refused = self._sign_in(device)
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
+
+    def _set_project_status(self, project_id, status):
+        db.session.get(VaProjectMaster, project_id).project_status = status
+        db.session.commit()
+
+    def test_closing_the_enrolment_project_does_not_end_the_device(self):
+        device, tokens = self._session()
+        self.addCleanup(self._set_project_status, self.PROJECT_ID, VaStatuses.active)
+        self.addCleanup(self._set_project_status, self.OTHER_PROJECT_ID, VaStatuses.active)
+        self._set_project_status(self.PROJECT_ID, VaStatuses.deactive)
+        response = self._refresh(tokens["refresh_token"])
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(self._sign_in(device).status_code, 201)
+        # No active project left: revoked (the app wipes), not kept.
+        self._set_project_status(self.OTHER_PROJECT_ID, VaStatuses.deactive)
+        gone = self._refresh(response.get_json()["refresh_token"])
         self.assertEqual((gone.status_code, gone.get_json()["code"]), (401, "session_revoked"))
 
     # ── owner access rules (digitva-p6fs.24 follow-up) ─────────────────────
@@ -1491,7 +1520,10 @@ class DeviceApiTests(BaseTestCase):
         self._unit_grant(worker, units["D2"])
         _device, tokens = self._session(email="device.two.units@test.local")
 
-        for listed in (self._ids(self._cases(tokens)), self._ids(self._history(tokens))):
+        self._login(str(worker.user_id))
+        browser = self._ids(self.client.get("/intake/api/cases"))
+        self.client.delete_cookie("session")
+        for listed in (self._ids(self._cases(tokens)), browser):
             self.assertIn(str(in_p1.death_id), listed)
             self.assertIn(str(in_d2.death_id), listed)
             self.assertNotIn(str(in_d3.death_id), listed)
@@ -1531,16 +1563,12 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(set(projects[self.PROJECT_ID]["prefill_policy"]["units"]), {str(a["A1"].org_unit_id)})
         self.assertEqual(set(projects[self.OTHER_PROJECT_ID]["prefill_policy"]["units"]), {str(b["B1"].org_unit_id)})
 
-        self.assertEqual(self._ids(self._cases(tokens)), {ids["A1"]})
         for project_id, code in ((self.PROJECT_ID, "A1"), (self.OTHER_PROJECT_ID, "B1")):
             self.assertEqual(self._ids(self._cases(tokens, project_id=project_id)), {ids[code]})
-            self.assertEqual(self._ids(self._history(tokens, project_id=project_id)), {ids[code]})
             units = self.client.get(f"{API}/units", query_string={"project_id": project_id},
                                     headers=self._bearer(tokens)).get_json()
             self.assertEqual({u["unit_code"] for u in units["units"]}, {code})
         self.assertEqual(self._detail(tokens, ids["B1"]).status_code, 200)
-        self.assertEqual(self._detail(tokens, ids["B1"], project_id=self.OTHER_PROJECT_ID).status_code, 200)
-        self.assertEqual(self._detail(tokens, ids["B1"], project_id=self.PROJECT_ID).status_code, 404)
         for code in ("A2", "B2"):
             self.assertEqual(self._detail(tokens, ids[code]).status_code, 404)
 
@@ -1586,18 +1614,18 @@ class DeviceApiTests(BaseTestCase):
             self.assertEqual(self._detail(tokens, death.death_id).status_code, 200)
         self.assertEqual(self._detail(tokens, d2_there.death_id).status_code, 404)
 
-    def test_history_breaks_created_at_ties_on_death_id(self):
+    def test_list_breaks_updated_at_ties_on_death_id(self):
         _device, tokens = self._session()
         cases = [self._web_case(deceased_name=f"Tie {n}") for n in range(4)]
         db.session.execute(sa.update(VaDeathRegister).where(
             VaDeathRegister.death_id.in_([c.death_id for c in cases])
-        ).values(created_at=datetime(2026, 9, 1, 8, 0, 0, 123456, tzinfo=UTC)))
+        ).values(updated_at=datetime(2030, 9, 1, 8, 0, 0, 123456, tzinfo=UTC), next_visit_at=None))
         db.session.commit()
         expected = [str(d) for d in sorted((c.death_id for c in cases), reverse=True)]
         for limit, sizes in ((2, [2, 2]), (3, [3, 1])):
             pages, cursor = [], None
             while True:
-                body = self._history(tokens, limit=limit, **({"cursor": cursor} if cursor else {})).get_json()
+                body = self._cases(tokens, limit=limit, **({"cursor": cursor} if cursor else {})).get_json()
                 pages.append([row["death_id"] for row in body["cases"]])
                 cursor = body["next_cursor"]
                 if not cursor:
@@ -1606,7 +1634,7 @@ class DeviceApiTests(BaseTestCase):
             self.assertEqual([len(p) for p in pages], sizes, limit)
             self.assertEqual([i for p in pages for i in p], expected, limit)
 
-    def test_va_sid_only_to_the_case_starter_in_detail_and_history(self):
+    def test_va_sid_only_to_the_case_starter_in_list_and_detail(self):
         _device, tokens = self._session()
         _device2, teammate_tokens = self._session(email="device.teammate@test.local")
         theirs = self._web_case(deceased_name="Teammate Interview")
@@ -1618,17 +1646,22 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(self._detail(teammate_tokens, theirs.death_id).get_json()["case"]["va_sid"], their_sid)
         self.assertEqual(self._detail(tokens, mine.death_id).get_json()["case"]["va_sid"], my_sid)
         self.assertIsNone(self._detail(tokens, theirs.death_id).get_json()["case"]["va_sid"])
-        history = {row["death_id"]: row["va_sid"] for row in self._history(tokens).get_json()["cases"]}
-        self.assertEqual(history[str(mine.death_id)], my_sid)
-        self.assertIsNone(history[str(theirs.death_id)])
-        # The worklist row keeps its shape: va_sid for every case.
-        row = intake_svc.serialize_worklist_row(self.interviewer, db.session.get(VaDeathRegister, theirs.death_id),
-                                                None, None)
-        self.assertEqual(row["va_sid"], their_sid)
+        listed = {row["death_id"]: row["va_sid"] for row in self._cases(tokens).get_json()["cases"]}
+        self.assertEqual(listed[str(mine.death_id)], my_sid)
+        self.assertIsNone(listed[str(theirs.death_id)])
+        teammate_list = {row["death_id"]: row["va_sid"] for row in self._cases(teammate_tokens).get_json()["cases"]}
+        self.assertEqual(teammate_list[str(theirs.death_id)], their_sid)
         self._login(str(self.interviewer.user_id))
+        rows = {row["death_id"]: row for row in self.client.get("/intake/api/cases").get_json()["cases"]}
+        self.assertEqual(rows[str(mine.death_id)]["va_sid"], my_sid)
+        self.assertIsNone(rows[str(theirs.death_id)]["va_sid"])
         browser = self.client.get(f"/intake/api/cases/{theirs.death_id}").get_json()["case"]
         self.assertEqual(browser["state"], "submitted")
         self.assertIsNone(browser["va_sid"])
+        # The supervisor row keeps every case's va_sid.
+        death = db.session.get(VaDeathRegister, theirs.death_id)
+        self.assertEqual(intake_svc.serialize_supervised_row(self.interviewer, death, None, None, None)["va_sid"],
+                         their_sid)
 
     # ── outstanding ────────────────────────────────────────────────────────
 

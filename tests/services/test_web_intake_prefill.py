@@ -123,10 +123,10 @@ class WebIntakePrefillTests(BaseTestCase):
 
     # ── registered case: every row of the map ─────────────────────────────
 
-    def test_device_case_rows_batch_prefill_matches_the_web_form(self):
-        """The device download resolves presets and org paths for a whole
-        page at once (digitva-kmk.4); each case's prefill must still be the
-        one the web form gets, inherited presets included."""
+    def test_prefill_policy_batch_matches_the_web_form(self):
+        """``prefill_policy`` resolves presets and org paths for every unit at
+        once; each unit's part must still be the one the web form gets,
+        inherited presets included."""
         from app.models.mas_organization import MapOrgUnitVaPresets
 
         root_id = self.unit.parent_org_unit_id
@@ -135,23 +135,20 @@ class WebIntakePrefillTests(BaseTestCase):
             MapOrgUnitVaPresets(org_unit_id=self.unit.org_unit_id, malaria_mortality="low"),
         ])
         db.session.flush()
-        first, second = self._register(), self._register(deceased_name="Asha Devi", deceased_sex="female")
-        root_case = intake_svc.register_death(
-            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, org_unit_id=str(root_id),
-            deceased_name="Root Case", deceased_sex="male",
-            date_of_death=(date.today() - timedelta(days=3)).isoformat(),
-        )
-        rows = intake_svc.device_case_rows(
-            self.interviewer, [(first, "Solan", None), (second, "Solan", None), (root_case, "Himachal Pradesh", None)]
-        )
-        for death, row in zip((first, second, root_case), rows, strict=True):
-            self.assertEqual(row["prefill"], intake_svc._prefill_from_death(death, self.interviewer, death.org_unit_id))
-        prefill = rows[0]["prefill"]
-        self.assertEqual((prefill["answers"]["Id10002"], prefill["answers"]["Id10003"]), ("high", "low"))
-        self.assertTrue({"Id10002", "Id10003"} <= set(prefill["lockedQuestionNames"]))
-        self.assertTrue(prefill["answers"]["Id10057"].startswith("Himachal Pradesh, Solan"))
-        self.assertEqual(rows[2]["prefill"]["answers"]["Id10002"], "high")
-        self.assertNotIn("Id10003", rows[2]["prefill"]["answers"])
+        units = intake_svc.prefill_policy(self.interviewer, self.PROJECT_ID)["units"]
+        for unit_id in (self.unit.org_unit_id, root_id):
+            web = intake_svc._prefill_from_death(None, self.interviewer, unit_id)
+            self.assertEqual(units[str(unit_id)]["answers"], web["answers"])
+        leaf = units[str(self.unit.org_unit_id)]
+        self.assertEqual((leaf["answers"]["Id10002"], leaf["answers"]["Id10003"]), ("high", "low"))
+        self.assertTrue({"Id10002", "Id10003"} <= set(leaf["lockedQuestionNames"]))
+        self.assertTrue(leaf["answers"]["Id10057"].startswith("Himachal Pradesh, Solan"))
+        self.assertEqual(units[str(root_id)]["answers"]["Id10002"], "high")
+        self.assertNotIn("Id10003", units[str(root_id)]["answers"])
+        # The device detail's prefill is the web form's for that case.
+        case = self._register()
+        self.assertEqual(intake_svc.case_prefill(self.interviewer, case),
+                         intake_svc._prefill_from_death(case, self.interviewer, case.org_unit_id))
 
     def test_registered_case_prefills_every_map_row(self):
         prefill = self._start(self._register()).prefill

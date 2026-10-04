@@ -25,7 +25,7 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from unittest import mock
 
 import pyotp
@@ -1213,6 +1213,101 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual((large.status_code, large.get_json()["code"]), (422, "invalid_interview"))
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
             VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
+
+    # ── interview times and clock skew (digitva-latk) ─────────────────────
+
+    _DRAFT = {"schemaVersion": 1, "formVersion": "2022", "id": "local-1", "instrumentId": "va_who_2022",
+              "instrumentVersion": "2023072701", "createdAt": "2026-09-30T08:00:00+00:00",
+              "updatedAt": "2026-09-30T09:00:00+00:00"}
+
+    def _timed_upload(self, tokens, answers=None, **envelope):
+        draft = {**self._DRAFT, "data": answers or _complete_answers(), **envelope}
+        return self._upload(tokens, draft=draft)
+
+    def _payload_and_draft(self, response):
+        va_sid = response.get_json()["va_sid"]
+        version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(VaSubmissionPayloadVersion.va_sid == va_sid))
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.va_sid == va_sid))
+        return version, draft
+
+    def test_upload_times_become_payload_start_and_end_and_server_time_stays_submission_date(self):
+        _device, tokens = self._session()
+        started, completed = "2026-10-01T10:00:00+05:30", "2026-10-01T10:45:00+05:30"
+        before = datetime.now(UTC)
+        response = self._timed_upload(tokens, startedAt=started, completedAt=completed)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        version, draft = self._payload_and_draft(response)
+        payload = version.payload_data
+        self.assertEqual((payload["start"], payload["end"], payload["today"]), (started, completed, "2026-10-01"))
+        self.assertGreaterEqual(datetime.fromisoformat(payload["SubmissionDate"]), before)
+        self.assertEqual((draft.meta["startedAt"], draft.meta["completedAt"]), (started, completed))
+        self.assertNotIn("clockSkewSeconds", draft.meta)
+
+    def test_upload_without_times_keeps_the_old_payload_times(self):
+        _device, tokens = self._session()
+        response = self._timed_upload(tokens)
+        version, draft = self._payload_and_draft(response)
+        payload = version.payload_data
+        self.assertEqual(payload["start"], self._DRAFT["createdAt"])
+        self.assertEqual(payload["end"], payload["SubmissionDate"])
+        self.assertNotIn("completedAt", draft.meta)
+        self.assertNotIn("clockSkewSeconds", draft.meta)
+
+    def test_device_clock_behind_the_server_is_stored_as_positive_skew_and_changes_no_time(self):
+        _device, tokens = self._session()
+        behind = (datetime.now(UTC) - timedelta(seconds=90)).astimezone(timezone(timedelta(hours=5, minutes=30)))
+        completed = "2026-10-01T10:45:00+05:30"
+        response = self._timed_upload(tokens, completedAt=completed, deviceClockAt=behind.isoformat())
+        self.assertEqual(response.status_code, 201, response.get_json())
+        version, draft = self._payload_and_draft(response)
+        self.assertAlmostEqual(draft.meta["clockSkewSeconds"], 90, delta=15)
+        self.assertEqual(version.payload_data["end"], completed)
+
+    def test_device_clock_ahead_of_the_server_is_negative_skew(self):
+        _device, tokens = self._session()
+        ahead = datetime.now(UTC) + timedelta(seconds=600)
+        response = self._timed_upload(tokens, deviceClockAt=ahead.isoformat())
+        _version, draft = self._payload_and_draft(response)
+        self.assertAlmostEqual(draft.meta["clockSkewSeconds"], -600, delta=15)
+
+    def test_superseded_copy_keeps_the_times_and_skew(self):
+        _device, teammate_tokens = self._session(email="device.teammate@test.local")
+        death_id = self._upload(teammate_tokens).get_json()["case"]["death_id"]
+        _device2, tokens = self._session()
+        clock = (datetime.now(UTC) - timedelta(seconds=90)).isoformat()
+        late = self._upload(tokens, death_id=death_id, draft={**self._DRAFT, "data": _complete_answers(),
+                            "startedAt": "2026-10-01T10:00:00Z", "completedAt": "2026-10-01T10:45:00Z", "deviceClockAt": clock})
+        self.assertTrue(late.get_json()["superseded"])
+        copy = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id, VaWebIntakeDraft.death_id == uuid.UUID(death_id)))
+        self.assertEqual((copy.meta["startedAt"], copy.meta["completedAt"]), ("2026-10-01T10:00:00Z", "2026-10-01T10:45:00Z"))
+        self.assertAlmostEqual(copy.meta["clockSkewSeconds"], 90, delta=15)
+
+    def test_malformed_or_offsetless_times_are_refused_before_storing(self):
+        _device, tokens = self._session()
+        for field in ("startedAt", "completedAt", "deviceClockAt"):
+            for bad in ("yesterday", "2026-10-01T10:45:00", "2026-10-01", 1759315500, None):
+                with self.subTest(field=field, bad=bad):
+                    response = self._timed_upload(tokens, **{field: bad})
+                    self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_interview"))
+                    self.assertIn(field, response.get_json()["error"])
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
+
+    def test_recheck_evaluates_today_at_the_device_completion_time_not_now(self):
+        _device, tokens = self._session()
+        completed = datetime.now(UTC).astimezone(timezone(timedelta(hours=-3))) - timedelta(days=3)
+        with mock.patch.object(intake_svc, "derive_validation_errors", wraps=intake_svc.derive_validation_errors) as derive, \
+                mock.patch.object(intake_svc, "strip_irrelevant_answers", wraps=intake_svc.strip_irrelevant_answers) as strip:
+            response = self._timed_upload(
+                tokens, answers={**_complete_answers(), "Id10023": completed.date().isoformat()},
+                completedAt=completed.isoformat())
+        self.assertEqual(response.status_code, 201, response.get_json())
+        for call in (derive, strip):
+            self.assertEqual(call.call_args.kwargs["now"], completed)
+            self.assertEqual(call.call_args.kwargs["now"].utcoffset(), timedelta(hours=-3))
+        version, _draft = self._payload_and_draft(response)
+        self.assertEqual(version.payload_data["today"], completed.date().isoformat())
 
     def test_superseded_path_is_bounded_too(self):
         _device, teammate_tokens = self._session(email="device.teammate@test.local")

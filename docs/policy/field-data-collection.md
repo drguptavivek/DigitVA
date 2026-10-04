@@ -245,16 +245,26 @@ device's raw completion time, whatever the device considered local, not the
 upload time and not skew-corrected. An interview finished offline days earlier
 is not refused for it.
 
-Not built yet (`digitva-latk`):
+Built server-side (`digitva-latk`; detail in
+[Device Collection API](../current-state/device-collection-api.md)):
 
-- The app records no completion time. `markCompleted`
-  (`mobile/digitva-collect/src/drafts.ts`) sets only a flag.
-- Payload `start` is the envelope `createdAt` and `end` is `SubmissionDate`,
-  the server submit time (`build_web_payload`), so an offline interview's
-  completion time is lost.
-- The re-check uses the server's `today()` (`_expression_now`, used in
-  `submit_draft`).
-- Clock skew is not stored.
+- The device envelope carries `startedAt`, `completedAt` and `deviceClockAt`
+  (ISO 8601 with a UTC offset); a malformed or offset-less one is refused
+  422 `invalid_interview`. Start and completion are stored in the draft's
+  meta, and `deviceClockAt` yields the stored clock skew.
+- Payload `start` and `end` are `startedAt` and `completedAt` when present
+  (else the draft's open time and the server submit time, as before);
+  `SubmissionDate` is the server receipt time.
+- The re-check evaluates `today()` at `completedAt` in its own offset when
+  present, else at the server submit time as before.
+
+Still the app's (`digitva-latk`, `mobile/`): `markCompleted`
+(`mobile/digitva-collect/src/drafts.ts`) sets only a flag and records no
+completion time. It must record `completedAt`, update it when completion is
+sent again, and send `startedAt`, `completedAt` and `deviceClockAt` in the
+envelope. Until then an app upload has no times and the server falls back to
+the old behaviour. The browser keeps the draft's `createdAt` as start and the
+submit time as completion, with no skew.
 
 ### Upload integrity under connection drops (owner, 2026-10-04, `digitva-2bxa`)
 

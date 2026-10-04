@@ -704,6 +704,20 @@ class IntakeApiTests(BaseTestCase):
             with self.subTest(step="submit", name=name):
                 self.assertEqual(payload[name], value)
 
+    def test_browser_save_cannot_set_device_interview_times(self):
+        draft, _authoritative = self._locked_draft()
+        forged = "2099-01-01T00:00:00+00:00"
+        response = self.client.patch(
+            f"/api/v1/intake/drafts/{draft['draft_id']}",
+            json={"sections": {}, "meta": {"startedAt": forged, "completedAt": forged, "updatedAt": forged}},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        meta = db.session.get(VaWebIntakeDraft, draft["draft_id"]).meta
+        self.assertEqual(meta.get("updatedAt"), forged)  # the keep-list still applies
+        self.assertNotIn("startedAt", meta)
+        self.assertNotIn("completedAt", meta)
+
     def test_untampered_save_and_submit_are_unaffected(self):
         draft, authoritative = self._locked_draft()
         saved = self._save(draft, {"interviewer": {**authoritative, "Id10007": "Ramesh"}})

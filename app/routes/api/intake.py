@@ -493,6 +493,10 @@ def submit_interview():
     data, answers_sha256, refusal = _parse_upload_answers(p)
     if refusal is not None:
         return refusal
+    try:
+        intake_svc.check_device_times(envelope)
+    except intake_svc.WebIntakeError as exc:
+        return error(str(exc), "invalid_interview", 422)
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None:
         return _existing_upload_reply(existing, answers_sha256)

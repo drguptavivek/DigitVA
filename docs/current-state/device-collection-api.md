@@ -178,6 +178,24 @@ one section named `device` (taken from the request's `answers_json`, not from `d
   `d5f1b8a3c6e2`) as received, before locked answers are overwritten or
   irrelevant answers stripped, on the normal and the superseded path, and is
   echoed as `answers_sha256` in the result. `draft.data` is no longer read.
+- **Interview times and clock skew** (`digitva-latk`; policy "Interview
+  times"). The `draft` envelope may carry `startedAt` and `completedAt` (the
+  device's interview start and completion) and `deviceClockAt` (the device
+  clock at the moment of upload), each an ISO 8601 string with a UTC offset
+  (`2026-10-01T10:45:00+05:30` or `...Z`). Present but not text, unparsable
+  or without an offset is 422 `invalid_interview` naming the field
+  (`check_device_times`, in the route before the idempotency lookup, nothing
+  stored). Absent is fine. `startedAt` and `completedAt` are kept in
+  `meta` (also in a superseded copy) and become payload `start` and `end`
+  (else `createdAt` and the server submit time); payload `today` is the
+  completion date. The server's re-check (`derive_validation_errors`,
+  `strip_irrelevant_answers`) evaluates `today()` at `completedAt` in its own
+  offset, not skew-corrected; without it, as before, at the submit time in
+  the interviewer's timezone. `meta.clockSkewSeconds` is
+  `round(server receipt - deviceClockAt)` in seconds (positive: the device is
+  behind), audit only, stored for device uploads and never applied to the
+  times. `SubmissionDate` stays the server receipt time. The browser path
+  sets no skew and keeps `createdAt` as start and the submit time as end.
 - **Idempotency.** A resend of the same `client_draft_id` with the same hash
   returns the stored result with 200 (current case status). A different hash,
   or a stored row with no hash (uploaded before this), is 409 `hash_mismatch`

@@ -192,6 +192,19 @@ def _expression_now(user: VaUsers, at: datetime) -> datetime:
     return at.astimezone(tz)
 
 
+def _device_time(value: object) -> datetime | None:
+    """An ISO 8601 time with a UTC offset, in that offset; None for anything
+    else (not text, unparsable, or no offset -- an offset-less time cannot
+    be placed, docs/policy/field-data-collection.md "Interview times")."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+
+
 # ---------------------------------------------------------------------------
 # Project mode and interviewer scope
 # ---------------------------------------------------------------------------
@@ -1166,6 +1179,14 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
         cases.transition(death, "in_progress", actor=actor, action="identity_captured")
 
 
+#: Draft meta keys a client (browser save or device envelope) may set.
+_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt")
+#: The device's interview start and completion times (ISO 8601 with offset),
+#: taken from the checked device envelope only: a browser save cannot set
+#: them, so it cannot choose the date ``today()`` is evaluated at.
+_DEVICE_TIME_KEYS = ("startedAt", "completedAt")
+
+
 def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
@@ -1200,7 +1221,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
             row.saved_at = _utcnow()
         written += 1
     if meta:
-        keep = {k: meta[k] for k in ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt") if k in meta}
+        keep = {k: meta[k] for k in _ENVELOPE_META_KEYS if k in meta}
         keep.update(locale_meta)
         draft.meta = {**(draft.meta or {}), **keep}
     if current_section is not None:
@@ -1306,9 +1327,14 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["instanceName"] = f"{draft.unique_id}_WHOVA2022"
     payload["form_def"] = form.form_id
     payload["sid"] = f"web-{draft.draft_id}-{form.form_id.lower()}"
-    payload["start"] = meta.get("createdAt") or submitted_iso
-    payload["end"] = submitted_iso
-    payload["today"] = submitted_at.date().isoformat()
+    # Device-recorded times when the interview carried them, else the draft's
+    # open time and the server submit time (docs/policy/field-data-collection.md
+    # "Interview times"). ``today`` is the completion date the server's
+    # re-check used; nothing else reads it.
+    started_at, completed_at = _device_time(meta.get("startedAt")), _device_time(meta.get("completedAt"))
+    payload["start"] = meta["startedAt"] if started_at else meta.get("createdAt") or submitted_iso
+    payload["end"] = meta["completedAt"] if completed_at else submitted_iso
+    payload["today"] = (completed_at or submitted_at).date().isoformat()
     payload["AttachmentsExpected"] = len(references)
     payload["AttachmentsPresent"] = 0
     payload["intake_source"] = intake_source
@@ -1463,7 +1489,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             )
 
     submitted_at = _utcnow()
-    expression_now = _expression_now(user, submitted_at)
+    # The device's completion time in its own offset, else the submit time in
+    # the interviewer's timezone (docs/policy/field-data-collection.md).
+    expression_now = _device_time((draft.meta or {}).get("completedAt")) or _expression_now(user, submitted_at)
     # Re-derive relevance and constraint over the client's raw answers before
     # anything is stripped: this is the diagnostic the client's own
     # "valid: true" is checked against (beads digitva-cal.2). It does not
@@ -1579,7 +1607,6 @@ DEVICE_SECTION = "device"
 #: submitted: a teammate's complete submission won, or a supervisor closed
 #: the case. Never refused, so nothing is left stuck on the phone.
 _SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
-_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt")
 #: Bounds on a device upload's answers, checked before anything is stored
 #: (the request itself is capped at 2 MB by the device blueprint). Answers
 #: are flat values, choice lists and small attachment/audit objects.
@@ -1597,6 +1624,15 @@ def check_device_answers(data: dict) -> None:
             raise WebIntakeError("answers_json is nested too deeply.", 422)
         children = value.values() if isinstance(value, dict) else value
         stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
+
+
+def check_device_times(envelope: dict) -> None:
+    """Refuse (422) an envelope whose ``startedAt``, ``completedAt`` or
+    ``deviceClockAt`` is present but not an ISO 8601 time with a UTC offset.
+    Absent is fine (an older app)."""
+    for field in ("startedAt", "completedAt", "deviceClockAt"):
+        if field in envelope and _device_time(envelope[field]) is None:
+            raise WebIntakeError(f"draft.{field} must be an ISO 8601 time with a UTC offset.", 422)
 
 
 def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
@@ -1666,8 +1702,15 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     by the caller (``check_device_answers``) and stored with the upload.
     """
     meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
+    # Stored beside the draft's meta, never through the client keep-list.
+    stored = {k: envelope[k] for k in _DEVICE_TIME_KEYS if k in envelope}
     if device_id is not None:
-        meta["deviceId"] = str(device_id)
+        stored["deviceId"] = str(device_id)
+    device_clock = _device_time(envelope.get("deviceClockAt"))
+    if device_clock is not None:
+        # Positive = the device clock is behind the server. Audit only: the
+        # interview times above are never corrected by it.
+        stored["clockSkewSeconds"] = round((_utcnow() - device_clock).total_seconds())
     completion = {
         "valid": completion.get("valid") is True,
         "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
@@ -1680,7 +1723,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
         if death.status in _SUPERSEDED_CASE_STATES:
             return _store_superseded_copy(
                 user, death, client_draft_id=client_draft_id, site_id=site_id,
-                data=data, answers_sha256=answers_sha256, meta=meta, completion=completion,
+                data=data, answers_sha256=answers_sha256, meta={**meta, **stored}, completion=completion,
             )
     draft = start_draft(
         user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
@@ -1688,8 +1731,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     )
     draft.client_draft_id = client_draft_id
     draft.answers_sha256 = answers_sha256
-    if device_id is not None:
-        draft.meta = {**(draft.meta or {}), "deviceId": meta.pop("deviceId")}
+    draft.meta = {**(draft.meta or {}), **stored}
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
     submit_draft(draft, user, completion=completion, intake_source="device")
     return draft

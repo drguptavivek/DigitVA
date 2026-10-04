@@ -51,3 +51,29 @@ App must:
    connection fails the run with everything kept instead of hanging.
 6. Write the downloaded case list in one SQLite transaction, so a kill
    mid-write leaves the old list.
+
+## 2. Interview times and clock skew (`digitva-latk`, server built)
+
+`POST /api/v1/intake/submissions`, in the `draft` envelope (each optional,
+each ISO 8601 with a UTC offset, e.g. `2026-10-01T10:45:00+05:30` or `...Z`):
+
+- `startedAt`: device time the interview was opened.
+- `completedAt`: device time it was marked complete; marking it complete
+  again updates it.
+- `deviceClockAt`: device clock at the moment of the upload request (take it
+  just before sending, not at completion).
+
+Present but not a string, unparsable or without an offset (an explicit `null`
+included): 422 `invalid_interview`, message names the field; nothing stored.
+Leave a field out rather than sending `null`.
+
+Server: payload `start`/`end` come from `startedAt`/`completedAt`;
+`SubmissionDate` stays server receipt; `today()` in the server re-check is
+`completedAt` read in its own offset (send the device's local offset, not
+`Z`, so the date matches what the interviewer saw). Skew is stored as
+`clockSkewSeconds` (server receipt minus `deviceClockAt`); it never alters the
+times.
+
+App must: record `completedAt` in `markCompleted` (`src/drafts.ts`), update it
+on a repeat completion, record `startedAt` when a draft is created, and send
+all three. Same rules apply to `POST /intake/drafts/sync` (section 3).

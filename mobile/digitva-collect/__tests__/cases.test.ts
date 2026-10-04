@@ -9,6 +9,11 @@ import { DatabaseSync } from "node:sqlite";
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 const mockSecure = new Map<string, string>();
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+  digestStringAsync: async (_algorithm: string, value: string) =>
+    require("node:crypto").createHash("sha256").update(value, "utf8").digest("hex")
+}));
 jest.mock("expo-secure-store", () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
   getItemAsync: jest.fn(async (key: string) => mockSecure.get(key) ?? null),
@@ -160,7 +165,13 @@ const accepting = (listed: CaseRow[] = []) => (call: Call) => {
   if (call.url.includes("/cases?")) return json(200, { cases: listed, next_cursor: null });
   if (call.url.endsWith("/attempts")) return json(201, { case: { death_id: DEATH } });
   if (call.url.endsWith("/visit")) return json(200, { case: { death_id: DEATH } });
-  if (call.url.endsWith("/submissions")) return json(201, { va_sid: "x", case: { death_id: DEATH, state: "registered" } });
+  if (call.url.endsWith("/submissions")) {
+    return json(201, {
+      va_sid: "x",
+      case: { death_id: typeof call.body?.death_id === "string" ? call.body.death_id : DEATH, state: "registered" },
+      answers_sha256: call.body?.answers_sha256
+    });
+  }
   return json(204, null);
 };
 
@@ -186,6 +197,23 @@ async function freshDb(): Promise<Db> {
   await migrate(db);
   await migrate(db); // idempotent with the phase-3 tables
   return db;
+}
+
+function failCaseWrite(db: Db, shouldFail: (sql: string) => boolean): Db {
+  let failed = false;
+  return {
+    execAsync: (sql) => db.execAsync(sql),
+    runAsync: (sql, params) => {
+      if (!failed && shouldFail(sql)) {
+        failed = true;
+        throw new Error("injected_case_write_failure");
+      }
+      return db.runAsync(sql, params);
+    },
+    getAllAsync: (sql, params) => db.getAllAsync(sql, params),
+    getFirstAsync: (sql, params) => db.getFirstAsync(sql, params),
+    closeAsync: () => db.closeAsync()
+  };
 }
 
 /** A death registered offline, an attempt logged on it, its interview finished, and an unrelated direct interview. */
@@ -233,7 +261,7 @@ describe("sync queue", () => {
     await offlineVisit(db);
     mockServer(accepting([caseRow(DEATH)]));
 
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 4, failed: 0, remaining: 0 });
+    expect(await syncInterviewer(USER, db)).toEqual({ sent: 4, failed: 0, remaining: 0, supersededUniqueIds: [] });
 
     expect(calls.map(path)).toEqual([
       "/api/v1/me/access",
@@ -296,7 +324,7 @@ describe("sync queue", () => {
     mockServer((call) =>
       path(call).endsWith("/deaths") ? json(422, { code: "invalid_registration" }) : accepting()(call)
     );
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 1, failed: 1, remaining: 1 });
+    expect(await syncInterviewer(USER, db)).toEqual({ sent: 1, failed: 1, remaining: 1, supersededUniqueIds: [] });
     expect((await getRegistration(db, REG))?.state).toBe("needs_edit");
     expect(calls.some((c) => path(c).endsWith("/attempts"))).toBe(false);
     expect(calls.filter((c) => path(c).endsWith("/submissions")).map((c) => c.body!.client_draft_id)).toEqual([DIRECT]);
@@ -320,7 +348,7 @@ describe("sync queue", () => {
       if (path(call).endsWith("/visit")) return json(422, { code: "invalid_visit" });
       return accepting()(call);
     });
-    expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 2, remaining: 0 });
+    expect(await syncInterviewer(USER, db)).toEqual({ sent: 0, failed: 2, remaining: 0, supersededUniqueIds: [] });
     expect(calls.find((c) => path(c).endsWith("/visit"))!.body).toEqual({ next_visit_at: "2026-10-02T03:30:00.000Z" });
     expect((await listActions(db)).map((a) => a.state)).toEqual(["needs_edit", "needs_edit"]);
   });
@@ -342,6 +370,63 @@ describe("sync queue", () => {
 });
 
 describe("case download", () => {
+  it("replaces the full project list atomically when an insert fails", async () => {
+    const db = await freshDb();
+    const second = "dddddddd-0000-4000-8000-000000000002";
+    const third = "dddddddd-0000-4000-8000-000000000003";
+    const previous = [caseRow(DEATH), caseRow(second)];
+    await replaceCases(db, PROJECT, previous);
+    let inserts = 0;
+    const failingDb = failCaseWrite(db, (sql) => {
+      if (!sql.startsWith("INSERT INTO cases")) return false;
+      inserts += 1;
+      return inserts === 2;
+    });
+
+    await expect(replaceCases(failingDb, PROJECT, [caseRow(DEATH, { deceased_name: "Changed" }), caseRow(third)]))
+      .rejects.toThrow("injected_case_write_failure");
+
+    expect(await listCases(db)).toEqual(previous);
+  });
+
+  it("rolls back case upserts when pruning fails", async () => {
+    const db = await freshDb();
+    const second = "dddddddd-0000-4000-8000-000000000002";
+    const previous = [caseRow(DEATH), caseRow(second)];
+    await replaceCases(db, PROJECT, previous);
+    const failingDb = failCaseWrite(db, (sql) => sql.startsWith("DELETE FROM cases"));
+
+    await expect(replaceCases(failingDb, PROJECT, [caseRow(DEATH, { deceased_name: "Changed" })]))
+      .rejects.toThrow("injected_case_write_failure");
+
+    expect(await listCases(db)).toEqual(previous);
+  });
+
+  it("rejects a project mismatch before writing any cases", async () => {
+    const db = await freshDb();
+    const previous = [caseRow(DEATH)];
+    await replaceCases(db, PROJECT, previous);
+
+    const mismatched = [
+      caseRow("dddddddd-0000-4000-8000-000000000002"),
+      caseRow("dddddddd-0000-4000-8000-000000000003", { project_id: "OTHER" })
+    ];
+    await expect(replaceCases(db, PROJECT, mismatched)).rejects.toThrow("project_mismatch");
+
+    expect(await listCases(db)).toEqual(previous);
+  });
+
+  it("replaces a project with an empty list and keeps another project's cases", async () => {
+    const db = await freshDb();
+    const otherProject = caseRow("dddddddd-0000-4000-8000-000000000002", { project_id: "OTHER" });
+    await replaceCases(db, PROJECT, [caseRow(DEATH), caseRow("dddddddd-0000-4000-8000-000000000003")]);
+    await replaceCases(db, "OTHER", [otherProject]);
+
+    await replaceCases(db, PROJECT, []);
+
+    expect(await listCases(db)).toEqual([otherProject]);
+  });
+
   it("reads every page and drops cases the server no longer lists, keeping drafts bound to them", async () => {
     const db = await freshDb();
     const second = "dddddddd-0000-4000-8000-000000000002";

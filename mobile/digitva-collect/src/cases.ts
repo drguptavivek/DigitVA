@@ -141,26 +141,57 @@ export interface CaseAction {
 // ---------------------------------------------------------------------------
 
 /**
- * Make the stored cases exactly `rows`, in server order: upsert each, then
- * drop every case not listed (pruning). Drafts keep their own binding, so a
- * dropped case never strands one.
+ * Atomically make the stored cases exactly `rows`, in server order. Drafts
+ * keep their own binding, so a dropped case never strands one.
  */
+type CaseWriteDb = Pick<Db, "runAsync" | "getFirstAsync">;
+
+type ExclusiveCaseDb = Db & {
+  withExclusiveTransactionAsync?: (task: (transaction: CaseWriteDb) => Promise<void>) => Promise<void>;
+};
+
 export async function replaceCases(db: Db, projectId: string, rows: CaseDetail[]): Promise<void> {
-  for (const [position, row] of rows.entries()) {
-    if (row.project_id !== projectId) throw new Error("project_mismatch");
-    await upsertCase(db, row, position);
-  }
+  if (rows.some((row) => row.project_id !== projectId)) throw new Error("project_mismatch");
   const keep = rows.map((row) => row.death_id);
   const placeholders = keep.map(() => "?").join(", ");
-  await db.runAsync(
-    keep.length
-      ? `DELETE FROM cases WHERE project_id = ? AND death_id NOT IN (${placeholders})`
-      : "DELETE FROM cases WHERE project_id = ?",
-    [projectId, ...keep]
-  );
+  const replace = async (transaction: CaseWriteDb): Promise<void> => {
+    for (const [position, row] of rows.entries()) {
+      await upsertCaseInTransaction(transaction, row, position);
+    }
+    await transaction.runAsync(
+      keep.length
+        ? `DELETE FROM cases WHERE project_id = ? AND death_id NOT IN (${placeholders})`
+        : "DELETE FROM cases WHERE project_id = ?",
+      [projectId, ...keep]
+    );
+  };
+
+  const nativeDb = db as ExclusiveCaseDb;
+  if (nativeDb.withExclusiveTransactionAsync) {
+    await nativeDb.withExclusiveTransactionAsync(replace);
+    return;
+  }
+
+  await db.execAsync("BEGIN IMMEDIATE");
+  try {
+    await replace(db);
+    await db.execAsync("COMMIT");
+  } catch (error) {
+    try {
+      await db.execAsync("ROLLBACK");
+    } catch {
+      // Keep the write failure that caused the rollback.
+    }
+    throw error;
+  }
 }
 
 export async function upsertCase(db: Db, row: CaseDetail, position = -1): Promise<void> {
+  await upsertCaseInTransaction(db, row, position);
+}
+
+/** Upsert one case using only the executor methods supported by SQLite transactions. */
+async function upsertCaseInTransaction(db: CaseWriteDb, row: CaseDetail, position: number): Promise<void> {
   const existing = await db.getFirstAsync<{ project_id: string | null }>(
     "SELECT project_id FROM cases WHERE death_id = ?",
     [row.death_id]

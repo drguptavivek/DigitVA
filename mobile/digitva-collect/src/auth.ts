@@ -371,21 +371,30 @@ export async function classifyAuthError(
 /**
  * An authenticated API call for one interviewer. On 401 it refreshes
  * once (or picks up tokens another call already rotated) and retries once.
+ * A bodyFactory creates a fresh body for each HTTP attempt.
  * Throws SessionRevokedError (store already wiped), SignInRequiredError,
  * ApiError, or the network error.
  */
 export async function authedRequest<T>(
   userId: string,
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: {
+    method?: string;
+    body?: unknown;
+    bodyFactory?: () => unknown;
+    timeoutMs?: number;
+  } = {},
 ): Promise<{ status: number; body: T }> {
   const device = await loadDevice();
   const tokens = await readJson<Tokens>(tokensKey(userId));
   if (!device) throw new Error("not_enrolled");
   if (!tokens) throw new SignInRequiredError();
+  const { bodyFactory, ...requestInit } = init;
+  const initialBody = bodyFactory ? bodyFactory() : requestInit.body;
   try {
     return await requestJson<T>(device.server, path, {
-      ...init,
+      ...requestInit,
+      body: initialBody,
       token: tokens.access_token,
     });
   } catch (error) {
@@ -399,9 +408,11 @@ export async function authedRequest<T>(
     latest && latest.access_token !== tokens.access_token
       ? latest
       : await refresh(userId, device.server);
+  const retryBody = bodyFactory ? bodyFactory() : requestInit.body;
   try {
     return await requestJson<T>(device.server, path, {
-      ...init,
+      ...requestInit,
+      body: retryBody,
       token: next.access_token,
     });
   } catch (error) {

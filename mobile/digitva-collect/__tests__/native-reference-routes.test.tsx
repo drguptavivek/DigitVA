@@ -112,7 +112,12 @@ jest.mock("../src/sync", () => ({
   getCachedReferenceData: jest.fn(async () => mockCachedReference),
   refreshReferenceData: jest.fn(async () => mockReference),
   refreshCases: jest.fn(async () => undefined),
-  syncInterviewer: jest.fn(async () => ({ sent: 0, failed: 0, remaining: 0 })),
+  syncInterviewer: jest.fn(async () => ({
+    sent: 0,
+    failed: 0,
+    remaining: 0,
+    supersededUniqueIds: [],
+  })),
   fetchCasePage: jest.fn(
     async (_user: string, projectId: string, options: { cursor?: string }) => ({
       cases: [
@@ -171,7 +176,21 @@ jest.mock("../src/sync", () => ({
 }));
 jest.mock("../src/i18n", () => ({
   ...jest.requireActual("../src/i18n"),
-  t: (key: string) => key,
+  t: (key: string, values?: Record<string, string | number>) => {
+    if (key === "draftHashMismatch") {
+      return "This interview was already uploaded; your later edits were not applied.";
+    }
+    if (key === "draftHashInvalidAttention") {
+      return "This interview could not be verified. Open it, review the answers, and try sending it again.";
+    }
+    if (key === "storedInterviewId") {
+      return `Stored interview: ${values?.uniqueId ?? ""}`;
+    }
+    if (key === "supersededInterviewNotice") {
+      return "A teammate’s interview of this case was submitted first; yours is kept.";
+    }
+    return key;
+  },
   uiLocale: () => "en",
 }));
 jest.mock("../src/ui", () => {
@@ -238,6 +257,7 @@ import {
   getCachedReferenceData,
   refreshReferenceData,
   refreshCases,
+  syncInterviewer,
 } from "../src/sync";
 import { saveRegistration } from "../src/cases";
 
@@ -252,6 +272,9 @@ beforeEach(() => {
   mockReference = pack();
   mockCachedReference = mockReference;
   mockCachedCases = [];
+  (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockImplementation(
+    async () => [],
+  );
   (getCachedReferenceData as jest.Mock).mockImplementation(
     async () => mockReference,
   );
@@ -350,6 +373,129 @@ describe("native project-aware routes", () => {
     });
     await settle();
     expect(refreshCases).toHaveBeenCalledWith("u1", mockDb);
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a hash-mismatched upload completed and shows the stored interview id", async () => {
+    const draft = {
+      id: "draft-mismatch",
+      project_id: "P1",
+      completed: 1,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      unique_id: "VA-LOCAL",
+      upload_issue: "hash_mismatch",
+      upload_issue_unique_id: "VA-STORED",
+    };
+    (
+      jest.requireMock("../src/drafts").listDrafts as jest.Mock
+    ).mockResolvedValue([draft]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      "This interview was already uploaded; your later edits were not applied.",
+    );
+    expect(rendered).toContain("Stored interview: VA-STORED");
+    const draftButton = tree!.root
+      .findAllByProps({ accessibilityRole: "button" })
+      .find(
+        (button) =>
+          button.props.disabled === true && button.props.onPress === undefined,
+      );
+    expect(draftButton).toBeDefined();
+    expect(draftButton!.props.disabled).toBe(true);
+    expect(mockRouter.push).not.toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: "/form" }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("marks an invalid-hash draft for attention and leaves it editable", async () => {
+    const draft = {
+      id: "draft-invalid",
+      project_id: "P1",
+      completed: 0,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      unique_id: "VA-LOCAL",
+      upload_issue: "answers_hash_invalid",
+      upload_issue_unique_id: null,
+    };
+    (
+      jest.requireMock("../src/drafts").listDrafts as jest.Mock
+    ).mockResolvedValue([draft]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain(
+      "This interview could not be verified. Open it, review the answers, and try sending it again.",
+    );
+    const draftButton = tree!.root
+      .findAllByProps({ accessibilityRole: "button" })
+      .find((button) => button.props.disabled === false);
+    expect(draftButton).toBeDefined();
+    await act(async () => draftButton!.props.onPress());
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: "/form",
+        params: expect.objectContaining({ draftId: "draft-invalid" }),
+      }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows a superseded notice with each unique id after sync", async () => {
+    (syncInterviewer as jest.Mock).mockResolvedValueOnce({
+      sent: 1,
+      failed: 0,
+      remaining: 0,
+      supersededUniqueIds: ["VA-FIRST"],
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    await act(async () =>
+      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+    );
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      "A teammate’s interview of this case was submitted first; yours is kept.",
+    );
+    expect(rendered).toContain("Stored interview: VA-FIRST");
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a superseded notice when a later sync request fails", async () => {
+    (syncInterviewer as jest.Mock).mockImplementationOnce(
+      async (
+        _userId: string,
+        _db: unknown,
+        onSuperseded?: (uniqueId: string) => void,
+      ) => {
+        onSuperseded?.("VA-FIRST");
+        throw new TypeError("Network request failed");
+      },
+    );
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Worklist />);
+    });
+    await settle();
+    await act(async () =>
+      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+    );
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain(
+      "A teammate’s interview of this case was submitted first; yours is kept.",
+    );
+    expect(rendered).toContain("Stored interview: VA-FIRST");
     await act(async () => tree!.unmount());
   });
 

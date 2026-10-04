@@ -243,6 +243,70 @@ it("rotates once for concurrent 401s and retries with the new access token", asy
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
 
+it("builds a fresh request body for the authenticated retry", async () => {
+  seed({ access: "old-access", refresh: "r1" });
+  const bodyFactory = jest
+    .fn<unknown, []>()
+    .mockReturnValueOnce({ attempt: 1 })
+    .mockReturnValueOnce({ attempt: 2 });
+  mockServer((call) => {
+    if (call.url.endsWith("/sessions/refresh"))
+      return json(200, {
+        access_token: "new-access",
+        access_expires_at: "",
+        refresh_token: "r2",
+        refresh_expires_at: "",
+        access: ACCESS,
+      });
+    return call.auth === "Bearer new-access"
+      ? json(200, { ok: true })
+      : json(401, { code: "token_expired" });
+  });
+
+  await expect(
+    authedRequest(USER, "/api/v1/intake/submissions", {
+      method: "POST",
+      bodyFactory,
+      timeoutMs: 120_000,
+    }),
+  ).resolves.toMatchObject({ status: 200 });
+
+  const submissionCalls = calls.filter((call) =>
+    call.url.endsWith("/api/v1/intake/submissions"),
+  );
+  expect(bodyFactory).toHaveBeenCalledTimes(2);
+  expect(submissionCalls.map((call) => JSON.parse(call.body!))).toEqual([
+    { attempt: 1 },
+    { attempt: 2 },
+  ]);
+  expect(submissionCalls.map((call) => call.auth)).toEqual([
+    "Bearer old-access",
+    "Bearer new-access",
+  ]);
+});
+
+it("does not rebuild a request body when the request fails without retry", async () => {
+  seed({ access: "a", refresh: "r1" });
+  const bodyFactory = jest.fn(() => ({ attempt: 1 }));
+  mockServer((call) =>
+    call.url.endsWith("/api/v1/intake/submissions")
+      ? json(503, {})
+      : json(200, {}),
+  );
+
+  await expect(
+    authedRequest(USER, "/api/v1/intake/submissions", {
+      method: "POST",
+      bodyFactory,
+    }),
+  ).rejects.toMatchObject({ status: 503 });
+
+  expect(bodyFactory).toHaveBeenCalledTimes(1);
+  expect(
+    calls.filter((call) => call.url.endsWith("/sessions/refresh")),
+  ).toHaveLength(0);
+});
+
 it("wipes only this interviewer when the refresh answers session_revoked", async () => {
   seed({ access: "a", refresh: "r1" });
   mockServer((call) =>

@@ -4,6 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 const mockSecure = new Map<string, string>();
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+  digestStringAsync: async (_algorithm: string, value: string) => require("node:crypto").createHash("sha256").update(value, "utf8").digest("hex")
+}));
 jest.mock("expo-secure-store", () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
   getItemAsync: jest.fn(async (key: string) => mockSecure.get(key) ?? null),
@@ -136,15 +140,31 @@ const draft = (id = DRAFT, data: SubmissionData = { Id10013: "yes" }): WhoVaDraf
   data
 });
 
-type Call = { url: string; body?: Record<string, unknown> };
+type Call = { url: string; auth?: string; body?: Record<string, unknown> };
 let calls: Call[];
 const json = (status: number, body: unknown) => Object.assign({ ok: status >= 200 && status < 300, status, headers: { get: () => "application/json" }, json: async () => body, text: async () => JSON.stringify(body) }, { __body: body }) as unknown as Response;
+
+function submissionSuccess(call: Call, extra: Record<string, unknown> = {}, status = 201): Response {
+  const body = call.body ?? {};
+  const deathId = typeof body.death_id === "string" ? body.death_id : DEATH;
+  return json(status, {
+    answers_sha256: body.answers_sha256,
+    case: { death_id: deathId, unique_id: "U-1", status: "registered" },
+    superseded: false,
+    ...extra
+  });
+}
 
 function server(handler: (call: Call) => Response): void {
   calls = [];
   let referenceFixtureBody: Bootstrap | undefined;
   globalThis.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
-    const call = { url: String(url), body: init?.body ? JSON.parse(init.body as string) : undefined };
+    const headers = init?.headers as Record<string, string> | undefined;
+    const call = {
+      url: String(url),
+      auth: headers?.Authorization ?? headers?.authorization,
+      body: init?.body ? JSON.parse(init.body as string) : undefined
+    };
     calls.push(call);
     if (call.url.endsWith("/me/access")) {
       const source = handler({ ...call, url: `${SERVER}/fixture-reference` });
@@ -413,14 +433,15 @@ describe("sync upload ordering", () => {
     await markCompleted(db, invalid, { valid: false, issues: [{ question: "Id10120", code: "required", message: "Required" }] });
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return json(201, { case: { death_id: DEATH, state: "registered" } });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
-    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 2, failed: 0, remaining: 2 });
+    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 2, failed: 0, remaining: 2, supersededUniqueIds: [] });
     const uploads = calls.filter(({ url }) => url.endsWith("/submissions"));
     expect(uploads.map(({ body }) => body?.client_draft_id)).toEqual([valid, partial]);
     expect(uploads[0].body).toMatchObject({ project_id: PROJECT, completion: { valid: true, issues: [] } });
+    expect(uploads[0].body?.answers_sha256).toBe(require("node:crypto").createHash("sha256").update(uploads[0].body?.answers_json as string, "utf8").digest("hex"));
     expect(uploads[1].body).toMatchObject({ completion: { valid: false } });
     expect(calls.find(({ url }) => url.endsWith("/outstanding"))?.body).toMatchObject({
       count: 2,
@@ -445,7 +466,7 @@ describe("sync upload ordering", () => {
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
-    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 0, failed: 2, remaining: 2 });
+    await expect(syncInterviewer(USER, db)).resolves.toEqual({ sent: 0, failed: 2, remaining: 2, supersededUniqueIds: [] });
     expect(await getDraftRow(db, first)).toMatchObject({ completed: 1 });
     expect(await getDraftRow(db, second)).toMatchObject({ completed: 1 });
   });
@@ -469,6 +490,241 @@ describe("sync upload ordering", () => {
     const firstSubmissionCount = calls.filter(({ url }) => url.endsWith("/submissions")).length;
     await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
     expect(calls.filter(({ url }) => url.endsWith("/submissions")).length).toBe(firstSubmissionCount);
+  });
+
+  it("sends the exact Unicode answers JSON and accepts a matching 200 direct acknowledgement", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const unicodeData = { Id10013: "हिन्दी ☕", number: 1 } as SubmissionData;
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT, unicodeData));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
+        superseded: true,
+        case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
+      }, 200);
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    const onSuperseded = jest.fn();
+    await expect(syncInterviewer(USER, db, onSuperseded)).resolves.toEqual({ sent: 1, failed: 0, remaining: 0, supersededUniqueIds: ["U-77"] });
+    expect(onSuperseded).toHaveBeenCalledTimes(1);
+    expect(onSuperseded).toHaveBeenCalledWith("U-77");
+    const upload = calls.find((call) => call.url.endsWith("/submissions"))!;
+    const exactJson = '{"Id10013":"हिन्दी ☕","number":1}';
+    expect(upload.body?.answers_json).toBe(exactJson);
+    expect(upload.body?.answers_sha256).toBe(require("node:crypto").createHash("sha256").update(exactJson, "utf8").digest("hex"));
+    expect(upload.body?.death_id).toBeUndefined();
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("refreshes once after an upload 401 and builds a fresh device clock for the retry", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    let uploadAttempts = 0;
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/sessions/refresh")) {
+        return json(200, {
+          access_token: "fresh-access",
+          access_expires_at: "2026-10-01T19:00:00Z",
+          refresh_token: "fresh-refresh",
+          refresh_expires_at: "2026-10-02T19:00:00Z",
+          access: access()
+        });
+      }
+      if (call.url.endsWith("/submissions")) {
+        if (uploadAttempts++ === 0) {
+          jest.setSystemTime(new Date("2026-10-01T18:31:01Z"));
+          return json(401, { code: "token_expired" });
+        }
+        return submissionSuccess(call);
+      }
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
+    try {
+      await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+    } finally {
+      jest.useRealTimers();
+    }
+
+    const uploads = calls.filter((call) => call.url.endsWith("/submissions"));
+    expect(uploads).toHaveLength(2);
+    expect(uploads[0].auth).toBe("Bearer a");
+    expect(uploads[1].auth).toBe("Bearer fresh-access");
+    const firstBody = uploads[0].body!;
+    const retryBody = uploads[1].body!;
+    expect(firstBody.answers_json).toBe(retryBody.answers_json);
+    expect(firstBody.answers_sha256).toBe(retryBody.answers_sha256);
+    const firstDraft = firstBody.draft as { deviceClockAt?: string };
+    const retryDraft = retryBody.draft as { deviceClockAt?: string };
+    expect(firstDraft.deviceClockAt).toMatch(/^\d{4}-\d\d-\d\dT.*[+-]\d\d:\d\d$/);
+    expect(retryDraft.deviceClockAt).toMatch(/^\d{4}-\d\d-\d\dT.*[+-]\d\d:\d\d$/);
+    expect(retryDraft.deviceClockAt).not.toBe(firstDraft.deviceClockAt);
+    expect(calls.filter((call) => call.url.endsWith("/sessions/refresh"))).toHaveLength(1);
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("stores hash mismatch and skips the same draft on later syncs", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return json(409, {
+        code: "hash_mismatch",
+        stored: { case: { unique_id: "U-77" } }
+      });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ completed: 1, upload_issue: "hash_mismatch", upload_issue_unique_id: "U-77" });
+    const sentBefore = calls.filter((call) => call.url.endsWith("/submissions")).length;
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
+    expect(calls.filter((call) => call.url.endsWith("/submissions")).length).toBe(sentBefore);
+  });
+
+  it("recomputes the same answers hash once, then marks repeated hash refusal editable", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    let attempts = 0;
+    let submissions = 0;
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) {
+        if (submissions++ === 0) {
+          jest.setSystemTime(new Date("2026-10-01T18:31:01Z"));
+        }
+        return json(422, { code: "answers_hash_invalid" });
+      }
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).endsWith("/submissions")) attempts += 1;
+      return originalFetch(url, init);
+    }) as typeof fetch;
+
+    jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
+    try {
+      await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    } finally {
+      jest.useRealTimers();
+    }
+    const uploads = calls.filter((call) => call.url.endsWith("/submissions"));
+    expect(attempts).toBe(2);
+    expect(uploads).toHaveLength(2);
+    expect(uploads[1].body?.answers_json).toBe(uploads[0].body?.answers_json);
+    expect(uploads[1].body?.answers_sha256).toBe(uploads[0].body?.answers_sha256);
+    const firstDraft = uploads[0].body?.draft as { startedAt?: string; completedAt?: string; deviceClockAt?: string };
+    const retryDraft = uploads[1].body?.draft as { startedAt?: string; completedAt?: string; deviceClockAt?: string };
+    expect(firstDraft.startedAt).toMatch(/^\d{4}-\d\d-\d\dT.*[+-]\d\d:\d\d$/);
+    expect(firstDraft.completedAt).toMatch(/^\d{4}-\d\d-\d\dT.*[+-]\d\d:\d\d$/);
+    expect(firstDraft.deviceClockAt).toMatch(/^\d{4}-\d\d-\d\dT.*[+-]\d\d:\d\d$/);
+    expect(retryDraft.deviceClockAt).not.toBe(firstDraft.deviceClockAt);
+    const storedEnvelope = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [DRAFT]);
+    expect(JSON.parse(storedEnvelope!.envelope)).not.toHaveProperty("deviceClockAt");
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ completed: 0, upload_issue: "answers_hash_invalid" });
+
+    await store.save(draft(DRAFT, { Id10013: "corrected" } as SubmissionData));
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ completed: 0, upload_issue: null });
+  });
+
+  it("keeps a draft when the acknowledgement hash is wrong", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
+        answers_sha256: "0".repeat(64),
+        superseded: true,
+        case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
+      });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    const onSuperseded = jest.fn();
+    await expect(syncInterviewer(USER, db, onSuperseded)).rejects.toThrow("invalid_answers_ack");
+    expect(onSuperseded).not.toHaveBeenCalled();
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it("reports a valid superseded acknowledgement before a later request fails", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
+        superseded: true,
+        case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
+      });
+      if (call.url.endsWith("/outstanding")) throw new TypeError("Network request failed");
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    const onSuperseded = jest.fn();
+    await expect(syncInterviewer(USER, db, onSuperseded)).rejects.toThrow("Network request failed");
+    expect(onSuperseded).toHaveBeenCalledTimes(1);
+    expect(onSuperseded).toHaveBeenCalledWith("U-77");
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("keeps a draft when the acknowledged death id does not match its binding", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: { death_id: "other-death", unique_id: "U-1", status: "registered" } });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await expect(syncInterviewer(USER, db)).rejects.toThrow("invalid_case_ack");
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it("retains an edit made while the uploaded snapshot is in flight", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) {
+        void store.save(draft(DRAFT, { Id10013: "edited during upload" } as SubmissionData));
+        return submissionSuccess(call);
+      }
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, remaining: 1 });
+    expect((await store.load!(DRAFT))?.data).toEqual({ Id10013: "edited during upload" });
   });
 
   it("builds project and unit picker choices from scoped reference data", () => {
@@ -512,7 +768,7 @@ describe("sync upload ordering", () => {
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
       if (call.url.endsWith("/deaths")) return json(201, { case: detail() });
-      if (call.url.endsWith("/submissions")) return json(201, { va_sid: "V1", case: { death_id: DEATH, state: "registered" } });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { va_sid: "V1" });
       if (call.url.includes("/cases?")) return json(200, { cases: [], next_cursor: null });
       return json(204, null);
     });
@@ -541,7 +797,7 @@ describe("sync upload ordering", () => {
     await markCompleted(db, DRAFT, { valid: true, issues: [] });
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return json(200, {});
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: undefined });
       return json(200, { cases: [], next_cursor: null });
     });
     await expect(syncInterviewer(USER, db)).rejects.toThrow("invalid_case_ack");
@@ -549,7 +805,7 @@ describe("sync upload ordering", () => {
 
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return json(200, { case: { death_id: DEATH, unique_id: "U-1", status: "submitted" } });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: { death_id: DEATH, unique_id: "U-1", status: "submitted" } });
       return json(200, { cases: [], next_cursor: null });
     });
     await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1 });

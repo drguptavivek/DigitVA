@@ -58,7 +58,48 @@ it("accepts the empty 204 outstanding acknowledgement", async () => {
 
 it("branches only on code, never on error text", async () => {
   jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ error: "factor_setup_required" }, 403));
-  await expect(requestClientJson("/api/v1/profile/security")).rejects.toMatchObject({ status: 403, code: undefined });
+  await expect(requestClientJson("/api/v1/profile/security")).rejects.toMatchObject({ status: 403, code: undefined, payload: { error: "factor_setup_required" } });
+});
+
+it("aborts while consuming the response body and clears its timeout", async () => {
+  jest.useFakeTimers();
+  const fetch = jest.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+    const signal = init?.signal as AbortSignal;
+    return {
+      status: 200,
+      ok: true,
+      redirected: false,
+      headers: { get: () => "application/json" },
+      json: () => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true }))
+    } as unknown as Response;
+  });
+  const pending = requestJson("https://digitva.test", "/slow", { timeoutMs: 25 }).catch((error: unknown) => error);
+  await jest.advanceTimersByTimeAsync(25);
+  expect(await pending).toMatchObject({ name: "AbortError" });
+  expect((fetch.mock.calls[0][1]?.signal as AbortSignal).aborted).toBe(true);
+  expect(jest.getTimerCount()).toBe(0);
+  jest.useRealTimers();
+});
+
+it("composes caller abort with the timeout and removes its listener after success", async () => {
+  jest.useFakeTimers();
+  const caller = new AbortController();
+  const remove = jest.spyOn(caller.signal, "removeEventListener");
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ ok: true }));
+  await requestJson("https://digitva.test", "/fast", { signal: caller.signal, timeoutMs: 50 });
+  expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
+  expect(jest.getTimerCount()).toBe(0);
+
+  const pendingFetch = jest.spyOn(globalThis, "fetch").mockImplementationOnce((_url, init) => new Promise((_resolve, reject) => {
+    const signal = init?.signal as AbortSignal;
+    signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+  }));
+  const pending = requestJson("https://digitva.test", "/cancelled", { signal: caller.signal, timeoutMs: 50 });
+  caller.abort();
+  await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  expect((pendingFetch.mock.calls.at(-1)?.[1]?.signal as AbortSignal).aborted).toBe(true);
+  expect(jest.getTimerCount()).toBe(0);
+  jest.useRealTimers();
 });
 
 it("rejects external browser request paths before sending credentials", async () => {

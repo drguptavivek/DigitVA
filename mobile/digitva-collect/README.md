@@ -154,11 +154,26 @@ birthday. The backend must enforce the same upper age limit.
   the interview outcome is partially completed or respondent unavailable.
   Only such drafts are uploaded.
 - **Send**: ready interviews go to `POST /api/v1/intake/submissions`
-  with the stored `project_id`, `client_draft_id` = the draft UUID and `completion`; the
-  local copy is deleted when the server answers 201 or 200 (push and purge).
+  with the stored `project_id`, `client_draft_id` = the draft UUID and `completion`.
+  Answers are sent as one exact JSON string plus its SHA-256. The local copy
+  is deleted only when the server echoes the matching hash and case ID, and
+  the stored envelope still matches the uploaded snapshot. Edits made during
+  an upload stay on the phone.
+  A `hash_mismatch` keeps the interview, stops automatic retries, and shows
+  the stored case ID with a notice that later edits were not applied. An
+  invalid hash is recomputed from the same string and retried once; a second
+  refusal keeps the draft editable with a needs-attention notice. Superseded
+  interviews show that a teammate submitted first and the server kept this copy.
   A 422 (the interview as it stands is refused) puts the draft back in
   progress with its answers, so the interviewer can correct it; other
   refusals keep it ready for the next send.
+  Requests time out after 30 seconds, or 120 seconds for interview uploads;
+  a timeout stops sync without deleting unacknowledged work.
+  Native drafts record interview start and completion with the device's
+  local UTC offset. Completing again updates the completion time; each
+  upload attempt adds a fresh device clock reading for the server's skew
+  audit. Legacy completed drafts without a recorded completion time use
+  the server fallback rather than a guessed time.
   The remaining count and draft ids are then reported to `/outstanding`.
 - **Offline cases** (phase 3, `src/cases.ts`, `app/case.tsx`,
   `app/register.tsx`): **Send and refresh** runs, in order, offline
@@ -169,6 +184,8 @@ birthday. The backend must enforce the same upper age limit.
   for registered, scheduled, in-progress, paused, not-reachable and refused cases.
   Each case's detail supplies full contacts for encrypted storage; prefill is
   optional and withheld when the caller cannot start or resume its interview.
+  Each project's replacement list is written in one local transaction, so
+  an interrupted refresh leaves its previous list intact.
   New offline case interviews require prefill; saved drafts retain their own.
   A case that leaves these active states or returns 404 is removed. Other states
   are shown only in an online, paginated list and never stored. Drafts keep their own

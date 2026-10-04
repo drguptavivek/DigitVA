@@ -77,6 +77,7 @@ export default function Worklist() {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [supersededUniqueIds, setSupersededUniqueIds] = useState<string[]>([]);
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
@@ -115,6 +116,7 @@ export default function Worklist() {
     setOnlineCursor(null);
     setSelectedProjectId(undefined);
     setPicking(false);
+    setSupersededUniqueIds([]);
   }, []);
 
   useEffect(() => {
@@ -439,16 +441,35 @@ export default function Worklist() {
 
   async function send() {
     if (!db || !account) return;
+    const syncGeneration = onlineRequestGenerationRef.current;
+    const isCurrentSync = () =>
+      isCurrent() && syncGeneration === onlineRequestGenerationRef.current;
     setBusy(true);
     setMessage("");
+    setSupersededUniqueIds([]);
     try {
-      const result = await syncInterviewer(account.user_id, db);
+      const result = await syncInterviewer(account.user_id, db, (uniqueId) => {
+        if (isCurrentSync()) {
+          setSupersededUniqueIds((current) =>
+            current.includes(uniqueId) ? current : [...current, uniqueId],
+          );
+        }
+      });
+      if (isCurrentSync()) {
+        setMessage(
+          t("syncResult", {
+            sent: result.sent,
+            failed: result.failed,
+            remaining: result.remaining,
+          }),
+        );
+        setSupersededUniqueIds(result.supersededUniqueIds);
+      }
       const fresh = await refreshReferenceData(account.user_id, db, {
         force: true,
       });
-      if (isCurrent()) {
+      if (isCurrentSync()) {
         setReference(fresh);
-        setMessage(t("syncResult", { ...result }));
       }
     } catch (error) {
       if (isCurrent()) await handleError(error);
@@ -727,17 +748,24 @@ export default function Worklist() {
         <Pressable
           key={draft.id}
           accessibilityRole="button"
-          disabled={draft.completed === 1}
+          disabled={
+            draft.completed === 1 || draft.upload_issue === "hash_mismatch"
+          }
           style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname: "/form",
-              params: {
-                userId: account.user_id,
-                draftId: draft.id,
-                ...(draft.project_id ? { projectId: draft.project_id } : {}),
-              },
-            })
+          onPress={
+            draft.upload_issue === "hash_mismatch"
+              ? undefined
+              : () =>
+                  router.push({
+                    pathname: "/form",
+                    params: {
+                      userId: account.user_id,
+                      draftId: draft.id,
+                      ...(draft.project_id
+                        ? { projectId: draft.project_id }
+                        : {}),
+                    },
+                  })
           }
         >
           <Text style={styles.text}>
@@ -747,6 +775,21 @@ export default function Worklist() {
             {new Date(draft.updated_at).toLocaleString()} ·{" "}
             {draft.unique_id ?? draft.id.slice(0, 8)}
           </Text>
+          {draft.upload_issue === "hash_mismatch" ? (
+            <>
+              <Text style={styles.error}>{t("draftHashMismatch")}</Text>
+              {draft.upload_issue_unique_id ? (
+                <Text style={styles.muted}>
+                  {t("storedInterviewId", {
+                    uniqueId: draft.upload_issue_unique_id,
+                  })}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+          {draft.upload_issue === "answers_hash_invalid" ? (
+            <Text style={styles.error}>{t("draftHashInvalidAttention")}</Text>
+          ) : null}
         </Pressable>
       ))}
       <Row>
@@ -763,6 +806,14 @@ export default function Worklist() {
         />
       </Row>
       {message ? <Text style={styles.text}>{message}</Text> : null}
+      {supersededUniqueIds.map((uniqueId, index) => (
+        <View key={`${uniqueId}-${index}`} style={styles.card}>
+          <Text style={styles.text}>{t("supersededInterviewNotice")}</Text>
+          <Text style={styles.muted}>
+            {t("storedInterviewId", { uniqueId })}
+          </Text>
+        </View>
+      ))}
       <Row>
         <Button
           kind="secondary"

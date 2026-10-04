@@ -28,6 +28,13 @@ export interface Completion {
   issues: ValidationIssue[];
 }
 
+/** Host timestamps stored beside vendor-owned WHO draft fields. */
+export type DeviceTimedDraft = WhoVaDraft & {
+  startedAt?: string;
+  completedAt?: string;
+  deviceClockAt?: string;
+};
+
 export interface DraftRow {
   id: string;
   project_id: string | null;
@@ -40,6 +47,9 @@ export interface DraftRow {
   unique_id: string | null;
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
+  /** A persistent upload refusal that needs interviewer attention. */
+  upload_issue?: "hash_mismatch" | "answers_hash_invalid" | null;
+  upload_issue_unique_id?: string | null;
 }
 
 /** The case a new draft belongs to, written on its first save. */
@@ -52,7 +62,39 @@ export interface DraftBinding {
   prefill?: unknown;
 }
 
-const ROW_COLUMNS = "id, project_id, site_id, org_unit_id, completed, updated_at, death_id, unique_id, client_death_id";
+const ROW_COLUMNS = "id, project_id, site_id, org_unit_id, completed, updated_at, death_id, unique_id, client_death_id, upload_issue, upload_issue_unique_id";
+
+/**
+ * Format a date as local ISO 8601 with a numeric offset and milliseconds.
+ * Defaults to the current device time; throws RangeError for an invalid date.
+ */
+export function localDateTimeWithOffset(date = new Date()): string {
+  if (Number.isNaN(date.getTime())) throw new RangeError("invalid_device_time");
+  const offsetMinutes = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offsetMinutes * 60_000);
+  const pad = (value: number, width = 2) => String(value).padStart(width, "0");
+  const sign = offsetMinutes <= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  return `${localDate.getUTCFullYear()}-${pad(localDate.getUTCMonth() + 1)}-${pad(localDate.getUTCDate())}` +
+    `T${pad(localDate.getUTCHours())}:${pad(localDate.getUTCMinutes())}:${pad(localDate.getUTCSeconds())}.` +
+    `${pad(localDate.getUTCMilliseconds(), 3)}${sign}${pad(Math.floor(absoluteOffset / 60))}:${pad(absoluteOffset % 60)}`;
+}
+
+function storedTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    !Number.isNaN(Date.parse(value));
+}
+
+/** Keep valid host timestamps from storage when the vendor decoder strips them. */
+function envelopeWithDeviceTimes(draft: WhoVaDraft, existingEnvelope: string | null, startedAt: string): DeviceTimedDraft {
+  const existing = existingEnvelope ? JSON.parse(existingEnvelope) as Record<string, unknown> : {};
+  return {
+    ...draft,
+    startedAt: storedTimestamp(existing.startedAt) ? existing.startedAt : startedAt,
+    ...(storedTimestamp(existing.completedAt) ? { completedAt: existing.completedAt } : {})
+  };
+}
 
 export function projectMetaKey(projectId: string, key: string): string {
   return `project:${projectId}:${key}`;
@@ -89,6 +131,14 @@ export async function migrate(db: Db): Promise<void> {
       ALTER TABLE drafts ADD COLUMN client_death_id TEXT;
       ALTER TABLE drafts ADD COLUMN prefill TEXT;
     `);
+  }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "upload_issue")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN upload_issue TEXT");
+  }
+  columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
+  if (!columns.some((column) => column.name === "upload_issue_unique_id")) {
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN upload_issue_unique_id TEXT");
   }
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS cases (
@@ -131,8 +181,8 @@ export async function migrate(db: Db): Promise<void> {
 
 /**
  * The form's draft store for one interview. `host` supplies the site, unit
- * and case binding on the first save; later saves update only the envelope,
- * so a draft never moves site or case.
+ * and case binding on the first save; later saves update the envelope and
+ * clear an editable hash issue, so a draft never moves site or case.
  */
 export function createDraftStore(
   db: Db,
@@ -140,30 +190,44 @@ export function createDraftStore(
 ): WhoVaDraftStore {
   const binding = host.binding ?? { projectId: host.projectId };
   if (binding.projectId !== host.projectId) throw new Error("project_mismatch");
+  const openedAt = localDateTimeWithOffset();
   return {
     async save(draft) {
-      const existing = await db.getFirstAsync<{ project_id: string | null }>(
-        "SELECT project_id FROM drafts WHERE id = ?",
+      const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string }>(
+        "SELECT project_id, envelope FROM drafts WHERE id = ?",
         [draft.id]
       );
       if (existing && existing.project_id !== host.projectId) throw new Error("project_mismatch");
-      await db.runAsync(
-        `INSERT INTO drafts (id, project_id, site_id, org_unit_id, updated_at, envelope, death_id, unique_id, client_death_id, prefill)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET envelope = excluded.envelope, updated_at = excluded.updated_at`,
-        [
+      const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt));
+      const params = [
           draft.id,
           host.projectId,
           host.siteId,
           host.orgUnitId ?? null,
           draft.updatedAt,
-          JSON.stringify(draft),
+          envelope,
           binding.deathId ?? null,
           binding.uniqueId ?? null,
           binding.clientDeathId ?? null,
           binding.prefill === undefined ? null : JSON.stringify(binding.prefill)
-        ]
-      );
+        ];
+      const result = existing
+        ? await db.runAsync(
+            `UPDATE drafts SET envelope = ?, updated_at = ?,
+               upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
+               upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
+             WHERE id = ? AND envelope = ?`,
+            [envelope, draft.updatedAt, draft.id, existing.envelope]
+          )
+        : await db.runAsync(
+            `INSERT INTO drafts (id, project_id, site_id, org_unit_id, updated_at, envelope, death_id, unique_id, client_death_id, prefill)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO NOTHING`,
+            params
+          );
+      if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) {
+        throw new Error("draft_conflict");
+      }
     },
     async load(id) {
       const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [id]);
@@ -205,11 +269,40 @@ export async function draftForCase(db: Db, key: { deathId?: string; clientDeathI
   );
 }
 
+/** Save the verdict and completion time, clearing editable hash issues but preserving hash mismatches. */
 export async function markCompleted(db: Db, id: string, completion: Completion): Promise<void> {
-  await db.runAsync("UPDATE drafts SET completed = 1, completion = ? WHERE id = ?", [
+  const current = await db.getFirstAsync<{ envelope: string; upload_issue: string | null }>(
+    "SELECT envelope, upload_issue FROM drafts WHERE id = ?",
+    [id]
+  );
+  if (!current || current.upload_issue === "hash_mismatch") return;
+  const draft = JSON.parse(current.envelope) as Record<string, unknown>;
+  const envelope = JSON.stringify({ ...draft, completedAt: localDateTimeWithOffset() });
+  const result = await db.runAsync(`UPDATE drafts SET
+    envelope = ?, completed = 1, completion = ?,
+    upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
+    upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
+    WHERE id = ? AND envelope = ? AND upload_issue IS NOT 'hash_mismatch'`, [
+    envelope,
     JSON.stringify({ valid: completion.valid, issues: completion.issues }),
-    id
+    id,
+    current.envelope
   ]);
+  if (result && typeof result === "object" && "changes" in result && Number(result.changes) > 0) return;
+  const latest = await db.getFirstAsync<{ upload_issue: string | null }>("SELECT upload_issue FROM drafts WHERE id = ?", [id]);
+  if (latest?.upload_issue !== "hash_mismatch") throw new Error("draft_conflict");
+}
+
+/** Persist an upload refusal while retaining the interview and its answers. */
+export async function setDraftUploadIssue(
+  db: Db,
+  id: string,
+  issue: "hash_mismatch" | "answers_hash_invalid",
+  uniqueId?: string,
+): Promise<void> {
+  await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
+    completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
+    WHERE id = ?`, [issue, issue === "hash_mismatch" ? uniqueId ?? null : null, issue, id]);
 }
 
 /**
@@ -228,8 +321,9 @@ export interface CompletedDraft {
   org_unit_id: string | null;
   death_id: string | null;
   client_death_id: string | null;
-  draft: WhoVaDraft;
+  draft: DeviceTimedDraft;
   completion: Completion | null;
+  envelope: string;
 }
 
 /** Completed drafts with their envelopes and verdicts, oldest first, for upload. */
@@ -245,7 +339,7 @@ export async function completedDrafts(db: Db, projectId?: string): Promise<Compl
     completion: string | null;
   }>(
     `SELECT id, project_id, site_id, org_unit_id, death_id, client_death_id, envelope, completion
-     FROM drafts WHERE completed = 1${projectId ? " AND project_id = ?" : ""} ORDER BY updated_at`,
+     FROM drafts WHERE completed = 1 AND upload_issue IS NULL${projectId ? " AND project_id = ?" : ""} ORDER BY updated_at`,
     projectId ? [projectId] : []
   );
   return rows.map((row) => ({
@@ -255,8 +349,9 @@ export async function completedDrafts(db: Db, projectId?: string): Promise<Compl
     org_unit_id: row.org_unit_id,
     death_id: row.death_id,
     client_death_id: row.client_death_id,
-    draft: JSON.parse(row.envelope) as WhoVaDraft,
-    completion: row.completion ? (JSON.parse(row.completion) as Completion) : null
+    draft: JSON.parse(row.envelope) as DeviceTimedDraft,
+    completion: row.completion ? (JSON.parse(row.completion) as Completion) : null,
+    envelope: row.envelope
   }));
 }
 
@@ -282,6 +377,12 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
 
 export async function deleteDraft(db: Db, id: string): Promise<void> {
   await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+}
+
+/** Delete only the exact envelope sent, preserving edits made during upload. */
+export async function deleteDraftSnapshot(db: Db, id: string, envelope: string): Promise<boolean> {
+  const result = await db.runAsync("DELETE FROM drafts WHERE id = ? AND envelope = ?", [id, envelope]);
+  return !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
 }
 
 export async function countDrafts(db: Db, projectId?: string): Promise<number> {

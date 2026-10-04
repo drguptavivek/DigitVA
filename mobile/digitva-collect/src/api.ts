@@ -1,7 +1,7 @@
 /**
  * JSON calls to the DigitVA API (`/api/v1`). Errors follow the
- * contract `{"error": "<message>", "code": "<machine_code>"}`; the message is
- * never logged, only the status and code.
+ * contract {"error": "<message>", "code": "<machine_code>"}. Parsed error
+ * payloads are available for handling and must never be logged.
  */
 
 export class ApiError extends Error {
@@ -9,7 +9,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string | undefined,
     public readonly redirectUrl?: string,
-    public readonly csrf?: ClientCsrf
+    public readonly csrf?: ClientCsrf,
+    public readonly payload?: Record<string, unknown>
   ) {
     super(`HTTP ${status}${code ? ` ${code}` : ""}`);
     this.name = "ApiError";
@@ -320,6 +321,8 @@ export interface ClientRequestOptions {
   json?: unknown;
   csrf?: ClientCsrf;
   signal?: AbortSignal;
+  /** Total request and response-body deadline; defaults to 30 seconds. */
+  timeoutMs?: number;
   /** Accept the Flask logout redirect without following its HTML landing page. */
   allowRedirect?: boolean;
 }
@@ -364,68 +367,84 @@ export async function requestJson<T>(
   if (json !== undefined) headers["Content-Type"] = "application/json";
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
   else if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
-  const response = await fetch(`${server}${path}`, {
-    method: options.method ?? "GET",
-    credentials: options.token !== undefined || server ? "omit" : "include",
-    cache: "no-store",
-    headers,
-    body: json === undefined ? undefined : JSON.stringify(json),
-    signal: options.signal,
-    redirect: options.allowRedirect ? "manual" : "follow",
-  });
-  const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
-  const csrf = typeof csrfToken === "string" && csrfToken.trim() ? { header: "X-CSRFToken", token: csrfToken } : undefined;
-  if (response.status === 204) return { status: 204, body: undefined as T };
-  const contentType = response.headers.get("content-type") ?? "";
-  let body: Record<string, unknown> = {};
-  let malformedJson = false;
-  if (contentType.includes("json")) {
-    try {
-      const parsed = await response.json();
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        body = parsed as Record<string, unknown>;
-      } else {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abortFromCaller();
+  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${server}${path}`, {
+      method: options.method ?? "GET",
+      credentials: options.token !== undefined || server ? "omit" : "include",
+      cache: "no-store",
+      headers,
+      body: json === undefined ? undefined : JSON.stringify(json),
+      signal: controller.signal,
+      redirect: options.allowRedirect ? "manual" : "follow",
+    });
+    const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
+    const csrf = typeof csrfToken === "string" && csrfToken.trim() ? { header: "X-CSRFToken", token: csrfToken } : undefined;
+    if (response.status === 204) return { status: 204, body: undefined as T };
+    const contentType = response.headers.get("content-type") ?? "";
+    let body: Record<string, unknown> = {};
+    let malformedJson = false;
+    if (contentType.includes("json")) {
+      try {
+        const parsed = await response.json();
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          body = parsed as Record<string, unknown>;
+        } else {
+          malformedJson = true;
+        }
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
         malformedJson = true;
+        body = {};
       }
-    } catch {
-      malformedJson = true;
-      body = {};
+    } else {
+      try {
+        await response.text();
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+      }
     }
-  } else {
-    await response.text().catch(() => undefined);
-  }
-  const redirectUrl = sameOriginRedirect(response);
-  const manualRedirect =
-    options.allowRedirect &&
-    (response.status === 0 ||
-      response.type === "opaqueredirect" ||
-      (response.status >= 300 && response.status < 400));
-  if (manualRedirect) return { status: response.status, body: body as T };
-  if (response.redirected || !contentType.includes("json")) {
-    throw new ApiError(
-      response.status,
-      "redirected_response",
-      redirectUrl,
-    );
-  }
-  if (malformedJson && response.ok) {
-    throw new ApiError(
-      response.status,
-      "malformed_response",
-      redirectUrl,
-    );
-  }
-  if (!response.ok) {
-    const code =
-      typeof body.code === "string"
-        ? body.code
-        : undefined;
-    if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-      window.dispatchEvent(new Event("digitva-access-stale"));
+    const redirectUrl = sameOriginRedirect(response);
+    const manualRedirect =
+      options.allowRedirect &&
+      (response.status === 0 ||
+        response.type === "opaqueredirect" ||
+        (response.status >= 300 && response.status < 400));
+    if (manualRedirect) return { status: response.status, body: body as T };
+    if (response.redirected || !contentType.includes("json")) {
+      throw new ApiError(
+        response.status,
+        "redirected_response",
+        redirectUrl,
+      );
     }
-    throw new ApiError(response.status, code, redirectUrl, csrf);
+    if (malformedJson && response.ok) {
+      throw new ApiError(
+        response.status,
+        "malformed_response",
+        redirectUrl,
+      );
+    }
+    if (!response.ok) {
+      const code =
+        typeof body.code === "string"
+          ? body.code
+          : undefined;
+      if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(new Event("digitva-access-stale"));
+      }
+      throw new ApiError(response.status, code, redirectUrl, csrf, body);
+    }
+    return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abortFromCaller);
   }
-  return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
 }
 
 /** Cookie-session wrapper over the same transport used by bearer clients. */

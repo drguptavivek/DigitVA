@@ -17,10 +17,12 @@
  * it can no longer apply and would be refused on every sync. Also the
  * per-interviewer reference data (access-scoped organization units, form
  * options, prefill policy and translations), cached in that interviewer's own
- * database and wiped with it.
+ * database and wiped with it. A validated superseded acknowledgement is
+ * reported immediately, so a later refresh failure cannot hide its notice.
  *
  * Logs carry client ids and error codes only, never answers or names.
  */
+import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import {
@@ -43,13 +45,15 @@ import {
 import {
   completedDrafts,
   countDrafts,
-  deleteDraft,
   draftIds,
   draftUniqueIds,
   getMeta,
+  deleteDraftSnapshot,
+  localDateTimeWithOffset,
   projectIds,
   purgeProjectData,
   reopenDraft,
+  setDraftUploadIssue,
   setMeta,
   type CompletedDraft,
   type Completion,
@@ -62,6 +66,7 @@ export interface SyncResult {
   sent: number;
   failed: number;
   remaining: number;
+  supersededUniqueIds: string[];
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
@@ -112,6 +117,16 @@ function acknowledgedCase(body: unknown): { deathId: string; state: string } {
   return { deathId, state };
 }
 
+/** Validate the server's stored-case identifier before retaining it for display. */
+function storedCaseUniqueId(error: ApiError): string | undefined {
+  const stored = error.payload?.stored;
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return undefined;
+  const caseBody = (stored as { case?: unknown }).case;
+  if (!caseBody || typeof caseBody !== "object" || Array.isArray(caseBody)) return undefined;
+  const uniqueId = (caseBody as { unique_id?: unknown }).unique_id;
+  return typeof uniqueId === "string" && uniqueId.trim() ? uniqueId : undefined;
+}
+
 async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unknown): Promise<void> {
   if (!body || typeof body !== "object" || !("case" in body)) return;
   const acknowledged = (body as { case?: unknown }).case;
@@ -123,9 +138,14 @@ async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unk
   }
 }
 
-export async function syncInterviewer(userId: string, db: Db): Promise<SyncResult> {
+export async function syncInterviewer(
+  userId: string,
+  db: Db,
+  onSuperseded?: (uniqueId: string) => void
+): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
+  const supersededUniqueIds: string[] = [];
 
   // The authoritative project list is refreshed before any outbound work so
   // revoked projects are purged before their queued payloads are considered.
@@ -180,34 +200,73 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
     }
   }
 
-  for (const item of await completedDrafts(db)) {
+  draftLoop: for (const item of await completedDrafts(db)) {
     if (!item.project_id || !authorizedProjects.has(item.project_id)) continue;
     if (!isUploadable(item.draft.data, item.completion)) continue; // stays on the phone, counted as remaining
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
+    const answersJson = JSON.stringify(item.draft.data);
+    let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
     try {
-      const acknowledgement = await authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
+      const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
-        body: {
+        timeoutMs: 120_000,
+        bodyFactory: () => ({
           client_draft_id: item.id,
           project_id: item.project_id,
           site_id: item.site_id,
           ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
           ...(item.death_id ? { death_id: item.death_id } : {}),
-          draft: item.draft,
+          draft: { ...item.draft, deviceClockAt: localDateTimeWithOffset() },
+          answers_json: answersJson,
+          answers_sha256: answersHash,
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] }
-        }
+        })
       });
+      let acknowledgement;
+      try {
+        acknowledgement = await send();
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 422 && error.code === "answers_hash_invalid") {
+          answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
+          try {
+            acknowledgement = await send();
+          } catch (retryError) {
+            if (retryError instanceof ApiError && retryError.status === 422 && retryError.code === "answers_hash_invalid") {
+              await setDraftUploadIssue(db, item.id, "answers_hash_invalid");
+              console.warn(`submission refused draft=${item.id} status=${retryError.status} code=${retryError.code}`);
+              failed += 1;
+              continue draftLoop;
+            }
+            throw retryError;
+          }
+        } else {
+          throw error;
+        }
+      }
+      const body = acknowledgement.body as { answers_sha256?: unknown; superseded?: unknown };
+      if (typeof body?.answers_sha256 !== "string" || body.answers_sha256.toLowerCase() !== answersHash) {
+        throw new Error("invalid_answers_ack");
+      }
       const acknowledged = acknowledgedCase(acknowledgement.body);
       if (item.death_id && acknowledged.deathId !== item.death_id) throw new Error("invalid_case_ack");
+      if (body.superseded === true) {
+        const caseBody = (acknowledgement.body as { case?: { unique_id?: unknown } }).case;
+        if (typeof caseBody?.unique_id !== "string" || !caseBody.unique_id.trim()) throw new Error("invalid_case_ack");
+        supersededUniqueIds.push(caseBody.unique_id);
+        onSuperseded?.(caseBody.unique_id);
+      }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
-      await deleteDraft(db, item.id);
+      await deleteDraftSnapshot(db, item.id, item.envelope);
       sent += 1;
     } catch (error) {
       // A per-draft refusal (409/413/422) keeps that draft and moves on; a
       // 422 (the interview as it stands) also reopens it for editing.
       const refused = refusal(error);
+      if (refused.status === 409 && refused.code === "hash_mismatch") {
+        await setDraftUploadIssue(db, item.id, "hash_mismatch", storedCaseUniqueId(refused));
+      }
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
-      if (refused.status === 422) await reopenDraft(db, item.id);
+      if (refused.status === 422 && refused.code !== "answers_hash_invalid") await reopenDraft(db, item.id);
       failed += 1;
     }
   }
@@ -223,7 +282,7 @@ export async function syncInterviewer(userId: string, db: Db): Promise<SyncResul
     }
   });
   await refreshCases(userId, db, referenceData);
-  return { sent, failed, remaining };
+  return { sent, failed, remaining, supersededUniqueIds };
 }
 
 /**

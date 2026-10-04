@@ -318,6 +318,9 @@ class VaWebIntakeDraft(db.Model):
     client_draft_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), nullable=True
     )
+    # SHA-256 (hex) of the exact answers JSON text a device upload sent; NULL
+    # for a web draft and for uploads stored before hashing.
+    answers_sha256: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
     client_valid: so.Mapped[bool | None] = so.mapped_column(sa.Boolean, nullable=True)
     client_issue_count: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     submitted_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)

@@ -237,6 +237,12 @@ class DeviceApiTests(BaseTestCase):
             "project_id": self.PROJECT_ID,
         }
         payload.update(body)
+        # The answers travel as exact JSON text plus its hash (digitva-2bxa);
+        # a test may pass either field itself to break the pair.
+        answers = json.dumps(payload["draft"].pop("data", {}), separators=(",", ":"))
+        payload.setdefault("answers_json", answers)
+        if isinstance(payload["answers_json"], str):
+            payload.setdefault("answers_sha256", hashlib.sha256(payload["answers_json"].encode()).hexdigest())
         return self.client.post(f"{INTAKE}/submissions", json=payload, headers=self._bearer(tokens))
 
     # ── enrolment ──────────────────────────────────────────────────────────
@@ -773,6 +779,96 @@ class DeviceApiTests(BaseTestCase):
             VaSubmissionPayloadVersion.va_sid == body["va_sid"]))
         self.assertEqual(version.payload_data["intake_source"], "device")
 
+    def _drafts_of(self, client_draft_id):
+        return db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == client_draft_id)).all()
+
+    def test_resend_with_the_same_hash_is_200_and_echoes_it(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        digest = hashlib.sha256(json.dumps(_complete_answers(), separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(first.get_json()["answers_sha256"], digest)
+        # An upper-case hash is the same hash.
+        again = self._upload(tokens, client_draft_id, answers_sha256=digest.upper())
+        self.assertEqual((again.status_code, again.get_json()), (200, first.get_json()))
+        self.assertEqual(len(self._drafts_of(client_draft_id)), 1)
+
+    def test_resend_with_other_answers_is_409_hash_mismatch_with_the_stored_result(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id).get_json()
+        other = self._upload(tokens, client_draft_id, draft={"data": {**_complete_answers(), "Id10017": "Changed"}})
+        self.assertEqual((other.status_code, other.get_json()["code"]), (409, "hash_mismatch"))
+        self.assertEqual(other.get_json()["stored"], first)
+        self.assertIn("error", other.get_json())
+        drafts = self._drafts_of(client_draft_id)
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].answers_sha256, first["answers_sha256"])
+
+    def test_resend_of_an_upload_stored_without_a_hash_is_409_hash_mismatch(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        self.assertEqual(self._upload(tokens, client_draft_id).status_code, 201)
+        self._drafts_of(client_draft_id)[0].answers_sha256 = None
+        db.session.commit()
+        legacy = self._upload(tokens, client_draft_id)
+        self.assertEqual((legacy.status_code, legacy.get_json()["code"]), (409, "hash_mismatch"))
+        self.assertIsNone(legacy.get_json()["stored"]["answers_sha256"])
+
+    def test_concurrent_resend_compares_the_hash_too(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id).get_json()
+        real_find = intake_svc.find_device_upload
+        # The first lookup misses (the other request has not committed yet),
+        # so the insert hits the unique index and the retry finds the winner.
+        lookups = []
+
+        def find_late(user, draft_id):
+            lookups.append(draft_id)
+            return None if len(lookups) == 1 else real_find(user, draft_id)
+
+        with mock.patch.object(intake_svc, "find_device_upload", side_effect=find_late):
+            same = self._upload(tokens, client_draft_id)
+        self.assertEqual((same.status_code, same.get_json()), (200, first))
+        lookups.clear()
+        with mock.patch.object(intake_svc, "find_device_upload", side_effect=find_late):
+            other = self._upload(tokens, client_draft_id, draft={"data": {**_complete_answers(), "Id10017": "Changed"}})
+        self.assertEqual((other.status_code, other.get_json()["code"]), (409, "hash_mismatch"))
+        self.assertEqual(other.get_json()["stored"], first)
+
+    def test_upload_with_a_wrong_hash_or_bad_answers_stores_nothing(self):
+        _device, tokens = self._session()
+        text = json.dumps(_complete_answers(), separators=(",", ":"))
+        wrong = hashlib.sha256(b"other").hexdigest()
+        cases = (
+            ({"answers_sha256": wrong}, "answers_hash_invalid"),
+            ({"answers_sha256": "z" * 64}, "answers_hash_required"),
+            ({"answers_sha256": wrong[:63]}, "answers_hash_required"),
+            ({"answers_sha256": None}, "answers_hash_required"),
+            ({"answers_json": None}, "answers_hash_required"),
+            ({"answers_json": {"Id10017": "x"}}, "answers_hash_required"),
+            ({"answers_json": text, "answers_sha256": hashlib.sha256(text.encode()).hexdigest()[:63] + "G"},
+             "answers_hash_required"),
+        )
+        for fields, code in cases:
+            with self.subTest(fields=fields):
+                response = self._upload(tokens, **fields)
+                self.assertEqual((response.status_code, response.get_json()["code"]), (422, code))
+        for raw in ('["a"]', '"text"', "not json", "null"):
+            with self.subTest(raw=raw):
+                response = self._upload(tokens, answers_json=raw)
+                self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_interview"))
+        # The old shape (answers only in draft.data) is no longer an upload.
+        old = self.client.post(f"{INTAKE}/submissions", headers=self._bearer(tokens), json={
+            "client_draft_id": str(uuid.uuid4()), "site_id": self.SITE_ID, "project_id": self.PROJECT_ID,
+            "draft": {"data": _complete_answers()}, "completion": {"valid": True, "issues": []}})
+        self.assertEqual((old.status_code, old.get_json()["code"]), (422, "answers_hash_required"))
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.user_id == self.interviewer.user_id)), 0)
+
     def test_upload_without_a_valid_completion_needs_an_incomplete_outcome(self):
         _device, tokens = self._session()
         response = self._upload(tokens, completion={"valid": False, "issues": []})
@@ -825,6 +921,14 @@ class DeviceApiTests(BaseTestCase):
             VaWebIntakeDraft.user_id == self.interviewer.user_id, VaWebIntakeDraft.death_id == uuid.UUID(death_id)))
         self.assertEqual(copy.status, "superseded")
         self.assertEqual(copy.sections[0].data["Id10017"], "Different")
+        self.assertEqual(copy.answers_sha256, body["answers_sha256"])
+        self.assertEqual(copy.answers_sha256, hashlib.sha256(
+            json.dumps(answers, separators=(",", ":")).encode()).hexdigest())
+        # Its resend: the same hash is 200, other answers 409.
+        client_draft_id = copy.client_draft_id
+        self.assertEqual(self._upload(tokens, client_draft_id, death_id=death_id, draft={"data": answers}).status_code, 200)
+        changed = self._upload(tokens, client_draft_id, death_id=death_id, draft={"data": {**answers, "Id10017": "Z"}})
+        self.assertEqual((changed.status_code, changed.get_json()["code"]), (409, "hash_mismatch"))
         # The winning case's identity is untouched by the copy.
         self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).deceased_name, "Bina Sahu")
 

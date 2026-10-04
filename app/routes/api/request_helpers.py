@@ -14,8 +14,9 @@ from app.services import web_intake_service as intake_svc
 INTAKE_CODES = {400: "invalid_request", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid_interview"}
 
 
-def error(message, code, status_code):
-    return jsonify({"error": message, "code": code}), status_code
+def error(message, code, status_code, **extra):
+    """``{"error", "code"}`` plus any *extra* body keys (a 409 that carries the stored result)."""
+    return jsonify({"error": message, "code": code, **extra}), status_code
 
 
 def intake_error(exc: intake_svc.WebIntakeError):

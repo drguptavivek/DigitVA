@@ -156,7 +156,7 @@ enrolment calls and the CLI stay here:
 `submit_device_interview` runs the web path in the named project only:
 `start_draft` (scope, case, prefill) with `own_copy=True`, so an active web
 draft on the case is never reused or merged; the envelope's `data` saved as
-one section named `device`; then `submit_draft` with `intake_source =
+one section named `device` (taken from the request's `answers_json`, not from `draft.data`); then `submit_draft` with `intake_source =
 "device"` (payload `DeviceID` `digitva-device`). The draft records
 `meta.deviceId` and `meta.interviewOutcome`.
 
@@ -165,9 +165,27 @@ one section named `device`; then `submit_draft` with `intake_source =
   such field, so the app must send `completion.valid` (or a `valid` member on
   `draft`); without it a complete interview is refused 422 unless it picks an
   incomplete `interview_outcome`.
-- **Idempotency.** A resend of the same `client_draft_id` returns the stored
-  result with 200 (current case status). A concurrent resend that loses the
-  unique index is answered the same way. Another interviewer's id is 409.
+- **Answers hash** (`digitva-2bxa`; policy "Upload integrity under connection
+  drops"). The request carries `answers_json` (the exact JSON text of the
+  answers) and `answers_sha256` (64 hex, either case). The route validates
+  before any lookup or write: a missing or non-string field or a malformed
+  hash is 422 `answers_hash_required`; text over 1 MB (UTF-8 bytes) is 422
+  `invalid_interview`; `sha256(answers_json bytes)` compared (constant time)
+  with the sent hash, a difference is 422 `answers_hash_invalid`; only then
+  `json.loads`, which must give an object (else 422 `invalid_interview`),
+  nested at most 6 deep (`check_device_answers`). The hash is stored in
+  `va_web_intake_drafts.answers_sha256` (nullable; migration
+  `d5f1b8a3c6e2`) as received, before locked answers are overwritten or
+  irrelevant answers stripped, on the normal and the superseded path, and is
+  echoed as `answers_sha256` in the result. `draft.data` is no longer read.
+- **Idempotency.** A resend of the same `client_draft_id` with the same hash
+  returns the stored result with 200 (current case status). A different hash,
+  or a stored row with no hash (uploaded before this), is 409 `hash_mismatch`
+  with body `{"error", "code": "hash_mismatch", "stored": <the stored result>}`.
+  A concurrent resend that loses the unique index is compared the same way.
+  Another interviewer's id is 409 `conflict`.
+- **Result body.** `{va_sid, case: {death_id, unique_id, status}, outcome,
+  superseded, answers_sha256}`.
 - **Superseded copy.** When the named case is already `submitted`,
   `duplicate` or `cancelled`, the upload is stored as a draft with status
   `superseded`: its answers kept under the case, no submission, no routing,
@@ -181,9 +199,9 @@ one section named `device`; then `submit_draft` with `intake_source =
   the submission payload, and in a superseded copy (whose draft now stores
   that prefill). A tampered value is never persisted; nothing is refused
   for it (docs/policy/web-intake.md, "Locked prefill").
-- **Bounds.** `draft.data` nested deeper than 6 levels or over 1 MB
-  serialized is 422 before anything is stored, on the superseded path too
-  (`_check_device_answers`).
+- **Bounds.** `answers_json` over 1 MB, or answers nested deeper than 6
+  levels, is 422 before anything is stored, on the superseded path too
+  (`check_device_answers`).
 
 ## Cases (`digitva-kmk.4`, simplified in `digitva-p6fs.24`)
 

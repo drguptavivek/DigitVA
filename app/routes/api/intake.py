@@ -8,6 +8,10 @@ state change, a device bearer token needs none. Errors are
 ``{"error", "code"}``. Reference: docs/current-state/device-collection-api.md.
 Policy: docs/policy/web-intake.md, docs/policy/field-data-collection.md.
 """
+import hashlib
+import hmac
+import json
+import re
 import uuid
 from contextlib import contextmanager
 
@@ -416,12 +420,61 @@ def submit_draft(draft_id):
 # ---------------------------------------------------------------------------
 
 
+_SHA256_HEX = re.compile(r"[0-9a-fA-F]{64}")
+
+
+def _parse_upload_answers(p):
+    """The upload's answers and their hash, or an error reply.
+
+    ``answers_json`` is the exact text the app hashed; it is hashed as
+    received and only then parsed, so the stored hash is of the bytes the
+    app meant to send. Returns ``(data, sha256_hex, None)`` or
+    ``(None, None, reply)``."""
+    answers_json, claimed = p.get("answers_json"), p.get("answers_sha256")
+    if not isinstance(answers_json, str) or not isinstance(claimed, str) or not _SHA256_HEX.fullmatch(claimed):
+        return None, None, error(
+            "answers_json (the answers as JSON text) and answers_sha256 (64 hex characters) are required.",
+            "answers_hash_required", 422,
+        )
+    raw = answers_json.encode("utf-8", "surrogatepass")
+    if len(raw) > intake_svc.DEVICE_ANSWERS_MAX_BYTES:
+        return None, None, error("answers_json is too large.", "invalid_interview", 422)
+    digest = hashlib.sha256(raw).hexdigest()
+    if not hmac.compare_digest(digest, claimed.lower()):
+        return None, None, error("answers_sha256 does not match answers_json.", "answers_hash_invalid", 422)
+    try:
+        data = json.loads(answers_json)
+    except (ValueError, RecursionError):
+        data = None
+    if not isinstance(data, dict):
+        return None, None, error("answers_json must be a JSON object of answers.", "invalid_interview", 422)
+    try:
+        intake_svc.check_device_answers(data)
+    except intake_svc.WebIntakeError as exc:
+        return None, None, intake_error(exc)
+    return data, digest, None
+
+
+def _existing_upload_reply(existing, answers_sha256):
+    """A resend of a stored upload: 200 with the first result when the
+    answers are the same, 409 ``hash_mismatch`` with the stored result when
+    they differ (or the stored row predates hashing)."""
+    stored = intake_svc.serialize_device_upload(existing)
+    if existing.answers_sha256 == answers_sha256:
+        return jsonify(stored), 200
+    return error(
+        "That client_draft_id was already uploaded with different answers.", "hash_mismatch", 409, stored=stored
+    )
+
+
 @bp.post("/submissions")
 @role_required("interviewer")
 def submit_interview():
     """One completed interview, idempotent on ``client_draft_id``: a resend
-    returns the first result with 200. A bearer request records its device
-    on the interview; a cookie request has none."""
+    with the same ``answers_sha256`` returns the first result with 200; a
+    resend with other answers is 409 ``hash_mismatch`` carrying the stored
+    result. A bearer request records its device on the interview; a cookie
+    request has none."""
     p = parse_body()
     try:
         client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
@@ -433,11 +486,16 @@ def submit_interview():
     if not isinstance(completion, dict):
         # The package's completion result carries valid/issues beside data.
         completion = envelope if isinstance(envelope, dict) else {}
+    if not isinstance(envelope, dict):
+        return error("draft must be an object.", "invalid_interview", 422)
 
     project_id = request_project_id(p)
+    data, answers_sha256, refusal = _parse_upload_answers(p)
+    if refusal is not None:
+        return refusal
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None:
-        return jsonify(intake_svc.serialize_device_upload(existing)), 200
+        return _existing_upload_reply(existing, answers_sha256)
     session = g.get("device_session")
     device = db.session.get(AuthDevice, session.device_id) if session is not None else None
     try:
@@ -449,6 +507,8 @@ def submit_interview():
             org_unit_id=p.get("org_unit_id") or None,
             death_id=p.get("death_id") or None,
             envelope=envelope,
+            data=data,
+            answers_sha256=answers_sha256,
             completion=completion,
             device_id=device.device_id if device else None,
         )
@@ -459,7 +519,7 @@ def submit_interview():
         existing = intake_svc.find_device_upload(current_user, client_draft_id)
         if existing is None:
             raise
-        return jsonify(intake_svc.serialize_device_upload(existing)), 200
+        return _existing_upload_reply(existing, answers_sha256)
     return jsonify(intake_svc.serialize_device_upload(draft)), 201
 
 

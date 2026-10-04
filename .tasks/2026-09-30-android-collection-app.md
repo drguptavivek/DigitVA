@@ -230,9 +230,11 @@ over the cap -> 413 `payload_too_large`.
   superseded}`; resend of the same `client_draft_id` -> 200 with the same
   body; case already submitted by a teammate -> 201 stored as a superseded
   copy (`superseded: true`). Without `completion.valid: true` the
-  `draft.data.interview_outcome` must be `partially_completed` or
-  `respondent_unavailable` (else 422). `draft.data` nested deeper than 6 or
-  over 1 MB serialized -> 422 `invalid_interview`, nothing stored.
+  answers' `interview_outcome` must be `partially_completed` or
+  `respondent_unavailable` (else 422). Answers travel as `answers_json` (exact
+  text) + `answers_sha256` (digitva-2bxa; `draft.data` is no longer read);
+  nested deeper than 6 or over 1 MB -> 422 `invalid_interview`, nothing
+  stored. Contract: `docs/current-state/device-collection-api.md`.
 - `POST /outstanding` `{count, unique_ids: [..], client_draft_ids: [uuid..],
   client_death_ids: [uuid..]}` -> 204 (also accepted as optional fields on
   `/sessions/refresh`); at most 1000 of each. `unique_ids` are the case ids

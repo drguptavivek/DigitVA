@@ -282,8 +282,8 @@ duplicate uploads. The rules:
   result. Different hash: 409 `hash_mismatch` with the stored result. The app
   handles that code explicitly: it tells the interviewer their later edits
   were not applied and offers a revision
-  ([Interview Revisions Policy](interview-revisions.md)). The server side
-  ships only together with the app side.
+  ([Interview Revisions Policy](interview-revisions.md)). The server answers the app's old shape (answers only in `draft.data`)
+  with 422 `answers_hash_required`, so the app side ships with it.
 - **Timeouts.** Every app request has a timeout, so a dead connection fails
   the run with everything kept instead of hanging.
 - **Case list refresh.** The app writes the replacement case list in one
@@ -293,11 +293,14 @@ This closes a data-loss path that exists today: the upload succeeds, the reply
 is lost, the interviewer edits the completed draft, and the resend returns the
 old stored result, so the app deletes the edited copy.
 
-Not built yet (`digitva-2bxa`): `answers_json`, `answers_sha256`, the 422, the
-stored and echoed hash, `hash_mismatch`, the app's explicit handling (today it
-retries every 409 forever), request timeouts (none today) and the transactional
-case list write. Client-id idempotent resend is built (see "Idempotent upload"
-above).
+Built, server half (`digitva-2bxa`): `answers_json`, `answers_sha256`, the 422
+(`answers_hash_required`, `answers_hash_invalid`), the stored and echoed hash
+and the 409 `hash_mismatch` carrying the stored result (see
+[Device Collection API](../current-state/device-collection-api.md), "Uploads").
+Still to build in the app: explicit `hash_mismatch` handling (today it retries
+every 409 forever), the check of the echoed hash and death id before deleting
+its copy, request timeouts (none today) and the transactional case list write.
+Client-id idempotent resend is built (see "Idempotent upload" above).
 
 ### Form version (owner, 2026-10-04, `digitva-xuf9`)
 

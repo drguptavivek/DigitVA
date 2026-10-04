@@ -11,7 +11,6 @@ between the two sources.
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
 import uuid
@@ -1588,18 +1587,16 @@ DEVICE_ANSWERS_MAX_BYTES = 1024 * 1024
 DEVICE_ANSWERS_MAX_DEPTH = 6
 
 
-def _check_device_answers(data: dict) -> None:
-    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH or
-    larger than DEVICE_ANSWERS_MAX_BYTES serialized."""
+def check_device_answers(data: dict) -> None:
+    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH. The
+    size cap is on the upload's ``answers_json`` text, checked by the route."""
     stack = [(data, 1)]
     while stack:
         value, depth = stack.pop()
         if depth > DEVICE_ANSWERS_MAX_DEPTH:
-            raise WebIntakeError("draft.data is nested too deeply.", 422)
+            raise WebIntakeError("answers_json is nested too deeply.", 422)
         children = value.values() if isinstance(value, dict) else value
         stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
-    if len(json.dumps(data, separators=(",", ":"))) > DEVICE_ANSWERS_MAX_BYTES:
-        raise WebIntakeError("draft.data is too large.", 422)
 
 
 def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
@@ -1613,7 +1610,7 @@ def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntake
     return draft
 
 
-def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, meta: dict, completion: dict) -> VaWebIntakeDraft:
+def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, answers_sha256: str, meta: dict, completion: dict) -> VaWebIntakeDraft:
     """Keep a device interview for a closed case as a ``superseded`` draft
     linked to the case: answers stored, no submission, no routing, and the
     case (its identity included) left exactly as it is."""
@@ -1641,6 +1638,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
         prefill=prefill,
         status="superseded",
         client_draft_id=client_draft_id,
+        answers_sha256=answers_sha256,
         submitted_at=now,
         client_valid=completion.get("valid") is True,
     )
@@ -1651,7 +1649,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
     return draft
 
 
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, completion: dict, device_id: uuid.UUID | None = None) -> VaWebIntakeDraft:
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None) -> VaWebIntakeDraft:
     """Store and submit one completed device interview; returns its draft.
 
     The same path as a web submit: ``start_draft`` (scope, case, prefill) in
@@ -1663,11 +1661,10 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     pick, exactly as on the web. Idempotency is the caller's
     (``find_device_upload`` first; ``client_draft_id`` is unique).
     *device_id* is the uploading device's id, None for a browser-cookie request.
+    *envelope* supplies only the meta keys; *data* is the parsed answers and
+    *answers_sha256* the hash of their exact JSON text, both already checked
+    by the caller (``check_device_answers``) and stored with the upload.
     """
-    if not isinstance(envelope, dict) or not isinstance(envelope.get("data"), dict):
-        raise WebIntakeError("draft.data must be an object of answers.")
-    data = envelope["data"]
-    _check_device_answers(data)
     meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
     if device_id is not None:
         meta["deviceId"] = str(device_id)
@@ -1683,13 +1680,14 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
         if death.status in _SUPERSEDED_CASE_STATES:
             return _store_superseded_copy(
                 user, death, client_draft_id=client_draft_id, site_id=site_id,
-                data=data, meta=meta, completion=completion,
+                data=data, answers_sha256=answers_sha256, meta=meta, completion=completion,
             )
     draft = start_draft(
         user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
         death_id=death_id, own_copy=True,
     )
     draft.client_draft_id = client_draft_id
+    draft.answers_sha256 = answers_sha256
     if device_id is not None:
         draft.meta = {**(draft.meta or {}), "deviceId": meta.pop("deviceId")}
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
@@ -1711,6 +1709,7 @@ def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
         },
         "outcome": (draft.meta or {}).get("interviewOutcome"),
         "superseded": draft.status == "superseded",
+        "answers_sha256": draft.answers_sha256,
     }
 
 

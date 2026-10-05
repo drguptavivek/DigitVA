@@ -18,7 +18,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (about 3640 passed on 2026-10-05; the app container's 756 MB cap now OOM-kills one full run (exit 137), so run it in chunks: `tests/services`, `tests/routes`, `tests/authz tests/integration`, then `tests/test_*.py`; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
+> (3637 passed, 6 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
 > ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's

@@ -4,7 +4,6 @@ import csv
 import json
 import re
 from dataclasses import dataclass
-from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 
@@ -18,7 +17,10 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketScheme,
     MasIcd1020192,
-    VaSubmissions,
+)
+from app.services.icd_coding_policy import (
+    coding_context_for_submission,
+    coding_policy_clause,
 )
 from app.services.icd_coding_value import extract_icd_code
 from app.services.icd_search_vocabulary_service import (
@@ -41,14 +43,11 @@ DEFAULT_ICD10_2019_2_CSV_PATH = Path(
 SOURCE_VERSION = "ICD-10-2019"
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "neonate_infant", "child", "adult")
-# `neonate_infant` matches a neonate or an infant submission (owner, 2026-09-29).
-_NEONATE_INFANT_GROUPS = ("neonate", "infant")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
-_DAYS_PER_YEAR = Decimal("365.25")
 
 
 @dataclass(frozen=True)
@@ -130,62 +129,6 @@ def _normalize_query(raw_query: str) -> str:
     return " ".join((raw_query or "").strip().lower().split())
 
 
-def _coding_age_group_for_submission(submission: VaSubmissions | None) -> str | None:
-    if submission is None:
-        return None
-    normalized_days = submission.va_deceased_age_normalized_days
-    if normalized_days is not None:
-        if normalized_days < Decimal("28"):
-            return "neonate"
-        if normalized_days < Decimal("365"):
-            return "infant"
-        if normalized_days < (Decimal("12") * _DAYS_PER_YEAR):
-            return "child"
-        return "adult"
-
-    legacy_age = submission.va_deceased_age
-    if legacy_age is None:
-        return None
-    if legacy_age < 12:
-        return "child"
-    return "adult"
-
-
-def _coding_sex_for_submission(submission: VaSubmissions | None) -> str | None:
-    if submission is None:
-        return None
-    normalized = (submission.va_deceased_gender or "").strip().lower()
-    if normalized in {"male", "female"}:
-        return normalized
-    return None
-
-
-def _coding_policy_clause(model, *, age_group: str | None, sex: str | None):
-    clause = model.is_coding_selectable.is_(True)
-    if age_group:
-        clause = sa.and_(
-            clause,
-            sa.or_(
-                model.age_group_selectable == "all",
-                model.age_group_selectable == age_group,
-                *(
-                    (model.age_group_selectable == "neonate_infant",)
-                    if age_group in _NEONATE_INFANT_GROUPS
-                    else ()
-                ),
-            ),
-        )
-    if sex:
-        clause = sa.and_(
-            clause,
-            sa.or_(
-                model.sex_selectable == "both",
-                model.sex_selectable == sex,
-            ),
-        )
-    return clause
-
-
 def validate_icd10_2019_2_coding_value_for_submission(
     va_sid: str,
     value: str | None,
@@ -194,7 +137,7 @@ def validate_icd10_2019_2_coding_value_for_submission(
     if code is None:
         raise ValueError("Select a valid ICD-10 code.")
 
-    context = get_icd10_2019_2_coding_context(va_sid)
+    context = coding_context_for_submission(va_sid)
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
 
@@ -205,7 +148,7 @@ def validate_icd10_2019_2_coding_value_for_submission(
                     MasIcd1020192.code == code,
                     MasIcd1020192.is_active.is_(True),
                     MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
-                    _coding_policy_clause(
+                    coding_policy_clause(
                         MasIcd1020192,
                         age_group=context["age_group"],
                         sex=context["sex"],
@@ -1040,24 +983,13 @@ def export_icd10_2019_2_policy_xlsx() -> bytes:
     return buffer.getvalue()
 
 
-def get_icd10_2019_2_coding_context(va_sid: str) -> dict | None:
-    submission = db.session.get(VaSubmissions, va_sid)
-    if submission is None:
-        return None
-    return {
-        "va_sid": submission.va_sid,
-        "age_group": _coding_age_group_for_submission(submission),
-        "sex": _coding_sex_for_submission(submission),
-    }
-
-
 def search_icd10_2019_2_coding_choices(va_sid: str, query: str) -> list[dict[str, str | bool | None]]:
     """Search selectable ICD-10 codes for one death's COD box.
 
     Resolves the submission's age/sex policy, then delegates to
     ``search_icd10_2019_2_coding_choices_for_policy``.
     """
-    context = get_icd10_2019_2_coding_context(va_sid)
+    context = coding_context_for_submission(va_sid)
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
     return search_icd10_2019_2_coding_choices_for_policy(
@@ -1098,7 +1030,7 @@ def search_icd10_2019_2_coding_choices_for_policy(
         .where(
             MasIcd1020192.is_active.is_(True),
             MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
-            _coding_policy_clause(
+            coding_policy_clause(
                 MasIcd1020192,
                 age_group=context["age_group"],
                 sex=context["sex"],
@@ -1171,7 +1103,7 @@ def _resolve_vocabulary_links_icd10(
                 MasIcd1020192.code.in_([link["icd_code"] for link in links]),
                 MasIcd1020192.is_active.is_(True),
                 MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
-                _coding_policy_clause(
+                coding_policy_clause(
                     MasIcd1020192,
                     age_group=context["age_group"],
                     sex=context["sex"],
@@ -1213,7 +1145,7 @@ def _fuzzy_title_icd10_hits(normalized_query: str, context: dict) -> list[dict]:
         .where(
             MasIcd1020192.is_active.is_(True),
             MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
-            _coding_policy_clause(
+            coding_policy_clause(
                 MasIcd1020192,
                 age_group=context["age_group"],
                 sex=context["sex"],
@@ -1241,7 +1173,7 @@ def _fuzzy_title_icd10_hits(normalized_query: str, context: dict) -> list[dict]:
 def list_icd10_2019_2_coding_detailed_children(
     va_sid: str, parent_code: str
 ) -> list[dict[str, str | bool | None]]:
-    context = get_icd10_2019_2_coding_context(va_sid)
+    context = coding_context_for_submission(va_sid)
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
 
@@ -1251,7 +1183,7 @@ def list_icd10_2019_2_coding_detailed_children(
             MasIcd1020192.is_active.is_(True),
             MasIcd1020192.parent_code == parent_code,
             MasIcd1020192.semantic_level == "detailed_code",
-            _coding_policy_clause(
+            coding_policy_clause(
                 MasIcd1020192,
                 age_group=context["age_group"],
                 sex=context["sex"],

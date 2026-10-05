@@ -25,7 +25,10 @@ from openpyxl.styles import Font, PatternFill
 
 from app import db
 from app.models import MasIcd11Mms
-from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
+from app.services.icd_coding_policy import (
+    coding_context_for_submission,
+    coding_policy_clause,
+)
 from app.services.icd_coding_value import (
     extract_icd11_code_expression,
     extract_icd_code,
@@ -54,8 +57,6 @@ SOURCE_VERSION = "ICD-11-MMS-2026-01"
 
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "neonate_infant", "child", "adult")
-# `neonate_infant` matches a neonate or an infant submission (owner, 2026-09-29).
-_NEONATE_INFANT_GROUPS = ("neonate", "infant")
 # Same values the ICD-10 catalog carries; informational only (coding search
 # reads is_coding_selectable/sex/age, never policy_status).
 POLICY_STATUS_OPTIONS = ("unreviewed", "reviewed")
@@ -997,32 +998,6 @@ def _normalize_query(raw_query: str) -> str:
     return " ".join((raw_query or "").strip().lower().split())
 
 
-def _coding_policy_clause(*, age_group: str | None, sex: str | None):
-    clause = MasIcd11Mms.is_coding_selectable.is_(True)
-    if age_group:
-        clause = sa.and_(
-            clause,
-            sa.or_(
-                MasIcd11Mms.age_group_selectable == "all",
-                MasIcd11Mms.age_group_selectable == age_group,
-                *(
-                    (MasIcd11Mms.age_group_selectable == "neonate_infant",)
-                    if age_group in _NEONATE_INFANT_GROUPS
-                    else ()
-                ),
-            ),
-        )
-    if sex:
-        clause = sa.and_(
-            clause,
-            sa.or_(
-                MasIcd11Mms.sex_selectable == "both",
-                MasIcd11Mms.sex_selectable == sex,
-            ),
-        )
-    return clause
-
-
 def validate_icd11_mms_coding_value_for_submission(
     va_sid: str,
     value: str | None,
@@ -1065,7 +1040,7 @@ def validate_icd11_mms_coding_value_for_submission(
         if stem_code is None and not isinstance(stem_id, str):
             raise ValueError("The ICD-11 code expression is not valid.")
 
-    context = get_icd10_2019_2_coding_context(va_sid)
+    context = coding_context_for_submission(va_sid)
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
 
@@ -1076,7 +1051,7 @@ def validate_icd11_mms_coding_value_for_submission(
                 MasIcd11Mms.code == code,
                 MasIcd11Mms.is_active.is_(True),
                 MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
-                _coding_policy_clause(age_group=context["age_group"], sex=context["sex"]),
+                coding_policy_clause(MasIcd11Mms, age_group=context["age_group"], sex=context["sex"]),
             )
         )
     )
@@ -1197,7 +1172,7 @@ def search_icd11_mms(
 
     apply_policy = va_sid is not None or age_group is not None or sex is not None
     if va_sid is not None:
-        context = get_icd10_2019_2_coding_context(va_sid)
+        context = coding_context_for_submission(va_sid)
         if context is None:
             raise LookupError(f"Submission not found: {va_sid}")
         age_group = context["age_group"]
@@ -1223,7 +1198,7 @@ def search_icd11_mms(
         match_clause,
     ]
     if apply_policy:
-        filters.append(_coding_policy_clause(age_group=age_group, sex=sex))
+        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
 
     rows = db.session.scalars(
         sa.select(MasIcd11Mms)
@@ -1313,7 +1288,7 @@ def _resolve_vocabulary_links_icd11(
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
     ]
     if apply_policy:
-        filters.append(_coding_policy_clause(age_group=age_group, sex=sex))
+        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
     rows_by_code = {
         row.code: row for row in db.session.scalars(sa.select(MasIcd11Mms).where(*filters))
     }
@@ -1361,7 +1336,7 @@ def _fuzzy_title_icd11_hits(
         sa.literal(normalized_query).op("<%")(lower_title),
     ]
     if apply_policy:
-        filters.append(_coding_policy_clause(age_group=age_group, sex=sex))
+        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
     rows = db.session.scalars(
         sa.select(MasIcd11Mms)
         .where(*filters)

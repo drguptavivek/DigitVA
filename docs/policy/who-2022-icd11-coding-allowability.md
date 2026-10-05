@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: approved
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-05
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -122,8 +122,15 @@ Allowed values are `both | female | male` and
 `all | neonate | infant | neonate_infant | child | adult`. Matching is
 exact-or-all, except that `neonate_infant` (owner, 2026-09-29) matches a
 submission whose coding age group is `neonate` or `infant`, and no other.
-The ICD-10 policy takes the same value and matching. Default: both sexes,
-all ages. For a selectable category, the first rule that applies wins:
+The ICD-10 policy takes the same value and matching, from one shared rule
+(`app/services/icd_coding_policy.py`). Default: both sexes, all ages.
+
+Where the rule applies: the local coding search, the selection check, and
+the coder's and reviewer's own COD picks at save. It does not apply to the
+immediate-cause lines of a masked DORIS certificate (owner, 2026-10-05):
+WHO's check during DORIS processing is enough there. The WHO search
+widget's suggestions are unfiltered; a restricted pick is refused by the
+selection check. For a selectable category, the first rule that applies wins:
 
 1. **Chapter rules**, the ICD-10 policy's blanket chapter rules on the
    equivalent ICD-11 chapters:

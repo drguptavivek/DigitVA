@@ -8,12 +8,12 @@ import sqlalchemy as sa
 from app import db
 from app.models import MasIcd1020192, VaSubmissions
 from app.services.icd10_2019_2_service import (
-    _coding_age_group_for_submission,
     _validate_policy_update,
     get_icd10_2019_2_policy_options,
     import_icd10_2019_2_from_csv,
     import_icd10_2019_2_policy_json,
 )
+from app.services.icd_coding_policy import coding_age_group_for_submission
 from tests.base import BaseTestCase
 
 CSV_FIELDS = [
@@ -420,7 +420,7 @@ class TestIcd1020192Service(BaseTestCase):
                     va_sid=f"uuid:age-{normalized_days}",
                     va_deceased_age_normalized_days=normalized_days,
                 )
-                self.assertEqual(_coding_age_group_for_submission(submission), expected)
+                self.assertEqual(coding_age_group_for_submission(submission), expected)
 
     def test_new_three_character_rows_get_default_selectable_policy_except_stuz_codes(self):
         csv_path = self._write_csv(

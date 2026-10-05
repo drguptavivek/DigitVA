@@ -269,6 +269,6 @@ class TestCodingSearchDemoApi(BaseTestCase):
         # must not alter the real coding-screen path. Full coverage lives in
         # tests/routes/test_icd10_coding_api.py; this is a smoke check that
         # the split still wires va_sid -> submission context correctly.
-        from app.services.icd10_2019_2_service import get_icd10_2019_2_coding_context
+        from app.services.icd_coding_policy import coding_context_for_submission
 
-        self.assertIsNone(get_icd10_2019_2_coding_context("uuid:does-not-exist"))
+        self.assertIsNone(coding_context_for_submission("uuid:does-not-exist"))

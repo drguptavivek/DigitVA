@@ -11,13 +11,10 @@ import unittest
 from app import db
 from app.models import MasIcd11Mms, MasIcd1020192
 from app.services.icd10_2019_2_service import (
-    _coding_policy_clause as icd10_clause,
-)
-from app.services.icd10_2019_2_service import (
     search_icd10_2019_2_coding_choices_for_policy,
 )
-from app.services.icd11_mms_service import _coding_policy_clause as icd11_clause
 from app.services.icd11_mms_service import search_icd11_mms
+from app.services.icd_coding_policy import coding_policy_clause
 from tests.base import BaseTestCase
 
 RELEASE = "TEST-NEOINF"
@@ -40,8 +37,8 @@ def _sql(clause) -> str:
 class NeonateInfantAgeMatchTests(unittest.TestCase):
     def _clauses(self, age_group):
         return (
-            _sql(icd10_clause(MasIcd1020192, age_group=age_group, sex=None)),
-            _sql(icd11_clause(age_group=age_group, sex=None)),
+            _sql(coding_policy_clause(MasIcd1020192, age_group=age_group, sex=None)),
+            _sql(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=None)),
         )
 
     def test_matches_neonate_and_infant_submissions(self):

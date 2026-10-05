@@ -3,7 +3,7 @@ title: ICD-11 in the Coding Screen — Form-Level Classification and Optional St
 doc_type: planning
 status: in-progress
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-10-05
 ---
 
 # ICD-11 in the Coding Screen — Form-Level Classification and Optional Step 1
@@ -108,8 +108,9 @@ CSV, following `docs/policy/icd10-reference-catalog.md`.
   `map_project_site_odk`), `validate_coding_value_for_submission(va_sid, value)`
   that dispatches to the ICD-10 or ICD-11 validator, and
   `search_coding_choices(va_sid, query)`. Age/sex context logic
-  (`_coding_age_group_for_submission`, `_coding_sex_for_submission`,
-  `_coding_policy_clause`) moves to this shared module and is used by both.
+  (`coding_age_group_for_submission`, `coding_sex_for_submission`,
+  `coding_context_for_submission`, `coding_policy_clause`) lives in
+  `app/services/icd_coding_policy.py` and is used by both services.
 - Callers switch from `validate_icd10_2019_2_coding_value_for_submission` to
   the dispatcher: `va_form.py` (Step 1, final), `reviewer_coding_service.py`.
 

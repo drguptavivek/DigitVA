@@ -112,8 +112,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    d. Filed 2026-10-05 from the owner's coverage check: `digitva-uq6v`
       correct a registered death's details (missing on web and API; owner
       to decide who may correct and until when, before a policy baseline),
-      `digitva-3nxj` check ICD-11 coding search filters by age and sex as
-      ICD-10 does.
+      `digitva-3nxj` done: ICD-11 already applied the age/sex rule (search,
+      selection check, save); the two copies are now one
+      (`app/services/icd_coding_policy.py`). Owner: masked DORIS
+      immediate-cause lines rely on WHO's check, not ours.
+      `digitva-ntct.4` done: overlapping wide + unit interviewer grants keep
+      the whole tree (Expo section 11 landing blocker).
    Open owner question: fold form-options and prefill-policy into
    `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).
 2. **Deploy notes.** This field-collection release: migrations
@@ -150,8 +154,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    "import os,time,redis; redis.from_url(os.environ['REDIS_URL']).set('digitva_authz:gv', f'reset-{int(time.time())}')"`.
    `digitva-p6fs.25`: the app's terms screen ships before or with the 9an9
    backend.
-3. Run `tests/migrations` on its own DB, never in the same run as the main
-   suite (it breaks setup there).
+3. `tests/migrations` passed 2026-10-05 (93, 13 min) on its own DB; never
+   run it in the same run as the main suite (it breaks setup there).
 4. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
 5. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,

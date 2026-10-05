@@ -908,6 +908,52 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(del_resp.status_code, 200)
 
+    def test_odk_site_mappings_list_pairs_each_mapping_with_its_own_form(self):
+        """Two forms on one project-site: the list reports each mapping's own
+        SmartVA settings whatever order the va_forms rows come back in
+        (digitva-ssi: keying by site returned whichever form came last)."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        save_resp = self.client.post(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
+            json={
+                "site_id": self.site_a,
+                "odk_project_id": 12,
+                "odk_form_id": "order_form",
+                "form_smartvahiv": "True",
+            },
+            headers=headers,
+        )
+        self.assertEqual(save_resp.status_code, 201)
+        saved_mapping = save_resp.get_json()["mapping"]
+
+        # Rewrite the fixture's form so its row now sorts after the new one.
+        first_form = db.session.get(VaForms, "ADM001AA0101")
+        self.assertEqual(first_form.form_smartvahiv, "False")
+        db.session.execute(
+            sa.update(VaForms)
+            .where(VaForms.form_id == "ADM001AA0101")
+            .values(form_smartvahiv="False")
+        )
+        db.session.commit()
+
+        try:
+            mappings = self.client.get(
+                f"/admin/api/projects/{self.project_id}/odk-site-mappings"
+            ).get_json()["mappings"]
+            by_form = {
+                m["odk_form_id"]: m for m in mappings if m["site_id"] == self.site_a
+            }
+            self.assertEqual(by_form["order_form"]["form_smartvahiv"], "True")
+            self.assertEqual(by_form["ADMIN_API_FORM_A"]["form_smartvahiv"], "False")
+            self.assertEqual(by_form["ADMIN_API_FORM_A"]["form_id"], "ADM001AA0101")
+        finally:
+            self.client.delete(
+                f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}"
+                f"?mapping_id={saved_mapping['mapping_id']}",
+                headers=headers,
+            )
+
     def test_odk_site_mapping_ignores_retired_icd_classification(self):
         """The per-form ICD classification is retired: the mapping API neither
         reads, writes nor returns it (the project setting replaced it)."""

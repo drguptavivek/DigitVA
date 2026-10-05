@@ -4950,52 +4950,43 @@ def admin_odk_site_mappings_list(project_id):
             VaSiteMaster.site_status == VaStatuses.active,
         )
     ).all()
-    forms_by_site = {
-        form.site_id: form
+    from app.services.runtime_form_sync_service import (
+        _mapping_key,
+        _mapping_key_for_form,
+    )
+
+    # A project-site may map several ODK forms, each with its own va_forms
+    # row, so match on the whole mapping identity, not the site alone
+    # (keying by site returned whichever form came last: digitva-ssi).
+    forms_by_mapping = {
+        _mapping_key_for_form(form): form
         for form in db.session.scalars(
-            sa.select(VaForms).where(VaForms.project_id == project_id)
+            sa.select(VaForms).where(
+                VaForms.project_id == project_id,
+                VaForms.form_source != "web",
+            )
         ).all()
     }
-    return jsonify({
-        "mappings": [
-            {
-                "mapping_id": str(r.id),
-                "site_id": r.site_id,
-                "odk_project_id": r.odk_project_id,
-                "odk_form_id": r.odk_form_id,
-                "form_type_id": str(r.form_type_id) if r.form_type_id else None,
-                "form_type_code": r.form_type.form_type_code if r.form_type else None,
-                "org_unit_id": str(r.org_unit_id) if r.org_unit_id else None,
-                "form_id": forms_by_site.get(r.site_id).form_id if forms_by_site.get(r.site_id) else None,
-                "form_smartvahiv": (
-                    forms_by_site.get(r.site_id).form_smartvahiv
-                    if forms_by_site.get(r.site_id)
-                    else "False"
-                ),
-                "form_smartvamalaria": (
-                    forms_by_site.get(r.site_id).form_smartvamalaria
-                    if forms_by_site.get(r.site_id)
-                    else "False"
-                ),
-                "form_smartvahce": (
-                    forms_by_site.get(r.site_id).form_smartvahce
-                    if forms_by_site.get(r.site_id)
-                    else "True"
-                ),
-                "form_smartvafreetext": (
-                    forms_by_site.get(r.site_id).form_smartvafreetext
-                    if forms_by_site.get(r.site_id)
-                    else "True"
-                ),
-                "form_smartvacountry": (
-                    forms_by_site.get(r.site_id).form_smartvacountry
-                    if forms_by_site.get(r.site_id)
-                    else "IND"
-                ),
-            }
-            for r in rows
-        ]
-    })
+
+    def _row(r):
+        form = forms_by_mapping.get(_mapping_key(r))
+        return {
+            "mapping_id": str(r.id),
+            "site_id": r.site_id,
+            "odk_project_id": r.odk_project_id,
+            "odk_form_id": r.odk_form_id,
+            "form_type_id": str(r.form_type_id) if r.form_type_id else None,
+            "form_type_code": r.form_type.form_type_code if r.form_type else None,
+            "org_unit_id": str(r.org_unit_id) if r.org_unit_id else None,
+            "form_id": form.form_id if form else None,
+            "form_smartvahiv": form.form_smartvahiv if form else "False",
+            "form_smartvamalaria": form.form_smartvamalaria if form else "False",
+            "form_smartvahce": form.form_smartvahce if form else "True",
+            "form_smartvafreetext": form.form_smartvafreetext if form else "True",
+            "form_smartvacountry": form.form_smartvacountry if form else "IND",
+        }
+
+    return jsonify({"mappings": [_row(r) for r in rows]})
 
 
 @admin.get("/api/odk-site-mappings/conflicts")

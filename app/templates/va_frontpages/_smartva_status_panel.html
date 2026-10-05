@@ -1,0 +1,58 @@
+{# SmartVA status for this case (docs/policy/coding-workflow-state-machine.md, "SmartVA on completion").
+   Status only: results stay where the masked/unmasked steps show them. #}
+{% set _sv = smartva_panel(va_sid) %}
+{% set _sv_labels = {
+  'not_requested': 'Not requested',
+  'queued': 'Queued',
+  'running': 'Running',
+  'done': 'Done',
+  'failed': 'Failed',
+} %}
+{% set _sv_can_press = _sv.can_run and va_action != 'vaarea' and back_dashboard_role != 'viewer' %}
+<div class="card mb-4" id="smartva-status-panel">
+  <div class="card-header bg-light">
+    <span class="fw-semibold"><i class="fas fa-chart-pie me-2"></i>SmartVA</span>
+  </div>
+  <div class="card-body py-2">
+    <div class="small" id="smartva-status-text" data-status="{{ _sv.status }}">
+      Status: <b>{{ _sv_labels[_sv.status] }}</b>
+      {% if _sv.status == 'done' %}<span class="text-muted">(result shown in the assessment steps)</span>{% endif %}
+    </div>
+    {% if _sv_can_press and _sv.status in ('not_requested', 'failed') %}
+      <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="smartva-run-btn" data-regenerate="false">
+        {{ 'Run again' if _sv.status == 'failed' else 'Run SmartVA' }}
+      </button>
+    {% elif _sv_can_press and _sv.status == 'done' %}
+      <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="smartva-run-btn" data-regenerate="true">
+        Regenerate
+      </button>
+    {% endif %}
+    <div class="small text-muted mt-2 d-none" id="smartva-status-msg"></div>
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const btn = document.getElementById("smartva-run-btn");
+  if (!btn) return;
+  const msg = document.getElementById("smartva-status-msg");
+  btn.addEventListener("click", function () {
+    btn.disabled = true;
+    fetch("{{ url_for('api_v1.coding_api.run_smartva', va_sid=va_sid) }}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token() }}"},
+      body: JSON.stringify({regenerate: btn.dataset.regenerate === "true"}),
+    }).then(function (r) { return r.json().then(function (b) { return [r.ok, b]; }); })
+      .then(function (res) {
+        msg.classList.remove("d-none");
+        if (res[0]) {
+          document.getElementById("smartva-status-text").innerHTML = "Status: <b>Queued</b>";
+          msg.textContent = "SmartVA has been queued. Reload this page in a minute to see the result.";
+        } else {
+          btn.disabled = false;
+          msg.textContent = res[1].error || "SmartVA could not be queued.";
+        }
+      })
+      .catch(function () { btn.disabled = false; msg.classList.remove("d-none"); msg.textContent = "SmartVA could not be queued."; });
+  });
+});
+</script>

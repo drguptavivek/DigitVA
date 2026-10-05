@@ -47,6 +47,23 @@ ATTACHMENT_S3_UPLOAD_LOCK_TTL_SECONDS = 4200
 # interval is configuration, so it is not in the name.
 ATTACHMENT_S3_UPLOAD_SCHEDULE_NAME = "Attachment S3 upload sweep"
 DEFAULT_ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES = 10
+# SmartVA sweep: runs everything still in smartva_pending, batched per form.
+# The lock outlives the task's hard time limit so a killed worker still
+# releases it by expiry; a tick that finds it held returns at once.
+SMARTVA_SWEEP_LOCK_KEY = "digitva:lock:smartva-sweep"
+SMARTVA_SWEEP_LOCK_TTL_SECONDS = 780
+SMARTVA_SWEEP_SCHEDULE_NAME = "SmartVA pending sweep — every 30 seconds"
+SMARTVA_SWEEP_INTERVAL_SECONDS = 30
+# A tick not picked up within this long is dropped, so ticks do not pile up
+# behind a busy worker (a sweep can run for minutes).
+SMARTVA_SWEEP_EXPIRE_SECONDS = 25
+# Submissions one sweep takes (the rest wait for the next tick), and how many
+# rows it reads to find them after dropping marked and recently-run ones.
+SMARTVA_SWEEP_MAX_SIDS = 200
+SMARTVA_SWEEP_SCAN_LIMIT = 1000
+# A sid still smartva_pending after its run (a crashed batch, a result that
+# already exists) is left alone this long instead of re-run every 30 seconds.
+SMARTVA_SWEEP_SKIP_TTL_SECONDS = 600
 INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
@@ -2197,25 +2214,200 @@ def run_open_submission_repair(
     soft_time_limit=300,
     time_limit=600,
 )
-def run_smartva_for_submission(self, va_sid: str, triggered_by: str = "manual"):
+def run_smartva_for_submission(
+    self,
+    va_sid: str,
+    triggered_by: str = "manual",
+    regenerate: bool = False,
+    requested_by: list | None = None,
+):
     """Run SmartVA generation for a single submission.
 
-    Thin wrapper around smartva_service.generate_for_submission — used when
-    a data manager accepts an upstream ODK change and we want to immediately
-    re-queue SmartVA without a full ODK re-sync.
+    Thin wrapper around smartva_service.generate_for_submission, queued after a
+    web or device interview is completed or corrected, when a data manager
+    accepts an upstream ODK change, and by the coding page's Run SmartVA and
+    Regenerate buttons. Idempotent: a submission that already has an active
+    result for its current payload is skipped unless *regenerate*, so a
+    redelivered or doubly queued task writes nothing. *requested_by* is the
+    requester's ``[user_id, role]`` of a coding-page request (it attributes
+    the audit rows; a failed *regenerate* keeps the old result active). The
+    Redis run marker the
+    coding page reads is set here to ``running`` and cleared on every exit.
     """
     from app import db
     from app.services import smartva_service
 
     log.info("SmartVA task [%s]: starting (triggered_by=%s).", va_sid, triggered_by)
     try:
-        saved = smartva_service.generate_for_submission(va_sid)
+        if not regenerate and smartva_service.has_current_payload_result(va_sid):
+            log.info("SmartVA task [%s]: skipped, a result exists for the current payload.", va_sid)
+            return {"va_sid": va_sid, "smartva_updated": 0, "skipped": True}
+        smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_RUNNING)
+        saved = smartva_service.generate_for_submission(
+            va_sid, trigger_source=triggered_by, regenerate=regenerate,
+            **({"requested_by": tuple(requested_by)} if requested_by else {}),
+        )
         log.info("SmartVA task [%s]: %d result(s) saved.", va_sid, saved)
         return {"va_sid": va_sid, "smartva_updated": saved}
     except Exception as exc:
         db.session.rollback()
         log.error("SmartVA task [%s]: failed — %s", va_sid, exc, exc_info=True)
         raise
+    finally:
+        smartva_service.clear_run_marker(va_sid)
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.sweep_smartva_pending",
+    bind=True,
+    soft_time_limit=600,
+    time_limit=720,
+)
+def sweep_smartva_pending(self):
+    """Run SmartVA for every submission still in ``smartva_pending``.
+
+    Beat fires this every 30 seconds. One indexed query finds the pending
+    sids; an empty sweep stops there. Sids with a queued/running marker belong
+    to the per-completion queue and are skipped, as are sids the last sweep
+    could not move out of pending. The rest run per form through
+    ``generate_for_form`` (which batches, skips confirmed duplicates and
+    protected states, and moves a failed case out of pending), at most
+    ``SMARTVA_SWEEP_MAX_SIDS`` per tick. Never raises: one form's failure must
+    not stop the others.
+    """
+    from app import cache, db
+    from app.models import VaForms, VaSubmissions, VaSubmissionWorkflow
+    from app.services import smartva_service
+    from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+    from app.services.workflow.definition import WORKFLOW_SMARTVA_PENDING
+
+    skip_key = "smartva-sweep-skip:{}".format
+    with _sweep_lock(SMARTVA_SWEEP_LOCK_KEY, SMARTVA_SWEEP_LOCK_TTL_SECONDS) as acquired:
+        if not acquired:
+            return {"skipped": "locked", "sids": 0, "forms": 0}
+
+        try:
+            rows = db.session.execute(
+                sa.select(VaSubmissions.va_form_id, VaSubmissions.va_sid)
+                .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+                .where(
+                    VaSubmissionWorkflow.workflow_state == WORKFLOW_SMARTVA_PENDING,
+                    not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+                )
+                .order_by(VaSubmissions.va_form_id, VaSubmissions.va_sid)
+                .limit(SMARTVA_SWEEP_SCAN_LIMIT)
+            ).all()
+        except Exception:  # noqa: BLE001 - a scheduled task must not crash the beat loop
+            db.session.rollback()
+            log.error("SmartVA sweep: could not list pending submissions", exc_info=True)
+            return {"status": "error", "sids": 0, "forms": 0}
+        if not rows:
+            return {"sids": 0, "forms": 0}
+
+        try:
+            keys = [k for _, sid in rows for k in (smartva_service.run_marker_key(sid), skip_key(sid))]
+            held = cache.get_many(*keys)
+        except Exception:  # noqa: BLE001 - without Redis the markers are unknown; run anyway
+            held = []
+        busy = {
+            sid
+            for (_, sid), marker, skipped in zip(rows, held[0::2], held[1::2])
+            if marker or skipped
+        } if held else set()
+
+        by_form: dict[str, set[str]] = {}
+        taken = 0
+        for form_id, sid in rows:
+            if sid in busy:
+                continue
+            if taken >= SMARTVA_SWEEP_MAX_SIDS:
+                break
+            by_form.setdefault(form_id, set()).add(sid)
+            taken += 1
+
+        # The panel shows "running" and a click does not queue a second run.
+        for sid in (s for sids in by_form.values() for s in sids):
+            smartva_service.set_run_marker(sid, smartva_service.SMARTVA_RUNNING)
+
+        done_forms = 0
+        for form_id, sids in by_form.items():
+            try:
+                va_form = db.session.get(VaForms, form_id)
+                if va_form is None:
+                    continue
+                smartva_service.generate_for_form(
+                    va_form, target_sids=sids, trigger_source="smartva_sweep"
+                )
+                db.session.commit()
+                done_forms += 1
+                still_pending = set(
+                    db.session.scalars(
+                        sa.select(VaSubmissionWorkflow.va_sid).where(
+                            VaSubmissionWorkflow.va_sid.in_(sids),
+                            VaSubmissionWorkflow.workflow_state == WORKFLOW_SMARTVA_PENDING,
+                        )
+                    ).all()
+                )
+                for sid in still_pending:
+                    cache.set(skip_key(sid), 1, timeout=SMARTVA_SWEEP_SKIP_TTL_SECONDS)
+            except Exception:  # noqa: BLE001 - the next form still runs
+                db.session.rollback()
+                log.error("SmartVA sweep: form %s failed", form_id, exc_info=True)
+                try:
+                    for sid in sids:
+                        cache.set(skip_key(sid), 1, timeout=SMARTVA_SWEEP_SKIP_TTL_SECONDS)
+                except Exception:  # noqa: BLE001
+                    pass
+            finally:
+                for sid in sids:
+                    smartva_service.clear_run_marker(sid)
+        log.info("SmartVA sweep: %d submission(s), %d form(s).", taken, done_forms)
+        return {"sids": taken, "forms": done_forms}
+
+
+def ensure_smartva_sweep_scheduled():
+    """Seed the 30-second SmartVA pending sweep beat entry. Idempotent."""
+    try:
+        from app import db
+
+        with db.engine.begin() as conn:
+            interval_id = conn.execute(sa.text(
+                "SELECT id FROM public.celery_intervalschedule "
+                "WHERE every = :every AND period = 'seconds' LIMIT 1"
+            ), {"every": SMARTVA_SWEEP_INTERVAL_SECONDS}).scalar()
+            if interval_id is None:
+                interval_id = conn.execute(sa.text(
+                    "INSERT INTO public.celery_intervalschedule (every, period) "
+                    "VALUES (:every, 'seconds') RETURNING id"
+                ), {"every": SMARTVA_SWEEP_INTERVAL_SECONDS}).scalar()
+
+            exists = conn.execute(sa.text(
+                "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
+            ), {"name": SMARTVA_SWEEP_SCHEDULE_NAME}).scalar()
+            if exists:
+                return
+            conn.execute(sa.text("""
+                INSERT INTO public.celery_periodictask
+                    (name, task, args, kwargs, queue, exchange, routing_key, headers,
+                     priority, one_off, enabled, total_run_count, description,
+                     discriminator, schedule_id, expire_seconds)
+                VALUES
+                    (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
+                     NULL, false, true, 0, '',
+                     'intervalschedule', :schedule_id, :expire_seconds)
+            """), {
+                "name": SMARTVA_SWEEP_SCHEDULE_NAME,
+                "expire_seconds": SMARTVA_SWEEP_EXPIRE_SECONDS,
+                "task": "app.tasks.sync_tasks.sweep_smartva_pending",
+                "schedule_id": interval_id,
+            })
+            conn.execute(sa.text(
+                "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                "VALUES (NOW()) ON CONFLICT DO NOTHING"
+            ))
+        log.info("SmartVA sweep beat schedule seeded: every %d seconds.", SMARTVA_SWEEP_INTERVAL_SECONDS)
+    except Exception as e:
+        log.warning("Could not seed SmartVA sweep schedule: %s", e)
 
 
 def ensure_sync_scheduled():

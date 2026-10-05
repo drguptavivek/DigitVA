@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from app import db
+from app import db, limiter
 from app.decorators import role_required
 from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
 from app.services.coder_dashboard_service import (
@@ -31,7 +31,9 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.routes.api.request_helpers import intake_error, parse_body
+from app.routes.api.request_helpers import error as api_error, intake_error, parse_body
+from app.services import smartva_service
+from app.services.authz import Action, Reason, can
 from app.services.case_transition_service import WebIntakeError
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.interview_send_back_service import send_back_for_revision
@@ -215,6 +217,55 @@ def send_back(va_sid):
         db.session.rollback()
         return intake_error(exc)
     return jsonify(reply)
+
+
+@bp.post("/submissions/<va_sid>/smartva")
+@role_required("coder", "coding_tester", "reviewer", "data_manager", "admin")
+@limiter.limit("10 per minute")
+def run_smartva(va_sid):
+    """Queue a SmartVA run for a case from the coding page's panel
+    (docs/policy/coding-workflow-state-machine.md, "SmartVA on completion").
+
+    Body (optional): ``regenerate`` (bool), required ``true`` to replace a
+    finished result. Starts a run when the status is ``not_requested`` and
+    runs again after ``failed``; a run already ``queued`` or ``running`` is
+    not queued twice. 202 ``{va_sid, status}`` (``queued``, or the unchanged
+    status of a run in progress). Who may: a coder or coding tester who may
+    code the case, a reviewer who may review it, a data manager or admin who
+    may triage it (404 unknown, 403 out of scope or a view-only grant); 409 ``wrong_state`` (past coding or a confirmed duplicate)
+    / ``already_done`` (a result exists and ``regenerate`` is not true); 422
+    ``invalid_request``; 503 ``queue_unavailable``."""
+    # A coding-level grant, not VIEW: a viewer-only grant or a coder outside
+    # the case's scope may look at it but not start a run. The first action
+    # that passes names the requester's role in the audit rows.
+    for action, role in (
+        (Action.CODE, "vacoder"), (Action.REVIEW, "reviewer"), (Action.TRIAGE, "data_manager")
+    ):
+        decision = can(current_user, action, va_sid)
+        if decision:
+            break
+    else:
+        if decision.reason is Reason.NOT_FOUND:
+            return api_error(decision.message, "not_found", 404)
+        return api_error(decision.message, "forbidden", 403)
+    regenerate = parse_body().get("regenerate", False)
+    if not isinstance(regenerate, bool):
+        return api_error("regenerate must be true or false.", "invalid_request", 422)
+    if not smartva_service.smartva_run_allowed(va_sid):
+        return api_error("SmartVA cannot be run for this case.", "wrong_state", 409)
+    status = smartva_service.smartva_status(va_sid)
+    if status in (smartva_service.SMARTVA_QUEUED, smartva_service.SMARTVA_RUNNING):
+        return jsonify({"va_sid": va_sid, "status": status}), 202
+    if status == smartva_service.SMARTVA_DONE and not regenerate:
+        return api_error("SmartVA already has a result; send regenerate to replace it.", "already_done", 409)
+    if not smartva_service.enqueue_smartva(
+        va_sid,
+        "coding_page",
+        regenerate=status != smartva_service.SMARTVA_NOT_REQUESTED,
+        requested_by=(str(current_user.user_id), role),
+    ):
+        return api_error("SmartVA could not be queued; try again.", "queue_unavailable", 503)
+    return jsonify({"va_sid": va_sid, "status": smartva_service.SMARTVA_QUEUED}), 202
 
 
 @bp.post("/reviewer-eligible-after-recode-window")

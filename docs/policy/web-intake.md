@@ -220,7 +220,12 @@ submission's organization unit, falling back to the form-level setting
   count per reason (owner, 2026-10-01, `digitva-4tb`; derived from
   `interview_outcome`, see [Data Manager KPI Framework](kpis.md), C-06).
 - The payload carries `intake_source = "web"` and `KEY = web:<draft uuid>`.
-- With no attachments the case moves straight to `smartva_pending`.
+- With no attachments the case moves straight to `smartva_pending`, and the
+  submit queues SmartVA in the background after commit (a changed revision and
+  a supervisor's choice do too; see [Coding Workflow State Machine
+  Policy](coding-workflow-state-machine.md), "SmartVA on completion"). A web
+  form is on no scheduled SmartVA path, so without this the case would wait
+  there.
   Attachment upload (audio narration, document images) is phase 2; until
   then attachment answers are lifted out of the payload and kept on the
   draft as references.

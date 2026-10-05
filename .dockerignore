@@ -22,3 +22,12 @@ security-audit/
 bin/
 *.amr
 *.m4a
+# The server needs only the Expo web export (EXPO_CLIENT_DIST default,
+# app/routes/expo_client.py); the Android/iOS build trees are gigabytes.
+mobile/**
+!mobile/digitva-collect/dist
+!mobile/digitva-collect/dist/**
+**/node_modules
+# ...but the web export ships expo-router's icons under assets/node_modules.
+!mobile/digitva-collect/dist/assets/node_modules
+!mobile/digitva-collect/dist/assets/node_modules/**

@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-10-05
 ---
 
 # SmartVA Analysis
@@ -302,6 +302,19 @@ python -m smartva.va_cli --country=Unknown \
     --figures=False --hiv=False --malaria=False --hce=True --freetext=True \
     smartva_input.csv smartva_output/
 ```
+
+The command above is what `SMARTVA_CHARTS` (debugging only) runs, with
+`--figures True`. Otherwise the runner starts
+[`smartva_cli_no_charts.py`](../../app/utils/va_smartva/smartva_cli_no_charts.py)
+in place of `-m smartva.va_cli`: SmartVA imports matplotlib in three modules and
+draws two charts even with `--figures False`, nothing in DigitVA reads them, so
+the launcher gives SmartVA an empty stand-in for matplotlib, turns those two
+charts off and runs SmartVA unchanged. matplotlib's font cache is baked into
+the image (`MPLCONFIGDIR=/opt/matplotlib`, built in the `Dockerfile`), never
+rebuilt per run. Timing: about 2.6 s for a one-case run on the dev stack (it was
+30-40 s while the font cache was rebuilt on every run). Runs are triggered on
+interview completion and by a 30 s beat sweep of `smartva_pending`
+([Runtime and operations](runtime-and-operations.md)).
 
 Output is first written to the temporary workspace, then the full workspace is
 copied to:

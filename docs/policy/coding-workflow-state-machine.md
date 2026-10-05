@@ -614,6 +614,67 @@ Design rule:
 - `ready_for_coding` therefore means the current payload has already undergone a
   SmartVA attempt, not merely that the submission is synced and consent-valid
 
+### SmartVA on completion
+
+A web or device interview is on no scheduled SmartVA path:
+`sync_runtime_forms_from_site_mappings` returns only forms materialised from
+ODK mappings, so `generate_all_pending` and the ODK sync never visit a
+`form_source = 'web'` form (owner decision 2026-10-05, `digitva-533t`). The
+service therefore queues SmartVA itself, in the background, so the result is
+ready when a coder opens the case:
+
+- after the transaction commits (never inside one that may roll back), once the
+  case reaches `smartva_pending` through a web or device submit, a changed
+  interviewer revision (including the server's own resubmission correction) or
+  a supervisor's choice of another interview. It queues the Celery task
+  `run_smartva_for_submission`, with trigger `web_intake_submit`,
+  `interview_revision` or `supervisor_choice`.
+- not queued for an unchanged revision, a superseded copy, a refused or
+  incomplete interview (`consent_refused`), or an interview that has
+  attachment references: that one waits in `attachment_sync_pending` for
+  phase 2 and reaches SmartVA only after it.
+- the task is idempotent: it skips a submission that already has an active
+  result (success or recorded failure) for its current payload version, unless
+  it was queued with `regenerate`. The existing helpers then move
+  `smartva_pending` to `ready_for_coding` for a result and for a recorded
+  failure alike.
+- a Celery beat sweep every 30 seconds (`sweep_smartva_pending`) is the
+  backstop: it runs SmartVA for every submission still in `smartva_pending`,
+  batched per form (`generate_for_form`, trigger `smartva_sweep`), under a Redis
+  lock so a long run is never overlapped, skipping sids that have a
+  queued/running marker, confirmed duplicates and protected states. An empty
+  sweep is one indexed query. It does not retry: a recorded failure moves the
+  case to `ready_for_coding` (the coding page offers Run again), and a sid that
+  stays pending after a sweep run is left alone for 10 minutes. So a broker
+  failure after the commit delays SmartVA by at most one tick instead of
+  leaving the case to the Run SmartVA button.
+
+### SmartVA status on the coding page
+
+The coding page (`va_coding.html`) has a SmartVA panel, status only (results
+stay in the assessment steps, so masked Step 1 stays blind). The status is
+derived, not stored: `queued` / `running` from a Redis key
+`smartva-run:<va_sid>` (set when queued, replaced by `running` in the task,
+cleared on every exit, TTL 30 minutes), else `done` / `failed` from the newest
+active `va_smartva_results` row of the submission's *current* payload version,
+else `not_requested`. A result of an earlier payload version (before a
+revision) does not count. The panel offers Run SmartVA (`not_requested`), Run
+again (`failed`) and Regenerate (`done`) through
+`POST /api/v1/coding/submissions/<va_sid>/smartva`
+([API v1](../current-state/api-v1.md)); a regeneration replaces the active
+result only once the new run succeeds: a failed regeneration keeps the old
+result active (the case keeps its SmartVA suggestion, the panel stays `done`)
+and records the failure on the run record only. The request needs a coding-level
+permission on the case (`Action.CODE`, `REVIEW` or `TRIAGE`; a view-only grant
+or an out-of-scope coder gets 403), and the audit rows of a requested
+regeneration name the requesting user and role
+(`va_smartva_replaced_by_regeneration`, `va_smartva_regenerated`,
+`va_smartva_regenerate_failed`). The queued marker is set when the sid is
+queued inside the transaction (dropped on rollback), and the 30-second sweep
+marks the sids it runs `running` for the length of their form's run, so the
+panel shows it and a click does not double-queue. Not offered once the case is past coding (`SMARTVA_BLOCKED_WORKFLOW_STATES`)
+or a confirmed duplicate, and not on the read-only views.
+
 ### Data-manager Not Codeable
 
 `screening_pending`, `smartva_pending`, or `ready_for_coding` ->

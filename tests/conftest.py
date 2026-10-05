@@ -171,3 +171,19 @@ def pytest_sessionfinish(session, exitstatus):
 
     if _session_ctx:
         _session_ctx.pop()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_smartva_queue():
+    """A completed interview queues SmartVA after commit; no test may reach
+    the broker the dev worker also reads. Tests that assert the queueing
+    patch ``.delay`` again inside the test."""
+    from unittest import mock
+
+    from app.tasks.sync_tasks import run_smartva_for_submission
+
+    # Patch the task behind the shared_task proxy: the proxy resolves through
+    # the current Celery app, which can differ at teardown (class teardown pops
+    # the app context first), so a patch on the proxy cannot be undone.
+    with mock.patch.object(run_smartva_for_submission._get_current_object(), "delay"):
+        yield

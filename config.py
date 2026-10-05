@@ -269,6 +269,9 @@ class Config:
     SMARTVA_RUNS_KEEP_LOCAL_DAYS = int(
         os.environ.get("SMARTVA_RUNS_KEEP_LOCAL_DAYS", "0")
     )
+    # SmartVA charts are for debugging only: off, SmartVA runs without
+    # matplotlib at all (app/utils/va_smartva/smartva_cli_no_charts.py).
+    SMARTVA_CHARTS = os.environ.get("SMARTVA_CHARTS", "0") == "1"
 
     # --- Database backups ----------------------------------------------
     # The nightly ``pg_dump -Fc`` of the application database. With

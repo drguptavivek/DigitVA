@@ -62,6 +62,7 @@ from app.services.coding_release_service import (
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
+from app.services import smartva_service
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
     canonical_payload_fingerprint,
@@ -1796,6 +1797,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         mark_attachment_sync_completed(
             va_sid, reason="web_intake_no_attachments", actor=system_actor()
         )
+        smartva_service.queue_smartva_after_commit(va_sid, "web_intake_submit")
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
@@ -2087,6 +2089,7 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked") from exc
     if enters_coding and not references:
         mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
+        smartva_service.queue_smartva_after_commit(va_sid, "interview_revision")
     if death is not None and outcome != previous:
         target = OUTCOME_CASE_STATES[outcome]
         if completing or death.status != target:
@@ -2345,6 +2348,7 @@ def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object
         raise WebIntakeError("The interview changed state; try again.", 409, "wrong_state") from exc
     if enters_coding and not references:
         mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
+        smartva_service.queue_smartva_after_commit(va_sid, "supervisor_choice")
 
     # The swap. The former winner keeps its answers and its outcome, so it is a
     # candidate again (switch back); the sid moves with the submitted draft.

@@ -364,7 +364,7 @@ Polling rules:
 
 ## 8. Last completed version wins (`digitva-xpqm`, server built)
 
-Expo status, 2026-10-05: `digitva-xpqm.1` claimed. Native upload/storage and native UI work delegated to separate Luna writers; browser work follows in a separate bounded writer task. Upload acknowledgement uses `received_sha256`; public revision acknowledgement retains its separate `answers_sha256` contract. Combined validation and independent audit are pending.
+Expo status, 2026-10-05: `digitva-xpqm.1` and duplicate app bead `digitva-xpqm.2` completed and pushed in `cc5adee8`. Native and browser changes were written by separate Luna code-writer tasks. Final validation: 43 Jest suites / 522 tests, TypeScript, web and Android JavaScript exports, and served web index match. Independent code-quality re-audit returned READY after fixing nullable direct-upload acknowledgements; strict bound-case identity and snapshot guards remain. Public revisions retain their separate `answers_sha256` acknowledgement. Physical-device acceptance remains `digitva-p6fs.5`.
 
 Owner, 2026-10-05. For one interviewer's own interview of a case the coder
 always gets the **last completed version, by completion time**. This replaces
@@ -436,6 +436,8 @@ No new endpoints. Revision reasons stay the four public codes; the server's
 own `resubmitted` is rejected from clients (422 `invalid_reason`).
 
 ## 9. Supervisor chooses between interviews (`digitva-bqzm`, server built)
+
+Expo status, 2026-10-05: `digitva-bqzm.1` and duplicate app half `digitva-bqzm.2` completed in pushed commit `46ebe43c`. Native/browser lists and case details show the neutral localized note only when the optional boolean is true; superseded wording no longer assumes submission order. Existing generic notifications and authoritative case replacement remain the ownership sync path. Validation: 43 Jest suites / 528 tests, TypeScript, web export, Android JavaScript export, served web-build match, and independent code-quality audit READY. Physical-device acceptance remains pending under `digitva-p6fs.5`.
 
 When a different interviewer completes a case another interviewer already
 submitted, both interviews are kept. The first keeps coding; the later one is

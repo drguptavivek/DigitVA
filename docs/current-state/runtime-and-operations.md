@@ -631,6 +631,44 @@ Current seeded periodic tasks:
   counterpart and is **never** scheduled — moving a verified local copy aside
   is the step before an operator deletes it by hand.
 
+Current SmartVA background run:
+
+- `run_smartva_for_submission` ([`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py))
+  is queued by `smartva_service.queue_smartva_after_commit` (a session
+  `after_commit` hook, dropped on rollback, as the KPI recount) when a web or
+  device interview, a changed revision or a supervisor's choice puts a case in
+  `smartva_pending`, and by the coding page's Run SmartVA / Regenerate button.
+  `va_smartva_run_pending` / `generate_all_pending` are not scheduled and do
+  not reach web forms. One case takes a few seconds with the SmartVA binary
+  (2.6 s measured on the dev stack), well inside the task's 300 s soft limit.
+- Redis key `smartva-run:<va_sid>` (`queued` then `running`, TTL 30 minutes,
+  cleared by the task on every exit) is the only state the coding page's
+  status panel reads beyond `va_smartva_results`.
+- the task is idempotent: an active result for the current payload version is
+  skipped unless queued with `regenerate`.
+- `sweep_smartva_pending` (same module) is the safety net, run by beat every
+  30 seconds (periodic task "SmartVA pending sweep — every 30 seconds", seeded
+  idempotently by `ensure_smartva_sweep_scheduled` at celery start, interval
+  `every=30 seconds`, `expire_seconds=25` so ticks queued behind a busy worker
+  are dropped instead of piling up). It first takes the Redis lock
+  `digitva:lock:smartva-sweep` (`SET NX EX 780`, token value, released only
+  while still its own; TTL above the task's 720 s hard limit), so a run longer
+  than 30 s is never overlapped: a tick that finds the lock returns at once.
+  Then one indexed query (`va_submission_workflow.workflow_state =
+  'smartva_pending'`, joined to `va_submissions` for the form, confirmed
+  duplicates excluded, at most 1000 rows read) finds the work; an empty sweep
+  stops there and starts no SmartVA process. Sids with an `smartva-run:<sid>`
+  marker belong to the per-completion queue and are skipped. The rest, at most
+  200 per tick, are marked `running` (`smartva-run:<sid>`, cleared after their
+  form's run in a `finally`) so the panel shows it, and go per form to `generate_for_form(form, target_sids=...,
+  trigger_source='smartva_sweep')`, which batches by `SMARTVA_BATCH_SIZE` with
+  the inter-batch sleep, and the sweep commits per form; one form's failure is
+  logged and the next form still runs. A recorded SmartVA failure already moves
+  the case to `ready_for_coding`; a sid still `smartva_pending` after its run
+  (a crashed batch, a result that already exists) gets the Redis key
+  `smartva-sweep-skip:<sid>` for 10 minutes, so it is not re-run every 30 s.
+  Occupies one worker slot while it runs.
+
 Current ODK operational protection:
 
 - DB-managed ODK connections are paced per connection before each outbound ODK

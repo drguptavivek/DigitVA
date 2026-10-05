@@ -152,6 +152,25 @@ duplicate) / `wrong_state`, 422 `invalid_reason`. The final COD stays active
 until the interviewer's revision arrives; a data manager's reject cancels the
 send-back.
 
+## SmartVA run (`POST /api/v1/coding/submissions/<va_sid>/smartva`, `app/routes/api/coding.py`)
+
+Queues `run_smartva_for_submission` for a case from the coding page's SmartVA
+panel ([Coding Workflow State Machine Policy](../policy/coding-workflow-state-machine.md),
+"SmartVA status on the coding page"). Gate `coder`, `coding_tester`,
+`reviewer`, `data_manager` or `admin`, then a coding-level permission on the
+case: `Action.CODE`, `REVIEW` or `TRIAGE` (a view-only grant does not pass); browser
+cookie with `X-CSRFToken`; 10 per minute per user. Body (optional)
+`{"regenerate": bool}`; `regenerate` must be `true` to replace a finished
+result. 202 `{va_sid, status: "queued"}`; a run already `queued` or `running`
+answers 202 with that status and queues nothing. Errors `{error, code}`: 404
+`not_found` (unknown), 403 `forbidden` (out of coding scope or a view-only grant), 409 `wrong_state` (past
+coding or a confirmed duplicate) / `already_done` (a result exists and
+`regenerate` is not true), 422 `invalid_request` (`regenerate` not a boolean),
+429 `rate_limited`, 503 `queue_unavailable` (the broker refused; no marker is
+left). A failed run is queued as a replacement of its failure row. A failed
+regeneration keeps the old successful result active and records the failure on
+the run only; the audit rows of a requested regeneration carry the requester.
+
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.

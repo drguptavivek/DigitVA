@@ -51,6 +51,7 @@ from app.services.data_management_service import (
     sync_run_entries,
     sync_run_target_label,
 )
+from app.services import smartva_service
 from app.services.authz import Action, AuthzError, can, require, scope_filter
 from app.services.viewer_pii_service import should_redact_pii
 from app.services import export_store_service as export_store
@@ -681,19 +682,13 @@ def accept_upstream_change(va_sid: str):
         log.error("accept_upstream_change failed for %s", va_sid, exc_info=True)
         return jsonify({"error": "Operation failed. Check server logs."}), 500
 
-    # Fire SmartVA immediately so the submission doesn't wait for the next scheduled sync.
-    task_id = None
-    try:
-        from app.tasks.sync_tasks import run_smartva_for_submission
-        if current_app.extensions.get("celery"):
-            task = run_smartva_for_submission.delay(va_sid=va_sid, triggered_by="data-manager-accept")
-            task_id = task.id
-    except Exception:
-        log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid, exc_info=True)
+    # Fire SmartVA immediately so the submission doesn't wait for the next sweep;
+    # enqueue_smartva also marks it queued for the coding page's status panel.
+    queued = smartva_service.enqueue_smartva(va_sid, "data-manager-accept")
 
     return jsonify({
         "message": "Upstream change accepted for recoding. Submission moved to SmartVA pending.",
-        "smartva_task_id": task_id,
+        "smartva_queued": queued,
     })
 
 

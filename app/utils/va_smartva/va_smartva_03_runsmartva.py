@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 
+from flask import current_app, has_app_context
+
 log = logging.getLogger(__name__)
 
 
@@ -16,10 +18,18 @@ def va_smartva_runsmartva(va_form, workspace_dir: str, *, run_options=None):
     os.makedirs(va_smartva_outputdir, exist_ok=True)
 
     if os.path.exists(va_smartva_inputfile):
+        # Charts only when SMARTVA_CHARTS is on (debugging): SmartVA's own CLI
+        # with figures. Otherwise the launcher, which runs SmartVA without
+        # matplotlib at all (no charts, no font cache).
+        charts = has_app_context() and current_app.config.get("SMARTVA_CHARTS", False)
+        launcher = (
+            ["-m", "smartva.va_cli"] if charts
+            else [os.path.join(os.path.dirname(__file__), "smartva_cli_no_charts.py")]
+        )
         cmd = [
-            sys.executable, "-m", "smartva.va_cli",
+            sys.executable, *launcher,
             "--country", va_form.form_smartvacountry,
-            "--figures", "False",
+            "--figures", "True" if charts else "False",
             "--hiv", hiv_value,
             "--malaria", malaria_value,
             "--hce", va_form.form_smartvahce,

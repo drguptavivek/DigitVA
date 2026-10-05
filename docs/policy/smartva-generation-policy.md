@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-05
 ---
 
 # SmartVA Generation Policy
@@ -331,6 +331,8 @@ Target refinement:
 | ODK data changed + allowed state | Deactivate old current-payload result if any, create new active result for the new payload version |
 | ODK data changed + protected state | **DO NOT regenerate** |
 | Manual force regenerate | Deactivate old, create new active |
+| Requested regenerate (coding page) succeeds | Deactivate old, create new active; audit rows name the requesting user |
+| Requested regenerate fails | Old successful result stays active; failure recorded on the run record only (no failed result row) |
 
 Protected upstream review refinement:
 

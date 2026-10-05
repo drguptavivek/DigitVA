@@ -33,5 +33,10 @@ RUN chmod +x boot.sh boot-public-doris.sh scripts/wait-for-celery-beat-db.sh
 ENV FLASK_APP=run.py
 ENV PATH="/app/.venv/bin:${PATH}"
 
+# SmartVA charts are debug-only (SMARTVA_CHARTS); when on, matplotlib's font
+# cache is already built into the image, never rebuilt per run.
+ENV MPLCONFIGDIR=/opt/matplotlib
+RUN mkdir -p /opt/matplotlib && python -c "import matplotlib.font_manager"
+
 ENTRYPOINT ["./boot.sh"]
 EXPOSE 5000

@@ -13,8 +13,9 @@ from datetime import datetime, timezone
 import pandas as pd
 import sqlalchemy as sa
 from flask import current_app
+from sqlalchemy.orm import Session
 
-from app import db
+from app import cache as flask_cache, db
 from app.models import (
     VaSmartvaFormRun,
     VaSmartvaRun,
@@ -446,10 +447,12 @@ def _save_smartva_result(
     raw_outputs: list[tuple[str | None, dict]] | None = None,
     existing=None,
     audit_action: str = "va_smartva_creation_during_datasync",
+    requested_by: tuple[str, str] | None = None,
 ) -> uuid.UUID:
     _deactivate_active_smartva_results(
         va_sid,
         existing if isinstance(existing, list) else ([existing] if existing else []),
+        requested_by,
     )
 
     smartva_run = _create_smartva_run(
@@ -499,12 +502,9 @@ def _save_smartva_result(
         )
     )
     db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_entityid=result_id,
-            va_audit_byrole="vaadmin",
-            va_audit_operation="c",
-            va_audit_action=audit_action,
+        _audit(
+            va_sid, result_id, "c", audit_action, requested_by,
+            requested_action="va_smartva_regenerated",
         )
     )
     return result_id
@@ -529,19 +529,44 @@ def _active_smartva_results_for_sids(
     return grouped
 
 
+def _audit(
+    va_sid: str,
+    entity_id,
+    operation: str,
+    action: str,
+    requested_by: tuple[str, str] | None,
+    *,
+    requested_action: str | None = None,
+) -> VaSubmissionsAuditlog:
+    """An audit row for a SmartVA change. A *requested_by* ``(user_id, role)``
+    (a coder's, reviewer's or data manager's request on the coding page) names
+    that person and uses *requested_action*; otherwise the system wrote it."""
+    if requested_by is None:
+        by_id, by_role = None, "vaadmin"
+    else:
+        by_id, by_role = uuid.UUID(str(requested_by[0])), requested_by[1]
+        action = requested_action or action
+    return VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_entityid=entity_id,
+        va_audit_by=by_id,
+        va_audit_byrole=by_role,
+        va_audit_operation=operation,
+        va_audit_action=action,
+    )
+
+
 def _deactivate_active_smartva_results(
     va_sid: str,
     rows: list[VaSmartvaResults],
+    requested_by: tuple[str, str] | None = None,
 ) -> None:
     for row in rows:
         row.va_smartva_status = VaStatuses.deactive
         db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=va_sid,
-                va_audit_entityid=row.va_smartva_id,
-                va_audit_byrole="vaadmin",
-                va_audit_operation="d",
-                va_audit_action="va_smartva_deletion_during_datasync",
+            _audit(
+                va_sid, row.va_smartva_id, "d", "va_smartva_deletion_during_datasync",
+                requested_by, requested_action="va_smartva_replaced_by_regeneration",
             )
         )
 
@@ -702,11 +727,18 @@ def _save_smartva_failure(
     failure_detail: str,
     existing=None,
     audit_action: str = "va_smartva_failure_recorded",
+    requested_by: tuple[str, str] | None = None,
+    keep_success: bool = False,
 ) -> uuid.UUID:
-    _deactivate_active_smartva_results(
-        va_sid,
-        existing if isinstance(existing, list) else ([existing] if existing else []),
-    )
+    """Record a failed run. With *keep_success* (a failed regeneration over a
+    working result) only the run record is written: the successful result
+    stays active and the case keeps its SmartVA suggestion."""
+    if not keep_success:
+        _deactivate_active_smartva_results(
+            va_sid,
+            existing if isinstance(existing, list) else ([existing] if existing else []),
+            requested_by,
+        )
 
     smartva_run = _create_smartva_run(
         va_sid,
@@ -717,6 +749,14 @@ def _save_smartva_failure(
         failure_stage=failure_stage,
         failure_detail=failure_detail,
     )
+    if keep_success:
+        db.session.add(
+            _audit(
+                va_sid, smartva_run.va_smartva_run_id, "c", "va_smartva_failure_recorded",
+                requested_by, requested_action="va_smartva_regenerate_failed",
+            )
+        )
+        return smartva_run.va_smartva_run_id
     result_id = uuid.uuid4()
     db.session.add(
         VaSmartvaResults(
@@ -729,15 +769,7 @@ def _save_smartva_failure(
             va_smartva_failure_detail=failure_detail[:4000],
         )
     )
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_entityid=result_id,
-            va_audit_byrole="vaadmin",
-            va_audit_operation="c",
-            va_audit_action=audit_action,
-        )
-    )
+    db.session.add(_audit(va_sid, result_id, "c", audit_action, requested_by))
     return result_id
 
 
@@ -749,12 +781,15 @@ def _record_smartva_failures(
     failure_stage: str,
     failure_detail: str,
     failure_details_by_sid: dict[str, str] | None = None,
+    replace_existing: bool = False,
+    requested_by: tuple[str, str] | None = None,
 ) -> int:
     active_payload_by_sid = _active_payload_versions_by_sid(va_sids)
     existing_active = _active_smartva_results_for_sids(active_payload_by_sid)
     recorded = 0
     for va_sid in sorted(va_sids):
         payload_version_id = active_payload_by_sid.get(va_sid)
+        existing = existing_active.get(va_sid)
         _save_smartva_failure(
             va_sid,
             form_run_id=form_run_id,
@@ -764,7 +799,14 @@ def _record_smartva_failures(
             failure_detail=(
                 (failure_details_by_sid or {}).get(va_sid, failure_detail)
             ),
-            existing=existing_active.get(va_sid),
+            existing=existing,
+            requested_by=requested_by,
+            # A failed regeneration must not destroy the result it meant to replace.
+            keep_success=replace_existing and any(
+                row.payload_version_id == payload_version_id
+                and row.va_smartva_outcome == VaSmartvaResults.OUTCOME_SUCCESS
+                for row in existing or []
+            ),
         )
         _transition_to_ready_after_smartva_failure_if_pending(va_sid)
         recorded += 1
@@ -801,10 +843,18 @@ def _generate_batch(
     *,
     trigger_source: str = "form_batch",
     log_progress=None,
+    replace_existing: bool = False,
+    requested_by: tuple[str, str] | None = None,
 ) -> int:
     """Run one SmartVA binary invocation for a bounded set of submissions.
 
     Creates its own workspace, form run, and nested transaction.
+    *replace_existing* lets a new success replace a successful result of the
+    current payload (a requested regeneration); otherwise that result stands.
+    The old result is deactivated only when the new run succeeds: a failed
+    regeneration records the failure on the run and leaves it active.
+    *requested_by* (``(user_id, role)``) attributes the audit rows of a
+    coder-requested regeneration.
     Returns the total number of result rows (successes + failures) saved.
     """
     from app.utils import (
@@ -849,6 +899,8 @@ def _generate_batch(
                 rejected_failure_count = _record_smartva_failures(
                     set(rejected_by_sid),
                     form_run_id=form_run.form_run_id,
+                    replace_existing=replace_existing,
+                    requested_by=requested_by,
                     trigger_source=trigger_source,
                     failure_stage="smartva_rejected",
                     failure_detail=(
@@ -864,6 +916,8 @@ def _generate_batch(
                     remaining_failure_count = _record_smartva_failures(
                         eligible_pending,
                         form_run_id=form_run.form_run_id,
+                        replace_existing=replace_existing,
+                        requested_by=requested_by,
                         trigger_source=trigger_source,
                         failure_stage="format_output",
                         failure_detail=(
@@ -894,7 +948,7 @@ def _generate_batch(
                 # Skip only if there is already a *successful* result for this
                 # payload version — a failed result must not block a new
                 # successful re-run (e.g. after fixing missing data files).
-                has_successful_payload_result = any(
+                has_successful_payload_result = not replace_existing and any(
                     row.payload_version_id == payload_version_id
                     and row.va_smartva_outcome == VaSmartvaResults.OUTCOME_SUCCESS
                     for row in existing
@@ -910,6 +964,7 @@ def _generate_batch(
                     trigger_source=trigger_source,
                     raw_outputs=raw_outputs_by_sid.get(va_sid),
                     existing=existing,
+                    requested_by=requested_by,
                 )
                 _transition_to_ready_after_smartva_if_pending(va_sid)
                 success_count += 1
@@ -920,6 +975,8 @@ def _generate_batch(
                 failure_count += _record_smartva_failures(
                     missing_sids,
                     form_run_id=form_run.form_run_id,
+                    replace_existing=replace_existing,
+                    requested_by=requested_by,
                     trigger_source=trigger_source,
                     failure_stage="missing_row",
                     failure_detail=(
@@ -956,6 +1013,8 @@ def _generate_batch(
                 failure_count = _record_smartva_failures(
                     batch_sids,
                     form_run_id=form_run.form_run_id,
+                    replace_existing=replace_existing,
+                    requested_by=requested_by,
                     trigger_source=trigger_source,
                     failure_stage="execution",
                     failure_detail=str(exc),
@@ -1121,7 +1180,17 @@ def generate_for_submission(
     force: bool = False,
     trigger_source: str = "single_submission",
     log_progress=None,
+    regenerate: bool = False,
+    requested_by: tuple[str, str] | None = None,
 ) -> int:
+    """Run SmartVA for one submission; returns the result rows saved.
+
+    *regenerate* replaces a successful result of the current payload (a
+    coder's or data manager's request) once the new run succeeds; a failed
+    one leaves the old result active. It does not bypass the duplicate and
+    protected-state refusals, which only *force* does. *requested_by* is the
+    requester's ``(user_id, role)`` for the audit rows.
+    """
     from app.models import VaForms, VaSubmissionWorkflow
 
     submission = db.session.get(VaSubmissions, va_sid)
@@ -1161,6 +1230,8 @@ def generate_for_submission(
         {va_sid},
         trigger_source=trigger_source,
         log_progress=log_progress,
+        replace_existing=regenerate,
+        requested_by=requested_by,
     )
     log.info(
         "SmartVA [%s]: single-submission committed %d result row(s).",
@@ -1203,3 +1274,161 @@ def generate_all_pending(*, log_progress=None) -> dict:
     if log_progress:
         log_progress(f"SmartVA-only run finished. Updated: {total}")
     return {"smartva_updated": total}
+
+
+# ---------------------------------------------------------------------------
+# Background run on interview completion, and its status on the coding page
+# (docs/policy/coding-workflow-state-machine.md, "SmartVA on completion")
+# ---------------------------------------------------------------------------
+
+#: Lifetime of the "queued"/"running" marker; a worker that dies mid-run
+#: leaves the page reading "running" for at most this long.
+SMARTVA_RUN_MARKER_TTL_SECONDS = 1800
+
+SMARTVA_NOT_REQUESTED = "not_requested"
+SMARTVA_QUEUED = "queued"
+SMARTVA_RUNNING = "running"
+SMARTVA_DONE = "done"
+SMARTVA_FAILED = "failed"
+
+_QUEUE_SIDS = "smartva_queue_sids"
+
+
+def run_marker_key(va_sid: str) -> str:
+    return f"smartva-run:{va_sid}"
+
+
+def set_run_marker(va_sid: str, state: str) -> None:
+    """Record that a run is *queued* or *running*. Redis only: the state is
+    short-lived and a lost marker only shows the page ``not_requested``."""
+    try:
+        flask_cache.set(run_marker_key(va_sid), state, timeout=SMARTVA_RUN_MARKER_TTL_SECONDS)
+    except Exception:
+        log.warning("SmartVA [%s]: could not set the run marker.", va_sid, exc_info=True)
+
+
+def clear_run_marker(va_sid: str) -> None:
+    try:
+        flask_cache.delete(run_marker_key(va_sid))
+    except Exception:
+        log.warning("SmartVA [%s]: could not clear the run marker.", va_sid, exc_info=True)
+
+
+def _current_payload_result_outcome(va_sid: str) -> str | None:
+    """Outcome (``success``/``failed``) of the newest active result for the
+    submission's *current* payload version, None when there is none. A result
+    of an earlier payload version (before a revision) does not count."""
+    return db.session.scalar(
+        sa.select(VaSmartvaResults.va_smartva_outcome)
+        .join(
+            VaSubmissions,
+            sa.and_(
+                VaSubmissions.va_sid == VaSmartvaResults.va_sid,
+                VaSubmissions.active_payload_version_id == VaSmartvaResults.payload_version_id,
+            ),
+        )
+        .where(
+            VaSmartvaResults.va_sid == va_sid,
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+        )
+        .order_by(VaSmartvaResults.va_smartva_addedat.desc())
+        .limit(1)
+    )
+
+
+def has_current_payload_result(va_sid: str) -> bool:
+    return _current_payload_result_outcome(va_sid) is not None
+
+
+def smartva_status(va_sid: str) -> str:
+    """``not_requested | queued | running | done | failed``, from the Redis
+    marker (queued/running) and the active result of the current payload. One
+    indexed query; the marker wins so a regeneration reads as queued while the
+    old result still exists."""
+    try:
+        marker = flask_cache.get(run_marker_key(va_sid))
+    except Exception:
+        marker = None
+    if marker in (SMARTVA_QUEUED, SMARTVA_RUNNING):
+        return marker
+    outcome = _current_payload_result_outcome(va_sid)
+    if outcome == VaSmartvaResults.OUTCOME_SUCCESS:
+        return SMARTVA_DONE
+    if outcome == VaSmartvaResults.OUTCOME_FAILED:
+        return SMARTVA_FAILED
+    return SMARTVA_NOT_REQUESTED
+
+
+def smartva_run_allowed(va_sid: str) -> bool:
+    """True when a run may be requested: the case is neither past coding
+    (``SMARTVA_BLOCKED_WORKFLOW_STATES``) nor a confirmed duplicate."""
+    from app.services.workflow.state_store import get_submission_workflow_state
+
+    return (
+        get_submission_workflow_state(va_sid) not in _protected_states()
+        and not is_confirmed_duplicate(va_sid)
+    )
+
+
+def smartva_panel(va_sid: str) -> dict:
+    """What the coding page's SmartVA panel shows: ``{status, can_run}``."""
+    return {"status": smartva_status(va_sid), "can_run": smartva_run_allowed(va_sid)}
+
+
+def enqueue_smartva(
+    va_sid: str,
+    triggered_by: str,
+    *,
+    regenerate: bool = False,
+    requested_by: tuple[str, str] | None = None,
+) -> bool:
+    """Queue ``run_smartva_for_submission`` and mark the run queued; False when
+    the broker refused. Call only once the case change is committed.
+    *requested_by* is the ``(user_id, role)`` of a person's regenerate request."""
+    from app.tasks.sync_tasks import run_smartva_for_submission
+
+    set_run_marker(va_sid, SMARTVA_QUEUED)
+    try:
+        extra = {"requested_by": requested_by} if requested_by else {}
+        run_smartva_for_submission.delay(
+            va_sid=va_sid, triggered_by=triggered_by, regenerate=regenerate, **extra
+        )
+    except Exception:
+        clear_run_marker(va_sid)
+        log.warning("SmartVA [%s]: could not queue the run.", va_sid, exc_info=True)
+        return False
+    return True
+
+
+def queue_smartva_after_commit(va_sid: str, triggered_by: str) -> None:
+    """Queue the background SmartVA run for *va_sid* once this transaction
+    commits, or never if it rolls back. The sid waits in ``session.info`` (as
+    the KPI recount does) so the worker sees the committed payload and state.
+    The queued marker is set now, not after the commit, so the 30 s sweep that
+    sees the committed ``smartva_pending`` row also sees the marker and skips it.
+    """
+    set_run_marker(va_sid, SMARTVA_QUEUED)
+    db.session().info.setdefault(_QUEUE_SIDS, {})[va_sid] = triggered_by
+
+
+@sa.event.listens_for(Session, "after_commit")
+def _queue_smartva_runs(session):
+    # A savepoint release also fires after_commit; queue only at the outer commit.
+    if session.in_nested_transaction():
+        return
+    queued = session.info.pop(_QUEUE_SIDS, None)
+    for va_sid, triggered_by in (queued or {}).items():
+        # The case is committed; a missed run leaves the coding page on
+        # not_requested, where the Run SmartVA button starts it.
+        enqueue_smartva(va_sid, triggered_by)
+
+
+@sa.event.listens_for(Session, "after_soft_rollback")
+def _drop_smartva_queue(session, previous_transaction):
+    # ponytail: only the outermost rollback drops the queue; a sid queued
+    # inside a rolled-back savepoint still runs if the outer transaction
+    # commits (its run then skips or refuses a case that did not change).
+    # Track the transaction per sid if that ever matters.
+    if previous_transaction.parent is None:
+        for va_sid in session.info.pop(_QUEUE_SIDS, None) or ():
+            clear_run_marker(va_sid)

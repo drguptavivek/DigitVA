@@ -17,15 +17,23 @@ from app.services.demo_project_service import is_demo_training_submission
 def require_coding_access(va_sid: str):
     """Return a JSON 403 response if the user lacks an active coding allocation.
 
+    The body is ``{"error", "code"}``: ``forbidden`` (demo sessions only on
+    demo/training projects) or ``no_allocation``.
+
     Returns None if access is granted, or a (response, status_code) tuple to
     return immediately from the route if access is denied.
     """
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
     if data.get("va_actiontype") == "vademo_start_coding":
         if current_user.is_admin():
             return None
         if not (current_user.is_coder() or current_user.is_coding_tester()) or not is_demo_training_submission(va_sid):
-            return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
+            return jsonify({
+                "error": "Only demo/training projects allow coder demo sessions.",
+                "code": "forbidden",
+            }), 403
 
     alloc = db.session.scalar(
         sa.select(VaAllocations.va_sid).where(
@@ -36,5 +44,8 @@ def require_coding_access(va_sid: str):
         )
     )
     if not alloc:
-        return jsonify({"error": "Active coding allocation required."}), 403
+        return jsonify({
+            "error": "Active coding allocation required.",
+            "code": "no_allocation",
+        }), 403
     return None

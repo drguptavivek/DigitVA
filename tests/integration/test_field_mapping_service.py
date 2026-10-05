@@ -470,6 +470,45 @@ class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
 
         self.assertEqual(
             result["narration"]["(imagenarr) Narration image"],
-            f"/vaform/media/{self.FORM_ID}/{filename}",
+            f"/api/v1/attachments/legacy/{self.FORM_ID}/{filename}",
+        )
+
+    def test_attachment_with_a_storage_name_uses_the_api_v1_token_url(self):
+        from app.utils.va_render.va_render_06_processcategorydata import (
+            va_render_processcategorydata,
+        )
+
+        filename = f"token_{uuid.uuid4().hex[:8]}.jpg"
+        storage_name = uuid.uuid4().hex + ".jpg"
+        db.session.add(VaSubmissionAttachments(
+            va_sid=self.submission.va_sid,
+            filename=filename,
+            local_path=None,
+            mime_type="image/jpeg",
+            storage_name=storage_name,
+            exists_on_odk=True,
+            last_downloaded_at=datetime.now(timezone.utc),
+        ))
+        db.session.flush()
+        datalevel = {
+            "vanarrationanddocuments": {
+                "narration": {"imagenarr": "(imagenarr) Narration image"}
+            }
+        }
+
+        with self.app.test_request_context():
+            result = va_render_processcategorydata(
+                va_data={"imagenarr": filename},
+                va_form_id=self.FORM_ID,
+                va_datalevel=datalevel,
+                va_mapping_choice={},
+                va_partial="vanarrationanddocuments",
+                va_sid=self.submission.va_sid,
+            )
+
+        # The URL keeps the original extension: templates sniff image/audio by it.
+        self.assertEqual(
+            result["narration"]["(imagenarr) Narration image"],
+            f"/api/v1/attachments/{storage_name}",
         )
 

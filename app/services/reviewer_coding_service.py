@@ -65,6 +65,7 @@ from app.services.workflow.definition import (
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
+    WorkflowTransitionError,
     mark_reviewer_coding_started,
     mark_reviewer_finalized,
     reviewer_actor,
@@ -99,7 +100,9 @@ def _who_image_digest() -> str:
     digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
     if not digest:
         raise ReviewerCodingError(
-            "The pinned WHO processing image is not configured.", 503
+            "The pinned WHO processing image is not configured.",
+            503,
+            code="who_not_configured",
         )
     return digest
 
@@ -124,9 +127,11 @@ def verify_doris_submission(
     *role* (``reviewer`` or ``coder``) is the role the proof was minted for.
 
     Returns the server-normalized envelopes. Raises ReviewerCodingError: a
-    changed certificate is reprocessed and returned as a 409 carrying a
-    fresh proof (nothing is saved); a stale or mismatched proof is a 409; an
-    invalid certificate a 422; an unavailable WHO service a 503. Shared by
+    changed certificate is reprocessed and returned as a 409
+    ``DORIS_CERTIFICATE_CHANGED`` carrying a fresh proof (nothing is saved); a
+    stale or mismatched proof is a 409 ``DORIS_PROCESS_EXPIRED`` /
+    ``DORIS_PROCESS_MISMATCH``; an invalid certificate a 422 ``invalid_doris``;
+    an unavailable WHO service a 503 ``who_unavailable``. Shared by
     the unmasked DORIS final and the masked DORIS Step 1.
     """
     try:
@@ -156,9 +161,11 @@ def verify_doris_submission(
                 who_image_digest=who_image_digest,
             )
         except (DorisCertificateError, TypeError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 422) from exc
+            raise ReviewerCodingError(str(exc), 422, code="invalid_doris") from exc
         except WhoIcdApiUnavailable as exc:
-            raise ReviewerCodingError("WHO ICD-11 service unavailable.", 503) from exc
+            raise ReviewerCodingError(
+                "WHO ICD-11 service unavailable.", 503, code="who_unavailable"
+            ) from exc
         processing["process_token"] = generate_process_proof(
             certificate_digest=processing["certificate_digest"],
             result_digest=processing["result_digest"],
@@ -189,7 +196,7 @@ def verify_doris_submission(
             code="DORIS_PROCESS_EXPIRED",
         ) from exc
     except (DorisCertificateError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 422) from exc
+        raise ReviewerCodingError(str(exc), 422, code="invalid_doris") from exc
 
 
 def _doris_prefill_snapshot(project, who_image_digest, submission, certificate) -> dict:
@@ -240,8 +247,8 @@ def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) ->
 # authz's (REVIEW), only the message is chosen here.
 _OUT_OF_REVIEWING_SCOPE = "This submission belongs to a unit outside your reviewing scope."
 _REVIEWING_REFUSALS = {
-    Reason.NOT_FOUND: ("Submission not found.", 404),
-    Reason.NO_ROLE: ("Reviewer access is required.", 403),
+    Reason.NOT_FOUND: ("Submission not found.", 404, "not_found"),
+    Reason.NO_ROLE: ("Reviewer access is required.", 403, "forbidden"),
 }
 
 
@@ -257,17 +264,17 @@ def require_reviewer_access(user, va_sid: str) -> None:
     if decision:
         return
     if decision.reason in _REVIEWING_REFUSALS:
-        raise ReviewerCodingError(*_REVIEWING_REFUSALS[decision.reason])
+        message, status_code, code = _REVIEWING_REFUSALS[decision.reason]
+        raise ReviewerCodingError(message, status_code, code=code)
     if decision.reason is Reason.PROJECT_CLOSED:
-        raise ReviewerCodingError(decision.message, 403)
-    raise ReviewerCodingError(_OUT_OF_REVIEWING_SCOPE, 403)
+        raise ReviewerCodingError(decision.message, 403, code="forbidden")
+    raise ReviewerCodingError(_OUT_OF_REVIEWING_SCOPE, 403, code="forbidden")
 
 
 def require_reviewing_session(user, va_sid: str) -> None:
     """Raise ReviewerCodingError unless *user* may review *va_sid* now.
 
-    REVIEW authz first (404 / 403, no ``code``: the reviewing API words those
-    itself), then the caller's own active reviewing allocation on this case
+    REVIEW authz first (404 ``not_found`` / 403 ``forbidden``), then the caller's own active reviewing allocation on this case
     (403 ``no_allocation``), as the workspace API needs before it reads anything.
     """
     require_reviewer_access(user, va_sid)
@@ -297,6 +304,56 @@ def get_active_reviewing_allocation(user_id) -> str | None:
     )
 
 
+def release_own_reviewing_allocation(user) -> str:
+    """Release *user*'s own active reviewing allocation; returns its va_sid.
+
+    The reviewer's choice, with the timeout's effect (``_release_reviewer_allocation``;
+    docs/policy/coding-allocation-timeouts.md, "Reviewer release"): the review,
+    NQA and Social Autopsy analysis are cleared, the saved Step 1 is kept, the
+    case returns to ``reviewer_eligible``, audited under the reviewer's user
+    id. No scope check: an allocation that outlived a narrowed grant can still
+    be let go. Raises ReviewerCodingError: 409 ``no_allocation`` when none is
+    held, 409 ``wrong_state`` when the case is no longer in a reviewer session.
+    """
+    from app.services.coding_allocation_service import _release_reviewer_allocation
+
+    record = db.session.scalars(
+        sa.select(VaAllocations)
+        .where(
+            VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+        .order_by(VaAllocations.va_allocation_createdat)
+        .limit(1)
+        .with_for_update()  # a second release waits, then finds none
+    ).first()
+    if record is None:
+        raise ReviewerCodingError(
+            "You have no active reviewing allocation to release.",
+            409,
+            code="no_allocation",
+        )
+    va_sid = record.va_sid
+    try:
+        _release_reviewer_allocation(
+            record,
+            cause="release",
+            reason="reviewer_release",
+            audit_action="reviewer_allocation_released_by_reviewer",
+            actor=reviewer_actor(user.user_id),
+        )
+    except WorkflowTransitionError:
+        db.session.rollback()
+        raise ReviewerCodingError(
+            "This case is no longer in a reviewer session; refresh and try again.",
+            409,
+            code="wrong_state",
+        ) from None
+    db.session.commit()
+    return va_sid
+
+
 def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     from app.services.coding_allocation_service import release_stale_reviewer_allocations
 
@@ -304,30 +361,35 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
 
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
-        raise ReviewerCodingError("Submission not found.", 404)
+        raise ReviewerCodingError("Submission not found.", 404, code="not_found")
     require_reviewer_access(user, va_sid)
     if submission.va_narration_language not in user.vacode_language:
         raise ReviewerCodingError(
             f"Your profile does not support reviewing forms in {submission.va_narration_language}.",
             403,
+            code="forbidden",
         )
     if is_confirmed_duplicate(va_sid):
-        raise ReviewerCodingError(DUPLICATE_MESSAGE, 409)
+        raise ReviewerCodingError(DUPLICATE_MESSAGE, 409, code="conflict")
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_ELIGIBLE:
         raise ReviewerCodingError(
-            "Only reviewer-eligible submissions can start reviewer coding."
+            "Only reviewer-eligible submissions can start reviewer coding.",
+            code="wrong_state",
         )
     if get_latest_active_reviewer_final_assessment(va_sid):
         raise ReviewerCodingError(
-            "A reviewer final COD already exists for this submission."
+            "A reviewer final COD already exists for this submission.",
+            code="wrong_state",
         )
 
     active_sid = get_active_reviewing_allocation(user.user_id)
     if active_sid:
         if active_sid != va_sid:
             raise ReviewerCodingError(
-                "You already have an active reviewer allocation.", 409
+                "You already have an active reviewer allocation.",
+                409,
+                code="allocation_exists",
             )
         return ReviewerCodingResult(va_sid=va_sid, actiontype="varesumereviewing")
 
@@ -335,7 +397,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     # active allocation above still resumes.
     # See docs/policy/odk-retired-submissions.md.
     if is_submission_retired(va_sid):
-        raise ReviewerCodingError(RETIRED_MESSAGE, 409)
+        raise ReviewerCodingError(RETIRED_MESSAGE, 409, code="conflict")
 
     allocation_id = uuid.uuid4()
     db.session.add(
@@ -392,17 +454,18 @@ def submit_reviewer_final_cod(
         .with_for_update()
     )
     if not submission:
-        raise ReviewerCodingError("Submission not found.", 404)
+        raise ReviewerCodingError("Submission not found.", 404, code="not_found")
     require_reviewer_access(user, va_sid)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(
-            "Reviewer final COD can only be submitted from reviewer_coding_in_progress."
+            "Reviewer final COD can only be submitted from reviewer_coding_in_progress.",
+            code="wrong_state",
         )
     try:
         validate_coding_value_for_submission(va_sid, conclusive_cod)
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400) from exc
+        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
 
     active_allocation = db.session.scalar(
         sa.select(VaAllocations).where(
@@ -414,12 +477,13 @@ def submit_reviewer_final_cod(
     )
     if not active_allocation:
         raise ReviewerCodingError(
-            "An active reviewer allocation is required to submit reviewer final COD."
+            "An active reviewer allocation is required to submit reviewer final COD.",
+            code="no_allocation",
         )
 
     project = get_project_for_submission(va_sid)
     if project is None:
-        raise ReviewerCodingError("Project not found.", 404)
+        raise ReviewerCodingError("Project not found.", 404, code="not_found")
     mode = project_mode(project)
 
     reviewer_initial = get_latest_active_reviewer_initial_assessment(
@@ -430,6 +494,7 @@ def submit_reviewer_final_cod(
         raise ReviewerCodingError(
             "Reviewer initial COD assessment must be completed before submitting reviewer final COD.",
             400,
+            code="wrong_state",
         )
     # Masked DORIS Step 2 only confirms the underlying cause; the
     # certificate and its envelopes stay on the reviewer's Step 1 row.
@@ -439,6 +504,7 @@ def submit_reviewer_final_cod(
         raise ReviewerCodingError(
             "Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1.",
             400,
+            code="invalid_request",
         )
 
     immediate_provenance = None
@@ -450,14 +516,16 @@ def submit_reviewer_final_cod(
     ).strip()
     if mode == "unmasked_simple":
         if not immediate_cod:
-            raise ReviewerCodingError("immediate_cod is required.", 400)
+            raise ReviewerCodingError(
+                "immediate_cod is required.", 400, code="invalid_request"
+            )
         try:
             validate_coding_value_for_submission(va_sid, immediate_cod)
             immediate_provenance = build_icd11_provenance_for_values(
                 va_sid, {"immediate": immediate_cod}
             )
         except (LookupError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 400) from exc
+            raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
     elif mode == "unmasked_doris":
         who_image_digest = _who_image_digest()
         verified = verify_doris_submission(
@@ -502,7 +570,7 @@ def submit_reviewer_final_cod(
             va_sid, {"conclusive": conclusive_cod}
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400) from exc
+        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
 
     if _reviewer_social_autopsy_required(va_sid, submission):
         social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
@@ -513,6 +581,7 @@ def submit_reviewer_final_cod(
             raise ReviewerCodingError(
                 "Social Autopsy Analysis must be completed before submitting the reviewer final COD.",
                 400,
+                code="final_blocked",
             )
 
     active_payload_version_id = submission.active_payload_version_id
@@ -565,7 +634,7 @@ def submit_reviewer_final_cod(
             icd11_provenance=final_provenance,
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400) from exc
+        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
@@ -588,11 +657,21 @@ def submit_reviewer_final_cod(
             va_audit_entityid=active_allocation.va_allocation_id,
         )
     )
-    mark_reviewer_finalized(
-        va_sid,
-        reason="reviewer_final_cod_submitted",
-        actor=reviewer_actor(user.user_id),
-    )
+    try:
+        mark_reviewer_finalized(
+            va_sid,
+            reason="reviewer_final_cod_submitted",
+            actor=reviewer_actor(user.user_id),
+        )
+    except WorkflowTransitionError:
+        # The session ended after the state check above (the reviewer's own
+        # release, a duplicate revoke, a send-back): nothing of this save stays.
+        db.session.rollback()
+        raise ReviewerCodingError(
+            "This case is no longer in a reviewer session; refresh and try again.",
+            409,
+            code="wrong_state",
+        ) from None
     upsert_reviewer_final_cod_authority(
         va_sid,
         reviewer_final,
@@ -630,21 +709,23 @@ def submit_reviewer_initial_cod(
 
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
-        raise ReviewerCodingError("Submission not found.", 404)
+        raise ReviewerCodingError("Submission not found.", 404, code="not_found")
     require_reviewer_access(user, va_sid)
     project = get_project_for_submission(va_sid)
     if project is None:
-        raise ReviewerCodingError("Project not found.", 404)
+        raise ReviewerCodingError("Project not found.", 404, code="not_found")
     mode = project_mode(project)
     if not is_masked(mode):
         raise ReviewerCodingError(
             "This project uses one final COD assessment; reviewer Step 1 is not available.",
             409,
+            code="not_masked",
         )
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(
-            "Reviewer initial COD can only be submitted from reviewer_coding_in_progress."
+            "Reviewer initial COD can only be submitted from reviewer_coding_in_progress.",
+            code="wrong_state",
         )
     active_allocation = db.session.scalar(
         sa.select(VaAllocations).where(
@@ -656,7 +737,8 @@ def submit_reviewer_initial_cod(
     )
     if not active_allocation:
         raise ReviewerCodingError(
-            "An active reviewer allocation is required to submit reviewer initial COD."
+            "An active reviewer allocation is required to submit reviewer initial COD.",
+            code="no_allocation",
         )
 
     doris_fields = {}
@@ -666,6 +748,7 @@ def submit_reviewer_initial_cod(
             raise ReviewerCodingError(
                 "Confirm the underlying cause of death: use the DORIS result or search for your own code.",
                 400,
+                code="invalid_request",
             )
         who_image_digest = _who_image_digest()
         verified = verify_doris_submission(
@@ -686,11 +769,12 @@ def submit_reviewer_initial_cod(
             raise ReviewerCodingError(
                 "Part I line 1 needs a condition: it is the immediate cause of death.",
                 400,
+                code="invalid_request",
             )
         try:
             validate_coding_value_for_submission(va_sid, antecedent_cod)
         except (LookupError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 400) from exc
+            raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
         # The immediate cause was checked against WHO when the certificate
         # was processed; only the reviewer's own pick needs provenance.
         provenance_fields = ("antecedent",)
@@ -705,7 +789,9 @@ def submit_reviewer_initial_cod(
         }
     else:
         if not immediate_cod:
-            raise ReviewerCodingError("immediate_cod is required.", 400)
+            raise ReviewerCodingError(
+                "immediate_cod is required.", 400, code="invalid_request"
+            )
         classifications = set()
         for coding_value in (immediate_cod, antecedent_cod):
             try:
@@ -713,12 +799,13 @@ def submit_reviewer_initial_cod(
                     validate_coding_value_for_submission(va_sid, coding_value)
                 )
             except (LookupError, ValueError) as exc:
-                raise ReviewerCodingError(str(exc), 400) from exc
+                raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
         # One classification per save.
         if len(classifications) > 1:
             raise ReviewerCodingError(
                 "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
                 400,
+                code="invalid_cod",
             )
 
     try:
@@ -732,7 +819,7 @@ def submit_reviewer_initial_cod(
             **doris_fields,
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400) from exc
+        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,

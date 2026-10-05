@@ -104,7 +104,7 @@ def section_data_cache_key(
     is the no-PII variant (docs/policy/access-control-model.md,
     "collaborator").
     """
-    key = f"form_data:{va_sid}:{payload_version_id or 'none'}:{role}:{va_partial}"
+    key = f"form_data2:{va_sid}:{payload_version_id or 'none'}:{role}:{va_partial}"
     return f"{key}:nopii" if redacted else key
 
 

@@ -3,7 +3,7 @@ title: Attachment Storage and Delivery Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Attachment Storage and Delivery Policy
@@ -158,9 +158,15 @@ Every uploaded object carries:
 
 ## Authorization matrix
 
-Both attachment routes (`/vaform/attachment/<storage_name>` and the deprecated
-`/vaform/media/<form_id>/<filename>`) apply the same matrix, evaluated fresh on
-every request after `@role_required` has established authentication, active
+The attachment routes apply the same matrix, evaluated fresh on
+every request. The rendered URLs are the `/api/v1` routes
+(`/api/v1/attachments/<storage_name>` and
+`/api/v1/attachments/legacy/<form_id>/<filename>`, cookie or bearer); the
+cookie-only `/vaform/attachment/<storage_name>` and the deprecated
+`/vaform/media/<form_id>/<filename>` are kept for pages rendered before the
+change. All four call the same `attachment_service` checks
+(`authorize_token_attachment`, `authorize_legacy_attachment`), after
+`@role_required` has established authentication, active
 status, and role. Ownership (`va_sid`, `va_form_id`) must resolve first; an
 unknown attachment is `404`, never served by filename.
 
@@ -173,7 +179,9 @@ unknown attachment is `404`, never served by filename.
 
 The route's role gate admits `coder`, `coding_tester`, `reviewer`,
 `data_manager`, `site_pi`, `project_pi`, `collaborator`, `collaborator_pii`
-and `admin`; the legacy `/media` route has the same gate. A plain
+and `admin`; every attachment route has the same gate. The `/api/v1` routes answer
+refusals as `{error, code}` (`not_found`, `forbidden`, `upstream_error`,
+`unavailable`) with `Cache-Control: private, no-store`. A plain
 `collaborator` passes the role gate but is refused every attachment by the
 service (`redacts_pii`), so a guessed filename or legacy token fetches nothing;
 the submission render also strips the PII set and the export's omitted fields
@@ -248,7 +256,8 @@ Other rules:
 
 ### Presigned delivery (S3 store)
 
-The DigitVA route stays the **only** URL that appears in any page. After
+A DigitVA route (an `/api/v1/attachments` URL; the old `/vaform` routes in
+pages rendered earlier) stays the **only** URL that appears in any page. After
 authentication and the authorization matrix, delivery issues a `302` to a URL
 signed for that one request:
 

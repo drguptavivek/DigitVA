@@ -1,16 +1,18 @@
-"""Coding and review workspace content — /api/v1/va/<sid>/workspace, .../categories/<code>
+"""Coding and review workspace content — /api/v1/va/<sid>/workspace, .../categories/<code>, .../note
 
 One call for the workspace shell, one per category, for any client (cookie or
 bearer). Authorization comes first and is the one the COD writes use: coding
 needs the caller's active coding allocation (``require_coding_session``),
 reviewing REVIEW access plus their own active reviewing allocation. The
 content itself is ``case_content_service``, which the web partials render
-from too. There is no read-only "view" mode yet.
+from too. There is no read-only "view" mode yet. The private note takes the
+same allocation check without rendering any category.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
@@ -49,6 +51,7 @@ from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import get_active_recode_episode
 from app.services.reviewer_coding_service import ReviewerCodingError, require_reviewing_session
 from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.user_note_service import get_active_note, save_note
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.utils import va_get_form_type_code_for_form
 
@@ -60,7 +63,6 @@ _ACTION_BY_MODE = {"coding": "vacode", "reviewing": "vareview"}
 #: the held allocation); it is what makes a category's required form block.
 _SESSION_ACTIONTYPE = {"coding": "varesumecoding", "reviewing": "varesumereviewing"}
 _CODING_ROLES = frozenset({"coder", "coding_tester"})
-_REFUSAL_CODES = {404: "not_found", 403: "forbidden"}
 
 
 @dataclass
@@ -84,11 +86,19 @@ def _private(response):
     return response
 
 
-def _authorize(va_sid: str):
-    """The ``_Case`` the caller may open, or an ``(error response)`` tuple.
+@dataclass
+class _Session:
+    mode: str
+    recode_active: bool
 
-    Nothing of the payload is read before the allocation and scope checks
-    pass; the visible-category computation below renders every category.
+
+def _authorize_session(va_sid: str):
+    """The ``_Session`` the caller holds on this case, or an error response.
+
+    The cheap half of ``_authorize``: mode, role and the open allocation
+    (coding: ``require_coding_session`` for the current episode; reviewing:
+    REVIEW access plus the caller's own reviewing allocation). Nothing of the
+    payload is read.
     """
     mode = request.args.get("mode")
     recode_active = False
@@ -110,9 +120,20 @@ def _authorize(va_sid: str):
     except CoderCodingError as exc:
         return api_error(exc.message, exc.code, exc.status_code)
     except ReviewerCodingError as exc:
-        return api_error(
-            exc.message, exc.code or _REFUSAL_CODES.get(exc.status_code, "forbidden"), exc.status_code
-        )
+        return api_error(exc.message, exc.code, exc.status_code)
+    return _Session(mode, recode_active)
+
+
+def _authorize(va_sid: str):
+    """The ``_Case`` the caller may open, or an ``(error response)`` tuple.
+
+    Nothing of the payload is read before the allocation and scope checks
+    pass; the visible-category computation below renders every category.
+    """
+    session = _authorize_session(va_sid)
+    if not isinstance(session, _Session):
+        return session
+    mode, recode_active = session.mode, session.recode_active
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
         return api_error("Submission not found.", "not_found", 404)
@@ -138,7 +159,14 @@ def _conditions(text) -> list[str]:
 
 
 def _iso(moment):
-    return moment.isoformat() if moment else None
+    """ISO 8601 with an explicit offset. The columns are naive and written in
+    UTC (the web's ``user_timezone`` filter reads them the same way), so a
+    client must not take them for local time."""
+    if not moment:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.isoformat()
 
 
 def _initial_json(row) -> dict | None:
@@ -356,8 +384,8 @@ def category(va_sid, code):
     """One category's data for ``?mode=coding|reviewing``.
 
     200 ``{code, label, render_mode, summary_items, subcategories, blocked_by}``;
-    attachment values are the cookie-session ``/attachment/<token>`` URLs
-    for now. A category the role does not see is 404 ``not_found``, as one
+    attachment values are ``/api/v1/attachments`` URLs (cookie or
+    bearer). A category the role does not see is 404 ``not_found``, as one
     that does not exist. Errors as ``workspace``.
     """
     case = _authorize(va_sid)
@@ -418,3 +446,67 @@ def category(va_sid, code):
     # Unlike the web partial (max-age 300 for data categories), never stored:
     # PHI on a shared browser.
     return _private(jsonify(body))
+
+
+#: Body cap by ``Content-Length`` and the text cap in characters of a note.
+_NOTE_BODY_CAP = 64 * 1024
+_NOTE_MAX_CHARS = 20_000
+
+
+def _note_json(va_sid: str):
+    note = get_active_note(current_user.user_id, va_sid)
+    return _private(jsonify({
+        "va_sid": va_sid,
+        "content": note.note_content if note else None,
+        "updated_at": _iso(note.note_updated_at) if note else None,
+    }))
+
+
+@bp.get("/<va_sid>/note")
+@role_required("coder", "coding_tester", "reviewer")
+def get_note(va_sid):
+    """The caller's private note on the case, for ``?mode=coding|reviewing``.
+
+    200 ``{va_sid, content, updated_at}``, both null when there is none. Own
+    allocation only (as ``workspace``; the web also allows a note on its view
+    page). One note per user per case, shared by both modes. Errors as
+    ``workspace``.
+    """
+    session = _authorize_session(va_sid)
+    if not isinstance(session, _Session):
+        return session
+    return _note_json(va_sid)
+
+
+@bp.put("/<va_sid>/note")
+@role_required("coder", "coding_tester", "reviewer")
+def put_note(va_sid):
+    """Save the caller's private note ``{"content": text}``; replies as ``get_note``.
+
+    400 ``invalid_request`` for a body that is not an object with text
+    ``content``, for empty or whitespace-only content or one holding NUL; 413 ``too_large``
+    over 64 KB or without a ``Content-Length`` (chunked); 422 ``invalid_request`` over 20,000 characters. Else as
+    ``workspace``.
+    """
+    # Keyed on the path only, so no lookup runs before the size is known;
+    # CSRF has already built the request stream without a limit, so only
+    # Content-Length can enforce it. A chunked body has none and is refused
+    # the same way, so it is never buffered.
+    if request.content_length is None or request.content_length > _NOTE_BODY_CAP:
+        return api_error("The note is too large.", "too_large", 413)
+    session = _authorize_session(va_sid)
+    if not isinstance(session, _Session):
+        return session
+    try:
+        body = request.get_json(silent=True)
+    except RecursionError:  # absurdly nested JSON within the size cap
+        body = None
+    content = body.get("content") if isinstance(body, dict) else None
+    if not isinstance(content, str) or not content.strip():
+        return api_error("content must be non-empty text.", "invalid_request", 400)
+    if "\x00" in content:  # PostgreSQL text cannot hold NUL
+        return api_error("content must not contain NUL characters.", "invalid_request", 400)
+    if len(content) > _NOTE_MAX_CHARS:
+        return api_error(f"A note is at most {_NOTE_MAX_CHARS} characters.", "invalid_request", 422)
+    save_note(current_user.user_id, va_sid, content)
+    return _note_json(va_sid)

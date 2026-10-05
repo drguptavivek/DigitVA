@@ -62,7 +62,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       and `docs/policy/interview-revisions.md`). Manual check owed: the
       browser form's stale-tab 409 (`draft_stale`) and the worklist
       other-draft badge were not driven in a browser (proof-of-work CAPTCHA).
-   b. **`digitva-xl43` coding and review workspace API: next.** Plan
+   b. **`digitva-xl43` coding and review workspace API: phases 1-3 done.** Plan
       `.tasks/2026-10-05-coding-workspace-api.md` (owner: option A, logic
       moves out of `va_form.renderpartial` into services that the web
       partials and `/api/v1` both call; web screens unchanged). Done:
@@ -73,15 +73,20 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       (`case_content_service`, `GET /api/v1/va/<sid>/workspace` and
       `/categories/<code>`, `f98617f3`; section cache key now carries the
       payload version and role; contract `expo-handoff.md` section 12).
-      Next: phase 3: media over `/api/v1`
-      (bearer), `{error, code}` on reviewing/NQA/social-autopsy, reviewer
-      queue (available, stats, history), reviewer release, private user
-      note. Then `digitva-xl43.3` DORIS prefill in the workspace, and a
-      read-only view mode if the app needs one. Unblocks `digitva-p6fs.4`.
-      Known gap: the 1.2 MB body cap
-      reads `Content-Length` only (no global `MAX_CONTENT_LENGTH`).
+      Phase 3 done 2026-10-05: media at `/api/v1/attachments/...` (bearer;
+      the renderer emits it for every client, old `/vaform` routes kept for
+      rendered pages), private note `GET|PUT /api/v1/va/<sid>/note`, flat
+      `{error, code}` on reviewing/NQA/Social Autopsy, reviewer queue
+      (`/reviewing/stats|available|history`) and release (owner: Step 1
+      kept). The app's coding/review workspace `digitva-p6fs.4` is
+      unblocked (contract `expo-handoff.md` section 12). Left:
+      `digitva-xl43.3` DORIS prefill in the workspace, a read-only view mode
+      if the app needs one; device check that native players do not forward
+      the bearer to the S3 presigned redirect (`digitva-p6fs.5`).
+      Body caps read `Content-Length` and refuse a body without one (413);
+      there is no global `MAX_CONTENT_LENGTH`.
    c. `digitva-ey38` `code` on every remaining `/api/v1` error
-      (data-management, va/nqa+so, area, cod-buckets, ...) and a contract
+      (data-management, area, cod-buckets, ...; reviewing, NQA and SO done) and a contract
       review of those blueprints.
    Open owner question: fold form-options and prefill-policy into
    `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).

@@ -6,6 +6,7 @@ a device bearer token alike; errors are ``{error, code}``. The logic is
 the routes: bodies, gates, replies and the two credentials. Device enrolment
 helpers are reused from tests/routes/test_device_api.py.
 """
+import io
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -291,6 +292,24 @@ class CodingCodApiTests(BaseTestCase):
                 (response.status_code, response.get_json()["code"]), (413, "too_large"), route)
         # A body within the cap still reaches the service.
         self._mode(masked=True)
+        response = self._post("initial", sid, {"antecedent_cod": _COD, "immediate_cod": _COD})
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_body_without_a_content_length_is_a_413_on_every_route(self):
+        # A chunked body has no Content-Length; it must not be buffered.
+        self._mode(masked=True)
+        sid = self._case()
+        headers = self._as_coder()
+        for route in ("initial", "finalize", "not-codeable"):
+            response = self.client.post(
+                f"{BASE}/{route}/{sid}", headers=headers,
+                input_stream=io.BytesIO(b'{"immediate_cod": "x"}'), content_type="application/json",
+                environ_overrides={"CONTENT_LENGTH": "", "HTTP_TRANSFER_ENCODING": "chunked"},
+            )
+            self.assertIsNone(response.request.content_length, route)
+            self.assertEqual(
+                (response.status_code, response.get_json()["code"]), (413, "too_large"), route)
+        # Present: a sized body reaches the service.
         response = self._post("initial", sid, {"antecedent_cod": _COD, "immediate_cod": _COD})
         self.assertEqual(response.status_code, 200)
 

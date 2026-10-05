@@ -559,7 +559,7 @@ The data of a category (summary items, rendered fields, the COD panel evidence)
 is built by `app/services/case_content_service.py` (`get_section_data`) for
 both the web partials and `/api/v1/va/<sid>/categories/<code>`, and cached in
 Redis for 30 minutes under
-`form_data:<sid>:<payload_version_id>:<role>:<category>` (plus `:nopii` for a
+`form_data2:<sid>:<payload_version_id>:<role>:<category>` (plus `:nopii` for a
 viewer without PII). The role bucket matters because coder and reviewer views
 use the legacy coder field mapping and every other role the DB mapping; the
 payload version means a revised interview is never served its old answers.

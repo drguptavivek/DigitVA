@@ -52,11 +52,11 @@ def _resolve_attachment_url(
     va_form_id: str,
     original_filename: str,
 ) -> str | None:
-    """Resolve attachment filename to a /attachment/{storage_name} URL.
+    """Resolve attachment filename to its /api/v1/attachments URL.
 
-    Lookup order: Redis cache → DB.
-    Falls back to the legacy /media/{form_id}/{filename} route for older
-    rows that predate storage_name backfill.
+    Lookup order: Redis cache → DB. The /api/v1 routes take a session cookie
+    or a bearer, so one URL serves every client. Older rows that predate
+    storage_name backfill use /api/v1/attachments/legacy/{form_id}/{filename}.
     """
     import sqlalchemy as sa
     from app import db, cache as flask_cache
@@ -85,10 +85,10 @@ def _resolve_attachment_url(
             return None
 
     if storage_name is not None:
-        return url_for("va_form.serve_attachment", storage_name_raw=storage_name)
+        return url_for("api_v1.attachments_api.attachment", storage_name=storage_name)
 
     return url_for(
-        "va_form.serve_media",
+        "api_v1.attachments_api.legacy_attachment",
         va_form_id=va_form_id,
         va_filename=original_filename,
     )
@@ -110,7 +110,7 @@ def va_render_processcategorydata(
 ):
     """Render a category's field data into a display dict.
 
-    va_sid: when provided, attachment fields are resolved to /attachment/ URLs
+    va_sid: when provided, attachment fields are resolved to /api/v1/attachments URLs
     via the DB/cache. When None (visibility-check contexts), falls back to
     disk-existence check and returns a truthy sentinel — callers must not
     render the returned values in that case.

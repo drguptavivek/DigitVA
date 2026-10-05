@@ -1,7 +1,6 @@
 import copy
 import json
 import logging
-import re
 import uuid
 
 import sqlalchemy as sa
@@ -17,7 +16,6 @@ from flask import (
     url_for,
 )
 from flask_login import current_user
-from werkzeug.utils import secure_filename
 
 from app import db
 from app.decorators import role_required, va_validate_permissions
@@ -39,9 +37,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaSubmissionWorkflow,
     VaSubmissionWorkflowEvent,
-    VaUsernotes,
 )
-from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services import attachment_service
 from app.services.authz import Action, AuthzError, require
 from app.services.case_content_service import (
@@ -83,6 +79,7 @@ from app.services.payload_bound_coding_artifact_service import (
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.user_note_service import get_active_note, save_note
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
@@ -608,13 +605,7 @@ def renderpartial(va_sid, va_partial):
         )
         va_reviewer_final_assess = artifacts.va_reviewer_final_assess
         va_reviewer_initial_assess = artifacts.va_reviewer_initial_assess
-        va_usernote = db.session.scalar(
-            sa.select(VaUsernotes).where(
-                VaUsernotes.note_by == current_user.user_id,
-                VaUsernotes.note_vasubmission == va_sid,
-                VaUsernotes.note_status == VaStatuses.active,
-            )
-        )
+        va_usernote = get_active_note(current_user.user_id, va_sid)
         template_name = f"va_formcategory_partials/{va_partial}.html"
         if category_config and category_config.render_mode == "table_sections":
             template_name = "va_formcategory_partials/category_table_sections.html"
@@ -1167,27 +1158,12 @@ def renderpartial(va_sid, va_partial):
         return _render_final_assessment_form()
     if va_partial == "vausernote":
         form = VaUsernoteForm()
-        va_usernote = db.session.scalar(
-            sa.select(VaUsernotes).where(
-                VaUsernotes.note_by == current_user.user_id,
-                VaUsernotes.note_vasubmission == va_sid,
-                VaUsernotes.note_status == VaStatuses.active,
-            )
-        )
         if form.validate_on_submit():
-            if va_usernote:
-                va_usernote.note_content = form.va_note_content.data
-            else:
-                new_note = VaUsernotes(
-                    note_by=current_user.user_id,
-                    note_vasubmission=va_sid,
-                    note_content=form.va_note_content.data
-                )
-                db.session.add(new_note)
-            db.session.commit()
+            save_note(current_user.user_id, va_sid, form.va_note_content.data)
             obb_response = render_template("va_intermediate_partials/va_note_notification.html", message="Note Saved!")
             main_response = render_template(f"va_form_partials/{va_partial}.html", va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, form=form)
             return obb_response + main_response
+        va_usernote = get_active_note(current_user.user_id, va_sid)
         form.va_note_content.data = va_usernote.note_content if va_usernote else ""
         return render_template(f"va_form_partials/{va_partial}.html", va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, form=form)
     if va_partial == "vacoderreview":
@@ -1265,24 +1241,13 @@ def serve_attachment(storage_name_raw):
       4. Submission-level authorization for the current user → 403
       5. Delivery (local or Central-backed, no-store) → 200 / 404 / 502 / 503
 
-    Everything after the format check is delegated to the attachment service;
-    this route learns nothing about where the bytes live.
+    The checks and the delivery are the attachment service's (the same ones
+    ``/api/v1/attachments`` runs); this route learns nothing about where the
+    bytes live.
     """
-    if not re.match(r'^[a-f0-9]{32}\.[a-z0-9]{1,5}$', storage_name_raw):
-        abort(404)
-
-    record = attachment_service.resolve_attachment_record(storage_name_raw)
-    if record is None:
-        abort(404)
-
-    if not attachment_service.can_access_submission_attachment(
-        current_user, va_form_id=record.va_form_id, va_sid=record.va_sid
-    ):
-        log.warning(
-            "serve_attachment: user=%s denied access to sid=%s form=%s",
-            current_user.user_id, record.va_sid, record.va_form_id,
-        )
-        abort(403)
+    record = attachment_service.authorize_token_attachment(current_user, storage_name_raw)
+    if isinstance(record, int):
+        abort(record)
 
     return attachment_service.deliver(record)
 
@@ -1293,64 +1258,20 @@ def serve_attachment(storage_name_raw):
     "project_pi", "collaborator", "collaborator_pii", "admin",
 )
 def serve_media(va_form_id, va_filename):
-    # DEPRECATED: use /attachment/<storage_name> for new attachments.
+    # DEPRECATED: rendered URLs are /api/v1/attachments (legacy/<form>/<file> for these rows).
     # Kept for backward compatibility during migration (storage_name IS NULL rows).
     log.info("serve_media legacy hit: form=%s file=%s", va_form_id, va_filename)
 
-    # Validate form_id format to prevent path traversal
-    if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
-        abort(400, description="Invalid form ID format")
-
-    # Ownership must resolve before any authorization decision (the previous
-    # missing-record branch skipped the allocation check entirely).
-    att_row = db.session.execute(
-        sa.select(
-            VaSubmissionAttachments.va_sid,
-            VaSubmissionAttachments.storage_name,
-            VaSubmissionAttachments.local_path,
-            VaSubmissionAttachments.mime_type,
-        )
-        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-        .where(
-            VaSubmissions.va_form_id == va_form_id,
-            VaSubmissionAttachments.filename == va_filename,
-        )
-    ).first()
-    if att_row is None:
-        abort(404)
-    att_sid = att_row.va_sid
-
-    # Same role matrix as /attachment; evaluated fresh, never cached.
-    if not attachment_service.can_access_submission_attachment(
-        current_user, va_form_id=va_form_id, va_sid=att_sid
-    ):
-        log.warning(
-            "serve_media: user=%s denied access to %s/%s (sid=%s)",
-            current_user.user_id, va_form_id, va_filename, att_sid,
-        )
-        va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
-
-    # Sanitize filename to prevent path traversal attacks
-    safe_filename = secure_filename(va_filename)
-    if not safe_filename:
-        abort(400, description="Invalid filename")
-
-    # Additional check for path traversal patterns
-    if '..' in va_filename or va_filename.startswith('/') or va_filename.startswith('\\'):
-        abort(400, description="Invalid filename")
-
-    # Same store as /attachment. A legacy row has no storage_name, so the
-    # sanitized ODK filename is the object name under the form's media
-    # directory — exactly what this route used to send directly. With the S3
-    # store such a row has no object and the result is a 404, not a presign.
-    record = attachment_service.AttachmentRecord(
-        va_sid=att_sid,
-        va_form_id=va_form_id,
-        storage_name=att_row.storage_name or safe_filename,
-        filename=va_filename,
-        local_path=att_row.local_path,
-        mime_type=att_row.mime_type,
+    # Ownership, access and filename checks are attachment_service's, shared
+    # with /api/v1/attachments/legacy.
+    record = attachment_service.authorize_legacy_attachment(
+        current_user, va_form_id, va_filename
     )
+    if record == 403:
+        va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
+    if isinstance(record, int):
+        abort(record)
+
     return attachment_service.deliver_legacy_media(record)
 
 

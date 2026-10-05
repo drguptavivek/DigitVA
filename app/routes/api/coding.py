@@ -377,9 +377,10 @@ def _json_object() -> dict | None:
     The size cap keys on the path only, so no lookup runs before authz. It
     reads ``Content-Length``: CSRF protection has already built the request
     stream without a limit, so ``request.max_content_length`` cannot enforce
-    it. Longer raises ``RequestEntityTooLarge`` for the handler above.
+    it. Longer, or no length at all (a chunked body, which would be buffered
+    whole), raises ``RequestEntityTooLarge`` for the handler above.
     """
-    if (request.content_length or 0) > _BODY_CAP:
+    if request.content_length is None or request.content_length > _BODY_CAP:
         raise RequestEntityTooLarge()
     try:
         body = request.get_json(silent=True)

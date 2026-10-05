@@ -42,11 +42,17 @@ bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
 
 
+def _error(message: str, status_code: int, code: str, **extra):
+    return jsonify({"error": message, "code": code, **extra}), status_code
+
+
 @bp.post("/<va_sid>/social-autopsy")
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def save_social_autopsy(va_sid: str):
     """Save or update Social Autopsy analysis selections."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return _error("A JSON object is required.", 400, "invalid_request")
     va_actiontype = data.get("va_actiontype")
     is_reviewer_session = va_actiontype in {"vastartreviewing", "varesumereviewing"}
     audit_byrole = "reviewer" if is_reviewer_session else "vacoder"
@@ -54,11 +60,11 @@ def save_social_autopsy(va_sid: str):
     if is_reviewer_session:
         submission = db.session.get(VaSubmissions, va_sid)
         if not submission:
-            return jsonify({"error": "Submission not found."}), 404
+            return _error("Submission not found.", 404, "not_found")
         # REVIEW scope as well as the allocation: an allocation that outlived
         # a re-routing or a narrowed grant does not carry the save.
         if not can(current_user, Action.REVIEW, va_sid):
-            return jsonify({"error": "Reviewer access is required."}), 403
+            return _error("Reviewer access is required.", 403, "forbidden")
         active_reviewing_allocation = db.session.scalar(
             sa.select(VaAllocations.va_sid).where(
                 VaAllocations.va_allocated_to == current_user.user_id,
@@ -68,7 +74,7 @@ def save_social_autopsy(va_sid: str):
             )
         )
         if not active_reviewing_allocation:
-            return jsonify({"error": "Active reviewer allocation required."}), 403
+            return _error("Active reviewer allocation required.", 403, "no_allocation")
     else:
         err = require_coding_access(va_sid)
         if err:
@@ -77,27 +83,33 @@ def save_social_autopsy(va_sid: str):
     project = get_project_for_submission(va_sid)
     if is_reviewer_session:
         if project is not None and not project.reviewer_social_autopsy_enabled:
-            return jsonify({"error": "Reviewer Social Autopsy is disabled for this project."}), 403
+            return _error(
+                "Reviewer Social Autopsy is disabled for this project.", 403, "forbidden"
+            )
     elif project is not None and not project.social_autopsy_enabled:
-        return jsonify({"error": "Coder Social Autopsy is disabled for this project."}), 403
+        return _error("Coder Social Autopsy is disabled for this project.", 403, "forbidden")
 
     selected_options = data.get("selected_options") or []
     remark = (data.get("remark") or "").strip() or None
 
     if not isinstance(selected_options, list):
-        return jsonify({"error": "selected_options must be a list."}), 400
+        return _error("selected_options must be a list.", 400, "invalid_request")
 
     valid_pairs = social_autopsy_option_set()
     normalized = []
     seen: set[tuple[str, str]] = set()
     for item in selected_options:
         if not isinstance(item, dict):
-            return jsonify({"error": "Each selected option must be an object."}), 400
+            return _error("Each selected option must be an object.", 400, "invalid_request")
         delay_level = (item.get("delay_level") or "").strip()
         option_code = (item.get("option_code") or "").strip()
         pair = (delay_level, option_code)
         if pair not in valid_pairs:
-            return jsonify({"error": f"Invalid Social Autopsy option: {delay_level}/{option_code}"}), 400
+            return _error(
+                f"Invalid Social Autopsy option: {delay_level}/{option_code}",
+                400,
+                "invalid_request",
+            )
         if pair in seen:
             continue
         seen.add(pair)
@@ -122,13 +134,13 @@ def save_social_autopsy(va_sid: str):
     }
     missing_delay_levels = sorted(required_delay_levels - set(by_delay.keys()))
     if missing_delay_levels:
-        return jsonify({
-            "error": (
-                "Please answer every Social Autopsy delay question. "
-                "Use 'None' where no delay factor applies."
-            ),
-            "missing_delay_levels": missing_delay_levels,
-        }), 400
+        return _error(
+            "Please answer every Social Autopsy delay question. "
+            "Use 'None' where no delay factor applies.",
+            400,
+            "invalid_request",
+            missing_delay_levels=missing_delay_levels,
+        )
 
     _, active_payload_version = get_submission_with_current_payload(
         va_sid,

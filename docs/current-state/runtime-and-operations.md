@@ -209,7 +209,8 @@ Operational implication:
 
 DigitVA keeps its **own permanent copy** of every attachment — originals and the
 MP3 derivatives it makes — and that store is the read path for
-`/vaform/attachment/<storage_name>`. ODK Central keeps its own copy and remains
+`/api/v1/attachments/<storage_name>` (the old `/vaform/attachment/<storage_name>`
+is kept for pages rendered before the change). ODK Central keeps its own copy and remains
 the source of truth for existence and content, but it is not consulted on every
 request. The store is either local files under `APP_DATA/<form_id>/media/` or a
 private DigitVA-owned S3 bucket, selected once by `ATTACHMENT_STORE` and

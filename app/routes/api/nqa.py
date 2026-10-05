@@ -37,6 +37,10 @@ bp = Blueprint("nqa_api", __name__)
 log = logging.getLogger(__name__)
 
 
+def _error(message: str, status_code: int, code: str):
+    return jsonify({"error": message, "code": code}), status_code
+
+
 def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
     return length + pos_symptoms + neg_symptoms + chronology + doc_review + comorbidity
 
@@ -45,7 +49,9 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def save_narrative_qa(va_sid: str):
     """Save or update the Narrative Quality Assessment for the current user."""
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return _error("A JSON object is required.", 400, "invalid_request")
     va_actiontype = data.get("va_actiontype")
     is_reviewer_session = va_actiontype in {
         "vastartreviewing",
@@ -56,11 +62,11 @@ def save_narrative_qa(va_sid: str):
     if is_reviewer_session:
         submission = db.session.get(VaSubmissions, va_sid)
         if not submission:
-            return jsonify({"error": "Submission not found."}), 404
+            return _error("Submission not found.", 404, "not_found")
         # REVIEW scope as well as the allocation: an allocation that outlived
         # a re-routing or a narrowed grant does not carry the save.
         if not can(current_user, Action.REVIEW, va_sid):
-            return jsonify({"error": "Reviewer access is required."}), 403
+            return _error("Reviewer access is required.", 403, "forbidden")
         active_reviewing_allocation = db.session.scalar(
             sa.select(VaAllocations.va_allocation_id).where(
                 VaAllocations.va_sid == va_sid,
@@ -70,7 +76,7 @@ def save_narrative_qa(va_sid: str):
             )
         )
         if not active_reviewing_allocation:
-            return jsonify({"error": "Active reviewer allocation required."}), 403
+            return _error("Active reviewer allocation required.", 403, "no_allocation")
     else:
         err = require_coding_access(va_sid)
         if err:
@@ -78,7 +84,7 @@ def save_narrative_qa(va_sid: str):
 
     project = get_project_for_submission(va_sid)
     if not project or not project.narrative_qa_enabled:
-        return jsonify({"error": "Narrative QA is not enabled for this project."}), 400
+        return _error("Narrative QA is not enabled for this project.", 400, "invalid_request")
 
     cannot_grade = bool(data.get("cannot_grade"))
 
@@ -108,7 +114,9 @@ def save_narrative_qa(va_sid: str):
             "doc_review": doc_review, "comorbidity": comorbidity,
         }.items() if v is None]
         if missing:
-            return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
+            return _error(
+                f"Invalid or missing fields: {', '.join(missing)}", 400, "invalid_request"
+            )
 
         score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
     _, active_payload_version = get_submission_with_current_payload(

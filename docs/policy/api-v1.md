@@ -3,7 +3,7 @@ title: One Client API (/api/v1)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # One Client API (`/api/v1`)
@@ -66,8 +66,9 @@ Done:
 - One error body `{"error", "code"}` on `/api/` paths: the role gate, the
   login gate, CSRF (`csrf_failed`), rate limits (`rate_limited`) and, under
   `/api/v1/`, 404 and 405 carry a `code`. Blueprints outside the client
-  contract (analytics, coding, data management, reviewing, ...) still answer
-  some inline errors without one.
+  contract (analytics, coding, data management, ...) still answer
+  some inline errors without one. Reviewing, narrative QA and Social Autopsy
+  answer the flat `{"error", "code"}` body.
 - Content refusals (deaths, attempts, visits) are always 422 with a specific
   code; single-case actions reply `{"case": <detail>}` (supervisor actions:
   the supervisor list's row shape under the same key). The case detail

@@ -40,6 +40,8 @@ SYSTEM_ACTOR_KINDS = frozenset({ACTOR_SYSTEM, ACTOR_ADMIN})
 CODING_ACTOR_KINDS = frozenset({ACTOR_CODER, ACTOR_ADMIN})
 # Who may release a coding allocation: the system on timeout, the coder by choice.
 RELEASE_ACTOR_KINDS = SYSTEM_ACTOR_KINDS | {ACTOR_CODER}
+# The same for a reviewing allocation: the system on timeout, the reviewer by choice.
+REVIEWER_RELEASE_ACTOR_KINDS = SYSTEM_ACTOR_KINDS | {ACTOR_REVIEWER}
 DATA_MANAGER_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_ADMIN})
 REVIEWER_ACTOR_KINDS = frozenset({ACTOR_REVIEWER})
 ADMIN_ACTOR_KINDS = frozenset({ACTOR_ADMIN})
@@ -790,21 +792,22 @@ def reset_incomplete_reviewer_session(
     actor: WorkflowActor | None = None,
     reason: str = "reviewer_allocation_timeout_release",
 ) -> TransitionResult:
-    """Revert a timed-out reviewer session to reviewer_eligible.
+    """Revert a timed-out or released reviewer session to reviewer_eligible.
 
     Reviewer sessions follow first-pass coder behaviour: the final COD
-    submission is the only terminal action. If the session times out before
-    that, all intermediate artifacts (VaReviewerReview, VaNarrativeAssessment,
+    submission is the only terminal action. If the session ends before that,
+    the session artifacts (VaReviewerReview, VaNarrativeAssessment,
     VaSocialAutopsyAnalysis filled by the reviewer) must be deactivated by the
-    caller before invoking this transition. The case returns to
-    reviewer_eligible so a reviewer may start a fresh session.
+    caller before invoking this transition; the reviewer's Step 1 is kept. The
+    case returns to reviewer_eligible so a reviewer may start a fresh session.
+    The actor is the system (timeout) or the reviewer (their own release).
     """
     return _apply_transition(
         va_sid,
         transition_id=wd.TRANSITION_INCOMPLETE_REVIEWER_RESET,
         target_state=wd.WORKFLOW_REVIEWER_ELIGIBLE,
         allowed_from=(wd.WORKFLOW_REVIEWER_CODING_IN_PROGRESS,),
-        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        allowed_actor_kinds=REVIEWER_RELEASE_ACTOR_KINDS,
         reason=reason,
         actor=actor or system_actor(),
     )

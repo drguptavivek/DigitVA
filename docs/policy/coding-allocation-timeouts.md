@@ -61,10 +61,35 @@ When a reviewer allocation becomes stale:
 - write an audit log entry for the release
 
 Rationale: the reviewer final COD submission is the only terminal action for a
-reviewer session. All intermediate saves (NQA, Social Autopsy, reviewer NQA)
-are partial saves. If the session times out before the final COD is submitted,
-all intermediate artifacts disappear and the submission returns to
-`reviewer_eligible` so a fresh reviewer session can start.
+reviewer session. The review, NQA and Social Autopsy saves are partial saves.
+If the session times out before the final COD is submitted, they are
+deactivated and the submission returns to `reviewer_eligible` so a fresh
+reviewer session can start. The reviewer's saved Step 1
+(`va_reviewer_initial_assessments`, masked projects) is not touched: it is
+kept, and a fresh session by the same reviewer finds it (owner decision
+2026-10-05, `reviewer-release-keeps-step1`).
+
+## Reviewer release
+
+Owner decision 2026-10-05, `digitva-xl43`. One active reviewing allocation per
+reviewer stays. A reviewer may also release their own active reviewing
+allocation by choice (`POST /api/v1/reviewing/allocation/release`), for
+example after starting a review of a case they do not want to review.
+
+The effect is the same as the reviewer-session timeout, through
+`_release_reviewer_allocation` in `app/services/coding_allocation_service.py`:
+
+- the allocation is deactivated
+- the reviewer's review, NQA and Social Autopsy analysis are deactivated
+- the reviewer's saved Step 1 is kept
+- the case returns to `reviewer_eligible`
+- an audit log entry `reviewer_allocation_released_by_reviewer` is written
+  under the reviewer's user id
+
+Only the allocation's own reviewer may release it, and only while it is active
+and the case is in `reviewer_coding_in_progress` (otherwise 409
+`no_allocation` / `wrong_state`). The automatic release after the timeout
+above stays as it is. The invariant below applies to a reviewer release too.
 
 ## Coder release
 

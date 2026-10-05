@@ -130,8 +130,8 @@
       fetch(form.dataset.finalizeUrl, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':form.dataset.csrf},body:JSON.stringify(body)})
         .then(function(response){return response.json().catch(function(){return {};}).then(function(data){return {ok:response.ok,status:response.status,data:data};});})
         .then(function(result){
-          if (result.status === 409 && result.data.error && result.data.error.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error.message || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
-          if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Reviewer final assessment could not be saved.');
+          if (result.status === 409 && result.data.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
+          if (!result.ok) throw new Error(result.data.error || 'Reviewer final assessment could not be saved.');
           window.location.href = form.dataset.dashboardUrl;
         }).catch(function(failure){button.disabled=button.dataset.dorisNeedsConfirmation === 'true';error.textContent=failure.message;});
     });
@@ -176,8 +176,8 @@
       fetch(form.dataset.initialUrl, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':form.dataset.csrf},body:JSON.stringify(body)})
         .then(function(response){return response.json().catch(function(){return {};}).then(function(data){return {ok:response.ok,status:response.status,data:data};});})
         .then(function(result){
-          if (result.status === 409 && result.data.error && result.data.error.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error.message || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
-          if (!result.ok) throw new Error((result.data.error && result.data.error.message) || result.data.error || 'Reviewer Step 1 could not be saved.');
+          if (result.status === 409 && result.data.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
+          if (!result.ok) throw new Error(result.data.error || 'Reviewer Step 1 could not be saved.');
           window.location.href = {{ url_for('reviewing.resume', section='vacodassessment')|tojson }};
         }).catch(function(failure){button.disabled=button.dataset.dorisNeedsConfirmation === 'true';error.textContent=failure.message;});
     });

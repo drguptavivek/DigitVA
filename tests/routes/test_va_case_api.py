@@ -6,6 +6,7 @@ with the web partials); this covers the gate, the step state, the category
 bodies and the section cache key. Device enrolment helpers are reused from
 tests/routes/test_device_api.py.
 """
+import io
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import patch
@@ -34,6 +35,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
     VaUserAccessGrants,
+    VaUsernotes,
 )
 from app.services import case_content_service as case_content
 from app.services.authz import invalidate
@@ -43,6 +45,7 @@ from app.services.submission_payload_version_service import (
     ensure_active_payload_version,
     get_active_payload_version,
 )
+from app.services.user_note_service import get_active_note, save_note
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -647,6 +650,188 @@ class VaCaseApiTests(BaseTestCase):
         self.assertIsNotNone(flask_cache.get(key))
         case_content.invalidate_section_data_cache(sid)
         self.assertIsNone(flask_cache.get(key))
+
+
+    # -- private note ---------------------------------------------------------------
+
+    def _note_get(self, sid, mode="coding", user=None, headers=None):
+        return self._get(sid, "note", mode=mode, user=user, headers=headers)
+
+    def _note_put(self, sid, body, mode="coding", user=None, raw=None):
+        self._login(user or self.base_coder_id)
+        kwargs = {"data": raw, "content_type": "application/json"} if raw is not None else {"json": body}
+        return self.client.put(
+            f"{BASE}/{sid}/note", query_string={"mode": mode}, headers=self._csrf_headers(), **kwargs
+        )
+
+    def test_a_note_is_saved_updated_and_read_back_privately(self):
+        sid = self._coding_case()
+        empty = self._note_get(sid)
+        self.assertEqual(empty.status_code, 200)
+        self.assertEqual(empty.get_json(), {"va_sid": sid, "content": None, "updated_at": None})
+        saved = self._note_put(sid, {"content": "first thought"})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        body = saved.get_json()
+        self.assertEqual((body["va_sid"], body["content"]), (sid, "first thought"))
+        self.assertIsNotNone(body["updated_at"])
+        self.assertEqual(self._note_put(sid, {"content": "second thought"}).get_json()["content"], "second thought")
+        read = self._note_get(sid)
+        self.assertEqual(read.get_json()["content"], "second thought")
+        self.assertIn("no-store", read.headers["Cache-Control"])
+        self.assertIn("private", read.headers["Cache-Control"])
+        rows = db.session.scalars(sa.select(VaUsernotes).where(
+            VaUsernotes.note_vasubmission == sid, VaUsernotes.note_status == VaStatuses.active)).all()
+        self.assertEqual([row.note_content for row in rows], ["second thought"])
+
+    def test_the_note_is_one_row_shared_with_the_web_branch_and_both_modes(self):
+        coding = self._coding_case()
+        self.assertEqual(self._note_put(coding, {"content": "via api"}).status_code, 200)
+        self._login(self.base_coder_id)
+        self.assertEqual(get_active_note(self.base_coder_user.user_id, coding).note_content, "via api")
+        # The web saves through the same service; the API reads what it wrote.
+        save_note(self.base_coder_user.user_id, coding, "via web")
+        self.assertEqual(self._note_get(coding).get_json()["content"], "via web")
+        # A user who codes and reviews one case has one note across both modes.
+        reviewing = self._reviewing_case()
+        self.assertEqual(self._note_put(reviewing, {"content": "r"}, mode="reviewing", user=self.reviewer_id).status_code, 200)
+        self.assertEqual(self._note_get(reviewing, mode="reviewing", user=self.reviewer_id).get_json()["content"], "r")
+        # Another user's note on the same case is not read.
+        self.assertIsNone(get_active_note(self.reviewer.user_id, coding))
+
+    def test_a_note_needs_the_mode_the_role_and_the_allocation(self):
+        sid = self._coding_case()
+        # Present: the holder reads and writes.
+        self.assertEqual(self._note_get(sid).status_code, 200)
+        self.assertEqual(self._note_put(sid, {"content": "mine"}).status_code, 200)
+        for call in (self._note_get, lambda s, **k: self._note_put(s, {"content": "x"}, **k)):
+            response = call(sid, mode="view")
+            self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+            response = call(sid, mode="reviewing")
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"))
+            response = call(self._case())
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_allocation"))
+            response = call(
+                self._case(state=WORKFLOW_REVIEWER_CODING_IN_PROGRESS), mode="reviewing", user=self.reviewer_id
+            )
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_allocation"))
+            # A reviewer's allocation grants a coder nothing, in either mode.
+            response = call(self._reviewing_case(), mode="coding")
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_allocation"))
+        # Nothing was written for the refused case.
+        self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "mine")
+
+    def test_a_note_needs_a_credential(self):
+        sid = self._coding_case()
+        _device, tokens = self._session(email=_CODER_EMAIL, password=_CODER_PASSWORD)
+        bearer_only = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        put = bearer_only.put(
+            f"{BASE}/{sid}/note", query_string={"mode": "coding"},
+            json={"content": "bearer note"}, headers=self._bearer(tokens),
+        )
+        self.assertEqual(put.status_code, 200, put.get_json())
+        get = bearer_only.get(f"{BASE}/{sid}/note", query_string={"mode": "coding"}, headers=self._bearer(tokens))
+        self.assertEqual(get.get_json()["content"], "bearer note")
+        anonymous = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        self.assertEqual(anonymous.get(f"{BASE}/{sid}/note", query_string={"mode": "coding"}).status_code, 401)
+
+    def test_a_note_body_is_bounded_and_must_be_text(self):
+        sid = self._coding_case()
+        self.assertEqual(self._note_put(sid, {"content": "x" * 20_000}).status_code, 200)
+        for body in ({"content": ""}, {"content": "  \n "}, {"content": 5}, {"content": None}, {}, ["x"]):
+            response = self._note_put(sid, body)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"), body)
+        response = self._note_put(sid, None, raw="not json")
+        self.assertEqual(response.status_code, 400)
+        response = self._note_put(sid, {"content": "x" * 20_001})
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_request"))
+        # The 64 KB cap answers before any lookup, even for a case not held.
+        response = self._note_put(self._case(), {"content": "x" * 70_000})
+        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "too_large"))
+        self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "x" * 20_000)
+
+
+    def test_a_note_body_without_a_content_length_is_refused_unread(self):
+        sid = self._coding_case()
+        self._login(self.base_coder_id)
+        # A chunked body carries no Content-Length: it must not be buffered.
+        response = self.client.put(
+            f"{BASE}/{sid}/note", query_string={"mode": "coding"}, headers=self._csrf_headers(),
+            input_stream=io.BytesIO(b'{"content": "chunked"}'), content_type="application/json",
+            environ_overrides={"CONTENT_LENGTH": "", "HTTP_TRANSFER_ENCODING": "chunked"},
+        )
+        self.assertIsNone(response.request.content_length)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "too_large"))
+        # Present: the same body with a length is saved.
+        self.assertEqual(self._note_put(sid, {"content": "sized"}).status_code, 200)
+        self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "sized")
+
+    def test_a_note_with_a_nul_character_is_400_not_500(self):
+        sid = self._coding_case()
+        self.assertEqual(self._note_put(sid, {"content": "fine"}).status_code, 200)
+        response = self._note_put(sid, {"content": "a\x00b"})
+        self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+        self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "fine")
+
+    def test_timestamps_carry_an_explicit_utc_offset(self):
+        self._mode(masked=True)
+        sid = self._coding_case()
+        self._initial(sid)
+        created = self._workspace(sid)["assessments"]["initial"]["created_at"]
+        self.assertTrue(created.endswith("+00:00"), created)
+        self.assertIsNotNone(datetime.fromisoformat(created).utcoffset())
+        updated = self._note_put(sid, {"content": "n"}).get_json()["updated_at"]
+        self.assertTrue(updated.endswith("+00:00"), updated)
+        # The value is what was stored (naive UTC), not shifted.
+        stored = get_active_note(self.base_coder_user.user_id, sid).note_updated_at
+        self.assertEqual(datetime.fromisoformat(updated).replace(tzinfo=None), stored)
+
+    def test_a_note_saved_through_the_web_form_is_read_by_the_api_and_prefills_the_web(self):
+        sid = self._coding_case()
+        url = f"/vaform/{sid}/vausernote"
+        query = {"action": "vacode", "actiontype": "varesumecoding"}
+        self._login(self.base_coder_id)
+        saved = self.client.post(
+            url, query_string=query, data={"va_note_content": "from the web form"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200, saved.get_data(as_text=True))
+        self.assertIn("Note Saved!", saved.get_data(as_text=True))
+        self.assertEqual(self._note_get(sid).get_json()["content"], "from the web form")
+        # The API writes; the web page opens with it.
+        self.assertEqual(self._note_put(sid, {"content": "from the api"}).status_code, 200)
+        page = self.client.get(url, query_string=query)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("from the api", page.get_data(as_text=True))
+        rows = db.session.scalars(sa.select(VaUsernotes).where(
+            VaUsernotes.note_vasubmission == sid, VaUsernotes.note_by == self.base_coder_user.user_id
+        )).all()
+        self.assertEqual(len(rows), 1)
+
+    def test_another_users_note_is_never_read_and_a_case_held_by_another_coder_is_refused(self):
+        sid = self._coding_case()
+        save_note(self.reviewer.user_id, sid, "the reviewer's own note")
+        self.assertEqual(self._note_put(sid, {"content": "coder note"}).status_code, 200)
+        self.assertEqual(self._note_get(sid).get_json()["content"], "coder note")
+        self._login(self.reviewer_id)
+        # Present: the reviewer's own row exists and is theirs alone.
+        self.assertEqual(
+            get_active_note(self.reviewer.user_id, sid).note_content, "the reviewer's own note"
+        )
+        self.assertEqual(self._note_get(sid).get_json()["content"], "coder note")
+        other = self._make_user(f"xl43p3a.other.{uuid.uuid4().hex[:6]}@test.local", "OtherCoder123")
+        held_elsewhere = self._case(allocated_to=other.user_id)
+        save_note(other.user_id, held_elsewhere, "not for the coder")
+        for response in (
+            self._note_get(held_elsewhere),
+            self._note_put(held_elsewhere, {"content": "intruder"}),
+        ):
+            self.assertEqual(
+                (response.status_code, response.get_json()["code"]), (403, "no_allocation")
+            )
+        self.assertEqual(
+            get_active_note(other.user_id, held_elsewhere).note_content, "not for the coder"
+        )
+        self.assertIsNone(get_active_note(self.base_coder_user.user_id, held_elsewhere))
 
 
 class CaseStepStateTests(BaseTestCase):

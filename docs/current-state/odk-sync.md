@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-10-05
 ---
 
 # ODK Sync And Attachments
@@ -368,7 +368,8 @@ Current implementation detail:
 - the `304` branch asks `attachment_service.attachment_present()` whether the
   store already holds the blob; sync never stats a file or reads `store_state`
   itself
-- attachment serving (`/vaform/attachment/<storage_name>`) enforces the
+- attachment serving (`/api/v1/attachments/<storage_name>`; the old
+  `/vaform/attachment/<storage_name>` is kept for rendered pages) enforces the
   submission-level authorization matrix and `Cache-Control: private, no-store`
   defined in the [Attachment Storage and Delivery Policy](../policy/attachment-storage.md)
 

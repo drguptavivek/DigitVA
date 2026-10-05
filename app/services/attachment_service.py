@@ -33,6 +33,7 @@ from pathlib import Path
 
 import sqlalchemy as sa
 from flask import abort, current_app, g, redirect, send_file, stream_with_context
+from werkzeug.utils import secure_filename
 
 from app import db, cache as flask_cache
 from app.models import (
@@ -245,6 +246,83 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     # rendered page withholds them, so a guessed filename must not fetch
     # them either, whichever path below would grant it.
     return can(user, READ_ATTACHMENTS, va_sid) and not redacts_pii(user)
+
+
+# The opaque token a rendered URL carries; anything else is not a token.
+STORAGE_NAME_PATTERN = re.compile(r"^[a-f0-9]{32}\.[a-z0-9]{1,5}$")
+_FORM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def authorize_token_attachment(user, storage_name: str) -> AttachmentRecord | int:
+    """The record of a token attachment *user* may receive, else an HTTP status.
+
+    Shared by the cookie routes (``/vaform/attachment``) and the ``/api/v1``
+    route so both apply one rule, in this order: format (404), record lookup
+    (404), submission-level access (403, logged). Delivery is the caller's.
+    """
+    if not STORAGE_NAME_PATTERN.match(storage_name):
+        return 404
+    record = resolve_attachment_record(storage_name)
+    if record is None:
+        return 404
+    if not can_access_submission_attachment(
+        user, va_form_id=record.va_form_id, va_sid=record.va_sid
+    ):
+        log.warning(
+            "attachment denied: user=%s sid=%s form=%s",
+            user.user_id, record.va_sid, record.va_form_id,
+        )
+        return 403
+    return record
+
+
+def authorize_legacy_attachment(user, va_form_id: str, va_filename: str) -> AttachmentRecord | int:
+    """The record of a pre-``storage_name`` attachment *user* may receive, else a status.
+
+    Order is the legacy ``/vaform/media`` route's: form id format (400),
+    ownership lookup (404) before any authorization, access (403, logged),
+    then the filename check (400) that keeps the store path inside the form's
+    media directory. The record's ``storage_name`` is the sanitized ODK
+    filename; with the S3 store such a row has no object (delivery answers 404).
+    """
+    if not va_form_id or not _FORM_ID_PATTERN.match(va_form_id):
+        return 400
+    row = db.session.execute(
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.mime_type,
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissions.va_form_id == va_form_id,
+            VaSubmissionAttachments.filename == va_filename,
+        )
+    ).first()
+    if row is None:
+        return 404
+    if not can_access_submission_attachment(user, va_form_id=va_form_id, va_sid=row.va_sid):
+        log.warning(
+            "legacy attachment denied: user=%s %s/%s sid=%s",
+            user.user_id, va_form_id, va_filename, row.va_sid,
+        )
+        return 403
+    safe_filename = secure_filename(va_filename)
+    if (
+        not safe_filename
+        or ".." in va_filename
+        or va_filename.startswith(("/", "\\"))
+    ):
+        return 400
+    return AttachmentRecord(
+        va_sid=row.va_sid,
+        va_form_id=va_form_id,
+        storage_name=row.storage_name or safe_filename,
+        filename=va_filename,
+        local_path=row.local_path,
+        mime_type=row.mime_type,
+    )
 
 
 # ---------------------------------------------------------------------------

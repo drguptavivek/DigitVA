@@ -11,7 +11,7 @@ last_updated: 2026-10-05
 The one route reference for every client (the Jinja pages, Expo web, the
 native collection app). Policy: `docs/policy/api-v1.md`. Code:
 `app/routes/api/` (`auth.py`, `me.py`, `intake.py`, `organization.py`,
-`instruments.py`, `profile.py`), `app/services/access_summary_service.py`,
+`instruments.py`, `profile.py`, `attachments.py`), `app/services/access_summary_service.py`,
 `app/services/device_auth_service.py`. Tests: `tests/routes/test_device_api.py`
 (sign-in, tokens, intake), `tests/routes/test_me_access.py`,
 `tests/routes/test_client_api.py`, `tests/routes/test_api_v1_credentials.py`.
@@ -48,7 +48,8 @@ Errors: every body is `{"error", "code"}` (the role gate's 401
 `unauthorized` and 403 `forbidden`, CSRF 400 `csrf_failed`, 429
 `rate_limited`, and on `/api/v1/` 404 `not_found`, 405 `method_not_allowed`).
 Blueprints outside the client contract (analytics, coding, data management,
-...) still answer some bodies without `code`.
+...) still answer some bodies without `code`. Reviewing, narrative QA and
+Social Autopsy answer `{"error", "code"}` throughout.
 
 ## Sign-in (`/api/v1/auth`, `app/routes/api/auth.py`)
 
@@ -227,13 +228,84 @@ a missing required field, a DORIS certificate sent to masked Step 2),
 Step 1: "Save Step 1 first."), `no_payload` and the DORIS conflicts
 `DORIS_CERTIFICATE_CHANGED` (carries `processing`, a fresh proof; nothing is
 saved), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413 `too_large`
-(any of the three bodies over 1.2 MB; keyed by path only, with no database
+(any of the three bodies over 1.2 MB, or with no `Content-Length` (chunked); keyed by path only, with no database
 lookup); 422 `invalid_request` (`remark`, `other` or an `other_conditions`
 item over 4000 characters), `final_blocked` (`messages` lists
 every blocking gate: an invalid COD, no active payload, Narrative QA or Social
 Autopsy Analysis not yet saved) and `invalid_doris`; 503 `who_unavailable` /
 `who_not_configured`. Not codeable also flags ODK Central for revision; a
 failed flag is audited and does not fail the save.
+
+## Reviewer COD routes (`POST /api/v1/reviewing/allocation/<va_sid>|initial/<va_sid>|finalize/<va_sid>`, `app/routes/api/reviewing.py`)
+
+The reviewer's start and two saves over JSON, the same writes the web COD panel
+makes: both call `app/services/reviewer_coding_service.py`
+(`start_reviewer_coding`, `submit_reviewer_initial_cod`,
+`submit_reviewer_final_cod`). Gate `reviewer`; cookie with `X-CSRFToken` or a
+device bearer. Authorised per request: `Action.REVIEW` on the case, plus the
+caller's own active reviewing allocation for the saves.
+
+Errors are flat `{error, code}` (a changed DORIS certificate adds the
+reprocessed `processing`; nothing is saved). The HTTP statuses are unchanged:
+400 `invalid_request` (body not an object, wrong type, a missing required
+field, a DORIS certificate sent to masked Step 2), `invalid_cod` (an invalid
+COD or mixed ICD-10 and ICD-11), `wrong_state` (a masked final without the
+reviewer's own Step 1) and `final_blocked` (Social Autopsy not yet saved); 403
+`forbidden` (outside review scope, language not in the profile, closed
+project), `no_allocation`, `wrong_state` (the case is not `reviewer_eligible` /
+`reviewer_coding_in_progress`, or already has a reviewer final); 404
+`not_found`; 409 `allocation_exists` (another reviewing allocation is held),
+`conflict` (retired or confirmed-duplicate case), `not_masked` (Step 1 on an
+unmasked project) and the DORIS conflicts `DORIS_CERTIFICATE_CHANGED` (carries
+`processing`), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413
+`too_large` (a DORIS body over 1.2 MB); 422 `invalid_doris`; 503
+`who_unavailable` / `who_not_configured`. `wrong_state` keeps the status each
+route always had: 403 on start and the saves (400 for a masked final without
+Step 1), 409 on reviewer release and when a release lands during a final save.
+
+## Reviewer queue (`GET /api/v1/reviewing/stats|available|history`, `app/routes/api/reviewing.py`)
+
+The reviewer dashboard's reads for any client, from
+`app/services/reviewer_dashboard_service.py` (the web page calls the same
+functions). Gate `reviewer`; every reply is `private, no-store`. Optional
+`project_id` (upper-cased, at most 64 characters) narrows each route.
+
+| Route | Reply |
+| --- | --- |
+| `GET /stats` | `{in_scope, completed, available, allocation}`. `in_scope` and `completed` are the web page's counts (cases in review scope in any state; the caller's active reviewer finals, any scope); `available` is the size of `/available`; `allocation` is `{va_sid}` or `null`, as `GET /allocation`. |
+| `GET /available` | `{cases, count, limit, offset, has_more}`. Exactly the cases `POST /allocation/<va_sid>` accepts: `reviewer_eligible`, REVIEW scope, narration language in the caller's profile, in ODK (not retired), not a confirmed duplicate, no active reviewer final, active project-site. A row is `va_sid`, `va_uniqueid_masked`, `va_form_id`, `project_id`, `site_id`, `va_submission_date`, `va_data_collector`, `va_deceased_age`, `va_deceased_gender`, `va_narration_language`. Ordered by project, site, submission date, masked id, `va_sid`. |
+| `GET /history` | `{history, count, limit, offset, has_more}`. The caller's own active reviewer finals on cases they may still view, newest first. A row is the `/available` keys plus `va_reviewed_at` (UTC ISO timestamp of the final, with `+00:00`). |
+
+`limit` is 1 to 200 (default 50) and `offset` 0 to 1,000,000; anything else is
+400 `invalid_request`. `count` is the page's size and `has_more` is answered by
+fetching one extra row. One query per route (plus one count on `/stats`).
+
+## Reviewer release (`POST /api/v1/reviewing/allocation/release`, `app/routes/api/reviewing.py`)
+
+A reviewer releases their own active reviewing allocation
+([Coding Allocation Timeout Policy](../policy/coding-allocation-timeouts.md),
+"Reviewer release"). Gate `reviewer`; browser cookie with `X-CSRFToken` or a
+device bearer. No body. 200 `{va_sid, workflow_state}`
+(`reviewer_eligible`); 409 `no_allocation` when none is held; 409
+`wrong_state` when the case is no longer in a reviewer session (nothing
+changes). No scope check: an allocation that outlived a narrowed grant can
+still be released. Same effect as the reviewer-session timeout
+(`coding_allocation_service._release_reviewer_allocation`): the allocation, the
+reviewer's review, NQA and Social Autopsy analysis are deactivated and the
+reviewer's saved Step 1 is kept (owner, 2026-10-05). Audited as
+`reviewer_allocation_released_by_reviewer` under the reviewer's user id.
+
+## NQA and Social Autopsy errors (`POST /api/v1/va/<va_sid>/narrative-qa|social-autopsy`, `app/routes/api/nqa.py`, `app/routes/api/so.py`)
+
+Errors `{error, code}`; a body that is not a JSON object is 400
+`invalid_request`. 400 `invalid_request` (NQA not enabled for the project,
+invalid or missing NQA fields, `selected_options` not a list or an invalid
+option, an unanswered delay question: the last also carries
+`missing_delay_levels`); 403 `forbidden` (reviewer outside review scope,
+Social Autopsy disabled for the role, a demo session outside a demo/training
+project), `no_allocation` (no active reviewing or coding allocation on the
+case); 404 `not_found`. The coding-allocation check shared with `icd10.py`
+answers the same two 403 codes (`require_coding_access`).
 
 ## Workspace content (`GET /api/v1/va/<va_sid>/workspace` and `.../categories/<code>`, `app/routes/api/va_case.py`)
 
@@ -274,9 +346,8 @@ not see is 404 `not_found`, like one that does not exist. Every category reply i
 `Cache-Control: private, no-store` (PHI on a shared browser), stricter than the
 web partial, which keeps `max-age=300` for data categories.
 
-Attachment item values are the existing `/attachment/<token>` URLs, which need
-the cookie session; digitva-xl43 phase 3 replaces them with bearer-capable
-`/api/v1` URLs. DORIS fields (certificate prefill, process URLs) are not in
+Attachment item values are `/api/v1/attachments/...` URLs (see Media below),
+the same for every client and loadable with the cookie or a bearer. DORIS fields (certificate prefill, process URLs) are not in
 this body yet: digitva-xl43.3; `case.project_mode` tells the client.
 
 Errors `{error, code}`: 400 `invalid_request`; 403 `forbidden` (wrong role for
@@ -284,8 +355,10 @@ the mode, or the case is outside the caller's scope) and `no_allocation`; 404
 `not_found` (unknown case or category).
 
 Section cache: Redis, 30 minutes, key
-`form_data:<sid>:<payload_version_id>:<role>:<category>` plus `:nopii` for a
-viewer who must not see personal data. The role bucket (`coder`, `reviewer`,
+`form_data2:<sid>:<payload_version_id>:<role>:<category>` plus `:nopii` for a
+viewer who must not see personal data (the prefix was bumped from `form_data:`
+when the attachment URLs moved to `/api/v1`, so cached cookie-only URLs are
+not served). The role bucket (`coder`, `reviewer`,
 `data_manager`, `viewer`) keeps roles mapped through different field mappings
 from sharing an entry, and the payload version keeps an interviewer revision
 from being served the old answers. `invalidate_section_data_cache` drops every
@@ -293,6 +366,68 @@ role and PII variant of the current version but has no production caller: the
 payload version in the key is what stops stale answers after an interviewer
 revision or another interview chosen, while edits to the field mapping or the
 PII set still wait out the 30-minute TTL.
+
+## Media (`GET /api/v1/attachments/...`, `app/routes/api/attachments.py`)
+
+The attachment URLs of the case content (digitva-xl43 phase 3a). A bearer opens
+only `/api/v1/`, so the renderer (`_resolve_attachment_url`, the one producer)
+emits these for every client, web pages included; the old `/vaform/attachment`
+and `/vaform/media` cookie routes stay for pages rendered before the change.
+
+| Route | Row |
+| --- | --- |
+| `GET /api/v1/attachments/<storage_name>` | token rows (an opaque `<32 hex>.<ext>` name) |
+| `GET /api/v1/attachments/legacy/<va_form_id>/<va_filename>` | rows with no `storage_name` (the ODK filename names the object) |
+
+Gate `coder`, `coding_tester`, `reviewer`, `data_manager`, `site_pi`,
+`project_pi`, `collaborator`, `collaborator_pii`, `admin`; cookie or bearer.
+The submission-level rule is `attachment_service`'s, shared with the old
+routes (`authorize_token_attachment`, `authorize_legacy_attachment`): the VIEW
+scope on the submission, never a plain viewer (attachments carry personal
+data), evaluated on every request. URLs end in the original extension (the
+templates sniff image or audio by it). Delivery is
+`attachment_service.deliver` / `deliver_legacy_media` unchanged: the local
+store sends the file with `Range` (206), the S3 store answers 302 to a
+presigned URL, always `Cache-Control: private, no-store` and
+`X-Content-Type-Options: nosniff`.
+
+Errors `{error, code}`, also `private, no-store`: 400 `invalid_request`
+(legacy route: malformed form id or filename), 401 `unauthorized`, 403
+`forbidden`, 404 `not_found` (bad token, no row, no bytes), 502
+`upstream_error` (ODK Central refused or returned a bad redirect), 503
+`unavailable` (transient; `Retry-After`), 416 `range_not_satisfiable` (a
+`Range` past the end).
+
+Client notes. Native: `source={{uri, headers: {Authorization}}}`. Expo web on
+the cookie loads the URL directly; a bearer-only web client fetches with the
+header and uses a blob URL. Not verified on a device: a player that forwards
+`Authorization` to the S3 presigned redirect is refused by S3 (digitva-p6fs.5).
+
+## Private note (`GET|PUT /api/v1/va/<va_sid>/note?mode=coding|reviewing`, `app/routes/api/va_case.py`)
+
+The caller's private note on a case (digitva-xl43 phase 3a), the row the web
+`vausernote` partial edits (`app/services/user_note_service.py`: `get_active_note`,
+`save_note`). Gate `coder`, `coding_tester` or `reviewer`; cookie or bearer. The
+same allocation check as `workspace` (`_authorize_session`: mode, role, own
+active coding or reviewing allocation) but no category is rendered. Own
+allocation only; the web also allows a note on its view page, so widen this
+when an API view mode lands. One note per user per case, shared by their
+coding and reviewing sessions.
+
+- `GET` answers `{va_sid, content, updated_at}` (both null when none),
+  `Cache-Control: private, no-store`. Timestamps in this file's workspace and
+  note bodies (`updated_at`, the assessments' `created_at`) are ISO 8601 UTC
+  with an explicit `+00:00` offset.
+- `PUT {"content": text}` upserts and answers as `GET`. 400 `invalid_request`
+  for a body that is not an object with text `content`, or empty or
+  whitespace-only content or content holding a NUL character; 413 `too_large` over
+  64 KB by `Content-Length`, or with no `Content-Length` at all (a chunked body
+  is refused, never buffered; keyed by path, before any lookup); 422 `invalid_request` over 20,000
+  characters. Errors as `workspace`.
+
+Concurrent first saves can insert two rows (no unique constraint; the web has
+the same limit); reads take the latest by `note_updated_at`. Upgrade: a partial
+unique index on `(note_by, note_vasubmission)` where active.
 
 ## GET /api/v1/me/access (body)
 

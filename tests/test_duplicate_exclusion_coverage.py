@@ -58,6 +58,7 @@ COVERED_HELPERS = frozenset({
     "services/sitepi_reporting_service.py::_workflow_kpis",
     "routes/api/analytics.py::_dm_scope_filter",
     "routes/api/dm_kpi/dm_kpi_pipeline.py::_ready_for_coding_count",
+    "services/reviewer_dashboard_service.py::_available_where",
 })
 
 _WRITER = "writer of workflow state; readers exclude the submission, writers keep it consistent"
@@ -91,6 +92,9 @@ EXEMPT = {
     "routes/api/coding.py::finalize": _COD_WRITE_ROUTE,
     "routes/api/coding.py::not_codeable": _COD_WRITE_ROUTE,
     "routes/api/coding.py::release_allocation": "thin route over release_own_coding_allocation",
+    "routes/api/reviewing.py::release_allocation": (
+        "thin route over release_own_reviewing_allocation; echoes the case's own state in the reply"
+    ),
     "services/coder_workflow_service.py::AllocationError.__init__": "carries workflow_state on an error",
     "services/coder_workflow_service.py::_unavailable": "maps a workflow_state to an error code",
     "services/coder_workflow_service.py::release_own_coding_allocation": _ONE_ROW,

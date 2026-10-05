@@ -1027,10 +1027,13 @@ On reviewer session timeout:
 - return canonical workflow state to `reviewer_eligible`
 
 Rationale: the reviewer final COD submission is the only terminal action for a
-reviewer session. All intermediate saves are partial. A timed-out session that
-did not reach final COD submission is treated as incomplete, and all
-intermediate artifacts are discarded. A fresh reviewer session may then start
-from `reviewer_eligible`.
+reviewer session. The review, NQA and Social Autopsy saves are partial. A
+timed-out session that did not reach final COD submission is treated as
+incomplete, and those artifacts are deactivated; the reviewer's saved Step 1 is
+kept. A fresh reviewer session may then start from `reviewer_eligible`.
+A reviewer releasing their own session has the same effect
+([Coding Allocation Timeout Policy](coding-allocation-timeouts.md), "Reviewer
+release").
 
 Transition: `incomplete_reviewer_reset` → `reviewer_eligible`.
 

@@ -545,10 +545,12 @@ new route; every route still checks its own role, so a coder-only user gets
 
 The coding and review workspace routes are in section 12.
 
-## 12. Coding and review workspace (`digitva-xl43` phases 1-2, server built)
+## 12. Coding and review workspace (`digitva-xl43` phases 1-3, server built)
 
 App half: `digitva-p6fs.4`. Full bodies and every error code:
-`docs/current-state/api-v1.md`, "Coder COD writes" and "Workspace content".
+`docs/current-state/api-v1.md`, "Coder COD writes", "Reviewer COD routes",
+"Reviewer queue", "Reviewer release", "Workspace content", "Media" and
+"Private note".
 Either credential; errors are `{error, code}`. Every route below needs the
 caller's own active allocation on the case (403 `no_allocation` otherwise);
 the existing allocation routes get one (`GET/POST /coding/allocation`,
@@ -573,10 +575,37 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
    Reviewers: `POST /api/v1/reviewing/initial/<va_sid>` and
    `/reviewing/finalize/<va_sid>`. After a save,
    reload the workspace for the next step; 422 `final_blocked` lists the
-   blocking gates in `messages`.
-4. **Not yet served** (phase 3, do not build against the web routes):
-   attachments and media still come back as cookie-only `/attachment/<token>`
-   URLs; DORIS projects (`case.project_mode` ending `_doris`) have no
-   certificate prefill in the workspace (`digitva-xl43.3`); no read-only view
-   of a finished case; the reviewer queue, reviewer release and the private
-   note.
+   blocking gates in `messages`. Reviewing, narrative QA and Social Autopsy
+   refusals are now flat `{error, code}` too (a DORIS conflict adds
+   `processing`).
+4. **Not yet served** (do not build against the web routes): DORIS projects
+   (`case.project_mode` ending `_doris`) have no certificate prefill in the
+   workspace (`digitva-xl43.3`); no read-only view of a finished case.
+5. **Media:** attachment `value`s in the category bodies are
+   `/api/v1/attachments/<token>` (or `/attachments/legacy/<form>/<file>`)
+   paths, the same for every client, ending in the original extension (sniff
+   image or audio by it). Gate and bodies: `api-v1.md`, "Media". Native:
+   `source={{uri, headers: {Authorization: 'Bearer ...'}}}`. Expo web on the
+   cookie loads the URL directly; a bearer-only web client fetches with the
+   header and uses a blob URL. Audio seeks by `Range` (206); on the S3 store
+   the reply is a 302 to a presigned URL. Errors are `{error, code}`: 403
+   `forbidden` (a plain collaborator never gets media), 404 `not_found`, 502
+   `upstream_error`, 503 `unavailable` with `Retry-After`. Device risk, check
+   on hardware (`digitva-p6fs.5`): a player that forwards `Authorization` to
+   the S3 redirect is refused by S3; if so, fetch the bytes yourself.
+6. **Private note:** `GET|PUT /api/v1/va/<va_sid>/note?mode=coding|reviewing`
+   (own allocation only). `GET` gives `{va_sid, content, updated_at}` (nulls
+   when none); `PUT {"content": text}` saves and answers the same. Empty or
+   whitespace-only content is 400 `invalid_request`, over 20,000 characters
+   422, a body over 64 KB 413 `too_large`. One note per user per case, shared
+   by the coding and reviewing sessions and by the web note box. Do not
+   cache it (`no-store`).
+7. **Reviewer queue and release:** `GET /api/v1/reviewing/stats`
+   (`{in_scope, completed, available, allocation}`), `/reviewing/available`
+   and `/reviewing/history` (paged: `limit` 1-200, default 50, `offset`,
+   `has_more`; optional `project_id`). `/available` lists exactly the cases
+   `POST /reviewing/allocation/<va_sid>` accepts. `POST
+   /api/v1/reviewing/allocation/release` (no body) gives the case back: 200
+   `{va_sid, workflow_state}`, 409 `no_allocation` / `wrong_state`; the
+   reviewer's saved Step 1 is kept and their NQA and Social Autopsy analysis
+   are cleared, as on a timeout.

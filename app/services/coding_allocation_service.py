@@ -244,13 +244,17 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     return released
 
 
-def _deactivate_reviewer_session_artifacts(record: VaAllocations, cause: str) -> None:
-    """Deactivate all intermediate reviewer session artifacts for a timed-out allocation.
+def _deactivate_reviewer_session_artifacts(
+    record: VaAllocations, cause: str, actor: WorkflowActor
+) -> None:
+    """Deactivate the reviewer session artifacts of a released allocation.
 
     Reviewer sessions follow first-pass coder behaviour: the reviewer final COD
-    is the only terminal action. If the session times out before that, all
-    intermediate work disappears — VaReviewerReview (reviewer NQA),
-    VaNarrativeAssessment, and VaSocialAutopsyAnalysis filled by this reviewer.
+    is the only terminal action. If the session ends before that, the session
+    work is deactivated: VaReviewerReview (reviewer NQA), VaNarrativeAssessment
+    and VaSocialAutopsyAnalysis filled by this reviewer. The reviewer's Step 1
+    (VaReviewerInitialAssessments) is kept
+    (docs/policy/coding-allocation-timeouts.md). *actor* is who released it.
     """
     for rr in db.session.scalars(
         sa.select(VaReviewerReview).where(
@@ -263,7 +267,8 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations, cause: str) ->
         db.session.add(VaSubmissionsAuditlog(
             va_sid=record.va_sid,
             va_audit_entityid=rr.va_rreview_id,
-            va_audit_byrole="vasystem",
+            va_audit_byrole=actor.audit_role,
+            va_audit_by=actor.user_id,
             va_audit_operation="u",
             va_audit_action=f"reviewer nqa reverted due to {cause}",
         ))
@@ -279,7 +284,8 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations, cause: str) ->
         db.session.add(VaSubmissionsAuditlog(
             va_sid=record.va_sid,
             va_audit_entityid=nqa.va_nqa_id,
-            va_audit_byrole="vasystem",
+            va_audit_byrole=actor.audit_role,
+            va_audit_by=actor.user_id,
             va_audit_operation="u",
             va_audit_action=f"narrative quality assessment reverted due to reviewer {cause}",
         ))
@@ -295,22 +301,29 @@ def _deactivate_reviewer_session_artifacts(record: VaAllocations, cause: str) ->
         db.session.add(VaSubmissionsAuditlog(
             va_sid=record.va_sid,
             va_audit_entityid=saa.va_saa_id,
-            va_audit_byrole="vasystem",
+            va_audit_byrole=actor.audit_role,
+            va_audit_by=actor.user_id,
             va_audit_operation="u",
             va_audit_action=f"social autopsy analysis reverted due to reviewer {cause}",
         ))
 
 
 def _release_reviewer_allocation(record: VaAllocations, *, cause: str, reason: str,
-                                 audit_action: str) -> None:
-    """Release one active reviewer allocation: session artifacts go, state -> reviewer_eligible."""
+                                 audit_action: str, actor: WorkflowActor | None = None) -> None:
+    """Release one active reviewer allocation: session artifacts go, state -> reviewer_eligible.
+
+    *actor* is who released it (the allocation's reviewer, for a reviewer
+    release); the timeout, duplicate and send-back releases are the system's.
+    """
+    actor = actor or system_actor()
     record.va_allocation_status = VaStatuses.deactive
-    _deactivate_reviewer_session_artifacts(record, cause)
-    reset_incomplete_reviewer_session(record.va_sid, reason=reason, actor=system_actor())
+    _deactivate_reviewer_session_artifacts(record, cause, actor)
+    reset_incomplete_reviewer_session(record.va_sid, reason=reason, actor=actor)
     db.session.add(VaSubmissionsAuditlog(
         va_sid=record.va_sid,
         va_audit_entityid=record.va_allocation_id,
-        va_audit_byrole="vasystem",
+        va_audit_byrole=actor.audit_role,
+        va_audit_by=actor.user_id,
         va_audit_operation="d",
         va_audit_action=audit_action,
     ))
@@ -376,8 +389,9 @@ def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
 
     Reviewer sessions behave like first-pass coder sessions: the final COD
     submission is the only completion action. A timed-out reviewer session
-    deactivates all intermediate artifacts and returns the submission to
-    reviewer_eligible so a reviewer may start a fresh session.
+    deactivates its session artifacts (the reviewer's Step 1 is kept) and
+    returns the submission to reviewer_eligible so a reviewer may start a
+    fresh session.
     """
     cutoff = _naive_utc_now() - timedelta(hours=timeout_hours)
     stale_allocations = db.session.scalars(

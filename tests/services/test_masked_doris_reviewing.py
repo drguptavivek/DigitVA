@@ -413,8 +413,8 @@ class TestMaskedDorisReviewing(BaseTestCase):
         response = self._post_initial(sid)
 
         self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
-        error = response.get_json()["error"]
-        self.assertEqual(error["code"], "DORIS_CERTIFICATE_CHANGED")
+        self.assertEqual(response.get_json()["code"], "DORIS_CERTIFICATE_CHANGED")
+        self.assertIsInstance(response.get_json()["error"], str)
         self.assertEqual(response.get_json()["processing"]["process_token"], "fresh-token")
         self.assertEqual(verify.call_args.kwargs["role"], "reviewer")
         self.assertIsNone(

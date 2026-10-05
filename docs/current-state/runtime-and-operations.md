@@ -485,8 +485,9 @@ Current log outputs:
 - `logs/sql.log`
 - `logs/celery_tasks.log`
 - `logs/celery_slow_queries.log`
+- `logs/grants.log`
 
-All high-volume logs use 6-hour rotation with bounded retention (56 files, ~14 days).
+All log files rotate every 6 hours, each rotated file is gzipped (`<name>.log.<UTC timestamp>.gz`), and 840 rotated files (210 days) are kept before the oldest is deleted (`LOG_BACKUP_COUNT` in `app/logging/va_logger.py`). Database audit records are kept permanently.
 
 ### Request abuse control
 

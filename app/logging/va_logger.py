@@ -1,5 +1,7 @@
+import gzip
 import logging
 import os
+import shutil
 import sys
 import time
 import uuid
@@ -14,9 +16,10 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from werkzeug.exceptions import HTTPException
 
-# Rotate high-volume logs every 6 hours and keep two weeks of history.
+# Rotate logs every 6 hours, gzip each rotated file, and keep 210 days
+# (210 days x 4 rotations a day) of history. Owner decision, 2026-10-06.
 LOG_ROTATION_HOURS = 6
-LOG_BACKUP_COUNT = 56
+LOG_BACKUP_COUNT = 840
 SLOW_QUERY_THRESHOLD_S = 0.5
 
 SENSITIVE_FIELDS = [
@@ -94,15 +97,38 @@ grant_audit_formatter = logging.Formatter(
 )
 
 
-def _build_rotating_handler(log_file: str, formatter: logging.Formatter) -> TimedRotatingFileHandler:
+def _gzip_namer(name: str) -> str:
+    return name + ".gz"
+
+
+def _gzip_rotator(source: str, dest: str) -> None:
+    # Several processes (app workers, Celery) write the same files; one that
+    # rotates second finds the file already moved, as os.rename's path did.
+    if not os.path.exists(source):
+        return
+    with open(source, "rb") as src, gzip.open(dest, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    os.remove(source)
+
+
+def build_rotating_handler(
+    log_file: str,
+    formatter: logging.Formatter,
+    backup_count: int = LOG_BACKUP_COUNT,
+) -> TimedRotatingFileHandler:
     handler = TimedRotatingFileHandler(
         filename=log_file,
         when="h",
         interval=LOG_ROTATION_HOURS,
-        backupCount=LOG_BACKUP_COUNT,
+        backupCount=backup_count,
         encoding="utf-8",
         utc=True,
     )
+    # With a namer set, the stdlib cleanup (getFilesToDelete) finds the
+    # datetime suffix inside the name and accepts a file only if namer()
+    # reproduces it, so the .gz files are still pruned at backup_count.
+    handler.namer = _gzip_namer
+    handler.rotator = _gzip_rotator
     handler.setFormatter(formatter)
     handler.addFilter(LogContextFilter())
     return handler
@@ -128,7 +154,7 @@ def va_setup_logger(
         for handler in logger.handlers
     )
     if not has_file_handler:
-        logger.addHandler(_build_rotating_handler(abs_log_file, fmt))
+        logger.addHandler(build_rotating_handler(abs_log_file, fmt))
 
     if stderr:
         has_stderr = any(
@@ -295,7 +321,7 @@ def setup_slow_query_logging(
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.WARNING)
     logger.propagate = False
-    logger.addHandler(_build_rotating_handler(log_file, va_detailed_formatter))
+    logger.addHandler(build_rotating_handler(log_file, va_detailed_formatter))
     if stderr:
         stream_handler = logging.StreamHandler(sys.stderr)
         stream_handler.setFormatter(va_detailed_formatter)

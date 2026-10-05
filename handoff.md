@@ -32,14 +32,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **`digitva-8go.1` constraint messages translatable** (in progress
-   2026-10-06, uncommitted when this was written: `app/services/
-   instrument_translation_service.py`, `app/models/mas_instrument_locales.py`,
-   the translations editor, migration `e9h3k6p2s8v4` seeding Hindi drafts as
-   `source='machine'`, never served until accepted). Review, full suite,
-   commit, dev `flask db upgrade`. Other locales still need drafts; then
-   `digitva-zyf` (DORIS override messages; needs a vendor regeneration by the
-   Expo session).
+1. **Dev DB upgrade owed**: migration `e9h3k6p2s8v4` (data only: 429 Hindi
+   machine drafts of guidance and constraint messages, `689bb139`) is not yet
+   applied to the dev DB; dev head is `d8q4e1h6n3v9`. The owner runs
+   `docker compose exec -T minerva_app_service uv run --no-sync flask db upgrade`
+   (a writer's attempt was refused by the permission check). Other locales
+   still need drafts; then `digitva-zyf` (DORIS override messages; needs a
+   vendor regeneration by the Expo session).
 2. **Owner decisions that unlock backend work** (policy is silent; ask one
    at a time):
    - `digitva-t6q` death_reporter role: does a reporter see or edit the
@@ -78,8 +77,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 ## Deploy notes (unreleased batch)
 
 - Migrations: `c7p3d9k2m5t8` (`va_users.job_title`, `last_signed_in_at`),
-  `d8q4e1h6n3v9` (`map_case_transitions.changes`), and `8go.1`'s once
-  committed. Earlier field-collection migrations: `d5f1b8a3c6e2`,
+  `d8q4e1h6n3v9` (`map_case_transitions.changes`), `e9h3k6p2s8v4` (Hindi
+  note drafts, data only). Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case:
   check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.

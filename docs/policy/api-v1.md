@@ -25,7 +25,12 @@ on Android and iOS. Built; "State" below records what shipped.
    route that never consulted authz (`AUTHZ_ENFORCE_CONSULTED`).
 3. **One shape for the same thing.** One user object (`user_id`, `name`),
    one error body `{"error": "<message>", "code": "<machine code>"}` on
-   every 4xx/5xx, one unit-tree shape.
+   every 4xx/5xx, one unit-tree shape. The error rule has one exception
+   (owner, 2026-10-05, `digitva-ey38`): `/api/v1/doris-clinical/*` keeps, for
+   its own refusals, its nested `{"schema_version": 1, "error": {"code", "message"}}` because that
+   shape is tied to the DORIS editor UI and the WHO DORIS clinical model it
+   serialises. Everything else, whatever the blueprint, answers the flat body;
+   an error with no domain code takes the code of its HTTP status.
 4. **Everything about the user in one call.** The sign-in confirmation
    carries the access summary; `GET /api/v1/me/access` returns the identical
    body whenever the client wants it again (after a 403, a grant change, an
@@ -78,10 +83,9 @@ Done:
   `/intake/api/*` routes and the device intake copies are gone.
 - One error body `{"error", "code"}` on `/api/` paths: the role gate, the
   login gate, CSRF (`csrf_failed`), rate limits (`rate_limited`) and, under
-  `/api/v1/`, 404 and 405 carry a `code`. Blueprints outside the client
-  contract (analytics, coding, data management, ...) still answer
-  some inline errors without one. Reviewing, narrative QA and Social Autopsy
-  answer the flat `{"error", "code"}` body.
+  `/api/v1/`, every other HTTPException (404, 405, ...) carries a `code`;
+  analytics, area, coding, data management, ICD, workflow and the rest answer
+  it too (digitva-ey38), the doris-clinical exception aside.
 - Content refusals (deaths, attempts, visits) are always 422 with a specific
   code; single-case actions reply `{"case": <detail>}` (supervisor actions:
   the supervisor list's row shape under the same key). The case detail

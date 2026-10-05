@@ -15,6 +15,7 @@ from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
 
 from app import limiter
+from app.routes.api.request_helpers import error as api_error
 from app.services import area_dashboard_service as area
 from app.services import authz
 
@@ -51,12 +52,12 @@ def _area_params():
     such a user is told "not found" whatever the parameters.
     """
     if not authz.effective_roles(current_user):
-        return None, (jsonify({"error": "Not found."}), 404)
+        return None, api_error("Not found.", status_code=404)
     project_id, unit_id, site_id = _param("project"), _param("unit"), _param("site")
     if not project_id:
-        return None, (jsonify({"error": "project is required."}), 400)
+        return None, api_error("project is required.", status_code=400)
     if any(len(value) > _MAX_PARAM_LENGTH for value in (project_id, unit_id, site_id)):
-        return None, (jsonify({"error": "Not found."}), 404)
+        return None, api_error("Not found.", status_code=404)
     return (project_id, unit_id, site_id), None
 
 
@@ -76,7 +77,7 @@ def staff():
             current_user, project_id, unit_id=unit_id or None, site_id=site_id or None
         )
     except area.AreaNotFound:
-        return jsonify({"error": "Not found."}), 404
+        return api_error("Not found.", status_code=404)
     return jsonify(result)
 
 
@@ -93,7 +94,7 @@ def summary():
             current_user, project_id, unit_id=unit_id or None, site_id=site_id or None
         )
     except area.AreaNotFound:
-        return jsonify({"error": "Not found."}), 404
+        return api_error("Not found.", status_code=404)
 
     if result["project_card"]:
         result["project_card"]["links"] = _link_urls(result["project_card"]["links"])

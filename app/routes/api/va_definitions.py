@@ -12,6 +12,7 @@ Stored HTML is already sanitized (docs/policy/va-cause-definitions.md).
 from flask import Blueprint, jsonify, request
 
 from app.decorators.role_required import role_required
+from app.routes.api.request_helpers import error as api_error
 from app.services.icd_coding_value import ICD_CLASSIFICATIONS
 from app.services.va_cause_definition_service import (
     find_va_definition_for_icd,
@@ -37,8 +38,8 @@ def va_definition_for_icd():
     code = (request.args.get("code") or "")[:_MAX_CODE_LEN]
     classification = (request.args.get("classification") or "").strip().lower() or None
     if classification is not None and classification not in ICD_CLASSIFICATIONS:
-        return jsonify({"error": "classification must be icd10 or icd11."}), 400
+        return api_error("classification must be icd10 or icd11.", status_code=400)
     found = find_va_definition_for_icd(code, classification)
     if found is None:
-        return jsonify({"error": "No VA definition for this code."}), 404
+        return api_error("No VA definition for this code.", status_code=404)
     return jsonify(found)

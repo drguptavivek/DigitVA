@@ -30,6 +30,9 @@ from config import (
 )
 from celery import Celery, Task
 
+#: Readable ``error`` of the factor-setup refusal; its ``code`` is the contract.
+FACTOR_SETUP_REQUIRED_MESSAGE = "Set up a second sign-in factor to continue."
+
 # Deterministic names for constraints the models leave unnamed, so model metadata
 # and the live schema can be compared (see tests/migrations/test_schema_drift.py).
 #
@@ -588,7 +591,7 @@ def create_app(config_class=None):
             else:
                 return redirect(url_for('profile.force_password_change'))
             response = jsonify({
-                "error": code,
+                "error": "Accept the terms of use to continue.",
                 "code": code,
                 "redirect_url": url_for('profile.force_password_change'),
             })
@@ -644,7 +647,7 @@ def create_app(config_class=None):
                 or totp_service.has_any_factor(current_user.user_id)
             ):
                 return None
-            response = jsonify({"error": "factor_setup_required", "code": "factor_setup_required"})
+            response = jsonify({"error": FACTOR_SETUP_REQUIRED_MESSAGE, "code": "factor_setup_required"})
             response.headers["Cache-Control"] = "no-store"
             return response, 403
         if not current_user.is_authenticated:
@@ -682,7 +685,7 @@ def create_app(config_class=None):
         from app.decorators.role_required import API_PATH_PREFIXES
 
         if request.path.startswith(API_PATH_PREFIXES):
-            return jsonify({"error": "factor_setup_required", "code": "factor_setup_required"}), 403
+            return jsonify({"error": FACTOR_SETUP_REQUIRED_MESSAGE, "code": "factor_setup_required"}), 403
         return redirect(url_for("profile.view") + "#passkeys-card")
 
     @app.after_request

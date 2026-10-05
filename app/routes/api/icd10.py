@@ -14,6 +14,7 @@ from flask_login import current_user, login_required
 from app import cache, db, limiter
 from app.decorators.role_required import role_required
 from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
+from app.routes.api.request_helpers import error as api_error
 from app.services import coding_search_telemetry_service
 from app.services.authz import Action, can
 from app.services.icd10_2019_2_service import (
@@ -93,10 +94,6 @@ def _search_icd_cached(normalized_query: str) -> list[dict[str, str]]:
     return [{"icd_code": row[0], "icd_to_display": row[1]} for row in results]
 
 
-def _error(message: str, status_code: int = 400):
-    return jsonify({"error": message}), status_code
-
-
 def _browser_filters_from_request() -> dict[str, str]:
     return {
         "coding_filter": (request.args.get("coding_filter") or "any").strip() or "any",
@@ -113,7 +110,7 @@ def _require_coding_or_reviewing_access(va_sid: str):
 
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
-        return _error("Submission not found.", 404)
+        return api_error("Submission not found.", status_code=404)
     if not can(current_user, Action.REVIEW, va_sid):
         return coding_err
 
@@ -126,7 +123,7 @@ def _require_coding_or_reviewing_access(va_sid: str):
         )
     )
     if not active_reviewing_allocation:
-        return _error("Active reviewer allocation required.", 403)
+        return api_error("Active reviewer allocation required.", status_code=403)
     return None
 
 
@@ -159,7 +156,7 @@ def icd10_2019_2_coding_search(va_sid: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd11":
-        return _error("This project codes in ICD-11.", 400)
+        return api_error("This project codes in ICD-11.", "wrong_classification")
 
     search_id = coding_search_telemetry_service.resolve_search_id(
         request.args.get("search_id")
@@ -172,7 +169,7 @@ def icd10_2019_2_coding_search(va_sid: str):
         )
         latency_ms = round((time.perf_counter() - started) * 1000)
     except LookupError:
-        return _error("Submission not found.", 404)
+        return api_error("Submission not found.", status_code=404)
     # Response payload is built: recording happens now and cannot alter it.
     coding_search_telemetry_service.record_search_request(
         search_id=search_id,
@@ -198,11 +195,11 @@ def icd10_2019_2_coding_children(va_sid: str):
 
     parent_code = (request.args.get("parent_code") or "").strip()
     if not parent_code:
-        return _error("parent_code is required.", 400)
+        return api_error("parent_code is required.", status_code=400)
     try:
         payload = list_icd10_2019_2_coding_detailed_children(va_sid, parent_code)
     except LookupError:
-        return _error("Submission not found.", 404)
+        return api_error("Submission not found.", status_code=404)
     return jsonify({"parent_code": parent_code, "children": payload})
 
 
@@ -224,7 +221,7 @@ def icd10_2019_2_children():
 def icd10_2019_2_node(code: str):
     payload = get_icd10_2019_2_node_details(code.strip())
     if payload is None:
-        return _error("ICD code not found.", 404)
+        return api_error("ICD code not found.", status_code=404)
     return jsonify(payload)
 
 
@@ -252,16 +249,16 @@ def icd10_2019_2_policy_export():
 def icd10_2019_2_policy_import():
     uploaded = request.files.get("file")
     if uploaded is None:
-        return _error("file is required.", 400)
+        return api_error("file is required.", status_code=400)
     try:
         payload = uploaded.read().decode("utf-8")
     except UnicodeDecodeError:
-        return _error("Policy import file must be UTF-8 JSON.", 400)
+        return api_error("Policy import file must be UTF-8 JSON.", status_code=400)
 
     try:
         result = import_icd10_2019_2_policy_json(payload)
     except ValueError as exc:
-        return _error(str(exc), 400)
+        return api_error(str(exc), status_code=400)
 
     return jsonify(
         {
@@ -288,7 +285,7 @@ def icd10_2019_2_update_policy(code: str):
             restriction_note=body.get("restriction_note"),
         )
     except LookupError:
-        return _error("ICD code not found.", 404)
+        return api_error("ICD code not found.", status_code=404)
     except ValueError as exc:
-        return _error(str(exc), 400)
+        return api_error(str(exc), status_code=400)
     return jsonify(payload)

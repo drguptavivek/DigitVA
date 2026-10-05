@@ -56,10 +56,6 @@ from app.services.workflow.transitions import admin_actor
 bp = Blueprint("coding_api", __name__)
 
 
-def _error(message: str, status_code: int):
-    return jsonify({"error": message}), status_code
-
-
 def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
     """Return form_ids that belong to the given project."""
     rows = db.session.scalars(
@@ -146,7 +142,7 @@ def allocate():
                     current_user.user_id,
                     project_id,
                 )
-                return _error("Only admin users can start a demo coding session.", 403)
+                return api_error("Only admin users can start a demo coding session.", status_code=403)
             result = start_demo_allocation(current_user, project_id)
         elif sid:
             result = allocate_pick_form(current_user, sid)
@@ -157,7 +153,7 @@ def allocate():
                     current_user.user_id,
                     project_id,
                 )
-                return _error("Coder or coding tester access is required.", 403)
+                return api_error("Coder or coding tester access is required.", status_code=403)
             result = allocate_random_form(current_user, project_id=project_id)
     except AllocationError as e:
         current_app.logger.warning(
@@ -169,7 +165,7 @@ def allocate():
             e.status_code,
             e.message,
         )
-        return _error(e.message, e.status_code)
+        return _allocation_error(e)
 
     form = db.session.get(VaSubmissions, result.va_sid)
     return jsonify({
@@ -249,7 +245,7 @@ def recode(va_sid):
     try:
         result = start_recode_allocation(current_user, va_sid)
     except AllocationError as e:
-        return _error(e.message, e.status_code)
+        return _allocation_error(e)
     return jsonify({"va_sid": result.va_sid, "actiontype": result.actiontype}), 201
 
 
@@ -260,7 +256,7 @@ def admin_override_recode(va_sid):
     try:
         admin_override_to_recode(current_user, va_sid)
     except AllocationError as e:
-        return _error(e.message, e.status_code)
+        return _allocation_error(e)
     return jsonify({"va_sid": va_sid, "workflow_state": "ready_for_coding"}), 200
 
 
@@ -364,7 +360,7 @@ def _coder_refusal(exc: CoderCodingError):
 
 @bp.errorhandler(RequestEntityTooLarge)
 def _body_too_large(_exc):
-    return api_error("The request body is too large.", "too_large", 413)
+    return api_error("The request body is too large.", "payload_too_large", 413)
 
 
 def _too_long(*texts: str | None) -> bool:

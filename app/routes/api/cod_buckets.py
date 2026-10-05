@@ -11,6 +11,7 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.models import VaUsers
+from app.routes.api.request_helpers import error as api_error
 from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
     default_reporting_scheme_code,
@@ -110,11 +111,11 @@ def aggregates():
     form_id = (request.args.get("form_id") or "").strip() or None
     gender = (request.args.get("gender") or "").strip() or None
     if form_id and form_id not in form_ids:
-        return jsonify({"error": "Form is outside your data-manager scope."}), 403
+        return api_error("Form is outside your data-manager scope.", status_code=403)
 
     scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
     if not scheme_code:
-        return jsonify({"error": "No active COD bucket scheme is configured."}), 400
+        return api_error("No active COD bucket scheme is configured.", "no_active_scheme", 400)
 
     rows = aggregate_coded_submissions_by_bucket(
         scheme_code=scheme_code,
@@ -206,11 +207,11 @@ def export_csv():
     form_id = (request.args.get("form_id") or "").strip() or None
     gender = (request.args.get("gender") or "").strip() or None
     if form_id and form_id not in form_ids:
-        return jsonify({"error": "Form is outside your data-manager scope."}), 403
+        return api_error("Form is outside your data-manager scope.", status_code=403)
 
     scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
     if not scheme_code:
-        return jsonify({"error": "No active COD bucket scheme is configured."}), 400
+        return api_error("No active COD bucket scheme is configured.", "no_active_scheme", 400)
 
     csv_text = export_cod_bucket_reporting_csv(
         scheme_code=scheme_code,

@@ -6,6 +6,7 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models import VaSubmissionWorkflowEvent
+from app.routes.api.request_helpers import error as api_error
 from app.services.authz import READ_EVENTS, Reason, can
 
 bp = Blueprint("workflow", __name__)
@@ -23,9 +24,9 @@ def get_events(va_sid: str):
     """
     decision = can(current_user, READ_EVENTS, va_sid)
     if decision.reason is Reason.NOT_FOUND:
-        return jsonify({"error": "Submission not found."}), 404
+        return api_error("Submission not found.", status_code=404)
     if not decision:
-        return jsonify({"error": "Access denied."}), 403
+        return api_error("Access denied.", status_code=403)
 
     events = db.session.scalars(
         sa.select(VaSubmissionWorkflowEvent)

@@ -403,10 +403,15 @@ def va_logging(app):
                 _safe_current_user_email(),
                 status_code,
             )
-            # Not a 404/403/500, which va_errors answers: the 405 stays here
-            # so the abuse counter above still sees it.
-            if status_code == 405 and request.path.startswith("/api/v1/"):
-                return jsonify({"error": "Method not allowed.", "code": "method_not_allowed"}), 405
+            # Any other 4xx/5xx on /api/v1 (a bare abort, a malformed body, an
+            # unsupported media type) answers the contract's JSON, never HTML.
+            # 3xx (a trailing-slash redirect) is not an error and passes through.
+            # The 405 stays here so the abuse counter above still sees it.
+            if status_code >= 400 and request.path.startswith("/api/v1/"):
+                from app.routes.api.request_helpers import error as api_error
+
+                message = "Method not allowed." if status_code == 405 else e.description or e.name
+                return api_error(message, status_code=status_code)
             return e
 
         error_logger.error(

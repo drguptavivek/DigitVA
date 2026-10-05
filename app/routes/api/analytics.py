@@ -23,6 +23,7 @@ from flask_login import current_user
 
 from app import db, limiter, cache
 from app.decorators import role_required
+from app.routes.api.request_helpers import error as api_error
 from app.services.data_management_service import dm_grant_scope
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -365,4 +366,4 @@ def mv_refresh():
         return jsonify({"message": "Analytics data refreshed successfully."}), 200
     except Exception as exc:
         log.exception("On-demand analytics MV refresh failed: %s", exc)
-        return jsonify({"error": "Analytics refresh failed. Check server logs."}), 500
+        return api_error("Analytics refresh failed. Check server logs.", status_code=500)

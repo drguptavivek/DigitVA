@@ -30,6 +30,7 @@ from flask_login import current_user
 from app import cache, db, limiter
 from app.decorators import role_required
 from app.models import VaForms, VaSyncRun, VaSubmissions
+from app.routes.api.request_helpers import error as api_error
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
@@ -83,8 +84,8 @@ def _refusal(action: Action, target, message: str):
         require(current_user, action, target)
     except AuthzError as exc:
         if exc.status_code == 404:
-            return jsonify({"error": exc.message}), 404
-        return jsonify({"error": message}), 403
+            return api_error(exc.message, status_code=404)
+        return api_error(message, status_code=403)
     return None
 
 
@@ -380,9 +381,9 @@ def upstream_change_details(va_sid: str):
     try:
         return jsonify(dm_upstream_change_details(current_user, va_sid))
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return api_error(str(exc), status_code=403)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 404
+        return api_error(str(exc), status_code=404)
 
 
 # ---------------------------------------------------------------------------
@@ -412,7 +413,7 @@ def sync_form(form_id: str):
         from app.tasks.sync_tasks import run_single_form_sync
 
         if current_app.extensions.get("celery") is None:
-            return jsonify({"error": "Celery is not configured."}), 503
+            return api_error("Celery is not configured.", status_code=503)
 
         task = run_single_form_sync.delay(
             form_id=form_id,
@@ -422,7 +423,7 @@ def sync_form(form_id: str):
         return jsonify({"message": f"Sync started for form {form_id}.", "task_id": task.id}), 202
     except Exception as exc:
         log.error("sync_form failed for %s", form_id, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 @bp.post("/sync/preview")
@@ -431,7 +432,7 @@ def sync_preview():
     # ODK-side counts cannot be narrowed to a unit, so the preview, like the
     # form sync it previews, is for project and project_site grants only.
     if not dm_grant_scope(current_user).has_direct:
-        return jsonify({"error": "Form sync requires a project or site grant."}), 403
+        return api_error("Form sync requires a project or site grant.", status_code=403)
 
     payload = request.get_json(silent=True) or {}
     project_ids = payload.get("project_ids") or []
@@ -521,7 +522,7 @@ def sync_preview():
         return jsonify({"totals": totals, "forms": forms_preview})
     except Exception as exc:
         log.error("sync_preview failed", exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 @bp.get("/sync/runs")
@@ -645,7 +646,7 @@ def sync_submission(va_sid: str):
         from app.tasks.sync_tasks import run_single_submission_sync
 
         if current_app.extensions.get("celery") is None:
-            return jsonify({"error": "Celery is not configured."}), 503
+            return api_error("Celery is not configured.", status_code=503)
 
         task = run_single_submission_sync.delay(
             va_sid=va_sid,
@@ -658,7 +659,7 @@ def sync_submission(va_sid: str):
         return jsonify({"message": f"Refresh started for submission {va_sid}.", "task_id": task.id}), 202
     except Exception as exc:
         log.error("sync_submission failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -676,13 +677,13 @@ def accept_upstream_change(va_sid: str):
         db.session.commit()
         _refresh_dm_dashboard_analytics()
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return api_error(str(exc), status_code=403)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return api_error(str(exc), status_code=400)
     except Exception as exc:
         db.session.rollback()
         log.error("accept_upstream_change failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
     # Fire SmartVA immediately so the submission doesn't wait for the next sweep;
     # enqueue_smartva also marks it queued for the coding page's status panel.
@@ -703,13 +704,13 @@ def screening_pass(va_sid: str):
         db.session.commit()
         return jsonify({"message": "Screening passed. Submission moved to SmartVA pending."})
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return api_error(str(exc), status_code=403)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return api_error(str(exc), status_code=400)
     except Exception as exc:
         db.session.rollback()
         log.error("screening_pass failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 @bp.post("/submissions/<va_sid>/screening-reject")
@@ -721,13 +722,13 @@ def screening_reject(va_sid: str):
         db.session.commit()
         return jsonify({"message": "Screening rejected. Submission marked not codeable."})
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return api_error(str(exc), status_code=403)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return api_error(str(exc), status_code=400)
     except Exception as exc:
         db.session.rollback()
         log.error("screening_reject failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")
@@ -750,13 +751,13 @@ def reject_upstream_change(va_sid: str):
             )
         })
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return api_error(str(exc), status_code=403)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return api_error(str(exc), status_code=400)
     except Exception as exc:
         db.session.rollback()
         log.error("reject_upstream_change failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs."}), 500
+        return api_error("Operation failed. Check server logs.", status_code=500)
 
 
 @bp.post("/submissions/<va_sid>/cancel-revision-request")
@@ -772,15 +773,15 @@ def cancel_revision_request(va_sid: str):
             "previous_state": returned_to,
         })
     except PermissionError as exc:
-        return jsonify({"error": str(exc), "code": "forbidden"}), 403
+        return api_error(str(exc), "forbidden", 403)
     except ValueError as exc:
         if str(exc) == "Submission not found.":
-            return jsonify({"error": str(exc), "code": "not_found"}), 404
-        return jsonify({"error": str(exc), "code": "not_cancellable"}), 400
+            return api_error(str(exc), "not_found", 404)
+        return api_error(str(exc), "not_cancellable", 400)
     except Exception:
         db.session.rollback()
         log.error("cancel_revision_request failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": "Operation failed. Check server logs.", "code": "server_error"}), 500
+        return api_error("Operation failed. Check server logs.", "server_error", 500)
 
 
 # ---------------------------------------------------------------------------
@@ -818,7 +819,7 @@ def unrouted_submissions():
 
     include = (request.args.get("include") or "fallback").strip().lower()
     if include not in {"fallback", "unrouted"}:
-        return jsonify({"error": "include must be 'fallback' or 'unrouted'."}), 400
+        return api_error("include must be 'fallback' or 'unrouted'.", status_code=400)
 
     # Only projects that actually have a tree can have a routing problem.
     project_has_tree = sa.exists(
@@ -913,9 +914,9 @@ def set_submission_org_unit(va_sid: str):
         try:
             target_unit_id = uuid.UUID(str(raw_unit_id))
         except ValueError:
-            return jsonify({"error": "Invalid org_unit_id."}), 400
+            return api_error("Invalid org_unit_id.", status_code=400)
         if not can(current_user, Action.ROUTE_PIN, ("unit", target_unit_id)):
-            return jsonify({"error": "You may pin only to a unit inside your area."}), 403
+            return api_error("You may pin only to a unit inside your area.", status_code=403)
 
     try:
         if raw_unit_id in (None, ""):
@@ -934,7 +935,7 @@ def set_submission_org_unit(va_sid: str):
             message = f"Submission pinned to {unit.unit_code}."
             unit_code = unit.unit_code
     except OrganizationError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return api_error(str(exc), status_code=400)
 
     audit_dm_submission_action(va_sid, action, operation="u")
     db.session.commit()

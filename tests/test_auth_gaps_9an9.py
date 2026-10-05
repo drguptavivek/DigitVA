@@ -88,7 +88,7 @@ class BrowserTermsTests(OnboardingTestBase):
         response = self.client.get(f"{PROFILE}/")
         self.assertEqual(response.status_code, 403)
         body = response.get_json()
-        self.assertEqual((body["code"], body["error"]), ("terms_required", "terms_required"))
+        self.assertEqual((body["code"], body["error"]), ("terms_required", "Accept the terms of use to continue."))
         self.assertTrue(body["redirect_url"].startswith("/profile/"))
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         # Other JSON prefixes too, never a redirect.

@@ -8,6 +8,7 @@ from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import AuthWebauthnCredential
+from app.routes.api.request_helpers import error as api_error
 from app.services import totp_service
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
@@ -43,15 +44,6 @@ def _account_security_is_cookie_only():
 # revoking a passkey needs a sign-in or reauthentication within this window.
 REAUTH_TTL = timedelta(minutes=10)
 
-
-_STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
-                 409: "conflict", 503: "unavailable"}
-
-
-def _error(message: str, status_code: int = 400, code: str | None = None):
-    return jsonify({"error": message, "code": code or _STATUS_CODES.get(status_code, "error")}), status_code
-
-
 #: Reauthentication by passkey failed, whatever the reason.
 PASSKEY_REAUTH_FAILED_MESSAGE = "That passkey could not be verified."
 
@@ -83,7 +75,7 @@ def _reauthenticated_recently() -> bool:
 def _require_reauth():
     """Return an error response if reauthentication has expired, else None."""
     if not _reauthenticated_recently():
-        return _error("reauth_required", 401, "reauth_required")
+        return api_error("reauth_required", "reauth_required", 401)
     return None
 
 
@@ -178,7 +170,7 @@ def generate_password():
     except (mobile_sign_in_service.PasswordGenerationUnavailable,
             accounts.PasswordEmailFailed) as exc:
         db.session.rollback()
-        return _error(exc.message, 503)
+        return api_error(exc.message, status_code=503)
     db.session.commit()
     if by_email:
         response = jsonify({"message": "Your new password has been emailed to you."})
@@ -204,9 +196,9 @@ def update_timezone():
     timezone = (body.get("timezone") or "").strip()
 
     if not timezone:
-        return _error("Timezone is required.")
+        return api_error("Timezone is required.")
     if timezone not in pytz.common_timezones:
-        return _error("Invalid timezone.")
+        return api_error("Invalid timezone.")
 
     current_user.timezone = timezone
     db.session.commit()
@@ -231,7 +223,7 @@ def update_interviewer_profile():
             body.get("sex", current_user.sex),
         )
     except ValueError as exc:
-        return _error(str(exc))
+        return api_error(str(exc))
     db.session.commit()
     return jsonify({
         "message": "Interviewer details updated.",
@@ -254,7 +246,7 @@ def reauth():
     body = request.get_json(silent=True) or {}
     password = body.get("password", "")
     if not password or not current_user.check_password(password):
-        return _error("Incorrect password.", 403)
+        return api_error("Incorrect password.", status_code=403)
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({"message": "Reauthenticated."})
 
@@ -282,12 +274,12 @@ def reauth_passkey():
     credential = body.get("credential") if isinstance(body, dict) else None
     if not isinstance(credential, dict):
         clear_authentication_challenge()
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     try:
         raw_id = base64url_to_bytes(credential.get("rawId") or credential.get("id") or "")
     except Exception:
         clear_authentication_challenge()
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     stored = db.session.scalar(
         sa.select(AuthWebauthnCredential).where(
             AuthWebauthnCredential.credential_id == raw_id,
@@ -296,11 +288,11 @@ def reauth_passkey():
     )
     if stored is None:
         clear_authentication_challenge()
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     try:
         verified = verify_authentication(credential, credential_public_key=stored.public_key)
     except PasskeyVerificationError:
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     if stored.sign_count > 0 and verified.new_sign_count <= stored.sign_count:
         record_security_event(
             user_id=current_user.user_id,
@@ -308,7 +300,7 @@ def reauth_passkey():
             detail={"credential_prefix": credential_id_prefix(stored.credential_id)},
         )
         db.session.commit()
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     result = db.session.execute(
         sa.update(AuthWebauthnCredential)
         .where(
@@ -319,7 +311,7 @@ def reauth_passkey():
     )
     if result.rowcount != 1:
         db.session.rollback()
-        return _error(PASSKEY_REAUTH_FAILED_MESSAGE, 403)
+        return api_error(PASSKEY_REAUTH_FAILED_MESSAGE, status_code=403)
     db.session.commit()
     session["auth_verified_at"] = datetime.now(UTC).isoformat()
     return jsonify({"message": "Reauthenticated."})
@@ -408,12 +400,12 @@ def register_passkey():
     name = (body.get("name") or "").strip()[:64] or "Passkey"
     if not isinstance(credential, dict):
         clear_registration_challenge()
-        return _error("Invalid passkey response.")
+        return api_error("Invalid passkey response.")
 
     try:
         verified = verify_registration(credential)
     except PasskeyVerificationError as exc:
-        return _error(f"Could not verify the passkey: {exc}")
+        return api_error(f"Could not verify the passkey: {exc}")
 
     record = AuthWebauthnCredential(
         user_id=current_user.user_id,
@@ -430,7 +422,7 @@ def register_passkey():
         db.session.flush()
     except sa.exc.IntegrityError:
         db.session.rollback()
-        return _error("This passkey is already registered.")
+        return api_error("This passkey is already registered.")
 
     record_security_event(
         user_id=current_user.user_id,
@@ -480,12 +472,12 @@ def rename_passkey(passkey_id):
         )
     )
     if cred is None:
-        return _error("Passkey not found.", 404)
+        return api_error("Passkey not found.", status_code=404)
 
     body = request.get_json(silent=True) or {}
     name = (body.get("name") or "").strip()[:64]
     if not name:
-        return _error("A name is required.")
+        return api_error("A name is required.")
 
     old_prefix = credential_id_prefix(cred.credential_id)
     cred.name = name
@@ -515,12 +507,12 @@ def revoke_passkey(passkey_id):
         )
     )
     if cred is None:
-        return _error("Passkey not found.", 404)
+        return api_error("Passkey not found.", status_code=404)
 
     if _would_leave_privileged_user_without_factor(
         current_user._get_current_object(), removing_passkey_id=cred.id
     ):
-        return _error("You cannot remove your last sign-in factor.", 409)
+        return api_error("You cannot remove your last sign-in factor.", status_code=409)
 
     prefix = credential_id_prefix(cred.credential_id)
     db.session.delete(cred)
@@ -569,7 +561,7 @@ def totp_enroll():
     try:
         result = totp_service.begin_enrolment(current_user._get_current_object())
     except totp_service.TotpEnrolmentError as exc:
-        return _error(str(exc))
+        return api_error(str(exc))
     db.session.commit()
     return jsonify({
         "secret": result["secret"],
@@ -590,12 +582,12 @@ def totp_confirm():
     body = request.get_json(silent=True) or {}
     code = (body.get("code") or "").strip()
     if not code:
-        return _error("A code is required.")
+        return api_error("A code is required.")
 
     user = current_user._get_current_object()
     if not totp_service.confirm_enrolment(user, code):
         db.session.rollback()
-        return _error("Invalid code.")
+        return api_error("Invalid code.")
 
     record_security_event(
         user_id=user.user_id, actor_user_id=user.user_id, event_type="totp_enrolled"
@@ -633,9 +625,9 @@ def totp_remove():
 
     user = current_user._get_current_object()
     if not totp_service.has_confirmed_totp(user.user_id):
-        return _error("TOTP is not enrolled.", 404)
+        return api_error("TOTP is not enrolled.", status_code=404)
     if _would_leave_privileged_user_without_factor(user, removing_totp=True):
-        return _error("You cannot remove your last sign-in factor.", 409)
+        return api_error("You cannot remove your last sign-in factor.", status_code=409)
 
     totp_service.remove(user)
     record_security_event(

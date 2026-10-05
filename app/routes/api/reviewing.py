@@ -195,7 +195,7 @@ def finalize(va_sid):
         and project.cod_entry_mode == "doris"
         and (request.content_length is None or request.content_length > 1_200_000)
     ):
-        return _error("DORIS final submission is too large.", 413, code="too_large")
+        return _error("DORIS final submission is too large.", 413, code="payload_too_large")
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("A JSON object is required.", 400, code="invalid_request")
@@ -251,7 +251,7 @@ def initial(va_sid):
     if masked_doris and (
         request.content_length is None or request.content_length > 1_200_000
     ):
-        return _error("DORIS submission is too large.", 413, code="too_large")
+        return _error("DORIS submission is too large.", 413, code="payload_too_large")
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("A JSON object is required.", 400, code="invalid_request")

@@ -525,7 +525,7 @@ there. Build the button with `p6fs.4`.
 
 ## 11. Coders and reviewers sign in to the app (`digitva-xl43.1`, server built)
 
-Expo status, 2026-10-05: `digitva-p6fs.4.1` is implemented but not landed or closed. Refresh races, metadata lifecycle and reachable-site findings are fixed; a discarded browser completion promise was repaired after two timing failures. Latest frozen combined checks passed: 45 Jest suites / 563 tests, TypeScript, web and Android JS exports. Final audit retains one contract blocker: `/me/access` exposes active project-site mappings, but server interviewer eligibility for project/site grants additionally requires active VaForms; form-options does not expose that condition. Please expose effective interviewer eligibility in the access contract so the client can gate without denied intake probes. Section 12 planning is underway; phase-3 holds and physical-device acceptance remain pending.
+Expo status, 2026-10-05: `digitva-p6fs.4.1` is implemented but not landed or closed. Collection gates, intake context and native/browser cache reconciliation now use authoritative `actions.interview`; inactive projects are purged without eligibility probes. Latest frozen frontend checks passed 45 Jest suites / 573 tests, TypeScript, web and Android JS exports, and served web index match. Independent re-audit: client READY. One server contract defect blocks landing: `web_intake_service.interviewer_context` initializes broad project/site reach with `org_units: []` but then appends narrower unit grants for the same pair (lines 301-337), while `reachable_unit_ids` correctly treats the broad grant as whole-tree (lines 443-446). Please preserve empty roots for broadly authorized pairs and test overlapping broad-plus-unit grants so the app does not restrict valid units. Section 12 implementation follows this gate; DORIS contract planning is being updated. Physical-device acceptance remains pending.
 
 Server answer, 2026-10-05 (`digitva-ntct.3`): `/me/access` (and the
 `access` on sign-in and refresh) is now the complete statement of what the
@@ -577,7 +577,7 @@ The coding and review workspace routes are in section 12.
 
 ## 12. Coding and review workspace (`digitva-xl43` phases 1-3, server built)
 
-Expo status, 2026-10-05: section 12 item 8 and the served workspace implementation now resolve the ICD catalogue and Narrative QA / Social Autopsy metadata gaps in `b0c91950`. Planning can use the authoritative fields and caller-owned saved values. Implementation remains sequenced after the section 11 effective-interviewer eligibility contract blocker; no cases are allocated by the app yet. DORIS and finished-case view remain explicitly held, and physical-device acceptance remains pending.
+Expo status, 2026-10-05: ICD catalogue and Narrative QA / Social Autopsy metadata are verified in `b0c91950`; DORIS seed and processing are now served in `86a74164`. The read-only planner updated the complete simple/DORIS workspace plan: shared contract/transport first, independent queue, simple COD/quality/note, DORIS React form and media packages next, platform/lifecycle integration last. The existing WHO interview vendor package has no DORIS editor; Expo will implement the served certificate state/API contract using shared React UI. Implementation waits on section 11 landing and its remaining broad-plus-unit server scope defect. Finished-case view and physical-device media acceptance remain pending; no allocation is acquired by the app yet.
 
 App half: `digitva-p6fs.4`. Full bodies and every error code:
 `docs/current-state/api-v1.md`, "Coder COD writes", "Reviewer COD routes",
@@ -629,7 +629,7 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
    (own allocation only). `GET` gives `{va_sid, content, updated_at}` (nulls
    when none); `PUT {"content": text}` saves and answers the same. Empty or
    whitespace-only content is 400 `invalid_request`, over 20,000 characters
-   422, a body over 64 KB 413 `too_large`. One note per user per case, shared
+   422, a body over 64 KB 413 `payload_too_large`. One note per user per case, shared
    by the coding and reviewing sessions and by the web note box. Do not
    cache it (`no-store`).
 7. **Reviewer queue and release:** `GET /api/v1/reviewing/stats`
@@ -694,3 +694,9 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
      codeinfo,selection-check}/<va_sid>`.
    - Masked Step 1 carries no SmartVA and never another coder's Step 1 or
      final.
+   - Errors: `/api/v1/doris-clinical/*` is the one `/api/v1` family that
+     does not answer flat `{error, code}`. It answers
+     `{"schema_version": 1, "error": {"code": "INVALID_INPUT", "message":
+     "..."}}` (upper-case codes), tied to the DORIS editor and the WHO
+     DORIS model (owner 2026-10-05). Read `error.code` there. The COD save
+     routes stay flat (a DORIS conflict adds `processing`).

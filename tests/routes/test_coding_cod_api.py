@@ -289,7 +289,7 @@ class CodingCodApiTests(BaseTestCase):
         for route in ("initial", "finalize", "not-codeable"):
             response = self.client.post(f"{BASE}/{route}/{sid}", json=big, headers=headers)
             self.assertEqual(
-                (response.status_code, response.get_json()["code"]), (413, "too_large"), route)
+                (response.status_code, response.get_json()["code"]), (413, "payload_too_large"), route)
         # A body within the cap still reaches the service.
         self._mode(masked=True)
         response = self._post("initial", sid, {"antecedent_cod": _COD, "immediate_cod": _COD})
@@ -308,7 +308,7 @@ class CodingCodApiTests(BaseTestCase):
             )
             self.assertIsNone(response.request.content_length, route)
             self.assertEqual(
-                (response.status_code, response.get_json()["code"]), (413, "too_large"), route)
+                (response.status_code, response.get_json()["code"]), (413, "payload_too_large"), route)
         # Present: a sized body reaches the service.
         response = self._post("initial", sid, {"antecedent_cod": _COD, "immediate_cod": _COD})
         self.assertEqual(response.status_code, 200)

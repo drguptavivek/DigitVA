@@ -1071,7 +1071,7 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_request"))
         # The 64 KB cap answers before any lookup, even for a case not held.
         response = self._note_put(self._case(), {"content": "x" * 70_000})
-        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "too_large"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "payload_too_large"))
         self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "x" * 20_000)
 
 
@@ -1085,7 +1085,7 @@ class VaCaseApiTests(BaseTestCase):
             environ_overrides={"CONTENT_LENGTH": "", "HTTP_TRANSFER_ENCODING": "chunked"},
         )
         self.assertIsNone(response.request.content_length)
-        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "too_large"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (413, "payload_too_large"))
         # Present: the same body with a length is saved.
         self.assertEqual(self._note_put(sid, {"content": "sized"}).status_code, 200)
         self.assertEqual(get_active_note(self.base_coder_user.user_id, sid).note_content, "sized")

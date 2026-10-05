@@ -5,7 +5,7 @@ docs/policy/authentication-factors.md sections 6, 9.
 
 import uuid
 
-from app import db, limiter
+from app import FACTOR_SETUP_REQUIRED_MESSAGE, db, limiter
 from app.models import (
     AuthWebauthnCredential,
     VaAccessRoles,
@@ -150,7 +150,7 @@ class FactorSetupGuardTests(FactorEnforcementTestBase):
         resp = self.client.get("/api/v1/data-management/submissions")
 
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(resp.get_json().get("error"), "factor_setup_required")
+        self.assertEqual(resp.get_json().get("error"), FACTOR_SETUP_REQUIRED_MESSAGE)
 
     def test_pending_password_change_is_reachable_not_looped(self):
         # force_password_update sends a user with pw_reset_t_and_c=False (as
@@ -174,7 +174,7 @@ class FactorSetupGuardTests(FactorEnforcementTestBase):
         resp = self.client.get("/data-management/api/does-not-matter")
 
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(resp.get_json().get("error"), "factor_setup_required")
+        self.assertEqual(resp.get_json().get("error"), FACTOR_SETUP_REQUIRED_MESSAGE)
 
     def test_can_still_reach_profile_page(self):
         self._grant_admin(self.user)

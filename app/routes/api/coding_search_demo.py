@@ -11,6 +11,7 @@ not a real search (docs/policy/icd-coding-search-vocabulary.md).
 from flask import Blueprint, jsonify, request
 
 from app.decorators.role_required import role_required
+from app.routes.api.request_helpers import error as api_error
 from app.services.icd10_2019_2_service import search_icd10_2019_2_coding_choices_for_policy
 from app.services.icd11_mms_service import search_icd11_mms
 
@@ -21,24 +22,20 @@ _AGE_GROUPS = ("neonate", "infant", "child", "adult")
 _SEXES = ("female", "male")
 
 
-def _error(message: str, status_code: int = 400):
-    return jsonify({"error": message}), status_code
-
-
 @bp.get("/search")
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def coding_search_demo():
     classification = (request.args.get("classification") or "").strip()
     if classification not in _CLASSIFICATIONS:
-        return _error("classification must be 'icd10' or 'icd11'.")
+        return api_error("classification must be 'icd10' or 'icd11'.")
 
     age_group = (request.args.get("age_group") or "").strip()
     if age_group not in _AGE_GROUPS:
-        return _error("age_group must be one of: neonate, infant, child, adult.")
+        return api_error("age_group must be one of: neonate, infant, child, adult.")
 
     sex = (request.args.get("sex") or "").strip()
     if sex not in _SEXES:
-        return _error("sex must be 'female' or 'male'.")
+        return api_error("sex must be 'female' or 'male'.")
 
     query = request.args.get("q", "")
     if classification == "icd10":

@@ -44,12 +44,60 @@ on any `/api/v1` route. That is the cue to send the browser to the sign-in
 page, `/vaauth/valogin?next=<path>`; sign out is `/vaauth/valogout` (the
 browser's own pages). No route returns these URLs.
 
-Errors: every body is `{"error", "code"}` (the role gate's 401
-`unauthorized` and 403 `forbidden`, CSRF 400 `csrf_failed`, 429
-`rate_limited`, and on `/api/v1/` 404 `not_found`, 405 `method_not_allowed`).
-Blueprints outside the client contract (analytics, coding, data management,
-...) still answer some bodies without `code`. Reviewing, narrative QA and
-Social Autopsy answer `{"error", "code"}` throughout.
+## Error body
+
+Every error reply of a route under `/api/v1` is `{"error": <message>,
+"code": <snake_case machine code>}`, plus documented extra keys (a 409 that
+carries the stored result, a 409 coding refusal's `workflow_state`, a terms
+refusal's `redirect_url`). The one exception is the doris-clinical
+blueprint's own refusals (nested `{"schema_version": 1, "error": {"code",
+"message"}}`; policy `docs/policy/api-v1.md`); a framework error on those
+paths (404, 405, 413, 415, 500) is flat like any other. A `{"status": "error", "reason"}` inside a 200
+(`dm_kpi_scope.py`) is not an HTTP error and is out of scope.
+
+One helper builds it: `request_helpers.error(message, code=None,
+status_code=400, **extra)` returns `(response, status)`. When `code` is
+omitted it defaults from the status (`request_helpers.STATUS_CODES`, read
+also by the app error handler):
+
+| Status | Default code | Status | Default code |
+| --- | --- | --- | --- |
+| 400 | `invalid_request` | 413 | `payload_too_large` |
+| 401 | `unauthorized` | 415 | `unsupported_media_type` |
+| 403 | `forbidden` | 422 | `unprocessable` |
+| 404 | `not_found` | 429 | `rate_limited` |
+| 405 | `method_not_allowed` | 502/503/504 | `bad_gateway` / `unavailable` / `gateway_timeout` |
+| 409 | `conflict` | other 5xx | `server_error` |
+
+Any other 4xx statuses default to `invalid_request`. There is no per-blueprint
+copy of the helper; a domain code (`no_allocation`, `wrong_state`, ...) is
+passed explicitly. A static test (`tests/routes/test_api_v1_error_codes.py`)
+fails on any `{"error": ...}` dict without `code` under `app/routes/api/`
+(doris-clinical excluded).
+
+Safety net (`app/logging/va_logger.py` with `app/routes/va_errors.py`): any
+`HTTPException` with status 400 or above on a `/api/v1/` path that no route
+answered (a bare `abort`, 403, 405, 413, 415, 422, 500) is the same JSON, its
+`error` the exception's description and its `code` from the table above.
+Redirects (3xx) and every path outside `/api/v1/` are unchanged. The role
+gate's 401/403, the login gate, CSRF (`csrf_failed`, 400), rate limits
+(`rate_limited`) and the terms and factor-setup refusals (`terms_required`,
+`factor_setup_required`, 403; `error` is a readable sentence, `code` is the
+contract) use the same body.
+
+Codes now returned by the blueprints that used to answer without one:
+
+| Blueprint | Codes |
+| --- | --- |
+| icd10, icd11 | `not_found` (submission, ICD code), `forbidden` (reviewer allocation), `invalid_request`, `wrong_classification` (project codes in the other ICD edition), `payload_too_large` (WHO proxy body), `unsupported_media_type`, `unprocessable`, `unavailable`. Proxied WHO upstream bodies are untouched |
+| coding | allocation refusals use the AllocationError code (`_allocation_error`, as before for the other allocation routes), `forbidden` |
+| coding-search-demo, va-definitions | `invalid_request`, `not_found` |
+| data-management | `forbidden`, `not_found`, `invalid_request`, `unavailable` (Celery not configured), `not_cancellable`, `server_error` |
+| area | `not_found`, `invalid_request` |
+| cod-buckets | `forbidden`, `no_active_scheme` |
+| workflow | `not_found`, `forbidden` |
+| analytics, analytics/dm-kpi/sync | `server_error`, `forbidden` |
+| organization, profile | unchanged (`invalid_request`, `forbidden`, `not_found`, `conflict`, `unavailable`, `reauth_required`, `cookie_session_required`) |
 
 ## Sign-in (`/api/v1/auth`, `app/routes/api/auth.py`)
 
@@ -227,7 +275,7 @@ a missing required field, a DORIS certificate sent to masked Step 2),
 409 `not_masked`, `wrong_state` (a masked final without the caller's own
 Step 1: "Save Step 1 first."), `no_payload` and the DORIS conflicts
 `DORIS_CERTIFICATE_CHANGED` (carries `processing`, a fresh proof; nothing is
-saved), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413 `too_large`
+saved), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413 `payload_too_large`
 (any of the three bodies over 1.2 MB, or with no `Content-Length` (chunked); keyed by path only, with no database
 lookup); 422 `invalid_request` (`remark`, `other` or an `other_conditions`
 item over 4000 characters), `final_blocked` (`messages` lists
@@ -258,7 +306,7 @@ project), `no_allocation`, `wrong_state` (the case is not `reviewer_eligible` /
 `conflict` (retired or confirmed-duplicate case), `not_masked` (Step 1 on an
 unmasked project) and the DORIS conflicts `DORIS_CERTIFICATE_CHANGED` (carries
 `processing`), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413
-`too_large` (a DORIS body over 1.2 MB); 422 `invalid_doris`; 503
+`payload_too_large` (a DORIS body over 1.2 MB); 422 `invalid_doris`; 503
 `who_unavailable` / `who_not_configured`. `wrong_state` keeps the status each
 route always had: 403 on start and the saves (400 for a masked final without
 Step 1), 409 on reviewer release and when a release lands during a final save.
@@ -433,7 +481,7 @@ coding and reviewing sessions.
   with an explicit `+00:00` offset.
 - `PUT {"content": text}` upserts and answers as `GET`. 400 `invalid_request`
   for a body that is not an object with text `content`, or empty or
-  whitespace-only content or content holding a NUL character; 413 `too_large` over
+  whitespace-only content or content holding a NUL character; 413 `payload_too_large` over
   64 KB by `Content-Length`, or with no `Content-Length` at all (a chunked body
   is refused, never buffered; keyed by path, before any lookup); 422 `invalid_request` over 20,000
   characters. Errors as `workspace`.

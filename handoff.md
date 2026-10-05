@@ -103,9 +103,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       (`digitva-p6fs.5`).
       Body caps read `Content-Length` and refuse a body without one (413);
       there is no global `MAX_CONTENT_LENGTH`.
-   c. `digitva-ey38` `code` on every remaining `/api/v1` error
-      (data-management, area, cod-buckets, ...; reviewing, NQA and SO done) and a contract
-      review of those blueprints.
+   c. `digitva-ey38` done 2026-10-05: every `/api/v1` error is `{error,
+      code}` through one helper (`request_helpers.error`, status->code
+      defaults), a JSON safety net for framework errors on `/api/v1`, 413 is
+      `payload_too_large` everywhere, and a static sweep test keeps it so.
+      Owner exception: the doris-clinical blueprint's own refusals keep the
+      nested DORIS shape (`docs/policy/api-v1.md`).
    d. Filed 2026-10-05 from the owner's coverage check: `digitva-uq6v`
       correct a registered death's details (missing on web and API; owner
       to decide who may correct and until when, before a policy baseline),

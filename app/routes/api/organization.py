@@ -46,17 +46,10 @@ from app.services.web_form_instruments import (
     FALLBACK_INSTRUMENT_CODE,
     instrument_locale_catalogue,
 )
+from app.routes.api.request_helpers import error as api_error
 from app.services.web_intake_service import resolve_intake_note
 
 bp = Blueprint("organization_api", __name__)
-
-
-_STATUS_CODES = {400: "invalid_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
-                 409: "conflict", 503: "unavailable"}
-
-
-def _error(message: str, status_code: int = 400, code: str | None = None):
-    return jsonify({"error": message, "code": code or _STATUS_CODES.get(status_code, "error")}), status_code
 
 
 def _parse_role(raw: str | None) -> "VaAccessRoles | None":
@@ -151,11 +144,11 @@ def project_units(project_id: str):
         reachable = _reachable_unit_ids(project_id, role)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
-        return _error("Project not found.", 404)
+        return api_error("Project not found.", status_code=404)
     if role_error:
-        return _error(role_error, 400)
+        return api_error(role_error, status_code=400)
     if reachable is not None and not reachable:
-        return _error("You do not have access to that project.", 403)
+        return api_error("You do not have access to that project.", status_code=403)
 
     return jsonify(units_payload(project_id, reachable, include_inactive=request.args.get("include_inactive") == "1"))
 
@@ -685,9 +678,9 @@ def form_options_project(project_id: str) -> tuple[VaProjectMaster | None, tuple
     reachable = _reachable_unit_ids(project_id, None)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
-        return None, _error("Project not found.", 404)
+        return None, api_error("Project not found.", status_code=404)
     if reachable is not None and not reachable:
-        return None, _error("You do not have access to that project.", 403)
+        return None, api_error("You do not have access to that project.", status_code=403)
     return project, None
 
 

@@ -18,7 +18,8 @@ from flask_login import current_user
 
 from app import csrf
 from app.decorators.role_required import role_required
-from app.routes.api.icd10 import _error, _require_coding_or_reviewing_access
+from app.routes.api.icd10 import _require_coding_or_reviewing_access
+from app.routes.api.request_helpers import error as api_error
 from app.services import coding_search_telemetry_service
 from app.services.icd11_mms_service import (
     build_icd11_provenance,
@@ -53,7 +54,7 @@ def _who_proxy_response(upstream: Response) -> Response:
     try:
         json.loads(upstream.content)
     except (TypeError, ValueError):
-        error, status = _error("ICD-11 service returned an invalid response.", 503)
+        error, status = api_error("ICD-11 service returned an invalid response.", status_code=503)
         error.status_code = status
         return error
     response = Response(upstream.content, status=upstream.status_code)
@@ -98,28 +99,28 @@ def who_icd_api_proxy(va_sid: str, resource: str):
     content_type = None
     if request.method == "POST":
         if request.content_length is None or request.content_length > _WHO_PROXY_MAX_BODY_LENGTH:
-            return _error("WHO ICD API request body is too large.", 400)
+            return api_error("WHO ICD API request body is too large.", "payload_too_large")
         if request.mimetype == "multipart/form-data":
             if not resource.endswith("/search") or request.files:
-                return _error("WHO ICD API form requests are limited to search.", 415)
+                return api_error("WHO ICD API form requests are limited to search.", status_code=415)
             # Flask's request middleware may already have parsed ECT's FormData,
             # leaving no raw body. Re-encode the read-only fields for WHO.
             fields = list(request.form.items(multi=True))
             if len(fields) > 32:
-                return _error("WHO ICD API search has too many fields.", 400)
+                return api_error("WHO ICD API search has too many fields.", status_code=400)
             body = urlencode(fields).encode("utf-8")
             content_type = "application/x-www-form-urlencoded"
         else:
             body = request.get_data(cache=True, as_text=False)
             content_type = request.content_type if body else None
         if len(body) > _WHO_PROXY_MAX_BODY_LENGTH:
-            return _error("WHO ICD API request body is too large.", 400)
+            return api_error("WHO ICD API request body is too large.", "payload_too_large")
 
     err = _require_coding_or_reviewing_access(va_sid)
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-10.", 400)
+        return api_error("This project codes in ICD-10.", "wrong_classification")
 
     try:
         _validate_who_proxy_query()
@@ -129,7 +130,7 @@ def who_icd_api_proxy(va_sid: str, resource: str):
         if resource.rstrip("/") == "analytics/clientanalytics":
             return Response(status=204)
         if body and request.mimetype not in {"application/json", "multipart/form-data"}:
-            return _error("WHO ICD API search content type is unsupported.", 415)
+            return api_error("WHO ICD API search content type is unsupported.", status_code=415)
         upstream = proxy_who_icd_request(
             resource,
             method=request.method,
@@ -138,9 +139,9 @@ def who_icd_api_proxy(va_sid: str, resource: str):
             content_type=content_type,
         )
     except ValueError as exc:
-        return _error(str(exc), 400)
+        return api_error(str(exc), status_code=400)
     except WhoIcdApiUnavailable:
-        return _error("ICD-11 service unavailable.", 503)
+        return api_error("ICD-11 service unavailable.", status_code=503)
     return _who_proxy_response(upstream)
 
 
@@ -153,30 +154,30 @@ def icd11_selection_check(va_sid: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-10.", 400)
+        return api_error("This project codes in ICD-10.", "wrong_classification")
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
-        return _error("A JSON selection is required.", 400)
+        return api_error("A JSON selection is required.", status_code=400)
     code = payload.get("code")
     title = payload.get("selectedText")
     if not isinstance(code, str) or not isinstance(title, str):
-        return _error("The WHO selection must include code and selectedText.", 400)
+        return api_error("The WHO selection must include code and selectedText.", status_code=400)
     code = code.strip()
     title = " ".join(title.split())
     value = f"{code} {title}".strip()
     canonical_code = extract_icd11_code_expression(value)
     if not canonical_code or len(title) > 512 or len(value) > 1024:
-        return _error("Select a valid ICD-11 code.", 400)
+        return api_error("Select a valid ICD-11 code.", status_code=400)
     try:
         validate_icd11_mms_coding_value_for_submission(va_sid, value)
         provenance = build_icd11_provenance(va_sid, value)
     except LookupError:
-        return _error("Submission not found.", 404)
+        return api_error("Submission not found.", status_code=404)
     except ValueError as exc:
-        return _error(str(exc), 422)
+        return api_error(str(exc), status_code=422)
     if not provenance:
-        return _error("The ICD-11 code metadata is incomplete.", 422)
+        return api_error("The ICD-11 code metadata is incomplete.", status_code=422)
     return jsonify(
         {
             "code": canonical_code,
@@ -195,7 +196,7 @@ def icd11_coding_search(va_sid: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-10.", 400)
+        return api_error("This project codes in ICD-10.", "wrong_classification")
 
     search_id = coding_search_telemetry_service.resolve_search_id(
         request.args.get("search_id")
@@ -205,7 +206,7 @@ def icd11_coding_search(va_sid: str):
         payload = search_icd11_mms(request.args.get("q", ""), va_sid=va_sid)
         latency_ms = round((time.perf_counter() - started) * 1000)
     except LookupError:
-        return _error("Submission not found.", 404)
+        return api_error("Submission not found.", status_code=404)
     # Response payload is built: recording happens now and cannot alter it.
     coding_search_telemetry_service.record_search_request(
         search_id=search_id,

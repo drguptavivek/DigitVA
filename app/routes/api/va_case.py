@@ -569,7 +569,7 @@ def put_note(va_sid):
     # Content-Length can enforce it. A chunked body has none and is refused
     # the same way, so it is never buffered.
     if request.content_length is None or request.content_length > _NOTE_BODY_CAP:
-        return api_error("The note is too large.", "too_large", 413)
+        return api_error("The note is too large.", "payload_too_large", 413)
     session = _authorize_session(va_sid)
     if not isinstance(session, _Session):
         return session

@@ -12,6 +12,8 @@ def register_error_handlers(app):
 
     @app.errorhandler(403)
     def forbidden_error(error):
+        if request.path.startswith("/api/v1/"):
+            return jsonify({"error": error.description or "Forbidden.", "code": "forbidden"}), 403
         return render_template("va_errors/va_403.html"), 403
 
     @app.errorhandler(404)
@@ -23,6 +25,8 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
+        if request.path.startswith("/api/v1/"):
+            return jsonify({"error": "Internal server error.", "code": "server_error"}), 500
         return render_template("va_errors/va_500.html"), 500
 
     @app.errorhandler(RateLimitExceeded)

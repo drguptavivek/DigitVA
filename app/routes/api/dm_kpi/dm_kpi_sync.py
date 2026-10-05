@@ -49,6 +49,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.routes.api.request_helpers import error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
@@ -63,7 +64,7 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
 def _system_level_refused():
-    return jsonify({"error": "System-level sync figures need a project or site grant."}), 403
+    return api_error("System-level sync figures need a project or site grant.", status_code=403)
 
 
 @bp.get("/status")

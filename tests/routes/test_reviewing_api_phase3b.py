@@ -328,10 +328,10 @@ class ReviewingApiPhase3bTests(BaseTestCase):
         self._mode(masked=False, doris=True)
         sid = self._case()
         response = self.client.post(f"{_API}/finalize/{sid}", data=big, headers=headers)
-        self._flat(response, 413, "too_large")
+        self._flat(response, 413, "payload_too_large")
         self._mode(masked=True, doris=True)
         response = self.client.post(f"{_API}/initial/{sid}", data=big, headers=headers)
-        self._flat(response, 413, "too_large")
+        self._flat(response, 413, "payload_too_large")
 
     def test_doris_refusals_carry_their_codes(self):
         user, args = self.reviewer, ("uuid:x", uuid.uuid4(), uuid.uuid4(), "digest")

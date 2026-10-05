@@ -14,9 +14,35 @@ from app.services import web_intake_service as intake_svc
 INTAKE_CODES = {400: "invalid_request", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid_interview"}
 
 
-def error(message, code, status_code, **extra):
-    """``{"error", "code"}`` plus any *extra* body keys (a 409 that carries the stored result)."""
-    return jsonify({"error": message, "code": code, **extra}), status_code
+#: Machine code of an error that names none, by HTTP status. The one table:
+#: ``error`` and the app error handler (``va_logger``) both read it.
+STATUS_CODES = {
+    400: "invalid_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    405: "method_not_allowed",
+    409: "conflict",
+    413: "payload_too_large",
+    415: "unsupported_media_type",
+    422: "unprocessable",
+    429: "rate_limited",
+    502: "bad_gateway",
+    503: "unavailable",
+    504: "gateway_timeout",
+}
+
+
+def status_code_name(status_code: int) -> str:
+    """Default machine code for *status_code*: the table, else ``server_error``
+    for any 5xx and ``invalid_request`` for any other 4xx."""
+    return STATUS_CODES.get(status_code) or ("server_error" if status_code >= 500 else "invalid_request")
+
+
+def error(message, code=None, status_code=400, **extra):
+    """``{"error", "code"}`` plus any *extra* body keys (a 409 that carries the
+    stored result). *code* defaults from *status_code* (``STATUS_CODES``)."""
+    return jsonify({"error": message, "code": code or status_code_name(status_code), **extra}), status_code
 
 
 def intake_error(exc: intake_svc.WebIntakeError):

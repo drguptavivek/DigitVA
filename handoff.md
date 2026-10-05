@@ -44,8 +44,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       `hdrv`, `w5jw`. Still open: `digitva-bhpl` until the app's revise
       screen `digitva-bhpl.2` lands (contract `expo-handoff.md` section 5);
       `digitva-jcll` (DM dashboard and KPIs count send-backs as ODK upstream
-      changes; View Changes fails on a sent-back case). Owner confirmed the
-      four defaults on 2026-10-05 (recorded in `docs/policy/web-intake.md`
+      changes; View Changes fails on a sent-back case). Added 2026-10-05:
+      `digitva-xpqm` the coder gets the interviewer's last completed version
+      (reverses the "phone completion wins" default; app half `xpqm.2`,
+      handoff section 8) and `digitva-bqzm` a supervisor chooses between two
+      interviewers' complete interviews, switch-back allowed (app half
+      `bqzm.2`, section 9); follow-up `digitva-9kqk` (second own browser
+      draft on a won case is a copy, not a correction). Owner: nothing is
+      deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Owner confirmed three of
+      the four defaults on 2026-10-05 (the fourth was replaced by `xpqm`) (recorded in `docs/policy/web-intake.md`
       and `docs/policy/interview-revisions.md`). Manual check owed: the
       browser form's stale-tab 409 (`draft_stale`) and the worklist
       other-draft badge were not driven in a browser (proof-of-work CAPTCHA).

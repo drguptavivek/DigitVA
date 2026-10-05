@@ -375,9 +375,9 @@ server served it (else the current rules); the payload carries
 one; never a refusal); `auth_devices.app_version` is refreshed from an
 optional `app_version` on `POST /auth/sessions` and `/auth/sessions/refresh`.
 
-Not built yet: the app half (send `app_version` at sign-in and refresh,
-compare versions, block new interviews on an outdated form), bead
-`digitva-6pwq.1`.
+The app half (send `app_version` at sign-in and refresh, compare versions,
+block new interviews on an outdated form) is built by the Expo session
+(`digitva-6pwq.1`, closed).
 
 ### Form definition from the server (owner, 2026-10-04, `digitva-6pwq`)
 
@@ -451,12 +451,12 @@ Built (server half, `digitva-6pwq`, 2026-10-05):
   current or bundled form; if the fetch fails the interview is preserved and
   the app fails visibly.
 
-Not built yet (`digitva-6pwq`), the app half:
+Built in the app (`digitva-6pwq.1`, closed): download, SHA-256 check,
+per-version cache, rendering the served definition, drafts pinned to their
+version, the `engineVersion` constant and refusal of a higher one.
 
-- The Expo app downloads, verifies the SHA-256, caches per version, renders the
-  served definition and keeps drafts on the version they started with. The
-  engine must carry a matching `engineVersion` constant (the vendor package
-  exports none) and refuse a higher one.
+Not decided:
+
 - Switching the server's re-check default from the reduced server instrument
   to the stored composed definition.
 

@@ -243,7 +243,9 @@ submission's organization unit, falling back to the form-level setting
   that also has a web form cannot overwrite the web form's identifiers.
 - Editing a submitted web case follows
   [Interview Revisions Policy](interview-revisions.md) (owner, 2026-10-04,
-  `digitva-bhpl`). Not built yet.
+  `digitva-bhpl`). Built on the server (revisions, send-back, reopen, the
+  last completed version wins `digitva-xpqm`, supervisor choice
+  `digitva-bqzm`); the phone's Revise screen is `digitva-bhpl.2`.
 
 ## Ready for web capture
 

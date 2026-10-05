@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # SmartVA Generation Policy
@@ -240,26 +240,24 @@ Current implementation note:
 
 ## Per-Form Execution Options
 
-SmartVA execution options are configured per materialized `va_forms` row, not
-per individual run.
+SmartVA's `hiv` and `malaria` options are resolved **per submission**; the
+other options are configured per materialized `va_forms` row, not per run.
 
-Current configurable options:
+Per-form options (`va_forms`):
 
-- `form_smartvahiv`
-- `form_smartvamalaria`
 - `form_smartvahce`
 - `form_smartvafreetext`
 - `form_smartvacountry`
+- `form_smartvahiv` and `form_smartvamalaria`: now only the **fallback** for
+  the per-submission resolution below
 
-`form_smartvahiv`/`form_smartvamalaria` are independent of the web intake
-area presets on the organization tree ([Web Intake Policy](web-intake.md),
-"Area VA presets") that prefill and lock `Id10002`/`Id10003` for the
-interviewer. The two can diverge (a form flagged `form_smartvahiv=True`
-serving a unit whose resolved preset is `low`, or the reverse). Owner
-decision (2026-09-29): SmartVA's run behaviour does not change (it still
-runs after collection, in batches, with no re-runs); only the source of its
-HIV and malaria status moves, to the district setting itself. For each
-submission, SmartVA's hiv/malaria options resolve in this order:
+SmartVA's HIV and malaria status comes from the district setting, the area
+presets on the organization tree ([Web Intake Policy](web-intake.md), "Area VA
+presets") that also prefill and lock `Id10002`/`Id10003` for the interviewer.
+Owner decision (2026-09-29, implemented by `digitva-cts`): SmartVA's run
+behaviour does not change (it still runs after collection, in batches, with
+no re-runs); only the source of the two options moves. For each submission,
+each option resolves independently, in this order:
 
 1. the area preset of the submission's organization unit (nearest ancestor
    with a value, as `org_grant_service.resolve_va_presets`): `high` -> on,
@@ -271,10 +269,13 @@ submission, SmartVA's hiv/malaria options resolve in this order:
 The submission's own Id10002/Id10003 answers are not used by SmartVA: web
 cases carry the district value anyway (prefilled and locked), and ODK
 answers stay in the record and may be flagged when they disagree with the
-district setting. A run is split if its submissions resolve to different
-option sets. Each result records the options it ran with and their source.
-A changed district setting affects later runs only. Until `digitva-cts`
-lands, the per-form flags still apply.
+district setting. A batch is split into one SmartVA run per distinct option
+set; a failure in one group does not stop the others. Each run row
+(`va_smartva_runs.run_metadata.smartva_options`, success or failure) records
+the options it ran with and their source: the unit id of the preset that
+applied, `form flag`, or `default`. A changed district setting affects later
+runs only. The offline runner (`scripts/run_smartva_offline_by_project.py`)
+resolves options the same way.
 
 Operational baseline:
 

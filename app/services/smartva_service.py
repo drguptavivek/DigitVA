@@ -448,6 +448,7 @@ def _save_smartva_result(
     existing=None,
     audit_action: str = "va_smartva_creation_during_datasync",
     requested_by: tuple[str, str] | None = None,
+    run_metadata: dict | None = None,
 ) -> uuid.UUID:
     _deactivate_active_smartva_results(
         va_sid,
@@ -461,6 +462,7 @@ def _save_smartva_result(
         payload_version_id=payload_version_id,
         trigger_source=trigger_source,
         outcome=VaSmartvaRun.OUTCOME_SUCCESS,
+        run_metadata=run_metadata,
     )
     for output_source_name, raw_payload in raw_outputs or []:
         _create_smartva_run_output(
@@ -729,6 +731,7 @@ def _save_smartva_failure(
     audit_action: str = "va_smartva_failure_recorded",
     requested_by: tuple[str, str] | None = None,
     keep_success: bool = False,
+    run_metadata: dict | None = None,
 ) -> uuid.UUID:
     """Record a failed run. With *keep_success* (a failed regeneration over a
     working result) only the run record is written: the successful result
@@ -748,6 +751,7 @@ def _save_smartva_failure(
         outcome=VaSmartvaRun.OUTCOME_FAILED,
         failure_stage=failure_stage,
         failure_detail=failure_detail,
+        run_metadata=run_metadata,
     )
     if keep_success:
         db.session.add(
@@ -783,6 +787,7 @@ def _record_smartva_failures(
     failure_details_by_sid: dict[str, str] | None = None,
     replace_existing: bool = False,
     requested_by: tuple[str, str] | None = None,
+    run_metadata_by_sid: dict[str, dict] | None = None,
 ) -> int:
     active_payload_by_sid = _active_payload_versions_by_sid(va_sids)
     existing_active = _active_smartva_results_for_sids(active_payload_by_sid)
@@ -801,6 +806,7 @@ def _record_smartva_failures(
             ),
             existing=existing,
             requested_by=requested_by,
+            run_metadata=(run_metadata_by_sid or {}).get(va_sid),
             # A failed regeneration must not destroy the result it meant to replace.
             keep_success=replace_existing and any(
                 row.payload_version_id == payload_version_id
@@ -846,7 +852,118 @@ def _generate_batch(
     replace_existing: bool = False,
     requested_by: tuple[str, str] | None = None,
 ) -> int:
-    """Run one SmartVA binary invocation for a bounded set of submissions.
+    """Resolve each submission's hiv/malaria options, then run one SmartVA
+    invocation per distinct option set.
+
+    A batch whose submissions all resolve alike (the common case) is one run;
+    otherwise it is split. Returns the total number of result rows saved.
+    """
+    from app.utils.va_smartva.va_smartva_02_prepdata import (
+        _derive_smartva_run_options,
+        group_sids_by_run_options,
+    )
+
+    if not batch_sids:
+        return 0
+    failure_kwargs = dict(
+        trigger_source=trigger_source,
+        replace_existing=replace_existing,
+        requested_by=requested_by,
+    )
+    try:
+        options_by_sid = _derive_smartva_run_options(va_form, batch_sids)
+    except Exception as exc:
+        # Same outcome as a failed prep: the batch's submissions get durable
+        # "execution" failure rows instead of staying smartva_pending.
+        log.error("SmartVA [%s]: option resolution failed: %s", va_form.form_id, exc, exc_info=True)
+        return _record_failures_after_error(va_form, batch_sids, exc, **failure_kwargs)
+
+    total = 0
+    for (hiv, malaria), group_sids in sorted(group_sids_by_run_options(options_by_sid).items()):
+        # What each result's run row records: the options and where each came from.
+        metadata_by_sid = {
+            va_sid: {
+                "smartva_options": {
+                    "hiv": {"value": hiv, "source": options_by_sid[va_sid]["hiv_source"]},
+                    "malaria": {"value": malaria, "source": options_by_sid[va_sid]["malaria_source"]},
+                }
+            }
+            for va_sid in group_sids
+        }
+        # One option group failing must not stop the others, nor lose the
+        # count of groups already committed.
+        try:
+            total += _generate_option_group(
+                va_form,
+                group_sids,
+                run_options={"hiv": hiv, "malaria": malaria},
+                run_metadata_by_sid=metadata_by_sid,
+                trigger_source=trigger_source,
+                log_progress=log_progress,
+                replace_existing=replace_existing,
+                requested_by=requested_by,
+            )
+        except Exception as exc:
+            log.error("SmartVA [%s]: option group failed: %s", va_form.form_id, exc, exc_info=True)
+            total += _record_failures_after_error(
+                va_form, group_sids, exc, run_metadata_by_sid=metadata_by_sid, **failure_kwargs
+            )
+    return total
+
+
+def _record_failures_after_error(
+    va_form,
+    va_sids: set[str],
+    exc: Exception,
+    *,
+    trigger_source: str,
+    replace_existing: bool,
+    requested_by: tuple[str, str] | None,
+    run_metadata_by_sid: dict[str, dict] | None = None,
+) -> int:
+    """Roll back and record an "execution" failure for each of *va_sids*.
+
+    For errors that escape a group's own handling (option resolution, form-run
+    creation). Never raises: if the failures cannot be stored either, they are
+    logged and 0 is returned, leaving the submissions pending for the next sweep.
+    """
+    try:
+        db.session.rollback()
+        count = _record_smartva_failures(
+            va_sids,
+            form_run_id=None,
+            replace_existing=replace_existing,
+            requested_by=requested_by,
+            run_metadata_by_sid=run_metadata_by_sid,
+            trigger_source=trigger_source,
+            failure_stage="execution",
+            failure_detail=str(exc),
+        )
+        db.session.commit()
+        return count
+    except Exception:
+        db.session.rollback()
+        log.error(
+            "SmartVA [%s]: failed to record failures after exception.",
+            va_form.form_id,
+            exc_info=True,
+        )
+        return 0
+
+
+def _generate_option_group(
+    va_form,
+    batch_sids: set[str],
+    *,
+    run_options: dict[str, str],
+    run_metadata_by_sid: dict[str, dict],
+    trigger_source: str = "form_batch",
+    log_progress=None,
+    replace_existing: bool = False,
+    requested_by: tuple[str, str] | None = None,
+) -> int:
+    """Run one SmartVA binary invocation for a bounded set of submissions that
+    share *run_options* (hiv/malaria).
 
     Creates its own workspace, form run, and nested transaction.
     *replace_existing* lets a new success replace a successful result of the
@@ -863,9 +980,6 @@ def _generate_batch(
         va_smartva_runsmartva,
     )
 
-    if not batch_sids:
-        return 0
-
     active_payload_by_sid = _active_payload_versions_by_sid(batch_sids)
 
     with tempfile.TemporaryDirectory() as workspace_dir:
@@ -876,10 +990,7 @@ def _generate_batch(
         )
         processing_tx = db.session.begin_nested()
         try:
-            prep_result = va_smartva_prepdata(
-                va_form, workspace_dir, pending_sids=batch_sids
-            )
-            run_options = prep_result.get("run_options", {})
+            va_smartva_prepdata(va_form, workspace_dir, pending_sids=batch_sids)
             va_smartva_runsmartva(
                 va_form,
                 workspace_dir,
@@ -901,6 +1012,7 @@ def _generate_batch(
                     form_run_id=form_run.form_run_id,
                     replace_existing=replace_existing,
                     requested_by=requested_by,
+                    run_metadata_by_sid=run_metadata_by_sid,
                     trigger_source=trigger_source,
                     failure_stage="smartva_rejected",
                     failure_detail=(
@@ -918,6 +1030,7 @@ def _generate_batch(
                         form_run_id=form_run.form_run_id,
                         replace_existing=replace_existing,
                         requested_by=requested_by,
+                        run_metadata_by_sid=run_metadata_by_sid,
                         trigger_source=trigger_source,
                         failure_stage="format_output",
                         failure_detail=(
@@ -965,6 +1078,7 @@ def _generate_batch(
                     raw_outputs=raw_outputs_by_sid.get(va_sid),
                     existing=existing,
                     requested_by=requested_by,
+                    run_metadata=run_metadata_by_sid.get(va_sid),
                 )
                 _transition_to_ready_after_smartva_if_pending(va_sid)
                 success_count += 1
@@ -977,6 +1091,7 @@ def _generate_batch(
                     form_run_id=form_run.form_run_id,
                     replace_existing=replace_existing,
                     requested_by=requested_by,
+                    run_metadata_by_sid=run_metadata_by_sid,
                     trigger_source=trigger_source,
                     failure_stage="missing_row",
                     failure_detail=(
@@ -1015,6 +1130,7 @@ def _generate_batch(
                     form_run_id=form_run.form_run_id,
                     replace_existing=replace_existing,
                     requested_by=requested_by,
+                    run_metadata_by_sid=run_metadata_by_sid,
                     trigger_source=trigger_source,
                     failure_stage="execution",
                     failure_detail=str(exc),

@@ -27,8 +27,12 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from app import create_app, db
-from app.models import VaForms, VaProjectSites, VaStatuses
-from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
+from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissions
+from app.utils.va_smartva.va_smartva_02_prepdata import (
+    _derive_smartva_run_options,
+    group_sids_by_run_options,
+    va_smartva_prepdata,
+)
 from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
 from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
 
@@ -164,20 +168,37 @@ def _run_for_form(va_form, form_dir: Path) -> dict:
     }
 
     try:
-        prep = va_smartva_prepdata(va_form, str(form_dir))
-        input_path = Path(prep["input_path"])
-        entry["records"] = _count_csv_rows(input_path)
-        # Prevent idle-in-transaction timeouts during long local SmartVA runs.
-        db.session.rollback()
-
-        va_smartva_runsmartva(
-            va_form,
-            str(form_dir),
-            run_options=prep.get("run_options") or {},
+        # Same per-submission hiv/malaria resolution as the service (district
+        # preset, then form flag, then off); one SmartVA run per option set.
+        form_sids = set(
+            db.session.scalars(
+                sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == va_form.form_id)
+            )
         )
-        va_smartva_formatsmartvaresult(va_form, str(form_dir))
+        groups = group_sids_by_run_options(_derive_smartva_run_options(va_form, form_sids))
+        if not groups:  # no submissions: keep the old one-run shape on the form flags
+            groups = {(va_form.form_smartvahiv, va_form.form_smartvamalaria): None}
+        entry["records"] = 0
+        entry["run_options"] = []
+        for (hiv, malaria), group_sids in sorted(groups.items()):
+            group_dir = form_dir if len(groups) == 1 else form_dir / f"hiv-{hiv}_malaria-{malaria}"
+            group_dir.mkdir(parents=True, exist_ok=True)
+            prep = va_smartva_prepdata(va_form, str(group_dir), pending_sids=group_sids)
+            input_path = Path(prep["input_path"])
+            entry["records"] += _count_csv_rows(input_path)
+            entry["run_options"].append({"hiv": hiv, "malaria": malaria, "dir": str(group_dir.relative_to(form_dir))})
+            # Prevent idle-in-transaction timeouts during long local SmartVA runs.
+            db.session.rollback()
 
-        entry["files"] = _list_key_outputs(form_dir)
+            va_smartva_runsmartva(
+                va_form,
+                str(group_dir),
+                run_options={"hiv": hiv, "malaria": malaria},
+            )
+            va_smartva_formatsmartvaresult(va_form, str(group_dir))
+            entry["files"] += [
+                str((group_dir / name).relative_to(form_dir)) for name in _list_key_outputs(group_dir)
+            ]
         entry["status"] = "ok"
     except Exception as exc:  # noqa: BLE001 - keep per-form runs resilient
         entry["status"] = "failed"

@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # SmartVA Analysis
@@ -303,6 +303,23 @@ python -m smartva.va_cli --country=Unknown \
     smartva_input.csv smartva_output/
 ```
 
+`--hiv` and `--malaria` are resolved per submission, not per form
+(`_derive_smartva_run_options` in `va_smartva_02_prepdata.py`, called by
+`_generate_batch` in `app/services/smartva_service.py`). For each option
+independently: the area preset of the submission's organization unit (nearest
+ancestor with a value, `org_grant_service.resolve_unit_va_presets`; `high` is
+on, `low`/`veryl` off), else the `va_forms.form_smartvahiv` /
+`form_smartvamalaria` flag (no organization tree, unplaced submissions), else
+off. The submission's own `Id10002`/`Id10003` answers are not read. The
+resolution costs two queries per batch (the submissions' org units, then one
+ltree query for every unit's presets). A batch whose submissions resolve to
+different option sets is split into one invocation, and one `va_smartva_form_runs`
+row, per option set. Each `va_smartva_runs.run_metadata` records
+`{"smartva_options": {"hiv": {"value": "True"|"False", "source": ...},
+"malaria": {...}}}`, where `source` is the id of the unit whose preset applied,
+`"form flag"` or `"default"`. No schema change: `run_metadata` already existed.
+Policy: [SmartVA Generation Policy](../policy/smartva-generation-policy.md).
+
 The command above is what `SMARTVA_CHARTS` (debugging only) runs, with
 `--figures True`. Otherwise the runner starts
 [`smartva_cli_no_charts.py`](../../app/utils/va_smartva/smartva_cli_no_charts.py)
@@ -388,7 +405,7 @@ This means every sync run — including SmartVA-only runs — fills in missing r
 | Table | Purpose |
 |---|---|
 | `va_smartva_form_runs` | Form-level execution metadata (trigger source, pending count, outcome, disk path) |
-| `va_smartva_runs` | Per-submission attempt history (outcome, failure stage/detail, payload version) |
+| `va_smartva_runs` | Per-submission attempt history (outcome, failure stage/detail, payload version, `run_metadata` with the hiv/malaria options and their source) |
 | `va_smartva_run_outputs` | Raw likelihood rows from SmartVA CSV output (full JSONB payload per row) |
 | `va_smartva_results` | Active projection layer consumed by the coding UI |
 

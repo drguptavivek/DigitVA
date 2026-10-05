@@ -75,16 +75,82 @@ def _stringify(value) -> str:
 
 
 
-def _derive_smartva_run_options(va_form) -> dict[str, str]:
-    """Derive SmartVA run options from form-level configuration only.
+# Provenance labels for an option that did not come from an org unit.
+SOURCE_FORM_FLAG = "form flag"
+SOURCE_DEFAULT = "default"
 
-    HIV, malaria, HCE, and freetext flags are all form-level settings.
-    Per-submission payload values (Id10002, Id10003) are ignored.
+# Area preset value -> SmartVA option. Anything else never reaches here (the
+# column is check-constrained to high/low/veryl).
+_PRESET_TO_OPTION = {"high": "True", "low": "False", "veryl": "False"}
+
+# SmartVA option -> area preset field it is read from.
+_OPTION_PRESET_FIELDS = (("hiv", "hiv_mortality"), ("malaria", "malaria_mortality"))
+
+
+def _derive_smartva_run_options(va_form, va_sids) -> dict[str, dict]:
+    """Resolve SmartVA's hiv/malaria options for each submission.
+
+    Per option, independently: the area preset of the submission's org unit
+    (nearest ancestor with a value, ``high`` -> on, ``low``/``veryl`` -> off),
+    else the form's ``form_smartvahiv`` / ``form_smartvamalaria`` flag, else
+    off. The submission's own Id10002/Id10003 answers are not used. See
+    docs/policy/smartva-generation-policy.md ("Per-Form Execution Options").
+
+    Two queries however many submissions there are (their org units, then one
+    ltree containment query for every unit's presets), never one per row.
+
+    Returns ``{va_sid: {"hiv": "True"|"False", "malaria": ..., "hiv_source":
+    <unit id str> | "form flag" | "default", "malaria_source": ...}}``.
     """
-    return {
-        "hiv": va_form.form_smartvahiv,
-        "malaria": va_form.form_smartvamalaria,
+    # Imported here: the service layer imports this util package.
+    from app.services.org_grant_service import resolve_unit_va_presets
+
+    va_sids = set(va_sids)
+    if not va_sids:
+        return {}
+
+    unit_by_sid = dict(
+        db.session.execute(
+            sa.select(VaSubmissions.va_sid, VaSubmissions.org_unit_id).where(
+                VaSubmissions.va_sid.in_(va_sids)
+            )
+        ).all()
+    )
+    unit_ids = {unit_id for unit_id in unit_by_sid.values() if unit_id is not None}
+    presets = resolve_unit_va_presets(unit_ids) if unit_ids else {}
+
+    flags = {
+        "hiv": getattr(va_form, "form_smartvahiv", None),
+        "malaria": getattr(va_form, "form_smartvamalaria", None),
     }
+    resolved: dict[str, dict] = {}
+    for va_sid in va_sids:
+        fields = presets.get(unit_by_sid.get(va_sid), {})
+        options: dict[str, str] = {}
+        for option, preset_field in _OPTION_PRESET_FIELDS:
+            entry = fields.get(preset_field)
+            if entry is not None:
+                options[option] = _PRESET_TO_OPTION[entry["value"]]
+                options[f"{option}_source"] = str(entry["source_unit_id"])
+            elif flags[option] in ("True", "False"):
+                options[option] = flags[option]
+                options[f"{option}_source"] = SOURCE_FORM_FLAG
+            else:
+                options[option] = "False"
+                options[f"{option}_source"] = SOURCE_DEFAULT
+        resolved[va_sid] = options
+    return resolved
+
+
+def group_sids_by_run_options(options_by_sid: dict[str, dict]) -> dict[tuple[str, str], set[str]]:
+    """Split submissions by the (hiv, malaria) option set SmartVA runs with.
+
+    Shared by the service and the offline runner so both split alike.
+    """
+    groups: dict[tuple[str, str], set[str]] = {}
+    for va_sid, options in options_by_sid.items():
+        groups.setdefault((options["hiv"], options["malaria"]), set()).add(va_sid)
+    return groups
 
 
 def _prepared_payload_rows(va_form, pending_sids=None) -> list[tuple[str, dict]]:
@@ -159,7 +225,6 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
     """
     smartva_input_path = os.path.join(workspace_dir, "smartva_input.csv")
     payload_rows = _prepared_payload_rows(va_form, pending_sids=pending_sids)
-    run_options = _derive_smartva_run_options(va_form)
 
     prepared_rows: list[dict] = []
     skipped = 0
@@ -191,7 +256,4 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
         for row in prepared_rows:
             writer.writerow(row)
 
-    return {
-        "input_path": smartva_input_path,
-        "run_options": run_options,
-    }
+    return {"input_path": smartva_input_path}

@@ -163,6 +163,7 @@ jest.mock("../src/drafts", () => ({
   listCases: jest.fn(async () => []),
   listRegistrations: jest.fn(async () => []),
   getDraftRow: jest.fn(async () => null),
+  draftForCase: jest.fn(async () => null),
   getMeta: jest.fn(async () => undefined),
   setMeta: jest.fn(async () => undefined),
   createDraftStore: jest.fn(() => ({
@@ -213,6 +214,7 @@ jest.mock("../src/sync", () => ({
     prefill: {},
   })),
   getCachedReferenceData: jest.fn(async () => mockCachedReference),
+  draftSyncDefaults: jest.fn(() => undefined),
   refreshReferenceData: jest.fn(async () => mockReference),
   refreshCases: jest.fn(async () => undefined),
   syncInterviewer: jest.fn(async () => ({
@@ -299,7 +301,10 @@ jest.mock("../src/i18n", () => ({
       return `Stored interview: ${values?.uniqueId ?? ""}`;
     }
     if (key === "supersededInterviewNotice") {
-      return "A teammate’s interview of this case was submitted first; yours is kept.";
+      return "Another interview of this case is with the coder; yours was saved as history.";
+    }
+    if (key === "otherCompleteInterviewNotice") {
+      return "Another complete interview of this case is with the supervisor.";
     }
     if (key === "otherDraftActiveAt") {
       return `${key} ${values?.date ?? ""}`;
@@ -390,8 +395,10 @@ jest.mock(
 
 import Register from "../src/nativeRoutes/register";
 import Form from "../src/nativeRoutes/form";
+import Case from "../src/nativeRoutes/case";
 import Worklist from "../src/nativeRoutes/worklist";
 import {
+  fetchCaseDetail,
   fetchCasePage,
   getCachedReferenceData,
   refreshReferenceData,
@@ -887,6 +894,16 @@ describe("native project-aware routes", () => {
         },
         other_draft_active: true,
         other_draft_started_at: startedAt,
+        other_complete_interview: true,
+      },
+      {
+        death_id: "d2",
+        project_id: "P1",
+        unique_id: "VA-CACHED-UNCHOSEN",
+        state: "registered",
+        site_id: "S1",
+        deceased: { name: "Another case", age_years: null, sex: null, date_of_death: null },
+        other_complete_interview: false,
       },
     ];
     let tree: ReturnType<typeof create>;
@@ -899,14 +916,70 @@ describe("native project-aware routes", () => {
       `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
     );
     expect(rendered).toContain("otherDraftSyncNotice");
-    const viewDetails = tree!.root.findByProps({
+    expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
+    expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
+    const viewDetails = tree!.root.findAllByProps({
       "data-label": "viewDetails",
-    });
+    })[0];
     expect(Boolean(viewDetails.props.disabled)).toBe(false);
     await act(async () => viewDetails.props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith(
       expect.objectContaining({ pathname: "/case" }),
     );
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows the neutral complete-interview notice on native case details", async () => {
+    mockParams = { userId: "u1", projectId: "P1", deathId: "d1" };
+    const detail = {
+      death_id: "d1",
+      unique_id: "VA-CASE",
+      project_id: "P1",
+      site_id: "S1",
+      org_unit_id: null,
+      unit_name: "Clinic",
+      state: "registered",
+      source: "registration",
+      details_pending: false,
+      pending_flag: false,
+      deceased: {
+        name: "Case subject",
+        sex: "female",
+        age_years: 56,
+        date_of_birth: null,
+        date_of_birth_partial: null,
+        date_of_death: null,
+        place_of_death: null,
+      },
+      household_address: { address: null, house_street: null, village_ward: null, landmark: null },
+      informant: { name: "Contact", phone: null, phone_2: null },
+      remarks: null,
+      registered_by_me: true,
+      started_by_me: false,
+      my_draft_id: null,
+      other_complete_interview: false,
+      va_sid: null,
+      created_at: "",
+      updated_at: "",
+      next_visit_at: null,
+      last_contact_at: null,
+      informant_phone_masked: null,
+      informant_phone_2_masked: null,
+    };
+    (fetchCaseDetail as jest.Mock).mockResolvedValueOnce(detail);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("Another complete interview of this case is with the supervisor.");
+    await act(async () => tree!.unmount());
+
+    (fetchCaseDetail as jest.Mock).mockResolvedValueOnce({ ...detail, other_complete_interview: true });
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
+    expect(rendered).toContain("logAttempt");
     await act(async () => tree!.unmount());
   });
 
@@ -921,6 +994,15 @@ describe("native project-aware routes", () => {
           deceased_name: "Online case",
           other_draft_active: true,
           other_draft_started_at: "invalid-date",
+          other_complete_interview: true,
+        },
+        {
+          death_id: "d2",
+          project_id: "P1",
+          unique_id: "VA-ONLINE-UNCHOSEN",
+          state: "registered",
+          deceased_name: "Another case",
+          other_complete_interview: false,
         },
       ],
       next_cursor: null,
@@ -937,6 +1019,8 @@ describe("native project-aware routes", () => {
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("otherDraftActive");
     expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
+    expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
     expect(rendered).not.toContain("otherDraftActiveAt");
     await act(async () => tree!.unmount());
   });
@@ -1165,7 +1249,7 @@ describe("native project-aware routes", () => {
     );
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain(
-      "A teammate’s interview of this case was submitted first; yours is kept.",
+      "Another interview of this case is with the coder; yours was saved as history.",
     );
     expect(rendered).toContain("Stored interview: VA-FIRST");
     expect(rendered).not.toContain("A newer completed version is already with the coder");
@@ -1194,7 +1278,7 @@ describe("native project-aware routes", () => {
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain(
-      "A teammate’s interview of this case was submitted first; yours is kept.",
+      "Another interview of this case is with the coder; yours was saved as history.",
     );
     expect(rendered).toContain("Stored interview: VA-FIRST");
     await act(async () => tree!.unmount());

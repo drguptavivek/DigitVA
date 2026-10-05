@@ -184,6 +184,21 @@ describe("web reported death details", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("shows the complete-interview notice only when the server flag is true", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_complete_interview: false } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("otherCompleteInterviewNotice");
+    await act(async () => tree!.unmount());
+
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_complete_interview: true } });
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain("otherCompleteInterviewNotice");
+    await act(async () => tree!.unmount());
+  });
+
   it("uses the generic active warning for an invalid start time", async () => {
     mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_draft_active: true, other_draft_started_at: "invalid" } });
     let tree: ReturnType<typeof create>;

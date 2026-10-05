@@ -865,6 +865,9 @@ export default function Worklist() {
               <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
             </>
           ) : null}
+          {row.other_complete_interview === true ? (
+            <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
+          ) : null}
           {[
             fieldValue(
               t("fieldAge").replace(/\s*\*\s*$/, ""),
@@ -928,6 +931,9 @@ export default function Worklist() {
                   </Text>
                   <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
                 </>
+              ) : null}
+              {row.other_complete_interview === true ? (
+                <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
               ) : null}
               <Button
                 kind="secondary"

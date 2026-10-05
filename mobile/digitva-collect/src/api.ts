@@ -219,6 +219,7 @@ export interface CaseRow {
   my_draft_id?: string | null;
   other_draft_active?: boolean;
   other_draft_started_at?: string | null;
+  other_complete_interview?: boolean;
   [key: string]: unknown;
 }
 

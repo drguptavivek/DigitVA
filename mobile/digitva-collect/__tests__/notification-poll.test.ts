@@ -37,6 +37,26 @@ describe("parseNotificationPage", () => {
     ]), 1)).toEqual({ nextCursor: 3, nonEmpty: true, hasMore: false });
   });
 
+  it.each([["chosen interviewer", "chosen-submission"], ["previous winner", null]])(
+    "treats interview_chosen for the %s as a normal sync nudge and keeps only its cursor",
+    async (_recipient, vaSid) => {
+    const chosen = notification(5, {
+      kind: "interview_chosen",
+      death_id: "dddddddd-0000-4000-8000-000000000001",
+      draft_id: "aaaaaaaa-0000-4000-8000-000000000001",
+      va_sid: vaSid,
+    });
+    const request = jest.fn().mockResolvedValue(page([chosen]));
+
+    await expect(drainNotificationPages({ after: 4, request })).resolves.toEqual({
+      nextCursor: 5,
+      needsSync: true,
+      hasMore: false,
+    });
+    expect(request).toHaveBeenCalledWith(4);
+    },
+  );
+
   it.each([
     ["malformed payload", null],
     ["missing notifications", { next_cursor: 0 }],

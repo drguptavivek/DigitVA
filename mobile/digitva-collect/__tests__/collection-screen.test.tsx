@@ -140,9 +140,9 @@ describe("CollectionScreen refresh", () => {
     const startedAt = "2026-10-04T10:30:00Z";
     mockParams = { superseded: "1" };
     mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "timed", unique_id: "A-001", other_draft_active: true, other_draft_started_at: startedAt },
+      { death_id: "timed", unique_id: "A-001", other_draft_active: true, other_draft_started_at: startedAt, other_complete_interview: true },
       { death_id: "unknown", unique_id: "A-002", other_draft_active: true, other_draft_started_at: "invalid" },
-      { death_id: "inactive", unique_id: "A-003", other_draft_active: false, other_draft_started_at: startedAt }
+      { death_id: "inactive", unique_id: "A-003", other_draft_active: false, other_draft_started_at: startedAt, other_complete_interview: false }
     ], next_cursor: null });
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<CollectionScreen />); });
@@ -151,6 +151,7 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain(`otherDraftActiveAt:${new Date(startedAt).toLocaleString()}`);
     expect(rendered).toContain('"otherDraftActive"');
     expect(rendered).toContain("supersededInterviewNotice");
+    expect(rendered.match(/otherCompleteInterviewNotice/g)).toHaveLength(1);
     expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
     await act(async () => tree!.unmount());
   });

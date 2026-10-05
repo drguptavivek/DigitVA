@@ -24,6 +24,7 @@ jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async ()
 
 import {
   getCase,
+  isCaseDetail,
   getRegistration,
   listActions,
   listCases,
@@ -136,14 +137,14 @@ const json = (status: number, body: unknown) =>
 
 type Call = { url: string; body?: Record<string, unknown> };
 let calls: Call[];
-function mockServer(handler: (call: Call) => Response) {
+function mockServer(handler: (call: Call) => Response, detailFor: (deathId: string) => TestDetail = caseRow) {
   calls = [];
   globalThis.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const call = { url: String(url), body: init?.body ? JSON.parse(init.body as string) : undefined };
     calls.push(call);
     if (call.url.includes("/cases/") && !call.url.includes("?") && !call.url.endsWith("/attempts") && !call.url.endsWith("/visit")) {
       const deathId = call.url.split("/cases/")[1];
-      return json(200, { case: caseRow(deathId) });
+      return json(200, { case: detailFor(deathId) });
     }
     if (call.url.endsWith("/me/access")) return json(200, {
       user: { user_id: USER, name: "A" }, is_admin: false,
@@ -422,6 +423,29 @@ describe("sync queue", () => {
 });
 
 describe("case download", () => {
+  it("accepts the optional candidate flag only as a boolean", () => {
+    expect(isCaseDetail(caseRow(DEATH))).toBe(true);
+    expect(isCaseDetail(caseRow(DEATH, { other_complete_interview: true }))).toBe(true);
+    expect(isCaseDetail(caseRow(DEATH, { other_complete_interview: undefined }))).toBe(false);
+    expect(isCaseDetail({ ...caseRow(DEATH), other_complete_interview: "yes" })).toBe(false);
+  });
+
+  it("refreshes cached submission ownership and candidate state from the server", async () => {
+    const db = await freshDb();
+    await replaceCases(db, PROJECT, [caseRow(DEATH, { va_sid: "previous", other_complete_interview: false })]);
+    const reference = referenceData();
+    const chosen = caseRow(DEATH, { va_sid: "chosen", other_complete_interview: true });
+    mockServer(accepting([chosen]), () => chosen);
+
+    await refreshCases(USER, db, reference);
+    expect(await getCase(db, DEATH)).toMatchObject({ va_sid: "chosen", other_complete_interview: true });
+
+    const unchosen = caseRow(DEATH, { va_sid: null, other_complete_interview: false });
+    mockServer(accepting([unchosen]), () => unchosen);
+    await refreshCases(USER, db, reference);
+    expect(await getCase(db, DEATH)).toMatchObject({ va_sid: null, other_complete_interview: false });
+  });
+
   it("replaces the full project list atomically when an insert fails", async () => {
     const db = await freshDb();
     const second = "dddddddd-0000-4000-8000-000000000002";

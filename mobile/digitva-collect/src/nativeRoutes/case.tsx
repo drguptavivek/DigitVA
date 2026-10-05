@@ -447,6 +447,9 @@ export default function Case() {
               <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
             </>
           ) : null}
+          {found.other_complete_interview === true ? (
+            <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
+          ) : null}
           {[
             detailLine(
               t("fieldAge").replace(/\s*\*\s*$/, ""),

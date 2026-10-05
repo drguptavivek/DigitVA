@@ -341,6 +341,9 @@ export default function NewCaseDetailScreen() {
                 {otherDraftNotice(row.other_draft_started_at)}
               </Text>
             ) : null}
+            {row.other_complete_interview === true ? (
+              <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
+            ) : null}
             {[
               detailLine(
                 t("fieldSex").replace(/\s*\*\s*$/, ""),

@@ -44,6 +44,7 @@ export interface CaseRow {
   my_draft_id: string | null;
   other_draft_active?: boolean;
   other_draft_started_at?: string | null;
+  other_complete_interview?: boolean;
   va_sid: string | null;
   created_at: string;
   updated_at: string;
@@ -238,6 +239,7 @@ export function isCaseDetail(value: unknown): value is CaseDetail {
     typeof detail.project_id === "string" && detail.project_id.length > 0 &&
     typeof detail.state === "string" &&
     typeof detail.site_id === "string" &&
+    (!("other_complete_interview" in detail) || typeof detail.other_complete_interview === "boolean") &&
     (detail.prefill === undefined || (typeof detail.prefill === "object" && detail.prefill !== null)) &&
     typeof detail.deceased === "object" &&
     detail.deceased !== null &&

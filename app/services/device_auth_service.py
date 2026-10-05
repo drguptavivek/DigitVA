@@ -190,17 +190,20 @@ _DEVICE_CODING_ROLES = frozenset(
 )
 
 
-def has_device_access(user: VaUsers) -> bool:
+def has_device_access(user: VaUsers, context: list[dict] | None = None) -> bool:
     """The sign-in, refresh and automatic-revocation grant check: the user
     may interview in at least one project (``interviewer_context``, which
     skips a project whose ``web_intake_mode`` is ``off``, so a session never
     opens with nothing to collect in) or holds an explicit coder,
     coding_tester or reviewer grant whose gate is open. Demo-training
     virtual grants never count. Route authorization is separate: each route
-    still checks its own role. The enrolment project is not required."""
+    still checks its own role. The enrolment project is not required.
+
+    *context* is the caller's already computed ``interviewer_context(user)``,
+    so it is not run twice."""
     from app.services.web_intake_service import interviewer_context
 
-    if interviewer_context(user):
+    if (interviewer_context(user) if context is None else context):
         return True
     return any(
         g.opens_gate for g in resolve_grants(user).of(_DEVICE_CODING_ROLES, virtual=False)

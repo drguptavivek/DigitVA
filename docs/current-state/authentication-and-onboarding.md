@@ -761,9 +761,11 @@ every state change. Gates answer as on every JSON path:
 - Non-admin during maintenance: the app-wide gate (401 for a cookie session,
   403 `maintenance` for a bearer).
 
-Navigation capabilities are no longer a server field: the client derives
-them from `grants` (a `coder` grant with `codes` opens coding, `reviewer`
-reviewing, `interviewer` intake) and every workflow API still checks scope.
+Navigation capabilities come from the access body (`docs/current-state/api-v1.md`,
+"GET /api/v1/me/access (body)"): `roles` says which screens open,
+`projects[].actions.interview` where intake is accepted, and
+`units[].can_code` where coding is; `grants[].active` is false for a grant
+the server's gate refuses. Every workflow API still checks scope.
 
 ## 8. API reference
 

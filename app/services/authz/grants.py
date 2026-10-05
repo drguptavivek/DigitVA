@@ -70,6 +70,9 @@ class Grant:
     # (the legacy VaUsers._get_granted_va_forms rule, digitva-5hmc). Scope is
     # never read from it.
     opens_gate: bool = True
+    # Where the grant comes from: "assigned" (a grant row) or "self_coding" (the
+    # interviewer grant implied by a coder grant on a self-coding project).
+    source: str = "assigned"
 
     @property
     def is_wide(self) -> bool:
@@ -92,6 +95,8 @@ class ProjectSettings:
     scope_depth: int | None   # depth of coding_scope_level_id; None = no coding scope
     above_mode: str           # 'code_any' | 'view_only'
     demo_training: bool
+    web_intake_mode: str = "off"
+    scope_level_code: str | None = None   # level_code of coding_scope_level_id
     # Self-coding is on and web intake is not off: a coder here also interviews
     # (policy: web-intake.md, "Self-coding projects").
     self_coding: bool = False
@@ -159,16 +164,19 @@ class ResolvedGrants:
 
     # -- data-manager shaped grants ----------------------------------------
 
-    def is_dm_grant(self, grant: Grant) -> bool:
-        """data_manager at any scope; site_pi at a unit (the In-charge);
-        project_pi on a tree project (access-control-model.md)."""
-        if grant.role == VaAccessRoles.data_manager:
-            return True
+    def oversees(self, grant: Grant) -> bool:
+        """site_pi at a unit (the In-charge) or project_pi on a tree project:
+        the grants that count as data_manager and interview_supervisor."""
         if grant.role == VaAccessRoles.site_pi:
             return grant.scope_type == _U
         if grant.role == VaAccessRoles.project_pi:
             return self.has_tree(grant.project_id)
         return False
+
+    def is_dm_grant(self, grant: Grant) -> bool:
+        """data_manager at any scope, or an overseeing grant
+        (access-control-model.md)."""
+        return grant.role == VaAccessRoles.data_manager or self.oversees(grant)
 
     def dm_grants(self) -> tuple[Grant, ...]:
         return tuple(g for g in self.grants if self.is_dm_grant(g))
@@ -298,6 +306,8 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
         sa.select(
             project.project_id,
             level.depth,
+            level.level_code,
+            project.web_intake_mode,
             project.above_scope_coding_mode,
             sa.and_(demo, has_active_form).label("demo_training"),
             sa.and_(
@@ -316,6 +326,8 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
             above_mode=row.above_scope_coding_mode or ABOVE_SCOPE_VIEW_ONLY,
             demo_training=bool(row.demo_training),
             self_coding=bool(row.self_coding),
+            web_intake_mode=row.web_intake_mode or "off",
+            scope_level_code=row.level_code,
         )
         for row in rows
     }
@@ -349,7 +361,7 @@ def _implied_interviewer_grants(
         for g in grants if g.role == VaAccessRoles.interviewer
     }
     return [
-        dataclasses.replace(g, role=VaAccessRoles.interviewer)
+        dataclasses.replace(g, role=VaAccessRoles.interviewer, source="self_coding")
         for g in coders
         if (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id) not in explicit
     ]

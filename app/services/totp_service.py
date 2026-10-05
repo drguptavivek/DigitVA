@@ -145,13 +145,19 @@ def has_any_factor(user_id) -> bool:
     ))
 
 
+def is_privileged(user) -> bool:
+    """An active admin or data_manager grant: the users the factor
+    enforcement guard (docs/policy/authentication-factors.md) applies to."""
+    return bool(user.is_admin() or user.is_data_manager())
+
+
 def needs_second_factor(user) -> bool:
     """docs/policy/authentication-factors.md section 3: a confirmed TOTP
     enrolment (any role), or a privileged user (active admin or
     data_manager grant) holding any factor (passkey or confirmed TOTP)."""
     if has_confirmed_totp(user.user_id):
         return True
-    if not (user.is_admin() or user.is_data_manager()):
+    if not is_privileged(user):
         return False
     has_passkey = db.session.scalar(
         sa.select(sa.exists().where(AuthWebauthnCredential.user_id == user.user_id))

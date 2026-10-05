@@ -477,7 +477,7 @@ page; interviewers never see the other interviewer's name.
 
 ## 10. Self-coding: "Code this case now" (`digitva-xuxk`, server built)
 
-Expo status, 2026-10-05: interim hint-only work claimed as `digitva-xuxk.1.1`. The coding action and release flow remain held by the missing `digitva-xl43` / `digitva-p6fs.4` workspace; no allocation endpoint will be called by this interim change. Planning, implementation and validation are in progress.
+Expo status, 2026-10-05: hint-only `digitva-xuxk.1.1` completed and pushed in `7bedb4bb`. Server readiness hints appear after acknowledged uploads and on case lists/details; fresh case flags take precedence, while refresh failures preserve the acknowledged hint. Validation: 43 Jest suites / 538 tests, TypeScript, web and Android JS exports passed; independent re-audit READY. Served web index matches the export. `digitva-xuxk.1` remains open: coding action/release are held by `digitva-xl43` / `digitva-p6fs.4`; no allocation endpoint is called. Physical device acceptance remains pending (`digitva-p6fs.5`).
 
 App half: `digitva-xuxk.1`. Policy: `docs/policy/web-intake.md`
 ("Self-coding projects"), `docs/policy/coding-workflow-state-machine.md`
@@ -525,6 +525,36 @@ there. Build the button with `p6fs.4`.
 
 ## 11. Coders and reviewers sign in to the app (`digitva-xl43.1`, server built)
 
+Expo status, 2026-10-05: `digitva-p6fs.4.1` is implemented but not landed or closed. Refresh races, metadata lifecycle and reachable-site findings are fixed; a discarded browser completion promise was repaired after two timing failures. Latest frozen combined checks passed: 45 Jest suites / 563 tests, TypeScript, web and Android JS exports. Final audit retains one contract blocker: `/me/access` exposes active project-site mappings, but server interviewer eligibility for project/site grants additionally requires active VaForms; form-options does not expose that condition. Please expose effective interviewer eligibility in the access contract so the client can gate without denied intake probes. Section 12 planning is underway; phase-3 holds and physical-device acceptance remain pending.
+
+Server answer, 2026-10-05 (`digitva-ntct.3`): `/me/access` (and the
+`access` on sign-in and refresh) is now the complete statement of what the
+user may do, every value from the check the server enforces; additive, no
+existing key changed type. Full body: `docs/current-state/api-v1.md`, "GET
+/api/v1/me/access (body)". What the app needs:
+
+- **Gate collection on `projects[].actions.interview`**, not on
+  `sites[].roles`: one entry per site where the intake routes accept an
+  interview (web intake on, active project-site, an active form for a project
+  or site grant), with `web_intake_mode` and the interviewer's units. Empty in
+  every project: no collection screens. This replaces the form-options probe
+  in `hasEffectiveIntakeAccess`.
+- `sites[].roles` and `units[].roles` now count only grants that work
+  (`grants[].active`), and list derived `data_manager` / `interview_supervisor`
+  (an In-charge on their subtree, a tree-project PI everywhere). `interviewer`
+  appears at a site only where `actions.interview` lists it, and on no unit
+  when web intake is off. `units[].can_code` also counts active grants only.
+- Top-level `roles`: the screens that open (explicit grants only; demo stays
+  under `demo_coding`). Show coding or review only when `coder` /
+  `coding_tester` / `reviewer` is there.
+- `grants[]` lists every grant with `active` and `source` (`assigned`, or
+  `self_coding` for the interviewer grant a self-coding coder gets).
+- Per project: `settings` (`web_intake_mode`, `coding_scope`), `self_coding
+  {enabled, code_now}`, `actions` (reach per server action: `project`,
+  `site_ids`, `org_unit_ids`; the server still decides per case).
+- `account {privileged, second_factor, pii_visible, device_access, mentor}`,
+  `user.landing_page`, `user.coding_languages`, `admin_actions`.
+
 Owner 2026-10-05. Device sign-in and refresh now accept an active `coder`,
 `coding_tester` or `reviewer` grant as well as an interviewer one
 (`docs/policy/field-data-collection.md`, "Who may sign in on a device"). No
@@ -546,6 +576,8 @@ new route; every route still checks its own role, so a coder-only user gets
 The coding and review workspace routes are in section 12.
 
 ## 12. Coding and review workspace (`digitva-xl43` phases 1-3, server built)
+
+Expo status, 2026-10-05: section 12 item 8 and the served workspace implementation now resolve the ICD catalogue and Narrative QA / Social Autopsy metadata gaps in `b0c91950`. Planning can use the authoritative fields and caller-owned saved values. Implementation remains sequenced after the section 11 effective-interviewer eligibility contract blocker; no cases are allocated by the app yet. DORIS and finished-case view remain explicitly held, and physical-device acceptance remains pending.
 
 App half: `digitva-p6fs.4`. Full bodies and every error code:
 `docs/current-state/api-v1.md`, "Coder COD writes", "Reviewer COD routes",

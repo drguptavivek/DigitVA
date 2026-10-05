@@ -47,6 +47,19 @@ mentor-institute member, coding tester):
   selectable), each unit tagged with the roles that reach it. Not the full
   project tree, except where the user's reach is the full tree: a project
   or site grant, a project PI, or an admin.
+- The access body is the complete statement of a user's access (owner,
+  2026-10-05, digitva-ntct.3): a client needs no other route to learn what
+  the user may do or where. Every value is the output of the predicate the
+  server enforces (`role_flags`, the lens rules in `RULES`,
+  `interviewer_context`, the factor and PII services), never a second copy
+  of a rule. `grants[]` lists every resolved grant with `active` (its gate
+  opens) and `source`; every other list (`roles`, `sites[].roles`,
+  `units[].roles`, `actions`) counts active grants only. Explicit grants
+  only: demo-training practice is reported under `demo_coding` and never
+  appears in `roles` or `actions`. `actions` is reach, not a decision: where
+  the user's grants reach each action; whether the action is allowed on one
+  case is still decided per request. Additive: a field is never renamed,
+  retyped or removed (clients ignore unknown keys).
 - Checked against the code (2026-10-04): no role acts on or picks units
   outside that set. Units outside it reach a client only as names on rows
   it is already shown (the person lookup's posts, a case's own unit);

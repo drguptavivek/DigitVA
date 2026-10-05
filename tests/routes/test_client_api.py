@@ -97,7 +97,10 @@ class ExpoWebAccessTests(BaseTestCase):
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
         self.assertTrue(response.headers["X-CSRFToken"])
         body = response.get_json()
-        self.assertEqual(body["user"], {"user_id": self.base_coder_id, "name": self.base_coder_user.name})
+        user = self.base_coder_user
+        self.assertEqual(body["user"], {
+            "user_id": self.base_coder_id, "name": user.name,
+            "landing_page": user.landing_page, "coding_languages": list(user.vacode_language)})
         self.assertNotIn("csrf", body)
         # An already authenticated account is sent to its landing page.
         self.assertEqual(self.client.get("/vaauth/valogin").status_code, 302)

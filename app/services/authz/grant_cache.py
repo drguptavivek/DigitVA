@@ -55,7 +55,7 @@ from app.services.authz.grants import Grant, ProjectSettings, ResolvedGrants
 
 log = logging.getLogger(__name__)
 
-_FORMAT = 2
+_FORMAT = 3
 _PENDING_KEY = "digitva.authz.pending_bumps"
 
 # Columns whose change can alter what a user's grants resolve to.
@@ -105,12 +105,12 @@ def encode(resolved: ResolvedGrants) -> str:
             [g.role.value, g.scope_type.value, g.project_id, g.site_id,
              str(g.project_site_id) if g.project_site_id else None,
              str(g.org_unit_id) if g.org_unit_id else None,
-             g.unit_depth, g.unit_path, g.virtual, g.opens_gate]
+             g.unit_depth, g.unit_path, g.virtual, g.opens_gate, g.source]
             for g in resolved.grants
         ],
         "projects": [
             [p.project_id, p.has_tree, p.scope_depth, p.above_mode, p.demo_training,
-             p.self_coding]
+             p.self_coding, p.web_intake_mode, p.scope_level_code]
             for p in resolved.projects.values()
         ],
     }, separators=(",", ":"))
@@ -155,17 +155,20 @@ def decode(raw, user_id: uuid.UUID) -> ResolvedGrants:
             project_id=_text(project_id, optional=False), site_id=_text(site_id),
             project_site_id=_uuid(pair_id), org_unit_id=_uuid(unit_id),
             unit_depth=_int(depth), unit_path=_text(path), virtual=_bool(virtual),
-            opens_gate=_bool(opens_gate),
+            opens_gate=_bool(opens_gate), source=_text(source, optional=False),
         )
-        for role, scope, project_id, site_id, pair_id, unit_id, depth, path, virtual, opens_gate
-        in data["grants"]
+        for (role, scope, project_id, site_id, pair_id, unit_id, depth, path, virtual,
+             opens_gate, source) in data["grants"]
     )
     projects = {}
-    for project_id, has_tree, scope_depth, above_mode, demo, self_coding in data["projects"]:
+    for (project_id, has_tree, scope_depth, above_mode, demo, self_coding,
+         intake_mode, level_code) in data["projects"]:
         projects[_text(project_id, optional=False)] = ProjectSettings(
             project_id=project_id, has_tree=_bool(has_tree), scope_depth=_int(scope_depth),
             above_mode=_text(above_mode, optional=False), demo_training=_bool(demo),
             self_coding=_bool(self_coding),
+            web_intake_mode=_text(intake_mode, optional=False),
+            scope_level_code=_text(level_code),
         )
     return ResolvedGrants(
         user_id=user_id, is_admin=_bool(data["is_admin"]), grants=grants, projects=projects,

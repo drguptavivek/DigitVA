@@ -263,6 +263,46 @@ def _lens_groups(g: ResolvedGrants, lens: Lens, *, coding: bool = True):
     raise ValueError(f"unknown lens {lens!r}")
 
 
+def action_reach(g: ResolvedGrants, project_id: str) -> dict[str, dict]:
+    """Where *g*'s explicit, active grants reach each action in *project_id*.
+
+    ``{action: {"project": bool, "site_ids": [...], "org_unit_ids": [...]}}``
+    for every action some lens of ``RULES`` counts a grant for, taken from
+    ``_lens_groups`` (the coding scope rule included), so a lens or rule
+    change moves it with the predicates. Reach, not a decision: whether an
+    action is allowed on a case also depends on that case's form, pair and
+    unit, which only ``scope_filter`` / ``can`` resolve. Demo-training grants
+    and admin are not counted; ``SITE_PI_REPORT`` and ``SUPERVISE_INTAKE``
+    are decided outside ``RULES`` and not listed.
+    """
+    reach: dict[str, dict] = {}
+    for action, lenses in RULES.items():
+        project = False
+        sites: set[str] = set()
+        units: set[str] = set()
+        for lens in lenses:
+            if lens is Lens.DM_PROJECT_UNROUTED:
+                # Decided per project, not per grant (_lens_predicate,
+                # _can_list_unrouted): a tree project's whole unrouted queue.
+                project = project or project_id in g.dm_projects()
+                continue
+            for grants, _, _ in _lens_groups(g, lens):
+                for grant in grants:
+                    if grant.virtual or not grant.opens_gate or grant.project_id != project_id:
+                        continue
+                    if grant.scope_type == _P:
+                        project = True
+                    elif grant.scope_type == _PS:
+                        sites.add(grant.site_id)
+                    else:
+                        units.add(str(grant.org_unit_id))
+        if project or sites or units:
+            reach[action.value] = {
+                "project": project, "site_ids": sorted(sites), "org_unit_ids": sorted(units),
+            }
+    return reach
+
+
 def _lens_predicate(g: ResolvedGrants, lens: Lens):
     if lens is Lens.DM_PROJECT_UNROUTED:
         projects = sorted(g.dm_projects())
@@ -610,18 +650,21 @@ def effective_roles(user, *, _grants: ResolvedGrants | None = None) -> frozenset
     return role_flags(user, _grants=_grants)
 
 
-def role_flags(user, *, _grants: ResolvedGrants | None = None) -> frozenset[str]:
-    """``effective_roles`` without marking the request consulted."""
+def role_flags(
+    user, *, _grants: ResolvedGrants | None = None, virtual: bool | None = None
+) -> frozenset[str]:
+    """``effective_roles`` without marking the request consulted.
+
+    *virtual* selects grants as ``ResolvedGrants.of``: ``None`` all (the
+    screen gates, demo-training included), ``False`` the explicit grants only
+    (the access summary's ``roles``).
+    """
     g = _grants if _grants is not None else resolve_grants(user)
-    roles = {grant.role.value for grant in g.grants if grant.opens_gate}
+    grants = [x for x in g.grants if virtual is None or x.virtual == virtual]
+    roles = {grant.role.value for grant in grants if grant.opens_gate}
     if g.is_admin:
         roles.add(_R.admin.value)
-    oversees = any(
-        (x.role == _R.site_pi and x.scope_type == _U)
-        or (x.role == _R.project_pi and g.has_tree(x.project_id))
-        for x in g.grants
-    )
-    if oversees:
+    if any(g.oversees(x) for x in grants):
         roles |= {_R.data_manager.value, _R.interview_supervisor.value}
     if roles & {_R.collaborator.value, _R.collaborator_pii.value}:
         roles |= {_R.collaborator.value, _R.collaborator_pii.value}

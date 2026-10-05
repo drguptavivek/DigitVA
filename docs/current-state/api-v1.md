@@ -445,20 +445,44 @@ unique index on `(note_by, note_vasubmission)` where active.
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.
-Explicit grants only: demo-training virtual grants are never listed.
+Policy: `docs/policy/api-v1.md`, "Access summary". Every value is the output of
+the predicate the server enforces. `grants[]` lists every resolved grant with
+`active`; every other list (`roles`, `sites[].roles`, `units[].roles`,
+`actions`) counts active grants only. Explicit grants only: demo-training
+virtual grants are never listed.
 
 ```json
 {
-  "user": {"user_id": "...", "name": "..."},
+  "user": {"user_id": "...", "name": "...", "landing_page": "coder", "coding_languages": ["en"]},
   "is_admin": false,
+  "account": {
+    "privileged": true,
+    "second_factor": {"required": true, "configured": true},
+    "pii_visible": true,
+    "device_access": true,
+    "mentor": {"member": false, "admin_of": [{"institute_code": "...", "institute_name": "..."}]}
+  },
+  "roles": ["coder", "data_manager", "interview_supervisor", "site_pi"],
+  "admin_actions": [],
   "demo_coding": {"available": true, "project_ids": ["DEMO01"]},
   "projects": [{
     "project_id": "TST001", "project_name": "...", "has_tree": true,
+    "settings": {"web_intake_mode": "both",
+                 "coding_scope": {"level_code": "phc", "above_mode": "view_only"}},
+    "self_coding": {"enabled": false, "code_now": false},
     "grants": [
-      {"role": "interviewer", "scope": "org_unit", "org_unit_id": "...", "unit_name": "..."},
-      {"role": "coder", "scope": "project_site", "site_id": "...", "codes": false},
-      {"role": "project_pi", "scope": "project"}
+      {"role": "interviewer", "scope": "org_unit", "org_unit_id": "...", "unit_name": "...",
+       "active": true, "source": "assigned"},
+      {"role": "coder", "scope": "project_site", "site_id": "...", "codes": false,
+       "active": false, "source": "assigned"},
+      {"role": "project_pi", "scope": "project", "active": true, "source": "assigned"}
     ],
+    "actions": {
+      "view": {"project": false, "site_ids": [], "org_unit_ids": ["..."]},
+      "triage": {"project": true, "site_ids": [], "org_unit_ids": []},
+      "interview": [{"site_id": "...", "site_name": "...", "web_intake_mode": "both",
+                     "org_units": [{"org_unit_id": "...", "unit_code": "...", "unit_name": "...", "path": "D1.C1"}]}]
+    },
     "sites": [{"site_id": "...", "site_name": "...", "roles": ["coder"]}],
     "levels": [{"level_code": "phc", "level_name": "PHC", "depth": 3}],
     "units": [{"org_unit_id": "...", "unit_code": "...", "unit_name": "...",
@@ -469,41 +493,121 @@ Explicit grants only: demo-training virtual grants are never listed.
 }
 ```
 
-- `user`: id and name only (no email or mobile).
+Built by `app/services/access_summary_service.py` from `resolve_grants`
+(cached) plus a fixed number of queries per user (mentor, factor,
+`interviewer_context`, computed once and shared with `device_access`) and per
+project (names, sites, granted-unit names, one tree load). No query per grant,
+site or unit.
+
+- `user`: id, name, `landing_page` (`VaUsers.landing_page`) and
+  `coding_languages` (`VaUsers.vacode_language`, a list of language codes).
+  No email or mobile.
 - `is_admin`: the global admin grant. Admin gets no implicit project:
   `projects` lists only projects where the user holds an explicit grant.
+- `roles`: the roles whose screen gates the user opens, sorted:
+  `role_flags(user, virtual=False)`, so derived roles are included (an
+  In-charge, `site_pi` at a unit, and a `project_pi` on a tree project also
+  hold `data_manager` and `interview_supervisor`; `admin` for an admin) and
+  demo-training virtual grants are not. A grant whose gate is shut (below) is
+  not counted. `collaborator` and `collaborator_pii` open the same screens, so
+  either lists both; whether personal details show is `account.pii_visible`.
+- `admin_actions`: for an admin, the actions the bypass reaches on any
+  project, closed ones included (`ADMIN_BYPASS` in `authz/actions.py`, action
+  names as in `actions`; `list_unrouted` only on tree projects); `[]` for
+  everyone else. Coding and reviewing are not bypassed.
+- `account`:
+  - `privileged`: an active admin or data_manager grant
+    (`totp_service.is_privileged`), the users factor enforcement applies to.
+  - `second_factor`: `required` is `totp_service.needs_second_factor` (sign-in
+    asks for a second factor), `configured` is `totp_service.has_any_factor`
+    (a confirmed TOTP enrolment or any passkey).
+  - `pii_visible`: `not viewer_pii_service.should_redact_pii(user)`.
+  - `device_access`: `device_auth_service.has_device_access`, the sign-in and
+    refresh check: an interviewing context in some project, or an open
+    explicit coder, coding_tester or reviewer gate.
+  - `mentor`: `member` of an active mentoring institute
+    (`mentor_institute_service.member_user_ids`) and `admin_of`, the active
+    institutes the user administers (`administered_institutes`).
 - `demo_coding`: where demo coding practice is open to the user (same rule
   as the virtual grants in `resolve_grants`); `available` is true when
   `project_ids` is not empty.
 - `projects[]`, sorted by `project_id`: only active projects with an active
-  grant. Closed projects and inactive grants, project-sites and units never
+  grant row. Closed projects and inactive project-sites and units never
   appear.
-  - `grants`: every explicit grant in the project, for every role. `scope` is
-    `project`, `project_site` (with `site_id`) or `org_unit` (with
-    `org_unit_id`, `unit_name`). Grants of role `coder`, `coding_tester` and
-    `reviewer` also carry `codes`: whether the grant codes under the
-    project's coding scope level (a project or site grant is above any level,
-    so it codes only with no level or `code_any`; a unit grant codes at or
-    below the level; `coding_tester` is exempt, so always `true`).
-  - `sites`: active project-sites the grants reach, with the roles that reach
-    each: a project or unit grant reaches every active site of the project, a
-    site grant its own site.
+  - `settings`, from the project's `ProjectSettings` in `resolve_grants`:
+    `web_intake_mode` (`off`, `direct`, `death_register`, `both`);
+    `coding_scope` `{level_code, above_mode}`
+    (`view_only` or `code_any`) or `null` when the project sets no scope level.
+  - `self_coding`: `enabled`, the project's self-coding setting as
+    `resolve_grants` applies it (self-coding on and web intake not off, the
+    rule that implies the interviewer grant); `code_now`, whether the user is
+    offered "Code this case now" there (`self_coding_project_ids`: a coder
+    grant that codes). The interviewing it adds is in `grants[]` with
+    `source: "self_coding"` and in `actions.interview`.
+  - `grants`: every explicit resolved grant in the project, for every role.
+    `scope` is `project`, `project_site` (with `site_id`) or `org_unit` (with
+    `org_unit_id`, `unit_name`). `active` is `Grant.opens_gate`: `false` only
+    for a project or project_site grant of a form-resolved role that reaches no
+    active form yet (coder, coding_tester: an active form on an active
+    project-site; reviewer, interviewer: any active form); the server's role
+    gate refuses it. `source` is `assigned` (a grant row) or `self_coding` (the
+    interviewer grant implied by a coder grant on a self-coding project, never
+    written). Grants of role `coder`, `coding_tester` and `reviewer` also carry
+    `codes`: whether the grant codes under the project's coding scope level (a
+    project or site grant is above any level, so it codes only with no level or
+    `code_any`; a unit grant codes at or below the level; `coding_tester` is
+    exempt, so always `true`).
+  - `actions`: reach, not a decision. Per action (names as `authz.actions.Action`
+    values), only where some active grant reaches it:
+    `{"project": bool, "site_ids": [...], "org_unit_ids": [...]}`, from
+    `predicates.action_reach`, which reads `RULES` x `_lens_groups` (the coding
+    scope rule included), so a new action or lens appears with no summary
+    change. `project` is a project-scope grant, `site_ids` project-site grants,
+    `org_unit_ids` unit grants (their subtrees). `list_unrouted` (and the
+    unrouted half of `route_pin`) is decided per project, not per grant: a
+    data-manager power on a tree project reaches its whole unrouted queue
+    (`project: true`, `dm_projects`), and a project with no tree has none. Whether an action is allowed on
+    one case also depends on that case's form, project-site and unit, and is
+    decided per request (`can`, `scope_filter`). `site_pi_report` and
+    `supervise_intake` are decided outside `RULES` (per target in
+    `_can_site_pi_report`, and in SQL in `authz/supervision.py`) and are not
+    listed; `roles` and `units[].roles` carry them. One key is not reach:
+    `interview`, the project's entries of `web_intake_service.interviewer_context`
+    (the intake routes' check; one entry per site, with `web_intake_mode` and the
+    interviewer's units there).
+  - `sites`: active project-sites the active grants reach, with the roles that
+    reach each: a project or unit grant reaches every active site of the
+    project, a site grant its own site; derived `data_manager` and
+    `interview_supervisor` as in `roles`. `interviewer` is listed at a site
+    only where `interviewer_context` lists that site (web intake on, an active
+    form there). A site with no role left is omitted.
   - `has_tree`, `levels`, `units`: `levels` and `units` only when `has_tree`.
     Units are active and placed (unplaced units are skipped), in path order.
-    Fields as the organization API's `/units`, plus `roles` and `selectable`.
+    Fields as the organization API's `/units`, plus `roles`, `selectable` and
+    `can_code`.
 - `units[].roles`: which roles reach the unit: tree reach for the picker and
   browsing (the same answer as `/organization/<project>/units?role=...`), not
-  action capability; actions are still decided per request. Per role the reach
-  is the whole tree for a project or project_site grant (a site grant reaches
-  that site's cases in any unit, so the whole tree is shown for it); a
-  `project_pi` on the project holds every role they have there on every unit
-  (as `reachable_unit_ids`); otherwise the subtrees of that role's unit grants.
-- `units[].can_code`: some `coder` or `coding_tester` grant covering the unit
-  codes there (`codes` above, the server's coding scope rule). A client never
-  offers coding where this is `false`.
+  action capability; actions are still decided per request. Active grants
+  only. Per role the reach is the whole tree for a project or project_site
+  grant (a site grant reaches that site's cases in any unit, so the whole tree
+  is shown for it); a `project_pi` on the project holds every role they have
+  there, `data_manager` and `interview_supervisor` included, on every unit,
+  except `interviewer`: web intake has no PI bypass, so a unit interviewer
+  grant stays its subtree (`web_intake_service.reachable_unit_ids`); an In-charge (`site_pi` at a unit) holds the derived
+  `data_manager` and `interview_supervisor` on that unit's subtree only;
+  otherwise the subtrees of that role's unit grants. `interviewer` is on no
+  unit when the project's `actions.interview` is empty (web intake off).
+- `units[].can_code`: some active `coder` or `coding_tester` grant covering the
+  unit codes there (`codes` above, the server's coding scope rule). A client
+  never offers coding where this is `false`.
 - `units[].selectable`: `true` for a unit some role reaches (`roles` not
   empty). `false` with `roles: []` for an ancestor shown only as context above
   a reached unit; never a choice. The server's own scope checks never read it.
+
+Resolved grants are cached (`authz/grant_cache.py`, format 3: it carries each
+grant's `source` and the project settings above). Deploy: bump the authz
+global version so no old-format entry lingers (an entry of another format is
+discarded and re-read from the database in any case).
 
 Errors: 401 `unauthorized` when signed out or on a bad bearer; 403
 `terms_required`, `maintenance`, `factor_setup_required` from the gates (the

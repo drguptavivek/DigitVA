@@ -236,6 +236,15 @@ class ImpliedInterviewerCacheTests(AuthzFixtureMixin, BaseTestCase):
         self.assertTrue(resolved.projects[SP].self_coding)
         decoded = grant_cache.decode(grant_cache.encode(resolved), user.user_id)
         self.assertEqual(decoded, resolved)
+        # The grant's source and the settings the access summary reports survive.
+        self.assertEqual(
+            {(g.role, g.source) for g in decoded.grants if not g.virtual},
+            {(R.coder, "assigned"), (R.interviewer, "self_coding")},
+        )
+        self.assertEqual(decoded.projects[SP].web_intake_mode, "both")
+        tree = grant_cache.decode(grant_cache.encode(self._resolve(self.users["coder_p1"])),
+                                  self.users["coder_p1"].user_id)
+        self.assertEqual(tree.projects[TA].scope_level_code, "phc")
 
     def test_a_mentor_membership_change_drops_the_cached_entry(self):
         from app.services import mentor_institute_service as mentors

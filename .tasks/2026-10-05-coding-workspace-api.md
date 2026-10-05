@@ -121,3 +121,25 @@ reviewer initial/final, ICD-10/ICD-11/DORIS search, workflow events.
   NQA/review and Social Autopsy analysis are cleared. Policy first:
   "Reviewer release" in `docs/policy/coding-allocation-timeouts.md`, and the
   reviewer-session text corrected (Step 1 is kept).
+
+## digitva-xl43.3 DORIS in the workspace: draft design (2026-10-05)
+
+Today the DORIS seeds live only in `app/routes/va_form.py`: `_doris_initial`
+(L233, reads `current_user` for PII), masked coder Step 1 saved processing
+(inline, L898-950), `_masked_doris_step2_context` (L135),
+`_masked_reviewer_doris_context` (L151). The `/api/v1` write routes already
+accept DORIS input (`_doris_fields` in `api/coding.py`, `api/reviewing.py`);
+processing is `/api/v1/doris-clinical/*`.
+
+Plan (option A): move the four into `app/services/doris_context_service.py`
+(`redact_pii` a parameter, not `current_user`; one redaction applied to every
+certificate it returns, closing the gap where saved processing and Step 1
+certificates skip the `AdministrativeData` pop); `va_form` calls them, no
+logic change; retarget the tests that patch `va_form._*`. The workspace body
+gets `doris` (null outside DORIS projects): coder Step 1 `{initial_certificate,
+prefill_provenance, saved_processing}`; coder final / masked Step 2
+`{step1_certificate, step1_processing}` or the unmasked seed; reviewer seed,
+saved processing and Step 2 context only for an active review. Body stays
+`no-store`. Tests: service unit tests plus DORIS cases in
+`tests/routes/test_va_case_api.py`, including no certificate PII for a
+redacted viewer.

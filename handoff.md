@@ -85,16 +85,17 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       `narrative_qa_service.NARRATIVE_QA_FIELDS`, both web templates render
       from it). Contract: `docs/current-state/api-v1.md` "Workspace
       content"; app side `expo-handoff.md` section 12 item 8 (`6720015a`).
-      **Do first: `digitva-ntct.3`**, the last gap the Expo session
-      reported (section 11 status line): `/me/access` shows active
-      project-site mappings, but interviewer eligibility also needs active
-      VaForms, so the app cannot gate without denied intake probes. Serve
-      the effective eligibility from the predicate the intake routes use.
-      The app's section 11 landing and its section 12 workspace wait on it.
-      The full suite was stopped at about 80% on owner request for
-      `b0c91950`; only the targeted modules ran (164 passed). Run it once
-      with the next commit.
-      Then `digitva-xl43.3` DORIS prefill, a read-only view mode
+      `digitva-ntct.3` done 2026-10-05: `/me/access` is the complete
+      access statement (owner: list everything, structured, so it is not
+      revisited): `roles`, per-project `settings`, `self_coding`, `actions`
+      (reach from `RULES` x lenses, `action_reach`), `actions.interview`
+      (`interviewer_context`), `grants[].active|source`, `account`; design
+      `.tasks/2026-10-05-access-contract.md`, contract `expo-handoff.md`
+      section 11. Not in `actions`: `site_pi_report`, `supervise_intake`
+      (decided outside `RULES`; `roles` carries them).
+      **Next: `digitva-xl43.3` DORIS prefill** (draft design in
+      `.tasks/2026-10-05-coding-workspace-api.md`, last section; show the
+      owner before coding), then a read-only view mode
       if the app needs one; device check that native players do not forward
       the bearer to the S3 presigned redirect (`digitva-p6fs.5`).
       Body caps read `Content-Length` and refuse a body without one (413);
@@ -112,6 +113,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    worker so the notification purge beat row is seeded. Rebuild
    `app/data/who-va-2022.composed.json` (`cd tooling/who-va-2022 && npm run
    build:composed-instrument`) after any `vendor/who-va-2022` change.
+   `digitva-ntct.3`: grant cache `_FORMAT` is 3 (old entries are re-read);
+   bump the authz global version below.
    Self-coding: migration `b4k8m2r6w9x3`; bump `STATIC_ASSET_VERSION`
    (intake form, worklist and coder dashboard scripts changed) and the authz
    global version below (grant cache `_FORMAT` is now 2).

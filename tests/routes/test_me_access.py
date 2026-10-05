@@ -3,9 +3,14 @@
 Users and the AZTA01 tree (D1 > C1 > P1 > SC1, C1 > P2, D2) come from the
 authz fixture; the device-token helpers from tests/routes/test_device_api.py.
 """
+import sqlalchemy as sa
+
 from app import db, limiter
-from app.models import VaProjectMaster, VaStatuses, VaUsers
+from app.models import VaForms, VaProjectMaster, VaStatuses, VaUsers
+from app.services import mentor_institute_service as mentors
 from app.services import organization_service as org
+from app.services.authz import Action, can, invalidate, role_flags
+from app.services.authz.actions import ADMIN_BYPASS
 from tests.authz.fixture import DM, SP, TA, TB, AuthzFixtureMixin, P, R, U
 from tests.authz.test_grants import count_queries
 from tests.base import BaseTestCase
@@ -55,13 +60,16 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_unit_grant_gives_its_subtree_and_ancestors_as_context(self):
         body = self._body("coder_p1")
-        self.assertEqual(body["user"], {"user_id": str(self.users["coder_p1"].user_id),
-                                        "name": self.users["coder_p1"].name})
+        user = self.users["coder_p1"]
+        self.assertEqual(body["user"], {
+            "user_id": str(user.user_id), "name": user.name,
+            "landing_page": user.landing_page, "coding_languages": list(user.vacode_language)})
         self.assertFalse(body["is_admin"])
         project = self._project(body, TA)
         self.assertEqual(project["grants"], [{
             "role": "coder", "scope": "org_unit",
-            "org_unit_id": str(self.units["P1"].org_unit_id), "unit_name": "P1", "codes": True}])
+            "org_unit_id": str(self.units["P1"].org_unit_id), "unit_name": "P1", "codes": True,
+            "active": True, "source": "assigned"}])
         units = self._units(project)
         # Present first: the reached subtree and its ancestors.
         self.assertEqual(
@@ -86,14 +94,14 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         units = self._units(project)
         self.assertEqual(set(units), {"D1", "C1", "P1", "SC1", "P2", "D2"})
         self.assertTrue(all(u["roles"] == ["coder"] and u["selectable"] for u in units.values()))
-        self.assertEqual(project["grants"], [{"role": "coder", "scope": "project", "codes": False}])
+        self.assertEqual(project["grants"], [{"role": "coder", "scope": "project", "codes": False, "active": True, "source": "assigned"}])
         self.assertTrue(project["has_tree"])
 
     def test_site_grant_in_a_tree_project_gives_the_whole_tree_but_one_site(self):
         project = self._project(self._body("coder_ta_s1"), TA)
         self.assertEqual(set(self._units(project)), {"D1", "C1", "P1", "SC1", "P2", "D2"})
         self.assertEqual(project["sites"], [{"site_id": "AZS1", "site_name": "AZS1", "roles": ["coder"]}])
-        self.assertEqual(project["grants"], [{"role": "coder", "scope": "project_site", "site_id": "AZS1", "codes": False}])
+        self.assertEqual(project["grants"], [{"role": "coder", "scope": "project_site", "site_id": "AZS1", "codes": False, "active": True, "source": "assigned"}])
 
     def test_site_project_has_no_tree_and_skips_inactive_pairs(self):
         project = self._project(self._body("coder_sp"), SP)
@@ -149,7 +157,7 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         body = self._body("coder_sp")
         self.assertEqual(body["demo_coding"], {"available": True, "project_ids": [DM]})
         self.assertEqual([p["project_id"] for p in body["projects"]], [SP])
-        self.assertEqual(body["projects"][0]["grants"], [{"role": "coder", "scope": "project", "codes": True}])
+        self.assertEqual(body["projects"][0]["grants"], [{"role": "coder", "scope": "project", "codes": True, "active": True, "source": "assigned"}])
         # An interviewer is not demo-eligible.
         self.assertEqual(self._body("interviewer_p1")["demo_coding"],
                          {"available": False, "project_ids": []})
@@ -237,7 +245,9 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         units = self._units(self._project(self.client.get(ACCESS).get_json(), TA))
         self.assertEqual(set(units), {"D1", "C1", "P1", "SC1", "P2", "D2"})
         for unit in units.values():
-            self.assertEqual(unit["roles"], ["coder", "project_pi"], unit)
+            # data_manager and interview_supervisor: derived from project_pi on a tree.
+            self.assertEqual(
+                unit["roles"], ["coder", "data_manager", "interview_supervisor", "project_pi"], unit)
             self.assertTrue(unit["selectable"])
         # Coding is still scoped by the coder grant, not by project_pi.
         self.assertEqual({c: u["can_code"] for c, u in units.items()},
@@ -268,11 +278,11 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_a_wide_coder_grant_does_not_code_under_a_scope_level_unless_code_any(self):
         wide = self._project(self._body("coder_ta"), TA)
-        self.assertEqual(wide["grants"], [{"role": "coder", "scope": "project", "codes": False}])
+        self.assertEqual(wide["grants"], [{"role": "coder", "scope": "project", "codes": False, "active": True, "source": "assigned"}])
         self.assertFalse(any(u["can_code"] for u in wide["units"]))
         # TB is code_any: the same grant codes everywhere.
         tb = self._project(self._body("coder_tb"), TB)
-        self.assertEqual(tb["grants"], [{"role": "coder", "scope": "project", "codes": True}])
+        self.assertEqual(tb["grants"], [{"role": "coder", "scope": "project", "codes": True, "active": True, "source": "assigned"}])
         self.assertTrue(all(u["can_code"] for u in tb["units"]))
 
     def test_coding_tester_is_exempt_from_the_scope_level_and_reviewer_is_not(self):
@@ -284,7 +294,7 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertFalse(any(u["can_code"] for u in reviewer["units"]))
         # Roles with no coding scope carry no flag.
         self.assertEqual(self._project(self._body("dm_ta"), TA)["grants"],
-                         [{"role": "data_manager", "scope": "project"}])
+                         [{"role": "data_manager", "scope": "project", "active": True, "source": "assigned"}])
 
     def test_terms_share_one_rate_limit_with_the_profile_url(self):
         tokens = self._tokens()
@@ -298,3 +308,210 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
     def test_me_responses_are_not_cached(self):
         self._login(str(self.users["coder_p1"].user_id))
         self.assertEqual(self.client.get(ACCESS).headers["Cache-Control"], "no-store")
+
+    # ── the complete statement: active, derived roles, actions, account ─────
+
+    INTAKE = "/api/v1/intake"
+
+    def _set_forms(self, project_id, status):
+        db.session.execute(sa.update(VaForms).where(VaForms.project_id == project_id)
+                           .values(form_status=status))
+        db.session.commit()
+
+    def test_a_grant_without_an_active_form_is_listed_inactive_and_every_route_refuses(self):
+        db.session.get(VaProjectMaster, SP).web_intake_mode = "both"
+        db.session.commit()
+        user = self._get_or_make_user("me.worker@test.local", PASSWORD)
+        for role in (R.interviewer, R.coder):
+            db.session.add(self._grant_row(user, role, P, SP))
+        db.session.commit()
+        policy = f"{self.INTAKE}/projects/{SP}/prefill-policy"
+        self._login(str(user.user_id))
+
+        # Present: an active form lights the grants, roles, sites and actions.
+        body = self.client.get(ACCESS).get_json()
+        project = self._project(body, SP)
+        self.assertEqual({g["role"]: (g["active"], g["source"]) for g in project["grants"]},
+                         {"coder": (True, "assigned"), "interviewer": (True, "assigned")})
+        self.assertEqual(body["roles"], ["coder", "interviewer"])
+        self.assertEqual([(s["site_id"], s["roles"]) for s in project["sites"]],
+                         [("AZS1", ["coder", "interviewer"]), ("AZS3", ["coder", "interviewer"])])
+        self.assertEqual([e["site_id"] for e in project["actions"]["interview"]], ["AZS1", "AZS3"])
+        self.assertEqual(project["actions"]["code"],
+                         {"project": True, "site_ids": [], "org_unit_ids": []})
+        self.assertEqual(project["settings"], {"web_intake_mode": "both", "coding_scope": None})
+        self.assertEqual(project["self_coding"], {"enabled": False, "code_now": False})
+        self.assertEqual(self.client.get(policy).status_code, 200)
+        self.assertTrue(can(user, Action.CODE, "sp-1"))
+
+        # Absent: the same grants with no active form.
+        self._set_forms(SP, VaStatuses.deactive)
+        invalidate(user.user_id)
+        body = self.client.get(ACCESS).get_json()
+        project = self._project(body, SP)
+        self.assertEqual([(g["role"], g["active"]) for g in project["grants"]],
+                         [("coder", False), ("interviewer", False)])
+        self.assertEqual(body["roles"], [])
+        self.assertEqual(project["sites"], [])
+        self.assertNotIn("code", project["actions"])
+        self.assertEqual(project["actions"]["interview"], [])
+        # The interviewer role gate is shut too, so the route refuses at the gate.
+        refused = self.client.get(policy)
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "forbidden"))
+        self.assertFalse(can(user, Action.CODE, "sp-1"))
+        # With the gate open through another project, the project check refuses it.
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "both"
+        unit_grant = self._grant_row(user, R.interviewer, U, "P1")
+        db.session.add(unit_grant)
+        db.session.commit()
+        invalidate(user.user_id)
+        refused = self.client.get(policy)
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "project_forbidden"))
+        self.assertEqual(self._project(self.client.get(ACCESS).get_json(), SP)["actions"]["interview"], [])
+        # Back to the gate shut for the demo checks below.
+        db.session.delete(unit_grant)
+        db.session.commit()
+        invalidate(user.user_id)
+        # Demo practice stays under demo_coding, never in roles.
+        self.assertEqual(body["demo_coding"], {"available": True, "project_ids": [DM]})
+        self.assertIn("reviewer", role_flags(user))
+        self.assertEqual(sorted(role_flags(user, virtual=False)), [])
+
+    def test_the_implied_interviewer_grant_says_it_is_self_coding(self):
+        db.session.get(VaProjectMaster, TB).web_intake_mode = "both"
+        db.session.get(VaProjectMaster, TB).self_coding_enabled = True
+        db.session.commit()
+        project = self._project(self._body("coder_tb"), TB)
+        self.assertEqual({g["role"]: g["source"] for g in project["grants"]},
+                         {"coder": "assigned", "interviewer": "self_coding"})
+        self.assertTrue(all(g["active"] for g in project["grants"]))
+        self.assertEqual(project["settings"], {
+            "web_intake_mode": "both",
+            "coding_scope": {"level_code": "phc", "above_mode": "code_any"}})
+        self.assertEqual(project["self_coding"], {"enabled": True, "code_now": True})
+        self.assertEqual([e["site_id"] for e in project["actions"]["interview"]], ["AZS5"])
+        self.assertIn("interviewer", project["sites"][0]["roles"])
+        # Absent: a plain coder on a project that is not self-coding.
+        plain = self._project(self._body("coder_ta"), TA)
+        self.assertEqual({g["source"] for g in plain["grants"]}, {"assigned"})
+        self.assertEqual(plain["self_coding"], {"enabled": False, "code_now": False})
+        self.assertEqual(plain["settings"]["coding_scope"],
+                         {"level_code": "phc", "above_mode": "view_only"})
+
+    def test_the_in_charge_derives_data_manager_in_their_subtree_only(self):
+        body = self._body("incharge_c1")
+        self.assertEqual(body["roles"], ["data_manager", "interview_supervisor", "site_pi"])
+        project = self._project(body, TA)
+        units = self._units(project)
+        for code in ("C1", "P1", "SC1", "P2"):
+            self.assertEqual(units[code]["roles"], ["data_manager", "interview_supervisor", "site_pi"], code)
+        # Ancestor context and the other branch hold nothing.
+        self.assertEqual(units["D1"]["roles"], [])
+        self.assertNotIn("D2", units)
+        self.assertEqual(project["sites"][0]["roles"], ["data_manager", "interview_supervisor", "site_pi"])
+        triage = project["actions"]["triage"]
+        self.assertEqual((triage["project"], triage["org_unit_ids"]),
+                         (False, [str(self.units["C1"].org_unit_id)]))
+        # A project_pi derives them over the whole tree.
+        pi = self._body("pi_ta")
+        self.assertEqual(pi["roles"], ["data_manager", "interview_supervisor", "project_pi"])
+        self.assertTrue(all("data_manager" in u["roles"] for u in self._project(pi, TA)["units"]))
+        self.assertTrue(self._project(pi, TA)["actions"]["list_unrouted"]["project"])
+        # The In-charge's unrouted queue is the whole tree project's, as the server decides it.
+        self.assertTrue(project["actions"]["list_unrouted"]["project"])
+
+    def test_a_site_project_data_manager_has_no_unrouted_queue(self):
+        user = self._get_or_make_user("me.dm.site@test.local", PASSWORD)
+        db.session.add(self._grant_row(user, R.data_manager, P, SP))
+        db.session.commit()
+        self._login(str(user.user_id))
+        actions = self._project(self.client.get(ACCESS).get_json(), SP)["actions"]
+        self.assertTrue(actions["triage"]["project"])
+        self.assertNotIn("list_unrouted", actions)
+        self.assertFalse(can(user, Action.LIST_UNROUTED, SP))
+
+    def test_a_project_pi_unit_interviewer_reaches_only_that_subtree(self):
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "both"
+        user = self._get_or_make_user("me.pi.interviewer@test.local", PASSWORD)
+        db.session.add(self._grant_row(user, R.project_pi, P, TA))
+        db.session.add(self._grant_row(user, R.interviewer, U, "P1"))
+        db.session.commit()
+        self._login(str(user.user_id))
+        units = self._units(self._project(self.client.get(ACCESS).get_json(), TA))
+        self.assertIn("interviewer", units["P1"]["roles"])
+        self.assertIn("interviewer", units["SC1"]["roles"])
+        self.assertNotIn("interviewer", units["P2"]["roles"])
+        self.assertIn("project_pi", units["P2"]["roles"])
+
+    def test_actions_are_reach_from_the_lenses_and_a_unit_coder_reaches_its_unit(self):
+        project = self._project(self._body("coder_p1"), TA)
+        p1 = str(self.units["P1"].org_unit_id)
+        self.assertEqual(project["actions"]["code"], {"project": False, "site_ids": [], "org_unit_ids": [p1]})
+        self.assertEqual(project["actions"]["view"]["org_unit_ids"], [p1])
+        self.assertNotIn("triage", project["actions"])
+        # A coder above the scope level reaches no coding (view only).
+        above = self._project(self._body("coder_c1"), TA)
+        self.assertNotIn("code", above["actions"])
+        self.assertIn("view", above["actions"])
+        # A site grant reaches its site.
+        self.assertEqual(self._project(self._body("coder_sp1"), SP)["actions"]["code"],
+                         {"project": False, "site_ids": ["AZS1"], "org_unit_ids": []})
+
+    def test_the_account_block(self):
+        coder = self._body("coder_p1")["account"]
+        self.assertEqual(coder["privileged"], False)
+        self.assertEqual(coder["second_factor"], {"required": False, "configured": False})
+        self.assertTrue(coder["pii_visible"])
+        self.assertEqual(coder["mentor"], {"member": False, "admin_of": []})
+        self.assertTrue(self._body("dm_ta")["account"]["privileged"])
+        # PII: a collaborator (not collaborator_pii) and a user with no grant see none.
+        self.assertFalse(self._body("collab_c1")["account"]["pii_visible"])
+        self.assertFalse(self._body("nobody")["account"]["pii_visible"])
+        # Mentor: member through the fixture's institute; admin once flagged.
+        self.assertEqual(self._body("mentor")["account"]["mentor"], {"member": True, "admin_of": []})
+        user = self._get_or_make_user("me.mentor.admin@test.local", PASSWORD)
+        mentors.add_member("AZMI", user.email)
+        mentors.set_member_admin("AZMI", user.email, True)
+        db.session.commit()
+        self._login(str(user.user_id))
+        self.assertEqual(
+            self.client.get(ACCESS).get_json()["account"]["mentor"],
+            {"member": True, "admin_of": [
+                {"institute_code": "AZMI", "institute_name": "Authz Mentor Institute"}]})
+
+    def test_device_access_follows_the_intake_switch_for_an_interviewer(self):
+        self.assertFalse(self._body("interviewer_p1")["account"]["device_access"])  # intake off
+        self.assertFalse(self._body("nobody")["account"]["device_access"])
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "both"
+        db.session.commit()
+        self.assertTrue(self._body("interviewer_p1")["account"]["device_access"])
+        # A coder with an open gate holds it without intake.
+        self.assertTrue(self._body("coder_p1")["account"]["device_access"])
+
+    def test_a_unit_interviewer_reaches_units_only_while_web_intake_is_on(self):
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "both"
+        db.session.commit()
+        project = self._project(self._body("interviewer_p1"), TA)
+        self.assertIn("interviewer", self._units(project)["P1"]["roles"])
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "off"
+        db.session.commit()
+        project = self._project(self._body("interviewer_p1"), TA)
+        self.assertEqual(project["actions"]["interview"], [])
+        self.assertTrue(all("interviewer" not in u["roles"] for u in project.get("units", [])))
+
+    def test_admin_actions_are_the_bypass_set_and_only_for_an_admin(self):
+        admin = self._body("admin")["admin_actions"]
+        self.assertEqual(admin, sorted(a.value for a in ADMIN_BYPASS))
+        self.assertIn("view", admin)
+        self.assertNotIn("code", admin)
+        self.assertEqual(self._body("coder_p1")["admin_actions"], [])
+
+    def test_the_summary_does_not_run_the_interviewer_context_twice(self):
+        from unittest import mock
+
+        from app.services import web_intake_service as intake
+
+        self._login(str(self.users["coder_p1"].user_id))
+        with mock.patch.object(intake, "interviewer_context", wraps=intake.interviewer_context) as spy:
+            self.assertEqual(self.client.get(ACCESS).status_code, 200)
+        self.assertEqual(spy.call_count, 1)

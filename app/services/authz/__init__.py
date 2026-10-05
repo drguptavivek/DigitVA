@@ -60,6 +60,7 @@ from app.services.authz.grants import (
 from app.services.authz.predicates import (
     AuthzError,
     Decision,
+    action_reach,
     can,
     codes_as_tester,
     effective_roles,
@@ -75,6 +76,7 @@ from app.services.authz.waivers import CodingWaivers, coding_gate_waivers
 from app.services.viewer_pii_service import should_redact_pii as redacts_pii
 
 __all__ = [
+    "action_reach",
     "DEMO_VIRTUAL_ROLES",
     "READ_ATTACHMENTS",
     "READ_EVENTS",

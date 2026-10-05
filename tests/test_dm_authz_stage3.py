@@ -291,6 +291,49 @@ class DmAuthzStageThreeTests(UnitScopeFixture, BaseTestCase):
         db.session.commit()
         self.assertNotEqual(self._kpi_digest(unit_a), before)
 
+    def test_the_kpi_cache_key_follows_a_pair_deactivation(self):
+        """A unit grant counts only active pairs, so the digest (grants only)
+        cannot tell a pair deactivation; the key carries the authz global
+        version, which a project-site status write bumps."""
+        import uuid
+
+        from flask_login import login_user
+
+        from app.routes.api.dm_kpi import dm_kpi_scope
+        from app.services.authz import grant_cache
+
+        for name, value in (
+            ("AUTHZ_GRANT_CACHE_ENABLED", True),
+            ("AUTHZ_GRANT_CACHE_PREFIX", f"digitva_authz_test_{uuid.uuid4().hex}:"),
+        ):
+            previous = self.app.config.get(name)
+            self.app.config[name] = value
+            self.addCleanup(self.app.config.__setitem__, name, previous)
+        redis_client = grant_cache._client()
+        self.assertIsNotNone(redis_client)
+        self.addCleanup(
+            lambda: [redis_client.delete(k) for k in redis_client.scan_iter(
+                self.app.config["AUTHZ_GRANT_CACHE_PREFIX"] + "*")]
+        )
+        redis_client.set(self.app.config["AUTHZ_GRANT_CACHE_PREFIX"] + "gv", "seed")
+        dm = self._unit_user("digest.pair", self.phc_a)
+
+        def key():
+            with self.app.test_request_context("/"):
+                login_user(dm)
+                return dm_kpi_scope._cache_key("figures")
+
+        before = key()
+        self.assertIn(":seed:", before)  # present: the version is in the key
+        pair = self._inactive_pair_form()
+        pair.project_site_status = VaStatuses.active
+        db.session.commit()
+        after_activation = key()
+        self.assertNotEqual(after_activation, before)
+        pair.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        self.assertNotEqual(key(), after_activation)
+
     # -- F11 ---------------------------------------------------------------
 
     def test_admin_passes_the_data_manager_view_check(self):

@@ -224,6 +224,25 @@ def entry_key(client, prefix: str, user_id) -> str | None:
     return f"{prefix}g:{user_id}:{_token(versions[0])}:{_token(versions[1])}"
 
 
+def global_version() -> str:
+    """The token of the global version, "" when the cache is off or Redis is down.
+
+    Changes whenever anything that can alter many users' reach is committed
+    (a project-site's status among them), so a cache keyed on it for a
+    scope that depends on such rows (the DM KPI cache, digitva-v1sq) never
+    outlives one. One Redis GET, no database read.
+    """
+    client = _client()
+    if client is None:
+        return ""
+    try:
+        value = client.get(_prefix() + "gv")
+    except Exception as exc:
+        log.warning("authz global version unavailable: %s", type(exc).__name__)
+        return ""
+    return "" if value is None else _token(value)
+
+
 def _token(value) -> str:
     return value.decode() if isinstance(value, bytes) else str(value)
 

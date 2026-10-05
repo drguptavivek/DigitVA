@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Coding Workflow State Machine Policy
@@ -733,6 +733,11 @@ Partial save must:
 `coding_in_progress` or `partial_coding_saved` -> `coder_step1_saved`
 
 This corresponds to initial COD assessment being saved locally.
+
+`coder_step1_saved` -> `coder_step1_saved` is a re-save. A case the allocation
+timeout returned to `ready_for_coding` is not a source: it is back in the pool,
+so a late Step 1 save from the old session is refused (409 `wrong_state`), not
+re-claimed without an allocation.
 
 Saving Step 1:
 

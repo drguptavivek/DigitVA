@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Access Control Model
@@ -872,6 +872,11 @@ window) stay with the workflow services. The legacy `permission` JSONB column is
     parse is discarded.
   - Decisions about one submission (`can`) still read that submission's
     routing from the database; only the grants are cached.
+  - The data manager KPI cache keys on the scope digest (grant ids) and on
+    this global version, so a project-site deactivation (which a unit grant's
+    figures depend on, though the digest does not) shows in the next request,
+    not after the 5-minute cache life. Redis unavailable: the version part is
+    empty and the KPI cache falls back to its TTL.
 
 ## API And CSRF Baseline
 

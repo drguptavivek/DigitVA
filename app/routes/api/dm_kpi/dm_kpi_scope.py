@@ -50,6 +50,7 @@ from flask_login import current_user
 from app import cache, db, limiter
 from app.decorators import role_required
 from app.models import VaForms
+from app.services.authz import grant_cache
 from app.services.data_management_service import dm_grant_scope
 
 log = logging.getLogger(__name__)
@@ -259,9 +260,18 @@ def dm_scope() -> DmScope:
 def _cache_key(suffix: str) -> str:
     """Per user and per scope: a grant change, or two DMs with different
     units, never share an entry. The digest sits after the user id so
-    ``bust_dm_kpi_cache``'s ``dm_kpi:{uid}:*`` pattern still matches."""
+    ``bust_dm_kpi_cache``'s ``dm_kpi:{uid}:*`` pattern still matches.
+
+    The digest names the grants, not the status of the pairs and units they
+    reach; a pair deactivation moves what the scope counts (a unit grant
+    counts only active pairs) without moving the digest. The authz global
+    version, bumped by every such write, is part of the key so figures never
+    lag one by the cache life."""
     qs = request.query_string.decode()
-    return f"dm_kpi:{current_user.user_id}:{dm_scope().digest()}:{suffix}:{qs}"
+    return (
+        f"dm_kpi:{current_user.user_id}:{dm_scope().digest()}"
+        f":{grant_cache.global_version()}:{suffix}:{qs}"
+    )
 
 
 def cached_kpi(key: str, compute_fn, timeout: int = _CACHE_TTL):

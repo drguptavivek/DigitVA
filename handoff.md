@@ -176,14 +176,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    run it in the same run as the main suite (it breaks setup there).
 4. `digitva-04u4` job title per person (shown in the DM exact lookup when it
    exists). `digitva-ci8` record every web sign-in.
-5. `digitva-v1sq` coding workflow follow-ups (recode list RECODE scope,
-   `ready_for_coding` source, area overview EXPLAIN, open-submission repair
-   gate, KPI cache vs pair status).
+5. **`digitva-nk1` People & roles page, in progress.** Plan:
+   `.tasks/2026-10-06-people-and-roles-page.md` (three commits: granted-by on
+   every web grant write; service + `/api/v1` JSON/CSV; UI). Nine proposed
+   defaults await the owner's yes before code.
 6. Expo (`digitva-p6fs`): `p6fs.4` coding/review workspaces, `p6fs.5` device
    acceptance; both use the one `/api/v1` contract (`ad02` is landed). A
    signed-in worker's unit tree, not the site, is the scope
    (`docs/policy/web-intake.md`).
-7. Older queue: `digitva-nk1` People & roles page, `digitva-dea` log
+7. Older queue: `digitva-dea` log
    retention, `digitva-t6q` death_reporter role, `digitva-kfi` Android
    rewrite, `digitva-35x` duplicate hint, `digitva-kmk.5` Android release,
    `digitva-ej1` intake attachments, `digitva-ddv.2` production release,

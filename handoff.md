@@ -51,7 +51,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       interviewers' complete interviews, switch-back allowed (app half
       `bqzm.2`, section 9); follow-up `digitva-9kqk` (second own browser
       draft on a won case is a copy, not a correction). Owner: nothing is
-      deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Owner confirmed three of
+      deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Next: `digitva-xuxk` per-project self-coding (the MO codes their own
+      interview; SmartVA on completion `digitva-533t` is done). Owner confirmed three of
       the four defaults on 2026-10-05 (the fourth was replaced by `xpqm`) (recorded in `docs/policy/web-intake.md`
       and `docs/policy/interview-revisions.md`). Manual check owed: the
       browser form's stale-tab 409 (`draft_stale`) and the worklist
@@ -72,7 +73,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    Celery queues first; `CONFIG GET maxmemory-policy`). Restart the Celery
    worker so the notification purge beat row is seeded. Rebuild
    `app/data/who-va-2022.composed.json` (`cd tooling/who-va-2022 && npm run
-   build:composed-instrument`) after any `vendor/who-va-2022` change. The
+   build:composed-instrument`) after any `vendor/who-va-2022` change.
+   SmartVA (`0ba9833b`): rebuild the image (font cache prebuilt, smaller
+   context), restart the Celery worker and beat (beat seeds the 30 s
+   `sweep_smartva_pending`); `SMARTVA_CHARTS=1` only for debugging. Web and
+   app interviews already sitting in `smartva_pending` are picked up by the
+   first sweep. Docker Desktop's disk was at 91% on 2026-10-05; a build
+   filled it once and stopped dev Postgres (build cache prune recovered it). The
    app build with `expo-handoff.md` section 1 must ship with this server.
    Earlier notes: Bump `STATIC_ASSET_VERSION` with the API release (cached
    old intake scripts call removed routes). `digitva-5hmc`: production

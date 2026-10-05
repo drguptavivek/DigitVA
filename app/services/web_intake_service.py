@@ -1181,7 +1181,7 @@ def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
         "currentSection": draft.current_section or meta.get("currentSection", ""),
         "createdAt": meta.get("createdAt", draft.created_at.isoformat()),
         "updatedAt": meta.get("updatedAt", draft.updated_at.isoformat()),
-        # Only when recorded: an older draft has no slice identity to echo.
+        # Only when recorded: a browser draft (bundled form) has no slice identity.
         **{k: meta[k] for k in _DEFINITION_IDENTITY_KEYS if k in meta},
         "data": data,
     }
@@ -1968,11 +1968,11 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         return {**_revision_reply(draft, active, False, previous), "kept": "server", "locked": closed}
 
     if resubmit:
-        stored_at = (draft.meta or {}).get("effectiveSavedAt")
-        stored_at = datetime.fromisoformat(stored_at) if stored_at else draft.submitted_at
+        # Every submit and correction records it (no pre-release rows exist).
+        stored_at = datetime.fromisoformat(draft.meta["effectiveSavedAt"])
         if locked:
             return kept_apart(closed=True)
-        if stored_at is not None and completed_at < stored_at:
+        if completed_at < stored_at:
             return kept_apart(closed=False)
     outcome = _interview_outcome(data, completion)
     regressing = previous == "completed" and outcome != "completed"

@@ -923,17 +923,6 @@ class DeviceApiTests(BaseTestCase):
         same = self._upload(tokens, client_draft_id)
         self.assertEqual((same.status_code, same.get_json()["kept"], same.get_json()["locked"]), (200, "incoming", False))
 
-    def test_resend_of_an_upload_stored_without_a_hash_adopts_the_sent_hash(self):
-        _device, tokens = self._session()
-        client_draft_id = uuid.uuid4()
-        self.assertEqual(self._upload(tokens, client_draft_id).status_code, 201)
-        self._drafts_of(client_draft_id)[0].answers_sha256 = None
-        db.session.commit()
-        legacy = self._upload(tokens, client_draft_id)
-        self.assertEqual(legacy.status_code, 200, legacy.get_json())
-        self.assertEqual(legacy.get_json()["answers_sha256"], self._hash(_complete_answers()))
-        self.assertEqual(self._drafts_of(client_draft_id)[0].answers_sha256, self._hash(_complete_answers()))
-
     def test_concurrent_resend_compares_the_hash_too(self):
         _device, tokens = self._session()
         client_draft_id = uuid.uuid4()

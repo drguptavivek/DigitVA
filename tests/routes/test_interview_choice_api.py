@@ -318,6 +318,24 @@ class InterviewChoiceTests(BaseTestCase):
 
     # ── choosing ───────────────────────────────────────────────────────────
 
+    def test_choosing_an_interview_copies_its_age_and_clears_a_date_of_birth_it_calls_unknown(self):
+        death_id = self._case()
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        death.date_of_birth_partial = "1950"
+        db.session.commit()
+        self.assertEqual(self._upload(self.alice_id, death_id, _answers()).status_code, 201)
+        bela = self._upload(self.bela_id, death_id, _answers(
+            Id10017="Meena", Id10020="no", dob_precision="neither", age_group="adult", age_adult="45",
+        ))
+        self.assertTrue(bela.get_json()["superseded"], bela.get_json())
+        db.session.expire_all()
+        self.assertEqual((death.date_of_birth_partial, death.age_years), ("1950", 71))  # Alice's keeps both
+        response = self._choose(self.dm_id, death_id, self._draft(self.bela_id, death_id).draft_id)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        db.session.expire_all()
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual((death.date_of_birth, death.date_of_birth_partial, death.age_years), (None, None, 45))
+
     def test_choosing_before_coding_replaces_the_coders_copy_and_keeps_the_sid(self):
         death_id, va_sid, alice_draft, bela_draft = self._pair()
         allocation, initial = self._start_coding(va_sid)

@@ -724,8 +724,17 @@ form for these (owner, 2026-10-06).
    `details_pending` (identity not captured yet), `death_stale` (reload and
    retry); 422 `invalid_death` (same validation as registration). Build the
    edit screen from the registration form. Once an interview is completed,
-   its identity becomes the case's (follow-up in progress: date of birth and
-   age too, shown in the death list).
+   its identity becomes the case's, date of birth and age included, and the
+   death list shows them (owner: the interview wins on date of birth and
+   age). An interview that gives an age but an unknown date of birth clears
+   the registered date of birth. Previous values are audit-only, never
+   returned.
+3. **The registered age is no longer locked** in the interview. It is still
+   prefilled (`age_group` with `age_adult`, or the child-years fields; and
+   `ageInYears` in `prefill.ts`) but is gone from `lockedQuestionNames`, and
+   the server no longer restores it on `/intake/drafts/sync`,
+   `/intake/submissions` or a superseded copy. Make the age fields editable
+   and do not re-lock them on the device; every other lock is unchanged.
 2. **Read-only case view** (`digitva-xl43.8`). `GET
    /api/v1/va/<sid>/workspace?mode=view` and `/categories/<code>?mode=view`:
    open any case the user may view, without holding it (finished cases, a

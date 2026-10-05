@@ -559,7 +559,11 @@ creation), `to_state`, `reason` (at most 200 characters, no personal data),
 supervisor grant and its cadre a supervisor action relied on; NULL for team,
 starter and registrant moves and for rows before migration `a8d4f1c7e3b9`;
 foreign keys to `va_user_access_grants` and `mas_cadre`, not indexed),
-`created_at`. Indexed on `(death_id, created_at)` and
+`changes` (JSONB, nullable; migration `d8q4e1h6n3v9`, `digitva-uq6v`: on
+`details_edited` and `identity_from_interview` rows, `{field: {"old": ...,
+"new": ...}}` of each case detail changed, dates as ISO strings; **personal
+data**, kept out of `reason`, never logged or returned by an API; NULL on
+other rows and rows before the migration), `created_at`. Indexed on `(death_id, created_at)` and
 `(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
 (cases a user registered, started or acted on).
 

@@ -85,6 +85,9 @@ from app.services.web_form_relevance_service import (
     form_version_of,
     strip_irrelevant_answers,
 )
+from app.services.who_va_answers import age_field, birth_answer
+from app.services.who_va_answers import choice as choice_answer
+from app.services.who_va_answers import whole as whole_answer
 from app.services.workflow.definition import (
     WORKFLOW_READY_FOR_CODING,
     PROTECTED_WORKFLOW_STATES,
@@ -770,6 +773,21 @@ DETAILS_EDITED = "details_edited"
 IDENTITY_FROM_INTERVIEW = "identity_from_interview"
 
 
+def _json_value(value: object) -> object:
+    return value.isoformat() if isinstance(value, date) else value
+
+
+def _audit_details_change(death: VaDeathRegister, actor: VaUsers, action: str, before: dict, after: dict) -> None:
+    """One case audit row for details that moved from *before* to *after*
+    (same keys). The reason holds the field names only (their count past the
+    reason cap); the old and new values, personal data, go in ``changes``.
+    Neither is ever logged."""
+    names = ", ".join(before)
+    reason = names if len(names) <= cases.REASON_MAX else f"{len(before)} fields"
+    changes = {name: {"old": _json_value(before[name]), "new": _json_value(after[name])} for name in before}
+    cases.record_action(death, actor=actor, action=action, reason=reason, changes=changes)
+
+
 def _interview_completed(death: VaDeathRegister) -> bool:
     """Whether a completed interview of the case exists: the winning one
     (``va_sid``), or a complete copy kept apart on a shared case."""
@@ -791,9 +809,9 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     (the completed interview holds the better data, docs/policy/web-intake.md
     "Correcting a registered death"), ``death_stale`` when *if_updated_at* is
     not the case's ``updated_at`` (400 if malformed); 400 on a bad value.
-    One audit row names the changed fields (their count when the names
-    exceed the reason cap); values are personal data and never go in it, or
-    in a log. A stored value that no longer validates must be corrected in
+    One audit row names the changed fields in ``reason`` (their count when
+    the names exceed the cap) and keeps each one's old and new value in
+    ``changes``; values are personal data and never go in the reason or a log. A stored value that no longer validates must be corrected in
     the same edit (400, naming the field).
     """
     try:
@@ -836,10 +854,8 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
         return death
     for name in changed:
         setattr(death, name, cleaned[name])
-    names = ", ".join(changed)
-    # The audit reason is capped; past it, only the count (still no values).
-    reason = names if len(names) <= cases.REASON_MAX else f"{len(changed)} fields"
-    cases.record_action(death, actor=user, action=DETAILS_EDITED, reason=reason)
+    _audit_details_change(death, user, DETAILS_EDITED,
+                          {name: current[name] for name in changed}, {name: cleaned[name] for name in changed})
     db.session.flush()
     return death
 
@@ -1034,8 +1050,7 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     ``deceased`` and ``interviewer`` go through the package's
     ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
-    name, sex and id, area presets, ABHA, and the case's registered age
-    fields). Everything else is an ordinary editable
+    name, sex and id, area presets, ABHA). Everything else is an ordinary editable
     answer. Name split: the first word is the given name (Id10017), the rest
     the surname (Id10018).
 
@@ -1048,10 +1063,10 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     month the ODK date type stores for those appearances, never read back
     as known). Age, when also known, still prefills as below.
 
-    Age: the registered ``age_years`` is locked (``age_group`` and its age
-    field); the date of birth, exact or partial, stays editable. An exact
-    date of birth sends no age (the form calculates it), so nothing
-    age-related is locked then, nor for an age that is not prefilled.
+    Age: the registered ``age_years`` prefills ``age_group`` and its age
+    field, editable like the date of birth: where an interview is completed
+    its date of birth and age win (``_sync_case_identity``). An exact date
+    of birth sends no age (the form calculates it).
 
     ``unit_parts`` is the unit's ``(presets, org path
     names)`` already resolved for a batch (``prefill_policy``); without it
@@ -1109,17 +1124,14 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             deceased["dateOfBirth"] = death.date_of_birth.isoformat()
         elif death.age_years is not None and 12 <= death.age_years <= 119:
             # ageInYears for prefill.ts (device and web clients); the same
-            # answers it derives, repeated so _locked_answers can restore them.
+            # answers it derives. Not locked: the interview's age wins.
             deceased["ageInYears"] = death.age_years
-            age = {"age_group": "adult", "age_adult": death.age_years}
-            answers.update(age)
-            locked.update(age)
+            answers.update({"age_group": "adult", "age_adult": death.age_years})
         elif death.age_years is not None and 1 <= death.age_years <= 11:
             # prefill.ts maps adults only. Age 0 is not prefilled: days
             # (neonate) or months (child) cannot be told from 0 years.
-            age = {"age_group": "child", "age_child_unit": "years", "age_child_years": death.age_years}
-            answers.update({"Id10020": "no", **age})
-            locked.update(age)
+            answers.update({"Id10020": "no", "age_group": "child", "age_child_unit": "years",
+                            "age_child_years": death.age_years})
         if not death.date_of_birth and death.date_of_birth_partial:
             partial = death.date_of_birth_partial
             answers["Id10020"] = "no"
@@ -1405,19 +1417,75 @@ def _identity_from_answers(data: dict) -> dict:
     return out
 
 
+def _birth_age_from_answers(data: dict, date_of_death: date | None) -> dict:
+    """The interview's date of birth and age as case columns (the reverse of
+    ``_prefill_from_death``); the answers are read by ``who_va_answers``, the
+    case's rules are here. The case keeps its own where the interview gives
+    nothing usable.
+
+    The date of birth is one unit: the exact date (``date_of_birth``, partial
+    cleared) or the year/month (``date_of_birth_partial`` as ``YYYY`` or
+    ``YYYY-MM``, exact cleared), each valid as ``register_death`` requires
+    (not future, not after the death); one that fails is unusable. The age is
+    whole years 0..130, as ``register_death`` accepts: ``ageInYears`` (the
+    form's, from an exact date of birth; "NaN" without one), else the
+    ``age_group`` answers, under a year being 0.
+
+    An age with the date of birth said to be unknown (``Id10020`` = no or
+    ref, no usable partial date) clears the registered date of birth, exact
+    and partial: the interview wins (owner, 2026-10-06, ``digitva-uq6v``).
+    """
+    out: dict = {}
+    answer = birth_answer(data)
+    if answer is not None:
+        precision, _key, born = answer
+        if precision == "exact":
+            if born <= min(date_of_death or date.max, date.today()):
+                out.update(date_of_birth=born, date_of_birth_partial=None)
+        elif date_of_death is not None:
+            partial = f"{born.year:04d}" + (f"-{born.month:02d}" if precision == "month_year" else "")
+            try:
+                out.update(date_of_birth=None, date_of_birth_partial=_clean_partial_birth(partial, date_of_death))
+            except WebIntakeError:
+                pass
+    age = whole_answer(data, "ageInYears") if out.get("date_of_birth") else None
+    field = age_field(data)
+    if age is None and field is not None:
+        group, unit, key = field
+        if group == "neonate" or unit == "days":
+            age = 0
+        elif unit == "months":
+            months = whole_answer(data, key)
+            age = months // 12 if months is not None and months >= 0 else None
+        else:
+            age = whole_answer(data, key)
+    if age is None or not 0 <= age <= 130:
+        return out
+    if "date_of_birth" not in out and choice_answer(data, "Id10020") in ("no", "ref"):
+        out.update(date_of_birth=None, date_of_birth_partial=None)
+    out["age_years"] = age
+    return out
+
+
 def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> None:
     """Copy the form's identity answers onto the case (the form is the record
     of the interview); a direct start leaves ``draft_identity`` once complete.
-    An empty answer never blanks a value the case already holds."""
-    changed = []
-    for field, value in _identity_from_answers(data).items():
+    Name, sex, date of death, date of birth and age: the interview's replace
+    the case's, the previous values going to the audit. An empty or unusable
+    answer never blanks a value the case already holds."""
+    incoming = _identity_from_answers(data)
+    incoming.update(_birth_age_from_answers(data, incoming.get("date_of_death") or death.date_of_death))
+    before: dict = {}
+    after: dict = {}
+    for field, value in incoming.items():
         if getattr(death, field) != value:
-            changed.append(field)
+            before[field] = getattr(death, field)
+            after[field] = value
             setattr(death, field, value)
-    if changed and death.status != "draft_identity":
-        # A completed interview overwrote registered details: name the fields
-        # (values are personal data, never in the audit reason).
-        cases.record_action(death, actor=actor, action=IDENTITY_FROM_INTERVIEW, reason=", ".join(changed))
+    if before and death.status != "draft_identity":
+        # A completed interview overwrote registered details: the field
+        # names go in the reason, the old and new values in ``changes``.
+        _audit_details_change(death, actor, IDENTITY_FROM_INTERVIEW, before, after)
     if death.status == "draft_identity" and cases.identity_complete(death):
         cases.transition(death, "in_progress", actor=actor, action="identity_captured")
 

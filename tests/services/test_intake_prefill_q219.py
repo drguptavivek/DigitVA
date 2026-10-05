@@ -1,9 +1,9 @@
-"""Prefill locks after the 2026-10-03 owner decision (digitva-q219).
+"""Prefill locks after the 2026-10-03 owner decision (digitva-q219), with the
+age unlocked on 2026-10-06 (digitva-uq6v).
 
 Interviewer age (Id10010a) is neither prefilled nor locked; the deceased's
-registered age is prefilled and locked (server-enforced by overwrite, as
-every locked prefill is, docs/policy/web-intake.md "Locked prefill"); the
-date of birth, exact or partial, stays editable; a draft whose stored
+registered age is prefilled but editable, like the date of birth, exact or
+partial (an interview's own wins on completion); a draft whose stored
 prefill has no ``lockedQuestionNames`` is recomputed from the case.
 """
 from datetime import UTC, date, datetime, timedelta
@@ -12,6 +12,7 @@ from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaDeathRegister,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -112,33 +113,36 @@ class IntakePrefillQ219Tests(BaseTestCase):
 
     # ── deceased's registered age ──────────────────────────────────────────
 
-    def test_registered_adult_age_is_prefilled_and_locked(self):
+    def test_registered_adult_age_is_prefilled_and_not_locked(self):
         prefill = self._start().prefill
         self.assertEqual(prefill["deceased"]["ageInYears"], 62)
         self.assertEqual({k: prefill["answers"][k] for k in ("age_group", "age_adult")},
                          {"age_group": "adult", "age_adult": 62})
-        self.assertTrue({"age_group", "age_adult"} <= set(prefill["lockedQuestionNames"]))
+        self.assertIn("Id10010c", prefill["lockedQuestionNames"])  # other locks stay
+        self.assertFalse(AGE_NAMES & set(prefill["lockedQuestionNames"]))
         self.assertNotIn("Id10020", prefill["lockedQuestionNames"])
 
-    def test_registered_child_age_is_prefilled_and_locked(self):
+    def test_registered_child_age_is_prefilled_and_not_locked(self):
         prefill = self._start(age_years=5).prefill
-        locked = set(prefill["lockedQuestionNames"])
-        self.assertTrue({"age_group", "age_child_unit", "age_child_years"} <= locked)
         self.assertEqual(prefill["answers"]["age_child_years"], 5)
-        self.assertNotIn("age_adult", locked)
+        self.assertIn("Id10010c", prefill["lockedQuestionNames"])
+        self.assertFalse(AGE_NAMES & set(prefill["lockedQuestionNames"]))
 
-    def test_submit_that_changes_the_age_stores_the_registered_age(self):
-        payload = self._submit(self._start(), {"Id10020": "no", "age_group": "child", "age_adult": 30})
-        self.assertEqual((payload["age_group"], payload["age_adult"]), ("adult", 62))
+    def test_submit_that_changes_the_age_stores_and_copies_the_changed_age(self):
+        draft = self._start()
+        death = db.session.get(VaDeathRegister, draft.death_id)
+        payload = self._submit(draft, {"Id10020": "no", "dob_precision": "neither", "age_group": "adult", "age_adult": 30})
+        self.assertEqual((payload["age_group"], payload["age_adult"]), ("adult", 30))
+        self.assertEqual(death.age_years, 30)
 
     def test_submit_with_the_unchanged_age_stores_it(self):
         payload = self._submit(self._start(), {"Id10020": "no", "age_group": "adult", "age_adult": 62})
         self.assertEqual((payload["age_group"], payload["age_adult"]), ("adult", 62))
 
-    def test_draft_save_that_changes_the_age_keeps_the_registered_age(self):
+    def test_draft_save_that_changes_the_age_keeps_the_changed_age(self):
         draft = self._start()
         intake_svc.save_draft_sections(draft, sections={"background": {"Id10020": "no", "age_adult": 30}})
-        self.assertEqual(draft.sections[0].data, {"Id10020": "no", "age_adult": 62})
+        self.assertEqual(draft.sections[0].data, {"Id10020": "no", "age_adult": 30})
 
     def test_registration_without_age_locks_nothing_age_related(self):
         prefill = self._start(age_years=None).prefill
@@ -176,22 +180,11 @@ class IntakePrefillQ219Tests(BaseTestCase):
 
     # ── legacy drafts: no lockedQuestionNames ──────────────────────────────
 
-    def test_legacy_draft_save_still_enforces_the_age(self):
+    def test_legacy_draft_save_and_submit_still_enforce_the_locks_not_the_age(self):
         draft = self._start()
         draft.prefill = {"answers": {}}  # saved before lockedQuestionNames existed
-        intake_svc.save_draft_sections(draft, sections={"background": {"age_group": "adult", "age_adult": 30}})
-        self.assertEqual(draft.sections[0].data["age_adult"], 62)
+        intake_svc.save_draft_sections(draft, sections={"background": {"age_adult": 30}, "interviewer": {"Id10010c": "x"}})
+        data = {row.section_name: row.data for row in draft.sections}
+        self.assertEqual(data["background"], {"age_adult": 30})
+        self.assertEqual(data["interviewer"], {"Id10010c": str(self.interviewer.user_id)})
         self.assertEqual(draft.prefill, {"answers": {}})
-
-    def test_legacy_draft_submit_still_enforces_the_age(self):
-        draft = self._start()
-        draft.prefill = {}
-        payload = self._submit(draft, {"Id10020": "no", "age_group": "adult", "age_adult": 30})
-        self.assertEqual(payload["age_adult"], 62)
-
-    def test_draft_with_an_older_lock_list_still_enforces_the_age(self):
-        draft = self._start()
-        # Saved before the age lock: a list that names only the interviewer.
-        draft.prefill = {"lockedQuestionNames": ["Id10010a", "Id10010c"], "answers": {}}
-        payload = self._submit(draft, {"Id10020": "no", "age_group": "adult", "age_adult": 30})
-        self.assertEqual(payload["age_adult"], 62)

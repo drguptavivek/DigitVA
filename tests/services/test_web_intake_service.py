@@ -387,10 +387,9 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.prefill["deceased"]["surname"], "Devi")
         self.assertEqual(draft.prefill["deceased"]["sex"], "female")
         self.assertEqual(draft.prefill["answers"]["abha_number"], "12345678901234")
-        # Besides the interviewer's own questions (digitva-vzk.3) and the
-        # registered age (digitva-q219), only ABHA.
+        # Besides the interviewer's own questions (digitva-vzk.3), only ABHA.
         self.assertEqual(
-            set(draft.prefill["lockedQuestionNames"]) - {"Id10010", "Id10010b", "Id10010c", "age_group", "age_adult"},
+            set(draft.prefill["lockedQuestionNames"]) - {"Id10010", "Id10010b", "Id10010c"},
             {"abha_number"},
         )
 
@@ -1477,9 +1476,10 @@ class WebIntakeServiceTests(BaseTestCase):
             {k: prefill["answers"].get(k) for k in ("Id10020", "dob_precision", "dob_month_year", "dob_year")},
             {"Id10020": "no", "dob_precision": "year", "dob_month_year": None, "dob_year": "1950-01-01"},
         )
-        # The age still prefills beside it and is locked; the partial date is not.
+        # The age still prefills beside it; neither it nor the partial date is locked.
         self.assertEqual(prefill["deceased"]["ageInYears"], 74)
-        self.assertIn("age_adult", prefill["lockedQuestionNames"])
+        self.assertEqual(prefill["answers"]["age_adult"], 74)
+        self.assertNotIn("age_adult", prefill["lockedQuestionNames"])
         self.assertFalse({"dob_precision", "dob_year", "Id10020"} & set(prefill["lockedQuestionNames"]))
 
         exact = self._register_death(date_of_birth="1950-07-12")
@@ -1502,8 +1502,8 @@ class WebIntakeServiceTests(BaseTestCase):
     # ── locked prefill enforced on the server (digitva-p6fs.9) ──────────────
 
     def _locked_case_draft(self):
-        """A draft whose prefill locks the interviewer, both area presets,
-        ABHA and the registered age; returns (draft, the authoritative locked values)."""
+        """A draft whose prefill locks the interviewer, both area presets
+        and ABHA; returns (draft, the authoritative locked values)."""
         from app.services import organization_service as org
 
         self.interviewer.name = "Field Worker"
@@ -1518,7 +1518,7 @@ class WebIntakeServiceTests(BaseTestCase):
         authoritative = {
             "Id10010": "Field Worker", "Id10010b": "female",
             "Id10010c": str(self.interviewer.user_id), "Id10002": "high", "Id10003": "low",
-            "abha_number": "12345678901234", "age_group": "adult", "age_adult": 62,
+            "abha_number": "12345678901234",
         }
         self.assertEqual(set(draft.prefill["lockedQuestionNames"]), set(authoritative))
         return draft, authoritative
@@ -1526,7 +1526,7 @@ class WebIntakeServiceTests(BaseTestCase):
     _TAMPERED = {
         "Id10010": "Someone Else", "Id10010b": "male",
         "Id10010c": "00000000-0000-0000-0000-000000000000", "Id10002": "veryl", "Id10003": "high",
-        "abha_number": "99999999999999", "age_group": "child", "age_adult": 30,
+        "abha_number": "99999999999999",
     }
 
     def test_draft_save_overwrites_tampered_locked_answers(self):
@@ -1600,10 +1600,20 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].reason, "deceased_name, age_years, remarks")
         self.assertNotIn("Rao", rows[0].reason)
+        self.assertEqual(rows[0].changes, {
+            "deceased_name": {"old": "Asha Devi", "new": "Asha Rao"},
+            "age_years": {"old": 62, "new": 63},
+            "remarks": {"old": None, "new": "x"},
+        })
         self.assertEqual((rows[0].from_state, rows[0].to_state), (death.status, death.status))
         # A repeat of the same values changes and audits nothing.
         intake_svc.update_death(self.interviewer, death.death_id, {"deceased_name": "Asha Rao"})
         self.assertEqual(len(self._audit_rows(death, intake_svc.DETAILS_EDITED)), 1)
+        # A date goes to the audit as an ISO string (JSON-safe).
+        intake_svc.update_death(self.interviewer, death.death_id, {"date_of_birth": "1960-02-03"})
+        dob_row = self._audit_rows(death, intake_svc.DETAILS_EDITED)[-1]
+        self.assertEqual(dob_row.changes, {"date_of_birth": {"old": None, "new": "1960-02-03"}})
+        self.assertEqual(dob_row.reason, "date_of_birth")
         # Cross-field rules see the case as it would stand.
         for bad in (
             {"date_of_birth": (date.today() + timedelta(days=1)).isoformat()},
@@ -1700,6 +1710,8 @@ class WebIntakeServiceTests(BaseTestCase):
         [row] = self._audit_rows(death, intake_svc.DETAILS_EDITED)
         self.assertEqual(row.reason, f"{len(everything)} fields")
         self.assertNotIn("Rao", row.reason)
+        self.assertEqual(row.changes["deceased_name"], {"old": "Asha Devi", "new": "Asha Rao"})
+        self.assertEqual(len(row.changes), len(everything))
 
     def test_a_legacy_invalid_stored_value_must_be_fixed_in_the_same_edit(self):
         death = self._register_death()
@@ -1733,10 +1745,146 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual((death.deceased_name, death.deceased_sex), ("Asha Rao", "male"))
         rows = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
         self.assertEqual([r.reason for r in rows], ["deceased_name, deceased_sex"])
+        self.assertEqual(rows[0].changes, {
+            "deceased_name": {"old": "Asha Devi", "new": "Asha Rao"},
+            "deceased_sex": {"old": "female", "new": "male"},
+        })
         # An interview that agrees with the register writes no such row.
         other = self._register_death()
         self._submit_for_new_draft(other, self._completion())
         self.assertEqual(self._audit_rows(other, intake_svc.IDENTITY_FROM_INTERVIEW), [])
+
+    def _interview_birth_case(self, **register):
+        """A registered death, and the death list's row of it before any interview."""
+        death = self._register_death(**register)
+        return death, intake_svc.serialize_death(death)
+
+    def test_completion_copies_an_exact_date_of_birth_and_age_and_the_list_shows_them(self):
+        death, before = self._interview_birth_case(date_of_birth_partial="1961")
+        self.assertEqual((before["date_of_birth_partial"], before["age_years"]), ("1961", 62))  # present before
+        born = (date.today() - timedelta(days=round(58.5 * 365.25))).isoformat()  # 58 whole years, any day
+        self._submit_for_new_draft(death, self._completion(data={
+            "Id10020": "yes", "Id10021": born, "ageInYears": "58",
+        }))
+        after = intake_svc.serialize_death(death)
+        self.assertEqual((after["date_of_birth"], after["date_of_birth_partial"], after["age_years"]), (born, None, 58))
+        [row] = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
+        self.assertEqual(row.reason, "date_of_birth, date_of_birth_partial, age_years")
+        self.assertEqual(row.changes, {
+            "date_of_birth": {"old": None, "new": born},
+            "date_of_birth_partial": {"old": "1961", "new": None},
+            "age_years": {"old": 62, "new": 58},
+        })
+        self.assertNotIn(born, row.reason)
+
+    def test_completion_copies_a_partial_date_of_birth_and_a_stated_age(self):
+        death, before = self._interview_birth_case(date_of_birth="1960-01-01")
+        self.assertEqual(before["date_of_birth"], "1960-01-01")  # present before
+        self._submit_for_new_draft(death, self._completion(data={
+            "Id10020": "no", "dob_precision": "month_year", "dob_month_year": "1962-05-01",
+            "age_group": "adult", "age_adult": "60",
+        }))
+        after = intake_svc.serialize_death(death)
+        self.assertEqual((after["date_of_birth"], after["date_of_birth_partial"], after["age_years"]), (None, "1962-05", 60))
+        [row] = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
+        self.assertEqual(row.changes["date_of_birth"], {"old": "1960-01-01", "new": None})
+        self.assertEqual(row.changes["date_of_birth_partial"], {"old": None, "new": "1962-05"})
+        # Year only.
+        other, _ = self._interview_birth_case()
+        self._submit_for_new_draft(other, self._completion(data={
+            "Id10020": "no", "dob_precision": "year", "dob_year": "1958-01-01",
+        }))
+        self.assertEqual((other.date_of_birth, other.date_of_birth_partial), (None, "1958"))
+
+    def test_age_units_of_the_interview_become_whole_years(self):
+        for data, expected in (
+            ({"age_group": "neonate", "age_neonate_days": "3"}, 0),
+            ({"age_group": "child", "age_child_unit": "days", "age_child_days": "40"}, 0),
+            ({"age_group": "child", "age_child_unit": "months", "age_child_months": "30"}, 2),
+            ({"age_group": "child", "age_child_unit": "years", "age_child_years": "7"}, 7),
+        ):
+            with self.subTest(data=data):
+                death, _ = self._interview_birth_case(age_years=None)
+                self._submit_for_new_draft(death, self._completion(data=data))
+                self.assertEqual(death.age_years, expected)
+                self.assertEqual(death.date_of_birth, None)  # no date of birth answered: case's kept (none)
+
+    def test_a_completed_interview_without_date_of_birth_or_age_keeps_the_cases(self):
+        death, _ = self._interview_birth_case(date_of_birth="1960-01-01")
+        self._submit_for_new_draft(death, self._completion())
+        self.assertEqual((death.date_of_birth, death.date_of_birth_partial, death.age_years), (date(1960, 1, 1), None, 62))
+        self.assertEqual(self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW), [])
+        # An unusable date (after the death) or "neither known" is no value either.
+        for data in (
+            {"Id10020": "yes", "Id10021": (date.today() + timedelta(days=1)).isoformat()},
+            {"Id10020": "yes", "Id10021": date.today().isoformat()},
+            {"Id10020": "no", "dob_precision": "neither"},
+            {"Id10020": "no", "dob_precision": "year", "dob_year": "not a date"},
+        ):
+            with self.subTest(data=data):
+                kept, _ = self._interview_birth_case(date_of_birth="1960-01-01")
+                self._submit_for_new_draft(kept, self._completion(data=data))
+                self.assertEqual((kept.date_of_birth, kept.date_of_birth_partial), (date(1960, 1, 1), None))
+
+    def test_an_age_with_the_date_of_birth_unknown_clears_the_registered_one(self):
+        unknown = {"Id10020": "no", "dob_precision": "neither", "age_group": "adult", "age_adult": "55"}
+        for register in ({"date_of_birth": "1960-01-01"}, {"date_of_birth_partial": "1961"}):
+            with self.subTest(register=register):
+                death, before = self._interview_birth_case(**register)
+                self.assertTrue(before["date_of_birth"] or before["date_of_birth_partial"])  # present before
+                self._submit_for_new_draft(death, self._completion(data=unknown))
+                self.assertEqual((death.date_of_birth, death.date_of_birth_partial, death.age_years), (None, None, 55))
+                [row] = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
+                name, old = next(iter(register.items()))
+                self.assertEqual(row.changes[name], {"old": old, "new": None})
+                self.assertEqual(row.changes["age_years"], {"old": 62, "new": 55})
+                self.assertNotIn(old, row.reason)
+
+    def test_a_changed_age_edited_in_the_interview_becomes_the_cases(self):
+        death, _ = self._interview_birth_case()
+        draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id)
+        self.assertEqual(draft.prefill["answers"]["age_adult"], 62)  # present, prefilled
+        intake_svc.submit_draft(draft, self.interviewer, completion=self._completion(data={
+            "Id10020": "no", "dob_precision": "neither", "age_group": "adult", "age_adult": "58",
+        }))
+        self.assertEqual(death.age_years, 58)
+
+    def test_birth_and_age_answers_that_are_not_usable_are_dropped(self):
+        parse = intake_svc._birth_age_from_answers
+        died = date(2026, 1, 10)
+        born = {"Id10020": "yes", "Id10021": "1960-02-03"}
+        self.assertEqual(parse({**born, "ageInYears": "65"}, died)["age_years"], 65)  # present
+        # "NaN" (no date of birth in the form's calculation) falls back to the age answers.
+        self.assertEqual(
+            parse({**born, "ageInYears": "NaN", "age_group": "adult", "age_adult": "65"}, died)["age_years"], 65,
+        )
+        for age in ("131", "-1", "abc", "42.5", "NaN"):
+            with self.subTest(age=age):
+                self.assertNotIn("age_years", parse({"age_group": "adult", "age_adult": age}, died))
+        self.assertNotIn("age_years", parse({"age_group": "child", "age_child_unit": "months", "age_child_months": "-3"}, died))
+        # An age beyond 130 does not clear the date of birth the interview called unknown.
+        self.assertEqual(
+            parse({"Id10020": "no", "dob_precision": "neither", "age_group": "adult", "age_adult": "131"}, died), {},
+        )
+
+    def test_a_resubmitted_interview_copies_its_date_of_birth_and_age(self):
+        death, _ = self._interview_birth_case(date_of_birth_partial="1961")
+        draft, _submission = self._submit_for_new_draft(death, self._completion())
+        self.assertEqual((death.date_of_birth_partial, death.age_years), ("1961", 62))  # present, kept so far
+        stored = datetime.fromisoformat(draft.meta["effectiveSavedAt"])
+        tie = {"completedAt": stored.isoformat(), "deviceClockAt": stored.isoformat()}
+        data = self._completion(data={
+            "Id10020": "no", "dob_precision": "neither", "age_group": "adult", "age_adult": "57",
+        })["data"]
+        self.assertTrue(self._resubmit(draft, data, envelope=tie)["changed"])
+        self.assertEqual((death.date_of_birth, death.date_of_birth_partial, death.age_years), (None, None, 57))
+        [row] = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
+        self.assertEqual(row.changes["date_of_birth_partial"], {"old": "1961", "new": None})
+
+    def test_update_death_with_nothing_changed_writes_no_audit(self):
+        death = self._register_death()
+        intake_svc.update_death(self.interviewer, death.death_id, {"deceased_name": "Asha Devi", "age_years": 62})
+        self.assertEqual(self._audit_rows(death, intake_svc.DETAILS_EDITED), [])
 
     def test_api_patch_death(self):
         death = self._register_death()

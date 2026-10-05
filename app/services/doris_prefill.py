@@ -20,17 +20,21 @@ calendar date as recorded, without a time-zone shift.
 from __future__ import annotations
 
 import math
-import re
-from datetime import date
 
 from app.services.doris_certificate import MAX_TEXT_LENGTH
+from app.services.who_va_answers import age_field, birth_answer
+from app.services.who_va_answers import calendar_date as _date
+from app.services.who_va_answers import choice as _choice
+from app.services.who_va_answers import number as _number
+from app.services.who_va_answers import text as _text
+from app.services.who_va_answers import whole as _whole
 
 PREFILL_RECORD_VERSION = 1
 
 _ANSWER_CODES = {"yes": 1, "no": 0, "dk": 9, "ref": 9}
 _UNKNOWN = ("dk", "ref")
 _REFUSED_OR_UNKNOWN = (88, 99)  # the form's integer codes
-_ISO_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+_DURATION_DESIGNATORS = {"days": "D", "months": "M", "years": "Y"}
 _SEX = {"male": 1, "female": 2, "undetermined": 9, "other": 9}
 
 # Maternal chain: the first "yes" decides the band (0 at death, 1 within 42
@@ -75,52 +79,8 @@ _DAYS_PER_UNIT = {"days": 1, "weeks": 7, "months": 30.4375, "years": 365.25}
 # --- payload readers ---------------------------------------------------------
 
 
-def _text(payload: dict, key: str) -> str:
-    value = payload.get(key)
-    if value is None or isinstance(value, bool):
-        return ""
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    return str(value).strip()
-
-
-def _choice(payload: dict, key: str) -> str:
-    return _text(payload, key).lower()
-
-
 def _yes(payload: dict, key: str) -> bool:
     return _choice(payload, key) == "yes"
-
-
-def _number(payload: dict, key: str) -> float | None:
-    value = payload.get(key)
-    if value is None or isinstance(value, bool):
-        return None
-    if not isinstance(value, (int, float)):
-        try:
-            value = float(str(value).strip())
-        except ValueError:
-            return None
-    return float(value) if math.isfinite(value) else None
-
-
-def _whole(payload: dict, key: str, low: int, high: int) -> int | None:
-    """An integer answer within ``low..high``, else ``None``."""
-    value = _number(payload, key)
-    if value is None or not value.is_integer() or not low <= value <= high:
-        return None
-    return int(value)
-
-
-def _date(payload: dict, key: str) -> date | None:
-    """The calendar date as recorded (``2025-08-04T00:00:00+05:30`` -> 4 Aug)."""
-    match = _ISO_DATE.match(_text(payload, key))
-    if match is None:
-        return None
-    try:
-        return date(int(match[1]), int(match[2]), int(match[3]))
-    except ValueError:
-        return None
 
 
 def _coded(payload: dict, key: str) -> int | None:
@@ -148,52 +108,39 @@ def _death(payload: dict) -> tuple[str, list[str], int] | None:
 
 
 def _birth(payload: dict, death_year: int | None) -> tuple[str, list[str]] | None:
-    known = _choice(payload, "Id10020")
-    if known == "yes":
-        born = _date(payload, "Id10021")
-        if born is None:
-            return None
+    answer = birth_answer(payload)
+    if answer is None:
+        return None
+    precision, key, born = answer
+    if precision == "exact":
         # Interviewers key a year-only answer as 1 January (owner, 2026-09-29):
         # at age 50 or more, send the year only. Born on 1 January, the age at
         # death is exactly the difference in years.
         if (born.month, born.day) == (1, 1) and death_year is not None and death_year - born.year >= 50:
-            return f"{born.year:04d}", ["Id10021"]
-        return born.isoformat(), ["Id10021"]
-    if known in ("no", "ref"):
-        precision = _choice(payload, "dob_precision")
-        if precision == "month_year":
-            partial = _date(payload, "dob_month_year")
-            if partial is not None:
-                return f"{partial.year:04d}-{partial.month:02d}", ["dob_month_year"]
-        if precision == "year":
-            partial = _date(payload, "dob_year")
-            if partial is not None:
-                return f"{partial.year:04d}", ["dob_year"]
-    return None
+            return f"{born.year:04d}", [key]
+        return born.isoformat(), [key]
+    if precision == "month_year":
+        return f"{born.year:04d}-{born.month:02d}", [key]
+    return f"{born.year:04d}", [key]
 
 
 def _estimated_age(payload: dict) -> tuple[str, list[str]] | None:
-    group = _choice(payload, "age_group")
+    field = age_field(payload)
+    if field is None:
+        return None
+    group, unit, key = field
     if group == "neonate":
         days = _whole(payload, "age_neonate_days", 0, 27)
         hours = _whole(payload, "age_neonate_hours", 0, 23)
         if days == 0 and hours is not None:
             return f"PT{hours}H", ["age_neonate_hours"]
         if days is not None:
-            return f"P{days}D", ["age_neonate_days"]
+            return f"P{days}D", [key]
         return None
-    if group == "child":
-        unit = _choice(payload, "age_child_unit")
-        designator = {"days": "D", "months": "M", "years": "Y"}.get(unit)
-        value = _whole(payload, f"age_child_{unit}", 1, 999) if designator else None
-        if value is not None:
-            return f"P{value}{designator}", [f"age_child_{unit}"]
+    value = _whole(payload, key, 1, 150 if group == "adult" else 999)
+    if value is None:
         return None
-    if group == "adult":
-        years = _whole(payload, "age_adult", 1, 150)
-        if years is not None:
-            return f"P{years}Y", ["age_adult"]
-    return None
+    return f"P{value}{_DURATION_DESIGNATORS[unit]}", [key]
 
 
 def _under_one_year(payload: dict) -> bool:

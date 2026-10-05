@@ -826,7 +826,7 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10002` / `Id10003` HIV / malaria area | district presets (`digitva-dhc`, done) | yes |
 | `Id10017` / `Id10018` given name, surname; `Id10019` sex | case | no |
 | `Id10021` date of birth | case `date_of_birth` (sends no age: the form calculates it) | no |
-| `age_group` and its age field | case `age_years` when there is no exact date of birth: 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years, `age_child_years`); 0 is not prefilled (days or months cannot be told) | yes (`digitva-q219`): `age_group` with `age_adult`, or with `age_child_unit` and `age_child_years`; nothing age-related when the case has no prefilled age |
+| `age_group` and its age field | case `age_years` when there is no exact date of birth: 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years, `age_child_years`); 0 is not prefilled (days or months cannot be told) | no: prefilled but editable (locked by `digitva-q219` until 2026-10-06; unlocked by `digitva-uq6v`, the interview wins on age and date of birth, see "Correcting a registered death"); nothing age-related when the case has no prefilled age |
 | `Id10022` = yes, `Id10023_a` (with a date of birth) or `Id10023_b` date of death | case | no |
 | `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices (see below) | no |
 | `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit, root first, then "; " and the case address | no |
@@ -836,7 +836,7 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
 | `Id10010b` interviewer sex | user-profile `sex` (`digitva-vzk.3`) | yes, when the profile has a sex |
 | `abha_number` / `abha_address` | case | yes (unchanged) |
-| `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills (and locks) beside it (`digitva-tld2`) | no |
+| `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills beside it (`digitva-tld2`) | no |
 
 `Id10010a` interviewer age is not prefilled or locked (owner decision
 2026-10-03, `digitva-q219`); the interviewer answers it.
@@ -860,8 +860,11 @@ Rules as built:
   rewritten. An exact date of birth captured in the interview wins over the
   registered age (owner decision 2026-10-03): the interview talks to the
   family, so its date is the better record. `age_group` is asked only when
-  `Id10020` or `Id10022` is not yes, so the locked age is then irrelevant and
-  dropped at submission, and the age comes from that date.
+  `Id10020` or `Id10022` is not yes, so a prefilled age is then irrelevant and
+  dropped at submission, and the age comes from that date. The registered age
+  is no longer locked (owner, 2026-10-06, `digitva-uq6v`): it is prefilled
+  and the interviewer may change it; the age the interview ends with is the
+  case's (see "Correcting a registered death").
   Unlocked answers keep their saved-answer semantics (an unchanged answer
   stays, a cleared one is cleared).
 - **Name split**: the first word of the case name is the given name
@@ -1193,19 +1196,45 @@ its name and date of death.
   valid (a free-text phone from before phone validation) must be corrected
   in the same edit; the refusal (422 `invalid_death`) names the field. Owner
   decision: keep this, for the cleanest data.
-- Every edit writes one case audit row (`details_edited`, state unchanged)
-  naming the changed fields. The reason column holds no personal data, so
-  it carries field names only (their count, e.g. "19 fields", when the names
-  exceed the reason cap): the old and new values are not kept yet. Owner
-  2026-10-06: previous values in the case audit, and the interview's date of
-  birth and age on the case and the death list, are decided and follow in the
-  next change. Values are never logged.
+- The case keeps the latest saved values; the previous ones move to the case
+  audit. Every edit writes one audit row (`details_edited`, state
+  unchanged): `reason` names the changed fields only (their count, e.g.
+  "19 fields", when the names exceed the reason cap) and stays free of
+  personal data; the new column `map_case_transitions.changes` holds
+  `{field: {"old": ..., "new": ...}}` (dates as ISO strings). That column is
+  personal data: no API or page returns it, and values are never logged.
 - When an interview is completed (submit, revision, choice of another
-  interview), its name, sex and date of death overwrite the case's, as
-  before, and the overwritten field names are audited
-  (`identity_from_interview`). Date of birth and age are not mirrored from
-  the interview yet: they stay as registered on the case; the submission
-  holds the interview's own (mirroring follows, see above).
+  interview), its name, sex, date of death, **date of birth and age** become
+  the case's, and the death list (`serialize_death`, the worklist's
+  `age_years`) shows them in place of the registered ones. Each changed
+  field is audited as `identity_from_interview` (names in `reason`, old and
+  new values in `changes`). Date of birth is taken as one unit: the exact
+  date (`Id10020` = yes, `Id10021`; any partial one cleared) or the partial
+  one (`Id10020` = no or ref with `dob_precision` = `month_year`
+  (`dob_month_year`) or `year` (`dob_year`), kept as `YYYY-MM` / `YYYY`;
+  the exact date cleared), the reverse of the prefill, validated as
+  `register_death` does. Age is whole years 0 to 130: `ageInYears` when an
+  exact date of birth was given, else `age_group` neonate (0), child
+  (`age_child_unit` days 0, months `age_child_months` / 12 rounded down,
+  years `age_child_years`) or adult (`age_adult`). A value the interview
+  does not hold, or that is not usable (future, after the death, malformed,
+  "neither known"), leaves the case's own in place, with one exception.
+- **The interview wins on date of birth and age** (owner, 2026-10-06). The
+  prefilled age is not locked, so the interviewer may correct it, and what
+  the completed interview holds becomes the case's. An interview that gives a
+  usable age but says the date of birth is unknown (`Id10020` = no or ref and
+  no usable partial date, e.g. `dob_precision` = `neither`) **clears** the
+  registered date of birth, exact and partial, so the case does not keep a
+  date that contradicts it; the old value stays in the audit `changes`. An
+  interview with neither a usable date of birth nor a usable age leaves the
+  case's values. The same answers are read by one parser,
+  `app/services/who_va_answers.py`, shared with the DORIS certificate
+  prefill (the case-specific bounds and storage stay in
+  `web_intake_service._birth_age_from_answers`).
+- On a direct start the case has no details until the interview names them;
+  a date of birth or age first answered after the identity flip (the case
+  already `in_progress`) may leave an `identity_from_interview` audit row
+  whose old value is null. That is harmless: nothing was overwritten.
 - Optional `if_updated_at` (the case's `updated_at` last seen): a newer
   change is 409 `death_stale`.
 

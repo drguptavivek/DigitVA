@@ -222,9 +222,10 @@ def _clean_reason(reason: str | None) -> str | None:
 
 
 def _audit(case: VaDeathRegister, *, actor: VaUsers, action: str, from_state: str | None,
-           to_state: str, reason: str | None, grant=None) -> None:
+           to_state: str, reason: str | None, grant=None, changes: dict | None = None) -> None:
     """One audit row; *grant* (``(grant_id, cadre_id)``) is the supervisor
-    grant relied on, None for a team, starter or registrant move."""
+    grant relied on, None for a team, starter or registrant move. *changes*
+    is the personal-data ``{field: {"old", "new"}}`` of a details change."""
     db.session.add(
         MapCaseTransition(
             death_id=case.death_id,
@@ -232,6 +233,7 @@ def _audit(case: VaDeathRegister, *, actor: VaUsers, action: str, from_state: st
             from_state=from_state,
             to_state=to_state,
             reason=reason,
+            changes=changes,
             actor_user_id=actor.user_id,
             authorizing_grant_id=grant.grant_id if grant else None,
             authorizing_cadre_id=grant.cadre_id if grant else None,
@@ -373,13 +375,16 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     return case
 
 
-def record_action(case: VaDeathRegister, *, actor: VaUsers, action: str, reason: str | None = None) -> None:
+def record_action(case: VaDeathRegister, *, actor: VaUsers, action: str, reason: str | None = None,
+                  changes: dict | None = None) -> None:
     """Audit an action that leaves *case* in its state (``from_state`` equals
     ``to_state``): a supervisor's choice of the other interview of a submitted
     case. Names the supervisor grant *actor* relies on, None for an admin.
-    No permission check: the caller has already decided who may act."""
+    *changes* (``{field: {"old", "new"}}``, JSON-safe) holds personal data:
+    kept out of *reason*. No permission check: the caller has already decided
+    who may act."""
     _audit(case, actor=actor, action=action, from_state=case.status, to_state=case.status,
-           reason=_clean_reason(reason), grant=supervising_grant(actor, case))
+           reason=_clean_reason(reason), grant=supervising_grant(actor, case), changes=changes)
 
 
 def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str | None = None,

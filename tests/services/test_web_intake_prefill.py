@@ -2,8 +2,9 @@
 
 One test per row of the prefill map in docs/policy/web-intake.md, for a
 registered case and a direct start, plus which answers are locked: only the
-interviewer's name, sex and id, the area presets, ABHA and the case's
-registered age (digitva-q219). Everything else is an ordinary editable answer.
+interviewer's name, sex and id, the area presets and ABHA. The registered age
+is prefilled but editable (digitva-uq6v); everything else is an ordinary
+editable answer.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -25,7 +26,6 @@ from app.services.runtime_form_sync_service import _ensure_legacy_project_site_r
 from tests.base import BaseTestCase
 
 INTERVIEWER_LOCKS = {"Id10010", "Id10010b", "Id10010c"}
-ADULT_AGE_LOCKS = {"age_group", "age_adult"}
 
 
 class WebIntakePrefillTests(BaseTestCase):
@@ -171,9 +171,10 @@ class WebIntakePrefillTests(BaseTestCase):
             "name": "Meera Thakur", "id": str(self.interviewer.user_id), "sex": "female",
         })
 
-    def test_only_interviewer_presets_abha_and_age_are_locked(self):
+    def test_only_interviewer_presets_and_abha_are_locked(self):
         prefill = self._start(self._register(abha_number="12345678901234")).prefill
-        self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS | ADULT_AGE_LOCKS | {"abha_number"})
+        self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS | {"abha_number"})
+        self.assertEqual(prefill["answers"]["age_adult"], 64)  # present, though not locked
         for editable in ("Id10007", "Id10051", "Id10055", "Id10057", "Id10058", "Id10061", "Id10062"):
             self.assertIn(editable, prefill["answers"])
             self.assertNotIn(editable, prefill["lockedQuestionNames"])
@@ -191,8 +192,7 @@ class WebIntakePrefillTests(BaseTestCase):
             {k: prefill["answers"][k] for k in ("Id10020", "age_group", "age_child_unit", "age_child_years")},
             {"Id10020": "no", "age_group": "child", "age_child_unit": "years", "age_child_years": 5},
         )
-        self.assertTrue({"age_group", "age_child_unit", "age_child_years"} <= set(prefill["lockedQuestionNames"]))
-        self.assertNotIn("Id10020", prefill["lockedQuestionNames"])
+        self.assertFalse({"age_group", "age_child_unit", "age_child_years", "Id10020"} & set(prefill["lockedQuestionNames"]))
 
     def test_age_zero_is_not_prefilled(self):
         prefill = self._start(self._register(age_years=0)).prefill

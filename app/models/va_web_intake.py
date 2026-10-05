@@ -177,7 +177,8 @@ class MapCaseTransition(db.Model):
 
     ``reason`` is a short code or a user-typed reason and must hold no
     personal data (names, phone numbers, addresses); the worklist and
-    supervisor pages warn so, nothing enforces it.
+    supervisor pages warn so, nothing enforces it. ``changes`` is the one
+    column that does hold personal data (previous and new case details).
     """
 
     __tablename__ = "map_case_transitions"
@@ -197,6 +198,10 @@ class MapCaseTransition(db.Model):
     from_state: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     to_state: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
     reason: so.Mapped[str | None] = so.mapped_column(sa.String(200), nullable=True)
+    # ``{field: {"old": ..., "new": ...}}`` of a details correction or an
+    # interview's identity copy; JSON-safe values (dates as ISO strings).
+    # Personal data: never serialized to a client, never logged.
+    changes: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
     actor_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )

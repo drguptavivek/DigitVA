@@ -527,6 +527,16 @@ there. Build the button with `p6fs.4`.
 
 Expo status, 2026-10-05: `digitva-p6fs.4.1` is implemented but not landed or closed. Collection gates, intake context and native/browser cache reconciliation now use authoritative `actions.interview`; inactive projects are purged without eligibility probes. Latest frozen frontend checks passed 45 Jest suites / 573 tests, TypeScript, web and Android JS exports, and served web index match. Independent re-audit: client READY. One server contract defect blocks landing: `web_intake_service.interviewer_context` initializes broad project/site reach with `org_units: []` but then appends narrower unit grants for the same pair (lines 301-337), while `reachable_unit_ids` correctly treats the broad grant as whole-tree (lines 443-446). Please preserve empty roots for broadly authorized pairs and test overlapping broad-plus-unit grants so the app does not restrict valid units. Section 12 implementation follows this gate; DORIS contract planning is being updated. Physical-device acceptance remains pending.
 
+Server answer, 2026-10-05 (overlapping grants): fixed in
+`web_intake_service.interviewer_context`. A (project, site) a project or
+site interviewer grant reaches keeps `org_units: []` (the whole tree) even
+when the user also holds a unit grant in that project; unit grants add units
+only to pairs no wide grant reaches. This now agrees with
+`reachable_unit_ids` (`None` for the pair) and flows unchanged into
+`/me/access` `actions.interview`. Test:
+`tests/services/test_web_intake_service.py`,
+`test_a_wide_grant_keeps_the_whole_tree_when_a_unit_grant_overlaps`.
+
 Server answer, 2026-10-05 (`digitva-ntct.3`): `/me/access` (and the
 `access` on sign-in and refresh) is now the complete statement of what the
 user may do, every value from the check the server enforces; additive, no

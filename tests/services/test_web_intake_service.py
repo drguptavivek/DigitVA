@@ -182,6 +182,33 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(context[0]["web_intake_mode"], "both")
         self.assertEqual(context[0]["org_units"], [])
 
+    def test_a_wide_grant_keeps_the_whole_tree_when_a_unit_grant_overlaps(self):
+        """A unit grant on a pair a wide grant reaches narrows nothing:
+        ``org_units: []`` stays the whole tree, as ``reachable_unit_ids``."""
+        from app.services.authz import invalidate
+
+        unit = self._org_unit()
+        unit_only = self._get_or_make_user("web.unit.only.overlap@test.local", "WebIntake123")
+        for user in (unit_only, self.interviewer):
+            db.session.add(VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.interviewer,
+                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=unit.org_unit_id,
+                notes="overlap test grant", grant_status=VaStatuses.active,
+            ))
+        db.session.flush()
+        for user in (unit_only, self.interviewer):
+            invalidate(user.user_id)
+        # Present: a unit grant alone lists its unit.
+        alone = intake_svc.interviewer_context(unit_only)
+        self.assertEqual([u["org_unit_id"] for u in alone[0]["org_units"]], [str(unit.org_unit_id)])
+        # Absent: with the wide grant on the same pair, the whole tree.
+        overlap = intake_svc.interviewer_context(self.interviewer)
+        self.assertEqual(
+            [(e["project_id"], e["site_id"], e["org_units"]) for e in overlap],
+            [(self.PROJECT_ID, self.SITE_ID, [])],
+        )
+        self.assertIsNone(intake_svc.reachable_unit_ids(self.interviewer, self.PROJECT_ID, self.SITE_ID))
+
     def test_interviewer_context_drops_project_when_intake_is_off(self):
         self._set_mode("off")
         self.assertEqual(intake_svc.interviewer_context(self.interviewer), [])

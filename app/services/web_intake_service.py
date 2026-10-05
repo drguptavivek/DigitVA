@@ -301,6 +301,10 @@ def interviewer_context(user: VaUsers) -> list[dict]:
         for project_id, site_id in rows:
             pairs[(project_id, site_id)] = {"org_units": []}
 
+    # A pair a wide grant reaches keeps ``org_units: []``, the whole tree, as
+    # ``reachable_unit_ids`` has it: a unit grant there narrows nothing.
+    whole_tree = set(pairs)
+
     # Unit grants: every active site of the unit's project.
     unit_grants = [g for g in grants if not g.is_wide]
     if unit_grants:
@@ -327,6 +331,8 @@ def interviewer_context(user: VaUsers) -> list[dict]:
             if unit is None:
                 continue
             for site_id in site_ids_by_project.get(grant.project_id, ()):
+                if (grant.project_id, site_id) in whole_tree:
+                    continue
                 entry = pairs.setdefault((grant.project_id, site_id), {"org_units": []})
                 entry["org_units"].append(
                     {

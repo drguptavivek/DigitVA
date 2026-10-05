@@ -3,7 +3,7 @@ title: Login Factors, Passkeys and TOTP
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-06
 ---
 
 # Login Factors, Passkeys and TOTP
@@ -175,9 +175,29 @@ while privileged and past the enforcement date.
 Security events are written to `auth_security_events`: passkey registered,
 renamed, revoked; TOTP enrolled or removed; recovery codes regenerated or
 used; factor reset (admin or CLI, with actor and reason); counter regression;
-second-factor lockout. Each records the subject user, the actor (null for
-CLI), event type, time and a small non-secret detail. Never credential IDs in
-full, public keys, TOTP secrets, codes, challenges or IP addresses.
+second-factor lockout; every completed web sign-in (`web_sign_in`,
+`detail.method` one of `password`, `second_factor`, `passkey`, `factor_reset`)
+and every refused one (`web_sign_in_failed`, `detail.reason`); every device
+session opening (`device_session_opened`). Each records the subject user, the
+actor (null for CLI), event type, time and a small non-secret detail. Never
+credential IDs in full, public keys, TOTP secrets, codes or challenges.
+
+**IP address (owner, 2026-10-01).** `web_sign_in` alone also carries the
+client address in `detail.ip`, to correlate sign-ins with firewall logs. It
+is `request.remote_addr` after the proxy fix (`ProxyFix`, one trusted
+`X-Forwarded-For` hop), never a client-supplied header read directly, and it
+never goes to the application log. It relies on the reverse proxy in front
+of the ingress appending or overwriting `X-Forwarded-For` (`ProxyFix(x_for=1)`
+trusts one hop), never passing the client's own header through; a value that
+does not parse as an IP address is not stored. No other event carries an IP. A sign-in
+that fails or stops after the first step (second factor pending) writes no
+`web_sign_in`. A completed web sign-in or device session opening also stamps
+`va_users.last_signed_in_at`. **Retention of the IP (owner, 2026-10-01, final): 210 days**, the same as
+the log files. The daily Celery beat task `wipe_sign_in_ips_task`
+(`app/tasks/security_event_tasks.py`, constant `SIGN_IN_IP_RETENTION_DAYS`)
+removes `ip` from the `detail` of `web_sign_in` events older than that in one
+UPDATE and keeps the event (method, user and time stay). It logs a count,
+never an address.
 
 ## 10. Coordination
 

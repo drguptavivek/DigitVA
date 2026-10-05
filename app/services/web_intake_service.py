@@ -616,12 +616,19 @@ def mask_phone(phone: str | None) -> str | None:
     return "******" + (digits[-4:] if len(digits) >= 4 else "")
 
 
-def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
-                   client_death_id: uuid.UUID | None = None, **fields) -> VaDeathRegister:
-    mode = get_web_intake_mode(project_id)
-    if not _mode_allows(mode, death_register=True):
-        raise WebIntakeError("This project does not use the death register.", 403)
-    _require_scope(user, project_id, site_id, org_unit_id)
+#: The register form's fields (``VaDeathRegister`` columns ``_clean_death_fields`` fills).
+REGISTER_FIELDS = (
+    "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
+    "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
+    "address_village_ward", "address_landmark", "informant_name", "informant_phone",
+    "informant_phone_2", "remarks", "father_name", "mother_name",
+)
+
+
+def _clean_death_fields(fields: dict) -> dict:
+    """The register form's fields validated and normalised to ``VaDeathRegister``
+    columns; the one validation path of ``register_death`` and ``update_death``.
+    Raises 400 on the first bad value."""
     name = _clean(fields.get("deceased_name"), what="Deceased name", required=True)
     sex = (_clean(fields.get("deceased_sex"), what="Sex", required=True) or "").lower()
     if sex not in DEATH_SEX_VALUES:
@@ -642,6 +649,36 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         if age_years < 0 or age_years > 130:
             raise WebIntakeError("Age must be between 0 and 130 years.")
     abha_number, abha_address = _clean_abha(fields.get("abha_number"), fields.get("abha_address"))
+    return {
+        "deceased_name": name,
+        "deceased_sex": sex,
+        "abha_number": abha_number,
+        "abha_address": abha_address,
+        "date_of_birth": date_of_birth,
+        "date_of_birth_partial": date_of_birth_partial,
+        "age_years": age_years,
+        "date_of_death": date_of_death,
+        "place_of_death": _clean(fields.get("place_of_death"), what="Place of death"),
+        "address": _clean(fields.get("address"), what="Address"),
+        "address_house_street": _clean(fields.get("address_house_street"), what="House or street", max_len=200),
+        "address_village_ward": _clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
+        "address_landmark": _clean(fields.get("address_landmark"), what="Landmark", max_len=200),
+        "informant_name": _clean(fields.get("informant_name"), what="Informant name"),
+        "father_name": _clean(fields.get("father_name"), what="Father's name", max_len=200),
+        "mother_name": _clean(fields.get("mother_name"), what="Mother's name", max_len=200),
+        "informant_phone": _clean_phone(fields.get("informant_phone"), what="Informant phone"),
+        "informant_phone_2": _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
+        "remarks": _clean(fields.get("remarks"), what="Remarks"),
+    }
+
+
+def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
+                   client_death_id: uuid.UUID | None = None, **fields) -> VaDeathRegister:
+    mode = get_web_intake_mode(project_id)
+    if not _mode_allows(mode, death_register=True):
+        raise WebIntakeError("This project does not use the death register.", 403)
+    _require_scope(user, project_id, site_id, org_unit_id)
+    cleaned = _clean_death_fields(fields)
     unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
     number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
     death = VaDeathRegister(
@@ -650,25 +687,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         org_unit_id=unit.org_unit_id if unit else None,
         death_number=number,
         unique_id=unique_id,
-        deceased_name=name,
-        deceased_sex=sex,
-        abha_number=abha_number,
-        abha_address=abha_address,
-        date_of_birth=date_of_birth,
-        date_of_birth_partial=date_of_birth_partial,
-        age_years=age_years,
-        date_of_death=date_of_death,
-        place_of_death=_clean(fields.get("place_of_death"), what="Place of death"),
-        address=_clean(fields.get("address"), what="Address"),
-        address_house_street=_clean(fields.get("address_house_street"), what="House or street", max_len=200),
-        address_village_ward=_clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
-        address_landmark=_clean(fields.get("address_landmark"), what="Landmark", max_len=200),
-        informant_name=_clean(fields.get("informant_name"), what="Informant name"),
-        father_name=_clean(fields.get("father_name"), what="Father's name", max_len=200),
-        mother_name=_clean(fields.get("mother_name"), what="Mother's name", max_len=200),
-        informant_phone=_clean_phone(fields.get("informant_phone"), what="Informant phone"),
-        informant_phone_2=_clean_phone(fields.get("informant_phone_2"), what="Second phone"),
-        remarks=_clean(fields.get("remarks"), what="Remarks"),
+        **cleaned,
         registered_by=user.user_id,
         source="register",
         client_death_id=client_death_id,
@@ -743,6 +762,86 @@ def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None
     death = get_death(user, death_id)
     target = get_death(user, duplicate_of) if kind == "duplicate" and duplicate_of else None
     return cases.flag_case(death, actor=user, kind=kind, reason=reason, duplicate_of=target)
+
+
+#: Audit actions of a correction and of an interview overwriting registered
+#: details; ``reason`` names the fields, never their values.
+DETAILS_EDITED = "details_edited"
+IDENTITY_FROM_INTERVIEW = "identity_from_interview"
+
+
+def _interview_completed(death: VaDeathRegister) -> bool:
+    """Whether a completed interview of the case exists: the winning one
+    (``va_sid``), or a complete copy kept apart on a shared case."""
+    return death.va_sid is not None or bool(db.session.scalar(sa.select(sa.exists().where(
+        VaWebIntakeDraft.death_id == death.death_id,
+        VaWebIntakeDraft.status.in_(("submitted", "superseded")),
+        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
+    ))))
+
+
+def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None) -> VaDeathRegister:
+    """Correct the register fields of a case, until an interview of it is completed.
+
+    *changes* holds only the fields to change, named as ``register_death``'s
+    are; the result is validated by the same ``_clean_death_fields`` over the
+    case as it would stand. Allowed to whoever sees the case (``get_death``)
+    or supervises it. Refused: 404 out of reach; 409 ``details_pending`` (a
+    direct start's identity comes from its interview), ``case_completed``
+    (the completed interview holds the better data, docs/policy/web-intake.md
+    "Correcting a registered death"), ``death_stale`` when *if_updated_at* is
+    not the case's ``updated_at`` (400 if malformed); 400 on a bad value.
+    One audit row names the changed fields (their count when the names
+    exceed the reason cap); values are personal data and never go in it, or
+    in a log. A stored value that no longer validates must be corrected in
+    the same edit (400, naming the field).
+    """
+    try:
+        death = get_death(user, death_id)
+    except WebIntakeError:
+        try:
+            death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
+        except ValueError:
+            death = None
+        if death is None or not cases.is_interview_supervisor_for(user, death):
+            raise
+    death = cases.lock_case(death)
+    if not changes:
+        raise WebIntakeError("Nothing to change.")
+    unknown = set(changes) - set(REGISTER_FIELDS)
+    if unknown:
+        raise WebIntakeError("Unknown field: " + ", ".join(sorted(unknown)) + ".")
+    if death.status == "draft_identity":
+        raise WebIntakeError("Record the details in the interview first.", 409, "details_pending")
+    if _interview_completed(death):
+        raise WebIntakeError("An interview of this case is completed; its answers are the case details.", 409, "case_completed")
+    if if_updated_at is not None and draft_is_stale(death, if_updated_at):
+        raise WebIntakeError("This death was changed since you opened it; reload it.", 409, "death_stale")
+    current = {name: getattr(death, name) for name in REGISTER_FIELDS}
+    try:
+        cleaned = _clean_death_fields({**current, **changes})
+    except WebIntakeError as exc:
+        # The whole record is re-validated, so a stored value that is no
+        # longer valid (older free-text phone) must be corrected in this edit.
+        if exc.status_code != 400:
+            raise
+        try:
+            _clean_death_fields(current)
+        except WebIntakeError as stored:
+            if str(stored) == str(exc):
+                raise WebIntakeError(f"{exc} The stored value is no longer valid; correct it in this edit.") from None
+        raise
+    changed = [name for name in changes if cleaned[name] != current[name]]
+    if not changed:
+        return death
+    for name in changed:
+        setattr(death, name, cleaned[name])
+    names = ", ".join(changed)
+    # The audit reason is capped; past it, only the count (still no values).
+    reason = names if len(names) <= cases.REASON_MAX else f"{len(changed)} fields"
+    cases.record_action(death, actor=user, action=DETAILS_EDITED, reason=reason)
+    db.session.flush()
+    return death
 
 
 # ---------------------------------------------------------------------------
@@ -1310,8 +1409,15 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
     """Copy the form's identity answers onto the case (the form is the record
     of the interview); a direct start leaves ``draft_identity`` once complete.
     An empty answer never blanks a value the case already holds."""
+    changed = []
     for field, value in _identity_from_answers(data).items():
-        setattr(death, field, value)
+        if getattr(death, field) != value:
+            changed.append(field)
+            setattr(death, field, value)
+    if changed and death.status != "draft_identity":
+        # A completed interview overwrote registered details: name the fields
+        # (values are personal data, never in the audit reason).
+        cases.record_action(death, actor=actor, action=IDENTITY_FROM_INTERVIEW, reason=", ".join(changed))
     if death.status == "draft_identity" and cases.identity_complete(death):
         cases.transition(death, "in_progress", actor=actor, action="identity_captured")
 

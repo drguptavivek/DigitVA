@@ -337,7 +337,7 @@ class AuditEventTests(AuthzFixtureMixin, OnboardingTestBase):
         self._login_via_form(user.email, PASSWORD)
         self.assertTrue(self._signed_in())
         [signed_in] = _events(user.user_id, "web_sign_in")
-        self.assertEqual(signed_in.detail, {"method": "password"})
+        self.assertEqual(signed_in.detail, {"method": "password", "ip": "127.0.0.1"})
         for event in (failed, signed_in):
             text = json.dumps(event.detail)
             self.assertNotIn(PASSWORD, text)

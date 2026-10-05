@@ -254,6 +254,24 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(case["links"]["form"], f"/intake/form/{draft['draft_id']}")
         self.assertEqual(case["state"], "in_progress")
 
+    def test_a_death_correction_refuses_an_unknown_field_and_changes_nothing(self):
+        self._login(self.interviewer_id)
+        death_id = self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+        url = f"/api/v1/intake/deaths/{death_id}"
+        # Present: a known field is corrected.
+        fixed = self.client.patch(url, json={"remarks": "ok"}, headers=self._csrf_headers())
+        self.assertEqual(fixed.status_code, 200, fixed.get_json())
+        for body in ({"remarks": "typo", "deceased_nmae": "x"}, {"if_updated_at": None, "nope": 1}):
+            response = self.client.patch(url, json=body, headers=self._csrf_headers())
+            self.assertEqual(
+                (response.status_code, response.get_json()["code"]), (422, "invalid_death"), body)
+            self.assertIn("Unknown field", response.get_json()["error"])
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        db.session.refresh(death)
+        self.assertEqual(death.remarks, "ok")
+
     def test_browser_submit_after_a_teammate_won_replies_superseded_and_leaves_the_case(self):
         self._login(self.interviewer_id)
         death_id = self.client.post(

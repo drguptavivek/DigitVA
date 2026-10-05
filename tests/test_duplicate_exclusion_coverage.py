@@ -75,6 +75,10 @@ _RESOLVER = (
 )
 
 EXEMPT = {
+    "routes/api/va_case.py::_may_see_cod_reference": (
+        "single-submission gate on an already-authorized case view (one case's own state), "
+        "not a list or count of coding work"
+    ),
     "models/va_submission_workflow.py::VaSubmissionWorkflow.__repr__": "debug repr",
     "routes/admin.py::_project_has_in_progress_coding": (
         "safety guard on COD-mode changes: a duplicate's coding resumes on reopen, so it must "

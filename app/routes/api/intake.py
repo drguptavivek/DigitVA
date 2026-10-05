@@ -48,12 +48,7 @@ BODY_MAX_BYTES = 16 * 1024
 _UNCAPPED = frozenset({"save_draft", "submit_draft"})
 
 #: The register form's fields.
-_REGISTER_FIELDS = (
-    "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
-    "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
-    "address_village_ward", "address_landmark", "informant_name", "informant_phone",
-    "informant_phone_2", "remarks", "father_name", "mother_name",
-)
+_REGISTER_FIELDS = intake_svc.REGISTER_FIELDS
 
 
 def _body_limit():
@@ -332,6 +327,25 @@ def register_death():
             raise
         return _case_reply(existing)
     return _case_reply(death, 201)
+
+
+@bp.patch("/deaths/<death_id>")
+@role_required("interviewer", "interview_supervisor", "data_manager")
+def update_death(death_id):
+    """Correct a registered death until an interview of it is completed. Body:
+    only the register form's fields to change (an unknown key is 422), optional ``if_updated_at`` (the
+    ``updated_at`` of the last reply seen; a newer one is 409 ``death_stale``).
+    Replies ``{"case": <detail>}``. 404 out of reach; 409 ``case_completed`` /
+    ``details_pending``; 422 ``invalid_death``."""
+    p = parse_body()
+    # Every other key goes on: the service refuses an unknown field by name.
+    changes = {k: v for k, v in p.items() if k != "if_updated_at"}
+    with _content_refusals("invalid_death"):
+        if any(isinstance(v, (dict, list)) for v in changes.values()):
+            raise intake_svc.WebIntakeError("Fields must be text or numbers.")
+        death = intake_svc.update_death(current_user, death_id, changes, if_updated_at=p.get("if_updated_at"))
+    db.session.commit()
+    return _case_reply(death)
 
 
 # ---------------------------------------------------------------------------

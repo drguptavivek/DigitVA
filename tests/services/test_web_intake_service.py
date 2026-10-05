@@ -1580,6 +1580,190 @@ class WebIntakeServiceTests(BaseTestCase):
         )
 
 
+    # ── correcting a registered death (digitva-uq6v) ───────────────────────
+
+    def _audit_rows(self, death, action):
+        return db.session.scalars(
+            sa.select(MapCaseTransition).where(
+                MapCaseTransition.death_id == death.death_id, MapCaseTransition.action == action
+            )
+        ).all()
+
+    def test_update_death_corrects_fields_audits_names_only_and_validates_as_register(self):
+        death = self._register_death()
+        corrected = intake_svc.update_death(
+            self.interviewer, death.death_id, {"deceased_name": " Asha Rao ", "age_years": "63", "remarks": "x"},
+        )
+        self.assertEqual((corrected.deceased_name, corrected.age_years, corrected.remarks), ("Asha Rao", 63, "x"))
+        self.assertEqual(corrected.deceased_sex, "female")
+        rows = self._audit_rows(death, intake_svc.DETAILS_EDITED)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].reason, "deceased_name, age_years, remarks")
+        self.assertNotIn("Rao", rows[0].reason)
+        self.assertEqual((rows[0].from_state, rows[0].to_state), (death.status, death.status))
+        # A repeat of the same values changes and audits nothing.
+        intake_svc.update_death(self.interviewer, death.death_id, {"deceased_name": "Asha Rao"})
+        self.assertEqual(len(self._audit_rows(death, intake_svc.DETAILS_EDITED)), 1)
+        # Cross-field rules see the case as it would stand.
+        for bad in (
+            {"date_of_birth": (date.today() + timedelta(days=1)).isoformat()},
+            {"date_of_birth": "1990-01-01", "date_of_birth_partial": "1990"},
+            {"deceased_sex": "robot"},
+            {"deceased_name": ""},
+            {"age_years": "200"},
+            {"abha_number": "12"},
+            {"date_of_death": (date.today() - timedelta(days=9000)).isoformat(), "date_of_birth": "2020-01-01"},
+            {"nope": "x"},
+            {},
+        ):
+            with self.assertRaises(intake_svc.WebIntakeError, msg=str(bad)) as ctx:
+                intake_svc.update_death(self.interviewer, death.death_id, bad)
+            self.assertEqual(ctx.exception.status_code, 400, bad)
+        self.assertEqual(death.deceased_name, "Asha Rao")
+
+    def test_update_death_is_refused_once_an_interview_is_completed(self):
+        death = self._register_death()
+        intake_svc.update_death(self.interviewer, death.death_id, {"place_of_death": "Home"})
+        self.assertEqual(death.place_of_death, "Home")  # allowed first
+        self._submit_for_new_draft(death, self._completion())
+        self.assertEqual(death.status, "submitted")
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"place_of_death": "Hospital"})
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (409, "case_completed"))
+        self.assertEqual(death.place_of_death, "Home")
+
+    def test_an_incomplete_interview_does_not_lock_the_case(self):
+        death = self._register_death()
+        self._submit_for_new_draft(death, self._completion(valid=False, data={"interview_outcome": "partially_completed"}))
+        self.assertEqual(death.status, "paused")
+        intake_svc.update_death(self.interviewer, death.death_id, {"informant_name": "Ravi"})
+        self.assertEqual(death.informant_name, "Ravi")
+
+    def test_update_death_scope_supervisor_and_staleness(self):
+        death = self._register_death()
+        outsider = self._get_or_make_user("web.outsider@test.local", "WebIntake123")
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(outsider, death.death_id, {"remarks": "x"})
+        self.assertEqual(ctx.exception.status_code, 404)
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, "not-a-uuid", {"remarks": "x"})
+        self.assertEqual(ctx.exception.status_code, 404)
+        self.assertIsNone(death.remarks)
+
+        # A supervisor with no interviewer grant may correct what they supervise.
+        boss = self._get_or_make_user("web.boss@test.local", "WebIntake123")
+        db.session.add(VaUserAccessGrants(
+            user_id=boss.user_id, role=VaAccessRoles.data_manager, scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID, notes="death edit test", grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+        intake_svc.update_death(boss, death.death_id, {"remarks": "by boss"})
+        self.assertEqual(death.remarks, "by boss")
+        self.assertEqual(self._audit_rows(death, intake_svc.DETAILS_EDITED)[0].actor_user_id, boss.user_id)
+
+        seen = death.updated_at.isoformat()
+        intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "new"}, if_updated_at=seen)
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "newer"}, if_updated_at=seen)
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (409, "death_stale"))
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"}, if_updated_at="yesterday")
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(death.remarks, "new")
+
+    def test_a_completed_superseded_copy_without_a_winner_locks_the_case(self):
+        death = self._register_death()
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+        draft.status = "superseded"
+        draft.meta = {**draft.meta, "interviewOutcome": "completed"}
+        db.session.flush()
+        self.assertIsNone(death.va_sid)  # subject present: no winning interview
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"})
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (409, "case_completed"))
+        self.assertIsNone(death.remarks)
+
+    def test_update_death_audit_reason_fits_when_every_field_changes(self):
+        death = self._register_death()
+        everything = {
+            "deceased_name": "Asha Rao", "deceased_sex": "male", "abha_number": "12-3456-7890-1234",
+            "abha_address": "asha.rao@abdm", "date_of_birth": "1960-01-01", "age_years": 64,
+            "date_of_death": (date.today() - timedelta(days=5)).isoformat(), "place_of_death": "Home",
+            "address": "1 Main Road", "address_house_street": "1 Main", "address_village_ward": "Ward 2",
+            "address_landmark": "Temple", "informant_name": "Ravi", "informant_phone": "9876543210",
+            "informant_phone_2": "9876543211", "remarks": "r", "father_name": "F", "mother_name": "M",
+        }
+        updated = intake_svc.update_death(self.interviewer, death.death_id, everything)
+        self.assertEqual(updated.deceased_name, "Asha Rao")
+        [row] = self._audit_rows(death, intake_svc.DETAILS_EDITED)
+        self.assertEqual(row.reason, f"{len(everything)} fields")
+        self.assertNotIn("Rao", row.reason)
+
+    def test_a_legacy_invalid_stored_value_must_be_fixed_in_the_same_edit(self):
+        death = self._register_death()
+        death.informant_phone = "ask the neighbour"  # free text from before phone validation
+        db.session.flush()
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"})
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Informant phone", str(ctx.exception))
+        self.assertIn("correct it in this edit", str(ctx.exception))
+        self.assertIsNone(death.remarks)
+        updated = intake_svc.update_death(
+            self.interviewer, death.death_id, {"remarks": "x", "informant_phone": "98765 43210"},
+        )
+        self.assertEqual((updated.remarks, updated.informant_phone), ("x", "9876543210"))
+
+    def test_a_direct_start_awaiting_its_details_is_not_editable(self):
+        draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID)
+        death = db.session.get(VaDeathRegister, draft.death_id)
+        self.assertEqual(death.status, "draft_identity")
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"})
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (409, "details_pending"))
+
+    def test_completing_an_interview_overwrites_case_identity_and_audits_the_fields(self):
+        death = self._register_death()
+        self.assertEqual(death.deceased_name, "Asha Devi")
+        _draft, _submission = self._submit_for_new_draft(
+            death, self._completion(data={"Id10018": "Rao", "Id10019": "male"}),
+        )
+        self.assertEqual((death.deceased_name, death.deceased_sex), ("Asha Rao", "male"))
+        rows = self._audit_rows(death, intake_svc.IDENTITY_FROM_INTERVIEW)
+        self.assertEqual([r.reason for r in rows], ["deceased_name, deceased_sex"])
+        # An interview that agrees with the register writes no such row.
+        other = self._register_death()
+        self._submit_for_new_draft(other, self._completion())
+        self.assertEqual(self._audit_rows(other, intake_svc.IDENTITY_FROM_INTERVIEW), [])
+
+    def test_api_patch_death(self):
+        death = self._register_death()
+        db.session.commit()
+        self._login(str(self.interviewer.user_id))
+        url = f"/api/v1/intake/deaths/{death.death_id}"
+        self.assertEqual(self.client.patch(url, json={"remarks": "x"}).status_code, 400)  # no CSRF
+        response = self.client.patch(url, json={"remarks": "x", "deceased_name": "Asha Rao"}, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200, response.get_json())
+        case = response.get_json()["case"]
+        self.assertEqual((case["deceased"]["name"], case["remarks"]), ("Asha Rao", "x"))
+        response = self.client.patch(url, json={"deceased_sex": "robot"}, headers=self._csrf_headers())
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_death"))
+        response = self.client.patch(
+            url, json={"remarks": "y", "if_updated_at": "2020-01-01T00:00:00+00:00"}, headers=self._csrf_headers(),
+        )
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "death_stale"))
+        self._submit_for_new_draft(death, self._completion())
+        db.session.commit()
+        response = self.client.patch(url, json={"remarks": "z"}, headers=self._csrf_headers())
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "case_completed"))
+        response = self.client.patch(
+            f"/api/v1/intake/deaths/{uuid.uuid4()}", json={"remarks": "z"}, headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 404)
+
+
 class WebFormTypeFromProjectSettingTests(BaseTestCase):
     """The web ``va_forms`` row carries the project's configured form type.
 

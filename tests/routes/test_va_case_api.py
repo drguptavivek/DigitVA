@@ -53,6 +53,7 @@ from app.services.submission_payload_version_service import (
 )
 from app.services.user_note_service import get_active_note, save_note
 from app.services.workflow.definition import (
+    WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
 )
@@ -258,12 +259,13 @@ class VaCaseApiTests(BaseTestCase):
 
     def test_mode_is_required_and_must_be_known(self):
         sid = self._coding_case()
-        for mode in (None, "view", ""):
+        self.assertEqual(self._get(sid, "workspace", mode="view").status_code, 200)
+        for mode in (None, "bogus", ""):
             response = self._get(sid, "workspace", mode=mode)
             self.assertEqual(
                 (response.status_code, response.get_json()["code"]), (400, "invalid_request"), mode
             )
-        self.assertEqual(self._get(sid, "categories/cat1", mode="view").status_code, 400)
+        self.assertEqual(self._get(sid, "categories/cat1", mode="bogus").status_code, 400)
 
     def test_a_coder_without_an_allocation_is_refused(self):
         sid = self._case()
@@ -1157,6 +1159,193 @@ class VaCaseApiTests(BaseTestCase):
             get_active_note(other.user_id, held_elsewhere).note_content, "not for the coder"
         )
         self.assertIsNone(get_active_note(self.base_coder_user.user_id, held_elsewhere))
+
+
+    # -- mode=view (xl43.8) -------------------------------------------------------
+
+    def _collaborator(self, role=VaAccessRoles.collaborator):
+        user = self._make_user(f"xl43p8.collab.{uuid.uuid4().hex[:6]}@test.local", "Collab123")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=role, scope_type=VaAccessScopeTypes.project,
+            project_id=self.BASE_PROJECT_ID, notes="xl43p8", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        invalidate(user.user_id)
+        return str(user.user_id)
+
+    def test_a_view_needs_no_allocation_for_a_coder_or_reviewer_in_scope(self):
+        sid = self._case()
+        self.assertEqual(self._get(sid, "workspace").status_code, 403)  # coding: no allocation
+        for user, mode_roles in ((self.base_coder_id, "coder"), (self.reviewer_id, "reviewer")):
+            body = self._workspace(sid, mode="view", user=user)
+            self.assertEqual(body["step"], "view", mode_roles)
+            self.assertEqual(body["blocked_by"], [])
+            for key in ("doris", "narrative_qa", "social_autopsy", "other_conditions_options"):
+                self.assertIsNone(body[key], key)
+            self.assertIsNone(body["assessments"]["initial"])
+            self.assertIsNone(body["assessments"]["initial_prefill"])
+            response = self._get(sid, "categories/cat1", mode="view", user=user)
+            self.assertEqual(response.status_code, 200, response.get_json())
+            self.assertEqual(response.headers["Cache-Control"], "private, no-store, max-age=0")
+
+    def test_a_view_outside_the_callers_scope_or_of_a_missing_case_is_refused(self):
+        # Present: the reviewer views a case inside their project.
+        self.assertEqual(self._get(self._case(), "workspace", mode="view", user=self.reviewer_id).status_code, 200)
+        outside = self._case(form_id=self.DEVICE_FORM_ID)
+        for tail in ("workspace", "categories/cat1"):
+            response = self._get(outside, tail, mode="view", user=self.reviewer_id)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"), tail)
+        response = self._get("uuid:does-not-exist", "workspace", mode="view", user=self.reviewer_id)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (404, "not_found"))
+
+    def test_a_view_needs_a_credential_and_a_viewing_role(self):
+        sid = self._case()
+        self.assertEqual(self.client.get(f"{BASE}/{sid}/workspace?mode=view").status_code, 401)
+        stranger = self._make_user(f"xl43p8.none.{uuid.uuid4().hex[:6]}@test.local", "None123")
+        self.assertEqual(self._get(sid, "workspace", mode="view", user=str(stranger.user_id)).status_code, 403)
+
+    def test_a_plain_collaborator_views_redacted_categories_and_no_doris(self):
+        sid = self._case(payload={"FldZ": "z-val", "FldPii": "Jane Realname"})
+        collaborator = self._collaborator()
+
+        def values(user):
+            response = self._get(sid, "categories/cat1", mode="view", user=user)
+            self.assertEqual(response.status_code, 200, response.get_json())
+            return {i["value"] for sub in response.get_json()["subcategories"] for i in sub["items"]}
+
+        # Present: the unredacted viewer sees the personal value on the same case.
+        self.assertEqual(values(self.base_coder_id), {"z-val", "Jane Realname"})
+        self.assertEqual(values(collaborator), {"z-val"})
+        body = self._workspace(sid, mode="view", user=collaborator)
+        self.assertEqual((body["step"], body["doris"]), ("view", None))
+        self.assertNotIn("Jane Realname", str(body))
+        # The viewer role's categories: no coder-only category, no COD panel.
+        codes = [c["code"] for c in body["categories"]]
+        self.assertIn("cat1", codes)
+        self.assertNotIn("vacodassessment", codes)
+        # collaborator_pii sees the value.
+        self.assertEqual(values(self._collaborator(VaAccessRoles.collaborator_pii)), {"z-val", "Jane Realname"})
+
+    def test_a_view_never_returns_editable_blocks(self):
+        self._mode(nqa=True, social_autopsy=True)
+        sid = self._coding_case()
+        # Present: the coding workspace holds the NQA and SA forms and blocks.
+        coding = self._workspace(sid)
+        self.assertIsNotNone(coding["narrative_qa"])
+        self.assertIsNotNone(coding["social_autopsy"])
+        self.assertTrue(self._get(sid, "categories/vanarrationanddocuments").get_json()["blocked_by"])
+        self.assertTrue(self._get(sid, "categories/social_autopsy").get_json()["blocked_by"])
+        body = self._workspace(sid, mode="view")
+        self.assertEqual((body["narrative_qa"], body["social_autopsy"], body["blocked_by"]), (None, None, []))
+        self.assertFalse(body["case"]["narrative_qa_enabled"])
+        self.assertFalse(body["case"]["social_autopsy_enabled"])
+        for code in ("vanarrationanddocuments", "social_autopsy"):
+            response = self._get(sid, f"categories/{code}", mode="view")
+            self.assertEqual(response.status_code, 200, code)
+            self.assertEqual(response.get_json()["blocked_by"], [], code)
+
+    def test_a_view_shows_the_saved_assessments_and_smartva_as_reference(self):
+        self._mode(masked=True)
+        sid = self._case(state=WORKFLOW_CODER_FINALIZED)
+        other = self._make_user(f"xl43p8.a.{uuid.uuid4().hex[:6]}@test.local", "OtherA123")
+        version = get_active_payload_version(sid).payload_version_id
+        coder_final = VaFinalAssessments(
+            va_sid=sid, va_finassess_by=other.user_id, payload_version_id=version,
+            va_conclusive_cod="A16 coder result", va_finassess_remark="coder remark",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.flush()
+        db.session.add(VaReviewerFinalAssessments(
+            va_sid=sid, va_rfinassess_by=self.reviewer.user_id, payload_version_id=version,
+            va_conclusive_cod="B20 reviewer result", va_rfinassess_remark="r",
+            va_rfinassess_status=VaStatuses.active,
+            supersedes_coder_final_assessment_id=coder_final.va_finassess_id,
+        ))
+        self._initial(sid, user=other.user_id)
+        db.session.add(VaSmartvaResults(
+            va_sid=sid, va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+        ))
+        db.session.commit()
+        for user in (self.base_coder_id, self._collaborator()):
+            assessments = self._workspace(sid, mode="view", user=user)["assessments"]
+            self.assertEqual(assessments["final"]["conclusive_cod"], "A16 coder result")
+            self.assertEqual(assessments["reviewer_final"]["conclusive_cod"], "B20 reviewer result")
+            self.assertEqual(assessments["coder_initial"]["immediate_cod"], _COD)
+            self.assertIsNone(assessments["initial"])
+        # Staff free text: present for the coder, withheld from a redacted viewer.
+        coder_view = self._workspace(sid, mode="view")["assessments"]
+        self.assertEqual((coder_view["final"]["remark"], coder_view["reviewer_final"]["remark"]),
+                         ("coder remark", "r"))
+        redacted = self._workspace(sid, mode="view", user=self._collaborator())["assessments"]
+        self.assertEqual((redacted["final"]["remark"], redacted["reviewer_final"]["remark"]), (None, None))
+        # Masked project, caller without a Step 1: SmartVA is still shown.
+        self.assertEqual(self._workspace(sid, mode="view")["smartva"]["causes"][0]["cause"], "Stroke")
+        # Nothing in the view carries a user id.
+        self.assertNotIn(str(other.user_id), str(self._workspace(sid, mode="view")))
+        self.assertNotIn(str(self.reviewer.user_id), str(self._workspace(sid, mode="view")))
+
+    def _seed_cod_reference(self, sid):
+        """A coder final, a Step 1 and a SmartVA result on *sid*."""
+        other = self._make_user(f"xl43p8.b.{uuid.uuid4().hex[:6]}@test.local", "OtherB123")
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=other.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="A16 coder result", va_finassess_remark="x",
+            va_finassess_status=VaStatuses.active,
+        ))
+        self._initial(sid, user=other.user_id)
+        db.session.add(VaSmartvaResults(
+            va_sid=sid, va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+        ))
+        db.session.commit()
+
+    def test_a_view_withholds_the_cod_reference_until_coding_is_finished(self):
+        self._mode(masked=True)
+        finished = self._case(state=WORKFLOW_CODER_FINALIZED)
+        in_coding = self._case(state=WORKFLOW_CODING_IN_PROGRESS)
+        for sid in (finished, in_coding):
+            self._seed_cod_reference(sid)
+        # Present: a finished case shows the reference.
+        body = self._workspace(finished, mode="view")
+        self.assertEqual(body["assessments"]["final"]["conclusive_cod"], "A16 coder result")
+        self.assertIsNotNone(body["assessments"]["coder_initial"])
+        self.assertIsNotNone(body["smartva"])
+        # The same rows on a case still in coding are not served.
+        body = self._workspace(in_coding, mode="view")
+        for key in ("final", "coder_initial", "reviewer_final", "not_codeable"):
+            self.assertIsNone(body["assessments"][key], key)
+        self.assertIsNone(body["smartva"])
+        # Category content is unaffected.
+        self.assertEqual(self._get(in_coding, "categories/cat1", mode="view").status_code, 200)
+
+    def test_a_view_withholds_the_cod_reference_from_a_caller_holding_an_allocation(self):
+        self._mode(masked=True)
+        held = self._case(state=WORKFLOW_CODER_FINALIZED, allocated_to=self.base_coder_user.user_id)
+        self._seed_cod_reference(held)
+        body = self._workspace(held, mode="view")
+        for key in ("final", "coder_initial", "reviewer_final", "not_codeable"):
+            self.assertIsNone(body["assessments"][key], key)
+        self.assertIsNone(body["smartva"])
+        # Present: a caller without an allocation on the same case sees it.
+        body = self._workspace(held, mode="view", user=self.reviewer_id)
+        self.assertEqual(body["assessments"]["final"]["conclusive_cod"], "A16 coder result")
+        self.assertIsNotNone(body["smartva"])
+        # A reviewing allocation withholds it too.
+        reviewing = self._case(
+            state=WORKFLOW_CODER_FINALIZED,
+            allocated_to=self.reviewer.user_id, allocation_for=VaAllocation.reviewing,
+        )
+        self._seed_cod_reference(reviewing)
+        self.assertIsNone(self._workspace(reviewing, mode="view", user=self.reviewer_id)["smartva"])
+        self.assertIsNotNone(self._workspace(reviewing, mode="view")["smartva"])
+
+    def test_the_note_routes_refuse_a_view(self):
+        sid = self._case()
+        self.assertEqual(self._get(sid, "workspace", mode="view").status_code, 200)
+        for response in (self._note_get(sid, mode="view"), self._note_put(sid, {"content": "x"}, mode="view")):
+            self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+        self.assertIsNone(get_active_note(self.base_coder_user.user_id, sid))
 
 
 class CaseStepStateTests(BaseTestCase):

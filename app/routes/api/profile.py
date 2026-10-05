@@ -9,6 +9,7 @@ from flask_login import current_user, login_required
 from app import db, limiter
 from app.models import AuthWebauthnCredential
 from app.routes.api.request_helpers import error as api_error
+from app.routes.api.request_helpers import parse_body
 from app.services import totp_service
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
@@ -122,6 +123,7 @@ def get_profile():
         "user_id": current_user.user_id,
         "name": current_user.name,
         "email": current_user.email,
+        "job_title": current_user.job_title,
         "mobile_only": current_user.is_mobile_only,
         "languages": current_user.vacode_language or [],
         "timezone": current_user.timezone,
@@ -203,6 +205,29 @@ def update_timezone():
     current_user.timezone = timezone
     db.session.commit()
     return jsonify({"message": "Timezone updated successfully.", "timezone": timezone})
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/v1/profile/job-title  — the person's own post (public text)
+# ---------------------------------------------------------------------------
+
+@bp.patch("/job-title")
+@login_required
+def update_job_title():
+    """Set or clear the current user's job title (digitva-04u4). Public free
+    text, validated by the same function as every other write path; it
+    grants nothing."""
+    from app.services import user_account_service as accounts
+
+    body = parse_body()
+    if "job_title" not in body:
+        return api_error("job_title is required (null clears it).", "invalid_request", 400)
+    try:
+        current_user.job_title = accounts.clean_job_title(body["job_title"])
+    except accounts.UserAccountError as exc:
+        return api_error(str(exc))
+    db.session.commit()
+    return jsonify({"message": "Job title updated.", "job_title": current_user.job_title})
 
 
 # ---------------------------------------------------------------------------

@@ -252,7 +252,7 @@ class DataManagerMentorGrantTests(Stage1bBase):
         )
         for user in users:
             self.assertEqual(
-                set(user), {"user_id", "name", "email", "status", "institutes"}
+                set(user), {"user_id", "name", "email", "status", "institutes", "job_title"}
             )
         self.assertEqual([u["email"] for u in self._search("mentor.two")], [two.email])
 

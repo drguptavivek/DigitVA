@@ -66,6 +66,16 @@ class VaUsers(UserMixin, db.Model):
     # time) and Id10010b (sex: one of USER_SEX_VALUES). Never logged or exported.
     year_of_birth: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     sex: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    # The person's post, free text (e.g. "Chief Medical Officer, Faridabad").
+    # Public: not personal data, never redacted, never consulted for access
+    # (docs/policy/people-and-roles-page.md "Job title"). Written only through
+    # user_account_service.clean_job_title.
+    job_title: so.Mapped[str | None] = so.mapped_column(sa.String(120), nullable=True)
+    # Last completed web sign-in or device session opening; set by
+    # mark_signed_in (docs/policy/people-and-roles-page.md "Sign-in record").
+    last_signed_in_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
     user_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,
@@ -112,6 +122,11 @@ class VaUsers(UserMixin, db.Model):
         if self.auth_session_version:
             return f"{self.user_id}:{self.auth_session_version}"
         return str(self.user_id)
+
+    def mark_signed_in(self) -> None:
+        """Stamp ``last_signed_in_at`` now. Caller commits. The single writer
+        for web sign-in and device session opening."""
+        self.last_signed_in_at = datetime.now(UTC)
 
     def bump_session_version(self) -> None:
         """Invalidate every existing session/remember cookie for this user.

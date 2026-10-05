@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # API v1 Reference
@@ -147,6 +147,7 @@ interviewer role (supervision: `interview_supervisor` or `data_manager`).
 | `GET /intake/cases/<death_id>` | Case detail with full contacts, links and (when the caller may start or resume it) prefill, below. 120/min. |
 | `GET /intake/cases/<death_id>/possible-duplicates`, `POST /intake/cases/<death_id>/flags`, `/pause` | The browser worklist's calls, now for every client. Each replies `{"case": <detail>}`, the body of `GET /intake/cases/<id>` (below). |
 | `GET/POST /intake/deaths` | List (`project_id`, `site_id` required) and register (`project_id` required; `client_death_id` optional, idempotent), below. |
+| `PATCH /intake/deaths/<death_id>` | Correct a registered death until an interview of it is completed (`interviewer`, `interview_supervisor` or `data_manager`; the caller must see or supervise the case, else 404). Body: only the register fields to change, optional `if_updated_at` (the `case.updated_at` last seen). 200 `{"case": <detail>}`; 409 `case_completed` (a completed interview exists) / `details_pending` / `death_stale`; 422 `invalid_death` (`register_death`'s validation, a list or object in a field, nothing to change). Audited as `details_edited` (field names only). Policy: [Web Intake](../policy/web-intake.md) "Correcting a registered death". |
 | `POST /intake/cases/<death_id>/attempts`, `/visit` | Attempts (`client_attempt_id` optional, idempotent) and visits, keyed by the case (no `project_id`), below. |
 | `POST /intake/drafts/sync` | The phone's in-progress interview into the caller's one open draft of a case; newer save wins whole, the loser is kept as a `replaced` draft. Reply `{draft, kept, conflict, answers_sha256, message, envelope}`; 422 `answers_hash_*`/`invalid_interview` store nothing; 409 on a closed case. Contract: [Device Collection API](device-collection-api.md) "Draft sync". |
 | `GET/POST /intake/drafts`, `GET/PATCH /intake/drafts/<id>`, `POST /intake/drafts/<id>/discard`, `/submit` | The web draft store. Draft saves and submits take no body cap beyond the service's answer checks. `PATCH` takes optional `if_updated_at` (the last seen `draft.updated_at`): a newer saved version is 409 `draft_stale`, nothing written. One open draft per interviewer per case: `POST` returns the caller's own, another interviewer's never blocks (no 409). `/submit`: 201 `{va_sid, draft, superseded: false, validation_err, can_code_now}`; on a draft that is already `submitted` (a stale tab) it is a correction, 200 with the same body plus `kept` and `locked`; on an open draft whose case's winning submission is the caller's own earlier draft it is the same correction (the draft is closed as `replaced`; `va_sid` and `draft` are the winning interview's); on a case already `submitted`, `duplicate` or `cancelled` (a teammate won, or a supervisor closed it) the draft is kept as `superseded` (no submission, case untouched) and the reply is 200 `{va_sid: null, draft, superseded: true, validation_err: null, can_code_now: false}`. `can_code_now` (bool, also on the correction's reply and on the `/intake/submissions` result) is true when the caller may now be offered "Code this case now": a completed interview with valid consent in a self-coding project where the caller holds a coder grant that codes (`web_intake_service.can_code_now`; grants only, the action re-checks). |
@@ -366,8 +367,32 @@ payload read: `coding` needs a coder or coding tester with `Action.CODE`
 (`RECODE` in a recode episode) on the case and their own active coding
 allocation (`coder_cod_service.require_coding_session`); `reviewing` needs a
 reviewer with `Action.REVIEW` and their own active reviewing allocation
-(`reviewer_coding_service.require_reviewing_session`). There is no read-only
-"view" mode yet, and admin demo coding is not served.
+(`reviewer_coding_service.require_reviewing_session`). Admin demo coding is
+not served.
+
+`mode=view` (`digitva-xl43.8`) is the read-only opening of a case, the web's
+`/coding/area/<sid>`: authorized by `Action.VIEW` (`authz.require`), not by an
+allocation, for coder, coding_tester, reviewer, collaborator,
+collaborator_pii and admin; outside the caller's scope 403 `forbidden`, a
+missing case 404 `not_found`. Categories are the viewer's (no workflow
+panel); a caller who sees no personal data (plain `collaborator`) gets the
+redacted section. The workspace body has `step: "view"`, `blocked_by: []`;
+`doris`, `narrative_qa`, `social_autopsy`, `other_conditions_options` and
+`assessments.initial|initial_prefill` are `null`, `case.narrative_qa_enabled`
+and `case.social_autopsy_enabled` `false`. A view must not unblind coding: the
+COD reference and `smartva` are served only when the case's workflow state is
+in the `coded` or `not_codeable` coding bucket
+(`workflow.definition.WORKFLOW_CODING_BUCKETS`) and the caller holds no active
+coding or reviewing allocation on the case; otherwise `assessments.final`,
+`coder_initial`, `reviewer_final`, `not_codeable` and `smartva` are `null`.
+When served, `final` is the coder final the authoritative record stands on or
+supersedes, `reviewer_final` the latest active reviewer final of any reviewer,
+`coder_initial` the display initial, `not_codeable` the active coder review;
+for a redacted viewer the staff free text (`remark`, `not_codeable.other`) is
+`null`. Category content is unchanged by this. A category body in view never carries
+`blocked_by`. `GET|PUT /note` stay allocation-only and answer `mode=view` 400
+`invalid_request`. Media (`/api/v1/attachments`) and
+`/api/v1/workflow/events/<sid>` already authorize by VIEW.
 
 `GET /<va_sid>/workspace?mode=` answers `Cache-Control: private, no-store`:
 

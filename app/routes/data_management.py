@@ -660,6 +660,7 @@ def manage_users():
                 "user_id": str(u.user_id),
                 "name": u.name,
                 "email": u.email,
+                "job_title": u.job_title,
                 "status": u.user_status.value,
                 "institutes": codes,
             }
@@ -748,12 +749,12 @@ def manage_lookup_user():
         stmt = stmt.where(PHONE_CANONICAL == mobile).limit(_LOOKUP_MOBILE_LIMIT)
     users = db.session.scalars(stmt.order_by(VaUsers.email)).all()
     posts = _lookup_posts([u.user_id for u in users]) if users else {}
-    # Job title joins these rows once the user model has one (digitva-04u4).
     return jsonify({"users": [
         {
             "user_id": str(u.user_id),
             "name": u.name,
             "email": u.email,
+            "job_title": u.job_title,
             "status": u.user_status.value,
             "posts": posts.get(u.user_id, []),
         }
@@ -877,6 +878,7 @@ def manage_user_detail(target_user_id):
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
+            VaUsers.job_title,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
             *_grant_org_unit_columns(),
@@ -987,7 +989,8 @@ def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
 @data_management.put("/api/users/<uuid:target_user_id>")
 @role_required("data_manager", "admin")
 def manage_update_user(target_user_id):
-    """Update user email and/or languages (email is creator-scoped for DMs)."""
+    """Update user email, job title and/or languages (email is creator-scoped
+    for DMs; job title is public, so anyone who may open the person sets it)."""
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
@@ -996,12 +999,25 @@ def manage_update_user(target_user_id):
     email_confirm_raw = payload.get("email_confirm")
     email_requested = email_raw is not None or email_confirm_raw is not None
     languages_requested = "languages" in payload
+    job_title_requested = "job_title" in payload
 
-    if not email_requested and not languages_requested:
-        return _json_error("Provide email/email_confirm and/or languages.", 400)
+    if not (email_requested or languages_requested or job_title_requested):
+        return _json_error("Provide email/email_confirm, job_title and/or languages.", 400)
 
     changed_email = False
     changed_languages = False
+    changed_job_title = False
+
+    if job_title_requested:
+        from app.services import user_account_service as accounts
+
+        try:
+            job_title = accounts.clean_job_title(payload["job_title"])
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
+        if job_title != target_user.job_title:
+            target_user.job_title = job_title
+            changed_job_title = True
 
     if email_requested:
         if not _dm_can_edit_user_email(target_user):
@@ -1048,7 +1064,7 @@ def manage_update_user(target_user_id):
             target_user.vacode_language = languages
             changed_languages = True
 
-    if changed_email or changed_languages:
+    if changed_email or changed_languages or changed_job_title:
         db.session.commit()
 
     if changed_email:
@@ -1084,6 +1100,7 @@ def manage_access_grants():
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
+            VaUsers.job_title,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
             *_grant_org_unit_columns(),
@@ -1226,6 +1243,7 @@ def manage_create_access_grant():
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
+            VaUsers.job_title,
             _grant_project_id_expression().label("resolved_project_id"),
             _grant_site_id_expression().label("resolved_site_id"),
             *_grant_org_unit_columns(),

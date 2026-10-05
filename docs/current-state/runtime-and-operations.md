@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Runtime And Operations
@@ -617,6 +617,13 @@ Current seeded periodic tasks:
   one short transaction per batch, until none are left. Never raises; a missed
   day only lengthens the next run. Redis keys `digitva_msg:last:<user_id>`
   (5-minute TTL, config `NOTIFICATION_CACHE_PREFIX`) are a cache only.
+- sign-in IP wipe daily, `wipe_sign_in_ips_task`
+  ([`app/tasks/security_event_tasks.py`](../../app/tasks/security_event_tasks.py)):
+  one UPDATE removes `detail.ip` from `web_sign_in` events in
+  `auth_security_events` older than `SIGN_IN_IP_RETENTION_DAYS` (210); the
+  event is kept. Idempotent, never raises, logs a count only. Beat row
+  "Sign-in IP wipe — daily" is seeded at worker startup like the notification
+  purge.
 - attachment S3 upload sweep every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`
   (default `10`), `run_attachment_s3_upload` — copies up to 500 attachment
   blobs per sweep into the bucket and verifies each one. It is left scheduled

@@ -147,6 +147,7 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.totp_remove": "Own TOTP factor.",
     "api_v1.profile_api.totp_status": "Own TOTP factor.",
     "api_v1.profile_api.update_interviewer_profile": "Own year of birth and sex.",
+    "api_v1.profile_api.update_job_title": "Own job title (public text, grants nothing).",
     "api_v1.profile_api.update_timezone": "Own timezone.",
     "api_v1.auth_api.end_session": "Own device sign-out; must work after a grant is "
                                    "withdrawn.",

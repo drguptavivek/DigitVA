@@ -10,6 +10,7 @@ from app.forms import (
     SecondFactorForm,
     ForgotPasswordForm,
 )
+import ipaddress
 import sqlalchemy as sa
 import uuid
 from flask import (
@@ -180,7 +181,8 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
     sign-in needs no nudge to use a passkey).
 
     ``method`` (``password``, ``second_factor``, ``passkey``,
-    ``factor_reset``) goes into the ``web_sign_in`` audit event.
+    ``factor_reset``) and the client IP go into the ``web_sign_in`` audit
+    event; ``va_users.last_signed_in_at`` is stamped.
 
     Caller is responsible for every check that must pass first (active,
     verified email, maintenance), for the commit and for the redirect.
@@ -202,7 +204,16 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
     if nudge_if_no_passkey and not has_passkey:
         session["passkey_nudge"] = True
     current_app.session_interface.regenerate(session)
-    record_security_event(user_id=user.user_id, event_type="web_sign_in", detail={"method": method})
+    user.mark_signed_in()
+    # The client address after ProxyFix(x_for=1), kept in the event for
+    # firewall-log correlation (digitva-ci8), never logged. Stored only when
+    # it parses as an address: a junk forwarded value is dropped, not kept.
+    detail = {"method": method}
+    try:
+        detail["ip"] = str(ipaddress.ip_address(request.remote_addr))
+    except ValueError:
+        pass
+    record_security_event(user_id=user.user_id, event_type="web_sign_in", detail=detail)
 
 
 @va_auth.route("/valogin", methods=["GET", "POST"])

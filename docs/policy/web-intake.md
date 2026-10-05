@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Web Intake Policy
@@ -1171,6 +1171,43 @@ its name and date of death.
   existing `ix_va_death_register_project_status` serves the project. For large
   registers, `(project_id, date_of_death)` is the index to add (not added in
   this phase).
+
+### Correcting a registered death (owner, 2026-10-06, `digitva-uq6v`)
+
+- A case's register details (name, sex, date of birth or age, date of death,
+  place, address, informant, phones, ABHA, parents, remarks) are editable
+  until an interview of the case has been **completed** (a submitted
+  interview with outcome completed, the case's winner or a complete copy
+  kept apart). After that an edit is refused (409 `case_completed`): the
+  completed interview is expected to hold the more up-to-date information.
+  Refused, incomplete and partial interviews do not lock the case.
+- Who: anyone who sees the case (the interviewer scope of `get_death`, so
+  grants of every width) and the supervisors of the case
+  (`is_interview_supervisor_for`). Out of reach reads as 404. A case still
+  awaiting its details (`draft_identity`) is not edited here (409
+  `details_pending`); its interview captures them.
+- Validation is `register_death`'s, one function over the case as it would
+  stand after the edit (a date of birth after the date of death is refused
+  whichever field moved); name, sex and date of death cannot be blanked.
+  The whole record is re-validated, so a stored value that is no longer
+  valid (a free-text phone from before phone validation) must be corrected
+  in the same edit; the refusal (422 `invalid_death`) names the field. Owner
+  decision: keep this, for the cleanest data.
+- Every edit writes one case audit row (`details_edited`, state unchanged)
+  naming the changed fields. The reason column holds no personal data, so
+  it carries field names only (their count, e.g. "19 fields", when the names
+  exceed the reason cap): the old and new values are not kept yet. Owner
+  2026-10-06: previous values in the case audit, and the interview's date of
+  birth and age on the case and the death list, are decided and follow in the
+  next change. Values are never logged.
+- When an interview is completed (submit, revision, choice of another
+  interview), its name, sex and date of death overwrite the case's, as
+  before, and the overwritten field names are audited
+  (`identity_from_interview`). Date of birth and age are not mirrored from
+  the interview yet: they stay as registered on the case; the submission
+  holds the interview's own (mirroring follows, see above).
+- Optional `if_updated_at` (the case's `updated_at` last seen): a newer
+  change is 409 `death_stale`.
 
 ### Open design items (questions for the owner)
 

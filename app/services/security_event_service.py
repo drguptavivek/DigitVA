@@ -2,7 +2,8 @@
 
 Baseline: docs/policy/authentication-factors.md section 9. ``detail`` must
 stay small and non-secret -- never a credential ID in full, a public key, a
-TOTP secret, a challenge or an IP address.
+TOTP secret or a challenge. The one IP address kept is the client address
+on ``web_sign_in`` (authentication-factors.md section 9).
 """
 
 from __future__ import annotations

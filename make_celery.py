@@ -89,6 +89,7 @@ celery_app = flask_app.extensions["celery"]
 import app.tasks.backup_tasks  # noqa: F401, E402
 import app.tasks.coding_search_telemetry_tasks  # noqa: F401, E402
 import app.tasks.notification_tasks  # noqa: F401, E402
+import app.tasks.security_event_tasks  # noqa: F401, E402
 import app.tasks.sync_tasks  # noqa: F401, E402
 
 # Seed beat schedule and clean up orphaned run rows on startup
@@ -122,3 +123,7 @@ with flask_app.app_context():
     from app.tasks.notification_tasks import ensure_notification_purge_scheduled
 
     ensure_notification_purge_scheduled()
+
+    from app.tasks.security_event_tasks import ensure_sign_in_ip_wipe_scheduled
+
+    ensure_sign_in_ip_wipe_scheduled()

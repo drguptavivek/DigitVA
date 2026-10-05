@@ -3,7 +3,7 @@ title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
 status: proposed
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-06
 ---
 
 # People and Roles Page
@@ -141,21 +141,47 @@ For admins, project PIs and data managers only.
   set the column; older grants show "not recorded". The model comment in
   `app/models/va_user_access_grants.py` and
   `docs/current-state/data-model.md` saying the column is unused are stale.
-- **Web sign-in is not recorded.** Device sign-in is (`device_session_opened`
-  security event, `auth_device_sessions.last_seen_at`); a web sign-in leaves
-  only a session value. Owner, 2026-10-01: **record every web sign-in.**
+- **Web sign-in is recorded (`digitva-ci8`, built).** Owner, 2026-10-01:
+  record every web sign-in.
   - Each completed web sign-in writes an `auth_security_events` row,
-    `event_type="signed_in"`, `detail={"method": ...}` (password, password
-    plus second factor, passkey, or factor-reset link) and the client IP
-    address (owner, 2026-10-01), taken from the trusted proxy header, never a
-    client-supplied one. Purpose: correlating sign-ins with firewall logs. The
-    IP is kept for **210 days** (owner, 2026-10-01: the same period as the
-    application log files), then wiped from the event; the event itself
-    stays.
-  - A nullable `va_users.last_signed_in_at` (additive migration) is set on
-    every completed web sign-in and device session opening, so the page reads
-    one column instead of scanning events.
-  - Until both exist the column and the dormant flag are hidden.
+    `event_type="web_sign_in"` (the name already in use; there is no second
+    `signed_in` event), `detail={"method": ..., "ip": ...}` (method:
+    `password`, `second_factor`, `passkey` or `factor_reset`). The IP is the
+    client address behind the proxy, never a client-supplied header
+    (authentication-factors.md section 9). Purpose: correlating sign-ins with
+    firewall logs. Nothing is written for a failed sign-in or one stopped
+    after the first step.
+  - **IP retention: 210 days** (owner, 2026-10-01, final; same as the log
+    files). The daily beat task `wipe_sign_in_ips_task`
+    (`app/tasks/security_event_tasks.py`) removes `detail.ip` from
+    `web_sign_in` events older than that and keeps the event.
+  - The nullable `va_users.last_signed_in_at` is set on every completed web
+    sign-in and device session opening (one model method,
+    `VaUsers.mark_signed_in`), so the page reads one column instead of
+    scanning events. It is null for an account that has not signed in since
+    the column was added; the page shows "not recorded", not "never".
+
+### Job title (`digitva-04u4`)
+
+Owner, 2026-10-02: each person may have a free-text **job title** (for example
+"Chief Medical Officer, Faridabad"), `va_users.job_title`, nullable.
+
+- It is **not personal data**: it is the post people already know the person
+  by. Every role that can see the person sees it, a plain collaborator
+  included; it is never redacted, and it is never consulted for access. It is
+  distinct from the cadre (a standard category validated at grant time) and
+  from the role.
+- One validator, `user_account_service.clean_job_title`, for every write:
+  trimmed, at most 120 characters, no control characters; blank clears it.
+- Written by an admin (user create and edit), a data manager, In-charge or
+  project PI on the data-manager page (create, and edit by anyone who may
+  open the person), a mentoring-institute admin creating staff, and by the
+  person in their own profile (web Profile page, `PATCH
+  /api/v1/profile/job-title`, cookie session only). The project user import
+  and the CLI do not set it.
+- Shown wherever staff are listed today: the admin and data-manager user
+  lists and details, grant lists (`user_job_title`), the exact email or
+  mobile lookup, mentoring-institute staff lists and the profile.
 
 ## Performance
 

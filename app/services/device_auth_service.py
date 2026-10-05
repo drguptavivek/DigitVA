@@ -506,6 +506,7 @@ def open_session(*, device_id, device_secret, email, password, otp=None) -> tupl
     db.session.add(session)
     device.last_seen_at = session.last_seen_at
     db.session.flush()
+    user.mark_signed_in()
     record_security_event(
         user_id=user.user_id, event_type="device_session_opened",
         detail={"device_id": str(device.device_id)},

@@ -163,9 +163,10 @@ class AuthMobileCode(db.Model):
 class AuthSecurityEvent(db.Model):
     """Audit trail for factor changes, resets and counter anomalies.
 
-    Never carries credential IDs in full, public keys, TOTP secrets, codes,
-    challenges or IP addresses -- see docs/policy/authentication-factors.md
-    section 9. ``detail`` is small and non-secret.
+    Never carries credential IDs in full, public keys, TOTP secrets, codes
+    or challenges -- see docs/policy/authentication-factors.md section 9.
+    ``detail`` is small and non-secret; the only IP address is the client
+    address on ``web_sign_in``.
     """
 
     __tablename__ = "auth_security_events"

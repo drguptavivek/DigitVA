@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Current Data Model
@@ -551,7 +551,9 @@ its case at once). `status` is the case state, written only by
 
 One audit row per case creation, state change or flag: `death_id`, `action`
 (short code: `created`, `interview_started`, `identity_captured`,
-`submitted`, `draft_discarded`, `flag_duplicate`, ...), `from_state` (NULL on
+`submitted`, `draft_discarded`, `flag_duplicate`, `details_edited` and
+`identity_from_interview` (the changed field names in `reason`, never their
+values; state unchanged), ...), `from_state` (NULL on
 creation), `to_state`, `reason` (at most 200 characters, no personal data),
 `actor_user_id`, `authorizing_grant_id` and `authorizing_cadre_id` (the
 supervisor grant and its cadre a supervisor action relied on; NULL for team,
@@ -615,6 +617,16 @@ voided time). The migration backfilled `mobile_login` only for numbers held
 by exactly one account (dev 2026-10-03: 103 of 107 valid numbers; two shared
 numbers and four 9-digit numbers left for correction); its downgrade refuses
 while any account has no email.
+
+Migration `c7p3d9k2m5t8` (digitva-04u4, digitva-ci8; policy
+`docs/policy/people-and-roles-page.md`): two nullable columns on `va_users`.
+`job_title` (`String(120)`) is a person's public post, written only through
+`user_account_service.clean_job_title`, never redacted, never consulted for
+access. `last_signed_in_at` (timezone-aware) is set by
+`VaUsers.mark_signed_in` on a completed web sign-in and a device session
+opening. The `web_sign_in` event in `auth_security_events` now also carries
+the client IP in `detail.ip` (no schema change; stored only when it parses as an address; the daily
+`wipe_sign_in_ips_task` removes it from events older than 210 days).
 
 ## ICD Reference Master Table
 

@@ -1,12 +1,16 @@
-"""Coding and review workspace content — /api/v1/va/<sid>/workspace, .../categories/<code>, .../note
+"""Case workspace content — /api/v1/va/<sid>/workspace, .../categories/<code>, .../note
 
 One call for the workspace shell, one per category, for any client (cookie or
 bearer). Authorization comes first and is the one the COD writes use: coding
 needs the caller's active coding allocation (``require_coding_session``),
 reviewing REVIEW access plus their own active reviewing allocation. The
 content itself is ``case_content_service``, which the web partials render
-from too. There is no read-only "view" mode yet. The private note takes the
-same allocation check without rendering any category.
+from too. ``mode=view`` is the web's ``/coding/area/<sid>``: authorized by
+``Action.VIEW`` alone (no allocation), the viewer's categories and the saved
+assessments as read-only reference once coding is finished, never an
+editable block. The private
+note takes the allocation check without rendering any category, so it
+refuses ``mode=view``.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from app import db
 from app.decorators import role_required
 from app.models import VaFinalAssessments, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
-from app.services.authz import effective_roles
+from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
     category_block_code,
     coding_step,
@@ -46,6 +50,7 @@ from app.services.coder_cod_service import (
     other_conditions_choices,
     require_coding_session,
 )
+from app.services.coder_workflow_service import get_active_coding_allocation
 from app.services.coding_service import get_project_for_submission
 from app.services.doris_context_service import workspace_doris
 from app.services.field_mapping_service import get_mapping_service
@@ -56,21 +61,39 @@ from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_narrative_assessment,
     get_current_payload_social_autopsy_analysis,
 )
-from app.services.reviewer_coding_service import ReviewerCodingError, require_reviewing_session
+from app.services.reviewer_coding_service import (
+    ReviewerCodingError,
+    get_active_reviewing_allocation,
+    require_reviewing_session,
+)
+from app.services.reviewer_final_assessment_service import (
+    get_latest_active_reviewer_final_assessment,
+)
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.user_note_service import get_active_note, save_note
 from app.services.viewer_pii_service import should_redact_pii
+from app.services.workflow.definition import (
+    CODING_BUCKET_CODED,
+    CODING_BUCKET_NOT_CODEABLE,
+    coding_bucket,
+)
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.utils import va_get_form_type_code_for_form
 
 bp = Blueprint("va_case_api", __name__)
 
 #: ``mode`` query value -> the web ``action`` that picks the role's categories.
-_ACTION_BY_MODE = {"coding": "vacode", "reviewing": "vareview"}
+_ACTION_BY_MODE = {"coding": "vacode", "reviewing": "vareview", "view": "vaarea"}
 #: The open-session ``actiontype`` of each mode (a workspace is a resume of
 #: the held allocation); it is what makes a category's required form block.
-_SESSION_ACTIONTYPE = {"coding": "varesumecoding", "reviewing": "varesumereviewing"}
+#: A view is the read-only opening, which never blocks.
+_SESSION_ACTIONTYPE = {
+    "coding": "varesumecoding",
+    "reviewing": "varesumereviewing",
+    "view": "vaview",
+}
+_SESSION_MODES = ("coding", "reviewing")
 _CODING_ROLES = frozenset({"coder", "coding_tester"})
 
 
@@ -111,7 +134,7 @@ def _authorize_session(va_sid: str):
     """
     mode = request.args.get("mode")
     recode_active = False
-    if mode not in _ACTION_BY_MODE:
+    if mode not in _SESSION_MODES:
         return api_error("mode must be coding or reviewing.", "invalid_request", 400)
     roles = effective_roles(current_user)
     try:
@@ -133,13 +156,27 @@ def _authorize_session(va_sid: str):
     return _Session(mode, recode_active)
 
 
+def _authorize_view(va_sid: str):
+    """``_Session`` for ``mode=view`` (``Action.VIEW``, no allocation), or an
+    error response: 404 for a missing case, else 403."""
+    try:
+        require(current_user, Action.VIEW, va_sid)
+    except AuthzError as exc:
+        return api_error(exc.message, status_code=exc.status_code)
+    return _Session("view", False)
+
+
 def _authorize(va_sid: str):
     """The ``_Case`` the caller may open, or an ``(error response)`` tuple.
 
-    Nothing of the payload is read before the allocation and scope checks
-    pass; the visible-category computation below renders every category.
+    Nothing of the payload is read before the allocation (``mode=view``:
+    VIEW) and scope checks pass; the visible-category computation below
+    renders every category.
     """
-    session = _authorize_session(va_sid)
+    if request.args.get("mode") == "view":
+        session = _authorize_view(va_sid)
+    else:
+        session = _authorize_session(va_sid)
     if not isinstance(session, _Session):
         return session
     mode, recode_active = session.mode, session.recode_active
@@ -161,6 +198,18 @@ def _authorize(va_sid: str):
         ),
         recode_active=recode_active,
     )
+
+
+def _may_see_cod_reference(va_sid: str, workflow_state: str | None, user_id) -> bool:
+    """Whether a ``mode=view`` caller may see the COD reference and SmartVA.
+
+    Only once coding is finished (``coded`` / ``not_codeable`` bucket), and
+    never to a caller holding a coding or reviewing allocation on this case:
+    a view must not unblind a coder or reviewer who is still working it.
+    """
+    if coding_bucket(workflow_state) not in (CODING_BUCKET_CODED, CODING_BUCKET_NOT_CODEABLE):
+        return False
+    return va_sid not in (get_active_coding_allocation(user_id), get_active_reviewing_allocation(user_id))
 
 
 def _conditions(text) -> list[str]:
@@ -280,13 +329,22 @@ def _social_autopsy_json(case: _Case, va_sid: str, user_id) -> dict | None:
 
 
 @bp.get("/<va_sid>/workspace")
-@role_required("coder", "coding_tester", "reviewer")
+@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
 def workspace(va_sid):
-    """The workspace shell for ``?mode=coding|reviewing``.
+    """The workspace shell for ``?mode=coding|reviewing|view``.
 
     200 ``{case, categories, default_category, step, blocked_by,
     assessments, smartva, other_conditions_options, narrative_qa,
-    social_autopsy, doris}``; ``step`` is ``initial | final | done``.
+    social_autopsy, doris}``; ``step`` is ``initial | final | done``, or
+    ``view`` for a read-only view: ``blocked_by`` is empty, ``doris``,
+    ``narrative_qa``, ``social_autopsy``, ``other_conditions_options`` and
+    ``assessments.initial|initial_prefill`` are ``None`` (``case``'s two
+    switches false), ``final`` is the coder final the authoritative record
+    stands on, ``reviewer_final`` the latest active reviewer final of anyone,
+    ``coder_initial`` the display initial; those three, ``not_codeable`` and
+    SmartVA are ``None`` unless coding is finished (``coded`` /
+    ``not_codeable`` bucket) and the caller holds no coding or reviewing
+    allocation on the case.
     ``case.icd_classification`` (``icd10 | icd11``) names the coding search
     to call. ``narrative_qa`` / ``social_autopsy`` are ``None`` when the
     project's switch for this role is off, else the form definition plus the
@@ -300,6 +358,7 @@ def workspace(va_sid):
     if not isinstance(case, _Case):
         return case
     uid = current_user.user_id
+    view = case.mode == "view"
     category_service = get_category_rendering_service()
     nav = category_service.get_category_nav(
         case.form_type_code, case.va_action, case.visible_category_codes
@@ -314,6 +373,9 @@ def workspace(va_sid):
         own_reviewer_final=True,
     )
     masked = is_masked(case.project_mode)
+    workflow_state = get_submission_workflow_state(va_sid)
+    # ``mode=view`` only: the COD reference and SmartVA unblind coding.
+    show_reference = view and _may_see_cod_reference(va_sid, workflow_state, uid)
     # The authoritative record carries the coder final it stands on (or
     # supersedes); one primary-key read, usually already in the session.
     authoritative = artifacts.va_final_assess
@@ -350,6 +412,22 @@ def workspace(va_sid):
             assessments["final"] = _coder_final_json(coder_final)
         if artifacts.va_coder_review is not None and artifacts.va_coder_review.va_creview_by == uid:
             assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
+    elif view:
+        # Read-only reference once coding is finished: the authoritative
+        # final's coder row, the latest reviewer final of any reviewer.
+        if show_reference:
+            assessments["final"] = _coder_final_json(coder_final)
+            assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
+            assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
+            assessments["reviewer_final"] = _reviewer_final_json(
+                get_latest_active_reviewer_final_assessment(va_sid, None)
+            )
+        if should_redact_pii(current_user):
+            # Staff free text can name people; a redacted viewer gets the codes only.
+            for key, field in (("final", "remark"), ("reviewer_final", "remark"), ("not_codeable", "other")):
+                if assessments[key] is not None:
+                    assessments[key][field] = None
+        step = "view"
     else:
         # The reviewer sees the coder's Step 1, final and not-codeable review
         # as read-only reference; the reviewer rows are their own.
@@ -372,7 +450,7 @@ def workspace(va_sid):
         else artifacts.va_reviewer_initial_assess is not None
     )
     smartva = None
-    if not masked or has_initial:
+    if show_reference or (not view and (not masked or has_initial)):
         smartva = smartva_summary(get_active_smartva(va_sid))
     body = {
         "case": {
@@ -387,9 +465,9 @@ def workspace(va_sid):
                 if case.project and case.project.icd_classification
                 else DEFAULT_ICD_CLASSIFICATION
             ),
-            "workflow_state": get_submission_workflow_state(va_sid),
-            "narrative_qa_enabled": bool(case.project and case.project.narrative_qa_enabled),
-            "social_autopsy_enabled": social_autopsy_enabled(case.project, case.va_action),
+            "workflow_state": workflow_state,
+            "narrative_qa_enabled": not view and bool(case.project and case.project.narrative_qa_enabled),
+            "social_autopsy_enabled": not view and social_autopsy_enabled(case.project, case.va_action),
         },
         "categories": [
             {
@@ -404,7 +482,9 @@ def workspace(va_sid):
             case.form_type_code, case.va_action, case.visible_category_codes
         ),
         "step": step,
-        "blocked_by": final_blockers(
+        "blocked_by": []
+        if view
+        else final_blockers(
             va_sid=va_sid,
             va_action=case.va_action,
             user_id=uid,
@@ -415,9 +495,11 @@ def workspace(va_sid):
         "assessments": assessments,
         "smartva": smartva,
         "other_conditions_options": options,
-        "narrative_qa": _narrative_qa_json(case, va_sid, uid),
-        "social_autopsy": _social_autopsy_json(case, va_sid, uid),
-        "doris": workspace_doris(
+        "narrative_qa": None if view else _narrative_qa_json(case, va_sid, uid),
+        "social_autopsy": None if view else _social_autopsy_json(case, va_sid, uid),
+        "doris": None
+        if view
+        else workspace_doris(
             va_sid=va_sid,
             mode=case.mode,
             project_mode=case.project_mode,
@@ -455,14 +537,15 @@ def _subcategories(data, labels, render_modes, flip_labels, info_labels) -> list
 
 
 @bp.get("/<va_sid>/categories/<code>")
-@role_required("coder", "coding_tester", "reviewer")
+@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
 def category(va_sid, code):
-    """One category's data for ``?mode=coding|reviewing``.
+    """One category's data for ``?mode=coding|reviewing|view``.
 
     200 ``{code, label, render_mode, summary_items, subcategories, blocked_by}``;
     attachment values are ``/api/v1/attachments`` URLs (cookie or
     bearer). A category the role does not see is 404 ``not_found``, as one
-    that does not exist. Errors as ``workspace``.
+    that does not exist. ``mode=view`` never blocks and, for a caller who
+    sees no personal data, serves the redacted section. Errors as ``workspace``.
     """
     case = _authorize(va_sid)
     if not isinstance(case, _Case):
@@ -508,8 +591,12 @@ def category(va_sid, code):
             flip,
             info,
         )
-    block = category_block_code(
-        va_sid, code, case.va_action, _SESSION_ACTIONTYPE[case.mode], case.project, current_user.user_id
+    block = (
+        None
+        if case.mode == "view"
+        else category_block_code(
+            va_sid, code, case.va_action, _SESSION_ACTIONTYPE[case.mode], case.project, current_user.user_id
+        )
     )
     body = {
         "code": code,

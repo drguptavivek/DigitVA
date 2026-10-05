@@ -143,3 +143,21 @@ saved processing and Step 2 context only for an active review. Body stays
 `no-store`. Tests: service unit tests plus DORIS cases in
 `tests/routes/test_va_case_api.py`, including no certificate PII for a
 redacted viewer.
+
+## digitva-xl43.8 read-only case view: draft design (2026-10-06)
+
+`mode=view` on the two existing routes (`GET /api/v1/va/<sid>/workspace`,
+`/categories/<code>`), as the web's `/coding/area/<sid>`: `va_action
+"vaarea"` (viewer categories, no workflow panel), authorized by
+`Action.VIEW` (`authz.require`), not allocation; role list as
+`/coding/area` (coder, coding_tester, reviewer, collaborator,
+collaborator_pii, admin). Body: `step "view"`, `blocked_by []`; `doris`,
+`narrative_qa`, `social_autopsy`, `other_conditions_options`,
+`assessments.initial|initial_prefill` null; `assessments.final` the
+authoritative final, `reviewer_final` the latest active reviewer final,
+`coder_initial` the display initial (`get_display_initial_assessment`);
+SmartVA shown (no masking in a view). Category bodies already redact by
+caller (`get_section_data`). Note routes stay allocation-only. Media and
+`/api/v1/workflow/events/<sid>` are already VIEW-authorized. Tests: view
+without allocation, plain collaborator redacted, out of scope 403/404,
+doris null.

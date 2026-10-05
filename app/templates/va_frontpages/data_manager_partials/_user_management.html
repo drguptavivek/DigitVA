@@ -91,6 +91,10 @@
               <input type="text" class="form-control form-control-sm" id="dm-user-name" placeholder="Full Name">
             </div>
             <div class="col-sm-3">
+              <label class="form-label small mb-1">Job title</label>
+              <input type="text" class="form-control form-control-sm" id="dm-user-job-title" maxlength="120" placeholder="Optional">
+            </div>
+            <div class="col-sm-3">
               <label class="form-label small mb-1">Mobile number</label>
               <input type="text" class="form-control form-control-sm" id="dm-user-phone" placeholder="10-digit mobile" inputmode="tel">
             </div>
@@ -539,6 +543,7 @@
       return '<li class="list-group-item d-flex justify-content-between align-items-start">'
         + '<div class="small">'
         +   '<div class="fw-semibold">' + esc(u.name) + ' <span class="badge text-bg-light">' + esc(u.status) + '</span></div>'
+        +   (u.job_title ? '<div>' + esc(u.job_title) + '</div>' : '')
         +   '<div class="text-muted">' + esc(u.email) + '</div>'
         +   '<div>' + (posts.length ? posts.join('<br>') : '<span class="text-muted">No current posts</span>') + '</div>'
         + '</div>'
@@ -728,6 +733,7 @@
       return '<tr class="dm-user-row" data-user-id="' + esc(u.user_id) + '" style="cursor:pointer;">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
+        +   (u.job_title ? '<div class="small">' + esc(u.job_title) + '</div>' : '')
         +   '<div class="small text-muted">' + (u.email ? esc(u.email) : 'Signs in by mobile') + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
@@ -808,6 +814,7 @@
         : '<div class="text-muted fst-italic mb-0">No active site-level grants in your scope.</div>';
       body.innerHTML =
         '<div><strong>Name:</strong> ' + esc(u.name) + '</div>'
+        + (u.job_title ? '<div><strong>Job title:</strong> ' + esc(u.job_title) + '</div>' : '')
         + '<div><strong>Email:</strong> ' + (u.email ? esc(u.email) : '<span class="text-muted">None (signs in by mobile)</span>') + '</div>'
         + '<div><strong>Languages:</strong> ' + esc((u.languages || []).join(', ')) + '</div>'
         + '<div><strong>Status:</strong> ' + statusBadge + '</div>'
@@ -948,6 +955,7 @@
     document.getElementById('dm-user-email').value = '';
     document.getElementById('dm-user-email-confirm').value = '';
     document.getElementById('dm-user-name').value = '';
+    document.getElementById('dm-user-job-title').value = '';
     document.getElementById('dm-user-phone').value = '';
     document.getElementById('dm-user-initial-project').value = '';
     resetInitialGrantControls();
@@ -966,6 +974,7 @@
       email: document.getElementById('dm-user-email').value.trim().toLowerCase(),
       email_confirm: document.getElementById('dm-user-email-confirm').value.trim().toLowerCase(),
       name: document.getElementById('dm-user-name').value.trim(),
+      job_title: document.getElementById('dm-user-job-title').value.trim() || null,
       phone: document.getElementById('dm-user-phone').value.trim(),
       initial_role: document.getElementById('dm-user-initial-role').value,
       initial_scope_type: document.getElementById('dm-user-initial-scope').value,
@@ -1210,6 +1219,7 @@
       return '<tr>'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(g.user_name) + '</div>'
+        +   (g.user_job_title ? '<div class="small">' + esc(g.user_job_title) + '</div>' : '')
         +   '<div class="small text-muted">' + esc(g.user_email) + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(g.project_id || '') + '</td>'

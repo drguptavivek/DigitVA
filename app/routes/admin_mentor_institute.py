@@ -58,6 +58,7 @@ def _serialize_staff(user, link):
         "user_id": str(user.user_id),
         "email": user.email,
         "name": user.name,
+        "job_title": user.job_title,
         "is_admin": link.is_admin,
         "account_status": user.user_status.value,
     }

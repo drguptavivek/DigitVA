@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+import unicodedata
 
 import sqlalchemy as sa
 
@@ -121,8 +122,28 @@ def translate_integrity_error(exc) -> UserAccountError | None:
     return None
 
 
+JOB_TITLE_MAX_LENGTH = 120
+
+
+def clean_job_title(value) -> str | None:
+    """The one validator every job-title write goes through: trimmed text of
+    at most 120 characters with no control, format (bidi override, zero-width)
+    or line/paragraph-separator character; blank or None clears.
+    Raises UserAccountError (message safe to show) otherwise."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise UserAccountError("Job title must be text.")
+    title = value.strip()
+    if len(title) > JOB_TITLE_MAX_LENGTH:
+        raise UserAccountError(f"Job title is at most {JOB_TITLE_MAX_LENGTH} characters.")
+    if any(unicodedata.category(ch) in ("Cc", "Cf", "Zl", "Zp") for ch in title):
+        raise UserAccountError("Job title cannot contain control or invisible characters.")
+    return title or None
+
+
 def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False) -> dict:
-    """Return the cleaned email, name, phone, mobile and languages.
+    """Return the cleaned email, name, job title, phone, mobile and languages.
 
     *allow_mobile_only*: the caller can show a one-time sign-in code, so an
     account with a mobile number and no email may be created (admin and the
@@ -140,6 +161,7 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
     phone = (payload.get("phone") or "").strip()
     languages = payload.get("languages")
     mobile = canonical_mobile(phone)
+    job_title = clean_job_title(payload.get("job_title"))
 
     if allow_mobile_only and not email and not email_confirm:
         if not name:
@@ -175,6 +197,7 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
         "phone": phone,
         "mobile": mobile,
         "languages": languages,
+        "job_title": job_title,
     }
 
 
@@ -196,6 +219,7 @@ def create_invited_user(
     user = VaUsers(
         email=fields["email"],
         name=fields["name"],
+        job_title=fields.get("job_title"),
         phone=fields["phone"] or None,
         mobile_login=fields.get("mobile"),
         user_status=VaStatuses.active,

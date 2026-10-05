@@ -61,6 +61,29 @@
 
   <div class="row g-4 mt-1">
     <div class="col-12">
+      <div id="job-title-card" class="card shadow-sm w-100 border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-briefcase me-2"></i>Job title</h5>
+          <p class="text-muted small">Optional. Your post, for example "Chief Medical Officer, Faridabad". Everyone who can see you in a list sees it; it gives no access.</p>
+        </div>
+        <div class="card-body">
+          <div class="row g-2 align-items-end" style="max-width: 32rem;">
+            <div class="col-sm-9">
+              <label class="form-label text-muted small fw-bold" for="job-title-input">Job title</label>
+              <input type="text" id="job-title-input" class="form-control form-control-sm" maxlength="120">
+            </div>
+            <div class="col-sm-3">
+              <button id="job-title-btn" class="btn btn-primary btn-sm w-100">Save</button>
+            </div>
+          </div>
+          <div id="job-title-msg" class="small mt-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12">
       <div id="interviewer-card" class="card shadow-sm w-100 border-0">
         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
           <h5 class="card-title text-primary"><i class="fa fa-id-card me-2"></i>Interviewer details</h5>
@@ -220,6 +243,17 @@ $(document).ready(async function () {
     document.getElementById('genpw-value').textContent = data.password || '';
     document.getElementById('genpw-result').hidden = false;
     genBtn.disabled = true;
+  });
+
+  // ── Job title ─────────────────────────────────────────────────────────
+  const jobTitleInput = document.getElementById('job-title-input');
+  jobTitleInput.value = profile.job_title || '';
+  document.getElementById('job-title-btn').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/v1/profile/job-title', 'PATCH', {
+      job_title: jobTitleInput.value.trim() || null,
+    });
+    if (ok) jobTitleInput.value = data.job_title || '';
+    showMsg('job-title-msg', data.message || data.error, ok);
   });
 
   // ── Interviewer details ───────────────────────────────────────────────

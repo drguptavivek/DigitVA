@@ -1138,6 +1138,7 @@ def _serialize_grant(row):
         "user_id": str(row.user_id),
         "user_email": row.email,
         "user_name": row.name,
+        "user_job_title": getattr(row, "job_title", None),
         "role": row.role.value,
         "scope_type": row.scope_type.value,
         "project_id": row.resolved_project_id,
@@ -2182,6 +2183,7 @@ def _serialize_user(user, *, include_profile=False):
         "user_id": str(user.user_id),
         "email": user.email,
         "name": user.name,
+        "job_title": user.job_title,
         "status": user.user_status.value,
         "email_verified": bool(user.email_verified),
         "mobile_only": user.is_mobile_only,
@@ -2307,7 +2309,15 @@ def admin_update_user(target_user_id):
         if not name:
             return _json_error("Name cannot be empty.", 400)
         target_user.name = name
-        
+
+    if "job_title" in payload:
+        from app.services import user_account_service as accounts
+
+        try:
+            target_user.job_title = accounts.clean_job_title(payload["job_title"])
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
+
     if "phone" in payload:
         from app.services import user_account_service as accounts
 
@@ -2594,6 +2604,7 @@ def admin_access_grants():
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
+            VaUsers.job_title,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
             *_grant_org_unit_columns(),
@@ -2786,6 +2797,7 @@ def admin_create_access_grant():
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
+            VaUsers.job_title,
             _grant_project_id_expression().label("resolved_project_id"),
             _grant_site_id_expression().label("resolved_site_id"),
             *_grant_org_unit_columns(),

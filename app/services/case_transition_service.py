@@ -131,7 +131,7 @@ _FLAGGABLE = {
     "duplicate": frozenset({"registered", "scheduled", "in_progress", "paused", "submitted"}),
     "cancel": frozenset({"registered", "scheduled", "in_progress", "paused"}),
 }
-_REASON_MAX = 200
+REASON_MAX = 200
 
 
 def supervised_case_condition(user: VaUsers):
@@ -216,8 +216,8 @@ def _clean_reason(reason: str | None) -> str | None:
     value = (reason or "").strip()
     if not value:
         return None
-    if len(value) > _REASON_MAX:
-        raise WebIntakeError(f"The reason must be at most {_REASON_MAX} characters.")
+    if len(value) > REASON_MAX:
+        raise WebIntakeError(f"The reason must be at most {REASON_MAX} characters.")
     return value
 
 

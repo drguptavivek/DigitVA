@@ -113,6 +113,7 @@
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + adminBadge + '</div>'
+        +   (u.job_title ? '<div class="small">' + esc(u.job_title) + '</div>' : '')
         +   '<div class="small text-muted">' + (u.email ? esc(u.email) : 'Signs in by mobile') + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
@@ -333,6 +334,7 @@
   var emailConfirmInput = document.getElementById('user-email-confirm-input');
   var emailConfirmAsterisk = document.getElementById('user-email-confirm-asterisk');
   var nameInput = document.getElementById('user-name-input');
+  var jobTitleInput = document.getElementById('user-job-title-input');
   var phoneInput = document.getElementById('user-phone-input');
   var yobInput = document.getElementById('user-yob-input');
   var sexInput = document.getElementById('user-sex-input');
@@ -355,6 +357,7 @@
     emailConfirmInput.disabled = false;
     emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = '';
+    jobTitleInput.value = '';
     phoneInput.value = '';
     yobInput.value = '';
     sexInput.value = '';
@@ -379,6 +382,7 @@
     emailConfirmInput.disabled = false;
     emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = user.name;
+    jobTitleInput.value = user.job_title || '';
     phoneInput.value = user.phone || '';
     yobInput.value = user.year_of_birth == null ? '' : String(user.year_of_birth);
     sexInput.value = user.sex || '';
@@ -442,6 +446,7 @@
 
     var data = {
       name: nameInput.value.trim(),
+      job_title: jobTitleInput.value.trim() || null,
       phone: phoneInput.value.trim(),
       languages: languagesInput.val()
     };

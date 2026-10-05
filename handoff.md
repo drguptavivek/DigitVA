@@ -19,7 +19,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
 > (3800 passed, 9 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
-> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Shared checkout: the Expo session has uncommitted work in `mobile/`; build commit lists with `grep -Ev '^(mobile|vendor)/'` (BSD grep has no `\|`) and check the staged list before committing. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
+> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `c7p3d9k2m5t8`. Shared checkout: the Expo session has uncommitted work in `mobile/`; build commit lists with `grep -Ev '^(mobile|vendor)/'` (BSD grep has no `\|`) and check the staged list before committing. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
@@ -118,6 +118,17 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       immediate-cause lines rely on WHO's check, not ours.
       `digitva-ntct.4` done: overlapping wide + unit interviewer grants keep
       the whole tree (Expo section 11 landing blocker).
+   e. Built 2026-10-06: `digitva-04u4` job title (public, every role sees
+      it), `digitva-ci8` sign-in IP on `web_sign_in` + `last_signed_in_at`
+      + daily 210-day IP wipe, `digitva-xl43.8` read-only `mode=view`
+      (COD reference and SmartVA only once coding is finished and never to
+      the case's holder), `digitva-uq6v` `PATCH /api/v1/intake/deaths/<id>`
+      (editable until an interview is completed; anyone who can see the
+      death). **Next: `uq6v` follow-up** (owner 2026-10-06): the case keeps
+      the latest values and the previous ones go to the case audit with
+      old/new values (migration on `c7p3d9k2m5t8`); a completed interview's
+      date of birth and age become the case's and show in the death list.
+      Edit screen: Expo app (`expo-handoff.md` section 13), no Flask form.
    Open owner question: fold form-options and prefill-policy into
    `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).
 2. **Deploy notes.** This field-collection release: migrations
@@ -128,6 +139,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    worker so the notification purge beat row is seeded. Rebuild
    `app/data/who-va-2022.composed.json` (`cd tooling/who-va-2022 && npm run
    build:composed-instrument`) after any `vendor/who-va-2022` change.
+   2026-10-06 batch: migration `c7p3d9k2m5t8` (`va_users.job_title`,
+   `last_signed_in_at`); restart the Celery worker so the "Sign-in IP wipe —
+   daily" beat row is seeded; bump `STATIC_ASSET_VERSION` (users panel and
+   DM user-management scripts changed). The stored sign-in IP relies on the
+   reverse proxy appending or overwriting `X-Forwarded-For`: confirm it.
    `digitva-ntct.3`: grant cache `_FORMAT` is 3 (old entries are re-read);
    bump the authz global version below.
    Self-coding: migration `b4k8m2r6w9x3`; bump `STATIC_ASSET_VERSION`

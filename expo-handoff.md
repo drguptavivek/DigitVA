@@ -710,3 +710,28 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
      "..."}}` (upper-case codes), tied to the DORIS editor and the WHO
      DORIS model (owner 2026-10-05). Read `error.code` there. The COD save
      routes stay flat (a DORIS conflict adds `processing`).
+
+## 13. Correcting a death, and the read-only case view (server built 2026-10-06)
+
+App halves: build in the Expo app (web and native); the server ships no web
+form for these (owner, 2026-10-06).
+
+1. **Correcting a registered death** (`digitva-uq6v`). `PATCH
+   /api/v1/intake/deaths/<death_id>` with only the register fields to change
+   and optional `if_updated_at` (the `case.updated_at` last seen). Anyone who
+   can see the death (or supervises it) may correct it until an interview of
+   the case is completed. 200 `{"case": <detail>}`; 409 `case_completed`,
+   `details_pending` (identity not captured yet), `death_stale` (reload and
+   retry); 422 `invalid_death` (same validation as registration). Build the
+   edit screen from the registration form. Once an interview is completed,
+   its identity becomes the case's (follow-up in progress: date of birth and
+   age too, shown in the death list).
+2. **Read-only case view** (`digitva-xl43.8`). `GET
+   /api/v1/va/<sid>/workspace?mode=view` and `/categories/<code>?mode=view`:
+   open any case the user may view, without holding it (finished cases, a
+   colleague's case). Nothing editable: `step: "view"`, no DORIS, NQA or
+   Social Autopsy forms; final COD, reviewer final, coder Step 1 and SmartVA
+   are reference. Workflow history: `GET /api/v1/workflow/events/<sid>`.
+   Full shape: `docs/current-state/api-v1.md`, "Workspace content". This
+   lifts the finished-case-view hold in section 12.
+

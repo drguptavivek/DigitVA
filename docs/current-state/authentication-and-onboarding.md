@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -996,12 +996,15 @@ working tree; they stay listed until that change is committed.
    data-manager page (gate includes In-charges and tree-project PIs; a
    project PI on a non-tree project cannot use it); the project import
    (admin or project_pi, mobile-only rows admin only); mentoring-institute
-   staff (mobile-only by a platform admin only). No job title is recorded
-   (`digitva-04u4` not built).
+   staff (mobile-only by a platform admin only). Each path takes an optional
+   `job_title` (`clean_job_title`; the project import does not); the person
+   edits their own at `PATCH /api/v1/profile/job-title`.
 7. **Closed: audit** (onboarding section 9): `account_created` (every
    creation path, with `via` and `mobile_only`), `verification_email_sent`
    (every queued verification email, with the actor), `web_sign_in`
-   (`method`) and `web_sign_in_failed` (`reason`; account id only when it
+   (`method` and the client IP `ip`, which no other event carries; also stamps
+   `va_users.last_signed_in_at`; the IP is stored only when it parses as an address, and
+   the daily `wipe_sign_in_ips_task` removes it after 210 days) and `web_sign_in_failed` (`reason`; account id only when it
    exists and is active), and `terms_accepted` (`via`). None carries an
    identifier, password, code or token. "Sessions ended" is still implied by
    `password_generated` and `factor_reset`; verification completed is

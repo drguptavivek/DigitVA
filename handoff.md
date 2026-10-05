@@ -18,7 +18,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3690 passed, 9 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
+> (3800 passed, 9 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
 > ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Shared checkout: the Expo session has uncommitted work in `mobile/`; build commit lists with `grep -Ev '^(mobile|vendor)/'` (BSD grep has no `\|`) and check the staged list before committing. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
@@ -78,9 +78,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       rendered pages), private note `GET|PUT /api/v1/va/<sid>/note`, flat
       `{error, code}` on reviewing/NQA/Social Autopsy, reviewer queue
       (`/reviewing/stats|available|history`) and release (owner: Step 1
-      kept). The app's coding/review workspace `digitva-p6fs.4` is
-      unblocked (contract `expo-handoff.md` section 12). Left:
-      `digitva-xl43.3` DORIS prefill in the workspace, a read-only view mode
+      kept). The app's coding/review workspace `digitva-p6fs.4` can start
+      once two gaps the Expo session reported close (section 12
+      status line): `digitva-xl43.6` the workspace names the case's ICD-10
+      or ICD-11 catalogue, `digitva-xl43.7` NQA and Social Autopsy form
+      metadata and the caller's saved values come from the server. Do
+      these next. Then `digitva-xl43.3` DORIS prefill, a read-only view mode
       if the app needs one; device check that native players do not forward
       the bearer to the S3 presigned redirect (`digitva-p6fs.5`).
       Body caps read `Content-Length` and refuse a body without one (413);

@@ -609,3 +609,30 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
    `{va_sid, workflow_state}`, 409 `no_allocation` / `wrong_state`; the
    reviewer's saved Step 1 is kept and their NQA and Social Autopsy analysis
    are cleared, as on a timeout.
+8. **ICD catalogue, Narrative QA and Social Autopsy** (`digitva-xl43.6`,
+   `digitva-xl43.7`, server built 2026-10-05 in `b0c91950`; this closes the
+   two gaps in the Expo status line above). Full shapes: `api-v1.md`,
+   "Workspace content". The workspace now carries:
+   - `case.icd_classification`, `icd10` or `icd11`. Search with
+     `GET /api/v1/icd10/2019-2/coding-search/<va_sid>?q=` or
+     `GET /api/v1/icd11/coding-search/<va_sid>?q=` to match; the other one
+     answers 400. Both take the bearer.
+   - `narrative_qa`: null when the project has it off, else
+     `{fields: [{key, label, options: [{value, label}]}], max_score: 10,
+     saved}`. `saved` is null or the caller's own
+     `{cannot_grade, values: {key: int}, score, rating}` on the current
+     payload (a cannot-grade save returns its stored zeros). Render the
+     fields in the server's order; `key` is the save body key.
+   - `social_autopsy`: null when the role's switch is off, else
+     `{questions: [{delay_level, title, options: [{option_code, label,
+     description}]}], saved}`; `saved` is null or the caller's own
+     `{selected_options: [{delay_level, option_code}], remark}`.
+   Save with the existing `POST /api/v1/va/<va_sid>/narrative-qa`
+   (`{va_actiontype, cannot_grade, length, pos_symptoms, neg_symptoms,
+   chronology, doc_review, comorbidity}`) and
+   `POST /api/v1/va/<va_sid>/social-autopsy`
+   (`{va_actiontype, selected_options, remark}`). `va_actiontype` decides the
+   role: a reviewer must send `varesumereviewing`, a coder `varesumecoding`;
+   a reviewer save without it is checked as a coder save and refused. Social
+   Autopsy needs every delay level answered, and `none` is exclusive within a
+   level. After a save, reload the workspace: `blocked_by` drops the gate.

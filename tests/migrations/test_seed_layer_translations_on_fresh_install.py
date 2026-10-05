@@ -158,10 +158,12 @@ class FreshInstallSeedTest(unittest.TestCase):
                     self.assertFalse(row.is_active)
                     self.assertEqual(row.lifecycle_state, "draft")
 
+            # Only the layer rows: e9h3k6p2s8v4 later adds Hindi note drafts.
             strings = db.session.execute(
                 sa.text(
                     "SELECT locale_code, source FROM map_instrument_translations "
-                    "WHERE instrument_code = :code"
+                    "WHERE instrument_code = :code "
+                    "AND field NOT IN ('guidance_hint', 'constraint_message')"
                 ),
                 {"code": INSTRUMENT_CODE},
             ).all()

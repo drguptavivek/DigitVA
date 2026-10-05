@@ -146,8 +146,11 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     container.classList.add('ite-richtext');
     var spans = parseRichText(text || '');
     spans.forEach(function (span) {
-      var node = span.href ? document.createElement('a') : document.createElement('span');
-      if (span.href) { node.href = span.href; node.target = '_blank'; node.rel = 'noopener'; }
+      // Only http(s) links become anchors; a javascript: or data: href in a
+      // translation stays plain text.
+      var safeHref = span.href && /^https?:\/\//i.test(span.href) ? span.href : null;
+      var node = safeHref ? document.createElement('a') : document.createElement('span');
+      if (safeHref) { node.href = safeHref; node.target = '_blank'; node.rel = 'noopener'; }
       node.textContent = span.text;
       if (span.bold) node.style.fontWeight = 'bold';
       if (span.italic) node.style.fontStyle = 'italic';
@@ -548,6 +551,10 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       row.translated_label = f.textarea.value; row.source = f.source;
     } else if (f.kind === 'question' && f.field === 'hint' && row.hint) {
       row.hint.translated = f.textarea.value; row.hint.source = f.source;
+    } else if (f.kind === 'question' && f.field === 'constraint_message' && row.constraint_message) {
+      row.constraint_message.translated = f.textarea.value; row.constraint_message.source = f.source;
+    } else if (f.kind === 'question' && f.field === 'guidance_hint' && row.guidance) {
+      row.guidance.translated = f.textarea.value; row.guidance.source = f.source;
     } else if (f.kind === 'choice') {
       var value = f.key.split('/').slice(1).join('/');
       (row.choices || []).forEach(function (c) {
@@ -583,14 +590,16 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       }
       if (row.constraint_message) {
         body.appendChild(buildFieldRow({
-          label: 'Constraint message', english: row.constraint_message.english,
-          editable: false, note: 'Untranslated in every locale',
+          kind: 'question', key: row.name, field: 'constraint_message', label: 'Constraint message',
+          english: row.constraint_message.english, translated: row.constraint_message.translated,
+          source: row.constraint_message.source, editable: true,
         }));
       }
       if (row.guidance) {
         body.appendChild(buildFieldRow({
-          label: 'Guidance', english: row.guidance.english,
-          editable: false, note: 'Untranslated in every locale',
+          kind: 'question', key: row.name, field: 'guidance_hint', label: 'Guidance',
+          english: row.guidance.english, translated: row.guidance.translated,
+          source: row.guidance.source, editable: true,
         }));
       }
     }

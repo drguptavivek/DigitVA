@@ -129,6 +129,11 @@ def import_workbook(
         f"  labels={report.label_coverage:.1%} "
         f"({report.translated_labels}/{report.reference_labels} survey labels)"
     )
+    click.echo(
+        f"  notes={report.notes_coverage:.1%} "
+        f"({report.translated_notes}/{report.reference_notes} "
+        "guidance notes and constraint messages)"
+    )
     for name, counts in sorted(report.extension_coverage.items()):
         total = counts["total"]
         pct = (counts["translated"] / total) if total else 0.0
@@ -328,6 +333,7 @@ def status(instrument_code, extensions):
             f"{row['version']:<5}"
             f"{coverage:>9}  "
             f"labels {row['label_coverage']:.1%}  "
+            f"notes {row['notes_coverage']:.1%}  "
             f"{row['source_document'] or '-'}"
         )
         if extensions:

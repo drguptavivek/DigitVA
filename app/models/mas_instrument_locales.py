@@ -5,7 +5,7 @@ and docs/policy/va-web-form-options.md ("Adding a language").
 
 A translation is *data*, not part of the instrument bundle. The instrument's
 structure is pre-built and immutable (decision O1); a locale only supplies the
-text shown for a question, hint, guidance note or choice. That is why these two
+text shown for a question, hint, guidance note, constraint message or choice. That is why these two
 tables carry no structure of their own: ``item_key`` names something the
 reference already has -- the curated reference form or a DigitVA layer -- and
 an import can never create a question.
@@ -41,6 +41,10 @@ ITEM_KIND_CHOICE = "choice"
 FIELD_LABEL = "label"
 FIELD_HINT = "hint"
 FIELD_GUIDANCE = "guidance_hint"
+#: The text shown when an answer fails its constraint (digitva-8go.1). Not a
+#: column of any deployed workbook's translations; it is authored as machine
+#: drafts and served once a speaker accepts them.
+FIELD_CONSTRAINT_MESSAGE = "constraint_message"
 
 #: ``source`` values. ``imported`` rows are overwritten by a re-import;
 #: ``edited`` rows are an administrator's correction and are kept. ``machine``

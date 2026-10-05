@@ -144,3 +144,20 @@ test("no translations (the base locale) returns an untouched copy", () => {
   assert.deepEqual(same, base);
   assert.notEqual(same, base);
 });
+
+test("a translated constraint message also fills the validation copy", () => {
+  // The engine refuses a question whose validation.constraintMessage differs
+  // from constraintMessage (digitva-8go.1), so both must carry the locale.
+  const base = instrument();
+  base.questions[1].constraintMessage = { en: "Too long." };
+  base.questions[1].validation = { constraintMessage: { en: "Too long." } };
+  const out = applyTranslations(
+    base,
+    { questions: { Id10007: { constraint_message: "बहुत लंबा।" } } },
+    "hi",
+  );
+  const question = out.questions[1];
+  assert.equal(question.constraintMessage.hi, "बहुत लंबा।");
+  assert.deepEqual(question.validation.constraintMessage, question.constraintMessage);
+  assert.equal(base.questions[1].validation.constraintMessage.hi, undefined);
+});

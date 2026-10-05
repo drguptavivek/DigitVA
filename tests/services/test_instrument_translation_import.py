@@ -158,6 +158,33 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertEqual(report.translated_labels, 1)
         self.assertAlmostEqual(report.label_coverage, 0.5)
 
+    def test_a_constraint_message_is_imported_and_counted_as_a_note_not_in_the_headline(self):
+        """digitva-8go.1: constraint_message is a translatable field, reported
+        on its own notes line while the headline denominator is unchanged."""
+        self._extend_reference(
+            extra_survey=[{"type": "text", "name": "Q3", "label::English (en)": "Third",
+                           "constraint_message::English (en)": "Letters only"}],
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q3", "label::English (en)": "Third",
+              "constraint_message::English (en)": "Letters only",
+              "constraint_message::Hindi (hi)": "केवल अक्षर"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        report = self._import(workbook)
+        db.session.flush()
+
+        rows = self._rows()
+        self.assertIn(("question", "Q3", "constraint_message"), rows)
+        self.assertEqual(rows[("question", "Q3", "constraint_message")].text, "केवल अक्षर")
+        self.assertEqual(report.reference_notes, 1)
+        self.assertEqual(report.translated_notes, 1)
+        self.assertAlmostEqual(report.notes_coverage, 1.0)
+        # Q1, Q2, Q3 labels + Q1 hint + two choices; the message is not counted.
+        self.assertEqual(report.reference_items, 6)
+        self.assertEqual(report.translated_items, 0)
+
     def test_a_cell_packing_english_and_the_target_language_is_split(self):
         workbook = _write_workbook(
             self.tmp / "source_hi.xlsx",

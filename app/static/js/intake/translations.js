@@ -21,6 +21,7 @@ const QUESTION_FIELDS = [
   ["label", "label"],
   ["hint", "hint"],
   ["guidance_hint", "guidance"],
+  ["constraint_message", "constraintMessage"],
 ];
 
 function setLocalized(target, key, locale, text) {
@@ -33,7 +34,7 @@ function setLocalized(target, key, locale, text) {
  * Return a copy of `instrument` carrying `translations` under `locale`.
  *
  * @param {object} instrument  The pre-built instrument.
- * @param {object} translations  {questions: {name: {label, hint, guidance_hint}},
+ * @param {object} translations  {questions: {name: {label, hint, guidance_hint, constraint_message}},
  *                                choices: {"list/value": {label}}}
  * @param {string} locale  The locale code the strings are filed under.
  * @returns {object} A new instrument; the original is untouched.
@@ -58,6 +59,11 @@ export function applyTranslations(instrument, translations, locale) {
     if (entry) {
       for (const [field, target] of QUESTION_FIELDS) {
         setLocalized(question, target, locale, entry[field]);
+      }
+      // The engine refuses a question whose validation copy of the message
+      // differs from constraintMessage, so translate both or the form throws.
+      if (question.validation) {
+        setLocalized(question.validation, "constraintMessage", locale, entry.constraint_message);
       }
     }
     if (!question.listName) continue;

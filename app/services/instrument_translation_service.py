@@ -16,6 +16,9 @@ TypeScript instrument builder. ``tooling/who-va-2022/build-layer-reference.mjs``
 serializes their English strings to the committed
 ``vendor/who-va-2022/src/generated/digitva-layers.reference.json`` artifact;
 this module reads it rather than duplicating the layer definitions in Python.
+Constraint messages (``constraint_message``) are the one field taken from the
+built instrument instead of the workbook, because the build overrides a few of
+the workbook's (see :func:`_reference_items_cached`).
 
 The rule this module still exists to enforce:
 
@@ -66,6 +69,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models.mas_instrument_locales import (
+    FIELD_CONSTRAINT_MESSAGE,
     FIELD_GUIDANCE,
     FIELD_HINT,
     FIELD_LABEL,
@@ -133,9 +137,10 @@ LIFECYCLE_STATES = (LIFECYCLE_DRAFT, LIFECYCLE_IN_REVIEW, LIFECYCLE_APPROVED)
 
 #: Cap on one page of the admin string list, applied server-side.
 MAX_STRING_PAGE_SIZE = 200
-# A label, hint or guidance note; the longest reference string is well under
-# a thousand characters, so this bounds an edit without constraining prose.
-MAX_TRANSLATION_TEXT_CHARS = 4000
+# The longest reference string is a ~6,400-character guidance note and
+# Devanagari runs longer than English, so this bounds an edit without
+# constraining any real note (digitva-8go.1 raised it from 4000).
+MAX_TRANSLATION_TEXT_CHARS = 16000
 
 #: "label::Hindi (hi)" -> ("label", "Hindi", "hi").
 _HEADER_RE = re.compile(
@@ -143,7 +148,15 @@ _HEADER_RE = re.compile(
 )
 
 #: The XLSForm columns a translation may carry, and nothing else.
-_TRANSLATABLE_FIELDS = (FIELD_LABEL, FIELD_HINT, FIELD_GUIDANCE)
+_TRANSLATABLE_FIELDS = (
+    FIELD_LABEL, FIELD_HINT, FIELD_GUIDANCE, FIELD_CONSTRAINT_MESSAGE,
+)
+
+#: The fields reported as their own "notes" breakdown line (digitva-8go.1).
+#: Constraint messages joined the reference then, and the headline coverage
+#: figure deliberately leaves them out so adding them moved no locale's
+#: headline; guidance stays in the headline, where it always was.
+_NOTE_FIELDS = (FIELD_GUIDANCE, FIELD_CONSTRAINT_MESSAGE)
 
 #: How much of a string reaches the log. Translations hold no PII, but an edit
 #: log line is an audit record, not a copy of the questionnaire.
@@ -213,6 +226,8 @@ class ImportReport:
     translated_items: int = 0
     reference_labels: int = 0
     translated_labels: int = 0
+    reference_notes: int = 0
+    translated_notes: int = 0
     written: int = 0
     kept_edited: int = 0
     #: True when this import found the locale ``approved`` and, with the
@@ -241,6 +256,13 @@ class ImportReport:
             return 0.0
         return self.translated_labels / self.reference_labels
 
+    @property
+    def notes_coverage(self) -> float:
+        """Breakdown: translated / all guidance notes and constraint messages."""
+        if not self.reference_notes:
+            return 0.0
+        return self.translated_notes / self.reference_notes
+
     def as_dict(self) -> dict:
         return {
             "instrument_code": self.instrument_code,
@@ -254,6 +276,9 @@ class ImportReport:
             "label_coverage": round(self.label_coverage, 4),
             "reference_labels": self.reference_labels,
             "translated_labels": self.translated_labels,
+            "notes_coverage": round(self.notes_coverage, 4),
+            "reference_notes": self.reference_notes,
+            "translated_notes": self.translated_notes,
             "written": self.written,
             "kept_edited": self.kept_edited,
             "demoted": self.demoted,
@@ -433,7 +458,7 @@ def _choice_list_counts(instrument_code: str) -> dict[str, int]:
 
 @lru_cache(maxsize=4)
 def _reference_items_cached(
-    workbook_path: str, layer_path: str
+    workbook_path: str, layer_path: str, instrument_path: str
 ) -> dict[tuple[str, str, str], str]:
     items, _ = read_workbook_items(workbook_path)
     english = items.get(BASE_LOCALE)
@@ -452,6 +477,21 @@ def _reference_items_cached(
                 "must name disjoint items."
             )
         merged[key] = entry["text"]
+    # What an interviewer is shown on a failed constraint is the built
+    # instrument's message, not the workbook column: the build overrides a few
+    # (Id10007, Id10010, Id10023_a/b add one; Id10365 drops one). A question the
+    # instrument does not know, or the reference has no label for, is left as
+    # the workbook had it.
+    if Path(instrument_path).exists():
+        for question in _generated_instrument_cached(instrument_path):
+            if (ITEM_KIND_QUESTION, question["name"], FIELD_LABEL) not in merged:
+                continue
+            key = (ITEM_KIND_QUESTION, question["name"], FIELD_CONSTRAINT_MESSAGE)
+            text = (question.get("constraintMessage") or {}).get(BASE_LOCALE)
+            if text:
+                merged[key] = text
+            else:
+                merged.pop(key, None)
     return merged
 
 
@@ -469,7 +509,9 @@ def reference_items(
         raise InstrumentTranslationError(
             f"No reference form is bundled for instrument {instrument_code!r}."
         )
-    return _reference_items_cached(str(REFERENCE_WORKBOOK), str(LAYER_REFERENCE_PATH))
+    return _reference_items_cached(
+        str(REFERENCE_WORKBOOK), str(LAYER_REFERENCE_PATH), str(GENERATED_INSTRUMENT_PATH)
+    )
 
 
 @lru_cache(maxsize=4)
@@ -517,8 +559,26 @@ def reference_label_keys(
 def reference_item_keys(
     instrument_code: str = BASE_INSTRUMENT_CODE,
 ) -> set[tuple[str, str, str]]:
-    """Every translatable item -- any kind or field. Headline denominator."""
-    return set(reference_items(instrument_code))
+    """Every translatable item bar constraint messages. Headline denominator.
+
+    Constraint messages are left out (digitva-8go.1) so adding them to the
+    reference moved no locale's headline coverage; they are counted in
+    :func:`reference_note_keys` instead.
+    """
+    return {
+        key
+        for key in reference_items(instrument_code)
+        if key[2] != FIELD_CONSTRAINT_MESSAGE
+    }
+
+
+def reference_note_keys(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> set[tuple[str, str, str]]:
+    """Every guidance note and constraint message: the "notes" breakdown line."""
+    return {
+        key for key in reference_items(instrument_code) if key[2] in _NOTE_FIELDS
+    }
 
 
 def extension_label_keys(
@@ -820,6 +880,7 @@ def import_translations(
     reference = reference_items(instrument_code)
     item_keys = reference_item_keys(instrument_code)
     label_keys = reference_label_keys(instrument_code)
+    note_keys = reference_note_keys(instrument_code)
     workbook_items, names = read_workbook_items(path)
     incoming_raw = workbook_items.get(locale_code, {})
 
@@ -832,6 +893,7 @@ def import_translations(
     )
     report.reference_items = len(item_keys)
     report.reference_labels = len(label_keys)
+    report.reference_notes = len(note_keys)
     report.unknown_in_workbook = sorted(
         f"{kind}:{key}:{fld}" for (kind, key, fld) in incoming_raw if (kind, key, fld) not in reference
     )
@@ -859,6 +921,7 @@ def import_translations(
     if cross_check:
         report.translated_items = len(item_keys & set(incoming))
         report.translated_labels = len(label_keys & set(incoming))
+        report.translated_notes = len(note_keys & set(incoming))
         report.extension_coverage = _extension_coverage(instrument_code, set(incoming))
         log.info(
             "instrument translations cross-check | %s/%s | workbook=%s | "
@@ -919,6 +982,7 @@ def import_translations(
     }
     report.translated_items = len(item_keys & translated)
     report.translated_labels = len(label_keys & translated)
+    report.translated_notes = len(note_keys & translated)
     report.extension_coverage = _extension_coverage(instrument_code, translated)
 
     locale_row.source_document = path.name
@@ -1067,6 +1131,8 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
     reference_item_total = len(item_keys)
     label_keys = reference_label_keys(instrument_code)
     reference_label_total = len(label_keys)
+    note_keys = reference_note_keys(instrument_code)
+    reference_note_total = len(note_keys)
     translated_by_locale = _translated_item_keys_by_locale(instrument_code)
     rows = db.session.scalars(
         sa.select(MasInstrumentLocales)
@@ -1085,6 +1151,9 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
             "label_coverage": 1.0,
             "translated_labels": reference_label_total,
             "reference_labels": reference_label_total,
+            "notes_coverage": 1.0,
+            "translated_notes": reference_note_total,
+            "reference_notes": reference_note_total,
             # Base locale is 100% translated by definition: passing the full
             # item-key set as "translated" gets that for free.
             "extension_coverage": _with_extension_ratios(
@@ -1119,6 +1188,7 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
         translated = translated_by_locale.get(row.locale_code, set())
         item_count = len(item_keys & translated)
         label_count = len(label_keys & translated)
+        note_count = len(note_keys & translated)
         out.append(
             {
                 "locale_code": row.locale_code,
@@ -1135,6 +1205,11 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
                 else 0.0,
                 "translated_labels": label_count,
                 "reference_labels": reference_label_total,
+                "notes_coverage": round(note_count / reference_note_total, 4)
+                if reference_note_total
+                else 0.0,
+                "translated_notes": note_count,
+                "reference_notes": reference_note_total,
                 "extension_coverage": _with_extension_ratios(
                     _extension_coverage(instrument_code, translated)
                 ),
@@ -1326,14 +1401,21 @@ def _question_payload(
             "source": hint_row.source if hint_row else None,
         }
 
-    # Read-only: neither field is in _TRANSLATABLE_FIELDS (digitva-8go.1 is the
-    # follow-up to author them), so there is no stored translation to show.
-    constraint_en = (question.get("constraintMessage") or {}).get(BASE_LOCALE)
-    if constraint_en:
-        payload["constraint_message"] = {"english": constraint_en}
-    guidance_en = reference.get((ITEM_KIND_QUESTION, name, FIELD_GUIDANCE))
-    if guidance_en:
-        payload["guidance"] = {"english": guidance_en}
+    # Constraint message and guidance are editable like the hint; the English
+    # constraint message comes from the reference, which takes it from the
+    # built instrument -- the text an interviewer actually sees.
+    for fld, out_key in (
+        (FIELD_CONSTRAINT_MESSAGE, "constraint_message"),
+        (FIELD_GUIDANCE, "guidance"),
+    ):
+        english = reference.get((ITEM_KIND_QUESTION, name, fld))
+        if english:
+            note_row = _row(ITEM_KIND_QUESTION, name, fld)
+            payload[out_key] = {
+                "english": english,
+                "translated": note_row.text if note_row else None,
+                "source": note_row.source if note_row else None,
+            }
 
     list_name = question.get("listName")
     if list_name:

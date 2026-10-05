@@ -444,8 +444,11 @@ pre-built and immutable.
   `(instrument_code, locale_code, item_kind, item_key, field)`, which is also
   the uniqueness the importer upserts on
 - `item_kind` is `question` or `choice`; `item_key` is the question `name` or
-  `list_name` + `/` + the choice `name`; `field` is `label`, `hint` or
-  `guidance_hint`
+  `list_name` + `/` + the choice `name`; `field` is `label`, `hint`,
+  `guidance_hint` or `constraint_message` (the last added 2026-10-06,
+  digitva-8go.1; `field` is a plain string with no CHECK, so it needed no
+  schema change -- migration `e9h3k6p2s8v4` only seeds 429 Hindi `machine`
+  drafts of constraint messages and guidance notes)
 - `source` is `imported`, `edited` or `machine` (added 2026-09-20, digitva-4kj:
   an LLM-authored draft awaiting human review, e.g. migration `b6d2f4a9c1e7`'s
   214 seeded rows, relabelled from `imported` by migration `c1a4b6e8d3f2`).

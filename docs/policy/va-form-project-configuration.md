@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-06
 ---
 
 # VA Form Project Configuration Policy
@@ -415,7 +415,7 @@ Structure is pre-built from the curated reference form
 
 | May change | May not change |
 | --- | --- |
-| A question's `label`, `hint` and `guidance_hint` | Which questions exist, their names, order or section |
+| A question's `label`, `hint`, `guidance_hint` and `constraint_message` | Which questions exist, their names, order or section |
 | A section (group) label | Relevance, constraint or calculation expressions |
 | A choice's `label` | Choice *values*, or which choices a list holds |
 | | Data types, required flags, appearances |
@@ -459,6 +459,22 @@ coverage is reported the same two ways per extension
 (`{extension: translated/total}` for items, `{extension: label_translated/
 label_total}` for the label breakdown). Coverage decides nothing about
 serving (see the next section); it is informational at every level.
+
+**Constraint messages and guidance notes (digitva-8go.1).** `constraint_message`
+(the text an interviewer sees when an answer fails its constraint) is a
+translatable field. Its English comes from the *built instrument*, not the
+workbook column, because the build overrides a few: `Id10007`, `Id10010`,
+`Id10023_a` and `Id10023_b` carry a message the workbook lacks, and `Id10365`
+has a workbook message the build drops (so it is not translatable -- the form
+never shows it). That is 89 messages. Layer questions' own messages (for
+example `md_count`'s "Enter a number from 0 to 30") are generated in the
+TypeScript layers and are **not yet** in the reference; they are a follow-up.
+The headline figure was kept stable: it excludes constraint messages (guidance
+notes were already in it and stay), so adding them moved no locale's headline.
+Guidance notes and constraint messages are reported together on a separate
+**notes** line (`translated_notes / reference_notes`, `notes_coverage`), on the
+panel, the import report, the CLI and `locale_status`. Guidance therefore
+appears in both the headline and the notes line.
 
 ### Activation is explicit, not gated on coverage (decided 2026-09-19)
 
@@ -527,7 +543,7 @@ concerned and nowhere translated into something else:
 
 | Stored item | `<unit id>` |
 | --- | --- |
-| A question's (or group's) label, hint or guidance note | `question.<name>.label` / `.hint` / `.guidance_hint` |
+| A question's (or group's) label, hint, guidance note or constraint message | `question.<name>.label` / `.hint` / `.guidance_hint` / `.constraint_message` |
 | A choice's label | `choice.<list_name>.<choice_name>.label` |
 
 The id is parsed back by splitting on dots, so **no name may contain a dot**.
@@ -690,6 +706,17 @@ not be edited, so they keep their own copies).
 `tests/migrations/test_seed_layer_translations_on_fresh_install.py` checks
 the CSV against both byte-for-byte. A later operator workbook import still
 finds and fills in the locale row this migration created, exactly as before.
+
+**Hindi drafts of constraint messages and guidance (digitva-8go.1).** Migration
+`e9h3k6p2s8v4` seeds a Hindi draft of all 89 constraint messages and 340
+guidance notes (429 strings) as `machine`, from the checked-in
+`resource/instrument_notes_hi_2026_10_06.csv`, by the same mechanism as
+`7134cb5dc7b6`: none is served or counted until a speaker accepts or edits it.
+No schema change was needed (`field` has no CHECK). **Only Hindi is drafted;
+every other locale still falls back to English for these strings** and needs
+its own drafts. The English-to-Hindi drafting was LLM work and is explicitly
+unreviewed. `MAX_TRANSLATION_TEXT_CHARS` was raised from 4000 to 16000 because
+the longest guidance note is about 6,400 characters in English.
 
 ### A bulk re-import demotes an approved locale, after warning (decided 2026-09-20)
 

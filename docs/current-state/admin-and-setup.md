@@ -385,7 +385,9 @@ Admin-only. Lists each instrument locale from `mas_instrument_locales`:
 language, locale code, headline coverage (all translatable reference items —
 labels, hints, guidance hints, choice labels — informational, decided
 2026-09-19 it never gates activation) with a label breakdown (WHO base +
-layer question labels) shown alongside it, plus per-extension (layer)
+layer question labels) and a **notes** line (guidance notes plus constraint
+messages, digitva-8go.1; constraint messages are not in the headline) shown
+alongside it, plus per-extension (layer)
 coverage badges carrying the same item/label split, version, the workbook it
 was actually imported from
 (`source_document`, recorded on the row), the active flag, and an
@@ -429,7 +431,13 @@ the string editor and carries an **Accept** button alongside **Save**:
 Accept promotes it to `edited` without retyping
 (`POST .../<instrument_code>/<locale>/strings/accept`), which is what makes
 it start being served. `export_translations` and coverage both exclude a
-`machine` row until then.
+`machine` row until then. The editor shows guidance and constraint-message
+fields as editable like the hint; Hindi drafts of all 89 constraint messages
+and 340 guidance notes are seeded as `machine` by `e9h3k6p2s8v4`. The web
+intake `translations.js` applies a served `constraint_message` as the
+question's `constraintMessage`; the mobile mirror
+(`mobile/digitva-collect/src/translations.ts`) still needs the same one-line
+mapping.
 
 **Approval before activation (decided 2026-09-20).** The Approval column
 shows a badge for the locale's `lifecycle_state` (Draft, In review,

@@ -264,6 +264,8 @@
         + '<span class="text-muted">' + l.translated_items + '/' + l.reference_items + '</span>'
         + '<div class="text-muted small">labels ' + pct(l.label_coverage) + ' ('
         + l.translated_labels + '/' + l.reference_labels + ')</div>'
+        + '<div class="text-muted small">notes ' + pct(l.notes_coverage) + ' ('
+        + l.translated_notes + '/' + l.reference_notes + ')</div>'
         + (extBadges ? '<div class="mt-1">' + extBadges + '</div>' : '') + '</td>'
         + '<td class="align-middle py-2 small text-center">' + esc(l.version) + '</td>'
         + '<td class="align-middle py-2 small">' + esc(l.source_document || '—') + '</td>'
@@ -378,6 +380,8 @@
         + report.translated_items + '/' + report.reference_items + ' translatable items)',
       'labels ' + pct(report.label_coverage) + ' ('
         + report.translated_labels + '/' + report.reference_labels + ' survey labels)',
+      'notes ' + pct(report.notes_coverage) + ' ('
+        + report.translated_notes + '/' + report.reference_notes + ' guidance notes and constraint messages)',
       'written ' + report.written + ', kept edited ' + report.kept_edited,
       'reference items the workbook lacks: ' + report.missing_from_workbook_count,
       'workbook items the reference lacks: ' + report.unknown_in_workbook_count,

@@ -187,9 +187,9 @@ class TestDorisClinicalFinalization(BaseTestCase):
         db.session.commit()
         return submission
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values")
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_unmasked_simple_saves_final_without_initial(
         self, _validate, provenance, _social
     ):
@@ -220,10 +220,10 @@ class TestDorisClinicalFinalization(BaseTestCase):
         self.assertEqual(final.va_other_conditions, "Diabetes")
         self.assertIsNone(final.source_initial_assessment_id)
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_coder_doris_persists_verified_payload(
         self, verify, _validate, _provenance, _social
     ):
@@ -274,9 +274,9 @@ class TestDorisClinicalFinalization(BaseTestCase):
             )
         )
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_exact_signed_proof_saves_envelopes_ucod_and_authority(
         self, _validate, _provenance, _social
     ):
@@ -348,9 +348,9 @@ class TestDorisClinicalFinalization(BaseTestCase):
             )
         )
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.verify_process_submission")
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_failed_nqa_save_rerenders_submitted_certificate_and_error(
         self, _validate, verify, _social
     ):
@@ -406,9 +406,9 @@ class TestDorisClinicalFinalization(BaseTestCase):
             )
         )
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_failed_simple_save_rerenders_submitted_fields(
         self, _validate, _provenance, _social
     ):
@@ -448,8 +448,8 @@ class TestDorisClinicalFinalization(BaseTestCase):
             )
         )
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_rerender_reports_malformed_submitted_certificate(
         self, _validate, _social
     ):
@@ -495,13 +495,13 @@ class TestDorisClinicalFinalization(BaseTestCase):
         )
         self.assertEqual(response.status_code, 413)
 
-    @patch("app.routes.va_form.generate_process_proof", return_value="fresh-token")
-    @patch("app.routes.va_form.process_certificate")
+    @patch("app.services.reviewer_coding_service.generate_process_proof", return_value="fresh-token")
+    @patch("app.services.reviewer_coding_service.process_certificate")
     @patch(
-        "app.routes.va_form.verify_process_submission",
+        "app.services.reviewer_coding_service.verify_process_submission",
         side_effect=ProcessProofCertificateChanged("changed"),
     )
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     def test_coder_changed_certificate_returns_fresh_proof_without_saving(
         self, _validate, _verify, process, _proof
     ):

@@ -1,6 +1,6 @@
 import {
   ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
-  getIntakeContext, getProjectFormOptions, intakeContextFromAccess, parseAccessSummary, registerDeath,
+  getCaseDetail, getCases, getIntakeContext, getProjectFormOptions, intakeContextFromAccess, parseAccessSummary, registerDeath,
   requestClientJson, requestJson, requestRaw, submitDraft, type AccessSummary
 } from "../src/api";
 import { Platform } from "react-native";
@@ -316,30 +316,54 @@ it("reads case from registration replies without requiring prefill", async () =>
 it("validates normal, superseded, and server-kept draft submission acknowledgements by status", async () => {
   const draft = { draft_id: "draft-1", project_id: "P1", site_id: "S1" };
   const fetch = jest.spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(response({ va_sid: "sid-1", draft, superseded: false, validation_err: [] }, 201))
-    .mockResolvedValueOnce(response({ va_sid: null, draft, superseded: true, validation_err: null }, 200))
+    .mockResolvedValueOnce(response({ va_sid: "sid-1", draft: { ...draft, unique_id: "VA-1" }, superseded: false, validation_err: [], can_code_now: true }, 201))
+    .mockResolvedValueOnce(response({ va_sid: null, draft, superseded: true, validation_err: null, can_code_now: true }, 200))
     .mockResolvedValueOnce(response({
-      va_sid: "sid-1", draft, superseded: false, validation_err: [], kept: "server", locked: true
-    }, 200));
+      va_sid: "sid-1", draft, superseded: false, validation_err: [], kept: "server", locked: true, can_code_now: "yes"
+    }, 200))
+    .mockResolvedValueOnce(response({
+      va_sid: "sid-1", draft, superseded: false, validation_err: [], kept: "incoming", locked: false, can_code_now: true
+    }, 200))
+    .mockResolvedValueOnce(response({ va_sid: "sid-1", draft, superseded: false, validation_err: [] }, 201));
   await expect(submitDraft("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, csrf, "revision-1"))
-    .resolves.toEqual({ va_sid: "sid-1", draft, superseded: false, validation_err: [] });
+    .resolves.toEqual({ va_sid: "sid-1", draft: { ...draft, unique_id: "VA-1" }, superseded: false, validation_err: [], can_code_now: true });
   await expect(submitDraft("/api/v1/intake/drafts", "draft-2", { valid: true, issues: [] }, csrf))
-    .resolves.toEqual({ va_sid: null, draft, superseded: true, validation_err: null });
+    .resolves.toEqual({ va_sid: null, draft, superseded: true, validation_err: null, can_code_now: false });
   await expect(submitDraft("/api/v1/intake/drafts", "draft-3", {
     valid: true, issues: [], data: { Id10013: "yes" }
   }, csrf, "revision-1"))
-    .resolves.toEqual({ va_sid: "sid-1", draft, superseded: false, validation_err: [], kept: "server", locked: true });
+    .resolves.toEqual({ va_sid: "sid-1", draft, superseded: false, validation_err: [], kept: "server", locked: true, can_code_now: false });
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-4", { valid: true, issues: [] }, csrf))
+    .resolves.toMatchObject({ va_sid: "sid-1", kept: "incoming", can_code_now: true });
+  await expect(submitDraft("/api/v1/intake/drafts", "draft-5", { valid: true, issues: [] }, csrf))
+    .resolves.toMatchObject({ va_sid: "sid-1", can_code_now: false });
   expect(fetch.mock.calls.map(([url]) => url)).toEqual([
     "/api/v1/intake/drafts/draft-1/submit",
     "/api/v1/intake/drafts/draft-2/submit",
-    "/api/v1/intake/drafts/draft-3/submit"
+    "/api/v1/intake/drafts/draft-3/submit",
+    "/api/v1/intake/drafts/draft-4/submit",
+    "/api/v1/intake/drafts/draft-5/submit"
   ]);
-  expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual(["POST", "POST", "POST"]);
+  expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual(["POST", "POST", "POST", "POST", "POST"]);
   expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({ completion: { valid: true, issues: [] }, if_updated_at: "revision-1" });
   expect(JSON.parse(String(fetch.mock.calls[1][1]?.body))).toEqual({ completion: { valid: true, issues: [] } });
   expect(JSON.parse(String(fetch.mock.calls[2][1]?.body))).toEqual({
     completion: { valid: true, issues: [], data: { Id10013: "yes" } }, if_updated_at: "revision-1"
   });
+});
+
+it("leaves case-row presentation flags for strict true-only rendering", async () => {
+  jest.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(response({ cases: [
+      { death_id: "d1", unique_id: "A", code_now: true },
+      { death_id: "d2", unique_id: "B", code_now: "true" },
+      { death_id: "d3", unique_id: "C" },
+    ] }))
+    .mockResolvedValueOnce(response({ case: { death_id: "d1", unique_id: "A", code_now: "true" } }));
+  const rows = await getCases("/api/v1/intake/cases", csrf);
+  const detail = await getCaseDetail("/api/v1/intake/cases", "d1", csrf);
+  expect(rows.cases.map((row) => row.code_now)).toEqual([true, "true", undefined]);
+  expect(detail.case.code_now).toBe("true");
 });
 
 it.each([

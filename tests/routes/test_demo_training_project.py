@@ -325,6 +325,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         )
         self.assertEqual(start_response.status_code, 200)
         self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
+        self._save_demo_step1()
 
         before = datetime.now(timezone.utc)
         response = self.client.post(
@@ -362,6 +363,22 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             before + timedelta(minutes=11),
         )
 
+    def _save_demo_step1(self):
+        # A masked final needs the coder's own Step 1, as on the screen.
+        step1 = self.client.post(
+            (
+                f"/vaform/{self.DEMO_SID}/vainitialasses"
+                "?action=vacode&actiontype=vademo_start_coding"
+            ),
+            data={
+                "va_immediate_cod": "I24-Other acute ischaemic heart diseases",
+                "va_antecedent_cod": "I24-Other acute ischaemic heart diseases",
+                "va_save_assessment": "1",
+            },
+            headers={**self._csrf_headers(), "HX-Request": "true"},
+        )
+        self.assertEqual(step1.status_code, 200)
+
     def _demo_final_save(self):
         self._login(self.base_coder_id)
         self.client.post(
@@ -370,6 +387,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             follow_redirects=True,
         )
         self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
+        self._save_demo_step1()
         response = self.client.post(
             (
                 f"/vaform/{self.DEMO_SID}/vafinalasses"

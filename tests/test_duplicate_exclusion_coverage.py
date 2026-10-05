@@ -62,6 +62,10 @@ COVERED_HELPERS = frozenset({
 
 _WRITER = "writer of workflow state; readers exclude the submission, writers keep it consistent"
 _ONE_ROW = "acts on one named submission behind an active allocation, revoked on confirmation"
+_COD_WRITE_ROUTE = (
+    "thin route over a coder_cod_service write behind the caller's active allocation; "
+    "echoes the case's own state in the reply"
+)
 _MV_DDL = "materialized-view definition or refresh; exclusion is applied at query time"
 _SYNC = "ODK sync / payload maintenance; must keep a duplicate's data current for a reopen"
 
@@ -79,6 +83,9 @@ EXEMPT = {
     ),
     "routes/api/coding.py::_allocation_error": "names workflow_state in an error body only",
     "routes/api/coding.py::code_now": "thin route over allocate_own_case -> allocate_pick_form, which refuses a confirmed duplicate",
+    "routes/api/coding.py::initial": _COD_WRITE_ROUTE,
+    "routes/api/coding.py::finalize": _COD_WRITE_ROUTE,
+    "routes/api/coding.py::not_codeable": _COD_WRITE_ROUTE,
     "routes/api/coding.py::release_allocation": "thin route over release_own_coding_allocation",
     "services/coder_workflow_service.py::AllocationError.__init__": "carries workflow_state on an error",
     "services/coder_workflow_service.py::_unavailable": "maps a workflow_state to an error code",
@@ -147,6 +154,7 @@ EXEMPT = {
     "services/payload_enrichment_backfill_service.py::_run_single_submission_workflow_transition": _SYNC,
     "services/payload_enrichment_backfill_service.py::_find_transition_eligible_rows": _SYNC,
     "services/payload_enrichment_backfill_service.py::_run_workflow_transition_stage": _SYNC,
+    "services/coder_cod_service.py::submit_coder_initial_cod": _ONE_ROW,
     "services/reviewer_coding_service.py::submit_reviewer_final_cod": _ONE_ROW,
     "services/reviewer_coding_service.py::submit_reviewer_initial_cod": _ONE_ROW,
     "services/smartva_service.py::_transition_to_ready_after_smartva_if_pending": _WRITER,

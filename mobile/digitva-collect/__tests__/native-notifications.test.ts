@@ -163,6 +163,27 @@ it("forwards server-kept upload notices from the coalesced sync", async () => {
   expect(result.sync.serverKeptUploads).toEqual([notice]);
 });
 
+it("replays an acknowledged coding hint to a late joiner when the refresh fails", async () => {
+  let finishSync!: (value: unknown) => void;
+  let emitCanCodeNow!: (uniqueId: string) => void;
+  mockSync.mockImplementationOnce((...args: unknown[]) => {
+    emitCanCodeNow = args[5] as (uniqueId: string) => void;
+    return new Promise((resolve) => { finishSync = resolve; });
+  });
+  mockRefresh.mockRejectedValueOnce(new TypeError("Network request failed"));
+
+  const background = runNativeSync("coalesced-hint-account", {} as never);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const onCanCodeNow = jest.fn();
+  const foreground = runNativeSync("coalesced-hint-account", {} as never, { onCanCodeNow });
+  expect(foreground).toBe(background);
+
+  emitCanCodeNow("VA-ACKNOWLEDGED");
+  expect(onCanCodeNow).toHaveBeenCalledWith("VA-ACKNOWLEDGED");
+  finishSync({ sent: 1, failed: 0, remaining: 0, supersededUniqueIds: [] });
+  await expect(foreground).rejects.toThrow("Network request failed");
+});
+
 it("shares the minimum poll interval across foreground and background callers", async () => {
   let finish!: () => void;
   const foreground = runNotificationPoll("shared-poll", () => new Promise<void>((resolve) => { finish = resolve; }));

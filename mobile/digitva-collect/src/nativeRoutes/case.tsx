@@ -439,6 +439,9 @@ export default function Case() {
       {found ? (
         <View style={{ gap: 4 }}>
           <Text style={styles.muted}>{found.unique_id}</Text>
+          {found.code_now === true ? (
+            <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+          ) : null}
           {found.other_draft_active === true ? (
             <>
               <Text style={styles.muted}>

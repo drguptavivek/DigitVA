@@ -178,7 +178,7 @@ class TestDemoFinalCodRoute(BaseTestCase):
         self._login(self.base_admin_id)
         self._activate_coding_session()
 
-        with patch("app.routes.va_form.bust_coder_dashboard_cache") as mock_bust:
+        with patch("app.services.coder_cod_service.bust_coder_dashboard_cache") as mock_bust:
             response = self.client.post(
                 (
                     f"/vaform/{self.sid}/vafinalasses"

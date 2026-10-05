@@ -118,6 +118,7 @@ jest.mock("../src/AppState", () => ({
           onSuperseded?: (uniqueId: string) => void;
           onDraftConflict?: (draftId: string) => void;
           onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void;
+          onCanCodeNow?: (uniqueId: string) => void;
         } = {},
       ) => {
         const sync = await jest.requireMock("../src/sync").syncInterviewer(
@@ -126,6 +127,7 @@ jest.mock("../src/AppState", () => ({
           callbacks.onSuperseded,
           callbacks.onDraftConflict,
           callbacks.onServerKept,
+          callbacks.onCanCodeNow,
         );
         const reference = await jest
           .requireMock("../src/sync")
@@ -895,6 +897,7 @@ describe("native project-aware routes", () => {
         other_draft_active: true,
         other_draft_started_at: startedAt,
         other_complete_interview: true,
+        code_now: true,
       },
       {
         death_id: "d2",
@@ -916,6 +919,7 @@ describe("native project-aware routes", () => {
       `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
     );
     expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).toContain("readyForCodeOnWeb");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
     const viewDetails = tree!.root.findAllByProps({
@@ -973,12 +977,13 @@ describe("native project-aware routes", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Another complete interview of this case is with the supervisor.");
     await act(async () => tree!.unmount());
 
-    (fetchCaseDetail as jest.Mock).mockResolvedValueOnce({ ...detail, other_complete_interview: true });
+    (fetchCaseDetail as jest.Mock).mockResolvedValueOnce({ ...detail, other_complete_interview: true, code_now: true });
     await act(async () => { tree = create(<Case />); });
     await settle();
 
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
+    expect(rendered).toContain("readyForCodeOnWeb");
     expect(rendered).toContain("logAttempt");
     await act(async () => tree!.unmount());
   });
@@ -995,6 +1000,7 @@ describe("native project-aware routes", () => {
           other_draft_active: true,
           other_draft_started_at: "invalid-date",
           other_complete_interview: true,
+          code_now: true,
         },
         {
           death_id: "d2",
@@ -1018,6 +1024,7 @@ describe("native project-aware routes", () => {
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("otherDraftActive");
+    expect(rendered).toContain("readyForCodeOnWeb");
     expect(rendered).toContain("otherDraftSyncNotice");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
@@ -1171,14 +1178,17 @@ describe("native project-aware routes", () => {
         _onSuperseded?: (uniqueId: string) => void,
         _onDraftConflict?: (draftId: string) => void,
         onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
+        onCanCodeNow?: (uniqueId: string) => void,
       ) => {
         onServerKept?.({ uniqueId: "VA-KEPT", locked: true });
+        onCanCodeNow?.("VA-KEPT");
         return {
           sent: 1,
           failed: 0,
           remaining: 0,
           supersededUniqueIds: [],
           serverKeptUploads: [{ uniqueId: "VA-KEPT", locked: true }],
+          canCodeNowUniqueIds: ["VA-KEPT"],
         };
       },
     );
@@ -1193,6 +1203,40 @@ describe("native project-aware routes", () => {
     expect(rendered).toContain("A newer completed version is already with the coder; yours was saved as history.");
     expect(rendered).toContain("Coding has finished; only a send-back or reopen can change the coder's version.");
     expect(rendered).toContain("Stored interview: VA-KEPT");
+    expect(rendered).toContain("readyForCodeOnWeb");
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows a valid upload hint through a later network failure and clears it on the next sync", async () => {
+    (syncInterviewer as jest.Mock).mockImplementationOnce(async (
+      _userId: string,
+      _db: unknown,
+      _onSuperseded?: (uniqueId: string) => void,
+      _onDraftConflict?: (draftId: string) => void,
+      _onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
+      onCanCodeNow?: (uniqueId: string) => void,
+    ) => {
+      onCanCodeNow?.("VA-CODE");
+      return { sent: 1, failed: 0, remaining: 0, supersededUniqueIds: [], canCodeNowUniqueIds: ["VA-CODE"] };
+    });
+    mockCachedCases = [{ death_id: "d1", project_id: "P1", unique_id: "VA-CODE", state: "submitted", code_now: false }];
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    (refreshReferenceData as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
+    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain("readyForCodeOnWeb");
+
+    const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
+    await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
+
+    (syncInterviewer as jest.Mock).mockResolvedValueOnce({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
+    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
     await act(async () => tree!.unmount());
   });
 

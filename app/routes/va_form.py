@@ -32,8 +32,6 @@ from app.forms import (
     VaUsernoteForm,
 )
 from app.models import (
-    VaAllocation,
-    VaAllocations,
     VaCoderReview,
     VaDataManagerReview,
     VaFinalAssessments,
@@ -48,54 +46,35 @@ from app.models import (
     VaUsernotes,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
-from app.services import attachment_service, coding_search_telemetry_service
-from app.services.authz import Action, AuthzError, codes_as_tester, require
+from app.services import attachment_service
+from app.services.authz import Action, AuthzError, require
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
-from app.services.cod_entry_mode import (
-    cod_entry_mode_snapshot as _cod_entry_mode_snapshot,
-)
-from app.services.cod_entry_mode import final_ucod_source as _final_ucod_source
 from app.services.cod_entry_mode import is_doris as _is_doris
 from app.services.cod_entry_mode import is_masked as _is_masked
-from app.services.cod_entry_mode import part1_line1_cod as _part1_line1_cod
 from app.services.cod_entry_mode import project_mode as _project_mode
 from app.services.cod_entry_mode import (
     smartva_icd11_alternatives as _smartva_icd11_alternatives,
 )
-from app.services.coder_dashboard_service import bust_coder_dashboard_cache
-from app.services.coding_allocation_service import return_tester_coding_to_pool
+from app.services.coder_cod_service import (
+    STEP1_REQUIRED_MESSAGE,
+    TESTER_SAVED_MESSAGE,
+    CoderCodingError,
+    other_conditions_choices,
+    submit_coder_final_cod,
+    submit_coder_initial_cod,
+    submit_coder_not_codeable,
+)
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.data_management_service import CSV_EXPORT_OMIT_PAYLOAD_FIELDS
-from app.services.demo_project_service import (
-    get_demo_expiry_for_submission,
-    is_demo_training_submission,
-)
-from app.services.doris_certificate import DorisCertificateError
-from app.services.doris_prefill import doris_prefill_from_payload, doris_prefill_record
-from app.services.doris_process_proof import (
-    ProcessProofCertificateChanged,
-    ProcessProofContextMismatch,
-    ProcessProofExpired,
-    ProcessProofInvalid,
-    ProcessProofResultMismatch,
-    generate_process_proof,
-    verify_process_submission,
-)
-from app.services.doris_processing import process_certificate
+from app.services.doris_prefill import doris_prefill_from_payload
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
-    complete_recode_episode,
     get_active_recode_episode,
     get_authoritative_final_assessment,
     get_authoritative_final_cod_record,
-    upsert_final_cod_authority,
-)
-from app.services.icd_coding_value import (
-    build_icd11_provenance_for_values,
-    validate_coding_value_for_submission,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.payload_bound_coding_artifact_service import (
@@ -113,7 +92,6 @@ from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
-from app.services.who_icd_api import DEFAULT_ICD11_RELEASE, WhoIcdApiUnavailable
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -126,16 +104,8 @@ from app.services.workflow.state_store import (
     sync_submission_workflow_from_legacy_records,
 )
 from app.services.workflow.transitions import (
-    WorkflowTransitionError,
-    coder_actor,
     data_manager_actor,
-    mark_coder_finalized,
-    mark_coder_not_codeable,
-    mark_coder_step1_saved,
     mark_data_manager_not_codeable,
-    mark_recode_finalized,
-    mark_reviewer_eligible_after_recode_window,
-    system_actor,
 )
 from app.utils import (
     va_get_form_type_code_for_form,
@@ -189,29 +159,6 @@ def _invalidate_section_data_cache(va_sid: str) -> None:
         _key = _section_data_cache_key(va_sid, _partial)
         flask_cache.delete(_key)
         flask_cache.delete(f"{_key}:nopii")
-
-
-def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
-    """Return the demo artifact expiry timestamp for demo coding saves."""
-    return get_demo_expiry_for_submission(va_sid, va_actiontype)
-
-
-_TESTER_SAVED_MESSAGE = (
-    "Test coding saved. It does not count as a result; "
-    "the case has returned to the coding pool."
-)
-
-
-def _is_tester_coding(va_sid: str, va_actiontype: str) -> bool:
-    """True when this save is coding_tester output (digitva-ggc3).
-
-    Demo saves (an expiry) keep the demo path; otherwise authz decides: only
-    the tester lane reaches the case. Tester output is stored deactive with
-    ``is_tester`` and the case returns to the coding pool.
-    """
-    if _demo_expiry_for_actiontype(va_sid, va_actiontype) is not None:
-        return False
-    return codes_as_tester(current_user, va_sid)
 
 
 def _nqa_blocks_final(va_sid, va_action, project) -> bool:
@@ -282,75 +229,47 @@ def _masked_reviewer_doris_context(va_sid, reviewer_initial, smartva):
     return coder_step1, context
 
 
-def _masked_doris_step1_fields(va_sid, project):
-    """Verified Step 1 columns for a masked DORIS coder save.
+_DORIS_CONFLICT_CODES = {
+    "DORIS_CERTIFICATE_CHANGED",
+    "DORIS_PROCESS_MISMATCH",
+    "DORIS_PROCESS_EXPIRED",
+}
 
-    Returns ``(fields, None)`` or ``(None, response)``. The immediate COD is
-    the first condition on Part I line 1 of the verified certificate; the
-    underlying (``va_antecedent_cod``) is the coder's own confirmed cause
-    (owner decision 1). A missing cause or line is a 400, not a DB error.
+
+def _coder_error_response(exc: CoderCodingError):
+    """The web's JSON refusal for a ``CoderCodingError``.
+
+    A DORIS conflict keeps its ``schema_version`` body (the editor reads
+    ``processing`` from it); every other refusal is ``{error}``.
     """
-    who_image_digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
-    if not who_image_digest:
-        return None, (jsonify(error="The pinned WHO processing image is not configured."), 503)
-    underlying_cod = (request.form.get("va_antecedent_cod") or "").strip()
-    if not underlying_cod:
-        return None, (
-            jsonify(error="Confirm the underlying cause of death: use the DORIS result or search for your own code."),
-            400,
-        )
-    active_payload_version = get_active_payload_version(va_sid)
-    allocation_id = db.session.scalar(
-        sa.select(VaAllocations.va_allocation_id).where(
-            VaAllocations.va_sid == va_sid,
-            VaAllocations.va_allocated_to == current_user.user_id,
-            VaAllocations.va_allocation_for == VaAllocation.coding,
-            VaAllocations.va_allocation_status == VaStatuses.active,
-        )
-    )
-    if active_payload_version is None or allocation_id is None:
-        return None, (
-            jsonify(error="An active coder allocation and submission payload are required to save Step 1."),
-            409,
-        )
-    verified, failure = _verify_doris_submission(
-        va_sid,
-        allocation_id,
-        active_payload_version.payload_version_id,
-        who_image_digest,
-    )
-    if failure is not None:
-        return None, failure
-    immediate_cod = _part1_line1_cod(verified["certificate"])
-    if not immediate_cod:
-        return None, (
-            jsonify(error="Part I line 1 needs a condition: it is the immediate cause of death."),
-            400,
-        )
+    if exc.code in _DORIS_CONFLICT_CODES:
+        return _doris_conflict(exc.code, exc.message, exc.processing)
+    return jsonify(error=exc.message), exc.status_code
+
+
+def _doris_form_kwargs() -> dict:
+    """The posted DORIS envelopes as keyword arguments for the coder service.
+
+    Malformed JSON is passed on as ``doris_input_error``, which the service
+    refuses (422) where it would verify the proof.
+    """
+    raw_revision = request.form.get("doris_client_revision") or 0
     try:
-        validate_coding_value_for_submission(va_sid, underlying_cod)
-        # The immediate cause was checked against WHO when the certificate
-        # was processed; only the coder's own pick needs catalogue provenance.
-        provenance = build_icd11_provenance_for_values(
-            va_sid, {"antecedent": underlying_cod}
-        )
-    except (LookupError, ValueError) as exc:
-        return None, (jsonify(error=str(exc)), 400)
-    return {
-        "va_immediate_cod": immediate_cod,
-        "va_antecedent_cod": underlying_cod,
-        "icd11_provenance": provenance,
-        "va_other_conditions": None,
-        "doris_certificate": verified["certificate"],
-        "doris_result": verified["doris"],
-        "codedit_result": verified["codedit"],
-        "cod_entry_mode_snapshot": {
-            **_cod_entry_mode_snapshot(project, who_image_digest),
-            "doris_prefill": doris_prefill_record(
-                active_payload_version.payload_data, verified["certificate"]
-            ),
-        },
-    }, None
+        revision = int(raw_revision)
+    except ValueError:
+        revision = raw_revision  # the processor refuses it with a 422
+    kwargs = {
+        "doris_process_token": request.form.get("doris_process_token") or "",
+        "doris_result_digest": request.form.get("doris_result_digest") or "",
+        "doris_client_revision": revision,
+    }
+    try:
+        kwargs["doris_certificate"] = _json_form_value("doris_certificate")
+        kwargs["doris_result"] = _json_form_value("doris_result")
+        kwargs["codedit_result"] = _json_form_value("codedit_result")
+    except ValueError as exc:
+        kwargs["doris_input_error"] = str(exc)
+    return kwargs
 
 
 def _json_form_value(name: str):
@@ -395,87 +314,6 @@ def _doris_conflict(code: str, message: str, processing: dict | None = None):
     return jsonify(payload), 409
 
 
-def _verify_doris_submission(va_sid, allocation_id, payload_version_id, who_image_digest):
-    """Verify the coder's posted DORIS certificate against its signed proof.
-
-    Reads ``doris_certificate``, ``doris_result``, ``codedit_result``,
-    ``doris_process_token`` and ``doris_result_digest`` from the form.
-    Returns ``(verified, None)`` with the server-normalized envelopes, or
-    ``(None, response)``: a changed certificate is reprocessed and returned
-    as a 409 carrying a fresh proof (nothing is saved); a stale or
-    mismatched proof is a 409; an invalid certificate a 422; an unavailable
-    WHO service a 503. Shared by the unmasked DORIS final save and the
-    masked DORIS Step 1 save.
-    """
-    try:
-        certificate = _json_form_value("doris_certificate")
-        doris_result = _json_form_value("doris_result")
-        codedit_result = _json_form_value("codedit_result")
-        verified = verify_process_submission(
-            request.form.get("doris_process_token") or "",
-            certificate=certificate,
-            doris_result=doris_result,
-            codedit_result=codedit_result,
-            submitted_result_digest=request.form.get("doris_result_digest") or "",
-            va_sid=va_sid,
-            role="coder",
-            user_id=current_user.user_id,
-            allocation_id=allocation_id,
-            payload_version_id=payload_version_id,
-            icd_release=DEFAULT_ICD11_RELEASE,
-            who_image_digest=who_image_digest,
-        )
-    except ProcessProofCertificateChanged:
-        try:
-            client_revision = int(request.form.get("doris_client_revision") or 0)
-            processing = process_certificate(
-                {
-                    "schema_version": 1,
-                    "client_revision": client_revision,
-                    "certificate": certificate,
-                },
-                release=DEFAULT_ICD11_RELEASE,
-                who_image_digest=who_image_digest,
-            )
-        except (DorisCertificateError, TypeError, ValueError) as exc:
-            return None, (jsonify(error=str(exc)), 422)
-        except WhoIcdApiUnavailable:
-            return None, (jsonify(error="WHO ICD-11 service unavailable."), 503)
-        processing["process_token"] = generate_process_proof(
-            certificate_digest=processing["certificate_digest"],
-            result_digest=processing["result_digest"],
-            va_sid=va_sid,
-            role="coder",
-            user_id=current_user.user_id,
-            allocation_id=allocation_id,
-            payload_version_id=payload_version_id,
-            icd_release=DEFAULT_ICD11_RELEASE,
-            who_image_digest=who_image_digest,
-        )
-        return None, _doris_conflict(
-            "DORIS_CERTIFICATE_CHANGED",
-            "DORIS form changed; reprocessed. Review the result and confirm your final UCOD again.",
-            processing,
-        )
-    except ProcessProofResultMismatch:
-        return None, _doris_conflict(
-            "DORIS_PROCESS_MISMATCH",
-            "DORIS processor results changed. Process the form again.",
-        )
-    except (
-        ProcessProofExpired,
-        ProcessProofInvalid,
-        ProcessProofContextMismatch,
-    ):
-        return None, _doris_conflict(
-            "DORIS_PROCESS_EXPIRED",
-            "DORIS processing confirmation expired or no longer matches this case. Process the form again.",
-        )
-    except (DorisCertificateError, ValueError) as exc:
-        return None, (jsonify(error=str(exc)), 422)
-    return verified, None
-
-
 def _get_display_initial_assessment(va_sid: str):
     """Return the initial COD to display for view/history contexts.
 
@@ -513,95 +351,6 @@ def _is_social_autopsy_enabled_for_submission(va_sid: str, va_action: str = "vac
     if va_action == "vareview":
         return bool(project.reviewer_social_autopsy_enabled)
     return bool(project.social_autopsy_enabled)
-adult = [
-    "I10 - Essential Hypertension",
-    "E11 - Type 2 Diabetes Mellitus",
-    "E10 - Type 1 Diabetes Mellitus",
-    "E66 - Obesity",
-    "N18 - Chronic Kidney Disease",
-    "K74 - Chronic Liver Disease",
-    "J44 - Chronic Obstructive Pulmonary Disease",
-    "J45 - Asthma",
-    "E78 - Dyslipidemia",
-    "I50 - Congestive Heart Failure",
-    "I25 - Coronary Artery Disease",
-    "D64 - Chronic Anaemia",
-    "F03 - Dementia",
-    "I25.2 - Previous Myocardial Infarction",
-    "I69 - Previous Stroke/CVA",
-    "C80 - Cancer (non-primary, metastasis, history)",
-    "B24 - HIV/AIDS",
-    "Z86.1 - Past history of tuberculosis",
-    "D89 - Immunosuppression",
-    "E03 - Hypothyroidism",
-    "E05 - Hyperthyroidism",
-    "B18 - Chronic Viral Infections (Hepatitis)",
-    "I73.9 - Peripheral Vascular Disease",
-    "I09 - Chronic Rheumatic Heart Disease",
-    "Z98.8 - History of Major Surgery",
-    "Z79.3 - Long-term use of Immunosuppressants"
-]
-
-neonate = [
-    "P07 - Preterm birth",
-    "P07.0, P07.1 - Low Birth Weight",
-    "P05 - Intrauterine Growth Restriction",
-    "P21 - Birth Asphyxia",
-    "P36 - Neonatal Sepsis",
-    "P23 - Neonatal Pneumonia",
-    "P22 - Hyaline Membrane Disease / Respiratory Distress Syndrome",
-    "P24.0 - Meconium Aspiration Syndrome",
-    "P59 - Neonatal Jaundice",
-    "P90 - Neonatal Convulsions",
-    "P91.6 - Hypoxic Ischemic Encephalopathy",
-    "P80 - Hypothermia of Newborn",
-    "P70.4 - Hypoglycemia of Newborn",
-    "P52 - Neonatal Hemorrhage",
-    "Q20 - Q28 - Congenital Heart Disease",
-    "Q00 - Q99 - Congenital Malformations",
-    "Q90 - Chromosomal Abnormalities",
-    "A33 - Neonatal Tetanus",
-    "P37.9 - Neonatal Meningitis",
-    "P77 - Necrotizing Enterocolitis",
-    "P00.1 - Maternal Diabetes",
-    "P00.0 - Maternal Hypertension",
-    "P02.7 - Chorioamnionitis",
-    "P01.5 - Twin/Multiple Gestation",
-    "P35, P37 - Congenital Infections (TORCH)",
-    "P58, P59 - Hyperbilirubinemia",
-    "P92 - Feeding Problems of Newborn",
-    "P04 - Maternal drug use affecting newborn"
-]
-
-children = [
-    "J06, J20, J21 - Acute Respiratory Infections",
-    "J45 - Asthma",
-    "D50 - D53 - Anemia",
-    "E40 - E46 - Malnutrition",
-    "E66 - Obesity",
-    "E10, E11 - Diabetes Mellitus (Type 1/2)",
-    "G40 - Epilepsy",
-    "Q20 - Q28 - Congenital Heart Disease",
-    "D57 - Sickle Cell Disease",
-    "D56 - Thalassemia",
-    "Q90 - Down Syndrome",
-    "E84 - Cystic Fibrosis",
-    "N18, N04 - Renal Disease",
-    "A15 - A19 - Tuberculosis",
-    "B20 - B24 - HIV/AIDS",
-    "D80 - D89 - Immunodeficiency",
-    "I05 - I09 - Rheumatic Heart Disease",
-    "G80 - Cerebral Palsy",
-    "F84 - Autism Spectrum Disorders",
-    "F70 - F79 - Intellectual Disability",
-    "C91 - C95, C81 - C85, C00 - C80 - Cancer",
-    "D57.3 - Sickle Cell Trait",
-    "D56.3 - Thalassemia Trait",
-    "Z98.8 - Previous Major Surgery",
-    "P07 - History of Prematurity/Low Birth Weight",
-    "Z28.3 - Incomplete immunization Status"
-]
-
 DATA_MANAGER_TRIAGE_ALLOWED_STATES = {
     WORKFLOW_SCREENING_PENDING,
     WORKFLOW_READY_FOR_CODING,
@@ -1348,64 +1097,30 @@ def renderpartial(va_sid, va_partial):
         form = VaInitialAssessmentForm()
         save_clicked = form.va_save_assessment.data
         not_codeable_clicked = form.va_not_codeable.data
-        agelabels = {
-            "isNeonatal": (va_payload_data or {}).get("isNeonatal"),
-            "isChild": (va_payload_data or {}).get("isChild"),
-            "isAdult": (va_payload_data or {}).get("isAdult"),
-        }
-        active_age_label = next(
-            (k for k, v in agelabels.items() if str(v).strip() in ("1", "1.0")),
-            None
-        )
-        if active_age_label == "isAdult":
-            form.va_other_conditions.choices = adult
-        elif active_age_label == "isChild":
-            form.va_other_conditions.choices = children
-        elif active_age_label == "isNeonate":
-            form.va_other_conditions.choices = neonate
-        else:
-            form.va_other_conditions.choices = adult
-        step1_fields = None
-        if save_clicked and project_mode == "masked_doris":
-            # The immediate COD comes from the certificate, so the simple
-            # form's required fields are not posted; CSRF is still enforced
-            # app-wide by CSRFProtect.
-            step1_fields, failure = _masked_doris_step1_fields(va_sid, project)
-            if failure is not None:
-                return failure
-        elif save_clicked and form.validate_on_submit():
-            coding_errors: list[tuple[object, str]] = []
-            classifications = set()
-            for field in (form.va_immediate_cod, form.va_antecedent_cod):
-                try:
-                    classifications.add(
-                        validate_coding_value_for_submission(va_sid, field.data)
-                    )
-                except (LookupError, ValueError) as exc:
-                    coding_errors.append((field, str(exc)))
-            # One classification per save.
-            if not coding_errors and len(classifications) > 1:
-                coding_errors.append(
-                    (
-                        form.va_antecedent_cod,
-                        "Immediate and antecedent causes must both be ICD-10 or both be ICD-11.",
-                    )
+        form.va_other_conditions.choices = other_conditions_choices(va_payload_data)
+        # Masked DORIS takes the immediate COD from the certificate, so the
+        # simple form's required fields are not posted; CSRF is still
+        # enforced app-wide by CSRFProtect.
+        if save_clicked and (project_mode == "masked_doris" or form.validate_on_submit()):
+            if project_mode == "masked_doris":
+                save_kwargs = _doris_form_kwargs()
+                save_kwargs["antecedent_cod"] = request.form.get("va_antecedent_cod")
+            else:
+                save_kwargs = {
+                    "immediate_cod": form.va_immediate_cod.data,
+                    "antecedent_cod": form.va_antecedent_cod.data,
+                    "other_conditions": form.va_other_conditions.data,
+                    "payload_data": va_payload_data,
+                }
+            try:
+                saved = submit_coder_initial_cod(
+                    current_user, va_sid, actiontype=va_actiontype, **save_kwargs
                 )
-            initial_icd11_provenance = None
-            if not coding_errors:
-                try:
-                    initial_icd11_provenance = build_icd11_provenance_for_values(
-                        va_sid,
-                        {
-                            "immediate": form.va_immediate_cod.data,
-                            "antecedent": form.va_antecedent_cod.data,
-                        },
-                    )
-                except (LookupError, ValueError) as exc:
-                    coding_errors.append((form.va_immediate_cod, str(exc)))
-            if coding_errors:
-                for field, message in coding_errors:
-                    field.errors.append(message)
+            except CoderCodingError as exc:
+                if exc.code != "invalid_cod" or not exc.fields:
+                    return _coder_error_response(exc)
+                for field_name, message in zip(exc.fields, exc.messages):
+                    getattr(form, f"va_{field_name}").errors.append(message)
                 return render_template(
                     f"va_form_partials/{va_partial}.html",
                     form=form,
@@ -1415,74 +1130,9 @@ def renderpartial(va_sid, va_partial):
                     pre_immediate_cod=form.va_immediate_cod.data,
                     pre_antecedent_cod=form.va_antecedent_cod.data,
                 )
-            step1_fields = {
-                "va_immediate_cod": form.va_immediate_cod.data,
-                "va_antecedent_cod": form.va_antecedent_cod.data,
-                "icd11_provenance": initial_icd11_provenance,
-                "va_other_conditions": (
-                    " | ".join(form.va_other_conditions.data)
-                    if form.va_other_conditions.data
-                    else None
-                ),
-            }
-        if step1_fields is not None:
+            new_review = saved.assessment
             form1 = VaFinalAssessmentForm()
             smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
-            for existing_initial in db.session.scalars(
-                sa.select(VaInitialAssessments).where(
-                    VaInitialAssessments.va_sid == va_sid,
-                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
-                    VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-                )
-            ).all():
-                existing_initial.va_iniassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="d",
-                        va_audit_action="superseded initial cod draft",
-                        va_audit_entityid=existing_initial.va_iniassess_id,
-                    )
-                )
-            gen_uuid = uuid.uuid4()
-            new_review = VaInitialAssessments(
-                va_iniassess_id=gen_uuid,
-                va_sid=va_sid,
-                va_iniassess_by=current_user.user_id,
-                is_tester=_is_tester_coding(va_sid, va_actiontype),
-                **step1_fields,
-            )
-            db.session.add(new_review)
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid = va_sid,
-                    va_audit_byrole = "vacoder",
-                    va_audit_by = current_user.user_id,
-                    va_audit_operation = "c",
-                    va_audit_action = "initial cod submitted",
-                    va_audit_entityid = gen_uuid
-                )
-            )
-            current_state = get_submission_workflow_state(va_sid)
-            step1_resaved = (current_state == WORKFLOW_CODER_STEP1_SAVED)
-            try:
-                mark_coder_step1_saved(
-                    va_sid,
-                    reason="initial_cod_updated" if step1_resaved else "initial_cod_submitted",
-                    actor=coder_actor(current_user.user_id),
-                )
-            except WorkflowTransitionError:
-                log.warning(
-                    "coder_step1_saved blocked | sid=%s | current_state=%r"
-                    " | coder_user_id=%s",
-                    va_sid,
-                    current_state,
-                    current_user.user_id,
-                )
-                raise
-            db.session.commit()
             # Step 1 is saved; Step 2 would only be refused at save time.
             if _nqa_blocks_final(va_sid, va_action, project):
                 return render_template(
@@ -1492,13 +1142,12 @@ def renderpartial(va_sid, va_partial):
                     va_actiontype=va_actiontype,
                     step1_saved=True,
                 )
-            va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
             step2_context = (
                 _masked_doris_step2_context(new_review, smartva)
                 if project_mode == "masked_doris"
                 else {}
             )
-            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, step1_resaved=step1_resaved, project_mode=project_mode, **step2_context)
+            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = new_review.va_immediate_cod or None, va_antecedent_cod = new_review.va_antecedent_cod or None, va_other_conditions = new_review.va_other_conditions or None, step1_resaved=saved.resaved, project_mode=project_mode, **step2_context)
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)
@@ -1512,10 +1161,9 @@ def renderpartial(va_sid, va_partial):
             )
             .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
         )
-        # Recode resume fallback:
-        # After final COD submission, the active initial draft is intentionally
-        # deactivated. When a fresh recode session starts, prefill Step 1 from
-        # the coder's latest prior initial draft if no active draft exists.
+        # Recode resume fallback: when a recode session has no active Step 1
+        # of the caller's own (another coder's recode, or a release cleared
+        # it), prefill Step 1 from the coder's latest prior initial draft.
         if (
             existing_assess is None
             and va_action == "vacode"
@@ -1741,324 +1389,45 @@ def renderpartial(va_sid, va_partial):
                 ),
             )
 
-        # Masked DORIS Step 2 only confirms the underlying cause; the
-        # certificate and its envelopes stay on the Step 1 row (decision 4).
-        if (
-            request.method == "POST"
-            and project_mode == "masked_doris"
-            and any(request.form.get(name) for name in _DORIS_ENVELOPE_FIELDS)
-        ):
-            return jsonify(
-                error="Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1."
-            ), 400
-
         if form1.validate_on_submit():
-            # Final assessment replacement is a single-writer operation per
-            # submission.  Lock the existing submission before reading its
-            # allocation/final rows so two requests cannot both pass the
-            # check-then-insert window.
-            locked_submission = db.session.scalar(
-                sa.select(VaSubmissions)
-                .where(VaSubmissions.va_sid == va_sid)
-                .with_for_update()
-            )
-            if locked_submission is None:
-                raise ValueError(f"Submission {va_sid} not found.")
-            blocking_messages: list[str] = []
-            active_payload_version = get_active_payload_version(va_sid)
-            active_allocation = db.session.scalar(
-                sa.select(VaAllocations).where(
-                    VaAllocations.va_sid == va_sid,
-                    VaAllocations.va_allocated_to == current_user.user_id,
-                    VaAllocations.va_allocation_for == VaAllocation.coding,
-                    VaAllocations.va_allocation_status == VaStatuses.active,
-                )
-            )
-            if active_payload_version is None:
-                blocking_messages.append("This submission has no active payload version.")
-            if active_allocation is None:
-                blocking_messages.append(
-                    "An active coder allocation is required to submit the final COD."
-                )
+            if project_mode == "unmasked_doris":
+                doris_kwargs = _doris_form_kwargs()
+            elif project_mode == "masked_doris":
+                # Step 2 refuses any envelope; the service says so.
+                doris_kwargs = {
+                    name: request.form.get(name) for name in _DORIS_ENVELOPE_FIELDS
+                }
+            else:
+                doris_kwargs = {}
             try:
-                validate_coding_value_for_submission(
+                saved = submit_coder_final_cod(
+                    current_user,
                     va_sid,
-                    form1.va_conclusive_cod.data,
+                    conclusive_cod=form1.va_conclusive_cod.data,
+                    remark=form1.va_finassess_remark.data,
+                    immediate_cod=request.form.get("va_immediate_cod"),
+                    other_conditions=request.form.get("va_other_conditions"),
+                    cod_search_id=request.form.get("cod_search_id"),
+                    cod_chosen_code=request.form.get("cod_chosen_code"),
+                    cod_chosen_rank=request.form.get("cod_chosen_rank"),
+                    actiontype=va_actiontype,
+                    **doris_kwargs,
                 )
-            except (LookupError, ValueError) as exc:
-                blocking_messages.append(str(exc))
-
-            immediate_cod = None
-            immediate_icd11_provenance = None
-            other_conditions = None
-            verified_certificate = None
-            verified_doris = None
-            verified_codedit = None
-            who_image_digest = str(
-                current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or ""
-            ).strip()
-            if project_mode == "unmasked_simple":
-                immediate_cod = (request.form.get("va_immediate_cod") or "").strip()
-                other_conditions = (
-                    (request.form.get("va_other_conditions") or "").strip() or None
-                )
-                if not immediate_cod:
-                    blocking_messages.append("Immediate cause of death is required.")
-                else:
-                    try:
-                        validate_coding_value_for_submission(va_sid, immediate_cod)
-                        immediate_icd11_provenance = build_icd11_provenance_for_values(
-                            va_sid, {"immediate": immediate_cod}
-                        )
-                    except (LookupError, ValueError) as exc:
-                        blocking_messages.append(str(exc))
-            elif (
-                project_mode == "unmasked_doris"
-                and active_payload_version is not None
-                and active_allocation is not None
-            ):
-                if not who_image_digest:
-                    return jsonify(
-                        error="The pinned WHO processing image is not configured."
-                    ), 503
-                verified, failure = _verify_doris_submission(
-                    va_sid,
-                    active_allocation.va_allocation_id,
-                    active_payload_version.payload_version_id,
-                    who_image_digest,
-                )
-                if failure is not None:
-                    return failure
-                verified_certificate = verified["certificate"]
-                verified_doris = verified["doris"]
-                verified_codedit = verified["codedit"]
-
-            # Enforce NQA completion if enabled for this project
-            _project = _get_project_for_submission(va_sid)
-            if _project and _project.narrative_qa_enabled:
-                _nqa_done = get_current_payload_narrative_assessment(
-                    va_sid,
-                    current_user.user_id,
-                )
-                if not _nqa_done:
-                    blocking_messages.append(
-                        "Narrative Quality Assessment must be completed before submitting the final COD."
-                    )
-            _submission = db.session.get(VaSubmissions, va_sid)
-            _sub_active_version = get_active_payload_version(va_sid) if _submission else None
-            _sub_payload_data = _sub_active_version.payload_data if _sub_active_version else None
-            _form_type_code = va_get_form_type_code_for_form(
-                _submission.va_form_id if _submission else None
-            )
-            _visible_category_codes = get_visible_category_codes(
-                _sub_payload_data,
-                _submission.va_form_id if _submission else None,
-            )
-            _category_service = get_category_rendering_service()
-            if (
-                _is_social_autopsy_enabled_for_submission(va_sid, va_action)
-                and _category_service.is_category_enabled(
-                _form_type_code,
-                "vacode",
-                _visible_category_codes,
-                "social_autopsy",
-                )
-            ):
-                _social_done = get_current_payload_social_autopsy_analysis(
-                    va_sid,
-                    current_user.user_id,
-                )
-                if not _social_done:
-                    blocking_messages.append(
-                        "Social Autopsy Analysis must be completed before submitting the final COD."
-                    )
-            final_icd11_provenance = None
-            if not blocking_messages:
-                try:
-                    final_icd11_provenance = build_icd11_provenance_for_values(
-                        va_sid,
-                        {"conclusive": form1.va_conclusive_cod.data},
-                    )
-                except (LookupError, ValueError) as exc:
-                    blocking_messages.append(str(exc))
-            if blocking_messages:
+            except CoderCodingError as exc:
+                if exc.code != "final_blocked" and exc.message != STEP1_REQUIRED_MESSAGE:
+                    return _coder_error_response(exc)
                 if request.headers.get("HX-Request"):
-                    return _render_final_assessment_form(blocking_messages)
-                for message in blocking_messages:
+                    return _render_final_assessment_form(exc.messages)
+                for message in exc.messages:
                     flash(message, "warning")
                 return redirect(request.referrer or url_for("coding.dashboard"))
-            gen_uuid = uuid.uuid4()
-            if active_payload_version is None:
-                raise ValueError(f"Submission {va_sid} has no active payload version.")
-            active_recode_episode = get_active_recode_episode(va_sid)
-            prior_authoritative_final = get_authoritative_final_assessment(va_sid)
-            cod_entry_mode_snapshot = _cod_entry_mode_snapshot(project, who_image_digest)
-            if verified_certificate is not None:
-                # Which fields the interview prefilled and whether the coder
-                # changed them, recomputed here rather than trusted (digitva-hln).
-                cod_entry_mode_snapshot["doris_prefill"] = doris_prefill_record(
-                    active_payload_version.payload_data, verified_certificate
-                )
-            if project_mode == "masked_doris":
-                cod_entry_mode_snapshot["final_ucod_source"] = _final_ucod_source(
-                    form1.va_conclusive_cod.data,
-                    va_initial_assess.va_antecedent_cod if va_initial_assess else None,
-                    _smartva_icd11_alternatives(smartva),
-                )
-            tester_output = _is_tester_coding(va_sid, va_actiontype)
-            existing_active_finals = db.session.scalars(
-                sa.select(VaFinalAssessments).where(
-                    VaFinalAssessments.va_sid == va_sid,
-                    VaFinalAssessments.payload_version_id
-                    == active_payload_version.payload_version_id,
-                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
-                )
-            ).all()
-            new_review1 = VaFinalAssessments(
-                va_finassess_id=gen_uuid,
-                va_sid=va_sid,
-                payload_version_id=active_payload_version.payload_version_id,
-                va_finassess_by=current_user.user_id,
-                source_initial_assessment_id=(
-                    va_initial_assess.va_iniassess_id
-                    if _is_masked(project_mode) and va_initial_assess
-                    else None
-                ),
-                va_conclusive_cod=form1.va_conclusive_cod.data,
-                icd11_provenance=final_icd11_provenance,
-                va_immediate_cod=immediate_cod,
-                immediate_icd11_provenance=immediate_icd11_provenance,
-                va_other_conditions=other_conditions,
-                doris_certificate=verified_certificate,
-                doris_result=verified_doris,
-                codedit_result=verified_codedit,
-                cod_entry_mode_snapshot=cod_entry_mode_snapshot,
-                va_finassess_remark=(form1.va_finassess_remark.data or "").strip()
-                or None,
-                demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
-                is_tester=tester_output,
-                va_finassess_status=(
-                    VaStatuses.deactive if tester_output else VaStatuses.active
-                ),
-                # va_rreview=form.va_rreview.data,
-                # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
-                # va_rreview_remark=form.va_rreview_remark.data.strip() or None,
-            )
-            db.session.add(new_review1)
-
-            if tester_output:
-                # Tester output never becomes the case's result: no coder
-                # final is superseded, the authority and any recode episode
-                # stay, and the case returns to the pool (digitva-ggc3).
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="c",
-                        va_audit_action="final cod submitted by coding tester (not counted)",
-                        va_audit_entityid=gen_uuid,
-                    )
-                )
-                db.session.flush()
-                return_tester_coding_to_pool(
-                    active_allocation, reason="tester_final_cod_submitted"
-                )
-                db.session.commit()
-                bust_coder_dashboard_cache(current_user.user_id)
-                flash(_TESTER_SAVED_MESSAGE, "success")
+            if saved.tester:
+                flash(TESTER_SAVED_MESSAGE, "success")
                 if request.headers.get("HX-Request"):
                     response = jsonify(success=True)
                     response.headers["HX-Redirect"] = url_for("coding.dashboard")
                     return response
                 return redirect(url_for("coding.dashboard"))
-
-            for existing_final in existing_active_finals:
-                existing_final.va_finassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="d",
-                        va_audit_action=(
-                            "superseded authoritative final cod"
-                            if prior_authoritative_final
-                            and existing_final.va_finassess_id
-                            == prior_authoritative_final.va_finassess_id
-                            else "deactivated superseded final cod"
-                        ),
-                        va_audit_entityid=existing_final.va_finassess_id,
-                    )
-                )
-
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid = va_sid,
-                    va_audit_byrole = "vacoder",
-                    va_audit_by = current_user.user_id,
-                    va_audit_operation = "c",
-                    va_audit_action = "final cod submitted",
-                    va_audit_entityid = gen_uuid
-                )
-            )
-            va_has_allocation = active_allocation
-            va_has_allocation.va_allocation_status = VaStatuses.deactive
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid = va_sid,
-                    va_audit_byrole = "vacoder",
-                    va_audit_by = current_user.user_id,
-                    va_audit_operation = "d",
-                    va_audit_action = "allocated form released from coder",
-                    va_audit_entityid = va_has_allocation.va_allocation_id
-                )
-            )
-            db.session.flush()
-            upsert_final_cod_authority(
-                va_sid,
-                new_review1,
-                reason=(
-                    "replacement_final_cod_submitted"
-                    if active_recode_episode
-                    else "final_cod_submitted"
-                ),
-                source_role="vacoder",
-                updated_by=current_user.user_id,
-            )
-            if active_recode_episode:
-                mark_recode_finalized(
-                    va_sid,
-                    reason="replacement_final_cod_submitted",
-                    actor=coder_actor(current_user.user_id),
-                )
-                complete_recode_episode(active_recode_episode, new_review1)
-            else:
-                mark_coder_finalized(
-                    va_sid,
-                    reason="final_cod_submitted",
-                    actor=coder_actor(current_user.user_id),
-                )
-            # Demo/training projects skip the 24-hour recode window so
-            # trainees can practise reviewing at once. Admin-started demo
-            # sessions on ordinary projects keep the window.
-            if is_demo_training_submission(va_sid):
-                mark_reviewer_eligible_after_recode_window(
-                    va_sid,
-                    reason="demo_reviewer_eligible_immediately",
-                    actor=system_actor(),
-                )
-            db.session.commit()
-            bust_coder_dashboard_cache(current_user.user_id)
-            # The conclusive COD is stored: attach the picked code to the
-            # search the browser says produced it (digitva-zpe.3). Runs after
-            # the save committed; a telemetry failure cannot unsave the COD.
-            coding_search_telemetry_service.record_choice(
-                search_id=request.form.get("cod_search_id"),
-                chosen_code=request.form.get("cod_chosen_code"),
-                chosen_rank=request.form.get("cod_chosen_rank"),
-                role=coding_search_telemetry_service.role_label(current_user),
-            )
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')
@@ -2106,128 +1475,35 @@ def renderpartial(va_sid, va_partial):
             # there is nothing to release and nobody to attribute it to.
             va_permission_ensureallocation(va_sid, "coding")
         if form.validate_on_submit():
-            gen_uuid = uuid.uuid4()
-            other_reason = form.va_creview_other.data.strip() or None
-            tester_output = _is_tester_coding(va_sid, va_actiontype)
-            new_coder_review = VaCoderReview(
-                va_creview_id = gen_uuid,
-                va_sid = va_sid,
-                va_creview_by = current_user.user_id,
-                va_creview_reason = form.va_creview_reason.data,
-                va_creview_other = other_reason,
-                is_tester = tester_output,
-                va_creview_status = (
-                    VaStatuses.deactive if tester_output else VaStatuses.active
-                ),
-            )
-            if tester_output:
-                # A tester's not-codeable report is tester output: the case
-                # is not excluded, ODK is not flagged, and it returns to the
-                # coding pool (digitva-ggc3).
-                va_has_allocation = db.session.scalar(
-                    sa.select(VaAllocations).where(
-                        VaAllocations.va_sid == va_sid,
-                        VaAllocations.va_allocated_to == current_user.user_id,
-                        VaAllocations.va_allocation_for == VaAllocation.coding,
-                        VaAllocations.va_allocation_status == VaStatuses.active,
-                    )
+            try:
+                saved = submit_coder_not_codeable(
+                    current_user,
+                    va_sid,
+                    reason=form.va_creview_reason.data,
+                    other=form.va_creview_other.data,
+                    actiontype=va_actiontype,
                 )
-                db.session.add(new_coder_review)
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="c",
-                        va_audit_action="not codeable reported by coding tester (not counted)",
-                        va_audit_entityid=gen_uuid,
-                    )
-                )
-                return_tester_coding_to_pool(
-                    va_has_allocation, reason="tester_not_codeable_submitted"
-                )
-                db.session.commit()
-                bust_coder_dashboard_cache(current_user.user_id)
-                flash(_TESTER_SAVED_MESSAGE, "success")
+            except CoderCodingError as exc:
+                return _coder_error_response(exc)
+            if saved.tester:
+                flash(TESTER_SAVED_MESSAGE, "success")
                 if request.headers.get("HX-Request"):
                     response = jsonify(success=True)
                     response.headers["HX-Redirect"] = url_for("coding.dashboard")
                     return response
                 return redirect(url_for("coding.dashboard"))
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid = va_sid,
-                    va_audit_byrole = "vacoder",
-                    va_audit_by = current_user.user_id,
-                    va_audit_operation = "c",
-                    va_audit_action = "error reported by coder",
-                    va_audit_entityid = gen_uuid
-                )
-            )
-            va_has_allocation = db.session.scalar(
-                sa.select(VaAllocations).where(
-                    VaAllocations.va_sid == va_sid,
-                    VaAllocations.va_allocated_to == current_user.user_id,
-                    VaAllocations.va_allocation_for == VaAllocation.coding,
-                    VaAllocations.va_allocation_status == VaStatuses.active,
-                )
-            )
-            va_has_allocation.va_allocation_status = VaStatuses.deactive
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid = va_sid,
-                    va_audit_byrole = "vacoder",
-                    va_audit_by = current_user.user_id,
-                    va_audit_operation = "d",
-                    va_audit_action = "allocated form released from coder",
-                    va_audit_entityid = va_has_allocation.va_allocation_id
-                )
-            )
-            db.session.add(new_coder_review)
-            mark_coder_not_codeable(
-                va_sid,
-                reason="coder_marked_not_codeable",
-                actor=coder_actor(current_user.user_id),
-            )
-            odk_sync_result = sync_not_codeable_review_state(
-                va_sid,
-                form.va_creview_reason.data,
-                other_reason,
-            )
-            if odk_sync_result.success:
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="u",
-                        va_audit_action=f"odk review state set to {odk_sync_result.review_state}",
-                    )
-                )
-            else:
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="u",
-                        va_audit_action="odk review state update failed",
-                    )
-                )
-            db.session.commit()
             success_message = "Not Codeable saved locally."
             warning_message = None
-            if odk_sync_result.success:
+            if saved.odk_synced:
                 success_message += " ODK Central was flagged for revision."
             else:
                 warning_message = (
                     "Not Codeable was saved locally, but ODK Central could not be "
-                    f"updated automatically. {odk_sync_result.error_message}"
+                    f"updated automatically. {saved.odk_error}"
                 )
             flash(success_message, "success")
             if warning_message:
                 flash(warning_message, "warning")
-            bust_coder_dashboard_cache(current_user.user_id)
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')

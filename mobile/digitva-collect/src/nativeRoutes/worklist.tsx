@@ -125,6 +125,7 @@ export default function Worklist() {
   const [serverKeptUploads, setServerKeptUploads] = useState<
     Array<{ uniqueId: string; locked: boolean }>
   >([]);
+  const [canCodeNowUniqueIds, setCanCodeNowUniqueIds] = useState<string[]>([]);
   const [draftConflict, setDraftConflict] = useState(false);
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
@@ -198,6 +199,7 @@ export default function Worklist() {
     setPicking(false);
     setSupersededUniqueIds([]);
     setServerKeptUploads([]);
+    setCanCodeNowUniqueIds([]);
     setDraftConflict(false);
   }, []);
 
@@ -211,7 +213,11 @@ export default function Worklist() {
   }, [selectedProjectId]);
 
   const loadLocal = useCallback(
-    async (handle: Db, current: () => boolean = () => true) => {
+    async (
+      handle: Db,
+      current: () => boolean = () => true,
+      caseFlagsAuthoritative = false,
+    ) => {
       const [d, c, r, a, localRevisions] = await Promise.all([
         listDrafts(handle),
         listCases(handle),
@@ -223,6 +229,12 @@ export default function Worklist() {
       setDrafts(d);
       setRevisions(localRevisions);
       setCases(c);
+      if (caseFlagsAuthoritative) {
+        const authoritativeUniqueIds = new Set(c.map(({ unique_id }) => unique_id));
+        setCanCodeNowUniqueIds((currentHints) =>
+          currentHints.filter((uniqueId) => !authoritativeUniqueIds.has(uniqueId)),
+        );
+      }
       setRegistrations(r);
       setQueued(a.length);
     },
@@ -244,6 +256,7 @@ export default function Worklist() {
         setCases([]);
         setRegistrations([]);
         setQueued(0);
+        setCanCodeNowUniqueIds([]);
         setSubmittedRevisions([]);
         setSubmittedRevisionsLoaded(false);
         setSubmittedRevisionsError(false);
@@ -535,7 +548,7 @@ export default function Worklist() {
       await refreshDefinitions(account.user_id, db, fresh);
       if (!isCurrent()) return;
       await refreshCases(account.user_id, db);
-      await loadLocal(db, isCurrent);
+      await loadLocal(db, isCurrent, true);
       const authorizedProjectIds = new Set(
         fresh?.projects.map(({ project }) => project.project_id) ?? [],
       );
@@ -635,10 +648,12 @@ export default function Worklist() {
     const syncGeneration = onlineRequestGenerationRef.current;
     const isCurrentSync = () =>
       isCurrent() && syncGeneration === onlineRequestGenerationRef.current;
+    let caseFlagsAuthoritative = false;
     setBusy(true);
     setMessage("");
     setSupersededUniqueIds([]);
     setServerKeptUploads([]);
+    setCanCodeNowUniqueIds([]);
     try {
       const { sync: result, reference: fresh } = await syncAccount(account.user_id, db, {
         onSuperseded: (uniqueId) => {
@@ -665,7 +680,13 @@ export default function Worklist() {
             return [...current, notice];
           });
         },
+        onCanCodeNow: (uniqueId) => {
+          if (isCurrentSync()) {
+            setCanCodeNowUniqueIds((current) => current.includes(uniqueId) ? current : [...current, uniqueId]);
+          }
+        },
       });
+      caseFlagsAuthoritative = true;
       if (isCurrentSync()) {
         setMessage(
           t("syncResult", {
@@ -690,6 +711,10 @@ export default function Worklist() {
             return [...merged.values()];
           });
         }
+        const acknowledgedCodeHints = result.canCodeNowUniqueIds ?? [];
+        if (acknowledgedCodeHints.length) {
+          setCanCodeNowUniqueIds((current) => [...new Set([...current, ...acknowledgedCodeHints])]);
+        }
         if (result.draftConflictIds?.length) setDraftConflict(true);
       }
       if (isCurrentSync()) {
@@ -699,7 +724,7 @@ export default function Worklist() {
       if (isCurrent()) await handleError(error);
     } finally {
       try {
-        await loadLocal(db, isCurrent);
+        await loadLocal(db, isCurrent, caseFlagsAuthoritative);
       } catch (error) {
         if (isCurrent()) await handleError(error);
       }
@@ -868,6 +893,9 @@ export default function Worklist() {
           {row.other_complete_interview === true ? (
             <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
           ) : null}
+          {row.code_now === true ? (
+            <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+          ) : null}
           {[
             fieldValue(
               t("fieldAge").replace(/\s*\*\s*$/, ""),
@@ -934,6 +962,9 @@ export default function Worklist() {
               ) : null}
               {row.other_complete_interview === true ? (
                 <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
+              ) : null}
+              {row.code_now === true ? (
+                <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
               ) : null}
               <Button
                 kind="secondary"
@@ -1103,6 +1134,16 @@ export default function Worklist() {
       {draftConflict ? (
         <Text style={styles.text}>{t("draftConflictNotice")}</Text>
       ) : null}
+      {canCodeNowUniqueIds
+        .filter((uniqueId) =>
+          !cases.some((row) => row.unique_id === uniqueId && row.code_now === true) &&
+          !onlineCases.some((row) => row.unique_id === uniqueId && row.code_now === true)
+        )
+        .map((uniqueId) => (
+          <Text key={`code-now-${uniqueId}`} style={styles.muted}>
+            {t("readyForCodeOnWeb")}
+          </Text>
+        ))}
       {supersededUniqueIds.map((uniqueId, index) => (
         <View key={`${uniqueId}-${index}`} style={styles.card}>
           <Text style={styles.text}>{t("supersededInterviewNotice")}</Text>

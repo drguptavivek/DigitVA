@@ -222,6 +222,7 @@
   "otherDraftActiveAt": "Another interviewer started this interview on {date}.",
   "otherDraftActive": "Another interviewer has started this interview.",
   "otherDraftSyncNotice": "This warning reflects the last successful sync.",
+  "readyForCodeOnWeb": "Ready for you to code on the web.",
   "lastContact": "Last contact",
   "deathNotFound": "This death record is unavailable or outside your access.",
   "contactDetailsHeading": "Family and informant",

@@ -201,6 +201,40 @@ left). A failed run is queued as a replacement of its failure row. A failed
 regeneration keeps the old successful result active and records the failure on
 the run only; the audit rows of a requested regeneration carry the requester.
 
+## Coder COD writes (`POST /api/v1/coding/initial|finalize|not-codeable/<va_sid>`, `app/routes/api/coding.py`)
+
+The coder's three saves over JSON (digitva-xl43 phase 1), the same writes the
+web partials make: both call `app/services/coder_cod_service.py`
+(`submit_coder_initial_cod`, `submit_coder_final_cod`,
+`submit_coder_not_codeable`). Gate `coder` or `coding_tester`; cookie with
+`X-CSRFToken` or a device bearer. Authorised per request: `Action.CODE`
+(`RECODE` in a recode episode) on the case plus the caller's own active coding
+allocation on it. The service derives the web's `actiontype` itself: demo
+practice stamps `demo_expires_at`, a coding tester's save is tester output
+(stored deactive, the case returns to the pool, ODK untouched).
+
+| Route | Body | 200 reply |
+| --- | --- | --- |
+| `POST /initial/<va_sid>` (masked projects only) | `immediate_cod` (not for masked DORIS), `antecedent_cod`, `other_conditions` (a list from the age group's choices, or one text joined by ` \| `), masked DORIS: `doris_certificate`, `doris_result`, `codedit_result`, `doris_process_token`, `doris_result_digest`, `doris_client_revision` | `{va_sid, initial_assessment_id, workflow_state}` (`coder_step1_saved`) |
+| `POST /finalize/<va_sid>` | `conclusive_cod` (required), `remark`, `immediate_cod` and `other_conditions` (text; unmasked simple), the DORIS fields above (unmasked DORIS), `cod_search_id`, `cod_chosen_code` (text), `cod_chosen_rank` (integer); a wrong type is a 400 before anything is saved | `{va_sid, final_assessment_id, workflow_state}` (`coder_finalized`, or the state a coding tester's save returns the case to) |
+| `POST /not-codeable/<va_sid>` | `reason` (`narration_language`, `narration_doesnt_match`, `no_info`, `form_is_empty`, `others`), `other` (required for `others`) | `{va_sid, workflow_state, odk_synced}` (`odk_synced`: the ODK Central flag was set; `false` for a coding tester's report or a failed flag) |
+
+Errors `{error, code}`: 400 `invalid_request` (body not an object, wrong type,
+a missing required field, a DORIS certificate sent to masked Step 2),
+`invalid_cod` (Step 1; `messages` lists every invalid cause) and
+`invalid_other_conditions`; 403 `forbidden` / `no_allocation`; 404 `not_found`;
+409 `not_masked`, `wrong_state` (a masked final without the caller's own
+Step 1: "Save Step 1 first."), `no_payload` and the DORIS conflicts
+`DORIS_CERTIFICATE_CHANGED` (carries `processing`, a fresh proof; nothing is
+saved), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413 `too_large`
+(any of the three bodies over 1.2 MB; keyed by path only, with no database
+lookup); 422 `invalid_request` (`remark`, `other` or an `other_conditions`
+item over 4000 characters), `final_blocked` (`messages` lists
+every blocking gate: an invalid COD, no active payload, Narrative QA or Social
+Autopsy Analysis not yet saved) and `invalid_doris`; 503 `who_unavailable` /
+`who_not_configured`. Not codeable also flags ODK Central for revision; a
+failed flag is audited and does not fail the save.
+
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.

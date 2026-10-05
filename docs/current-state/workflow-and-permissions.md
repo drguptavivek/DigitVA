@@ -876,7 +876,10 @@ read-only is built by `digitva-0wc` stage 2 (next subsection).
 - The `vadata` and `vaarea` partial validators require `VIEW`. Every write
   partial in `va_form.renderpartial` requires its own action in
   `_require_partial_write`: `vadmtriage` TRIAGE (GET and POST), Step 1,
-  final COD and coder Not Codeable CODE (RECODE for `varecode`),
+  final COD and coder Not Codeable CODE (RECODE for `varecode`; the writes
+  themselves, and the same checks again plus the caller's active coding
+  allocation, live in `coder_cod_service`, which the
+  `/api/v1/coding/initial|finalize|not-codeable` routes call too),
   `vareviewform` REVIEW, `vausernote` only from a coding or reviewing
   session.
 - Redaction: for a viewer `should_redact_pii` decides, the section render

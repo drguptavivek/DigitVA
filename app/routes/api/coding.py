@@ -3,6 +3,7 @@
 import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db, limiter
 from app.decorators import role_required
@@ -36,6 +37,12 @@ from app.services.coder_workflow_service import (
 from app.routes.api.request_helpers import error as api_error, intake_error, parse_body
 from app.services import smartva_service
 from app.services.authz import Action, Reason, can
+from app.services.coder_cod_service import (
+    CoderCodingError,
+    submit_coder_final_cod,
+    submit_coder_initial_cod,
+    submit_coder_not_codeable,
+)
 from app.services.case_transition_service import WebIntakeError
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.interview_send_back_service import send_back_for_revision
@@ -334,6 +341,218 @@ def mark_reviewer_eligible_after_recode_window():
         actor=admin_actor(current_user.user_id)
     )
     return jsonify({"reviewer_eligible": transitioned}), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/coding/initial|finalize|not-codeable/<sid>  — the coder's writes
+# ---------------------------------------------------------------------------
+
+_BODY_CAP = 1_200_000  # the DORIS certificate and its envelopes ride along
+_FREE_TEXT_CAP = 4000  # characters: remark, other, each other condition
+
+
+def _coder_refusal(exc: CoderCodingError):
+    """``{error, code}`` for a refused write; blocking gates add ``messages``
+    and a changed DORIS certificate adds the reprocessed ``processing``."""
+    extra = {}
+    if exc.code in ("final_blocked", "invalid_cod"):
+        extra["messages"] = exc.messages
+    if exc.processing is not None:
+        extra["processing"] = exc.processing
+    return api_error(exc.message, exc.code, exc.status_code, **extra)
+
+
+@bp.errorhandler(RequestEntityTooLarge)
+def _body_too_large(_exc):
+    return api_error("The request body is too large.", "too_large", 413)
+
+
+def _too_long(*texts: str | None) -> bool:
+    return any(text and len(text) > _FREE_TEXT_CAP for text in texts)
+
+
+def _json_object() -> dict | None:
+    """The JSON object body, None when absent or not an object.
+
+    The size cap keys on the path only, so no lookup runs before authz. It
+    reads ``Content-Length``: CSRF protection has already built the request
+    stream without a limit, so ``request.max_content_length`` cannot enforce
+    it. Longer raises ``RequestEntityTooLarge`` for the handler above.
+    """
+    if (request.content_length or 0) > _BODY_CAP:
+        raise RequestEntityTooLarge()
+    try:
+        body = request.get_json(silent=True)
+    except RecursionError:  # absurdly nested JSON within the size cap
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _text(body: dict, name: str) -> str | None:
+    """The stripped text of *name*, None when absent; ValueError when not text."""
+    value = body.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be text.")
+    return value.strip()
+
+
+def _doris_fields(body: dict) -> dict:
+    """The DORIS envelopes of a body: objects, tokens as text (ValueError otherwise)."""
+    for name in ("doris_certificate", "doris_result", "codedit_result"):
+        if body.get(name) is not None and not isinstance(body[name], dict):
+            raise ValueError(f"{name} must be an object.")
+    return {
+        "doris_certificate": body.get("doris_certificate"),
+        "doris_result": body.get("doris_result"),
+        "codedit_result": body.get("codedit_result"),
+        "doris_process_token": _text(body, "doris_process_token"),
+        "doris_result_digest": _text(body, "doris_result_digest"),
+        "doris_client_revision": body.get("doris_client_revision", 0),
+    }
+
+
+def _other_conditions_list(body: dict) -> list[str] | None:
+    """Step 1 ``other_conditions``: a list of choices, or one text joined by ``|``."""
+    value = body.get("other_conditions")
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [part.strip() for part in value.split("|") if part.strip()]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    raise ValueError("other_conditions must be text or a list of text.")
+
+
+@bp.post("/initial/<va_sid>")
+@role_required("coder", "coding_tester")
+def initial(va_sid):
+    """Save the coder's masked Step 1. Body: ``immediate_cod`` (not for masked
+    DORIS, where Part I line 1 gives it), ``antecedent_cod``,
+    ``other_conditions`` (a list from the age group's choices, or one text
+    joined by ``|``) and, for masked DORIS, ``doris_certificate``,
+    ``doris_result``, ``codedit_result``, ``doris_process_token``,
+    ``doris_result_digest``, ``doris_client_revision``. 200 ``{va_sid,
+    initial_assessment_id, workflow_state}``. Errors ``{error, code}``: 400
+    ``invalid_request`` / ``invalid_cod`` (``messages``) /
+    ``invalid_other_conditions``; 403 ``forbidden`` / ``no_allocation``; 404
+    ``not_found``; 409 ``not_masked`` / ``wrong_state`` / ``no_payload`` and
+    the DORIS conflicts (``DORIS_CERTIFICATE_CHANGED`` carries
+    ``processing``); 413 ``too_large``; 422 ``invalid_doris``; 503
+    ``who_unavailable`` / ``who_not_configured``; 422 also for an
+    ``other_conditions`` item over 4000 characters."""
+    body = _json_object()
+    if body is None:
+        return api_error("A JSON object is required.", "invalid_request", 400)
+    try:
+        fields = {
+            "immediate_cod": _text(body, "immediate_cod"),
+            "antecedent_cod": _text(body, "antecedent_cod"),
+            "other_conditions": _other_conditions_list(body),
+            **_doris_fields(body),
+        }
+    except ValueError as exc:
+        return api_error(str(exc), "invalid_request", 400)
+    if _too_long(*(fields["other_conditions"] or [])):
+        return api_error("An other condition is too long.", "invalid_request", 422)
+    try:
+        saved = submit_coder_initial_cod(current_user, va_sid, **fields)
+    except CoderCodingError as exc:
+        return _coder_refusal(exc)
+    return jsonify({
+        "va_sid": va_sid,
+        "initial_assessment_id": str(saved.assessment.va_iniassess_id),
+        "workflow_state": get_submission_workflow_state(va_sid),
+    })
+
+
+@bp.post("/finalize/<va_sid>")
+@role_required("coder", "coding_tester")
+def finalize(va_sid):
+    """Save the coder's final COD. Body: ``conclusive_cod`` (required),
+    ``remark``, ``immediate_cod`` and ``other_conditions`` (unmasked simple
+    projects), the DORIS fields of ``initial`` (unmasked DORIS), and the
+    search telemetry ``cod_search_id``, ``cod_chosen_code``,
+    ``cod_chosen_rank``. 200 ``{va_sid, final_assessment_id,
+    workflow_state}``. Errors as ``initial``, and 422 ``final_blocked`` with
+    every blocking message in ``messages`` (an invalid COD, Narrative QA or
+    Social Autopsy not done); 422 ``invalid_request`` for a ``remark`` or
+    ``other_conditions`` over 4000 characters; 413 ``too_large`` over 1.2 MB."""
+    body = _json_object()
+    if body is None:
+        return api_error("A JSON object is required.", "invalid_request", 400)
+    try:
+        conclusive_cod = _text(body, "conclusive_cod")
+        fields = {
+            "remark": _text(body, "remark"),
+            "immediate_cod": _text(body, "immediate_cod"),
+            "other_conditions": _text(body, "other_conditions"),
+            **_doris_fields(body),
+        }
+        cod_search_id = _text(body, "cod_search_id")
+        cod_chosen_code = _text(body, "cod_chosen_code")
+        cod_chosen_rank = body.get("cod_chosen_rank")
+        if cod_chosen_rank is not None and (
+            not isinstance(cod_chosen_rank, int) or isinstance(cod_chosen_rank, bool)
+        ):
+            raise ValueError("cod_chosen_rank must be an integer.")
+    except ValueError as exc:
+        return api_error(str(exc), "invalid_request", 400)
+    if not conclusive_cod:
+        return api_error("conclusive_cod is required.", "invalid_request", 400)
+    if _too_long(fields["remark"], fields["other_conditions"]):
+        return api_error("remark or other_conditions is too long.", "invalid_request", 422)
+    try:
+        saved = submit_coder_final_cod(
+            current_user,
+            va_sid,
+            conclusive_cod=conclusive_cod,
+            cod_search_id=cod_search_id,
+            cod_chosen_code=cod_chosen_code,
+            cod_chosen_rank=cod_chosen_rank,
+            **fields,
+        )
+    except CoderCodingError as exc:
+        return _coder_refusal(exc)
+    return jsonify({
+        "va_sid": va_sid,
+        "final_assessment_id": str(saved.assessment.va_finassess_id),
+        "workflow_state": get_submission_workflow_state(va_sid),
+    })
+
+
+@bp.post("/not-codeable/<va_sid>")
+@role_required("coder", "coding_tester")
+def not_codeable(va_sid):
+    """Report the case Not Codeable. Body: ``reason`` (``narration_language``,
+    ``narration_doesnt_match``, ``no_info``, ``form_is_empty``, ``others``),
+    ``other`` (text, required for ``others``). Releases the allocation and
+    flags ODK Central for revision (a coding tester's report is not counted and
+    the case returns to the pool). 200 ``{va_sid, workflow_state, odk_synced}``
+    (``odk_synced``: the ODK Central flag was set). Errors ``{error, code}``:
+    400 ``invalid_request``; 403 ``forbidden`` / ``no_allocation``; 404
+    ``not_found``; 409 ``wrong_state``; 413 ``too_large`` over 1.2 MB; 422
+    ``invalid_request`` for an ``other`` over 4000 characters."""
+    body = _json_object()
+    if body is None:
+        return api_error("A JSON object is required.", "invalid_request", 400)
+    try:
+        reason = _text(body, "reason")
+        other = _text(body, "other")
+    except ValueError as exc:
+        return api_error(str(exc), "invalid_request", 400)
+    if _too_long(other):
+        return api_error("other is too long.", "invalid_request", 422)
+    try:
+        saved = submit_coder_not_codeable(current_user, va_sid, reason=reason or "", other=other)
+    except CoderCodingError as exc:
+        return _coder_refusal(exc)
+    return jsonify({
+        "va_sid": va_sid,
+        "workflow_state": get_submission_workflow_state(va_sid),
+        "odk_synced": saved.odk_synced,
+    })
 
 
 # ---------------------------------------------------------------------------

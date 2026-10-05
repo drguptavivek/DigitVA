@@ -26,6 +26,7 @@ from app.models import (
     VaAllocation,
     VaAllocations,
     VaForms,
+    VaInitialAssessments,
     VaProjectMaster,
     VaStatuses,
     VaSubmissions,
@@ -155,6 +156,16 @@ class TestCodingSearchTelemetry(BaseTestCase):
         )
         db.session.add(
             VaSubmissionWorkflow(va_sid=self.sid, workflow_state=WORKFLOW_CODING_IN_PROGRESS)
+        )
+        # The base project is masked: the final needs the caller's own Step 1.
+        db.session.add(
+            VaInitialAssessments(
+                va_sid=self.sid,
+                va_iniassess_by=self.base_admin_user.user_id,
+                va_immediate_cod="I24",
+                va_antecedent_cod="I24",
+                va_iniassess_status=VaStatuses.active,
+            )
         )
         db.session.commit()
 
@@ -316,6 +327,20 @@ class TestCodingSearchTelemetry(BaseTestCase):
         self.assertEqual(row.chosen_rank, 0)
         self.assertIsNotNone(row.chosen_at)
         self.assertEqual(row.role, "admin")
+
+    def test_masked_final_without_step1_is_shown_as_a_blocking_message(self):
+        db.session.execute(
+            sa.update(VaInitialAssessments)
+            .where(VaInitialAssessments.va_sid == self.sid)
+            .values(va_iniassess_status=VaStatuses.deactive)
+        )
+        db.session.commit()
+
+        response = self._post_final({})
+
+        # Rendered in the form like any blocking message, not a bare JSON error.
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Save Step 1 first.", response.get_data(as_text=True))
 
     def test_final_cod_save_without_search_fields_is_unlinked_but_unharmed(self):
         response = self._post_final({})

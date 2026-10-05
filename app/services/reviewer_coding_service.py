@@ -104,7 +104,7 @@ def _who_image_digest() -> str:
     return digest
 
 
-def _verify_reviewer_doris(
+def verify_doris_submission(
     user,
     va_sid: str,
     allocation_id,
@@ -117,8 +117,11 @@ def _verify_reviewer_doris(
     process_token: str | None,
     result_digest: str | None,
     client_revision: int = 0,
+    role: str = "reviewer",
 ) -> dict:
-    """Verify the reviewer's posted DORIS certificate against its signed proof.
+    """Verify the posted DORIS certificate against its signed proof.
+
+    *role* (``reviewer`` or ``coder``) is the role the proof was minted for.
 
     Returns the server-normalized envelopes. Raises ReviewerCodingError: a
     changed certificate is reprocessed and returned as a 409 carrying a
@@ -134,7 +137,7 @@ def _verify_reviewer_doris(
             codedit_result=codedit_result,
             submitted_result_digest=result_digest or "",
             va_sid=va_sid,
-            role="reviewer",
+            role=role,
             user_id=user.user_id,
             allocation_id=allocation_id,
             payload_version_id=payload_version_id,
@@ -160,7 +163,7 @@ def _verify_reviewer_doris(
             certificate_digest=processing["certificate_digest"],
             result_digest=processing["result_digest"],
             va_sid=va_sid,
-            role="reviewer",
+            role=role,
             user_id=user.user_id,
             allocation_id=allocation_id,
             payload_version_id=payload_version_id,
@@ -433,7 +436,7 @@ def submit_reviewer_final_cod(
             raise ReviewerCodingError(str(exc), 400) from exc
     elif mode == "unmasked_doris":
         who_image_digest = _who_image_digest()
-        verified = _verify_reviewer_doris(
+        verified = verify_doris_submission(
             user,
             va_sid,
             active_allocation.va_allocation_id,
@@ -595,7 +598,7 @@ def submit_reviewer_initial_cod(
     Masked simple takes the immediate and antecedent causes as typed.
     Masked DORIS takes the reviewer's own processed certificate: its signed
     proof is verified (or the certificate reprocessed, see
-    ``_verify_reviewer_doris``), the immediate cause is Part I line 1 and
+    ``verify_doris_submission``), the immediate cause is Part I line 1 and
     the antecedent is the reviewer's confirmed underlying cause. A missing
     line or cause is a 400. The coder's records are never touched.
     """
@@ -641,7 +644,7 @@ def submit_reviewer_initial_cod(
                 400,
             )
         who_image_digest = _who_image_digest()
-        verified = _verify_reviewer_doris(
+        verified = verify_doris_submission(
             user,
             va_sid,
             active_allocation.va_allocation_id,

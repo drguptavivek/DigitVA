@@ -167,9 +167,9 @@ def record_choice(
     """
     try:
         key = uuid.UUID(str(search_id))
+        code = (chosen_code or "").strip()
     except (TypeError, ValueError, AttributeError):
         return
-    code = (chosen_code or "").strip()
     if not code:
         return
     try:

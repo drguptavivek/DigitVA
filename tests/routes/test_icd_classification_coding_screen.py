@@ -186,7 +186,7 @@ class TestIcdClassificationCodingScreen(BaseTestCase):
         self.app.config["DORIS_WHO_IMAGE_DIGEST"] = "sha256:pinned-image"
         certificate = {"ICDVersion": "ICD11", "Part1": [{"Conditions": [{"Text": "Acute myocardial infarction", "Code": "BA41"}]}]}
         with patch(
-            "app.routes.va_form.verify_process_submission",
+            "app.services.reviewer_coding_service.verify_process_submission",
             return_value={"certificate": certificate, "doris": {}, "codedit": {}},
         ):
             return self._post(

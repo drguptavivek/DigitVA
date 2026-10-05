@@ -22,7 +22,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
-from app.routes.va_form import _final_ucod_source
+from app.services.cod_entry_mode import final_ucod_source as _final_ucod_source
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import WORKFLOW_CODING_IN_PROGRESS
 from app.services.workflow.state_store import set_submission_workflow_state
@@ -219,9 +219,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertNotIn("Tuberculosis", step1)
         self.assertNotIn("select2-root", step1)
 
-    @patch("app.routes.va_form.build_icd11_provenance_for_values")
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_stores_envelopes_and_derives_text_columns(
         self, verify, validate, provenance
     ):
@@ -305,9 +305,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertEqual(self._json_script(body, "data-doris-initial"), _CERTIFICATE)
         self.assertEqual(self._json_script(body, "data-doris-prefill"), {})
 
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_records_prefilled_fields_and_coder_changes(self, verify, _validate, _provenance):
         sid = self._start_coder(payload_data=self._INJURY_PAYLOAD)
         self._login(self.base_coder_id)
@@ -340,8 +340,8 @@ class TestMaskedDorisCoding(BaseTestCase):
         # Source ids only: no interview value leaves the certificate.
         self.assertNotIn("1970", json.dumps(record))
 
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_without_part1_line1_is_400(self, verify, _validate):
         sid = self._start_coder()
         self._login(self.base_coder_id)
@@ -355,7 +355,7 @@ class TestMaskedDorisCoding(BaseTestCase):
             db.session.scalar(db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid))
         )
 
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_without_underlying_cause_is_400(self, verify):
         sid = self._start_coder()
         self._login(self.base_coder_id)
@@ -476,9 +476,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         )
 
     @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=None)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_masked_doris_step1_post_shows_nqa_notice_when_nqa_missing(
         self, verify, _validate, _provenance, _nqa
     ):
@@ -497,9 +497,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIsNotNone(self._saved_step1(sid))
 
     @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=object())
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_masked_doris_step1_post_shows_step2_when_nqa_done(
         self, verify, _validate, _provenance, _nqa
     ):
@@ -513,9 +513,9 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIn("data-doris-final-host", body)
         self.assertNotIn("data-nqa-required", body)
 
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_masked_doris_step1_post_shows_step2_when_nqa_not_required(
         self, verify, _validate, _provenance
     ):
@@ -530,8 +530,8 @@ class TestMaskedDorisCoding(BaseTestCase):
 
     def _post_masked_simple_step1(self, sid):
         with (
-            patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None),
-            patch("app.routes.va_form.validate_coding_value_for_submission", return_value="icd10"),
+            patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None),
+            patch("app.services.coder_cod_service.validate_coding_value_for_submission", return_value="icd10"),
         ):
             return self.client.post(
                 _STEP1_URL.format(sid=sid),
@@ -636,9 +636,9 @@ class TestMaskedDorisCoding(BaseTestCase):
 
     def _save_step2(self, sid, conclusive):
         with (
-            patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False),
-            patch("app.routes.va_form.validate_coding_value_for_submission"),
-            patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None),
+            patch("app.services.coder_cod_service._social_autopsy_required", return_value=False),
+            patch("app.services.coder_cod_service.validate_coding_value_for_submission"),
+            patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None),
         ):
             response = self._post_step2(sid, conclusive)
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
@@ -730,9 +730,9 @@ class TestMaskedDorisCoding(BaseTestCase):
 
     # ---- Regression: other modes unchanged ------------------------------
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value=None)
-    @patch("app.routes.va_form.validate_coding_value_for_submission", return_value="icd10")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission", return_value="icd10")
     def test_masked_simple_step1_and_step2_unchanged(self, _validate, _provenance, _social):
         self._mode(masked=True, doris=False)
         sid = self._start_coder()
@@ -789,10 +789,10 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertIn("Process the certificate in Step 1 first.", body)
         self.assertNotIn("DORIS certificate</h4>", body)
 
-    @patch("app.routes.va_form._is_social_autopsy_enabled_for_submission", return_value=False)
-    @patch("app.routes.va_form.build_icd11_provenance_for_values", return_value={})
-    @patch("app.routes.va_form.validate_coding_value_for_submission")
-    @patch("app.routes.va_form.verify_process_submission")
+    @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_unmasked_doris_final_unchanged(self, verify, _validate, _provenance, _social):
         self._mode(masked=False, doris=True)
         sid = self._start_coder()

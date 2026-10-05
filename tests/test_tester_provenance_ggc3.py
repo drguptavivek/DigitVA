@@ -227,7 +227,7 @@ class TesterProvenanceTests(BaseTestCase):
 
     def test_tester_final_returns_the_case_to_the_pool(self):
         sid = self._submission("final")
-        with mock.patch("app.routes.va_form.bust_coder_dashboard_cache") as bust:
+        with mock.patch("app.services.coder_cod_service.bust_coder_dashboard_cache") as bust:
             self._code(sid, self.tester)
         bust.assert_called_once_with(self.tester.user_id)
 
@@ -294,7 +294,7 @@ class TesterProvenanceTests(BaseTestCase):
         sid = self._submission("nc")
         self._open_session(sid, self.tester)
         self._login(str(self.tester.user_id))
-        with mock.patch("app.routes.va_form.sync_not_codeable_review_state") as odk:
+        with mock.patch("app.services.coder_cod_service.sync_not_codeable_review_state") as odk:
             response = self.client.post(
                 f"/vaform/{sid}/vacoderreview?action=vacode&actiontype=vastartcoding",
                 data={"va_creview_reason": "no_info", "va_creview_other": ""},

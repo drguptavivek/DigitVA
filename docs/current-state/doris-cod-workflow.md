@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-05
 ---
 
 # DORIS COD Workflow
@@ -19,9 +19,10 @@ entry, and the `selectable` classification is retired. Masked and DORIS
 combine as the `masked_doris` mode. The mode and its predicates
 (`project_mode`, `is_masked`, `is_doris`), the mode snapshot, the Part I
 line 1 immediate COD and the Step 2 provenance helpers live in
-`app/services/cod_entry_mode.py`, shared by the coder screens
-(`app/routes/va_form.py`) and the reviewer service
-(`app/services/reviewer_coding_service.py`); see "Masked ICD-11 coder flow"
+`app/services/cod_entry_mode.py`, shared by the coder service
+(`app/services/coder_cod_service.py`, called by the coder screens in
+`app/routes/va_form.py` and by `/api/v1/coding/initial|finalize`) and the
+reviewer service (`app/services/reviewer_coding_service.py`); see "Masked ICD-11 coder flow"
 and "Masked ICD-11 reviewer flow" below.
 Existing masked/simple and unmasked ICD-10/ICD-11 projects keep their
 historical flow. The additive migration is `c7a4e2d9f1b6`.
@@ -56,7 +57,8 @@ A masked ICD-11 (`masked_doris`) coder keeps Step 1 and Step 2
   certificate, Process, and the coder's final-cause card ("Use DORIS result"
   or the coder's own code through the picker's search). The save reuses the
   unmasked final save's verify-or-reprocess path
-  (`_verify_doris_submission`): a changed certificate is reprocessed and
+  (`verify_doris_submission` in `reviewer_coding_service.py`, role `coder`):
+  a changed certificate is reprocessed and
   returned as a 409 with a fresh proof. The Step 1 row
   (`va_initial_assessments`) stores the verified certificate, DORIS and
   CoDEdit envelopes and the mode snapshot. Its text columns are derived:
@@ -119,7 +121,7 @@ where Step 1 and, once saved, Step 2 sit on one page.
   underlying cause. `POST /api/v1/reviewing/initial/<sid>` (JSON,
   `X-CSRFToken`, 1.2 MB limit) calls `submit_reviewer_initial_cod`, which
   verifies the envelopes with `role="reviewer"` and the reviewer's active
-  reviewing allocation through `_verify_reviewer_doris` (the same
+  reviewing allocation through `verify_doris_submission` (the same
   verify-or-reprocess helper as the unmasked DORIS reviewer final), and
   stores them with the mode snapshot on `va_reviewer_initial_assessments`.
   The text columns are derived as for the coder; only the underlying cause

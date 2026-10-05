@@ -175,6 +175,11 @@ class RecordChoiceTest(BaseTestCase):
         row = _only_row()
         self.assertIsNone(row.chosen_code)
 
+    def test_a_non_text_code_never_raises(self):
+        service.record_choice(search_id=str(self.search_id), chosen_code=5)
+        db.session.expire_all()
+        self.assertIsNone(_only_row().chosen_code)
+
     def test_truncates_an_oversized_code_to_the_column_limit(self):
         service.record_choice(
             search_id=str(self.search_id), chosen_code="X" * 40, chosen_rank=0

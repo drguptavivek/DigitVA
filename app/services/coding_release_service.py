@@ -1,8 +1,10 @@
 """Drop the coding work on a submission whose payload changed.
 
 One implementation for every path that changes the answers of a submission
-that is not yet protected: ODK sync (an edit in ODK Central) and an
-interviewer's revision (docs/policy/interview-revisions.md). The caller
+that is not yet protected: ODK sync (an edit in ODK Central), an
+interviewer's revision (docs/policy/interview-revisions.md) and a supervisor's
+choice of the other interviewer's complete interview
+(docs/policy/web-intake.md, "Parallel interviews"). The caller
 applies the new payload and routes the workflow afterwards; this only
 deactivates the coding artifacts and releases the allocations, auditing each.
 
@@ -37,6 +39,7 @@ from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_social_autopsy_analyses_for_submission,
 )
 from app.services.workflow.transitions import (
+    INTERVIEW_CHOSEN_REASON,
     REVISION_RESTART_REASON,
     WorkflowActor,
     accept_upstream_change,
@@ -48,6 +51,7 @@ from app.services.workflow.transitions import (
 #: release has its own action so coder statistics can tell the callers apart.
 SOURCE_DATASYNC = "datasync"
 SOURCE_INTERVIEWER_REVISION = "interviewer_revision"
+SOURCE_SUPERVISOR_CHOICE = "supervisor_choice"
 _SOURCES = {
     SOURCE_DATASYNC: {
         "trigger": "datasync",
@@ -62,6 +66,13 @@ _SOURCES = {
         "allocation_action": "interviewer_revision",
         "authority_reason": "submission_revised_by_interviewer",
         "recode_action": "recode episode abandoned due to interviewer revision",
+    },
+    SOURCE_SUPERVISOR_CHOICE: {
+        "trigger": "supervisor_choice",
+        "role": "interview_supervisor",
+        "allocation_action": "supervisor_choice",
+        "authority_reason": "interview_chosen_by_supervisor",
+        "recode_action": "recode episode abandoned due to supervisor interview choice",
     },
 }
 
@@ -187,22 +198,26 @@ def deactivate_coding_for_accepted_change(va_sid: str, *, actor: WorkflowActor, 
     )
 
 
-def reopen_coding_after_revision(va_sid: str, *, audit_by) -> None:
+def reopen_coding_after_revision(va_sid: str, *, audit_by, source: str = SOURCE_INTERVIEWER_REVISION) -> None:
     """Restart coding of a sent-back or reopened case at once, as the
     interviewer's revision arrives (owner, 2026-10-04: no data-manager accept
-    step): drop the coding as a data manager's accept does, move
-    ``finalized_upstream_changed`` to ``smartva_pending`` and clear the final
-    COD authority, all under a system actor and the reason
-    ``interviewer_revision``. The earlier COD stays as inactive history."""
+    step), or as a supervisor chooses the other interview (``source``
+    ``SOURCE_SUPERVISOR_CHOICE``, whose caller has just moved the case to
+    ``finalized_upstream_changed``): drop the coding as a data manager's accept
+    does, move ``finalized_upstream_changed`` to ``smartva_pending`` and clear
+    the final COD authority, all under a system actor and the reason
+    ``interviewer_revision`` (``interview_chosen`` for the supervisor's
+    choice). The earlier COD stays as inactive history."""
     actor = system_actor()
+    reason = INTERVIEW_CHOSEN_REASON if source == SOURCE_SUPERVISOR_CHOICE else REVISION_RESTART_REASON
     # The audited release first (a row per deactivated COD, review, note and
     # allocation, the recode episode abandoned), as any changed revision
     # gets; then the accept block for what only it covers (SmartVA results,
     # reviewer COD and reviews, narrative, social autopsy), whose loops find
     # the already-released rows inactive. Recoded from scratch, auditable.
-    release_coding_for_changed_payload(va_sid, source=SOURCE_INTERVIEWER_REVISION, audit_by=audit_by)
+    release_coding_for_changed_payload(va_sid, source=source, audit_by=audit_by)
     deactivate_coding_for_accepted_change(va_sid, actor=actor, audit_by=audit_by)
-    accept_upstream_change(va_sid, reason=REVISION_RESTART_REASON, actor=actor)
+    accept_upstream_change(va_sid, reason=reason, actor=actor)
     upsert_final_cod_authority(
-        va_sid, None, reason=REVISION_RESTART_REASON, source_role=actor.audit_role, updated_by=audit_by,
+        va_sid, None, reason=reason, source_role=actor.audit_role, updated_by=audit_by,
     )

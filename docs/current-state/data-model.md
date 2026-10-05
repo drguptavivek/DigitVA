@@ -566,7 +566,8 @@ foreign keys to `va_user_access_grants` and `mas_cadre`, not indexed),
 Migration `h2n5q8t1v4w7`, `digitva-hdrv`; policy `docs/policy/app-notifications.md`.
 One polled nudge per user per event: `id` (BIGINT identity, the poll cursor),
 `user_id` (FK `va_users`), `kind` (at most 32 characters: `revision_requested`,
-`other_draft_started`, `case_submitted_by_other`, `case_reopened`),
+`other_draft_started`, `case_submitted_by_other`, `case_reopened`,
+`interview_chosen`),
 `project_id`, `death_id`, `draft_id` and `va_sid` (all ids, nullable, no
 foreign key so a purge or case change never waits on them), `created_at`
 (default `now()`). No name, phone or answer. Named `map_*` because it maps a

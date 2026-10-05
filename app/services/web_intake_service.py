@@ -53,11 +53,12 @@ from app.services import case_transition_service as cases
 from app.services import notification_service, org_grant_service, served_form_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
-from app.services.authz import resolve_grants, subtree_select
+from app.services.authz import resolve_grants, subtree_select, supervision
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
 from app.services.coding_release_service import (
     SOURCE_INTERVIEWER_REVISION,
+    SOURCE_SUPERVISOR_CHOICE,
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
@@ -84,11 +85,17 @@ from app.services.web_form_relevance_service import (
 from app.services.workflow.definition import (
     PROTECTED_WORKFLOW_STATES,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
+    INTERVIEW_CHOSEN_REASON,
     WorkflowTransitionError,
+    admin_actor,
+    data_manager_actor,
+    interview_supervisor_actor,
     mark_attachment_sync_completed,
+    mark_upstream_change_detected,
     route_synced_submission,
     system_actor,
 )
@@ -131,6 +138,8 @@ __all__ = [
     "serialize_draft",
     "serialize_worklist_row",
     "serialize_case_detail",
+    "choose_interview",
+    "list_candidates",
     "get_case_detail",
     "worklist_page",
     "prefill_policy",
@@ -1386,7 +1395,10 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     answer or an interview time is taken from it instead of today's world
     (the submitter's name, the organization-unit codes and names, the death
     register's ABHA), so renaming the interviewer or a unit after the submit
-    does not turn a resend of the same answers into a change.
+    does not turn a resend of the same answers into a change. So are the
+    identifiers ``sid``, ``KEY`` and ``instanceID``: the submission keeps its
+    id when another interviewer's draft supplies the answers (a supervisor's
+    choice, ``choose_interview``), where they would otherwise name *draft*.
 
     ``data`` is expected to already have had ``strip_irrelevant_answers``
     applied (see ``submit_draft``): an attachment reference for a question
@@ -1438,8 +1450,9 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
 
     # ODK-shaped metadata so the shared projection and payload-version code
     # see a complete record (see va_odk_06_fetchsubmissions._normalize_odata_record).
-    payload["KEY"] = f"web:{draft.draft_id}"
-    payload["instanceID"] = f"web:{draft.draft_id}"
+    own_ids = {"KEY": f"web:{draft.draft_id}", "instanceID": f"web:{draft.draft_id}",
+               "sid": f"web-{draft.draft_id}-{form.form_id.lower()}"}
+    payload.update({k: (carry or {}).get(k) or v for k, v in own_ids.items()})
     payload["SubmissionDate"] = submitted_iso
     payload["updatedAt"] = submitted_iso
     payload["SubmitterName"] = carry["SubmitterName"] if carry and "SubmitterName" in carry else user.name
@@ -1452,7 +1465,6 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["ReviewState"] = None
     payload["instanceName"] = f"{draft.unique_id}_WHOVA2022"
     payload["form_def"] = form.form_id
-    payload["sid"] = f"web-{draft.draft_id}-{form.form_id.lower()}"
     # Device-recorded times when the interview carried them, else the draft's
     # open time and the server submit time (docs/policy/field-data-collection.md
     # "Interview times"). ``today`` is the completion date the server's
@@ -1593,6 +1605,10 @@ def _supersede_draft(draft: VaWebIntakeDraft, data: dict, completion: dict) -> N
     edits, which only the submit carries, so they are kept as one more section."""
     _set_final_section(draft, data)
     draft.status = "superseded"
+    # ``submit_draft`` has set ``interview_outcome`` in *data*. Read by the
+    # candidate rule (``_candidate_condition``): a complete copy can be chosen
+    # by a supervisor, an incomplete one never.
+    draft.meta = {**(draft.meta or {}), "interviewOutcome": data.get("interview_outcome")}
     draft.submitted_at = _utcnow()
     draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
@@ -2125,6 +2141,241 @@ def _revision_reply(draft: VaWebIntakeDraft, version, changed: bool, outcome: st
         "outcome": outcome,
         "workflow_state": get_submission_workflow_state(draft.va_sid),
     }
+
+
+# ---------------------------------------------------------------------------
+# A supervisor chooses between two complete interviews (digitva-bqzm,
+# docs/policy/web-intake.md "Parallel interviews")
+# ---------------------------------------------------------------------------
+
+#: Fixed reasons for a choice; no free text, so a reason carries no personal data.
+CHOICE_REASONS = ("better_quality", "more_complete", "original_incorrect", "switch_back")
+#: Most candidates one case detail lists (a case rarely has more than one).
+CANDIDATES_MAX = 20
+
+
+def _candidate_condition():
+    """SQL condition on ``VaWebIntakeDraft``: a candidate for the case's
+    interview, a ``superseded`` copy whose interview was complete. A ``replaced``
+    row (history of a resend) and an incomplete copy never qualify."""
+    return sa.and_(
+        VaWebIntakeDraft.status == "superseded",
+        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
+    )
+
+
+def _has_candidate():
+    """Correlated EXISTS on ``VaDeathRegister``: the submitted case has a
+    candidate, i.e. a second complete interview exists. One probe on
+    ``ix_va_web_intake_drafts_death`` per case row."""
+    return sa.exists().where(
+        VaWebIntakeDraft.death_id == VaDeathRegister.death_id,
+        _candidate_condition(),
+        VaDeathRegister.status == "submitted",
+        VaDeathRegister.va_sid.is_not(None),
+    )
+
+
+def list_candidates(death: VaDeathRegister) -> list[dict]:
+    """The other complete interviews of a submitted case a supervisor may
+    choose, newest first: ``{draft_id, interviewer_name, completed_at,
+    outcome}``. Names are for supervisors only (staff identity, as the
+    supervision list shows who registered a case); never serve this to an
+    interviewer. One query, joined to the interviewer."""
+    if death.status != "submitted" or not death.va_sid:
+        return []
+    rows = db.session.execute(
+        sa.select(
+            VaWebIntakeDraft.draft_id, VaUsers.name, VaWebIntakeDraft.submitted_at,
+            VaWebIntakeDraft.meta["completedAt"].astext,
+        )
+        .join(VaUsers, VaUsers.user_id == VaWebIntakeDraft.user_id)
+        .where(VaWebIntakeDraft.death_id == death.death_id, _candidate_condition())
+        .order_by(VaWebIntakeDraft.submitted_at.desc())
+        .limit(CANDIDATES_MAX)
+    ).all()
+    return [
+        {
+            "draft_id": str(draft_id), "interviewer_name": name,
+            "completed_at": completed or (submitted_at.isoformat() if submitted_at else None),
+            "outcome": "completed",
+        }
+        for draft_id, name, submitted_at, completed in rows
+    ]
+
+
+def _candidate_completed_at(draft: VaWebIntakeDraft) -> datetime:
+    """When *draft*'s interview was completed, in server time: the device's
+    ``completedAt`` corrected by the clock skew recorded at upload and never
+    later than the upload (``_completion_time``'s rule), else the upload."""
+    meta = draft.meta or {}
+    done = _device_time(meta.get("completedAt"))
+    if done is None:
+        return draft.submitted_at
+    skew = meta.get("clockSkewSeconds")
+    if isinstance(skew, (int, float)) and not isinstance(skew, bool):
+        done += timedelta(seconds=skew)
+    return min(done, draft.submitted_at)
+
+
+def _supervising_actor(user: VaUsers, death: VaDeathRegister):
+    """The workflow actor *user* chooses as: an admin, or a supervisor or data
+    manager whose supervision reach covers *death* (audited as a data manager
+    when the grant is data-manager shaped, as ``reopen_for_revision`` does);
+    else 404, so an id outside the caller's reach is never confirmed."""
+    if user.is_admin():
+        return admin_actor(user.user_id)
+    if not cases.is_interview_supervisor_for(user, death):
+        raise WebIntakeError("Case not found.", 404)
+    shaped = supervision.dm_shaped_grant(user.user_id, death)
+    return data_manager_actor(user.user_id) if shaped else interview_supervisor_actor(user.user_id)
+
+
+def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object, reason_code: object) -> VaDeathRegister:
+    """A supervisor, data manager or admin chooses the *candidate_draft_id*
+    interview (another interviewer's complete one, kept as a superseded copy)
+    over the one the submitted case now holds; returns the case.
+
+    The submission keeps its ``va_sid``. The candidate's answers become a new
+    active payload version (reason ``supervisor_choice``, built by
+    ``build_final_payload`` on the original submit time with the sid, key and
+    non-answer values carried over), so ``va_data_collector`` and the
+    projection follow the chosen interviewer; the identity answers sync onto
+    the case. The drafts swap: the candidate becomes the ``submitted`` draft
+    carrying the ``va_sid``, the former winner becomes ``superseded`` (sid
+    cleared, ``meta.previousVaSid`` set) and stays a candidate, so the choice
+    can be switched back, each time audited.
+
+    Coding restarts as for any changed payload: a protected case (final COD
+    given) moves through ``finalized_upstream_changed`` and
+    ``reopen_coding_after_revision``, the earlier COD kept as inactive
+    history; an unprotected one is released
+    (``release_coding_for_changed_payload``); the submission is then re-routed.
+    Both interviewers are notified (``INTERVIEW_CHOSEN``; the chosen one with
+    the ``va_sid``).
+
+    Done under the case lock, then a lock on the submission
+    (``revise_submission``'s order). Refusals: 422 ``invalid_reason``; 404 an
+    unknown or out-of-reach case, or a candidate that is not this case's; 409
+    ``case_not_submitted``, ``not_web_submission``, ``not_a_candidate`` (not a
+    superseded, complete interview), ``form_mismatch``, ``wrong_state`` (a
+    reviewer session is live) and the form-changed refusal.
+    """
+    if reason_code not in CHOICE_REASONS:
+        raise WebIntakeError("reason_code must be one of: " + ", ".join(CHOICE_REASONS) + ".", 422, "invalid_reason")
+    try:
+        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
+    except ValueError:
+        death = None
+    if death is None:
+        raise WebIntakeError("Case not found.", 404)
+    try:
+        candidate_id = uuid.UUID(str(candidate_draft_id))
+    except ValueError:
+        raise WebIntakeError("draft_id must be a UUID.") from None
+    actor = _supervising_actor(user, death)
+    death = cases.lock_case(death)
+    if death.status != "submitted" or not death.va_sid:
+        raise WebIntakeError("Only a submitted case has an interview to choose.", 409, "case_not_submitted")
+    va_sid = death.va_sid
+    submission = db.session.get(VaSubmissions, va_sid, with_for_update=True)
+    winner = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.va_sid == va_sid, VaWebIntakeDraft.status == "submitted"))
+    candidate = db.session.get(VaWebIntakeDraft, candidate_id)
+    if submission is None or winner is None:
+        raise WebIntakeError("Only a web or device interview can be chosen between here.", 409, "not_web_submission")
+    if candidate is None or candidate.death_id != death.death_id:
+        raise WebIntakeError("Interview not found.", 404)
+    if candidate.status != "superseded" or (candidate.meta or {}).get("interviewOutcome") != "completed":
+        raise WebIntakeError("Only another complete interview of this case can be chosen.", 409, "not_a_candidate")
+    if candidate.form_id != winner.form_id:
+        raise WebIntakeError("That interview was filled on another form.", 409, "form_mismatch")
+    state = get_submission_workflow_state(va_sid)  # read under the lock
+    if state == WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
+        raise WebIntakeError("A reviewer is coding this interview; try again when the session ends.", 409, "wrong_state")
+    active = get_active_payload_version(va_sid)
+    if active is None:
+        raise WebIntakeError("This submission has no payload to replace.", 409, "wrong_state")
+    prior = active.payload_data or {}
+
+    chosen_user = db.session.get(VaUsers, candidate.user_id)
+    now = _utcnow()
+    meta = {k: v for k, v in (candidate.meta or {}).items() if k != "previousVaSid"}
+    raw = {**_answers_of(candidate), "interview_outcome": "completed"}
+    submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else winner.submitted_at
+    expression_now = _device_time(meta.get("completedAt")) or _expression_now(chosen_user, candidate.submitted_at)
+    payload, references, validation_err = build_final_payload(
+        winner, chosen_user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
+        intake_source=prior.get("intake_source") or "web", meta=meta,
+        carry={k: v for k, v in prior.items() if k != "SubmitterName"},
+    )
+    payload["updatedAt"] = now.isoformat()
+    fields = build_submission_projection(db.session.get(VaForms, winner.form_id), payload)
+    if fields["va_sid"] != va_sid:
+        raise WebIntakeError("This interview's form changed; it cannot be chosen.", 409, "form_mismatch")
+    # All refusals are decided; writes start here.
+    _sync_case_identity(death, raw, user)
+    apply_submission_projection(submission, fields, payload)
+    version = ensure_active_payload_version(
+        submission, payload_data=payload, source_updated_at=fields["va_odk_updatedat"],
+        created_by_role=actor.audit_role, created_by=user.user_id, validation_err=validation_err,
+        revision_reason_code="supervisor_choice", answers_sha256=candidate.answers_sha256,
+    )
+    cases._recompute_kpi_rows_after_commit(va_sid)
+
+    enters_coding = consent_is_valid(normalize_consent(raw.get("Id10013")))
+    try:
+        if state in PROTECTED_WORKFLOW_STATES:
+            if state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
+                mark_upstream_change_detected(va_sid, reason=INTERVIEW_CHOSEN_REASON, actor=actor)
+            # No pending upstream version may linger beside the chosen payload.
+            pending = get_latest_pending_upstream_payload_version(va_sid)
+            if pending is not None:
+                reject_pending_upstream_payload_version(pending, reason="superseded_by_interview_choice")
+            resolve_pending_upstream_change(
+                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id,
+                resolved_by_role=actor.audit_role,
+            )
+            reopen_coding_after_revision(va_sid, audit_by=user.user_id, source=SOURCE_SUPERVISOR_CHOICE)
+        else:
+            release_coding_for_changed_payload(va_sid, source=SOURCE_SUPERVISOR_CHOICE, audit_by=user.user_id)
+        route_synced_submission(va_sid, consent_valid=enters_coding, reason=INTERVIEW_CHOSEN_REASON, actor=system_actor())
+    except WorkflowTransitionError as exc:
+        # A coder finalised or a reviewer started after the check; the route rolls back.
+        raise WebIntakeError("The interview changed state; try again.", 409, "wrong_state") from exc
+    if enters_coding and not references:
+        mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
+
+    # The swap. The former winner keeps its answers and its outcome, so it is a
+    # candidate again (switch back); the sid moves with the submitted draft.
+    winner.status = "superseded"
+    winner.va_sid = None
+    winner.meta = {**(winner.meta or {}), "previousVaSid": va_sid}
+    candidate.status = "submitted"
+    candidate.va_sid = va_sid
+    candidate.meta = {
+        **meta, "attachmentReferences": references, "interviewOutcome": "completed",
+        "effectiveSavedAt": _candidate_completed_at(candidate).isoformat(),
+    }
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid, va_audit_byrole=actor.audit_role, va_audit_by=user.user_id, va_audit_operation="u",
+        va_audit_action=f"va_submission_interview_chosen_by_supervisor:{reason_code}",
+        va_audit_entityid=version.payload_version_id,
+    ))
+    cases.record_action(death, actor=user, action="interview_chosen", reason=reason_code)
+    if candidate.user_id != user.user_id:
+        notification_service.notify(
+            [candidate.user_id], notification_service.INTERVIEW_CHOSEN, project_id=candidate.project_id,
+            death_id=death.death_id, draft_id=candidate.draft_id, va_sid=va_sid,
+        )
+    if winner.user_id not in (user.user_id, candidate.user_id):
+        notification_service.notify(
+            [winner.user_id], notification_service.INTERVIEW_CHOSEN, project_id=winner.project_id,
+            death_id=death.death_id, draft_id=winner.draft_id,
+        )
+    db.session.flush()
+    log.info("interview chosen | sid=%s | by=%s | reason=%s | chosen_draft=%s", va_sid, user.user_id, reason_code, candidate.draft_id)
+    return death
 
 
 # ---------------------------------------------------------------------------
@@ -2777,11 +3028,13 @@ def _mine_condition(user: VaUsers):
 
 def _worklist_select(user: VaUsers):
     """``SELECT (case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission)``: a worklist row, with the caller's own resumable web
-    draft (at most one, ``uq_va_web_intake_drafts_user_death_open``, so the
-    join never repeats a case), when the earliest other interviewer's open
-    draft started (None without one) and whether the caller's draft is the
-    case's submission. One query for all of them. The caller adds the scope."""
+    my_submission, other_complete_interview)``: a worklist row, with the
+    caller's own resumable web draft (at most one,
+    ``uq_va_web_intake_drafts_user_death_open``, so the join never repeats a
+    case), when the earliest other interviewer's open draft started (None
+    without one), whether the caller's draft is the case's submission and
+    whether a second complete interview exists (``_has_candidate``). One query
+    for all of them. The caller adds the scope."""
     my_draft = aliased(VaWebIntakeDraft)
     other = aliased(VaWebIntakeDraft)
     won = aliased(VaWebIntakeDraft)
@@ -2798,6 +3051,7 @@ def _worklist_select(user: VaUsers):
         sa.select(
             VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id,
             other_started.label("other_draft_started_at"), (won.draft_id.is_not(None)).label("my_submission"),
+            _has_candidate().label("other_complete_interview"),
         )
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
         .outerjoin(
@@ -2829,7 +3083,7 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission), ...], "counts":
+    my_submission, other_complete_interview), ...], "counts":
     {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
     [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
     duplicates (up to three a case) from one query. ``counts`` cover the scope and
@@ -3127,15 +3381,18 @@ def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
         death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
     except ValueError:
         death = None
-    if death is None or not cases.is_interview_supervisor_for(user, death):
+    # An admin may open any case here, as the choose action allows (they find
+    # the case id in the admin panels; the supervision list stays grant-scoped).
+    if death is None or not (user.is_admin() or cases.is_interview_supervisor_for(user, death)):
         raise WebIntakeError("Case not found.", 404)
     return death
 
 
 def supervised_case_row(death: VaDeathRegister) -> tuple:
-    """``(case, unit_name, registered_by_name, started_by_name)`` for a case
-    the caller supervises (``list_supervised_cases``' row, for an action's
-    reply), without re-running the list query."""
+    """``(case, unit_name, registered_by_name, started_by_name,
+    other_complete_interview)`` for a case the caller supervises
+    (``list_supervised_cases``' row, for an action's reply), without
+    re-running the list query."""
     unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
     registrant = db.session.get(VaUsers, death.registered_by) if death.registered_by else None
     starter = db.session.get(VaUsers, death.started_by_user_id) if death.started_by_user_id else None
@@ -3144,17 +3401,21 @@ def supervised_case_row(death: VaDeathRegister) -> tuple:
         unit.unit_name if unit else None,
         registrant.name if registrant else None,
         starter.name if starter else None,
+        bool(db.session.scalar(sa.select(_has_candidate()).where(VaDeathRegister.death_id == death.death_id))),
     )
 
 
 def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
-                          cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+                          candidates: bool = False, cursor: str | None = None,
+                          limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
     """Every case in the supervisor's scope, "details pending" included.
 
     Returns ``{"cases": [(case, unit_name, registered_by_name,
-    started_by_name), ...], "counts": {state: n}, "next_cursor": ...}``;
-    *flagged* keeps cases with a flag waiting for a supervisor. ``counts``
-    ignore *states* and *flagged*. Keyset-paged like ``list_worklist``.
+    started_by_name, other_complete_interview), ...], "counts": {state: n},
+    "next_cursor": ...}``; *flagged* keeps cases with a flag waiting for a
+    supervisor, *candidates* those with a second complete interview to choose
+    (``_has_candidate``). ``counts`` ignore *states*, *flagged* and
+    *candidates*. Keyset-paged like ``list_worklist``.
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -3171,13 +3432,16 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
         filters.append(VaDeathRegister.status.in_(states))
     if flagged:
         filters.append(VaDeathRegister.pending_flag.is_not(None))
+    if candidates:
+        filters.append(_has_candidate())
     if cursor:
         at, death_id = _decode_cursor(cursor)
         filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
     registrant = aliased(VaUsers)
     starter = aliased(VaUsers)
     rows = db.session.execute(
-        sa.select(VaDeathRegister, MasOrgUnit.unit_name, registrant.name, starter.name)
+        sa.select(VaDeathRegister, MasOrgUnit.unit_name, registrant.name, starter.name,
+                  _has_candidate().label("other_complete_interview"))
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
         .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
         .outerjoin(starter, starter.user_id == VaDeathRegister.started_by_user_id)
@@ -3236,13 +3500,15 @@ def serialize_death(death: VaDeathRegister) -> dict:
 
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                           my_submission: bool = False) -> dict:
+                           my_submission: bool = False, other_complete_interview: bool = False) -> dict:
     """One worklist row (browser and device lists). No informant name or
     address, and phones masked (``******1234``): the list shows who died, not
     how to reach the family. ``va_sid`` only for the interviewer whose draft
     became the submission (*my_submission*): the interview form is its
     interviewer's own. ``other_draft_active`` / ``other_draft_started_at``
-    warn that another interviewer holds an open draft, never who."""
+    warn that another interviewer holds an open draft, never who;
+    ``other_complete_interview`` that a second complete interview of the case
+    exists (a supervisor may choose it), never whose."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -3268,6 +3534,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "other_draft_active": other_draft_started_at is not None,
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
+        "other_complete_interview": bool(other_complete_interview),
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
@@ -3275,7 +3542,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
 
 def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                          my_submission: bool = False) -> dict:
+                          my_submission: bool = False, other_complete_interview: bool = False) -> dict:
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
@@ -3283,8 +3550,9 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     ``prefill`` (``case_prefill``), only to a caller who may start or resume
     the interview (docs/policy/web-intake.md, "Single-case detail"). The
     submission id (``va_sid``) only to the interviewer whose draft became the
-    submission (*my_submission*); ``other_draft_active`` and
-    ``other_draft_started_at`` as in ``serialize_worklist_row``."""
+    submission (*my_submission*); ``other_draft_active``,
+    ``other_draft_started_at`` and ``other_complete_interview`` as in
+    ``serialize_worklist_row``."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -3325,17 +3593,20 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
         "other_draft_active": other_draft_started_at is not None,
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
+        "other_complete_interview": bool(other_complete_interview),
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
 
 
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                             registered_by_name: str | None, started_by_name: str | None) -> dict:
+                             registered_by_name: str | None, started_by_name: str | None,
+                             other_complete_interview: bool = False) -> dict:
     """A worklist row plus who registered and started the case (staff identity,
     decision 13), without the informant's phones: the supervisor list does not
-    contact families."""
-    row = serialize_worklist_row(user, death, unit_name, None)
+    contact families. ``other_complete_interview``: a candidate to choose
+    exists (``choose_interview``)."""
+    row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview)
     for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked",
                 "other_draft_active", "other_draft_started_at"):
         row.pop(key)

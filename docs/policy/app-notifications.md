@@ -43,6 +43,7 @@ changes by polling a Flask endpoint, not through a third-party push service.
 | `other_draft_started` | an interviewer starts a new draft on a case where others hold open drafts | those other holders |
 | `case_submitted_by_other` | a complete submission closes a case | every other interviewer still holding an open draft on it |
 | `case_reopened` | a supervisor reopens a terminal case | the case's starter and open draft holders (not the supervisor) |
+| `interview_chosen` | a supervisor, data manager or admin chooses between two complete interviews of a case ([Web Intake Policy](web-intake.md), "Supervisors") | the interviewer whose interview was chosen (with `va_sid`) and the one whose interview it replaced (without), neither when they made the choice |
 
 Not built: `case_registered_in_my_unit` (there is no cheap, bounded way to list
 the interviewers who reach a unit: grants sit at project, site and ancestor-unit

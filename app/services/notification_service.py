@@ -35,6 +35,7 @@ REVISION_REQUESTED = "revision_requested"
 OTHER_DRAFT_STARTED = "other_draft_started"
 CASE_SUBMITTED_BY_OTHER = "case_submitted_by_other"
 CASE_REOPENED = "case_reopened"
+INTERVIEW_CHOSEN = "interview_chosen"
 
 #: Rows one poll returns; a client at the limit polls again with next_cursor.
 PAGE_SIZE = 100

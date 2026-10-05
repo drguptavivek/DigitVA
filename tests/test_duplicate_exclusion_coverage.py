@@ -96,6 +96,11 @@ EXEMPT = {
         "the submitter's own one submission, not a coding list; a confirmed duplicate case is "
         "refused (409 case_closed)"
     ),
+    "services/web_intake_service.py::choose_interview": (
+        "one named submitted case's submission under the case lock, to refuse a live reviewer "
+        "session; a confirmed duplicate case is not submitted, so it is refused "
+        "(409 case_not_submitted)"
+    ),
     "services/web_intake_service.py::_revision_reply": (
         "echoes the revised submission's own workflow state to its submitter"
     ),

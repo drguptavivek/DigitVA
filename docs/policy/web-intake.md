@@ -450,6 +450,18 @@ Owner, 2026-10-04 (`digitva-xz83`).
   alike: answers kept, no submission, no routing. The interviewer is told
   their copy was superseded. A later version by the interviewer whose
   submission won is a correction (above), not a copy.
+- **A complete superseded copy is a candidate** (owner, 2026-10-05,
+  `digitva-bqzm`). A superseded copy whose `interview_outcome` is `completed`
+  (a supervisor's quality reinterview, a teammate's second full interview)
+  is a **candidate** for the case's interview. The first interview keeps
+  coding meanwhile; nothing changes until a supervisor chooses. An incomplete
+  copy, and a `replaced` history row, are never candidates. Case list rows and
+  the case detail carry a boolean, `other_complete_interview`, that a second
+  complete interview exists: never whose, never its answers.
+- **A supervisor, data manager or admin chooses** (the supervisor's choose
+  action, see "Supervisors"). The chosen interview becomes the case's
+  interview and the other stays a candidate, so the choice can be switched
+  back, any number of times.
 
 Built (`digitva-xz83`, part A): `case_prefill` no longer looks at other
 drafts; `start_draft` returns the caller's own open draft (a partial unique
@@ -488,6 +500,27 @@ section, so the phone's old value is not removed).
   managers in scope, are supervisors of the cases in their scope.
 - A supervisor may **view** the case, **confirm or reject** duplicate and
   cancel flags, and **reopen** terminal cases. A supervisor never assigns.
+- **A supervisor chooses between two complete interviews** (owner, 2026-10-05,
+  `digitva-bqzm`). On a `submitted` case with a candidate (see "Parallel
+  interviews") a supervisor, data manager or admin whose reach covers the case
+  may choose the candidate's interview at **any stage**, after final COD
+  included (as a reopen). The reason is one of a fixed list, no free text:
+  `better_quality`, `more_complete`, `original_incorrect`, `switch_back`.
+  The submission keeps its id (`va_sid`); the chosen interview's answers
+  become a new payload version (reason `supervisor_choice`), the case's
+  identity answers follow it, and `va_data_collector` becomes the chosen
+  interviewer. The coder's copy is replaced: coding restarts as for any changed
+  payload, the earlier coding and COD are kept as inactive history. The
+  previously chosen interview becomes a superseded candidate again (switch
+  back). Refused while a reviewer's coding session is live (409). Each choice is
+  audited (submission audit row with the reason code, a case transition
+  `interview_chosen`), and both interviewers get an `interview_chosen`
+  notification. The interviewer whose interview lost can no longer change it:
+  a later upload of the same interview is kept as history (`locked`); the
+  chosen interviewer's own later versions are corrections as before.
+  Supervisors see the candidates' interviewers' names (staff identity, as for
+  the registrant and starter); interviewers never do. The supervision list
+  filters to cases with a candidate (`candidates=true`).
 - **Owner decision, 2026-09-30: a new explicit grant role, `interview_supervisor`,
   with a cadre check.** It works the way `coder` works today: the role is the
   permission, and the cadre is checked when the grant is written. Data managers

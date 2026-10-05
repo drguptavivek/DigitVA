@@ -434,3 +434,41 @@ to the one received later); the server decides, not the app.
 
 No new endpoints. Revision reasons stay the four public codes; the server's
 own `resubmitted` is rejected from clients (422 `invalid_reason`).
+
+## 9. Supervisor chooses between interviews (`digitva-bqzm`, server built)
+
+When a different interviewer completes a case another interviewer already
+submitted, both interviews are kept. The first keeps coding; the later one is
+a **candidate**. A supervisor, data manager or admin may choose the candidate
+at any stage (after final COD too) and may switch back. Policy:
+`docs/policy/web-intake.md`, "Parallel interviews" and "Supervisors".
+
+**What the interviewer's app sees:**
+
+1. **`other_complete_interview`** (bool) on every case row and on the case
+   detail (`GET /intake/cases`, `GET /intake/cases/<id>`, and every
+   single-case reply that uses the detail shape). True when a second complete interview of the submitted case exists. Never
+   whose, never its answers. Show a neutral note ("Another complete interview
+   of this case is with the supervisor"); do not act on it. Default false when
+   absent.
+2. **`interview_chosen` notification** (`GET /me/notifications`): `death_id`,
+   the recipient's own `draft_id`, and `va_sid` only for the interviewer whose
+   interview was chosen. Run the normal sync on it: the case row's `va_sid`
+   now follows the chosen interviewer (the previous winner's row loses it,
+   exactly as after a regression). Not sent to the supervisor who chose.
+3. **The chosen interviewer** now owns the case's submission. Their later
+   uploads of that interview, or a public revision, are corrections as in
+   section 8, on the same `va_sid`.
+4. **The previous winner's** later upload of the same interview (same
+   `client_draft_id`) is kept as history: 200 with `kept: "server"` and
+   `locked: true`. A new `client_draft_id` for the case is stored as another
+   superseded copy (201, `superseded: true`), which is a candidate again when
+   complete. The upload reply never says which interview the coder has beyond
+   `kept` and `locked`.
+5. Switching back moves the `va_sid` back the same way; the notification and
+   the row are the whole contract.
+
+No new interviewer endpoint. The supervisor endpoints
+(`GET /intake/supervision/cases/<id>`, `POST .../choose-interview`,
+`GET /intake/supervision/cases?candidates=true`) are for the web supervision
+page; interviewers never see the other interviewer's name.

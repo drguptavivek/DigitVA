@@ -151,13 +151,15 @@ def list_cases():
     return jsonify(intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=interviewer_context()))
 
 
-def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False) -> dict:
+def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False,
+               other_complete_interview=False) -> dict:
     """The case with its full contact details (``serialize_case_detail``), this
     API's links, and the ``prefill`` an interview started offline needs, only
     when the caller may start or resume the interview (``case_prefill``);
     otherwise the key is absent."""
     body = intake_svc.serialize_case_detail(
-        current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission
+        current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission,
+        other_complete_interview,
     )
     prefill = intake_svc.case_prefill(current_user, death, my_draft_id)
     if prefill is not None:
@@ -728,10 +730,14 @@ def _supervisor_reply(death):
 @role_required("interview_supervisor", "data_manager")
 def supervised_cases():
     """All cases in the caller's supervisor scope, with who registered and
-    started each. Query: ``state``, ``flagged``, ``limit``, ``cursor``."""
+    started each. Query: ``state``, ``flagged``, ``candidates`` (only cases
+    with a second complete interview to choose), ``limit``, ``cursor``."""
     flagged_raw = (request.args.get("flagged") or "").lower()
     if flagged_raw not in _TRUE + _FALSE:
         return error("flagged must be true or false.", "invalid_request", 400)
+    candidates_raw = (request.args.get("candidates") or "").lower()
+    if candidates_raw not in _TRUE + _FALSE:
+        return error("candidates must be true or false.", "invalid_request", 400)
     states = [s for s in (request.args.get("state") or "").split(",") if s]
     try:
         limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
@@ -741,6 +747,7 @@ def supervised_cases():
         current_user,
         states=states,
         flagged=flagged_raw in _TRUE,
+        candidates=candidates_raw in _TRUE,
         cursor=request.args.get("cursor") or None,
         limit=limit,
     )
@@ -751,6 +758,38 @@ def supervised_cases():
             "next_cursor": result["next_cursor"],
         }
     )
+
+
+@bp.get("/supervision/cases/<death_id>")
+@role_required("interview_supervisor", "data_manager", "admin")
+def supervised_case_detail(death_id):
+    """One supervised case (the list's row) with its ``candidates``: the other
+    complete interviews a supervisor may choose, each ``{draft_id,
+    interviewer_name, completed_at, outcome}``. Interviewers never see these
+    names. 404 outside the caller's reach."""
+    death = intake_svc.get_supervised_case(current_user, death_id)
+    return jsonify({
+        "case": intake_svc.serialize_supervised_row(current_user, *intake_svc.supervised_case_row(death)),
+        "candidates": intake_svc.list_candidates(death),
+    })
+
+
+@bp.post("/supervision/cases/<death_id>/choose-interview")
+@role_required("interview_supervisor", "data_manager", "admin")
+def choose_interview(death_id):
+    """Choose another interviewer's complete interview of a submitted case
+    over the one it holds (docs/policy/web-intake.md, "Parallel interviews").
+    Body: ``draft_id`` (a candidate from the case detail), ``reason_code``
+    (``better_quality``, ``more_complete``, ``original_incorrect``,
+    ``switch_back``). Coding restarts, the earlier COD stays as history; the
+    other interview stays a candidate. 200 ``{"case": <supervisor row>}``; 404
+    outside the caller's reach; 409 ``case_not_submitted`` / ``not_a_candidate``
+    / ``form_mismatch`` / ``wrong_state`` (a reviewer session is live); 422
+    ``invalid_reason``."""
+    p = parse_body()
+    death = intake_svc.choose_interview(current_user, death_id, p.get("draft_id"), p.get("reason_code"))
+    db.session.commit()
+    return _supervisor_reply(death)
 
 
 @bp.post("/supervision/cases/<death_id>/resolve-flag")

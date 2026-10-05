@@ -373,6 +373,15 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     return case
 
 
+def record_action(case: VaDeathRegister, *, actor: VaUsers, action: str, reason: str | None = None) -> None:
+    """Audit an action that leaves *case* in its state (``from_state`` equals
+    ``to_state``): a supervisor's choice of the other interview of a submitted
+    case. Names the supervisor grant *actor* relies on, None for an admin.
+    No permission check: the caller has already decided who may act."""
+    _audit(case, actor=actor, action=action, from_state=case.status, to_state=case.status,
+           reason=_clean_reason(reason), grant=supervising_grant(actor, case))
+
+
 def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str | None = None,
               duplicate_of: VaDeathRegister | None = None) -> VaDeathRegister:
     """Flag *case* as a possible duplicate (of *duplicate_of*) or for cancellation.

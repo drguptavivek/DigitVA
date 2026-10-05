@@ -92,6 +92,20 @@ Decisions made while building part A:
   resent with other answers, a second upload of the case, a browser submit of
   an already submitted draft; [Web Intake Policy](web-intake.md), "Parallel
   interviews"). A client that sends it gets 422 `invalid_reason`.
+- **A supervisor's choice is a payload version too** (`digitva-bqzm`). When a
+  supervisor, data manager or admin chooses another interviewer's complete
+  interview of the case ([Web Intake Policy](web-intake.md), "Supervisors"),
+  its answers become a new active payload version of the same submission with
+  the internal reason `supervisor_choice` (never accepted from a client; the
+  choice's own reason codes are `better_quality`, `more_complete`,
+  `original_incorrect`, `switch_back`). Coding restarts exactly as for a
+  revision: an unprotected case is released
+  (`release_coding_for_changed_payload`, audit strings `..._supervisor_choice`);
+  a case with a final COD moves through `finalized_upstream_changed`
+  (transition reason `interview_chosen`, not a send-back, so the interviewer
+  gets no revision window) and restarts at `smartva_pending`
+  (`reopen_coding_after_revision`), the earlier COD kept as inactive history.
+  Refused while a reviewer session is live.
 - **Completion time.** Each submitted draft keeps its version's completion
   time in `meta.effectiveSavedAt`: the device's `completedAt` corrected by
   its clock drift (`deviceClockAt`), the server's time for a browser submit or

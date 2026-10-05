@@ -206,6 +206,24 @@ the revision arrives (`app/services/interview_send_back_service.py`).
 | `POST /api/v1/coding/submissions/<va_sid>/send-back` | the coder who authored the final COD; a reviewer in scope on a `reviewer_eligible` submission, holding the session (`reviewer_coding_in_progress`, released first) or having finalised it (`reviewer_finalized`) | `sent_back_for_revision` | `coder_finalized`, `reviewer_eligible`, `reviewer_coding_in_progress`, `reviewer_finalized` |
 | `POST /api/v1/intake/supervision/submissions/<va_sid>/reopen-for-revision` | `admin`; `interview_supervisor` or `data_manager` (or In-charge, project PI) whose supervision reach covers the interview's case; for an interview with no case, a data manager of its scope | `reopened_for_revision` | `coder_finalized`, `reviewer_eligible`, `reviewer_finalized` |
 
+A third move opens a finalised case for a different reason: a supervisor
+choosing another interviewer's complete interview
+(`POST /api/v1/intake/supervision/cases/<death_id>/choose-interview`,
+`choose_interview` in `app/services/web_intake_service.py`;
+[Web Intake Policy](../policy/web-intake.md), "Supervisors"). Who: `admin`;
+`interview_supervisor` or `data_manager` (or In-charge, project PI) whose
+supervision reach covers the case. From any state but
+`reviewer_coding_in_progress` (409). A protected state moves to
+`finalized_upstream_changed` through `mark_upstream_change_detected` with the
+transition reason `interview_chosen` (the supervisor, data manager and admin
+actors are admitted for this reason only; it is not a revision request, so
+`revision_unlocked` stays false), and at once `reopen_coding_after_revision`
+(source `supervisor_choice`, the same system accept, reason `interview_chosen`)
+returns it to `smartva_pending`, the earlier COD kept as inactive history; an
+unprotected state runs `release_coding_for_changed_payload` (source
+`supervisor_choice`). The submission is then re-routed. The new payload version
+carries the reason `supervisor_choice`.
+
 Neither exists for ODK submissions (409 `not_web_submission`). The coder,
 reviewer and interview-supervisor workflow actors are admitted to
 `mark_upstream_change_detected` for these two reasons only. The interviewer's

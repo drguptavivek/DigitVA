@@ -49,8 +49,16 @@ REVISION_REQUEST_REASONS = frozenset({"sent_back_for_revision", "reopened_for_re
 REVISION_REQUEST_ACTOR_KINDS = frozenset({
     ACTOR_CODER, ACTOR_REVIEWER, ACTOR_DATA_MANAGER, ACTOR_INTERVIEW_SUPERVISOR, ACTOR_ADMIN,
 })
-#: The interviewer's revision of a sent-back case restarts coding with a
-#: system actor; ``accept_upstream_change`` admits it for this reason only.
+#: A supervisor, data manager or admin choosing the other interviewer's
+#: complete interview of a protected case (docs/policy/web-intake.md "Parallel
+#: interviews"): ``mark_upstream_change_detected`` with this reason admits them.
+#: Not a revision request: ``get_open_revision_request`` never reads it, since
+#: the case restarts coding in the same transaction.
+INTERVIEW_CHOSEN_REASON = "interview_chosen"
+INTERVIEW_CHOSEN_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_INTERVIEW_SUPERVISOR, ACTOR_ADMIN})
+#: The interviewer's revision of a sent-back case, or a supervisor's choice
+#: of the other interview, restarts coding with a system actor;
+#: ``accept_upstream_change`` admits it for these two reasons only.
 REVISION_RESTART_REASON = "interviewer_revision"
 SYNC_SOURCE_STATES = (
     None,
@@ -372,6 +380,8 @@ def mark_upstream_change_detected(
         allowed_actor_kinds=(
             SYSTEM_ACTOR_KINDS | REVISION_REQUEST_ACTOR_KINDS
             if reason in REVISION_REQUEST_REASONS
+            else SYSTEM_ACTOR_KINDS | INTERVIEW_CHOSEN_ACTOR_KINDS
+            if reason == INTERVIEW_CHOSEN_REASON
             else SYSTEM_ACTOR_KINDS
         ),
         reason=reason,
@@ -631,7 +641,7 @@ def accept_upstream_change(
         allowed_from=(wd.WORKFLOW_FINALIZED_UPSTREAM_CHANGED,),
         allowed_actor_kinds=(
             DATA_MANAGER_ACTOR_KINDS | {ACTOR_SYSTEM}
-            if reason == REVISION_RESTART_REASON
+            if reason in (REVISION_RESTART_REASON, INTERVIEW_CHOSEN_REASON)
             else DATA_MANAGER_ACTOR_KINDS
         ),
         reason=reason,

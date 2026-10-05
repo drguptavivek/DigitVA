@@ -189,26 +189,12 @@ it("returns to collection after a normal 201 draft submission", async () => {
   await act(async () => tree.unmount());
 });
 
-it("routes an acknowledged can-code-now response to collection as a hint", async () => {
-  (submitDraft as jest.Mock).mockResolvedValue({
-    va_sid: "sid-1", draft: { draft_id: "draft-1", project_id: "P", site_id: "S", unique_id: "VA-1" },
-    superseded: false, validation_err: [], can_code_now: true,
-  });
-  let tree!: ReturnType<typeof create>;
-  await act(async () => { tree = create(<InterviewScreen />); });
-  const form = tree.root.findByType(WhoVaForm);
-  await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { canCodeNow: "1", readyUniqueId: "VA-1" } });
-  await act(async () => tree.unmount());
-});
-
 it("submits a stale completed tab's current answers after confirming the draft is submitted", async () => {
   const answers = { Id10013: "yes", interview_outcome: "completed" };
   const response = { draft: { draft_id: "draft-1", project_id: "P", site_id: "S", status: "submitted", updated_at: "submitted-at" }, envelope: {}, prefill: {} };
   mockServerFlush.mockRejectedValueOnce(new ClientApiError(409, "draft_not_editable"));
   (submitDraft as jest.Mock).mockResolvedValue({
-    va_sid: "sid-1", draft: { ...response.draft, unique_id: "VA-1" }, superseded: false,
-    validation_err: [], kept: "server", locked: true, can_code_now: true
+    va_sid: "sid-1", draft: response.draft, superseded: false, validation_err: [], kept: "server", locked: true
   });
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
@@ -221,7 +207,7 @@ it("submits a stale completed tab's current answers after confirming the draft i
     "/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: answers }, mockBootstrap.csrf, "revision-1"
   );
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: {
-    submissionHistory: "1", submissionLocked: "1", canCodeNow: "1", readyUniqueId: "VA-1"
+    submissionHistory: "1", submissionLocked: "1"
   } });
   await act(async () => tree.unmount());
 });
@@ -379,7 +365,7 @@ it("does not continue initialization after the screen unmounts", async () => {
 });
 
 it("returns to collection with a notice after a superseded 200 response", async () => {
-  (submitDraft as jest.Mock).mockResolvedValue({ va_sid: null, draft: { draft_id: "draft-1", project_id: "P", site_id: "S" }, superseded: true, validation_err: null, can_code_now: true });
+  (submitDraft as jest.Mock).mockResolvedValue({ va_sid: null, draft: { draft_id: "draft-1", project_id: "P", site_id: "S" }, superseded: true, validation_err: null });
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);

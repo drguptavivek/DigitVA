@@ -966,51 +966,9 @@ describe("sync upload ordering", () => {
       return json(200, { cases: [], next_cursor: null });
     });
     const onSuperseded = jest.fn();
-    const onCanCodeNow = jest.fn();
-    await expect(syncInterviewer(USER, db, onSuperseded, undefined, undefined, onCanCodeNow)).rejects.toThrow("invalid_answers_ack");
+    await expect(syncInterviewer(USER, db, onSuperseded)).rejects.toThrow("invalid_answers_ack");
     expect(onSuperseded).not.toHaveBeenCalled();
-    expect(onCanCodeNow).not.toHaveBeenCalled();
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
-  });
-
-  it("purges a valid upload when its optional coding hint is malformed", async () => {
-    const db = memoryDb();
-    await migrate(db);
-    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
-    await store.save(draft());
-    await markCompleted(db, DRAFT, { valid: true, issues: [] });
-    server((call) => {
-      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { can_code_now: "true" });
-      if (call.url.endsWith("/outstanding")) return json(204, null);
-      return json(200, { cases: [], next_cursor: null });
-    });
-
-    const onCanCodeNow = jest.fn();
-    await expect(syncInterviewer(USER, db, undefined, undefined, undefined, onCanCodeNow))
-      .resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
-    expect(onCanCodeNow).not.toHaveBeenCalled();
-    expect(await getDraftRow(db, DRAFT)).toBeNull();
-  });
-
-  it("emits the coding hint after a valid incoming acknowledgement", async () => {
-    const db = memoryDb();
-    await migrate(db);
-    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
-    await store.save(draft());
-    await markCompleted(db, DRAFT, { valid: true, issues: [] });
-    server((call) => {
-      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { can_code_now: true, case: { death_id: DEATH, unique_id: "U-CODE", status: "registered" } });
-      if (call.url.endsWith("/outstanding")) return json(204, null);
-      return json(200, { cases: [], next_cursor: null });
-    });
-
-    const onCanCodeNow = jest.fn();
-    await expect(syncInterviewer(USER, db, undefined, undefined, undefined, onCanCodeNow))
-      .resolves.toMatchObject({ canCodeNowUniqueIds: ["U-CODE"], remaining: 0 });
-    expect(onCanCodeNow).toHaveBeenCalledWith("U-CODE");
-    expect(await getDraftRow(db, DRAFT)).toBeNull();
   });
 
   it("keeps an unbound direct draft when the received hash does not match", async () => {

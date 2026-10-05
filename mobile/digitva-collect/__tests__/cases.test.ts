@@ -428,9 +428,6 @@ describe("case download", () => {
     expect(isCaseDetail(caseRow(DEATH, { other_complete_interview: true }))).toBe(true);
     expect(isCaseDetail(caseRow(DEATH, { other_complete_interview: undefined }))).toBe(false);
     expect(isCaseDetail({ ...caseRow(DEATH), other_complete_interview: "yes" })).toBe(false);
-    expect(isCaseDetail(caseRow(DEATH, { code_now: true }))).toBe(true);
-    expect(isCaseDetail(caseRow(DEATH, { code_now: false }))).toBe(true);
-    expect(isCaseDetail({ ...caseRow(DEATH), code_now: "true" })).toBe(false);
   });
 
   it("refreshes cached submission ownership and candidate state from the server", async () => {

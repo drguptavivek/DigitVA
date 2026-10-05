@@ -38,8 +38,6 @@ export default function CollectionScreen() {
     superseded?: string;
     submissionHistory?: string;
     submissionLocked?: string;
-    canCodeNow?: string;
-    readyUniqueId?: string;
   }>();
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
@@ -226,9 +224,6 @@ export default function CollectionScreen() {
           ) : null}
         </View>
       ) : null}
-      {params.canCodeNow === "1" && !cases.some((row) => row.unique_id === params.readyUniqueId) ? (
-        <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
-      ) : null}
       {!bootstrap?.capabilities.intake ? (
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
       ) : (
@@ -311,9 +306,6 @@ export default function CollectionScreen() {
               ) : null}
               {row.other_complete_interview === true ? (
                 <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
-              ) : null}
-              {row.code_now === true ? (
-                <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
               ) : null}
               <Button
                 kind="secondary"

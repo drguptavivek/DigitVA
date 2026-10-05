@@ -13,7 +13,7 @@ const mockBootstrapB = {
   links: { intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 let mockCurrentBootstrap = mockBootstrap;
-let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string } = {};
+let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string } = {};
 const mockRouterPush = jest.fn();
 
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush }), useLocalSearchParams: () => mockParams }));
@@ -176,59 +176,6 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered).not.toContain("submissionHistoryNotice");
     expect(rendered).not.toContain("submissionLockedNotice");
-    await act(async () => tree!.unmount());
-  });
-
-  it("shows a submitted coding hint once and gives server case flags precedence", async () => {
-    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY" };
-    mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "d1", unique_id: "VA-READY", state: "submitted", code_now: true },
-      { death_id: "d2", unique_id: "VA-MALFORMED", state: "submitted", code_now: "true" },
-    ], next_cursor: null });
-    let tree: ReturnType<typeof create>;
-    await act(async () => { tree = create(<CollectionScreen />); });
-    await settle();
-    let rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered.match(/readyForCodeOnWeb/g)).toHaveLength(1);
-    await act(async () => tree!.unmount());
-
-    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY" };
-    mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "d1", unique_id: "VA-READY", state: "submitted", code_now: false },
-    ], next_cursor: null });
-    await act(async () => { tree = create(<CollectionScreen />); });
-    await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
-    await act(async () => tree!.unmount());
-
-    mockParams = { submissionHistory: "1", submissionLocked: "1", canCodeNow: "1" };
-    await act(async () => { tree = create(<CollectionScreen />); });
-    await settle();
-    rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain("submissionHistoryNotice");
-    expect(rendered).toContain("readyForCodeOnWeb");
-    await act(async () => tree!.unmount());
-
-    mockParams = { superseded: "1", canCodeNow: "1" };
-    await act(async () => { tree = create(<CollectionScreen />); });
-    await settle();
-    rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain("supersededInterviewNotice");
-    const supersededNotice = tree!.root.findAllByProps({ accessibilityRole: "alert" })
-      .find((node) => node.props.children === "supersededInterviewNotice");
-    expect(supersededNotice?.props.children).toBe("supersededInterviewNotice");
-    expect(rendered).toContain("readyForCodeOnWeb");
-    await act(async () => tree!.unmount());
-  });
-
-  it("keeps the acknowledgement hint when its case is missing and refresh fails", async () => {
-    mockParams = { canCodeNow: "1", readyUniqueId: "VA-MISSING" };
-    mockGetIntakeContext.mockRejectedValueOnce(new Error("refresh failed"));
-    let tree: ReturnType<typeof create>;
-    await act(async () => { tree = create(<CollectionScreen />); });
-    await settle();
-
-    expect(JSON.stringify(tree!.toJSON())).toContain("readyForCodeOnWeb");
     await act(async () => tree!.unmount());
   });
 

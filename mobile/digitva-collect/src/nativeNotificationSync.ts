@@ -15,11 +15,7 @@ import {
 import { refreshReferenceData, syncInterviewer, type SyncResult } from "./sync";
 import type { Db } from "./drafts";
 
-const syncs = new Map<string, {
-  promise: Promise<NativeSyncResult>;
-  canCodeNowUniqueIds: string[];
-  canCodeNowSubscribers: Set<(uniqueId: string) => void>;
-}>();
+const syncs = new Map<string, Promise<NativeSyncResult>>();
 
 export interface NativeSyncResult {
   sync: SyncResult;
@@ -30,7 +26,6 @@ export interface NativeSyncCallbacks {
   onSuperseded?(uniqueId: string): void;
   onDraftConflict?(draftId: string): void;
   onServerKept?(notice: { uniqueId: string; locked: boolean }): void;
-  onCanCodeNow?(uniqueId: string): void;
 }
 
 function isAuthFailure(error: unknown): boolean {
@@ -73,18 +68,9 @@ export function runNativeSync(
   const syncEpoch = notificationStateGeneration(userId);
   const syncKey = `${userId}:${syncEpoch}`;
   const existing = syncs.get(syncKey);
-  if (existing) {
-    if (callbacks.onCanCodeNow) {
-      existing.canCodeNowSubscribers.add(callbacks.onCanCodeNow);
-      existing.canCodeNowUniqueIds.forEach(callbacks.onCanCodeNow);
-    }
-    return existing.promise;
-  }
+  if (existing) return existing;
 
   let pending!: Promise<NativeSyncResult>;
-  const canCodeNowUniqueIds: string[] = [];
-  const canCodeNowSubscribers = new Set<(uniqueId: string) => void>();
-  if (callbacks.onCanCodeNow) canCodeNowSubscribers.add(callbacks.onCanCodeNow);
   pending = (async () => {
     const before = await readNotificationState(userId);
     const sync = await syncInterviewer(
@@ -93,10 +79,6 @@ export function runNativeSync(
       callbacks.onSuperseded,
       callbacks.onDraftConflict,
       callbacks.onServerKept,
-      (uniqueId) => {
-        if (!canCodeNowUniqueIds.includes(uniqueId)) canCodeNowUniqueIds.push(uniqueId);
-        canCodeNowSubscribers.forEach((subscriber) => subscriber(uniqueId));
-      },
     );
     const reference = await refreshReferenceData(userId, db, { force: true });
     if (before) {
@@ -109,10 +91,9 @@ export function runNativeSync(
     }
     return { sync, reference };
   })().finally(() => {
-    if (syncs.get(syncKey)?.promise === pending) syncs.delete(syncKey);
-    canCodeNowSubscribers.clear();
+    if (syncs.get(syncKey) === pending) syncs.delete(syncKey);
   });
-  syncs.set(syncKey, { promise: pending, canCodeNowUniqueIds, canCodeNowSubscribers });
+  syncs.set(syncKey, pending);
   return pending;
 }
 

@@ -34,13 +34,6 @@ describe("t()", () => {
   it("has the same keys in every dictionary", () => {
     expect(Object.keys(hi).sort()).toEqual(Object.keys(en).sort());
   });
-
-  it("localizes the web coding hint", () => {
-    setUiLocale("en");
-    expect(t("readyForCodeOnWeb")).toBe("Ready for you to code on the web.");
-    setUiLocale("hi");
-    expect(t("readyForCodeOnWeb")).toBe(hi.readyForCodeOnWeb);
-  });
 });
 
 it("limits new questionnaire choices to enabled supported languages", () => {

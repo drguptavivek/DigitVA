@@ -454,7 +454,6 @@ payload version in the key is what stops stale answers after an interviewer
 revision or another interview chosen, while edits to the field mapping or the
 PII set still wait out the 30-minute TTL.
 
-## Media (`GET /api/v1/attachments/...`, `app/routes/api/attachments.py`)
 ## Coding search (`GET /api/v1/icd10/2019-2/coding-search/<va_sid>?q=`, `GET /api/v1/icd11/coding-search/<va_sid>?q=`, `GET /api/v1/coding-search-demo/search?classification=&age_group=&sex=&q=`)
 
 The default answer is a bare JSON list of selectable codes (the mobile client
@@ -475,6 +474,7 @@ LIMITed query, only on `explain=1`. Code:
 `app/services/icd_coding_policy.py`. Used by the coding screen's "No results"
 text and the help search demo. Tests: `tests/services/test_coding_search_excluded.py`.
 
+## Media (`GET /api/v1/attachments/...`, `app/routes/api/attachments.py`)
 
 The attachment URLs of the case content (digitva-xl43 phase 3a). A bearer opens
 only `/api/v1/`, so the renderer (`_resolve_attachment_url`, the one producer)

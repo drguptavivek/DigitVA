@@ -212,6 +212,35 @@ class TestCodingSearchMatching(BaseTestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertIn("D50", [r["icd_code"] for r in response.get_json()])
 
+    def test_icd11_explain_reports_female_only_code_for_a_male_case(self):
+        # digitva-e5j: the case is an adult male; the code is female-only.
+        db.session.merge(
+            MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE,
+                linearization_uri="http://id.who.int/icd/test/GA00",
+                code="GA00",
+                title="Zqexplain uterine condition",
+                class_kind="category",
+                is_coding_selectable=True,
+                sex_selectable="female",
+                age_group_selectable="all",
+                source_version="test",
+            )
+        )
+        db.session.commit()
+
+        plain = self._icd11("zqexplain")
+        explained = self.client.get(
+            f"/api/v1/icd11/coding-search/{self.sid}?q=zqexplain&explain=1"
+        )
+
+        self.assertEqual(plain.get_json(), [])
+        body = explained.get_json()
+        self.assertEqual(body["results"], [])
+        self.assertEqual(body["excluded"]["count"], 1)
+        self.assertEqual(body["excluded"]["examples"][0]["code"], "GA00")
+        self.assertEqual(body["excluded"]["examples"][0]["reason"], "female only")
+
     def test_icd11_mixed_spellings_match(self):
         cases = (
             ("non ulcerative", "1A81"),

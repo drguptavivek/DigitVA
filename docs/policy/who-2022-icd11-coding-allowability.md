@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: approved
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -130,7 +130,12 @@ the coder's and reviewer's own COD picks at save. It does not apply to the
 immediate-cause lines of a masked DORIS certificate (owner, 2026-10-05):
 WHO's check during DORIS processing is enough there. The WHO search
 widget's suggestions are unfiltered; a restricted pick is refused by the
-selection check. For a selectable category, the first rule that applies wins:
+selection check. When the age/sex rule leaves the local search empty or short,
+the coding screen (when nothing is left) and the help demo say which
+matching codes it hid and why (for example "P95 (neonate only)"); those codes
+stay unselectable.
+
+For a selectable category, the first rule that applies wins:
 
 1. **Chapter rules**, the ICD-10 policy's blanket chapter rules on the
    equivalent ICD-11 chapters:

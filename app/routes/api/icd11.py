@@ -21,11 +21,13 @@ from app.decorators.role_required import role_required
 from app.routes.api.icd10 import _require_coding_or_reviewing_access
 from app.routes.api.request_helpers import error as api_error
 from app.services import coding_search_telemetry_service
+from app.services.coding_search_explain import explained_payload
 from app.services.icd11_mms_service import (
     build_icd11_provenance,
     search_icd11_mms,
     validate_icd11_mms_coding_value_for_submission,
 )
+from app.services.icd_coding_policy import coding_context_for_submission
 from app.services.icd_coding_value import (
     extract_icd11_code_expression,
     get_icd_classification_for_submission,
@@ -216,7 +218,17 @@ def icd11_coding_search(va_sid: str):
         latency_ms=latency_ms,
         user=current_user,
     )
-    response = jsonify(payload)
+    body = payload
+    if request.args.get("explain") == "1":
+        context = coding_context_for_submission(va_sid) or {}
+        body = explained_payload(
+            payload,
+            classification="icd11",
+            query=request.args.get("q", ""),
+            age_group=context.get("age_group"),
+            sex=context.get("sex"),
+        )
+    response = jsonify(body)
     # The browser learns the id even when it did not send one, so the COD
     # save can forward it and the choice lands on the right search row.
     response.headers["X-Search-Id"] = str(search_id)

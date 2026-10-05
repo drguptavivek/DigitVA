@@ -385,6 +385,7 @@
             cache: true
           },
           placeholder: 'Search ICD codes...',
+          language: { noResults: function () { return window.IcdCodingSearch.noResultsText(searchState); } },
           minimumInputLength: 2,
           width: '100%'
         });

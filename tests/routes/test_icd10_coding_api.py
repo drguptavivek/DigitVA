@@ -463,6 +463,26 @@ class TestIcd10CodingApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
+    def test_coding_search_explain_reports_policy_excluded_match(self):
+        # digitva-e5j: opt-in explanation; the default list shape is untouched.
+        self._login(self.base_coder_id)
+        self._set_submission_demographics(
+            normalized_days=Decimal("28"),
+            normalized_years=Decimal("1"),
+            age_years=1,
+        )
+        url = f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=P0"
+
+        self.assertEqual(self.client.get(url).get_json(), [])
+        body = self.client.get(url + "&explain=1").get_json()
+
+        self.assertEqual(body["results"], [])
+        excluded = body["excluded"]
+        self.assertEqual(excluded["count"], 1)
+        self.assertEqual(excluded["examples"][0]["code"], "P07")
+        self.assertEqual(excluded["examples"][0]["reason"], "neonate only")
+        self.assertIn("not selectable for an infant female: P07 (neonate only)", excluded["message"])
+
     def test_coding_search_allows_infant_only_code_for_infant_submission(self):
         self._login(self.base_coder_id)
         self._set_submission_demographics(

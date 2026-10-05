@@ -454,6 +454,26 @@ revision or another interview chosen, while edits to the field mapping or the
 PII set still wait out the 30-minute TTL.
 
 ## Media (`GET /api/v1/attachments/...`, `app/routes/api/attachments.py`)
+## Coding search (`GET /api/v1/icd10/2019-2/coding-search/<va_sid>?q=`, `GET /api/v1/icd11/coding-search/<va_sid>?q=`, `GET /api/v1/coding-search-demo/search?classification=&age_group=&sex=&q=`)
+
+The default answer is a bare JSON list of selectable codes (the mobile client
+reads it as is). With `explain=1` the answer is
+`{"results": [...same list...], "excluded": {...}}`, and `excluded` is present
+only when the age/sex policy removed matches *and* the selectable results do
+not fill a page (30). `excluded` is `{"count": n, "examples": [{"code",
+"title", "reason"}], "age_group", "sex", "message"}`: `count` is every
+policy-excluded text match, `examples` at most 3, `reason` the code's own
+restriction in the policy's labels (`neonate only`, `neonate or infant only`,
+`infant only`, `child only`, `adult only`, `female only`, `male only`, joined
+by a comma when both fail), and `message` a ready sentence
+("1 code matches but is not selectable for an infant female: P95 (neonate
+only)"). Excluded codes are explanation only, never offered. Admin-disabled
+codes and vocabulary or typo-fallback matches are not reported. One extra
+LIMITed query, only on `explain=1`. Code:
+`app/services/coding_search_explain.py`, `policy_excluded_matches` in
+`app/services/icd_coding_policy.py`. Used by the coding screen's "No results"
+text and the help search demo. Tests: `tests/services/test_coding_search_excluded.py`.
+
 
 The attachment URLs of the case content (digitva-xl43 phase 3a). A bearer opens
 only `/api/v1/`, so the renderer (`_resolve_attachment_url`, the one producer)

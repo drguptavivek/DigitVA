@@ -159,6 +159,7 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
           cache: true
         },
         placeholder: "Search ICD codes...",
+        language: { noResults: () => window.IcdCodingSearch.noResultsText(searchState) },
         minimumInputLength: 2,
         width: '100%'
       });
@@ -229,6 +230,7 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
           cache: true
         },
         placeholder: "Search ICD codes...",
+        language: { noResults: () => window.IcdCodingSearch.noResultsText(searchState) },
         minimumInputLength: 2,
         width: '100%'
       });

@@ -17,6 +17,7 @@ from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, V
 from app.routes.api.request_helpers import error as api_error
 from app.services import coding_search_telemetry_service
 from app.services.authz import Action, can
+from app.services.coding_search_explain import explained_payload
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
     get_icd10_2019_2_node_details,
@@ -27,6 +28,7 @@ from app.services.icd10_2019_2_service import (
     search_icd10_2019_2_coding_choices,
     update_icd10_2019_2_policy,
 )
+from app.services.icd_coding_policy import coding_context_for_submission
 from app.services.icd_coding_value import get_icd_classification_for_submission
 from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
@@ -179,7 +181,17 @@ def icd10_2019_2_coding_search(va_sid: str):
         latency_ms=latency_ms,
         user=current_user,
     )
-    response = jsonify(payload)
+    body = payload
+    if request.args.get("explain") == "1":
+        context = coding_context_for_submission(va_sid) or {}
+        body = explained_payload(
+            payload,
+            classification="icd10",
+            query=request.args.get("q", ""),
+            age_group=context.get("age_group"),
+            sex=context.get("sex"),
+        )
+    response = jsonify(body)
     # The browser learns the id even when it did not send one, so the COD
     # save can forward it and the choice lands on the right search row.
     response.headers["X-Search-Id"] = str(search_id)

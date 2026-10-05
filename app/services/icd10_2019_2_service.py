@@ -21,6 +21,7 @@ from app.models import (
 from app.services.icd_coding_policy import (
     coding_context_for_submission,
     coding_policy_clause,
+    policy_excluded_matches,
 )
 from app.services.icd_coding_value import extract_icd_code
 from app.services.icd_search_vocabulary_service import (
@@ -1083,6 +1084,37 @@ def search_icd10_2019_2_coding_choices_for_policy(
             context,
             fuzzy=True,
         ),
+    )
+
+
+def excluded_icd10_2019_2_matches(
+    query: str, *, age_group: str | None, sex: str | None, selectable_count: int
+) -> dict | None:
+    """Policy-excluded lexical matches for ``query`` (digitva-e5j), or None.
+
+    Only asked when the selectable results do not fill a page; the rows are
+    reported, never offered. See ``policy_excluded_matches``.
+    """
+    normalized_query = _normalize_query(query)
+    if len(normalized_query) < _CODING_ICD_MIN_QUERY_LEN or selectable_count >= _CODING_ICD_MAX_RESULTS:
+        return None
+    lower_code = sa.func.lower(MasIcd1020192.code)
+    lower_title = sa.func.lower(MasIcd1020192.title)
+    display_expr = sa.func.concat(MasIcd1020192.code, sa.literal(" "), MasIcd1020192.title)
+    match_clause, rank_expr = spelling_like_clauses(
+        (lower_code, lower_title, sa.func.lower(display_expr)),
+        spelling_variants(normalized_query),
+    )
+    return policy_excluded_matches(
+        MasIcd1020192,
+        (
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
+            match_clause,
+        ),
+        (rank_expr, MasIcd1020192.sort_order, MasIcd1020192.code),
+        age_group=age_group,
+        sex=sex,
     )
 
 

@@ -96,20 +96,24 @@
 
   window.IcdCodingSearch = {
     newState: function () {
-      return { searchId: null, choices: {} };
+      return { searchId: null, choices: {}, excluded: null };
     },
 
     // ajax.data: stamp each request with this search's id.
     requestParams: function (params, state) {
       state.searchId = uuid();
-      return { q: params.term, search_id: state.searchId };
+      // explain=1: the answer is {results, excluded} so an empty list can say
+      // why (digitva-e5j); the excluded codes are only ever shown, never offered.
+      return { q: params.term, search_id: state.searchId, explain: 1 };
     },
 
     // ajax.processResults: remember code/rank per display value, group by tier.
     processResults: function (data, state) {
       var focused = [];
       var expanded = [];
-      (data || []).forEach(function (item, index) {
+      var list = Array.isArray(data) ? data : ((data && data.results) || []);
+      state.excluded = (!Array.isArray(data) && data && data.excluded) || null;
+      list.forEach(function (item, index) {
         var display = item && item.icd_to_display;
         if (!display) return;
         state.choices[display] = { code: item.icd_code, rank: index };
@@ -120,6 +124,12 @@
       if (focused.length) groups.push({ text: 'Focused matches', children: focused });
       if (expanded.length) groups.push({ text: 'Term matches', children: expanded });
       return { results: groups };
+    },
+
+    // Select2 language.noResults: say when policy hid matches (select2
+    // escapes the returned text).
+    noResultsText: function (state) {
+      return (state && state.excluded && state.excluded.message) || 'No results found';
     },
 
     resolveChoice: function (state, displayText) {

@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request
 
 from app.decorators.role_required import role_required
 from app.routes.api.request_helpers import error as api_error
+from app.services.coding_search_explain import explained_payload
 from app.services.icd10_2019_2_service import search_icd10_2019_2_coding_choices_for_policy
 from app.services.icd11_mms_service import search_icd11_mms
 
@@ -45,4 +46,8 @@ def coding_search_demo():
     else:
         payload = search_icd11_mms(query, age_group=age_group, sex=sex)
 
+    if request.args.get("explain") == "1":
+        payload = explained_payload(
+            payload, classification=classification, query=query, age_group=age_group, sex=sex
+        )
     return jsonify(payload)

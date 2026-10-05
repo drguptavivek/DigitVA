@@ -252,6 +252,76 @@ class TestCodingSearchDemoApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
+    # ── Policy-excluded explanation (digitva-e5j) ────────────────────────
+
+    def test_explain_reports_neonate_only_code_for_adult_and_never_selects_it(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.get(
+            f"{self.URL}?classification=icd10&q=P0&age_group=adult&sex=female&explain=1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["results"], [])
+        self.assertEqual(body["excluded"]["count"], 1)
+        example = body["excluded"]["examples"][0]
+        self.assertEqual(example["code"], "P07")
+        self.assertEqual(example["reason"], "neonate only")
+        self.assertEqual(
+            body["excluded"]["message"],
+            "1 code matches but is not selectable for an adult female: P07 (neonate only)",
+        )
+
+    def test_explain_omits_excluded_when_nothing_was_filtered(self):
+        self._login(self.base_coder_id)
+
+        for classification, q in (("icd10", "A0"), ("icd11", "Cholera")):
+            response = self.client.get(
+                f"{self.URL}?classification={classification}&q={q}"
+                "&age_group=adult&sex=female&explain=1"
+            )
+            body = response.get_json()
+            self.assertEqual(len(body["results"]), 1, classification)  # subject present
+            self.assertNotIn("excluded", body, classification)
+
+    def test_explain_covers_icd11(self):
+        self._login(self.base_coder_id)
+        db.session.add(
+            MasIcd11Mms(
+                release="2026-01",
+                linearization_uri="lin:KA00",
+                code="KA00",
+                title="Neonatal zebra condition",
+                class_kind="category",
+                sort_order=2,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="neonate",
+                source_version="ICD-11-MMS-2026-01",
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"{self.URL}?classification=icd11&q=zebra&age_group=child&sex=male&explain=1"
+        )
+
+        body = response.get_json()
+        self.assertEqual(body["results"], [])
+        self.assertEqual(body["excluded"]["examples"][0]["code"], "KA00")
+        self.assertEqual(body["excluded"]["examples"][0]["reason"], "neonate only")
+
+    def test_without_explain_the_response_is_still_a_bare_list(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.get(
+            f"{self.URL}?classification=icd10&q=P0&age_group=adult&sex=female"
+        )
+
+        self.assertEqual(response.get_json(), [])
+
     def test_search_is_not_recorded_in_telemetry(self):
         self._login(self.base_coder_id)
         before = self._telemetry_count()

@@ -44,6 +44,8 @@
 <p class="text-muted small" id="coding-demo-context-line">Showing codes selectable for an adult female.</p>
 <p class="text-muted small" id="coding-demo-status"></p>
 
+<p class="small text-warning-emphasis" id="coding-demo-excluded" role="status" hidden></p>
+
 <div id="coding-demo-results" class="row g-3">
   <div class="col-12 col-sm-6">
     <h3 class="h6">Focused matches</h3>
@@ -102,6 +104,7 @@
   var contextLine = document.getElementById('coding-demo-context-line');
   var focusedList = document.getElementById('coding-demo-focused');
   var expandedList = document.getElementById('coding-demo-expanded');
+  var excludedEl = document.getElementById('coding-demo-excluded');
 
   var debounceHandle = null;
   var requestSeq = 0;
@@ -135,7 +138,13 @@
     while (list.firstChild) list.removeChild(list.firstChild);
   }
 
-  function render(results) {
+  // data is {results, excluded?}: excluded matches are explained, never listed
+  // as choices (digitva-e5j).
+  function render(data) {
+    var results = data && data.results;
+    var excluded = data && data.excluded;
+    excludedEl.textContent = excluded ? excluded.message + '.' : '';
+    excludedEl.hidden = !excluded;
     clearList(focusedList);
     clearList(expandedList);
     var focusedCount = 0;
@@ -169,6 +178,7 @@
     if (query.length < MIN_QUERY_LEN) {
       clearList(focusedList);
       clearList(expandedList);
+      excludedEl.hidden = true;
       statusEl.textContent = '';
       return;
     }
@@ -178,7 +188,8 @@
       classification: classification(),
       q: query,
       age_group: ageGroupSelect.value,
-      sex: sexSelect.value
+      sex: sexSelect.value,
+      explain: 1
     });
     fetch(SEARCH_URL + '?' + params.toString(), { credentials: 'same-origin' })
       .then(function (response) {

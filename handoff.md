@@ -84,10 +84,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       caller's saved answers (`xl43.7`; NQA fields single-sourced in
       `narrative_qa_service.NARRATIVE_QA_FIELDS`, both web templates render
       from it). Contract: `docs/current-state/api-v1.md` "Workspace
-      content". Tell the Expo session (`expo-handoff.md` section 12 still
-      lists them as gaps), so the app's `digitva-p6fs.4` can start.
-      The full suite was stopped at about 80% on owner request; only the
-      targeted modules ran (164 passed). Run it once at the next commit.
+      content"; app side `expo-handoff.md` section 12 item 8 (`6720015a`).
+      **Do first: `digitva-ntct.3`**, the last gap the Expo session
+      reported (section 11 status line): `/me/access` shows active
+      project-site mappings, but interviewer eligibility also needs active
+      VaForms, so the app cannot gate without denied intake probes. Serve
+      the effective eligibility from the predicate the intake routes use.
+      The app's section 11 landing and its section 12 workspace wait on it.
+      The full suite was stopped at about 80% on owner request for
+      `b0c91950`; only the targeted modules ran (164 passed). Run it once
+      with the next commit.
       Then `digitva-xl43.3` DORIS prefill, a read-only view mode
       if the app needs one; device check that native players do not forward
       the bearer to the S3 presigned redirect (`digitva-p6fs.5`).

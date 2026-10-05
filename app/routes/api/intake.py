@@ -453,6 +453,24 @@ def _validation_err(va_sid):
     return version.validation_err if version else []
 
 
+def _correction_reply(draft, reply):
+    """The submit reply when a completion corrected the interview *draft*
+    (the submitted draft that holds the case's submission); commits."""
+    validation_err = _validation_err(draft.va_sid)
+    db.session.commit()
+    return jsonify(
+        {
+            "va_sid": draft.va_sid,
+            "draft": intake_svc.serialize_draft(draft),
+            "superseded": False,
+            "validation_err": validation_err,
+            "kept": reply["kept"],
+            "locked": reply["locked"],
+            "can_code_now": intake_svc.can_code_now(current_user, draft),
+        }
+    )
+
+
 @bp.post("/drafts/<draft_id>/submit")
 @role_required("interviewer")
 def submit_draft(draft_id):
@@ -464,24 +482,17 @@ def submit_draft(draft_id):
         # (last completed version wins), decided before the draft write lock,
         # which refuses anything that is not an open draft.
         reply = intake_svc.resubmit_browser_draft(current_user, draft, completion=p.get("completion") or {})
-        validation_err = _validation_err(draft.va_sid)
-        db.session.commit()
-        return jsonify(
-            {
-                "va_sid": draft.va_sid,
-                "draft": intake_svc.serialize_draft(draft),
-                "superseded": False,
-                "validation_err": validation_err,
-                "kept": reply["kept"],
-                "locked": reply["locked"],
-                "can_code_now": intake_svc.can_code_now(current_user, draft),
-            }
-        )
+        return _correction_reply(draft, reply)
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
     # Same stale-tab guard as autosave: a tab that missed the phone's newer
     # version must not submit its own silently.
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
         return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+    # The case's winner is the caller's own earlier draft: this completion is a
+    # correction of it (decided under the case lock), not a teammate's copy.
+    folded = intake_svc.fold_into_own_submission(current_user, draft, completion=p.get("completion") or {})
+    if folded is not None:
+        return _correction_reply(*folded)
     submission = intake_svc.submit_draft(draft, current_user, completion=p.get("completion") or {})
     if submission is None:
         # A teammate's complete submission won: this copy is kept, not routed.

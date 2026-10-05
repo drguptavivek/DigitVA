@@ -1166,6 +1166,55 @@ class IntakeApiTests(BaseTestCase):
         gone = self.client.post(f"/api/v1/intake/drafts/{uuid.uuid4()}/submit", headers=self._csrf_headers(), json={})
         self.assertEqual(gone.status_code, 404)
 
+    def test_a_second_own_browser_draft_on_the_callers_won_case_is_a_correction(self):
+        """digitva-9kqk: after a regression and a new draft, the first interview
+        wins the case again; the second draft's submit corrects it instead of
+        being stored as a superseded copy."""
+        from app.services import web_intake_service as svc
+
+        death_id = self._case()
+        first = self._start_draft(death_id=death_id)
+
+        def answers(**data):
+            return {"Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                    "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                    "narr_language": "english", **data}
+
+        won = self.client.post(f"/api/v1/intake/drafts/{first['draft_id']}/submit", headers=self._csrf_headers(),
+                               json={"completion": {"valid": True, "issues": [], "data": answers()}})
+        self.assertEqual(won.status_code, 201, won.get_json())
+        va_sid = won.get_json()["va_sid"]
+
+        def resubmit(valid, **data):
+            svc.revise_submission(
+                self.interviewer, va_sid, reason_code=svc.RESUBMITTED_REASON, data=answers(**data),
+                answers_sha256=None, completion={"valid": valid, "issues": []}, envelope={}, resubmit=True)
+            db.session.commit()
+
+        resubmit(False, interview_outcome="partially_completed")
+        second = self._start_draft(death_id=death_id)
+        self.assertNotEqual(second["draft_id"], first["draft_id"])
+        resubmit(True)
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).va_sid, va_sid)  # subject present
+        versions = db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == va_sid))
+
+        response = self.client.post(f"/api/v1/intake/drafts/{second['draft_id']}/submit", headers=self._csrf_headers(),
+                                    json={"completion": {"valid": True, "issues": [], "data": answers(Id10017="Binita")}})
+        body = response.get_json()
+        self.assertEqual(response.status_code, 200, body)
+        self.assertEqual((body["va_sid"], body["superseded"], body["kept"], body["locked"]), (va_sid, False, "incoming", False))
+        self.assertEqual(set(body), {"va_sid", "draft", "superseded", "validation_err", "kept", "locked", "can_code_now"})
+        db.session.expire_all()
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == va_sid)), versions + 1)
+        closed = db.session.get(VaWebIntakeDraft, uuid.UUID(second["draft_id"]))
+        self.assertEqual(closed.status, "replaced")
+        # Submitting the closed draft again is refused, never a second correction.
+        again = self.client.post(f"/api/v1/intake/drafts/{second['draft_id']}/submit", headers=self._csrf_headers(),
+                                 json={"completion": {"valid": True, "issues": [], "data": answers()}})
+        self.assertEqual(again.status_code, 409)
+
     # ── self-coding (digitva-xuxk) ─────────────────────────────────────────
 
     def _self_coding_on(self):

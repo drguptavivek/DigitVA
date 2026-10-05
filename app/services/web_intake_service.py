@@ -1727,7 +1727,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     (no SmartVA, no allocation) and leave the case waiting
     (``OUTCOME_CASE_STATES``). A draft whose case is already closed
     (``_SUPERSEDED_CASE_STATES``) becomes a ``superseded`` copy and the result
-    is None.
+    is None; the browser route first tries ``fold_into_own_submission``, which
+    takes a draft on a case the caller's own interview won.
 
     The submitted draft's ``meta["effectiveSavedAt"]`` is its completion time
     (*completed_at*, a device's skew-corrected ``completedAt``; the submit
@@ -2623,6 +2624,44 @@ def resubmit_browser_draft(user: VaUsers, draft: VaWebIntakeDraft, *, completion
         },
         envelope={}, resubmit=True,
     )
+
+
+def fold_into_own_submission(user: VaUsers, draft: VaWebIntakeDraft, *, completion: dict) -> tuple[VaWebIntakeDraft, dict] | None:
+    """A browser submit of the open *draft* on a case whose winning submission
+    is the caller's own (an earlier draft of theirs: reachable once that one
+    regressed and the interviewer then opened a new draft, see "Parallel
+    interviews"): the second completion is a correction of that interview, not
+    a teammate's competing copy. Returns ``(winning_draft, reply)`` with the
+    reply of ``resubmit_browser_draft``, or None when the case's winner is not
+    the caller's (``submit_draft`` then decides as before).
+
+    *draft* is closed as ``replaced``: its final answers are kept on it, and
+    the same answers are a payload version of the submission, or ``replaced``
+    history when coding is final or the version is older (``revise_submission``'s
+    resubmit rules). A teammate's draft is never folded."""
+    if draft.status != "draft" or not draft.death_id:
+        return None
+    # Under the case lock, so the winner read here is the one revised below.
+    death = cases.lock_case(db.session.get(VaDeathRegister, draft.death_id))
+    if death.status != "submitted" or death.va_sid is None:
+        return None
+    own = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.va_sid == death.va_sid,
+        VaWebIntakeDraft.user_id == user.user_id,
+        VaWebIntakeDraft.status == "submitted",
+    ))
+    if own is None:
+        return None
+    reply = resubmit_browser_draft(user, own, completion=completion)
+    _set_final_section(draft, completion["data"])
+    draft.status = "replaced"
+    draft.meta = {**(draft.meta or {}), "replacedDraftId": str(own.draft_id)}
+    draft.submitted_at = _utcnow()
+    draft.client_valid = completion.get("valid") is True
+    draft.client_issue_count = len(completion.get("issues") or [])
+    db.session.flush()
+    log.info("draft folded into own submission | sid=%s | unique_id=%s | by=%s", own.va_sid, draft.unique_id, user.user_id)
+    return own, reply
 
 
 def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None) -> tuple[VaWebIntakeDraft, str, bool]:

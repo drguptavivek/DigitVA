@@ -1027,6 +1027,88 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("server", True, False))
         self.assertEqual(death.status, "cancelled")
 
+    # -- a second draft on a case the caller's own earlier draft won (digitva-9kqk) --
+
+    def _won_case_with_open_second_draft(self, user=None):
+        """The reachable state: the interviewer's first interview regressed to
+        partial, they opened a new draft, then the first was completed again
+        and won the case. Returns ``(death, first, second)``; with *user* the
+        second draft is that teammate's, opened while the case was open."""
+        death = self._register_death()
+        first, _submission = self._submit_for_new_draft(death, self._completion())
+        partial = self._completion(valid=False, data={"interview_outcome": "partially_completed"})["data"]
+        self._resubmit(first, partial, valid=False)
+        self.assertIsNone(death.va_sid)  # the regression freed the case
+        second = intake_svc.start_draft(
+            user or self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+        self._resubmit(first, self._completion()["data"])
+        self.assertEqual((death.status, death.va_sid), ("submitted", first.va_sid))
+        return death, first, second
+
+    def _payload_versions(self, va_sid):
+        return db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == va_sid))
+
+    def _history(self, death):
+        return db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "replaced")).all()
+
+    def test_a_second_own_draft_on_the_callers_won_case_is_a_correction(self):
+        death, first, second = self._won_case_with_open_second_draft()
+        before = self._payload_versions(first.va_sid)
+        completion = self._completion(data={"Id10017": "Second"})
+        folded = intake_svc.fold_into_own_submission(self.interviewer, second, completion=completion)
+        self.assertIsNotNone(folded)
+        own, reply = folded
+        self.assertEqual(own.draft_id, first.draft_id)
+        self.assertEqual((reply["va_sid"], reply["kept"], reply["locked"], reply["changed"]), (first.va_sid, "incoming", False, True))
+        self.assertEqual(self._payload_versions(first.va_sid), before + 1)
+        self.assertEqual((death.status, death.va_sid), ("submitted", first.va_sid))
+        # The second draft is closed with its answers; it is no superseded copy.
+        self.assertEqual((second.status, second.va_sid), ("replaced", None))
+        self.assertEqual(second.meta["replacedDraftId"], str(first.draft_id))
+        self.assertEqual(intake_svc._answers_of(second)["Id10017"], "Second")
+        self.assertEqual(intake_svc._answers_of(first)["Id10017"], "Second")
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "superseded")), 0)
+
+    def test_a_second_own_draft_when_coding_is_final_is_kept_as_history(self):
+        from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
+        from app.services.workflow.state_store import set_submission_workflow_state
+
+        death, first, second = self._won_case_with_open_second_draft()
+        set_submission_workflow_state(first.va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test")
+        before = self._payload_versions(first.va_sid)
+        self.assertGreater(before, 0)  # subject present
+        folded = intake_svc.fold_into_own_submission(
+            self.interviewer, second, completion=self._completion(data={"Id10017": "Too late"}))
+        self.assertIsNotNone(folded)
+        _own, reply = folded
+        self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("server", True, False))
+        self.assertEqual(self._payload_versions(first.va_sid), before)
+        self.assertEqual(second.status, "replaced")
+        self.assertEqual(intake_svc._answers_of(second)["Id10017"], "Too late")
+        # The coder's version stands, and the late answers are history.
+        self.assertIn("Too late", [intake_svc._merged_answers(r).get("Id10017") for r in self._history(death)])
+        self.assertEqual((death.status, death.va_sid), ("submitted", first.va_sid))
+
+    def test_a_teammates_draft_on_a_won_case_is_still_a_superseded_copy(self):
+        other = self._get_or_make_user("web.interviewer9kqk@test.local", "WebIntake123")
+        db.session.add(VaUserAccessGrants(
+            user_id=other.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID, notes="teammate", grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+        death, first, theirs = self._won_case_with_open_second_draft(user=other)
+        before = self._payload_versions(first.va_sid)
+        self.assertEqual((death.va_sid, theirs.status), (first.va_sid, "draft"))  # subject present
+        self.assertIsNone(intake_svc.fold_into_own_submission(other, theirs, completion=self._completion()))
+        self.assertIsNone(intake_svc.submit_draft(theirs, other, completion=self._completion(data={"Id10017": "Theirs"})))
+        self.assertEqual(theirs.status, "superseded")
+        self.assertEqual(self._payload_versions(first.va_sid), before)
+        self.assertEqual((death.status, death.va_sid), ("submitted", first.va_sid))
+
     def test_the_public_revision_still_refuses_the_servers_own_reason(self):
         death = self._register_death()
         draft, _submission = self._submit_for_new_draft(death, self._completion())

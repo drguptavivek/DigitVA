@@ -415,6 +415,15 @@ newer version of a draft wins at upload: only completed versions compete.
   outcome's state (`paused`, `refused`, `not_reachable`) and loses its
   `va_sid`, and the case waits for a new complete interview. Teammates'
   superseded copies stay superseded; they are not restored.
+- **A second draft of the same interviewer on the case they won** (reachable
+  after a regression, a new browser draft, and the first interview completed
+  again; `digitva-9kqk`): a browser submit of that draft is a correction of
+  the winning submission, not a superseded copy, with the same rules and
+  reply as above (`kept`, `locked`, never `superseded: true`; `va_sid` and
+  `draft` are the winning interview's). The submitted draft is closed as
+  `replaced` with its final answers; the same answers are a payload version,
+  or `replaced` history when coding is final or they are older. A teammate's
+  draft on the same case is still a superseded copy.
 - A correction never tells the case's other draft holders again
   (`case_submitted_by_other` is sent only when a case first becomes
   `submitted`).

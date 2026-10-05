@@ -49,8 +49,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       (reverses the "phone completion wins" default; app half `xpqm.2`,
       handoff section 8) and `digitva-bqzm` a supervisor chooses between two
       interviewers' complete interviews, switch-back allowed (app half
-      `bqzm.2`, section 9); follow-up `digitva-9kqk` (second own browser
-      draft on a won case is a copy, not a correction). Owner: nothing is
+      `bqzm.2`, section 9). Owner: nothing is
       deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Self-coding `digitva-xuxk` is done on the server
       (design `.tasks/2026-10-05-self-coding.md`; owner to confirm the
       defaults listed there; app half `digitva-xuxk.1`, contract

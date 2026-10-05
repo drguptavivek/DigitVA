@@ -95,6 +95,9 @@
       html += `<a href="/coding/resume" class="btn btn-primary">
         <i class="fas fa-edit me-2"></i>${continueLabel}
       </a>`;
+      html += `<button id="release-btn" class="btn btn-outline-secondary" title="Return this case to the coding pool">
+        <i class="fas fa-undo me-2"></i>Release
+      </button>`;
     } else if (randomReady > 0) {
       html += `<button id="start-btn" class="btn btn-primary">
         <i class="fas fa-edit me-2"></i>Start Random Allocation Coding
@@ -326,6 +329,27 @@
         });
       }
 
+      // Release the pending allocation (coder's choice): unfinished work on
+      // the case is dropped and it goes back to the pool.
+      function bindReleaseBtn() {
+        const releaseBtn = document.getElementById('release-btn');
+        if (!releaseBtn) return;
+        releaseBtn.addEventListener('click', () => {
+          if (!window.confirm('Release this case? Unfinished coding work on it will be discarded and it returns to the pool.')) return;
+          releaseBtn.disabled = true;
+          fetch('/api/v1/coding/allocation/release', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+          })
+          .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+          .then(({ ok, data }) => {
+            if (!ok) { showCodingError(data.error || 'Release failed.'); releaseBtn.disabled = false; return; }
+            window.location.reload();
+          })
+          .catch(() => { showCodingError('Network error. Please try again.'); releaseBtn.disabled = false; });
+        });
+      }
+
       function applyStats(alloc, stats) {
         document.getElementById('kpi-random-ready').textContent = valueOrZero(stats.random_ready);
         document.getElementById('kpi-pick-ready').textContent   = valueOrZero(stats.pick_ready);
@@ -334,6 +358,7 @@
         renderActionButtons(alloc, stats.random_ready,
                             modeLabel(stats.has_random_mode, stats.has_pick_mode));
         bindStartBtn();
+        bindReleaseBtn();
       }
 
       applyStats(allocData.allocation, statsData);

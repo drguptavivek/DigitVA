@@ -225,7 +225,7 @@ class ClosedProjectGrantResolutionTests(BaseTestCase):
         )
         self._assert_dormant_then_restored(
             self.PROJECT,
-            lambda: self.FORM in user.get_interviewer_va_forms(),
+            lambda: user.is_interviewer(),
         )
 
     def test_project_scoped_grant_row_survives_closure(self):

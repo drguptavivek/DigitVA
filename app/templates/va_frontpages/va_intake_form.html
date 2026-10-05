@@ -408,6 +408,51 @@ function renderLocalePicker(el, options, locale, onChange) {
   bar.classList.add("d-flex");
 }
 
+// "Code this case now" (self-coding project). The case is still waiting for
+// SmartVA or its attachments right after the submit: the server answers 409
+// not_ready and this retries until it is ready, then opens the coding page.
+const CODE_NOW_RETRIES = 30, CODE_NOW_DELAY_MS = 2000;
+function offerCodeNow(vaSid) {
+  // The controls sit beside the alert, not in it: alertBox replaces the
+  // alert's text, which would drop them on an error or timeout.
+  const row = document.createElement("div");
+  row.className = "mb-2";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-sm btn-primary";
+  button.textContent = "Code this case now";
+  const back = document.createElement("a");
+  back.className = "btn btn-sm btn-outline-secondary ms-2";
+  back.href = "/intake/";
+  back.textContent = "Back to intake";
+  row.append(button, back);
+  $("wv-alert").after(row);
+  const reset = (kind, msg) => {
+    button.disabled = false;
+    button.textContent = "Code this case now";
+    alertBox(kind, msg);
+  };
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    const url = "/api/v1/coding/submissions/" + encodeURIComponent(vaSid) + "/code-now";
+    try {
+      for (let attempt = 0; attempt < CODE_NOW_RETRIES; attempt++) {
+        const r = await api(url, "POST");
+        if (r.ok) { window.location.href = "/coding/resume"; return; }
+        if (r.data.code !== "not_ready") {
+          reset("danger", r.data.error || "Could not start coding this case.");
+          return;
+        }
+        button.textContent = "Preparing the case for coding…";
+        await new Promise((resolve) => setTimeout(resolve, CODE_NOW_DELAY_MS));
+      }
+      reset("warning", "The case is not ready for coding yet. Try again in a moment.");
+    } catch (err) {
+      reset("danger", "Could not reach the server. Check your connection and try again.");
+    }
+  });
+}
+
 async function main() {
   const opts = await api("/api/v1/organization/" + encodeURIComponent(DRAFT.project_id) + "/form-options");
   if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
@@ -454,6 +499,11 @@ async function main() {
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
     if (res.data.superseded) {
       alertBox("warning", `Another interviewer already submitted case ${DRAFT.unique_id}. Your copy was kept, not sent to coding.`);
+    } else if (res.data.can_code_now) {
+      // Self-coding project: stay here and offer the case to its interviewer.
+      alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
+      offerCodeNow(res.data.va_sid);
+      return;
     } else {
       alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
     }

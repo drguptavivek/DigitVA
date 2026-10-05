@@ -41,6 +41,7 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_FINALIZED,
 )
 from app.services.workflow.transitions import (
+    WorkflowActor,
     coder_actor,
     mark_tester_coding_returned,
     reset_demo_state,
@@ -60,8 +61,14 @@ def _naive_utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _deactivate_stale_initial_assessments(record: VaAllocations, cause: str) -> None:
-    """Deactivate unfinished Step 1 COD drafts for a released coding allocation."""
+def _deactivate_stale_initial_assessments(
+    record: VaAllocations, cause: str, actor: WorkflowActor | None = None
+) -> None:
+    """Deactivate unfinished Step 1 COD drafts for a released coding allocation.
+
+    Rows are audited under *actor* (default: the system).
+    """
+    actor = actor or system_actor()
     initial_rows = db.session.scalars(
         sa.select(VaInitialAssessments).where(
             VaInitialAssessments.va_sid == record.va_sid,
@@ -75,15 +82,22 @@ def _deactivate_stale_initial_assessments(record: VaAllocations, cause: str) -> 
             VaSubmissionsAuditlog(
                 va_sid=record.va_sid,
                 va_audit_entityid=initial_row.va_iniassess_id,
-                va_audit_byrole="vasystem",
+                va_audit_byrole=actor.audit_role,
+                va_audit_by=actor.user_id,
                 va_audit_operation="u",
                 va_audit_action=f"initial cod draft reverted due to {cause}",
             )
         )
 
 
-def _deactivate_first_pass_analysis_artifacts(record: VaAllocations, cause: str) -> None:
-    """Deactivate first-pass analysis artifacts that must not survive a release."""
+def _deactivate_first_pass_analysis_artifacts(
+    record: VaAllocations, cause: str, actor: WorkflowActor | None = None
+) -> None:
+    """Deactivate first-pass analysis artifacts that must not survive a release.
+
+    Rows are audited under *actor* (default: the system).
+    """
+    actor = actor or system_actor()
     narrative_assessment = db.session.scalar(
         sa.select(VaNarrativeAssessment).where(
             VaNarrativeAssessment.va_sid == record.va_sid,
@@ -97,7 +111,8 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations, cause: str)
             VaSubmissionsAuditlog(
                 va_sid=record.va_sid,
                 va_audit_entityid=narrative_assessment.va_nqa_id,
-                va_audit_byrole="vasystem",
+                va_audit_byrole=actor.audit_role,
+                va_audit_by=actor.user_id,
                 va_audit_operation="u",
                 va_audit_action=f"narrative quality assessment reverted due to {cause}",
             )
@@ -116,7 +131,8 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations, cause: str)
             VaSubmissionsAuditlog(
                 va_sid=record.va_sid,
                 va_audit_entityid=social_analysis.va_saa_id,
-                va_audit_byrole="vasystem",
+                va_audit_byrole=actor.audit_role,
+                va_audit_by=actor.user_id,
                 va_audit_operation="u",
                 va_audit_action=f"social autopsy analysis reverted due to {cause}",
             )
@@ -124,33 +140,38 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations, cause: str)
 
 
 def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str,
-                               audit_action: str) -> None:
+                               audit_action: str, actor: WorkflowActor | None = None) -> None:
     """Release one active coding allocation without discarding coding work.
 
     First pass: unfinished drafts and first-pass analyses are deactivated and
     the submission returns to ``ready_for_coding``. Recode: the episode is
     abandoned and the submission returns to ``coder_finalized`` with its
     authoritative final COD intact (docs/policy/coding-allocation-timeouts.md).
-    *cause* words the artifact audit rows ("reverted due to <cause>").
+    *cause* words the artifact audit rows ("reverted due to <cause>"). *actor*
+    is who released it (the allocation's coder, for a coder release); the
+    timeout release is the system's.
     """
+    actor = actor or system_actor()
     recode_episode = get_active_recode_episode(record.va_sid)
     record.va_allocation_status = VaStatuses.deactive
-    _deactivate_stale_initial_assessments(record, cause)
+    _deactivate_stale_initial_assessments(record, cause, actor)
     if recode_episode is None:
-        _deactivate_first_pass_analysis_artifacts(record, cause)
-        reset_incomplete_first_pass(record.va_sid, reason=reason, actor=system_actor())
+        _deactivate_first_pass_analysis_artifacts(record, cause, actor)
+        reset_incomplete_first_pass(record.va_sid, reason=reason, actor=actor)
     else:
         abandon_active_recode_episode(
             record.va_sid,
-            by_role="vasystem",
+            by_role=actor.audit_role,
+            by_user_id=actor.user_id,
             audit_action=f"recode episode abandoned due to {cause}",
         )
-        reset_incomplete_recode(record.va_sid, reason=reason, actor=system_actor())
+        reset_incomplete_recode(record.va_sid, reason=reason, actor=actor)
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=record.va_sid,
             va_audit_entityid=record.va_allocation_id,
-            va_audit_byrole="vasystem",
+            va_audit_byrole=actor.audit_role,
+            va_audit_by=actor.user_id,
             va_audit_operation="d",
             va_audit_action=audit_action,
         )

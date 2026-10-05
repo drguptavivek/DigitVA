@@ -145,6 +145,12 @@ class VaProjectMaster(db.Model):
     web_intake_mode: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="off", server_default="off"
     )
+    # Self-coding project (docs/policy/web-intake.md, "Self-coding projects"):
+    # a coder also interviews, and may code their own case. Only meaningful
+    # while web_intake_mode is not 'off'; the admin API enforces that.
+    self_coding_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
     # Tier-2 web form options (docs/policy/va-web-form-options.md), served by
     # GET /api/v1/organization/<project_id>/form-options. Explicit columns, not
     # a settings blob, like every other project setting on this table.

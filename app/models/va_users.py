@@ -188,23 +188,13 @@ class VaUsers(UserMixin, db.Model):
         return bool(self.get_coder_va_forms()) or self._holds_unit_grant("coder")
 
     def is_interviewer(self):
-        if self.get_interviewer_va_forms():
-            return True
-        # Unit-scoped grants do not resolve to va_forms (see
-        # _get_granted_va_forms), but web intake supports them: the project,
-        # site and unit a questionnaire may be filled for are still decided by
-        # web_intake_service.interviewer_context()/_require_scope(), so this
-        # only opens the role gate, not the scope.
-        return bool(self.get_interviewer_org_units())
+        """Role gate only, as ``authz.effective_roles`` says: an interviewer
+        grant, or a coder grant in a self-coding project (derived by authz).
+        The project, site and unit a questionnaire may be filled for are
+        ``web_intake_service.interviewer_context()``/``_require_scope()``."""
+        from app.services.authz.predicates import role_flags
 
-    def get_interviewer_org_units(self):
-        from app.models import VaAccessRoles
-        from app.services.org_grant_service import granted_units
-
-        return granted_units(self.user_id, VaAccessRoles.interviewer)
-
-    def get_interviewer_va_forms(self):
-        return self._get_granted_va_forms("interviewer")
+        return "interviewer" in role_flags(self)
 
     def is_interview_supervisor(self):
         """Role gate for intake supervision, as ``authz.effective_roles`` says:

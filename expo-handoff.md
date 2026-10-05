@@ -5,7 +5,7 @@ builds the server half of each bead and records the exact contract here.
 Policy: `docs/policy/field-data-collection.md`, `docs/policy/web-intake.md`
 ("Parallel interviews"), `docs/policy/interview-revisions.md`. Each section
 names its bead; the app half is its child bead (e.g. `digitva-2bxa.1`); the server bead stays open until its app half lands. The backend session
-rewrites this file as beads land; the Expo session closes the app beads.
+rewrites this file as beads land; the Expo session closes the app beads. Section 10 (self-coding) added 2026-10-05.
 
 ## 1. Answers hash on upload (`digitva-2bxa`, server built)
 
@@ -474,3 +474,49 @@ No new interviewer endpoint. The supervisor endpoints
 (`GET /intake/supervision/cases/<id>`, `POST .../choose-interview`,
 `GET /intake/supervision/cases?candidates=true`) are for the web supervision
 page; interviewers never see the other interviewer's name.
+
+## 10. Self-coding: "Code this case now" (`digitva-xuxk`, server built)
+
+App half: `digitva-xuxk.1`. Policy: `docs/policy/web-intake.md`
+("Self-coding projects"), `docs/policy/coding-workflow-state-machine.md`
+("Self-coding"), `docs/policy/coding-allocation-timeouts.md` ("Coder
+release"). Route detail: `docs/current-state/api-v1.md`, "Code this case now"
+and "Coder release".
+
+A project setting, off by default. In a self-coding project a Coder grant
+also lets its holder interview (same scope; derived by the server, so
+`me/access` and the interviewer routes simply start working for them). A
+completed interview goes into the normal coding pool: any coder may take it.
+The submitter is offered it first, if still free. One coding allocation per
+coder at a time.
+
+**What the app sees:**
+
+1. **`can_code_now`** (bool) on the device upload result
+   (`POST /intake/submissions`, also on a resend). True when the caller may
+   be offered "Code this case now": a completed interview with valid consent,
+   in a self-coding project, and the caller holds a coder grant that codes.
+   Grants only; the action re-checks. Default false when absent.
+2. **`code_now`** (bool) on every case row and the case detail
+   (`GET /intake/cases`, `GET /intake/cases/<id>`): the caller's own
+   submission is `ready_for_coding` (a confirmed duplicate never is), so the
+   action will work now. Default false when absent.
+3. **`POST /coding/submissions/<va_sid>/code-now`**, no body, bearer token
+   works. 201 `{va_sid, actiontype}`; 200 when the caller already holds it.
+   Errors `{error, code}`: 409 `not_ready` (attachments or SmartVA still
+   running, usually seconds: retry a few times, about 2 s apart, then say
+   "Still preparing, try again from the worklist"), 409 `held_by_another`
+   (another coder took it: hide the button), 403 `allocation_exists` (the
+   user holds another case: offer Release), 403 `forbidden`, 404
+   `not_found`, 409 `not_available` / `conflict`. A 409 also carries
+   `workflow_state`.
+4. **`POST /coding/allocation/release`**, no body: drops the caller's own
+   active coding allocation. 200 `{va_sid, workflow_state}`; 409
+   `no_allocation`. Unfinished Step 1 work on that case is discarded, as on
+   the 1-hour timeout; say so before releasing.
+
+**Blocked:** the app cannot code yet (the coding workspace is server HTML
+until `digitva-xl43`, app `digitva-p6fs.4`). Until then, show `can_code_now`
+/ `code_now` as a hint only ("Ready for you to code on the web"); do not call
+`code-now` from the app, since it would hold a case the user cannot open
+there. Build the button with `p6fs.4`.

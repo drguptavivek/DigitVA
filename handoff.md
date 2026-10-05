@@ -18,8 +18,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3505 passed, 6 min, on 2026-10-05; `test_odk_site_mappings` flakes under load; two full runs on one DB collide and hang, so recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
-> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `h2n5q8t1v4w7`. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
+> (about 3640 passed on 2026-10-05; the app container's 756 MB cap now OOM-kills one full run (exit 137), so run it in chunks: `tests/services`, `tests/routes`, `tests/authz tests/integration`, then `tests/test_*.py`; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
+> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
@@ -51,8 +51,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       interviewers' complete interviews, switch-back allowed (app half
       `bqzm.2`, section 9); follow-up `digitva-9kqk` (second own browser
       draft on a won case is a copy, not a correction). Owner: nothing is
-      deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Next: `digitva-xuxk` per-project self-coding (the MO codes their own
-      interview; SmartVA on completion `digitva-533t` is done). Owner confirmed three of
+      deployed, so no legacy fallbacks (bd memory `no-legacy-fallbacks`). Self-coding `digitva-xuxk` is done on the server
+      (design `.tasks/2026-10-05-self-coding.md`; owner to confirm the
+      defaults listed there; app half `digitva-xuxk.1`, contract
+      `expo-handoff.md` section 10, waits on the app coding workspace
+      `p6fs.4`; `xuxk` stays open until it lands). Owner confirmed three of
       the four defaults on 2026-10-05 (the fourth was replaced by `xpqm`) (recorded in `docs/policy/web-intake.md`
       and `docs/policy/interview-revisions.md`). Manual check owed: the
       browser form's stale-tab 409 (`draft_stale`) and the worklist
@@ -74,6 +77,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    worker so the notification purge beat row is seeded. Rebuild
    `app/data/who-va-2022.composed.json` (`cd tooling/who-va-2022 && npm run
    build:composed-instrument`) after any `vendor/who-va-2022` change.
+   Self-coding: migration `b4k8m2r6w9x3`; bump `STATIC_ASSET_VERSION`
+   (intake form, worklist and coder dashboard scripts changed) and the authz
+   global version below (grant cache `_FORMAT` is now 2).
    SmartVA (`0ba9833b`): rebuild the image (font cache prebuilt, smaller
    context), restart the Celery worker and beat (beat seeds the 30 s
    `sweep_smartva_pending`); `SMARTVA_CHARTS=1` only for debugging. Web and

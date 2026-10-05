@@ -3,7 +3,7 @@ title: Coding Allocation Timeout Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-05
 ---
 
 # Coding Allocation Timeout Policy
@@ -65,6 +65,26 @@ reviewer session. All intermediate saves (NQA, Social Autopsy, reviewer NQA)
 are partial saves. If the session times out before the final COD is submitted,
 all intermediate artifacts disappear and the submission returns to
 `reviewer_eligible` so a fresh reviewer session can start.
+
+## Coder release
+
+Owner decision 2026-10-05, `digitva-xuxk`. One active coding allocation per
+coder stays. A coder may also release their own active coding allocation by
+choice (the "Release" action), for example after taking a case with "Code this
+case now" that they do not want to code.
+
+The effect is the same as the timeout release, through
+`_release_coding_allocation` in `app/services/coding_allocation_service.py`:
+
+- first pass: unfinished Step 1 and first-pass work on that case are
+  deactivated and the case returns to `ready_for_coding`
+- recode: the episode is abandoned and the case returns to `coder_finalized`,
+  with the authoritative final COD kept
+- an audit log entry is written for the release
+
+Only the allocation's own coder may release it, and only while it is active.
+The automatic release after the timeout above stays as it is. The invariant
+below applies to a coder release too.
 
 ## Revocation when a web case is confirmed as a duplicate
 

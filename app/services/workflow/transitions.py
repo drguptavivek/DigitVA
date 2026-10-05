@@ -38,6 +38,8 @@ ACTOR_INTERVIEW_SUPERVISOR = "interview_supervisor"
 
 SYSTEM_ACTOR_KINDS = frozenset({ACTOR_SYSTEM, ACTOR_ADMIN})
 CODING_ACTOR_KINDS = frozenset({ACTOR_CODER, ACTOR_ADMIN})
+# Who may release a coding allocation: the system on timeout, the coder by choice.
+RELEASE_ACTOR_KINDS = SYSTEM_ACTOR_KINDS | {ACTOR_CODER}
 DATA_MANAGER_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_ADMIN})
 REVIEWER_ACTOR_KINDS = frozenset({ACTOR_REVIEWER})
 ADMIN_ACTOR_KINDS = frozenset({ACTOR_ADMIN})
@@ -717,7 +719,7 @@ def reset_incomplete_first_pass(
             wd.WORKFLOW_CODER_STEP1_SAVED,
             wd.WORKFLOW_READY_FOR_CODING,  # allocation deactivated before reset; state already correct
         ),
-        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        allowed_actor_kinds=RELEASE_ACTOR_KINDS,
         reason=reason,
         actor=actor or system_actor(),
     )
@@ -742,7 +744,7 @@ def reset_incomplete_recode(
             # the active recode episode still needs to be closed out.
             wd.WORKFLOW_READY_FOR_CODING,
         ),
-        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        allowed_actor_kinds=RELEASE_ACTOR_KINDS,
         reason=reason,
         actor=actor or system_actor(),
     )

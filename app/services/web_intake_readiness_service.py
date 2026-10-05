@@ -36,6 +36,7 @@ from app.models import (
     VaUsers,
 )
 from app.services import organization_service as org
+from app.services.mentor_institute_service import active_member_ids_select
 from app.services.web_form_instruments import instrument_locales
 from app.services.web_intake_service import get_web_intake_mode
 
@@ -445,15 +446,31 @@ def _interviewer_grant_scopes(project_id: str) -> set[VaAccessScopeTypes]:
     """Which scopes an active interviewer grant on this project exists at.
 
     Three bounded EXISTS-shaped lookups, one per scope a grant may carry. A
-    grant held by a deactivated user is not counted: it reaches nobody.
+    grant held by a deactivated user is not counted: it reaches nobody. In a
+    self-coding project a coder grant counts too (a coder implies an
+    interviewer there), except a mentoring institute member's.
     """
     scopes: set[VaAccessScopeTypes] = set()
+    self_coding = db.session.scalar(
+        sa.select(VaProjectMaster.self_coding_enabled).where(
+            VaProjectMaster.project_id == project_id
+        )
+    )
+    role_condition = VaUserAccessGrants.role == VaAccessRoles.interviewer
+    if self_coding:
+        role_condition = sa.or_(
+            role_condition,
+            sa.and_(
+                VaUserAccessGrants.role == VaAccessRoles.coder,
+                VaUserAccessGrants.user_id.not_in(active_member_ids_select()),
+            ),
+        )
     base = (
         sa.select(sa.literal(1))
         .select_from(VaUserAccessGrants)
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .where(
-            VaUserAccessGrants.role == VaAccessRoles.interviewer,
+            role_condition,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             VaUsers.user_status == VaStatuses.active,
         )

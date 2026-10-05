@@ -353,6 +353,18 @@
       window.location.href = '/intake/form/' + encodeURIComponent(res.data.draft.draft_id);
     });
   }
+  // "Code now": take the user's own case into the coding page.
+  function codeCaseNow(vaSid, button) {
+    button.disabled = true;
+    api('/api/v1/coding/submissions/' + encodeURIComponent(vaSid) + '/code-now', 'POST').then(function (res) {
+      if (!res.ok) {
+        button.disabled = false;
+        alertBox('danger', res.data.error || 'Could not start coding this case.');
+        return;
+      }
+      window.location.href = '/coding/resume';
+    });
+  }
   $('intake-new-direct').addEventListener('click', function () {
     var c = currentScope(); if (!c) return;
     openDraft({ project_id: c.project_id, site_id: c.site_id, org_unit_id: unitId() }, this);
@@ -532,6 +544,13 @@
         openDraft({ project_id: row.project_id, site_id: row.site_id, death_id: row.death_id }, start);
       });
       actions.appendChild(start);
+    }
+    if (row.code_now && row.va_sid) {
+      // Own completed interview, ready for coding, in a self-coding project.
+      var codeNow = el('button', 'btn btn-sm btn-primary', 'Code now');
+      codeNow.type = 'button';
+      codeNow.addEventListener('click', function () { codeCaseNow(row.va_sid, codeNow); });
+      actions.appendChild(codeNow);
     }
     if (waiting) {
       if (!attemptFirst) {

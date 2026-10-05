@@ -797,6 +797,41 @@ That means:
 - Social Autopsy delay analysis does not persist through initial-coding timeout
   reversion
 
+## Self-coding
+
+Owner decision 2026-10-05, `digitva-xuxk`. In a self-coding project (project
+setting `self_coding_enabled`; see [Web Intake
+Policy](web-intake.md), "Self-coding projects") a coder may interview and then
+code their own case. This adds no workflow state and no new pool rule.
+
+- **Normal path.** The case goes through attachment sync, `smartva_pending`,
+  SmartVA on completion and `ready_for_coding` as any web or device case, and
+  enters the normal coding pool. Any coder in scope may take it. The submitter
+  has no exclusive claim.
+- **"Code this case now"** allocates that case to the submitter, as an
+  ordinary coding allocation, only when all of these hold:
+  - the project is self-coding;
+  - the user is the submitter, that is the user owns the submitted web intake
+    draft for that `va_sid`;
+  - the case is `ready_for_coding`;
+  - the user holds no other active coding allocation.
+
+  It works in both coder-intake modes: in a `pick_and_choose` project it
+  skips the pick-mode check for this case only. Every other coder check still
+  applies (scope, language, coding gates).
+- **SmartVA still pending.** While the case is `smartva_pending` (or still
+  waiting for attachments) the request is refused with 409 and the case's
+  workflow state, and the client retries.
+- **Taken by another coder.** If another coder already holds the case, the
+  request is refused.
+- **Worklist.** The user's own completed interviews awaiting coding show
+  "Code now" on the interviewer worklist, with the same rule.
+- **Unchanged.** Review, recode, revisions and send-back work as for any case.
+  Coding the case oneself does not change who may review it or how a
+  correction after coding is handled.
+- A coder may release their own allocation; see [Coding Allocation Timeout
+  Policy](coding-allocation-timeouts.md), "Coder release".
+
 ## Recode Window
 
 Only coder-finalized cases may be recoded.

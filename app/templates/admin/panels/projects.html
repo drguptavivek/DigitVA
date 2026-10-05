@@ -118,6 +118,10 @@
           <input class="form-check-input" type="checkbox" id="project-demo-training-enabled-input" role="switch">
           <label class="form-check-label small" for="project-demo-training-enabled-input">Demo / Training</label>
         </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="project-self-coding-enabled-input" role="switch">
+          <label class="form-check-label small" for="project-self-coding-enabled-input">Self-coding (coders also interview; needs web intake on)</label>
+        </div>
         <div class="d-flex align-items-center gap-2">
           <label class="small text-nowrap mb-0" for="project-demo-retention-minutes-input">Retention (min)</label>
           <input type="number" min="1" class="form-control form-control-sm" id="project-demo-retention-minutes-input" value="10" style="width:5rem;">
@@ -625,6 +629,7 @@
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
+  var selfCodingEnabledInput = document.getElementById('project-self-coding-enabled-input');
   var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
   var allLocalesInput = document.getElementById('project-web-intake-all-locales-input');
   var availableLocalesList = document.getElementById('project-web-intake-available-locales-list');
@@ -1027,6 +1032,7 @@
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
+    selfCodingEnabledInput.checked = false;
     demoRetentionMinutesInput.value = '10';
     resetWebIntakeInputs();
     // A project that does not exist yet has nothing to be ready for.
@@ -1067,6 +1073,7 @@
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
+    selfCodingEnabledInput.checked = !!project.self_coding_enabled;
     demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
     fillWebIntakeInputs(project);
     loadReadiness(projectId);
@@ -1105,6 +1112,7 @@
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
       reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,
+      self_coding_enabled: selfCodingEnabledInput.checked,
       demo_retention_minutes: parseInt(demoRetentionMinutesInput.value || '10', 10)
     };
     

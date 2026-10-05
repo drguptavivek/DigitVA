@@ -317,6 +317,14 @@ Starting coding:
 - the app also records `coding_in_progress` in `va_submission_workflow`
 - stale coding allocations older than one hour are released automatically
 - the release path deactivates only the stale coding allocation
+- a coder may release their own allocation (`POST /api/v1/coding/allocation/release`,
+  "Release" on the coding dashboard): same effect, audited as
+  `va_allocation_released_by_coder` under the coder; the release transitions
+  (`incomplete_first_pass_reset`, `incomplete_recode_reset`) accept the coder
+  actor besides system and admin
+- in a self-coding project the submitter may take their own `ready_for_coding`
+  case with `POST /api/v1/coding/submissions/<va_sid>/code-now`
+  (`allocate_own_case`; see `api-v1.md`)
 - any saved `va_initial_assessments` row is preserved so the coder can resume
   final COD later
 - admin demo coding also creates a normal coding allocation, but demo-created
@@ -980,6 +988,20 @@ rows are untouched, so reopening the project restores access unchanged.
 Admins hold a `global` grant and are not grant-resolved against a project, so
 admin access is unaffected. Policy:
 `docs/policy/access-control-model.md`, "Closed Projects".
+
+### Coder implies interviewer in a self-coding project
+
+`authz.grants._resolve` adds one non-virtual `interviewer` grant per `coder`
+grant on a project whose `ProjectSettings.self_coding` is set (project flag
+`self_coding_enabled` and `web_intake_mode` not `off`), at the coder grant's
+scope and gate. Nothing is written: the grant exists only in the resolved
+result (and so in the Redis grant cache; a change of either project column bumps
+the global version). A mentoring institute member's coder grant implies nothing
+(one `member_user_ids` query, run only when a candidate coder grant exists;
+`add_member` / `remove_member` drop the member's cached grants).
+`VaUsers.is_interviewer()`, `web_intake_service.interviewer_context` and the
+readiness check read the same result. Policy:
+`docs/policy/access-control-model.md`, "Implied roles".
 
 ### Language as second filter
 

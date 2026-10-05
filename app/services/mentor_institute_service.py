@@ -121,6 +121,15 @@ def create_institute(code: object, name: str, *, actor_user_id=None) -> MasMento
 def set_institute_active(code: object, active: bool, *, actor_user_id=None) -> MasMentorInstitute:
     institute = _institute(code)
     institute.is_active = active
+    # Membership of an inactive institute does not count (member_user_ids), so
+    # the flip changes each active member's implied roles.
+    for member_id in db.session.scalars(
+        sa.select(MapMentorInstituteUser.user_id).where(
+            MapMentorInstituteUser.institute_id == institute.institute_id,
+            MapMentorInstituteUser.is_active.is_(True),
+        )
+    ):
+        _forget_grants(member_id)
     log_mentor_institute_action(
         action="mentor_institute_activated" if active else "mentor_institute_deactivated",
         actor_user_id=actor_user_id,
@@ -163,6 +172,14 @@ def detach_district(institute_code, project_id: str, unit_code, *, actor_user_id
     _set_district_link(institute_code, project_id, unit_code, False, actor_user_id)
 
 
+def _forget_grants(user_id) -> None:
+    """Membership decides whether a self-coding coder grant implies the
+    interviewer role (authz.grants), so a change drops the user's cached grants."""
+    from app.services.authz.grants import invalidate
+
+    invalidate(user_id)
+
+
 def add_member(institute_code, email: str, *, actor_user_id=None) -> int:
     """Make the user institute staff. Returns how many of their active grants
     the guard would now refuse (not unit scope, not a mentor role, or a unit
@@ -183,6 +200,7 @@ def add_member(institute_code, email: str, *, actor_user_id=None) -> int:
     else:
         link.is_active = True
     db.session.flush()
+    _forget_grants(user.user_id)
     log_mentor_institute_action(
         action="mentor_member_added",
         actor_user_id=actor_user_id,
@@ -213,6 +231,7 @@ def remove_member(institute_code, email: str, *, actor_user_id=None) -> None:
     if link is None:
         raise OrganizationError("That user is not staff of that institute.")
     link.is_active = False
+    _forget_grants(user.user_id)
     log_mentor_institute_action(
         action="mentor_member_removed",
         actor_user_id=actor_user_id,

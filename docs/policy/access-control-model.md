@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Access Control Model
@@ -434,6 +434,28 @@ May not:
 - interview, code or review without the matching grant
 
 See [Web Intake Policy](web-intake.md), "Supervisors".
+
+### Implied roles
+
+A few roles carry the powers of another without a second grant: the
+`project_pi` of a tree project acts as `data_manager` and
+`interview_supervisor`, and an In-charge has every power of a `data_manager`
+and of `interview_supervisor` in their subtree (see above).
+
+**Self-coding projects** (decision 2026-10-05, `digitva-xuxk`). In a project
+with `self_coding_enabled` set, `coder` implies `interviewer`: a `coder` grant
+also lets its holder interview, at the same scope. The `interviewer` grant is
+derived when grants are read; no row is written, and revoking the `coder`
+grant or turning the setting off removes it. The setting can be on only while
+the project's `web_intake_mode` is not `off`. Mentoring institute members are
+excluded: their `coder` grant never implies interviewing, since they may not
+hold `interviewer`.
+
+This changes who can give interviewing in a **site project**: a data manager
+there may not create `interviewer` grants (see "Who creates which grants"),
+but may create `coder` grants, so in a self-coding project a data manager who
+can assign `coder` thereby gives interviewing. See [Web Intake
+Policy](web-intake.md), "Self-coding projects".
 
 ## Scope Model
 

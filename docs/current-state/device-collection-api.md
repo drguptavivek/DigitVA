@@ -238,8 +238,9 @@ one section named `device` (taken from the request's `answers_json`, not from `d
   loses the unique index is handled the same way. Another interviewer's id is
   409 `conflict`.
 - **Result body.** `{va_sid, case: {death_id, unique_id, status}, outcome,
-  superseded, answers_sha256, kept, received_sha256, locked}`.
-  `answers_sha256` is the hash of the coder version's answers;
+  superseded, answers_sha256, kept, received_sha256, locked, can_code_now}`.
+  `can_code_now` is true when the caller may be offered "Code this case now"
+  (`web_intake_service.can_code_now`). `answers_sha256` is the hash of the coder version's answers;
   `received_sha256` is the hash of the answers this request sent, as the
   server received them: the app deletes its copy when it equals what it sent,
   whatever `kept` is (`kept: "server"` is an acknowledgement). `kept` is
@@ -284,8 +285,8 @@ behaviour.
   `date_of_death`, `pending_flag`, `next_visit_at`, `last_contact_at`,
   `informant_phone_masked`, `informant_phone_2_masked`, `registered_by_me`,
   `started_by_me`, `my_draft_id`, `other_draft_active`,
-  `other_draft_started_at`, `va_sid`, `other_complete_interview`, `created_at`,
-  `updated_at`)
+  `other_draft_started_at`, `va_sid`, `other_complete_interview`, `code_now`,
+  `created_at`, `updated_at`)
   plus `possible_duplicates` (`[{death_id, unique_id}]`, up to three, from
   the whole scope); `counts` per state cover the scope, the project and
   `mine` but not `state`. Every state in scope is listed; the app picks its
@@ -304,6 +305,10 @@ behaviour.
   only as fresh as that draft's last sync. Computed in the same query as the
   row (`_worklist_select`), from `ix_va_web_intake_drafts_death` and
   `uq_va_web_intake_drafts_user_death_open`. Not in supervision rows.
+- **`code_now`** (bool, in a list row and in the detail): the caller's own
+  submission is `ready_for_coding` in a self-coding project where they code
+  (`_code_now`, from the row's `ready_for_coding` column and the resolved
+  grants: no extra query). Not in supervision rows.
 - **`other_complete_interview`** (bool, in a list row and in the detail): a
   second complete interview of the submitted case exists (a superseded copy
   whose outcome is `completed`, a candidate a supervisor may choose, see
@@ -322,7 +327,7 @@ behaviour.
   `informant {name, phone, phone_2}` in full, `remarks`, `next_visit_at`,
   `last_contact_at`, `registered_by_me`, `started_by_me`, `my_draft_id`,
   `other_draft_active`, `other_draft_started_at`, `va_sid`,
-  `other_complete_interview`, `created_at`, `updated_at`. No ABHA, parents' names, other
+  `other_complete_interview`, `code_now`, `created_at`, `updated_at`. No ABHA, parents' names, other
   users' ids, client ids or duplicate ids. `no-store`. With `prefill`
   (`case_prefill`, the object the web form page receives for the case, so an
   interview started offline opens prefilled; it carries the questionnaire's
@@ -542,7 +547,7 @@ credential, CSRF for a cookie; body cap 2 MB). Code:
   before the draft write lock and the `if_updated_at` check (which stay for a
   draft still `draft`). It is a `resubmitted` correction completed now (the
   answers hashed over their canonical JSON, a browser draft having none):
-  200 `{va_sid, draft, superseded: false, validation_err, kept, locked}`.
+  200 `{va_sid, draft, superseded: false, validation_err, kept, locked, can_code_now}`.
 - **Incomplete to another incomplete outcome** (`partially_completed`,
   `respondent_unavailable`, `refused`): the case moves to
   `OUTCOME_CASE_STATES[outcome]` via `in_progress`, as a submit does.

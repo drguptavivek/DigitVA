@@ -55,14 +55,15 @@ from app.services.authz.grants import Grant, ProjectSettings, ResolvedGrants
 
 log = logging.getLogger(__name__)
 
-_FORMAT = 1
+_FORMAT = 2
 _PENDING_KEY = "digitva.authz.pending_bumps"
 
 # Columns whose change can alter what a user's grants resolve to.
 _USER_COLUMNS = ("user_status", "auth_session_version")
 _GLOBAL_COLUMNS = {
     VaProjectMaster: ("project_status", "coding_scope_level_id",
-                      "above_scope_coding_mode", "demo_training_enabled"),
+                      "above_scope_coding_mode", "demo_training_enabled",
+                      "self_coding_enabled", "web_intake_mode"),
     VaProjectSites: ("project_site_status", "project_id", "site_id"),
     VaForms: ("form_status", "project_id"),
     MasOrgUnit: None,   # any column: path, parent, level, is_active, project
@@ -108,7 +109,8 @@ def encode(resolved: ResolvedGrants) -> str:
             for g in resolved.grants
         ],
         "projects": [
-            [p.project_id, p.has_tree, p.scope_depth, p.above_mode, p.demo_training]
+            [p.project_id, p.has_tree, p.scope_depth, p.above_mode, p.demo_training,
+             p.self_coding]
             for p in resolved.projects.values()
         ],
     }, separators=(",", ":"))
@@ -159,10 +161,11 @@ def decode(raw, user_id: uuid.UUID) -> ResolvedGrants:
         in data["grants"]
     )
     projects = {}
-    for project_id, has_tree, scope_depth, above_mode, demo in data["projects"]:
+    for project_id, has_tree, scope_depth, above_mode, demo, self_coding in data["projects"]:
         projects[_text(project_id, optional=False)] = ProjectSettings(
             project_id=project_id, has_tree=_bool(has_tree), scope_depth=_int(scope_depth),
             above_mode=_text(above_mode, optional=False), demo_training=_bool(demo),
+            self_coding=_bool(self_coding),
         )
     return ResolvedGrants(
         user_id=user_id, is_admin=_bool(data["is_admin"]), grants=grants, projects=projects,

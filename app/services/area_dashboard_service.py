@@ -514,7 +514,13 @@ def link_screens(user, project_id: str) -> set[str]:
         screens.add(SCREEN_DATA_MANAGEMENT)
     if VaAccessRoles.coder in roles and user.is_coder():
         screens.add(SCREEN_CODING)
-    if VaAccessRoles.interviewer in roles and user.is_interviewer():
+    # Through authz, not *roles*: a coder in a self-coding project interviews
+    # without an interviewer grant row.
+    interviews_here = any(
+        g.project_id == project_id
+        for g in authz.resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False)
+    )
+    if interviews_here and user.is_interviewer():
         screens.add(SCREEN_INTAKE)
     return screens
 

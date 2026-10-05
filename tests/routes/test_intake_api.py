@@ -1166,6 +1166,105 @@ class IntakeApiTests(BaseTestCase):
         gone = self.client.post(f"/api/v1/intake/drafts/{uuid.uuid4()}/submit", headers=self._csrf_headers(), json={})
         self.assertEqual(gone.status_code, 404)
 
+    # ── self-coding (digitva-xuxk) ─────────────────────────────────────────
+
+    def _self_coding_on(self):
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        project.self_coding_enabled = True
+        db.session.add(VaUserAccessGrants(
+            user_id=self.interviewer.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+    def _complete_answers(self, **over):
+        return {
+            "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+            "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+            "narr_language": "english", **over,
+        }
+
+    def _browser_submit(self, **over):
+        draft = self._start_draft(death_id=self._case())
+        return self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit", headers=self._csrf_headers(),
+            json={"completion": {"valid": True, "issues": [], "data": self._complete_answers(**over)}},
+        )
+
+    def test_the_browser_submit_reply_offers_code_now_only_in_a_self_coding_project(self):
+        plain = self._browser_submit()
+        self.assertEqual(plain.status_code, 201, plain.get_json())
+        self.assertIsNotNone(plain.get_json()["va_sid"])  # subject present
+        self.assertIs(plain.get_json()["can_code_now"], False)
+
+        self._self_coding_on()
+        offered = self._browser_submit()
+        self.assertEqual(offered.status_code, 201, offered.get_json())
+        self.assertIs(offered.get_json()["can_code_now"], True)
+
+        # No valid consent: the case never enters coding, nothing to offer.
+        refused = self._browser_submit(Id10013="no")
+        self.assertEqual(refused.status_code, 201, refused.get_json())
+        self.assertIsNotNone(refused.get_json()["va_sid"])
+        self.assertIs(refused.get_json()["can_code_now"], False)
+
+    def test_the_device_submit_reply_offers_code_now(self):
+        self._self_coding_on()
+        death_id = self._case()
+        text = json.dumps(self._complete_answers(), separators=(",", ":"))
+        body = {
+            "client_draft_id": str(uuid.uuid4()), "project_id": self.PROJECT_ID, "site_id": self.SITE_ID,
+            "death_id": death_id, "draft": {"startedAt": datetime.now(UTC).isoformat()},
+            "completion": {"valid": True, "issues": []}, "answers_json": text,
+            "answers_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        }
+        response = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=body)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertIs(response.get_json()["can_code_now"], True)
+        # A resend is the same answer.
+        resend = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=body)
+        self.assertEqual(resend.status_code, 200, resend.get_json())
+        self.assertIs(resend.get_json()["can_code_now"], True)
+
+    def test_the_worklist_shows_code_now_on_the_own_ready_case(self):
+        from app.services.workflow.definition import WORKFLOW_READY_FOR_CODING
+        from app.services.workflow.state_store import (
+            get_submission_workflow_state,
+            set_submission_workflow_state,
+        )
+
+        self._self_coding_on()
+        submitted = self._browser_submit()
+        va_sid = submitted.get_json()["va_sid"]
+        death_id = submitted.get_json()["draft"]["death_id"]
+
+        def row():
+            rows = self.client.get("/api/v1/intake/cases").get_json()["cases"]
+            return next(r for r in rows if r["death_id"] == death_id)
+
+        # Still waiting for SmartVA: shown, but not ready.
+        self.assertNotEqual(get_submission_workflow_state(va_sid), WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(row()["va_sid"], va_sid)
+        self.assertIs(row()["code_now"], False)
+        set_submission_workflow_state(va_sid, WORKFLOW_READY_FOR_CODING, reason="test", by_role="test")
+        db.session.commit()
+        self.assertIs(row()["code_now"], True)
+        detail = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
+        self.assertIs(detail["code_now"], True)
+        # A confirmed duplicate is never offered.
+        case = db.session.get(VaDeathRegister, death_id)
+        status, case.status = case.status, "duplicate"
+        db.session.commit()
+        self.assertIs(self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]["code_now"], False)
+        case.status = status
+        db.session.commit()
+        # Not a self-coding project any more: no button.
+        db.session.get(VaProjectMaster, self.PROJECT_ID).self_coding_enabled = False
+        db.session.commit()
+        self.assertIs(row()["code_now"], False)
+
+
 
 class WebOnlyProjectIntakeTests(BaseTestCase):
     """A project that collects only on the web, plus a unit-scoped interviewer.
@@ -1323,7 +1422,6 @@ class WebOnlyProjectIntakeTests(BaseTestCase):
 
         # The user holds no project or project_site grant, so no va_forms row
         # resolves for them; the role gate must still let them through.
-        self.assertEqual(unit_user.get_interviewer_va_forms(), set())
         self.assertTrue(unit_user.is_interviewer())
 
         self._login(str(unit_user.user_id))

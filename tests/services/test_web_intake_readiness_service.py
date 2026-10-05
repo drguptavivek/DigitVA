@@ -26,6 +26,7 @@ from app.services.runtime_form_sync_service import ensure_web_forms_for_project
 from app.services.web_intake_readiness_service import (
     CHECK_CODES,
     WebIntakeReadinessError,
+    _interviewer_grant_scopes,
     assess_web_intake_readiness,
 )
 from tests.base import BaseTestCase
@@ -104,6 +105,29 @@ class WebIntakeReadinessServiceTests(BaseTestCase):
         )
         db.session.flush()
         return level
+
+    # ── self-coding ────────────────────────────────────────────────────────
+
+    def test_a_coder_grant_counts_as_an_interviewer_only_in_a_self_coding_project(self):
+        from app.services import mentor_institute_service as mentors
+
+        db.session.add(VaUserAccessGrants(
+            user_id=self.interviewer.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertEqual(_interviewer_grant_scopes(self.PROJECT_ID), set())
+
+        self._project().self_coding_enabled = True
+        db.session.commit()
+        self.assertEqual(_interviewer_grant_scopes(self.PROJECT_ID), {VaAccessScopeTypes.project})
+
+        # A mentoring institute member's coder grant implies nothing.
+        mentors.create_institute("WRMI", "Readiness Mentors")
+        mentors.add_member("WRMI", self.interviewer.email)
+        db.session.commit()
+        self.assertEqual(_interviewer_grant_scopes(self.PROJECT_ID), set())
 
     # ── shape ──────────────────────────────────────────────────────────────
 

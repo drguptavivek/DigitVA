@@ -13,6 +13,7 @@ global grant and is never project-resolved.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import uuid
 from collections.abc import Iterable, Iterator
@@ -91,6 +92,9 @@ class ProjectSettings:
     scope_depth: int | None   # depth of coding_scope_level_id; None = no coding scope
     above_mode: str           # 'code_any' | 'view_only'
     demo_training: bool
+    # Self-coding is on and web intake is not off: a coder here also interviews
+    # (policy: web-intake.md, "Self-coding projects").
+    self_coding: bool = False
 
 
 @dataclass(frozen=True)
@@ -296,6 +300,9 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
             level.depth,
             project.above_scope_coding_mode,
             sa.and_(demo, has_active_form).label("demo_training"),
+            sa.and_(
+                project.self_coding_enabled.is_(True), project.web_intake_mode != "off"
+            ).label("self_coding"),
             has_tree.label("has_tree"),
         )
         .outerjoin(level, level.org_level_id == project.coding_scope_level_id)
@@ -308,9 +315,44 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
             scope_depth=row.depth,
             above_mode=row.above_scope_coding_mode or ABOVE_SCOPE_VIEW_ONLY,
             demo_training=bool(row.demo_training),
+            self_coding=bool(row.self_coding),
         )
         for row in rows
     }
+
+
+def _implied_interviewer_grants(
+    user_id: uuid.UUID, grants: list[Grant], projects: dict[str, ProjectSettings]
+) -> list[Grant]:
+    """An interviewer grant for each coder grant that codes (coding scope rule;
+    a view-only above-scope coder gets none) on a self-coding project, at
+    the same scope: derived here, never written (access-control-model.md,
+    "Implied roles"). A mentoring institute member's coder grant implies
+    nothing; that lookup is one query, run only when a candidate exists.
+    """
+    scope = ResolvedGrants(user_id=user_id, is_admin=False, grants=(), projects=projects)
+    coders = [
+        g for g in grants
+        if g.role == VaAccessRoles.coder
+        and (settings := projects.get(g.project_id)) is not None
+        and settings.self_coding
+        and scope.codes(g)
+    ]
+    if not coders:
+        return []
+    from app.services.mentor_institute_service import member_user_ids
+
+    if user_id in member_user_ids([user_id]):
+        return []
+    explicit = {
+        (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id)
+        for g in grants if g.role == VaAccessRoles.interviewer
+    }
+    return [
+        dataclasses.replace(g, role=VaAccessRoles.interviewer)
+        for g in coders
+        if (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id) not in explicit
+    ]
 
 
 def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
@@ -318,6 +360,7 @@ def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     projects = _load_projects({g.project_id for g in grants})
     # Demo coding and reviewing only for people who code or review somewhere
     # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
+    grants.extend(_implied_interviewer_grants(user_id, grants, projects))
     demo_eligible = is_admin or any(g.role in DEMO_VIRTUAL_ROLES for g in grants)
     for settings in projects.values():
         if not settings.demo_training or not demo_eligible:

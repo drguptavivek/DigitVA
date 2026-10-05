@@ -3,7 +3,7 @@ title: Roles Explained
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Who can do what in DigitVA
@@ -25,7 +25,7 @@ place, and nothing outside it or above it.
 
 A person can hold more than one role. A doctor who both codes and reviews is
 given both. One role never includes another, so a senior officer cannot code
-unless they are also given the coder role.
+unless they are also given the coder role. The one exception is a self-coding project, below.
 
 Names of the deceased and the family, ID numbers, and who collected, coded
 or reviewed a death are personal details. Every role sees them except the
@@ -192,6 +192,23 @@ linked to the districts it supports.
 - Can add and remove the college's own staff.
 - Cannot give anyone a role. Mentors get their roles from the project lead
   or from a District Programme Manager of a district the college supports.
+
+## Self-coding projects
+
+Some projects let a medical officer interview a death and then code it. The
+project is set up this way by an administrator, and it is off unless asked
+for. In such a project the coder role includes the interviewer role, for the
+same place: a coder can register a death, interview the family, and then
+choose to code that case straight away. Nobody has to give the interviewer
+role as well, and ending the coder role, or switching the setting off, ends
+the interviewing too.
+
+This means a data manager who may give the coder role in a self-coding project
+is also, in effect, giving the right to interview, even in a site project,
+where a data manager cannot otherwise give the interviewer role.
+
+Medical college mentors are not covered: their coder role never includes
+interviewing.
 
 ## What nobody can do
 

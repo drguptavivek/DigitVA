@@ -152,14 +152,14 @@ def list_cases():
 
 
 def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False,
-               other_complete_interview=False) -> dict:
+               other_complete_interview=False, ready_for_coding=False) -> dict:
     """The case with its full contact details (``serialize_case_detail``), this
     API's links, and the ``prefill`` an interview started offline needs, only
     when the caller may start or resume the interview (``case_prefill``);
     otherwise the key is absent."""
     body = intake_svc.serialize_case_detail(
         current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission,
-        other_complete_interview,
+        other_complete_interview, ready_for_coding,
     )
     prefill = intake_svc.case_prefill(current_user, death, my_draft_id)
     if prefill is not None:
@@ -474,6 +474,7 @@ def submit_draft(draft_id):
                 "validation_err": validation_err,
                 "kept": reply["kept"],
                 "locked": reply["locked"],
+                "can_code_now": intake_svc.can_code_now(current_user, draft),
             }
         )
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
@@ -486,7 +487,8 @@ def submit_draft(draft_id):
         # A teammate's complete submission won: this copy is kept, not routed.
         db.session.commit()
         return jsonify(
-            {"va_sid": None, "draft": intake_svc.serialize_draft(draft), "superseded": True, "validation_err": None}
+            {"va_sid": None, "draft": intake_svc.serialize_draft(draft), "superseded": True, "validation_err": None,
+             "can_code_now": False}
         )
     validation_err = _validation_err(submission.va_sid)
     db.session.commit()
@@ -496,6 +498,7 @@ def submit_draft(draft_id):
             "draft": intake_svc.serialize_draft(draft),
             "superseded": False,
             "validation_err": validation_err,
+            "can_code_now": intake_svc.can_code_now(current_user, draft),
         }
     ), 201
 
@@ -545,9 +548,11 @@ def _upload_reply(draft, *, kept, received_sha256, locked, status):
     hash in ``answers_sha256``) with whose answers the coder has (``kept``:
     ``incoming`` or ``server``), the hash the server received (the app deletes
     its copy when it equals what it sent) and whether coding is final or the
-    case closed (``locked``)."""
+    case closed (``locked``), and ``can_code_now`` (a self-coding project's
+    coder may code this case now: ``POST /coding/submissions/<va_sid>/code-now``)."""
     body = {
         **intake_svc.serialize_device_upload(draft), "kept": kept, "received_sha256": received_sha256, "locked": locked,
+        "can_code_now": intake_svc.can_code_now(current_user, draft),
     }
     return jsonify(body), status
 

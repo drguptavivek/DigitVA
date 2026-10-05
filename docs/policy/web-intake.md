@@ -1171,6 +1171,34 @@ its name and date of death.
   submitted. Should the minimum identity accept a year of death, and how
   should the case store it?
 
+## Self-coding projects
+
+Owner decision 2026-10-05, `digitva-xuxk`. In a self-coding project the
+medical officer interviews and then codes their own case.
+
+- **Project setting** `va_project_master.self_coding_enabled`, off by
+  default. It can be on only while the project's `web_intake_mode` is not
+  `off`: turning it on in a project with intake `off` is refused.
+- **Coder implies interviewer.** In a self-coding project a `coder` grant also
+  lets its holder interview, at the same scope as the `coder` grant. This is
+  derived when grants are read; no `interviewer` grant row is written, and the
+  grant lists do not show one. Turning the setting off, or revoking the
+  `coder` grant, removes it. It exists only while the intake mode is not
+  `off`, since an `off` project has no interviewing.
+- **Mentoring institute members are excluded.** Their `coder` grant does not
+  imply interviewing: they may not interview (see [Roles
+  Explained](roles-explained.md), "Medical college mentors").
+- **Code this case now.** After a completed interview with valid consent, the
+  submit reply, in the browser and in the app, offers "Code this case now".
+  What it does, and when it is refused, is in [Coding Workflow State Machine
+  Policy](coding-workflow-state-machine.md), "Self-coding". The interviewer
+  worklist shows "Code now" on the user's own completed interviews that still
+  await coding.
+- Nothing else changes: the case reaches coding by the normal path, and
+  review, recode, revisions and send-back follow their own rules.
+
+See [Access Control Model](access-control-model.md), "Implied roles".
+
 ## Not yet implemented
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native

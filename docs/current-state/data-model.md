@@ -1478,6 +1478,12 @@ Other important tables:
   and `web_intake_death_summary_enabled` (Boolean, NOT NULL, default true).
   Migration `e1b6c9a3d7f4` adds `web_intake_medical_records_enabled`
   (Boolean, NOT NULL, default true), mirroring `web_intake_death_summary_enabled`.
+  Migration `b4k8m2r6w9x3` adds `self_coding_enabled` (Boolean, NOT NULL,
+  server default false): in a self-coding project a coder also interviews and
+  may code their own case (`ProjectSettings.self_coding` in
+  `app/services/authz/grants.py`; it is on only while `web_intake_mode` is not
+  `off`, which the admin API enforces both ways). Policy:
+  `docs/policy/web-intake.md`, "Self-coding projects".
   Policy: `docs/policy/va-web-form-options.md`,
   `docs/policy/va-form-project-configuration.md`
 - `va_site_master`

@@ -367,6 +367,22 @@ def _form_type_codes_by_id(form_type_ids):
     return {row.form_type_id: row.form_type_code for row in rows}
 
 
+def _validate_self_coding(self_coding_enabled, web_intake_mode) -> str | None:
+    """Error text for a self-coding setting the project cannot carry, else None.
+
+    Self-coding makes a coder an interviewer, so it needs web intake switched
+    on (docs/policy/web-intake.md, "Self-coding projects").
+    """
+    if not isinstance(self_coding_enabled, bool):
+        return "self_coding_enabled must be a boolean."
+    if self_coding_enabled and web_intake_mode == "off":
+        return (
+            "Self-coding needs web intake: set web_intake_mode to something "
+            "other than 'off' first, or turn self-coding off."
+        )
+    return None
+
+
 def _serialize_projects(projects):
     """Serialize a list of projects, resolving every web form type code once."""
     projects = list(projects)
@@ -407,6 +423,7 @@ def _serialize_project(project, form_type_codes=None):
         "demo_retention_minutes": project.demo_retention_minutes,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
+        "self_coding_enabled": project.self_coding_enabled,
         # Tier-2 web form options — docs/policy/va-web-form-options.md.
         "web_intake_default_locale": project.web_intake_default_locale,
         "web_intake_available_locales": project.web_intake_available_locales,
@@ -1441,6 +1458,10 @@ def admin_create_project():
     if web_intake_mode not in WEB_INTAKE_MODES:
         return _json_error("Invalid web_intake_mode.", 400)
 
+    self_coding_enabled = payload.get("self_coding_enabled", False)
+    if error := _validate_self_coding(self_coding_enabled, web_intake_mode):
+        return _json_error(error, 400)
+
     # A project that collects on the web is created with the whole web-capture
     # configuration, not only the keys the caller supplied. Applied before
     # validation so a default is held to the same rules as an explicit value.
@@ -1496,6 +1517,7 @@ def admin_create_project():
         cod_entry_mode=cod_entry_mode,
         project_structure_mode=project_structure_mode,
         web_intake_mode=web_intake_mode,
+        self_coding_enabled=self_coding_enabled,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
         # Only the keys the payload supplied, so the column defaults stand.
@@ -1702,6 +1724,15 @@ def admin_update_project(project_id):
         if web_intake_mode not in WEB_INTAKE_MODES:
             return _json_error("Invalid web_intake_mode.", 400)
         updates["web_intake_mode"] = web_intake_mode
+
+    if "self_coding_enabled" in payload:
+        updates["self_coding_enabled"] = payload["self_coding_enabled"]
+    # Against the values this request would leave behind, whichever it sends.
+    if error := _validate_self_coding(
+        updates.get("self_coding_enabled", project.self_coding_enabled),
+        updates.get("web_intake_mode", project.web_intake_mode),
+    ):
+        return _json_error(error, 400)
 
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:

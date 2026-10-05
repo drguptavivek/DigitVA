@@ -77,6 +77,15 @@ EXEMPT = {
     "routes/api/coding.py::send_back": (
         "thin route over send_back_for_revision, which refuses a confirmed duplicate (409 case_closed)"
     ),
+    "routes/api/coding.py::_allocation_error": "names workflow_state in an error body only",
+    "routes/api/coding.py::code_now": "thin route over allocate_own_case -> allocate_pick_form, which refuses a confirmed duplicate",
+    "routes/api/coding.py::release_allocation": "thin route over release_own_coding_allocation",
+    "services/coder_workflow_service.py::AllocationError.__init__": "carries workflow_state on an error",
+    "services/coder_workflow_service.py::_unavailable": "maps a workflow_state to an error code",
+    "services/coder_workflow_service.py::release_own_coding_allocation": _ONE_ROW,
+    "services/web_intake_service.py::_worklist_select": (
+        "worklist rows are register rows; ready_for_coding excludes VaDeathRegister.status duplicate directly"
+    ),
     "routes/api/intake.py::reopen_for_revision": (
         "thin route over reopen_for_revision, which refuses a confirmed duplicate (409 case_closed)"
     ),

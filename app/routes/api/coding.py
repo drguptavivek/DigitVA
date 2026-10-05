@@ -20,6 +20,7 @@ from app.services.coder_dashboard_service import (
 from app.services.coder_workflow_service import (
     AllocationError,
     admin_override_to_recode,
+    allocate_own_case,
     allocate_pick_form,
     allocate_random_form,
     get_coder_ready_stats,
@@ -27,6 +28,7 @@ from app.services.coder_workflow_service import (
     is_upstream_recode,
     require_active_coding_allocation,
     mark_reviewer_eligible_after_recode_window_submissions,
+    release_own_coding_allocation,
     _narration_language_filter,
     start_demo_allocation,
     start_recode_allocation,
@@ -41,6 +43,7 @@ from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import admin_actor
 
 bp = Blueprint("coding_api", __name__)
@@ -171,6 +174,61 @@ def allocate():
         "va_form_id": form.va_form_id if form else None,
         "is_upstream_recode": is_upstream_recode(result.va_sid),
     }), 201
+
+
+_ALLOCATION_ERROR_CODES = {403: "forbidden", 404: "not_found", 409: "conflict"}
+
+
+def _allocation_error(e: AllocationError):
+    """``{error, code}`` for an AllocationError; a 409 for a case outside the
+    pool carries its ``workflow_state`` so the client can decide to retry."""
+    extra = {"workflow_state": e.workflow_state} if e.workflow_state else {}
+    return api_error(
+        e.message, e.code or _ALLOCATION_ERROR_CODES.get(e.status_code, "invalid_request"),
+        e.status_code, **extra,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/coding/submissions/<sid>/code-now  — "Code this case now"
+# ---------------------------------------------------------------------------
+
+@bp.post("/submissions/<va_sid>/code-now")
+@role_required("coder")
+def code_now(va_sid):
+    """Allocate the caller's own submitted case to them, in a self-coding project
+    (docs/policy/coding-workflow-state-machine.md, "Self-coding").
+
+    201 ``{va_sid, actiontype}`` (``vapickcoding``); 200 with ``varesumecoding``
+    when the caller already holds this very case. Errors ``{error, code}``: 404 ``not_found``;
+    403 ``forbidden`` (not a self-coding project, not the caller's submitted
+    case, outside coding scope) / ``allocation_exists`` (another allocation
+    held); 409 ``not_ready`` with ``workflow_state`` (attachments or SmartVA
+    pending: retry), ``held_by_another`` or ``not_available`` with
+    ``workflow_state``, ``conflict`` (retired or duplicate case)."""
+    try:
+        result = allocate_own_case(current_user, va_sid)
+    except AllocationError as e:
+        return _allocation_error(e)
+    status = 200 if result.actiontype == "varesumecoding" else 201
+    return jsonify({"va_sid": result.va_sid, "actiontype": result.actiontype}), status
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/coding/allocation/release  — the coder lets go of their case
+# ---------------------------------------------------------------------------
+
+@bp.post("/allocation/release")
+@role_required("coder", "coding_tester")
+def release_allocation():
+    """Release the caller's own active coding allocation (docs/policy/
+    coding-allocation-timeouts.md, "Coder release"). 200 ``{va_sid,
+    workflow_state}``; 409 ``no_allocation`` when none is held."""
+    try:
+        va_sid = release_own_coding_allocation(current_user)
+    except AllocationError as e:
+        return _allocation_error(e)
+    return jsonify({"va_sid": va_sid, "workflow_state": get_submission_workflow_state(va_sid)})
 
 
 # ---------------------------------------------------------------------------

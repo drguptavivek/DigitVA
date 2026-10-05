@@ -37,6 +37,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaSubmissionWorkflow,
     VaUsers,
     VaWebIntakeDraft,
     VaWebIntakeDraftSection,
@@ -56,6 +57,7 @@ from app.services import organization_service as org
 from app.services.authz import resolve_grants, subtree_select, supervision
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
+from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
 from app.services.coding_release_service import (
     SOURCE_INTERVIEWER_REVISION,
     SOURCE_SUPERVISOR_CHOICE,
@@ -84,6 +86,7 @@ from app.services.web_form_relevance_service import (
     strip_irrelevant_answers,
 )
 from app.services.workflow.definition import (
+    WORKFLOW_READY_FOR_CODING,
     PROTECTED_WORKFLOW_STATES,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -279,34 +282,60 @@ def interviewer_context(user: VaUsers) -> list[dict]:
     web intake is switched on. Unit grants list the units the interviewer
     belongs to so drafts and deaths can be attributed to a unit.
     """
-    form_ids = user.get_interviewer_va_forms()
+    grants = list(resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False))
     pairs: dict[tuple[str, str], dict] = {}
-    if form_ids:
+
+    # Project and project-site grants: the sites of the project's active
+    # forms (a site grant only its own site).
+    wide = [
+        sa.and_(VaForms.project_id == g.project_id,
+                VaForms.site_id == g.site_id if g.site_id else sa.true())
+        for g in grants if g.is_wide
+    ]
+    if wide:
         rows = db.session.execute(
             sa.select(VaForms.project_id, VaForms.site_id)
-            .where(VaForms.form_id.in_(list(form_ids)))
+            .where(VaForms.form_status == VaStatuses.active, sa.or_(*wide))
             .distinct()
         ).all()
         for project_id, site_id in rows:
             pairs[(project_id, site_id)] = {"org_units": []}
 
-    for unit in org_grant_service.granted_units(user.user_id, VaAccessRoles.interviewer):
-        site_ids = db.session.scalars(
-            sa.select(VaProjectSites.site_id).where(
-                VaProjectSites.project_id == unit.project_id,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            ).order_by(VaProjectSites.site_id)
-        ).all()
-        for site_id in site_ids:
-            entry = pairs.setdefault((unit.project_id, site_id), {"org_units": []})
-            entry["org_units"].append(
-                {
-                    "org_unit_id": str(unit.org_unit_id),
-                    "unit_code": unit.unit_code,
-                    "unit_name": unit.unit_name,
-                    "path": str(unit.path),
-                }
+    # Unit grants: every active site of the unit's project.
+    unit_grants = [g for g in grants if not g.is_wide]
+    if unit_grants:
+        units = {
+            u.org_unit_id: u
+            for u in db.session.scalars(
+                sa.select(MasOrgUnit).where(
+                    MasOrgUnit.org_unit_id.in_({g.org_unit_id for g in unit_grants})
+                )
             )
+        }
+        site_ids_by_project: dict[str, list[str]] = {}
+        for project_id, site_id in db.session.execute(
+            sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
+            .where(
+                VaProjectSites.project_id.in_({g.project_id for g in unit_grants}),
+                VaProjectSites.project_site_status == VaStatuses.active,
+            )
+            .order_by(VaProjectSites.site_id)
+        ):
+            site_ids_by_project.setdefault(project_id, []).append(site_id)
+        for grant in unit_grants:
+            unit = units.get(grant.org_unit_id)
+            if unit is None:
+                continue
+            for site_id in site_ids_by_project.get(grant.project_id, ()):
+                entry = pairs.setdefault((grant.project_id, site_id), {"org_units": []})
+                entry["org_units"].append(
+                    {
+                        "org_unit_id": str(unit.org_unit_id),
+                        "unit_code": unit.unit_code,
+                        "unit_name": unit.unit_name,
+                        "path": str(unit.path),
+                    }
+                )
 
     if not pairs:
         return []
@@ -354,6 +383,37 @@ def interviewer_context(user: VaUsers) -> list[dict]:
             }
         )
     return context
+
+
+def self_coding_project_ids(user: VaUsers) -> frozenset[str]:
+    """Projects where *user* may be offered "Code this case now": a self-coding
+    project in which they hold a coder grant that codes (gate open, coding
+    scope level met). Grants only, no query; the action itself re-checks scope
+    and ownership (``coder_workflow_service.allocate_own_case``)."""
+    resolved = resolve_grants(user)
+    return frozenset(
+        g.project_id
+        for g in resolved.of({VaAccessRoles.coder}, virtual=False)
+        if g.opens_gate
+        and (settings := resolved.projects.get(g.project_id)) is not None
+        and settings.self_coding
+        and resolved.codes(g)
+    )
+
+
+def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
+    """Whether the reply to *user*'s submit of *draft* offers "Code this case
+    now": a submitted, completed interview that entered coding (consent valid)
+    in a self-coding project where the user codes. The case is usually still
+    waiting for attachments or SmartVA; the action answers 409 ``not_ready``
+    until it is ready."""
+    return (
+        draft.status == "submitted"
+        and draft.va_sid is not None
+        and (draft.meta or {}).get("interviewOutcome") == "completed"
+        and draft.project_id in self_coding_project_ids(user)
+        and consent_is_valid(db.session.get(VaSubmissions, draft.va_sid).va_consent)
+    )
 
 
 def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = None) -> set[uuid.UUID] | None:
@@ -3032,13 +3092,14 @@ def _mine_condition(user: VaUsers):
 
 def _worklist_select(user: VaUsers):
     """``SELECT (case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview)``: a worklist row, with the
+    my_submission, other_complete_interview, ready_for_coding)``: a worklist row, with the
     caller's own resumable web draft (at most one,
     ``uq_va_web_intake_drafts_user_death_open``, so the join never repeats a
     case), when the earliest other interviewer's open draft started (None
-    without one), whether the caller's draft is the case's submission and
-    whether a second complete interview exists (``_has_candidate``). One query
-    for all of them. The caller adds the scope."""
+    without one), whether the caller's draft is the case's submission,
+    whether a second complete interview exists (``_has_candidate``) and
+    whether the case's submission is ``ready_for_coding`` (None without one).
+    One query for all of them. The caller adds the scope."""
     my_draft = aliased(VaWebIntakeDraft)
     other = aliased(VaWebIntakeDraft)
     won = aliased(VaWebIntakeDraft)
@@ -3056,6 +3117,12 @@ def _worklist_select(user: VaUsers):
             VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id,
             other_started.label("other_draft_started_at"), (won.draft_id.is_not(None)).label("my_submission"),
             _has_candidate().label("other_complete_interview"),
+            # A confirmed duplicate is never offered for coding; the register
+            # row carries that status, so no correlated subquery is needed.
+            sa.and_(
+                VaSubmissionWorkflow.workflow_state == WORKFLOW_READY_FOR_CODING,
+                VaDeathRegister.status != DUPLICATE_CASE_STATUS,
+            ).label("ready_for_coding"),
         )
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
         .outerjoin(
@@ -3078,6 +3145,8 @@ def _worklist_select(user: VaUsers):
                 won.va_sid == VaDeathRegister.va_sid,
             ),
         )
+        # One row per va_sid (uq_va_submission_workflow_sid).
+        .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
     )
 
 
@@ -3087,7 +3156,7 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview), ...], "counts":
+    my_submission, other_complete_interview, ready_for_coding), ...], "counts":
     {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
     [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
     duplicates (up to three a case) from one query. ``counts`` cover the scope and
@@ -3502,9 +3571,14 @@ def serialize_death(death: VaDeathRegister) -> dict:
     }
 
 
+def _code_now(user: VaUsers, death: VaDeathRegister, my_submission: bool, ready_for_coding: bool | None) -> bool:
+    return bool(my_submission and ready_for_coding and death.project_id in self_coding_project_ids(user))
+
+
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                           my_submission: bool = False, other_complete_interview: bool = False) -> dict:
+                           my_submission: bool = False, other_complete_interview: bool = False,
+                           ready_for_coding: bool | None = False) -> dict:
     """One worklist row (browser and device lists). No informant name or
     address, and phones masked (``******1234``): the list shows who died, not
     how to reach the family. ``va_sid`` only for the interviewer whose draft
@@ -3512,7 +3586,9 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
     interviewer's own. ``other_draft_active`` / ``other_draft_started_at``
     warn that another interviewer holds an open draft, never who;
     ``other_complete_interview`` that a second complete interview of the case
-    exists (a supervisor may choose it), never whose."""
+    exists (a supervisor may choose it), never whose. ``code_now``: the caller's
+    own submission is ``ready_for_coding`` in a self-coding project where they
+    code, so "Code now" works (``coder_workflow_service.allocate_own_case``)."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -3539,6 +3615,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
         "other_complete_interview": bool(other_complete_interview),
+        "code_now": _code_now(user, death, my_submission, ready_for_coding),
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
@@ -3546,7 +3623,8 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
 
 def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                          my_submission: bool = False, other_complete_interview: bool = False) -> dict:
+                          my_submission: bool = False, other_complete_interview: bool = False,
+                          ready_for_coding: bool | None = False) -> dict:
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
@@ -3556,7 +3634,7 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     submission id (``va_sid``) only to the interviewer whose draft became the
     submission (*my_submission*); ``other_draft_active``,
     ``other_draft_started_at`` and ``other_complete_interview`` as in
-    ``serialize_worklist_row``."""
+    ``serialize_worklist_row``, as is ``code_now``."""
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -3598,6 +3676,7 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
         "other_complete_interview": bool(other_complete_interview),
+        "code_now": _code_now(user, death, my_submission, ready_for_coding),
         "created_at": death.created_at.isoformat(),
         "updated_at": death.updated_at.isoformat(),
     }
@@ -3612,7 +3691,7 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     exists (``choose_interview``)."""
     row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview)
     for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked",
-                "other_draft_active", "other_draft_started_at"):
+                "other_draft_active", "other_draft_started_at", "code_now"):
         row.pop(key)
     # Supervisors oversee every interview in scope, so they keep every va_sid
     # (the submitter-only rule is the interviewer lists').

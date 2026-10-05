@@ -22,9 +22,20 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaWebIntakeDraft,
 )
-from app.services.authz import Action, Reason, can, coding_gate_waivers, scope_filter
-from app.services.coding_allocation_service import release_stale_coding_allocations
+from app.services.authz import (
+    Action,
+    Reason,
+    can,
+    coding_gate_waivers,
+    resolve_grants,
+    scope_filter,
+)
+from app.services.coding_allocation_service import (
+    _release_coding_allocation,
+    release_stale_coding_allocations,
+)
 from app.services.demo_project_service import (
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
@@ -46,8 +57,11 @@ from app.services.duplicate_exclusion import (
 )
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
+    WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
@@ -58,6 +72,7 @@ from app.services.workflow.intake_modes import (
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
+    WorkflowTransitionError,
     admin_actor,
     coder_actor,
     mark_coding_started,
@@ -149,11 +164,24 @@ class AllocationResult:
 
 
 class AllocationError(Exception):
-    """Raised when an allocation cannot be completed."""
+    """Raised when an allocation cannot be completed.
 
-    def __init__(self, message: str, status_code: int = 403):
+    *code* (a machine code) and *workflow_state* are set only where a client
+    acts on them ("Code this case now": retry while ``not_ready``).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 403,
+        *,
+        code: str | None = None,
+        workflow_state: str | None = None,
+    ):
         self.message = message
         self.status_code = status_code
+        self.code = code
+        self.workflow_state = workflow_state
         super().__init__(message)
 
 
@@ -700,9 +728,29 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
     return AllocationResult(va_sid=va_new_sid, actiontype=actiontype)
 
 
-def allocate_pick_form(user, va_sid: str) -> AllocationResult:
+#: States a case passes through on its way to the pool: "Code this case now"
+#: is refused with ``not_ready`` and the client retries.
+_NOT_YET_READY_STATES = frozenset({WORKFLOW_ATTACHMENT_SYNC_PENDING, WORKFLOW_SMARTVA_PENDING})
+#: States of a case another coder holds.
+_HELD_STATES = frozenset({WORKFLOW_CODING_IN_PROGRESS, WORKFLOW_CODER_STEP1_SAVED})
+
+
+def _unavailable(workflow_state: str | None) -> AllocationError:
+    """The 409 for a case outside the pool, naming why in ``code``."""
+    if workflow_state in _NOT_YET_READY_STATES:
+        code, message = "not_ready", "This case is not ready for coding yet."
+    elif workflow_state in _HELD_STATES:
+        code, message = "held_by_another", "This submission is no longer available for coding."
+    else:
+        code, message = "not_available", "This submission is no longer available for coding."
+    return AllocationError(message, 409, code=code, workflow_state=workflow_state)
+
+
+def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> AllocationResult:
     """Allocate a specific form for coding (pick-mode projects).
 
+    *own_case* skips only the pick-mode check, for "Code this case now"
+    (``allocate_own_case``), which also works in a random-allocation project.
     Raises AllocationError if the form is ineligible.
     """
     release_stale_coding_allocations(timeout_hours=1)
@@ -715,17 +763,19 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         if existing_sid == va_sid:
             _require_coder_access(user, va_sid)
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
-        raise AllocationError("You already have an active coding allocation.")
+        raise AllocationError(
+            "You already have an active coding allocation.", code="allocation_exists"
+        )
 
     form = _require_coder_access(user, va_sid)
 
     sub_row = _require_submission_exists(va_sid)
-    if get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:
+    if not own_case and get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:
         raise AllocationError("This project does not use pick-and-choose coding.")
 
     workflow_state = get_submission_workflow_state(va_sid)
     if workflow_state not in CODER_READY_POOL_STATES:
-        raise AllocationError("This submission is no longer available for coding.", 409)
+        raise _unavailable(workflow_state)
 
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
@@ -757,15 +807,99 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         )
 
     actiontype = _actiontype_for_submission(va_sid, "vapickcoding")
-    _create_coding_allocation(
-        va_sid,
-        user,
-        "form picked by coder for coding",
-        "vacoder",
-        demo_session=(actiontype == "vademo_start_coding"),
-    )
+    try:
+        _create_coding_allocation(
+            va_sid,
+            user,
+            "form picked by coder for coding",
+            "vacoder",
+            demo_session=(actiontype == "vademo_start_coding"),
+        )
+    except WorkflowTransitionError:
+        # The case was taken between the check above and the row-locked
+        # transition; for "Code this case now" that is a 409, not a 500.
+        if not own_case:
+            raise
+        db.session.rollback()
+        raise _unavailable(get_submission_workflow_state(va_sid)) from None
     db.session.commit()
     return AllocationResult(va_sid=va_sid, actiontype=actiontype)
+
+
+def allocate_own_case(user, va_sid: str) -> AllocationResult:
+    """"Code this case now": allocate *va_sid* to the interviewer who submitted it.
+
+    Only in a self-coding project and only for the user who owns the case's
+    submitted web intake draft (docs/policy/coding-workflow-state-machine.md,
+    "Self-coding"). Everything else is ``allocate_pick_form``'s: the case
+    must be ``ready_for_coding`` (409 ``not_ready`` with its state while
+    attachments or SmartVA are pending, 409 ``held_by_another`` when a coder
+    holds it), the user must hold no other allocation, and scope, language
+    and coding gates apply. Raises AllocationError.
+    """
+    project_id = db.session.scalar(
+        sa.select(VaWebIntakeDraft.project_id).where(
+            VaWebIntakeDraft.va_sid == va_sid,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "submitted",
+        )
+    )
+    if project_id is None:
+        _require_submission_exists(va_sid)  # 404 for an unknown case, else not theirs
+    settings = resolve_grants(user).projects.get(project_id)
+    if not (settings and settings.self_coding):
+        raise AllocationError(
+            "Only the interviewer who submitted this case can code it now, "
+            "and only in a self-coding project.",
+            403,
+            code="forbidden",
+        )
+    return allocate_pick_form(user, va_sid, own_case=True)
+
+
+def release_own_coding_allocation(user) -> str:
+    """Release *user*'s own active coding allocation; returns its va_sid.
+
+    The coder's choice, with the timeout's effect (``_release_coding_allocation``;
+    docs/policy/coding-allocation-timeouts.md, "Coder release"), audited under
+    the coder's user id. Raises AllocationError (409 ``no_allocation``) when
+    the user holds none.
+    """
+    record = db.session.scalars(
+        sa.select(VaAllocations)
+        .where(
+            VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+        .order_by(VaAllocations.va_allocation_createdat)
+        .limit(1)
+        .with_for_update()  # a second release waits, then finds none
+    ).first()
+    if record is None:
+        raise AllocationError(
+            "You have no active coding allocation to release.", 409, code="no_allocation"
+        )
+    va_sid = record.va_sid
+    try:
+        _release_coding_allocation(
+            record,
+            cause="coder release",
+            reason="coder_release",
+            audit_action="va_allocation_released_by_coder",
+            actor=coder_actor(user.user_id),
+        )
+    except WorkflowTransitionError:
+        db.session.rollback()
+        state = get_submission_workflow_state(va_sid)
+        raise AllocationError(
+            "This case changed state while you released it; refresh and try again.",
+            409,
+            code=_unavailable(state).code,
+            workflow_state=state,
+        ) from None
+    db.session.commit()
+    return va_sid
 
 
 def start_recode_allocation(user, va_sid: str) -> AllocationResult:

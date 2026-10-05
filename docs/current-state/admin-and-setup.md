@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Admin And Setup Model
@@ -147,6 +147,11 @@ Current project master data now includes:
 - Narrative Quality Assessment enablement
 - coder and reviewer Social Autopsy analysis enablement
 - coding intake mode (`random_form_allocation` or `pick_and_choose`)
+- self-coding (`self_coding_enabled`, off by default): a coder also interviews
+  and may code their own case. `POST /api/projects` and `PUT /api/projects/<id>`
+  take it as a boolean and refuse (400) turning it on while `web_intake_mode`
+  is `off`, and setting `web_intake_mode` to `off` while it is on; the Projects
+  panel's form carries the switch
 
 Current admin behavior:
 

@@ -350,6 +350,66 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(workflow.workflow_state, "coder_finalized")
         self.assertIsNotNone(recode_audit)
 
+    def test_a_coder_release_of_a_recode_abandons_the_episode_under_the_coder(self):
+        from app.services.coder_workflow_service import release_own_coding_allocation
+
+        sid = "uuid:recode-coder-release"
+        self._add_submission(sid)
+        db.session.flush()
+        final_assessment = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="final",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final_assessment)
+        db.session.flush()
+        db.session.add_all([
+            VaCodingEpisode(
+                episode_id=uuid.uuid4(),
+                va_sid=sid,
+                episode_type=EPISODE_TYPE_RECODE,
+                episode_status=EPISODE_STATUS_ACTIVE,
+                started_by=self.base_coder_user.user_id,
+                base_final_assessment_id=final_assessment.va_finassess_id,
+            ),
+            VaAllocations(
+                va_allocation_id=uuid.uuid4(),
+                va_sid=sid,
+                va_allocated_to=self.base_coder_user.user_id,
+                va_allocation_for=VaAllocation.coding,
+                va_allocation_status=VaStatuses.active,
+            ),
+        ])
+        db.session.commit()
+
+        self.assertEqual(release_own_coding_allocation(self.base_coder_user), sid)
+
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
+        )
+        self.assertEqual(workflow.workflow_state, "coder_finalized")
+        abandoned = db.session.scalar(
+            db.select(VaSubmissionsAuditlog).where(
+                VaSubmissionsAuditlog.va_sid == sid,
+                VaSubmissionsAuditlog.va_audit_action
+                == "recode episode abandoned due to coder release",
+            )
+        )
+        self.assertIsNotNone(abandoned)
+        self.assertEqual(
+            (abandoned.va_audit_byrole, abandoned.va_audit_by),
+            ("vacoder", self.base_coder_user.user_id),
+        )
+        released = db.session.scalar(
+            db.select(VaSubmissionsAuditlog).where(
+                VaSubmissionsAuditlog.va_sid == sid,
+                VaSubmissionsAuditlog.va_audit_action == "va_allocation_released_by_coder",
+            )
+        )
+        self.assertEqual(released.va_audit_by, self.base_coder_user.user_id)
+
     def test_cleanup_expired_demo_coding_artifacts_deactivates_demo_records(self):
         stale_sid = "uuid:demo-expired"
         self._add_submission(stale_sid)

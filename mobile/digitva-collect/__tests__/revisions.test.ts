@@ -486,6 +486,46 @@ describe("native submitted interview revisions", () => {
     expect(await listLocalRevisions(db)).toEqual([]);
   });
 
+  it("retains a locked correction through manual reopen and purges only its acknowledged snapshot", async () => {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail() });
+    const row = await beginRevision(USER, db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    const correctedAnswers = { ...row.envelope.data, Id10007: "retained correction" };
+    await store.save({ ...(row.envelope as WhoVaDraft), data: correctedAnswers });
+    const firstSnapshot = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+
+    mockRequest(async () => { throw new ApiError(409, "revision_locked"); });
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT])))
+      .toMatchObject({ failed: 1, attentionIds: [DRAFT_ID] });
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({
+      state: "attention",
+      refusal_code: "revision_locked",
+      frozen_json: firstSnapshot.frozen_json,
+      answers_sha256: firstSnapshot.answers_sha256,
+      envelope: { data: correctedAnswers },
+    });
+
+    await reopenRevision(db, DRAFT_ID);
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({
+      state: "editing", frozen_json: null, answers_sha256: null, envelope: { data: correctedAnswers },
+    });
+    const ready = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+    mockRequest(async (_userId, _path, init) => {
+      const body = init?.bodyFactory?.() as Record<string, unknown>;
+      expect(body.answers_json).toBe(ready.frozen_json);
+      expect(body.answers_sha256).toBe(ready.answers_sha256);
+      return { body: {
+        changed: true, va_sid: VA_SID, payload_version_id: "payload-unlocked",
+        answers_sha256: ready.answers_sha256, outcome: "completed", workflow_state: "smartva_pending",
+      } };
+    });
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT])))
+      .toEqual({ sent: 1, failed: 0, attentionIds: [] });
+    expect(await getRevisionRow(db, DRAFT_ID)).toBeNull();
+  });
+
   it.each([409, 422])("moves unrecognized HTTP %s revision rejections to attention", async (status) => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }

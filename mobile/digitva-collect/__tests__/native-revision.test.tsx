@@ -166,7 +166,7 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 }), { virtual: true });
 
 import Revision from "../src/nativeRoutes/revision";
-import { fetchSubmittedRevisions, beginRevision, queueRevision } from "../src/revisions";
+import { fetchSubmittedRevisions, beginRevision, queueRevision, reopenRevision } from "../src/revisions";
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
@@ -308,6 +308,56 @@ describe("native submitted-interview revisions", () => {
 
     expect(beginRevision).toHaveBeenCalledWith("u1", mockDb, "draft-1");
     expect(JSON.stringify(tree!.toJSON())).toContain("data-revision-form");
+  });
+
+  it("manually resumes a retained locked revision and queues its saved answers", async () => {
+    const savedAnswers = { Id10013: "yes", interview_outcome: "completed", Id10007: "kept correction" };
+    mockLocalRow = {
+      ...mockRow,
+      state: "attention",
+      refusal_code: "revision_locked",
+      original_outcome: "completed",
+      envelope: { ...mockRow.envelope, data: savedAnswers },
+      frozen_json: JSON.stringify(savedAnswers),
+      answers_sha256: "a".repeat(64),
+    };
+    (reopenRevision as jest.Mock).mockImplementation(async () => {
+      mockLocalRow = {
+        ...(mockLocalRow as typeof mockRow),
+        state: "editing",
+        refusal_code: null,
+        frozen_json: null,
+        answers_sha256: null,
+      };
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+
+    expect(JSON.stringify(tree!.toJSON())).toContain("revisionLocked");
+    expect(tree!.root.findByProps({ "data-label": "reviseInterview" })).toBeTruthy();
+    await act(async () => {
+      tree!.root.findByProps({ "data-label": "reviseInterview" }).props.onClick();
+    });
+    await settle();
+    await settle();
+
+    expect(reopenRevision).toHaveBeenCalledWith(mockDb, "draft-1");
+    expect(fetchSubmittedRevisions).not.toHaveBeenCalled();
+    expect((mockLocalRow as typeof mockRow).envelope.data).toEqual(savedAnswers);
+    expect(tree!.root.findAllByProps({ "data-revision-form": true })).toHaveLength(1);
+    await act(async () => {
+      (mockFormProps.onDraftController as (controller: unknown) => void)({ saveDraft: mockSaveDraft });
+      tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" }).props.onClick();
+    });
+    await settle();
+    await act(async () => {
+      (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: savedAnswers });
+    });
+    await settle();
+
+    expect(mockQueue).toHaveBeenCalledWith(mockDb, "draft-1", "interviewer_correction", { valid: true, issues: [] });
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
   });
 
   it("flushes the encrypted revision before queueing and requires a reason", async () => {

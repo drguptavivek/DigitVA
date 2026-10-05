@@ -537,6 +537,7 @@ export default function Revision() {
       "invalid_revision_snapshot",
       "invalid_revision_ack",
       "invalid_interview",
+      "revision_locked",
     ].includes(current.row.refusal_code ?? "");
     async function editAttention() {
       if (busy || !isCurrentRevision(current.generation)) return;

@@ -133,6 +133,17 @@ Guards").
 
 ## What a revision is
 
+Owner confirmed 2026-10-05:
+
+- A revision that changes only answers the form hides is stored (raw
+  answers updated, the previous raw answers kept as history) without a new
+  coding version, SmartVA rerun or release of coding.
+- A revision keeps the locked answers stored at first submission; a later
+  register correction or a renamed user or unit does not enter a revision.
+- A data manager may cancel a send-back or reopen with the existing "keep
+  current" action; the case returns to its previous state with its coding
+  intact.
+
 - **A partial submission** (case paused) is finished by revising the same
   submission, not by a fresh draft. A revision that changes the outcome to
   completed runs the completion branch: the case goes to `submitted`, the

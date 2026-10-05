@@ -220,14 +220,21 @@ A partial interview (case paused) is finished by revising it with
 
 ## 6. Form versions and the server-served form (`digitva-xuf9`, `digitva-6pwq`, server built)
 
-Frontend in progress (`digitva-6pwq.1`): section 5 is pushed. A separate Luna
-writer is building raw UTF-8 transport/hash verification, the engine-version
-export and the app-version authentication handshake. Current definition
-download, cache retention and draft version pinning are actionable.
-Historical recovery is built (`digitva-6pwq.2`); see "Historical slice" below.
-Frontend recovery helper is now assigned to a separate Luna writer using that
-contract. Cache and rendering integration follow shared-helper verification;
-section 6 is still in progress, and no historical fallback substitution is allowed.
+Frontend implemented (`digitva-6pwq.1`, closed): current and exact historical
+form verification, encrypted native and browser-memory caches, immutable draft
+and revision pins, engine compatibility and app-version handshake are pushed
+in `f7e4b4da`. Final validation passed 40 Jest suites (472 tests), TypeScript,
+web and Android JS exports, and independent audit/re-audit. Mounted revocation,
+regrant, full translation identity and legacy-provenance regressions are covered.
+The local Flask-served web index matches the refreshed verified export.
+Historical recovery is built on the backend (`digitva-6pwq.2`); see below.
+Unknown historical definitions preserve answers and fail visibly; unpinned
+browser drafts without saved extension provenance also preserve server answers
+and cannot silently adopt current settings. Native historical translations use
+original English when exact identity cannot be established. Native transport
+materializes `response.text()` before its decoded UTF-8 size check. Vendor build
+and engine test passed; pre-existing vendor TypeScript errors remain tracked in
+`digitva-i793`. Physical Android acceptance is separate.
 
 - `GET /api/v1/organization/<project>/form-options`: `instrument_version` is
   now the composed version (e.g. `2026081401-3833e95fb5`, not the bundle
@@ -281,6 +288,22 @@ App must:
    `narration_languages` (the served definition carries the full list).
 
 ## 7. Notifications (`digitva-hdrv`, server built)
+
+Frontend complete and pushed in `46d9dbf7` (`digitva-hdrv.1` closed).
+Final validation: 43 Jest suites / 502 tests, typecheck, web and Android
+JavaScript exports, Android module autolinking and isolated Android/iOS prebuild
+passed. Independent re-audit is ready after fixing failed-refresh retries and
+removing iOS background-processing configuration. Served web refreshed and its
+index verified against the validated export. Foreground polling uses
+account-scoped cursors and normal authoritative refresh; periodic refresh runs
+at least every 15 minutes even with an empty inbox. Locked Android tasks record
+only cursor/pending-sync metadata; full sync waits for unlock. Browser revision
+checks preserve nudges during requests and retry failures on subsequent polls.
+Native modules need a rebuilt binary. APK compilation and physical WorkManager
+acceptance remain in `digitva-p6fs.5`; no Java/Gradle/Android SDK was available in
+the validation container. Verified server behavior allows an empty cursor to
+rewind after a DB restore; the parser accepts that bounded rewind. Continue
+monitoring for new actionable sections; backend instructions below are retained.
 
 No Google FCM and no Expo push: the app polls. The inbox is a nudge to run the
 normal sync; sync stays the source of truth, so a missed poll costs nothing.

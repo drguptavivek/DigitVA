@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Web Intake Policy
@@ -375,6 +375,10 @@ a place for names, phone numbers or addresses).
 - "Mine" is a filter (registered or worked on by me), not a boundary.
 
 ### Parallel interviews
+
+Owner confirmed 2026-10-05: a completed phone upload whose interview is
+older than a browser save of the same draft is still submitted; the newer
+browser version is kept as history, not submitted.
 
 Owner, 2026-10-04 (`digitva-xz83`).
 

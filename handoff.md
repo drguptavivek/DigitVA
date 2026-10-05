@@ -39,22 +39,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `instruments/.../translations`; `/api/v1/device/*`,
    `/api/v1/client/bootstrap` and `/intake/api/*` are gone. The Expo app is
    on it (`digitva-ntct.1` closed). Remaining, in order:
-   a. **Field collection integrity: server halves built** (2026-10-04/05):
-      `2bxa` answers hash, `latk` times + skew, `xz83` one draft per
-      interviewer + phone draft sync, `bhpl` revisions + send-back/reopen
-      (coding restarts at once), `xuf9`/`6pwq` served form + versions +
-      re-check by version, `hdrv` polled notifications, `w5jw` closed.
-      Each server bead stays open until its app half lands; the contracts
-      are in `expo-handoff.md` (sections 1-7) and the app beads are
-      `2bxa.1`, `latk.1`, `xz83.2`, `bhpl.2`, `6pwq.1`, `hdrv.1`.
-      **Urgent for the Expo session:** section 1; dev already refuses the old
-      upload shape (422 `answers_hash_required`). `digitva-6pwq.2`
-      (historical form slice by version + extensions, asked for by the Expo
-      session) is built; served bytes are canonical (sorted keys). Follow-up: `digitva-jcll` (DM
-      dashboard and KPIs count send-backs as ODK upstream changes).
-      Manual check owed: the browser form's stale-tab 409 (`draft_stale`)
-      and the worklist other-draft badge were not driven in a browser
-      (login has a proof-of-work CAPTCHA).
+   a. **Field collection integrity: done** (server 2026-10-04/05, app by
+      the Expo session). Closed: `2bxa`, `latk`, `xz83`, `xuf9`, `6pwq`,
+      `hdrv`, `w5jw`. Still open: `digitva-bhpl` until the app's revise
+      screen `digitva-bhpl.2` lands (contract `expo-handoff.md` section 5);
+      `digitva-jcll` (DM dashboard and KPIs count send-backs as ODK upstream
+      changes; View Changes fails on a sent-back case). Owner confirmed the
+      four defaults on 2026-10-05 (recorded in `docs/policy/web-intake.md`
+      and `docs/policy/interview-revisions.md`). Manual check owed: the
+      browser form's stale-tab 409 (`draft_stale`) and the worklist
+      other-draft badge were not driven in a browser (proof-of-work CAPTCHA).
    b. `digitva-xl43` coding and review workspace API: case content by
       category and the Step 1 / final COD steps are server HTML partials
       (`va_form.renderpartial`) today, so no app can code or review;
@@ -127,12 +121,6 @@ certification gates intake), `digitva-vjt` default roles per cadre,
 `digitva-5op` district team suggests translation changes.
 
 ## Open owner decisions
-
-- Defaults taken 2026-10-04/05 (confirm or change): a completed phone upload
-  older than a browser save of the same draft is still submitted (browser
-  version kept); a revision changing only irrelevant answers stores the raw
-  answers but makes no coding version; a revision keeps the stored locked
-  answers; a send-back can be cancelled by the data manager's reject.
 
 - Picking "refused" while consent is yes is refused (422).
 - Prefill name split: first word given name, rest surname.

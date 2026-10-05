@@ -32,7 +32,7 @@ Responses:
 | --- | --- | --- |
 | 201 | first upload | result |
 | 200 | resend, same `client_draft_id`, same hash | result |
-| 409 `hash_mismatch` | resend, same id, different hash | `{error, code, stored: result}` |
+| 409 `hash_mismatch` | gone: see section 8 (a resend with other answers is a 200 with `kept`) | |
 | 409 `conflict` | another interviewer's `client_draft_id` | `{error, code}` |
 | 422 `answers_hash_required` | `answers_json`/`answers_sha256` missing or malformed | `{error, code}` |
 | 422 `answers_hash_invalid` | hash does not match the text received | `{error, code}` |
@@ -43,9 +43,10 @@ The echoed `answers_sha256` is lower-case hex.
 
 App must:
 
-1. Delete the local copy only when the reply's `answers_sha256` equals the
+1. (Section 8: compare `received_sha256`, not `answers_sha256`, on an upload.)
+   Delete the local copy only when the reply's `answers_sha256` equals the
    hash it sent (compare lower-case) and `case.death_id` matches.
-2. On 409 `hash_mismatch`: stop retrying that draft, keep it, and tell the
+2. (Superseded by section 8: there is no `hash_mismatch` now.) On 409 `hash_mismatch`: stop retrying that draft, keep it, and tell the
    interviewer "This interview was already uploaded; your later edits were not
    applied." Show `stored.case.unique_id`. (The revise action arrives with
    `digitva-bhpl`; until then just keep the copy.) Today `sync.ts` retries
@@ -189,6 +190,15 @@ metadata and browser loading races. Commit `dc70dc49` is pushed, and the local
 Flask-served web index matches the refreshed verified build. Physical-device
 acceptance is separate. Send-back/reopen remains outside this part.
 
+Frontend recovery complete (`digitva-bhpl.2`, closed), pushed in `5176e7c3`.
+The list, Revise screen and upload already shipped under `.1`. A retained phone
+revision refused with `revision_locked` can now resume through explicit manual
+Revise after server unlock, preserving corrections and form identity. The server
+still enforces editability; attention rows never retry automatically. Independent
+review passed. Final validation: 43 Jest suites / 504 tests, TypeScript and
+Android JavaScript export passed. Physical-device acceptance remains
+`digitva-p6fs.5`. Both app revision child beads are complete.
+
 Only the interviewer whose interview became the submission may revise it,
 while coding has not been finalised (send-back and reopen come in part B).
 
@@ -212,8 +222,7 @@ copy when `answers_sha256` matches what you sent.
 Errors: 404 not yours (or a superseded copy); 409 `revision_locked` (coding
 finalised; show "locked, ask the coder"); 409 `case_already_submitted`
 (finishing a partial after a teammate's complete one won); 409 `case_state_conflict` (an outcome change the case can no longer take); 409 `case_closed`;
-422 `invalid_reason`, `outcome_regression` (a completed interview cannot
-become partial/refused), and the section 1 answer/hash codes.
+422 `invalid_reason`, and the section 1 answer/hash codes.
 
 A partial interview (case paused) is finished by revising it with
 `reason_code: finish_partial`, not by starting a new draft.
@@ -352,3 +361,76 @@ Polling rules:
    the notification is only a nudge and a periodic sync still runs.
 6. A revoked session needs no notification: any call answers 401
    `session_revoked`.
+
+## 8. Last completed version wins (`digitva-xpqm`, server built)
+
+Expo status, 2026-10-05: `digitva-xpqm.1` claimed. Native upload/storage and native UI work delegated to separate Luna writers; browser work follows in a separate bounded writer task. Upload acknowledgement uses `received_sha256`; public revision acknowledgement retains its separate `answers_sha256` contract. Combined validation and independent audit are pending.
+
+Owner, 2026-10-05. For one interviewer's own interview of a case the coder
+always gets the **last completed version, by completion time**. This replaces
+the `hash_mismatch` rows in section 1 and the `outcome_regression` error in
+section 5: neither code exists any more. Drafts and syncs never compete with a
+completion.
+
+**Completion time** is `completedAt` corrected by `deviceClockAt`
+(`min(now, now - (deviceClockAt - completedAt))`, as the draft sync). Always
+send both on `POST /submissions` and on a revision. Without both the server
+uses its receive time, which makes the upload look newest. A browser submit
+counts at the server's time.
+
+**Reply to `POST /api/v1/intake/submissions` (every case):**
+
+```json
+{
+  "va_sid": "...", "case": {"death_id": "...", "unique_id": "...", "status": "..."},
+  "outcome": "completed", "superseded": false,
+  "answers_sha256": "<hash of the coder version's answers>",
+  "received_sha256": "<hash of the answers this request sent, as received>",
+  "kept": "incoming" | "server",
+  "locked": false
+}
+```
+
+| Status | When |
+| --- | --- |
+| 201 | first upload of a `client_draft_id` (also a second upload of a case you already submitted, a correction) |
+| 200 | resend of a `client_draft_id`: same hash, or other answers (no 409) |
+
+`kept: "incoming"`: the coder now has the answers you sent. `kept: "server"`:
+the coder keeps a newer completed version; the answers you sent are stored as
+history. `locked: true`: coding is final (or the case is closed or won by a
+teammate), so no upload can change the coder's version; only a send-back or a
+supervisor's reopen can. A superseded copy of a case closed by a teammate is
+`kept: "server"`, `locked: true`, `superseded: true`.
+
+The server never refuses a resend for a different hash. A later version
+applies when its completion time is not older than the stored one (a tie goes
+to the one received later); the server decides, not the app.
+
+**The app must change:**
+
+1. Drop all `hash_mismatch` handling (`sync.ts`, `drafts.ts`, the worklist
+   card's disabled state and the `upload_issue` value). A resend with other
+   answers is now a normal 200.
+2. Delete the local copy when the reply's **`received_sha256`** equals the
+   hash it sent (lower-case) and `case.death_id` matches, whatever `kept` is.
+   `kept: "server"` is an acknowledgement. Do not compare `answers_sha256`
+   for this: it is the coder version's hash and differs when `kept` is
+   `server`.
+3. When `kept` is `"server"`, show "A newer completed version is already with
+   the coder; yours was saved as history." When `locked` is also true add
+   that coding has finished and only a send-back or reopen can change it.
+4. A completed interview revised (public revision or a later upload) to a
+   refusal or partial one is accepted: the case leaves coding and its
+   `case.status` becomes `refused`, `paused` or `not_reachable`, with no
+   `va_sid` in the worklist row until it is completed again. Remove the
+   `outcome_regression` message; the 409 `case_state_conflict` message stays
+   (a teammate's complete interview overtook yours).
+5. A phone completion is submitted even when the interviewer has newer
+   unfinished browser saves of the same case; those saves are kept on the
+   server as history. Nothing to do in the app.
+6. The browser's `POST /drafts/<id>/submit` of an already submitted draft
+   (stale tab) is now a 200 correction with `kept` and `locked`, not a 409.
+
+No new endpoints. Revision reasons stay the four public codes; the server's
+own `resubmitted` is rejected from clients (422 `invalid_reason`).

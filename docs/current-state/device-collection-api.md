@@ -208,14 +208,43 @@ one section named `device` (taken from the request's `answers_json`, not from `d
   behind), audit only, stored for device uploads and never applied to the
   times. `SubmissionDate` stays the server receipt time. The browser path
   sets no skew and keeps `createdAt` as start and the submit time as end.
-- **Idempotency.** A resend of the same `client_draft_id` with the same hash
-  returns the stored result with 200 (current case status). A different hash,
-  or a stored row with no hash (uploaded before this), is 409 `hash_mismatch`
-  with body `{"error", "code": "hash_mismatch", "stored": <the stored result>}`.
-  A concurrent resend that loses the unique index is compared the same way.
-  Another interviewer's id is 409 `conflict`.
+- **Idempotency and later versions** (`digitva-xpqm`; the last completed
+  version of one interviewer's own interview wins). A resend of the same
+  `client_draft_id` with the same hash returns the stored result with 200
+  (current case status). With **other answers** it is a later version of the
+  interview, never a conflict (`hash_mismatch` is gone, a row stored without
+  a hash included): `revise_submission` with `resubmit` and the internal
+  reason `resubmitted`, 200. A **new** `client_draft_id` for a case where the
+  caller already has a submitted draft (the case's winner, else their latest;
+  not when a teammate won or a supervisor closed the case and theirs is not
+  the winner: that stays a superseded copy) is the same correction, 201, no
+  new draft. The version's completion time is `meta.effectiveSavedAt` on the
+  submitted draft: the device `completedAt` corrected by `deviceClockAt`
+  (`min(now, now - (deviceClockAt - completedAt))`, as the draft sync), the
+  server time without both. The incoming version becomes the coder's when its
+  time is not older than the stored (`kept: "incoming"`; a changed payload is
+  a new payload version, `revision_reason_code = resubmitted`, the earlier raw
+  answers a `replaced` row, a KPI recount queued); an older one is stored as a
+  `replaced` history row only (`meta {source: "resubmission",
+  effectiveSavedAt, receivedAt}`), once per hash, a retry stores no second
+  row (`kept: "server"`). Coding finished (a protected workflow state with no
+  open send-back or reopen), a case `duplicate` or `cancelled`, or one a
+  teammate's winning submission has overtaken: history only, `kept: "server"`,
+  `locked: true`. A resend of a superseded copy with other answers is history
+  too, `kept: "server"`, `locked: true`. A phone completion whose interviewer
+  has an open server draft with browser saves newer than the completion is
+  submitted as today; that draft's content is first kept as a `replaced`
+  history row (its own earlier phone syncs are not). A concurrent resend that
+  loses the unique index is handled the same way. Another interviewer's id is
+  409 `conflict`.
 - **Result body.** `{va_sid, case: {death_id, unique_id, status}, outcome,
-  superseded, answers_sha256}`.
+  superseded, answers_sha256, kept, received_sha256, locked}`.
+  `answers_sha256` is the hash of the coder version's answers;
+  `received_sha256` is the hash of the answers this request sent, as the
+  server received them: the app deletes its copy when it equals what it sent,
+  whatever `kept` is (`kept: "server"` is an acknowledgement). `kept` is
+  `"incoming"` or `"server"`; `locked` is true when coding is final or the
+  case closed, so no version can change the coder's answers.
 - **Superseded copy.** When the named case is already `submitted`,
   `duplicate` or `cancelled`, the upload is stored as a draft with status
   `superseded`: its answers kept under the case, no submission, no routing,
@@ -478,14 +507,35 @@ credential, CSRF for a cookie; body cap 2 MB). Code:
   `case_already_submitted` (finishing a partial after a teammate's complete
   submission), 409 `case_closed` (case duplicate or cancelled), 409
   `case_state_conflict` (an incomplete outcome changed to another while the
-  case is in a state the move cannot leave), 422
-  `invalid_reason`, 422 `outcome_regression` (a completed interview revised
-  to refused or incomplete), 422 `answers_hash_required` /
-  `answers_hash_invalid` / `invalid_interview`.
+  case is in a state the move cannot leave, a teammate's winning submission
+  included), 422 `invalid_reason` (the server's own `resubmitted` is not a
+  public reason), 422 `answers_hash_required` / `answers_hash_invalid` /
+  `invalid_interview`. `outcome_regression` is gone: see **Completed to
+  incomplete or refused**.
 - **Partial to completed**: the case moves to `submitted`, `death.va_sid` is
   set and the submission enters coding, as a first complete submit. The
   case is taken under `lock_case` first, as `submit_draft` does, and the
   organization unit must still be live (`_require_live_org_unit`).
+- **Completed to incomplete or refused** (`digitva-xpqm`, owner: the latest
+  completed version wins even then): coding is released first
+  (`release_coding_for_changed_payload`), the submission is routed to
+  `consent_refused`, the case moves from `submitted` to the outcome's state
+  (case transitions `submitted -> paused | refused | not_reachable`, any
+  interviewer) and `death.va_sid` is cleared when it was this submission. A
+  teammate's superseded copies stay superseded. Applies to the public revision
+  and to a `resubmitted` correction alike.
+- **Every changed revision** queues the stored daily KPI recount of the
+  submission (`_recompute_kpi_rows_after_commit`; its `updatedAt` moved), and
+  stores the version's completion time in the draft's
+  `meta.effectiveSavedAt` (`_completion_time` of the envelope: `completedAt`
+  corrected by `deviceClockAt`, else now). No revision or correction sends
+  `case_submitted_by_other`.
+- **Browser submit of an already submitted draft** (`POST
+  /intake/drafts/<id>/submit`, a stale tab or a second completion): decided
+  before the draft write lock and the `if_updated_at` check (which stay for a
+  draft still `draft`). It is a `resubmitted` correction completed now (the
+  answers hashed over their canonical JSON, a browser draft having none):
+  200 `{va_sid, draft, superseded: false, validation_err, kept, locked}`.
 - **Incomplete to another incomplete outcome** (`partially_completed`,
   `respondent_unavailable`, `refused`): the case moves to
   `OUTCOME_CASE_STATES[outcome]` via `in_progress`, as a submit does.

@@ -83,6 +83,37 @@ Decisions made while building part A:
   (`case_closed`); finishing a partial after a teammate's complete submission
   is refused (`case_already_submitted`).
 
+### Latest completed version wins (`digitva-xpqm`, owner, 2026-10-05)
+
+- **Reasons.** The public reasons stay `interviewer_correction`,
+  `respondent_correction`, `more_information`, `finish_partial`. The server
+  adds one internal reason, `resubmitted`, for a correction it makes itself
+  when a later version of the interviewer's own interview arrives (an upload
+  resent with other answers, a second upload of the case, a browser submit of
+  an already submitted draft; [Web Intake Policy](web-intake.md), "Parallel
+  interviews"). A client that sends it gets 422 `invalid_reason`.
+- **Completion time.** Each submitted draft keeps its version's completion
+  time in `meta.effectiveSavedAt`: the device's `completedAt` corrected by
+  its clock drift (`deviceClockAt`), the server's time for a browser submit or
+  when a device time is missing. A `resubmitted` correction applies when its
+  time is not older than the stored one (a tie goes to the one received
+  later). An older one, and any version after coding is final or the case is
+  closed, is kept as `replaced` history, once per set of answers.
+- **A completed interview may be revised to a partial or refused one.** The
+  earlier "cannot be revised to an incomplete or refused one"
+  (`outcome_regression`) is gone: the latest completed version wins even
+  when the outcome regresses. Coding is released first, the submission routes
+  to `consent_refused`, the case moves from `submitted` to the new outcome's
+  state (`paused`, `refused`, `not_reachable`; the case transition table gains
+  those three moves) and loses its `va_sid`, and the case waits for a new
+  complete interview. `case_state_conflict` no longer applies to the case's
+  own winning submission; it still refuses a version of an interview a
+  teammate's winning submission has overtaken. Teammates' superseded copies
+  stay superseded.
+- A changed revision recounts the stored daily KPI rows of the submission's
+  days (its `updatedAt` moved). A correction never sends
+  `case_submitted_by_other` again.
+
 ## Rules by stage
 
 1. **Before upload.** The interviewer edits freely, including after marking
@@ -149,8 +180,11 @@ Owner confirmed 2026-10-05:
   completed runs the completion branch: the case goes to `submitted`, the
   submission id is set and the submission enters coding. The partial version
   stays in history.
-- **Not a case transition.** `submitted` stays terminal for the case. A
-  revision is a new payload version plus a workflow move on the submission.
+- **Not a case transition, except a regression.** A revision is a new payload
+  version plus a workflow move on the submission. `submitted` is terminal for
+  a supervisor's reopen; a completed interview revised to a partial or
+  refused one is the one revision that moves the case out of `submitted`
+  (see "Latest completed version wins").
 - **No-change rule.** A revision whose fingerprint equals the current version
   does nothing: no allocation release and no SmartVA rerun. This is the ODK
   rule ([ODK Sync Policy](odk-sync-policy.md), "Allocations During Sync":

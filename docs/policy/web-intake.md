@@ -376,9 +376,41 @@ a place for names, phone numbers or addresses).
 
 ### Parallel interviews
 
-Owner confirmed 2026-10-05: a completed phone upload whose interview is
-older than a browser save of the same draft is still submitted; the newer
-browser version is kept as history, not submitted.
+**The last completed version wins** (owner, 2026-10-05, `digitva-xpqm`). For
+one interviewer's own interview of a case, the coder always gets the
+**last completed version, by completion time**: the device's `completedAt`
+corrected by `deviceClockAt` (the same drift correction the draft sync uses,
+never later than the server's now; the server's now when either time is
+missing), or the server's time for a browser submit. Saves and drafts never
+compete with a completion: a phone completion is submitted even when a
+browser save of the same draft is newer (the browser draft's content is kept
+as `replaced` history), and a browser completion made later is then a
+correction that wins. This reverses the earlier line of the same day that the
+newer version of a draft wins at upload: only completed versions compete.
+
+- A later version of an interview the interviewer already submitted (an upload
+  resent with other answers, a second upload of the case under a new
+  `client_draft_id`, a browser submit of a draft that is already submitted)
+  is a **correction** through the interviewer revision path with the server's
+  own reason `resubmitted` (never accepted from a client). It becomes the
+  coder's version when its completion time is not older than the stored one's
+  (a tie goes to the one received later); an older one is kept as `replaced`
+  history, once per set of answers. There is no hash conflict.
+- It applies **until coding is final**. A finalised case (a protected workflow
+  state with no open send-back or reopen), or a case a supervisor closed
+  (`duplicate`, `cancelled`) or a teammate won, no longer takes a version:
+  the later one is kept as history and the reply says `locked: true`.
+  Send-back and reopen work as in
+  [Interview Revisions](interview-revisions.md).
+- **The outcome may regress.** If the latest completed version is a refusal
+  or partial one, it wins all the same: coding is released, the submission
+  routes to `consent_refused`, the case it won leaves `submitted` for that
+  outcome's state (`paused`, `refused`, `not_reachable`) and loses its
+  `va_sid`, and the case waits for a new complete interview. Teammates'
+  superseded copies stay superseded; they are not restored.
+- A correction never tells the case's other draft holders again
+  (`case_submitted_by_other` is sent only when a case first becomes
+  `submitted`).
 
 Owner, 2026-10-04 (`digitva-xz83`).
 
@@ -413,9 +445,11 @@ Owner, 2026-10-04 (`digitva-xz83`).
   offline, two full interviews of one household can happen. That is the
   accepted cost of this decision.
 - The first complete submission wins and moves the case to `submitted` (see
-  "One submission per case"). Later uploads and submits on the case are kept
-  as **superseded copies** on web and device alike: answers kept, no
-  submission, no routing. The interviewer is told their copy was superseded.
+  "One submission per case"). Later uploads and submits of **another**
+  interviewer on the case are kept as **superseded copies** on web and device
+  alike: answers kept, no submission, no routing. The interviewer is told
+  their copy was superseded. A later version by the interviewer whose
+  submission won is a correction (above), not a copy.
 
 Built (`digitva-xz83`, part A): `case_prefill` no longer looks at other
 drafts; `start_draft` returns the caller's own open draft (a partial unique

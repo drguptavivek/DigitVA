@@ -15,6 +15,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapCaseTransition,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaAllocation,
@@ -38,6 +39,7 @@ from app.services.runtime_form_sync_service import _ensure_legacy_project_site_r
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SMARTVA_PENDING,
 )
@@ -451,16 +453,68 @@ class InterviewRevisionTests(BaseTestCase):
         self.assertEqual(len(self._versions(va_sid)), 1)
         self.assertEqual(self._draft(va_sid).answers_sha256, self._versions(va_sid)[0].answers_sha256)
 
-    def test_a_completed_interview_cannot_become_incomplete_or_refused(self):
-        _death, va_sid = self._submitted()
-        for name, answers, valid in (
-            ("partial", _answers(interview_outcome="partially_completed"), False),
-            ("refused", _answers(Id10013="no"), True),
+    def test_a_completed_interview_revised_to_incomplete_or_refused_leaves_coding_and_the_case(self):
+        """The latest completed version wins even when the outcome regresses
+        (digitva-xpqm): coding is released, the case leaves ``submitted`` and
+        loses its winner, and finishing it again restores both."""
+        for name, answers, valid, outcome, case_status in (
+            ("partial", _answers(interview_outcome="partially_completed"), False, "partially_completed", "paused"),
+            ("refused", _answers(Id10013="no"), True, "refused", "refused"),
+            ("unavailable", _answers(interview_outcome="respondent_unavailable"), False,
+             "respondent_unavailable", "not_reachable"),
         ):
             with self.subTest(name=name):
+                death_id, va_sid = self._submitted()
+                allocation, initial = self._start_coding(va_sid)
                 response = self._revise(va_sid, answers, valid=valid)
-                self.assertEqual((response.status_code, response.get_json()["code"]), (422, "outcome_regression"))
+                self.assertEqual(response.status_code, 200, response.get_json())
+                body = response.get_json()
+                self.assertEqual((body["changed"], body["outcome"], body["workflow_state"]), (True, outcome, WORKFLOW_CONSENT_REFUSED))
+                db.session.expire_all()
+                death = db.session.get(VaDeathRegister, death_id)
+                self.assertEqual((death.status, death.va_sid), (case_status, None))
+                self.assertEqual(db.session.get(VaAllocations, allocation.va_allocation_id).va_allocation_status, VaStatuses.deactive)
+                self.assertEqual(db.session.get(VaInitialAssessments, initial.va_iniassess_id).va_iniassess_status, VaStatuses.deactive)
+                self.assertEqual(self._draft(va_sid).meta["interviewOutcome"], outcome)
+                moved = db.session.scalar(sa.select(MapCaseTransition).where(
+                    MapCaseTransition.death_id == uuid.UUID(death_id), MapCaseTransition.from_state == "submitted"))
+                self.assertEqual((moved.to_state, moved.actor_user_id), (case_status, self.interviewer.user_id))
+                # Finishing the interview again makes it the case's winner again.
+                again = self._revise(va_sid, _answers(Id10017="Bina"), reason="finish_partial")
+                self.assertEqual(again.status_code, 200, again.get_json())
+                db.session.expire_all()
+                death = db.session.get(VaDeathRegister, death_id)
+                self.assertEqual((death.status, death.va_sid), ("submitted", va_sid))
+                self.assertEqual(len(self._versions(va_sid)), 3)
+
+    def test_a_regression_from_a_case_a_teammate_won_is_still_refused(self):
+        death_id, va_sid = self._partial()
+        self._upload(death_id, _answers(Id10017="Other"), user_id=self.teammate_id)
+        response = self._revise(va_sid, {"Id10013": "no", "Id10017": "Bina"})
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "case_state_conflict"))
+
+    def test_the_servers_own_reason_resubmitted_is_not_a_public_reason(self):
+        _death, va_sid = self._submitted()
+        response = self._revise(va_sid, _answers(Id10017="Binita"), reason="resubmitted")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_reason"))
         self.assertEqual(len(self._versions(va_sid)), 1)
+
+    def test_a_changed_revision_recounts_the_kpi_rows_and_stores_its_completion_time(self):
+        _death, va_sid = self._submitted()
+        with patch("app.services.case_transition_service._recompute_kpi_rows_after_commit") as recount:
+            response = self._revise(va_sid, _answers(Id10017="Binita"))
+            self.assertEqual(response.get_json()["changed"], True)
+            recount.assert_called_once_with(va_sid)
+            recount.reset_mock()
+            unchanged = self._revise(va_sid, _answers(Id10017="Binita"))
+            self.assertEqual(unchanged.get_json()["changed"], False)
+            recount.assert_not_called()
+        done = datetime.now(UTC) - timedelta(hours=1)
+        changed = self._revise(
+            va_sid, _answers(Id10017="Third"), draft={"completedAt": done.isoformat(), "deviceClockAt": datetime.now(UTC).isoformat()})
+        self.assertEqual(changed.get_json()["changed"], True)
+        stored = datetime.fromisoformat(self._draft(va_sid).meta["effectiveSavedAt"])
+        self.assertLess(abs((stored - done).total_seconds()), 60)
 
     # ── finishing a partial interview ──────────────────────────────────────
 

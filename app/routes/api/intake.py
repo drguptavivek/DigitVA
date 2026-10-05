@@ -22,7 +22,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db, limiter
 from app.decorators import role_required
-from app.models import AuthDevice, VaSubmissionPayloadVersion
+from app.models import AuthDevice, VaSubmissionPayloadVersion, VaSubmissions
 from app.routes.api.request_helpers import (
     error,
     intake_error,
@@ -32,8 +32,8 @@ from app.routes.api.request_helpers import (
     require_project,
 )
 from app.services import case_transition_service as case_svc
-from app.services import interview_send_back_service as send_back_svc
 from app.services import device_auth_service as devices
+from app.services import interview_send_back_service as send_back_svc
 from app.services import web_intake_service as intake_svc
 
 bp = Blueprint("intake_api", __name__)
@@ -442,10 +442,38 @@ def discard_draft(draft_id):
     return jsonify({"draft": intake_svc.serialize_draft(draft)})
 
 
+def _validation_err(va_sid):
+    """The server's re-derived diagnostic of the submission's active payload
+    (beads digitva-cal.2), never blocking: surfaced on a submit so a field
+    problem is debuggable, not just logged. No answer value is ever in it."""
+    submission = db.session.get(VaSubmissions, va_sid)
+    version = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id)
+    return version.validation_err if version else []
+
+
 @bp.post("/drafts/<draft_id>/submit")
 @role_required("interviewer")
 def submit_draft(draft_id):
     p = parse_body()
+    draft = intake_svc.get_draft(current_user, draft_id)
+    if draft.status == "submitted":
+        # A stale tab, or a second completion of an interview the phone or
+        # this page already submitted: the later completion is a correction
+        # (last completed version wins), decided before the draft write lock,
+        # which refuses anything that is not an open draft.
+        reply = intake_svc.resubmit_browser_draft(current_user, draft, completion=p.get("completion") or {})
+        validation_err = _validation_err(draft.va_sid)
+        db.session.commit()
+        return jsonify(
+            {
+                "va_sid": draft.va_sid,
+                "draft": intake_svc.serialize_draft(draft),
+                "superseded": False,
+                "validation_err": validation_err,
+                "kept": reply["kept"],
+                "locked": reply["locked"],
+            }
+        )
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
     # Same stale-tab guard as autosave: a tab that missed the phone's newer
     # version must not submit its own silently.
@@ -458,11 +486,7 @@ def submit_draft(draft_id):
         return jsonify(
             {"va_sid": None, "draft": intake_svc.serialize_draft(draft), "superseded": True, "validation_err": None}
         )
-    # Re-derived server/client disagreements (beads digitva-cal.2), never
-    # blocking: surfaced here so a field problem is debuggable, not just
-    # logged. No answer value is ever in these entries.
-    version = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id)
-    validation_err = version.validation_err if version else []
+    validation_err = _validation_err(submission.va_sid)
     db.session.commit()
     return jsonify(
         {
@@ -514,26 +538,31 @@ def _parse_upload_answers(p):
     return data, digest, None
 
 
-def _existing_upload_reply(existing, answers_sha256):
-    """A resend of a stored upload: 200 with the first result when the
-    answers are the same, 409 ``hash_mismatch`` with the stored result when
-    they differ (or the stored row predates hashing)."""
-    stored = intake_svc.serialize_device_upload(existing)
-    if existing.answers_sha256 == answers_sha256:
-        return jsonify(stored), 200
-    return error(
-        "That client_draft_id was already uploaded with different answers.", "hash_mismatch", 409, stored=stored
-    )
+def _upload_reply(draft, *, kept, received_sha256, locked, status):
+    """The upload result (``serialize_device_upload``, the coder version's
+    hash in ``answers_sha256``) with whose answers the coder has (``kept``:
+    ``incoming`` or ``server``), the hash the server received (the app deletes
+    its copy when it equals what it sent) and whether coding is final or the
+    case closed (``locked``)."""
+    body = {
+        **intake_svc.serialize_device_upload(draft), "kept": kept, "received_sha256": received_sha256, "locked": locked,
+    }
+    return jsonify(body), status
 
 
 @bp.post("/submissions")
 @role_required("interviewer")
 def submit_interview():
-    """One completed interview, idempotent on ``client_draft_id``: a resend
-    with the same ``answers_sha256`` returns the first result with 200; a
-    resend with other answers is 409 ``hash_mismatch`` carrying the stored
-    result. A bearer request records its device on the interview; a cookie
-    request has none."""
+    """One completed interview, idempotent on ``client_draft_id``. The last
+    completed version of the interviewer's own interview is the coder's
+    (docs/policy/web-intake.md "Parallel interviews"): a resend with the same
+    ``answers_sha256`` returns the first result with 200; one with other
+    answers, or a second upload of a case the caller already submitted,
+    becomes the coder's version when its completion time is not older, else
+    it is kept as history. Never a hash conflict. Reply: the upload result
+    plus ``kept`` (``incoming`` or ``server``), ``received_sha256`` and
+    ``locked`` (coding final or case closed). A bearer request records its
+    device on the interview; a cookie request has none."""
     p = parse_body()
     try:
         client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
@@ -556,13 +585,28 @@ def submit_interview():
         intake_svc.check_device_times(envelope)
     except intake_svc.WebIntakeError as exc:
         return error(str(exc), "invalid_interview", 422)
+
+    def resend(existing):
+        # The same hash is the first result again; other answers are a later
+        # version of the interview.
+        if existing.answers_sha256 == answers_sha256:
+            closed = existing.status == "superseded"
+            return _upload_reply(
+                existing, kept="server" if closed else "incoming", received_sha256=answers_sha256, locked=closed, status=200
+            )
+        kept, locked = intake_svc.resubmit_device_interview(
+            current_user, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
+        )
+        db.session.commit()
+        return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200)
+
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None:
-        return _existing_upload_reply(existing, answers_sha256)
+        return resend(existing)
     session = g.get("device_session")
     device = db.session.get(AuthDevice, session.device_id) if session is not None else None
     try:
-        draft = intake_svc.submit_device_interview(
+        draft, kept, locked = intake_svc.submit_device_interview(
             current_user,
             project_id=project_id,
             client_draft_id=client_draft_id,
@@ -582,8 +626,8 @@ def submit_interview():
         existing = intake_svc.find_device_upload(current_user, client_draft_id)
         if existing is None:
             raise
-        return _existing_upload_reply(existing, answers_sha256)
-    return jsonify(intake_svc.serialize_device_upload(draft)), 201
+        return resend(existing)
+    return _upload_reply(draft, kept=kept, received_sha256=answers_sha256, locked=locked, status=201)
 
 
 @bp.post("/submissions/<va_sid>/revisions")
@@ -603,7 +647,9 @@ def revise_submission(va_sid):
     is the sent hash. 404 ``not_found`` unless the caller's own submitted
     interview; 409 ``revision_locked`` / ``case_already_submitted`` /
     ``case_closed`` / ``case_state_conflict``; 422 ``invalid_reason`` /
-    ``outcome_regression`` / ``answers_hash_*`` / ``invalid_interview``."""
+    ``answers_hash_*`` / ``invalid_interview``. A completed interview revised
+    to a refusal or partial one is allowed: the case leaves coding. The
+    server's own reason ``resubmitted`` is not accepted here."""
     p = parse_body()
     reason_code = p.get("reason_code")
     envelope = p.get("draft")

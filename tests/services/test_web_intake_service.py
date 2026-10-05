@@ -11,7 +11,7 @@ Covers the rules the web intake path owns (docs/policy/web-intake.md):
   - the web ``va_forms`` row is never enumerated by ODK runtime form sync
 """
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 
 import sqlalchemy as sa
 
@@ -976,6 +976,66 @@ class WebIntakeServiceTests(BaseTestCase):
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
             self._submit_for_new_draft(death, self._completion())
         self.assertEqual(ctx.exception.status_code, 409)
+
+    # -- last completed version wins (digitva-xpqm) -------------------------
+
+    def test_completion_time_is_the_skew_corrected_device_time_never_after_now(self):
+        now = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+        hour = timedelta(hours=1)
+        # The device clock is an hour behind the server: its "10:00" is 11:00 here.
+        behind = {"completedAt": "2026-10-05T10:00:00+00:00", "deviceClockAt": "2026-10-05T11:00:00+00:00"}
+        self.assertEqual(intake_svc._completion_time(behind, now), now - hour)
+        # A clock running ahead cannot date a completion in the future.
+        ahead = {"completedAt": "2026-10-05T14:00:00+00:00", "deviceClockAt": "2026-10-05T13:00:00+00:00"}
+        self.assertEqual(intake_svc._completion_time(ahead, now), now)
+        # Without both times (a browser submit, an older app): when it was received.
+        for envelope in ({}, {"completedAt": behind["completedAt"]}, {"deviceClockAt": behind["deviceClockAt"]}):
+            self.assertEqual(intake_svc._completion_time(envelope, now), now)
+
+    def _resubmit(self, draft, data, *, envelope=None, valid=True):
+        return intake_svc.revise_submission(
+            self.interviewer, draft.va_sid, reason_code=intake_svc.RESUBMITTED_REASON, data=data,
+            answers_sha256=None, completion={"valid": valid, "issues": []}, envelope=envelope or {}, resubmit=True,
+        )
+
+    def test_a_resubmission_wins_unless_older_and_an_older_one_is_history_once(self):
+        death = self._register_death()
+        draft, submission = self._submit_for_new_draft(death, self._completion())
+        stored = datetime.fromisoformat(draft.meta["effectiveSavedAt"])
+        self.assertEqual(stored, draft.submitted_at)
+        data = self._completion(data={"Id10017": "Second"})["data"]
+        hour_ago = {"completedAt": (stored - timedelta(hours=1)).isoformat(), "deviceClockAt": stored.isoformat()}
+        replaced = sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "replaced")
+        for _ in range(2):
+            reply = self._resubmit(draft, data, envelope=hour_ago)
+            self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("server", False, False))
+            self.assertEqual(db.session.scalar(replaced), 1)
+        self.assertEqual(self._stored_outcome(submission), "completed")
+        # A time equal to the stored one is received later: it wins.
+        tie = {"completedAt": stored.isoformat(), "deviceClockAt": stored.isoformat()}
+        reply = self._resubmit(draft, data, envelope=tie)
+        self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("incoming", False, True))
+        self.assertGreaterEqual(datetime.fromisoformat(draft.meta["effectiveSavedAt"]), stored)
+
+    def test_a_resubmission_the_case_cannot_take_is_history_and_locked(self):
+        death = self._register_death()
+        draft, _submission = self._submit_for_new_draft(death, self._completion())
+        death.status = "cancelled"
+        db.session.flush()
+        reply = self._resubmit(draft, self._completion(data={"Id10017": "Late"})["data"])
+        self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("server", True, False))
+        self.assertEqual(death.status, "cancelled")
+
+    def test_the_public_revision_still_refuses_the_servers_own_reason(self):
+        death = self._register_death()
+        draft, _submission = self._submit_for_new_draft(death, self._completion())
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.revise_submission(
+                self.interviewer, draft.va_sid, reason_code="resubmitted", data={}, answers_sha256="a" * 64,
+                completion={"valid": True, "issues": []}, envelope={},
+            )
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (422, "invalid_reason"))
 
     # -- the locale a draft was filled in -----------------------------------
 

@@ -292,6 +292,20 @@ class CaseVisitTests(BaseTestCase):
         self.assertEqual(case.status, "in_progress")
         self.assertIsNone(case.next_visit_at)
 
+    def test_a_submitted_case_cannot_be_paused_or_moved_back_by_anyone_but_its_submitter(self):
+        case = self._register()
+        cases.transition(case, "in_progress", actor=self.alice, action="test")
+        cases.transition(case, "submitted", actor=self.alice, action="test")
+        self.assertEqual(case.status, "submitted")
+        with self.assertRaises(cases.WebIntakeError) as ctx:
+            intake_svc.pause_interview(self.alice, case.death_id, reason="respondent_busy")
+        self.assertEqual(ctx.exception.status_code, 409)
+        # The regression moves are the submitter's alone; no draft of hers is the submission.
+        with self.assertRaises(cases.WebIntakeError) as ctx:
+            cases.transition(case, "paused", actor=self.alice, action="test")
+        self.assertEqual(ctx.exception.status_code, 403)
+        self.assertEqual(case.status, "submitted")
+
     # ── worklist order and "Mine" ─────────────────────────────────────────
 
     def test_worklist_sorts_by_next_visit_then_activity_and_pages_without_gaps(self):

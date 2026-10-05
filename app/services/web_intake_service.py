@@ -11,6 +11,8 @@ between the two sources.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import re
 import uuid
@@ -48,11 +50,9 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
-from app.services import notification_service
-from app.services import org_grant_service
+from app.services import notification_service, org_grant_service, served_form_service
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
-from app.services import served_form_service
 from app.services.authz import resolve_grants, subtree_select
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
@@ -81,18 +81,21 @@ from app.services.web_form_relevance_service import (
     form_version_of,
     strip_irrelevant_answers,
 )
-from app.services.workflow.definition import PROTECTED_WORKFLOW_STATES, WORKFLOW_FINALIZED_UPSTREAM_CHANGED
-from app.services.workflow.state_store import get_submission_workflow_state
-from app.services.workflow.upstream_changes import (
-    UPSTREAM_CHANGE_STATUS_REJECTED,
-    get_open_revision_request,
-    resolve_pending_upstream_change,
+from app.services.workflow.definition import (
+    PROTECTED_WORKFLOW_STATES,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
 )
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     mark_attachment_sync_completed,
     route_synced_submission,
     system_actor,
+)
+from app.services.workflow.upstream_changes import (
+    UPSTREAM_CHANGE_STATUS_REJECTED,
+    get_open_revision_request,
+    resolve_pending_upstream_change,
 )
 
 log = logging.getLogger(__name__)
@@ -226,6 +229,18 @@ def _device_time(value: object) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+
+
+def _completion_time(envelope: dict, now: datetime) -> datetime:
+    """When the interview was completed, in server time: the device's
+    ``completedAt`` corrected by its clock drift (``now - deviceClockAt`` is
+    how far the device runs behind, as in ``sync_device_draft``) and never
+    later than *now*. Without both times (a browser submit, an older app) it
+    is *now*, the moment the server received it."""
+    done, clock = _device_time(envelope.get("completedAt")), _device_time(envelope.get("deviceClockAt"))
+    if done is None or clock is None:
+        return now
+    return min(now, now - (clock - done))
 
 
 # ---------------------------------------------------------------------------
@@ -758,6 +773,10 @@ def pause_interview(user: VaUsers, death_id: object, *, reason: str,
         raise WebIntakeError("Reason must be one of " + ", ".join(PAUSE_REASONS) + ".")
     visit_at = _clean_visit_at(next_visit_at)
     death = cases.lock_case(get_death(user, death_id))
+    # Only an interview in progress pauses; a submitted case leaves coding only
+    # through its submitter's later version (revise_submission).
+    if death.status != "in_progress":
+        raise WebIntakeError("Only an interview in progress can be paused.", 409)
     death.next_visit_at = visit_at
     cases.transition(death, "paused", actor=user, action="interview_paused", reason=reason)
     return death
@@ -1622,7 +1641,7 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     return payload, references, validation_err
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web") -> VaSubmissions | None:
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None) -> VaSubmissions | None:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
@@ -1632,6 +1651,11 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     (``OUTCOME_CASE_STATES``). A draft whose case is already closed
     (``_SUPERSEDED_CASE_STATES``) becomes a ``superseded`` copy and the result
     is None.
+
+    The submitted draft's ``meta["effectiveSavedAt"]`` is its completion time
+    (*completed_at*, a device's skew-corrected ``completedAt``; the submit
+    time when None), the clock a later version of the same interview is
+    compared against (``revise_submission`` with ``resubmit``).
     """
     if draft.status != "draft":
         raise WebIntakeError("This draft has already been submitted.", 409)
@@ -1773,7 +1797,10 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     draft.submitted_at = submitted_at
     draft.client_valid = completion.get("valid") is True
     draft.client_issue_count = len(completion.get("issues") or [])
-    draft.meta = {**(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome}
+    draft.meta = {
+        **(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome,
+        "effectiveSavedAt": (completed_at or submitted_at).isoformat(),
+    }
     if visit_note:
         draft.meta = {**draft.meta, "visitNote": visit_note}
     if death is not None:
@@ -1802,6 +1829,11 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
 #: The fixed reasons for a revision. No free text: a reason carries no
 #: personal data.
 REVISION_REASONS = ("interviewer_correction", "respondent_correction", "more_information", "finish_partial")
+#: The reason of a correction the server itself makes when a later version of
+#: an interviewer's own interview arrives (an upload resent with other answers,
+#: a second upload, a browser submit of an already submitted draft). Internal:
+#: never accepted from a client (``REVISION_REASONS`` is the public list).
+RESUBMITTED_REASON = "resubmitted"
 
 
 def revision_unlocked(submission: VaSubmissions) -> bool:
@@ -1814,10 +1846,10 @@ def revision_unlocked(submission: VaSubmissions) -> bool:
     return get_open_revision_request(submission.va_sid) is not None
 
 
-def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str, completion: dict, envelope: dict) -> dict:
+def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False) -> dict:
     """Revise the submitted interview *va_sid* as its interviewer; returns the
     reply ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
-    workflow_state}``.
+    workflow_state}`` (plus ``kept`` and ``locked`` with *resubmit*).
 
     Only the user whose draft became the submission may (else 404, never
     revealing it exists). Done under the case lock with a lock on the
@@ -1840,9 +1872,13 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     re-routed. An incomplete outcome revised to ``completed`` also runs
     ``submit_draft``'s completion branch (case to ``submitted``); one revised
     to another incomplete outcome moves the case to that outcome's state
-    (``OUTCOME_CASE_STATES``) the way a submit does. A completed-to-completed
-    revision syncs the form's identity answers onto the case again: the
-    winning submission is the one corrected.
+    (``OUTCOME_CASE_STATES``) the way a submit does. A completed interview
+    revised to refused or incomplete is allowed (the latest completed version
+    wins, docs/policy/interview-revisions.md): coding is released first, the
+    submission routes to ``consent_refused``, and the case it won leaves
+    ``submitted`` for that outcome's state and loses its ``va_sid``. A
+    completed-to-completed revision syncs the form's identity answers onto the
+    case again: the winning submission is the one corrected.
 
     A protected case is locked, except one a coder, reviewer or supervisor
     sent back or reopened (``revision_unlocked``): its changed revision
@@ -1851,20 +1887,31 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     pending upstream payload, and keeps the earlier COD as inactive history.
     An unchanged revision leaves that case sent back.
 
-    Every refusal is decided before anything is written, except the workflow
-    race ``revision_locked`` (a coder finalised after the check) and a case
-    transition ``cases.transition`` refuses; those raise after writes, and the
-    route's error handler rolls the whole transaction back. Refusals: 404
+    The draft's ``meta["effectiveSavedAt"]`` becomes this version's completion
+    time (``_completion_time`` of *envelope*).
+
+    *resubmit* is the server's own correction of the interviewer's latest
+    version (reason ``RESUBMITTED_REASON``) and never refuses for a reason the
+    caller cannot act on: the version is applied only when it is not older than
+    the stored one (a tie goes to the later received) and the case still takes
+    it. Otherwise (coding finished, case closed or won by a teammate, or an
+    older version) nothing in the case changes and the answers are kept as a
+    ``replaced`` row, once per answers (``kept: "server"``; ``locked: true``
+    when coding or the case no longer takes any version).
+
+    Every other refusal is decided before anything is written, except the
+    workflow race ``revision_locked`` (a coder finalised after the check) and a
+    case transition ``cases.transition`` refuses; those raise after writes, and
+    the route's error handler rolls the whole transaction back. Refusals: 404
     unknown or not the caller's, 409 ``revision_locked`` (protected workflow
-    state not sent back or reopened), ``case_already_submitted`` (a teammate's complete submission won),
-    ``case_closed`` (duplicate or cancelled), ``case_state_conflict`` (an
-    outcome change the case's state does not allow), the live-org-unit
-    refusals when finishing a partial, 422 ``invalid_reason``,
-    ``outcome_regression`` (a completed interview revised to refused or
-    incomplete), the missing identity of a finished partial and
+    state not sent back or reopened), ``case_already_submitted`` (a teammate's
+    complete submission won), ``case_closed`` (duplicate or cancelled),
+    ``case_state_conflict`` (an outcome change a teammate's winning case state
+    does not allow), the live-org-unit refusals when finishing a partial, 422
+    ``invalid_reason``, the missing identity of a finished partial and
     ``_interview_outcome``'s own.
     """
-    if reason_code not in REVISION_REASONS:
+    if not resubmit and reason_code not in REVISION_REASONS:
         raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
     draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
         VaWebIntakeDraft.va_sid == va_sid,
@@ -1887,46 +1934,70 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     # once; every other protected state is locked, an ODK upstream change
     # included (the data manager resolves that one).
     reopening = state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and revision_unlocked(submission)
-    if state in PROTECTED_WORKFLOW_STATES and not reopening:
+    locked = state in PROTECTED_WORKFLOW_STATES and not reopening
+    if locked and not resubmit:
         raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked")
 
     active = get_active_payload_version(va_sid)
     prior = (active.payload_data if active is not None else None) or {}
     previous = (draft.meta or {}).get("interviewOutcome") or prior.get("interview_outcome")
+    now = _utcnow()
+    completed_at = _completion_time(envelope, now)
+
+    def kept_apart(*, closed: bool) -> dict:
+        """The resubmitted answers stay history; the coder's version stands."""
+        _keep_losing_version(draft, data, answers_sha256, meta={
+            "source": "resubmission", "effectiveSavedAt": completed_at.isoformat(), "receivedAt": now.isoformat(),
+        })
+        return {**_revision_reply(draft, active, False, previous), "kept": "server", "locked": closed}
+
+    if resubmit:
+        stored_at = (draft.meta or {}).get("effectiveSavedAt")
+        stored_at = datetime.fromisoformat(stored_at) if stored_at else draft.submitted_at
+        if locked:
+            return kept_apart(closed=True)
+        if stored_at is not None and completed_at < stored_at:
+            return kept_apart(closed=False)
     outcome = _interview_outcome(data, completion)
-    if previous == "completed" and outcome != "completed":
-        raise WebIntakeError("A completed interview cannot be revised to an incomplete or refused one.", 422, "outcome_regression")
+    regressing = previous == "completed" and outcome != "completed"
     completing = outcome == "completed" and previous != "completed"
     # Locked answers keep the value the interview was submitted with; one the
     # submit never held is filled from the case and the interviewer, as on a
     # submit. Recomputing them all would turn a renamed interviewer or a
     # corrected registration into a change to answers nobody edited.
     stored = _answers_of(draft)
-    locked = {name: stored.get(name, value) for name, value in _draft_locked_answers(draft).items()}
-    raw = {**data, **locked, "interview_outcome": outcome}
+    locked_answers = {name: stored.get(name, value) for name, value in _draft_locked_answers(draft).items()}
+    raw = {**data, **locked_answers, "interview_outcome": outcome}
     if death is not None:
+        refusal = None
         if death.status in ("duplicate", "cancelled"):
-            raise WebIntakeError("This case is closed.", 409, "case_closed")
-        if completing:
+            refusal = WebIntakeError("This case is closed.", 409, "case_closed")
+        elif completing:
             if death.status == "submitted" and death.va_sid != va_sid:
-                raise WebIntakeError("A complete interview of this case was already submitted.", 409, "case_already_submitted")
-            _require_live_org_unit(draft)
-            # What the identity sync below will leave on the case.
-            identity = {
-                "deceased_name": death.deceased_name, "date_of_death": death.date_of_death,
-                "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
-            }
-            if not all(identity.values()):
-                raise WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422)
-        elif outcome != previous and death.status != OUTCOME_CASE_STATES[outcome]:
+                refusal = WebIntakeError("A complete interview of this case was already submitted.", 409, "case_already_submitted")
+            else:
+                _require_live_org_unit(draft)
+                # What the identity sync below will leave on the case.
+                identity = {
+                    "deceased_name": death.deceased_name, "date_of_death": death.date_of_death,
+                    "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
+                }
+                if not all(identity.values()):
+                    raise WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422)
+        elif outcome != previous and death.status != OUTCOME_CASE_STATES[outcome] and death.va_sid != va_sid:
             # Incomplete to another incomplete outcome: the case follows it as
             # on a submit (via in_progress), or the revision is refused rather
-            # than leave the case and the submission disagreeing.
+            # than leave the case and the submission disagreeing. The case's
+            # own winning submission always moves it (a regression included).
             if death.status not in _STARTABLE_STATES and death.status != "in_progress":
-                raise WebIntakeError(
+                refusal = WebIntakeError(
                     f"The case is {death.status}, so this interview's outcome can no longer be changed.",
                     409, "case_state_conflict",
                 )
+        if refusal is not None:
+            if not resubmit:
+                raise refusal
+            return kept_apart(closed=True)
 
     meta = {
         **(draft.meta or {}),
@@ -1941,19 +2012,24 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
     )
     fingerprint = canonical_payload_fingerprint(payload)
-    now = _utcnow()
     # Recomputed from the stored payload, as ensure_active_payload_version and
     # ODK sync decide "same payload": a stored column from an older
     # normalisation must not turn a no-op into a release.
     if active is not None and canonical_payload_fingerprint(prior) == fingerprint:
         if answers_sha256 != draft.answers_sha256:
             _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=active.payload_version_id)
-        return _revision_reply(draft, active, False, outcome)
+        reply = _revision_reply(draft, active, False, outcome)
+        if resubmit:
+            draft.meta = {**(draft.meta or {}), "effectiveSavedAt": completed_at.isoformat()}
+            reply.update(kept="incoming", locked=False)
+        return reply
 
     payload["updatedAt"] = now.isoformat()
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
     if fields["va_sid"] != va_sid:
+        if resubmit:
+            return kept_apart(closed=True)
         raise WebIntakeError("This interview's form changed; it cannot be revised.", 409)
     # All refusals above are decided; writes start here.
     if death is not None and outcome == "completed":
@@ -1969,8 +2045,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         revision_reason_code=reason_code,
         answers_sha256=answers_sha256,
     )
+    # updatedAt moved: the stored daily KPI rows of the submission's days are recounted.
+    cases._recompute_kpi_rows_after_commit(va_sid)
     _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
-    draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome}
+    draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome, "effectiveSavedAt": completed_at.isoformat()}
 
     enters_coding = outcome == "completed" and consent_is_valid(normalize_consent(raw.get("Id10013")))
     try:
@@ -2002,6 +2080,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
             )
         if completing:
             death.va_sid = va_sid
+        elif regressing and death.va_sid == va_sid:
+            # The case waits for a new complete interview; the regressed
+            # submission stays linked through its draft only.
+            death.va_sid = None
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
         va_audit_byrole=AUDIT_ROLE,
@@ -2012,7 +2094,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     ))
     db.session.flush()
     log.info("interview revised | sid=%s | by=%s | reason=%s | outcome=%s", va_sid, user.user_id, reason_code, outcome)
-    return _revision_reply(draft, version, True, outcome)
+    reply = _revision_reply(draft, version, True, outcome)
+    if resubmit:
+        reply.update(kept="incoming", locked=False)
+    return reply
 
 
 def _replace_raw_answers(draft: VaWebIntakeDraft, raw: dict, answers_sha256: str, completion: dict, *, at: datetime, version_id: uuid.UUID) -> None:
@@ -2145,17 +2230,103 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
     return draft
 
 
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None) -> VaWebIntakeDraft:
-    """Store and submit one completed device interview; returns its draft.
+def _device_completion(completion: dict, data: dict) -> dict:
+    """The upload's ``{valid, issues}`` normalised, with the parsed answers as ``data``."""
+    return {
+        "valid": completion.get("valid") is True,
+        "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
+        "data": data,
+    }
+
+
+def _own_submitted_draft(user: VaUsers, death: VaDeathRegister) -> VaWebIntakeDraft | None:
+    """The caller's submitted draft of *death* that a later upload of the same
+    interview corrects (docs/policy/web-intake.md "Parallel interviews"): the
+    one that won the case, else their latest. None when they have none, or
+    when a teammate's complete submission or a supervisor closed the case and
+    theirs is not the winner: that upload stays a superseded copy. One query
+    on ``ix_va_web_intake_drafts_death``."""
+    own = db.session.scalar(
+        sa.select(VaWebIntakeDraft)
+        .where(
+            VaWebIntakeDraft.death_id == death.death_id,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "submitted",
+        )
+        .order_by(sa.case((VaWebIntakeDraft.va_sid == death.va_sid, 0), else_=1), VaWebIntakeDraft.submitted_at.desc())
+        .limit(1)
+    )
+    if own is not None and (own.va_sid == death.va_sid or death.status not in _SUPERSEDED_CASE_STATES):
+        return own
+    return None
+
+
+def resubmit_device_interview(user: VaUsers, draft: VaWebIntakeDraft, *, envelope: dict, data: dict, answers_sha256: str, completion: dict) -> tuple[str, bool]:
+    """Apply an upload of *draft*'s interview that is not the first (a resend
+    with other answers, or a second upload of the case); returns
+    ``(kept, locked)``.
+
+    The last completed version wins: this one becomes the coder's version when
+    its completion time is not older than the stored one's
+    (``revise_submission`` with ``resubmit``, reason ``RESUBMITTED_REASON``),
+    else, or when coding is final or the case closed (*locked*), its answers
+    are kept as ``replaced`` history and ``kept`` is ``"server"``. A
+    ``superseded`` copy (a closed case's upload) keeps the resend as history
+    the same way, locked."""
+    completion = _device_completion(completion, data)
+    if draft.status != "submitted":
+        now = _utcnow()
+        _keep_losing_version(draft, data, answers_sha256, meta={
+            "source": "resubmission", "effectiveSavedAt": _completion_time(envelope, now).isoformat(),
+            "receivedAt": now.isoformat(),
+        })
+        return "server", True
+    reply = revise_submission(
+        user, draft.va_sid, reason_code=RESUBMITTED_REASON, data=data, answers_sha256=answers_sha256,
+        completion=completion, envelope=envelope, resubmit=True,
+    )
+    return reply["kept"], reply["locked"]
+
+
+def resubmit_browser_draft(user: VaUsers, draft: VaWebIntakeDraft, *, completion: dict) -> dict:
+    """A browser submit of a draft that is already submitted (a stale tab, a
+    second completion): the later completion is a correction of the interview
+    (``revise_submission`` with ``resubmit``, completed now). Returns its reply
+    (``kept``, ``locked``, ``va_sid``...). Refusals as ``submit_draft``'s for
+    the completion (422), 404 when it is not the caller's."""
+    if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
+        raise WebIntakeError("completion.data is required.")
+    data = completion["data"]
+    # A browser draft has no device hash; the correction needs one to tell
+    # answers apart, taken over the data in a fixed form.
+    sha = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8", "surrogatepass")).hexdigest()
+    return revise_submission(
+        user, draft.va_sid, reason_code=RESUBMITTED_REASON, data=data, answers_sha256=sha,
+        completion={
+            "valid": completion.get("valid") is True,
+            "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
+        },
+        envelope={}, resubmit=True,
+    )
+
+
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None) -> tuple[VaWebIntakeDraft, str, bool]:
+    """Store and submit one completed device interview; returns
+    ``(draft, kept, locked)`` (``"incoming"``/``"server"``: whose answers are
+    the coder's version; *locked*: coding is final or the case closed).
 
     The same path as a web submit: ``start_draft`` (scope, case, prefill) in
     *project_id* only, which returns the interviewer's own open draft on the
     case when there is one (the upload completes it), the answers saved
     through ``save_draft_sections``, then ``submit_draft`` with
-    ``intake_source = device``. A case already
+    ``intake_source = device``. When the caller already submitted an interview
+    of the case, the upload is a later version of it
+    (``resubmit_device_interview``) and no new draft is made. A case already
     closed is kept as a superseded copy instead (``_store_superseded_copy``).
-    *completion* is ``{valid, issues}`` from the app's form engine; without
-    ``valid: true`` the upload needs an incomplete ``interview_outcome``
+    An open draft with browser saves newer than this completion keeps its
+    content as ``replaced`` history first: the completion is the version
+    submitted. *completion* is ``{valid, issues}`` from the app's form engine;
+    without ``valid: true`` the upload needs an incomplete ``interview_outcome``
     pick, exactly as on the web. Idempotency is the caller's
     (``find_device_upload`` first; ``client_draft_id`` is unique).
     *device_id* is the uploading device's id, None for a browser-cookie request.
@@ -2168,35 +2339,54 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     stored = {k: envelope[k] for k in _DEVICE_TIME_KEYS if k in envelope}
     if device_id is not None:
         stored["deviceId"] = str(device_id)
+    now = _utcnow()
     device_clock = _device_time(envelope.get("deviceClockAt"))
     if device_clock is not None:
         # Positive = the device clock is behind the server. Audit only: the
         # interview times above are never corrected by it.
-        stored["clockSkewSeconds"] = round((_utcnow() - device_clock).total_seconds())
-    completion = {
-        "valid": completion.get("valid") is True,
-        "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
-        "data": data,
-    }
+        stored["clockSkewSeconds"] = round((now - device_clock).total_seconds())
+    completed_at = _completion_time(envelope, now)
+    completion = _device_completion(completion, data)
     if death_id:
         death = cases.lock_case(get_death(user, death_id))
         if death.project_id != project_id:
             raise WebIntakeError("Death entry not found.", 404)
+        own = _own_submitted_draft(user, death)
+        if own is not None:
+            kept, locked = resubmit_device_interview(
+                user, own, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
+            )
+            return own, kept, locked
         if death.status in _SUPERSEDED_CASE_STATES:
-            return _store_superseded_copy(
+            copy = _store_superseded_copy(
                 user, death, client_draft_id=client_draft_id, site_id=site_id,
                 data=data, answers_sha256=answers_sha256, meta={**meta, **stored}, completion=completion,
             )
+            return copy, "server", True
     draft = start_draft(
         user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
         death_id=death_id,
     )
+    if draft.sections:
+        # An open draft with content: the phone's own earlier sync is the same
+        # draft continuing; a newer browser save is unfinished work that must
+        # not be lost to the completion (the last completed version wins).
+        draft_meta = draft.meta or {}
+        from_phone = draft.answers_sha256 is not None
+        edited = datetime.fromisoformat(draft_meta["effectiveSavedAt"]) if from_phone and draft_meta.get("effectiveSavedAt") else draft.updated_at
+        own_sync = from_phone and (draft_meta.get("lastSync") or {}).get("clientDraftId") == str(client_draft_id)
+        if edited > completed_at and not own_sync:
+            _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
+                "source": "device" if from_phone else "web", "effectiveSavedAt": edited.isoformat(),
+                "receivedAt": now.isoformat(),
+            })
     draft.client_draft_id = client_draft_id
     draft.answers_sha256 = answers_sha256
     draft.meta = {**(draft.meta or {}), **stored}
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
-    submit_draft(draft, user, completion=completion, intake_source="device")
-    return draft
+    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at) is None:
+        return draft, "server", True
+    return draft, "incoming", False
 
 
 #: Section holding the answers of a draft version that lost an edit conflict.
@@ -2246,6 +2436,23 @@ def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None,
     )
     row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=answers))
     db.session.add(row)
+
+
+def _keep_losing_version(draft: VaWebIntakeDraft, answers: dict, sha256: str | None, *, meta: dict, client_draft_id: str | None = None) -> None:
+    """Keep a losing resend of *draft*'s interview as a ``replaced`` row, once:
+    a retry of the same answers (same hash, and the same ``clientDraftId``
+    when given) stores no second row. One indexed lookup on the case."""
+    clauses = [
+        VaWebIntakeDraft.death_id == draft.death_id,
+        VaWebIntakeDraft.user_id == draft.user_id,
+        VaWebIntakeDraft.status == "replaced",
+        VaWebIntakeDraft.answers_sha256 == sha256,
+    ]
+    if client_draft_id is not None:
+        clauses.append(VaWebIntakeDraft.meta["clientDraftId"].astext == client_draft_id)
+    if not db.session.scalar(sa.select(sa.exists().where(*clauses))):
+        _keep_history(draft, answers, sha256=sha256, meta=meta)
+        db.session.flush()
 
 
 def _sync_reply(draft: VaWebIntakeDraft, kept: str, conflict: bool) -> dict:
@@ -2313,18 +2520,11 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         incoming_wins = True
     source = "device" if phone_won else "web"
     if not incoming_wins:
-        if conflict and not db.session.scalar(sa.select(sa.exists().where(
-            VaWebIntakeDraft.death_id == draft.death_id,
-            VaWebIntakeDraft.user_id == user.user_id,
-            VaWebIntakeDraft.status == "replaced",
-            VaWebIntakeDraft.answers_sha256 == answers_sha256,
-            VaWebIntakeDraft.meta["clientDraftId"].astext == cid,
-        ))):
-            _keep_history(draft, data, sha256=answers_sha256, meta={
+        if conflict:
+            _keep_losing_version(draft, data, answers_sha256, client_draft_id=cid, meta={
                 "source": "device", "clientDraftId": cid, "savedAt": saved.isoformat(),
                 "effectiveSavedAt": effective.isoformat(), "receivedAt": now.isoformat(),
             })
-            db.session.flush()
         return _sync_reply(draft, "server", conflict)
     if conflict:
         _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={

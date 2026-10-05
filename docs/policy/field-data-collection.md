@@ -288,12 +288,27 @@ duplicate uploads. The rules:
   sent, before locked answers are overwritten and irrelevant answers
   stripped. It echoes the hash in the acknowledgement. The app verifies the
   echoed hash and the death id before it deletes its copy.
-- **Resend with the same `client_draft_id`.** Same hash: 200 with the stored
-  result. Different hash: 409 `hash_mismatch` with the stored result. The app
-  handles that code explicitly: it tells the interviewer their later edits
-  were not applied and offers a revision
-  ([Interview Revisions Policy](interview-revisions.md)). The server answers the app's old shape (answers only in `draft.data`)
-  with 422 `answers_hash_required`, so the app side ships with it.
+- **Resend with the same `client_draft_id`, or a later upload of the same
+  interview** (owner, 2026-10-05, `digitva-xpqm`). There is no hash conflict:
+  `hash_mismatch` is gone. The same hash is 200 with the stored result. Other
+  answers are a later version of the interviewer's own interview, and the
+  last completed version wins by completion time
+  ([Web Intake Policy](web-intake.md), "Parallel interviews"): a newer one
+  becomes the coder's version through the revision path, an older one, or any
+  one after coding is final, is stored as history. The reply always says
+  which: `kept: "incoming"` (the coder has the answers just sent) or
+  `kept: "server"` (the coder keeps a newer version; the sent answers are
+  history), `locked` (coding is final or the case closed), and
+  `received_sha256`, the hash of the answers the server received, while
+  `answers_sha256` stays the coder version's hash. The server answers the
+  app's old shape (answers only in `draft.data`) with 422
+  `answers_hash_required`, so the app side ships with it.
+- **Acknowledgement rule.** The app deletes its copy when `received_sha256`
+  equals the hash it sent (and the case id matches), whatever `kept` says:
+  `kept: "server"` is an acknowledgement, the server has the answers. It
+  never deletes on `answers_sha256` alone. On `kept: "server"` with `locked`,
+  the app tells the interviewer a newer completed version is already with the
+  coder, and that a send-back or reopen is the way to change it.
 - **Timeouts.** Every app request has a timeout, so a dead connection fails
   the run with everything kept instead of hanging.
 - **Case list refresh.** The app writes the replacement case list in one
@@ -303,13 +318,13 @@ This closes a data-loss path that exists today: the upload succeeds, the reply
 is lost, the interviewer edits the completed draft, and the resend returns the
 old stored result, so the app deletes the edited copy.
 
-Built, server half (`digitva-2bxa`): `answers_json`, `answers_sha256`, the 422
-(`answers_hash_required`, `answers_hash_invalid`), the stored and echoed hash
-and the 409 `hash_mismatch` carrying the stored result (see
+Built, server half (`digitva-2bxa`, `digitva-xpqm`): `answers_json`,
+`answers_sha256`, the 422 (`answers_hash_required`, `answers_hash_invalid`),
+the stored hash, and the `kept` / `received_sha256` / `locked` reply (see
 [Device Collection API](../current-state/device-collection-api.md), "Uploads").
-Still to build in the app: explicit `hash_mismatch` handling (today it retries
-every 409 forever), the check of the echoed hash and death id before deleting
-its copy, request timeouts (none today) and the transactional case list write.
+Still to build in the app: dropping its `hash_mismatch` handling, deleting on
+`received_sha256`, the notice for `kept: "server"`, request timeouts (none
+today) and the transactional case list write.
 Client-id idempotent resend is built (see "Idempotent upload" above).
 
 ### Form version (owner, 2026-10-04, `digitva-xuf9`)

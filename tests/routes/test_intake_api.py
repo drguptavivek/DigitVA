@@ -1115,6 +1115,58 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual([(r.draft_id, r.status, r.client_draft_id) for r in rows], [(draft.draft_id, "submitted", cid)])
 
 
+    def test_a_browser_submit_of_an_already_submitted_draft_is_a_correction(self):
+        """A stale tab or a second completion (digitva-xpqm): the later completion
+        becomes the coder's version, before any draft write lock or stale check."""
+        from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
+        from app.services.workflow.state_store import set_submission_workflow_state
+
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        url = f"/api/v1/intake/drafts/{draft['draft_id']}/submit"
+
+        def submit(**data):
+            answers = {
+                "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                "Id10023": (date.today() - timedelta(days=5)).isoformat(), "finalAgeInYears": "71",
+                "narr_language": "english", **data,
+            }
+            # A tab that never saw the first submit still sends the old updated_at.
+            return self.client.post(url, headers=self._csrf_headers(), json={
+                "if_updated_at": draft["updated_at"], "completion": {"valid": True, "issues": [], "data": answers}})
+
+        first = submit()
+        self.assertEqual(first.status_code, 201, first.get_json())
+        va_sid = first.get_json()["va_sid"]
+        again = submit(Id10017="Binita")
+        body = again.get_json()
+        self.assertEqual(again.status_code, 200, body)
+        self.assertEqual((body["va_sid"], body["superseded"], body["kept"], body["locked"]), (va_sid, False, "incoming", False))
+        self.assertEqual(body["draft"]["status"], "submitted")
+        db.session.expire_all()
+        versions = db.session.scalars(sa.select(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == va_sid)).all()
+        self.assertEqual(sorted(v.revision_reason_code or "" for v in versions), ["", "resubmitted"])
+        self.assertEqual(db.session.get(VaDeathRegister, death_id).va_sid, va_sid)
+        history = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "replaced")).all()
+        self.assertEqual(len(history), 1)
+        # Coding finished: the later completion is kept as history, the coder's version stands.
+        set_submission_workflow_state(va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test")
+        db.session.commit()
+        late = submit(Id10017="Too late")
+        self.assertEqual((late.status_code, late.get_json()["kept"], late.get_json()["locked"]), (200, "server", True))
+        db.session.expire_all()
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "replaced")), 2)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == va_sid)), 2)
+        # A draft that is not the caller's, or not submitted, is refused as before.
+        self._login(self.interviewer_id)
+        gone = self.client.post(f"/api/v1/intake/drafts/{uuid.uuid4()}/submit", headers=self._csrf_headers(), json={})
+        self.assertEqual(gone.status_code, 404)
+
+
 class WebOnlyProjectIntakeTests(BaseTestCase):
     """A project that collects only on the web, plus a unit-scoped interviewer.
 

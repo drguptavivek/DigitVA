@@ -52,11 +52,17 @@ from app.models import (
     VaUserAccessGrants,
     VaWebIntakeDraft,
 )
+from app.models.map_user_notifications import MapUserNotification
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 from app.services import device_auth_service as devices
 from app.services import totp_service
 from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
+from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED, WORKFLOW_CONSENT_REFUSED
+from app.services.workflow.state_store import (
+    get_submission_workflow_state,
+    set_submission_workflow_state,
+)
 from tests.base import BaseTestCase
 
 PASSWORD = "DeviceApi123!"
@@ -820,27 +826,113 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual((again.status_code, again.get_json()), (200, first.get_json()))
         self.assertEqual(len(self._drafts_of(client_draft_id)), 1)
 
-    def test_resend_with_other_answers_is_409_hash_mismatch_with_the_stored_result(self):
+    # ── last completed version wins (digitva-xpqm) ──────────────────────────
+
+    @staticmethod
+    def _times(ago=timedelta(0)):
+        """Device times: completed *ago* before the device clock read, which is now."""
+        now = datetime.now(UTC)
+        return {"completedAt": (now - ago).isoformat(), "deviceClockAt": now.isoformat()}
+
+    def _history(self, death_id):
+        return db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "replaced")).all()
+
+    @staticmethod
+    def _hash(answers):
+        return hashlib.sha256(json.dumps(answers, separators=(",", ":")).encode()).hexdigest()
+
+    def test_upload_reply_says_whose_answers_the_coder_has(self):
+        _device, tokens = self._session()
+        body = self._upload(tokens).get_json()
+        self.assertEqual(
+            (body["kept"], body["locked"], body["received_sha256"]), ("incoming", False, body["answers_sha256"]))
+        self.assertEqual(body["received_sha256"], self._hash(_complete_answers()))
+
+    def test_resend_with_newer_other_answers_becomes_the_coder_version(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id, draft={"data": _complete_answers(), **self._times()}).get_json()
+        changed = {**_complete_answers(), "Id10017": "Changed"}
+        other = self._upload(tokens, client_draft_id, draft={"data": changed})
+        body = other.get_json()
+        self.assertEqual(other.status_code, 200, body)
+        self.assertNotEqual(body["answers_sha256"], first["answers_sha256"])
+        self.assertEqual(
+            (body["kept"], body["locked"], body["received_sha256"], body["va_sid"]),
+            ("incoming", False, self._hash(changed), first["va_sid"]),
+        )
+        self.assertEqual(body["answers_sha256"], self._hash(changed))
+        drafts = self._drafts_of(client_draft_id)
+        self.assertEqual((len(drafts), drafts[0].answers_sha256), (1, self._hash(changed)))
+        versions = db.session.scalars(sa.select(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == first["va_sid"])).all()
+        self.assertEqual(sorted(v.revision_reason_code or "" for v in versions), ["", "resubmitted"])
+        # The earlier version is history, and the coder's payload is the new one.
+        history = self._history(first["case"]["death_id"])
+        self.assertEqual([h.answers_sha256 for h in history], [first["answers_sha256"]])
+        self.assertEqual(
+            db.session.get(VaSubmissions, first["va_sid"]).active_payload_version_id,
+            next(v.payload_version_id for v in versions if v.revision_reason_code == "resubmitted"))
+        # The same resend again is the same result, nothing more stored.
+        again = self._upload(tokens, client_draft_id, draft={"data": changed})
+        self.assertEqual((again.status_code, again.get_json()), (200, body))
+        self.assertEqual(len(self._history(first["case"]["death_id"])), 1)
+
+    def test_resend_with_older_other_answers_is_kept_as_history_once(self):
         _device, tokens = self._session()
         client_draft_id = uuid.uuid4()
         first = self._upload(tokens, client_draft_id).get_json()
-        other = self._upload(tokens, client_draft_id, draft={"data": {**_complete_answers(), "Id10017": "Changed"}})
-        self.assertEqual((other.status_code, other.get_json()["code"]), (409, "hash_mismatch"))
-        self.assertEqual(other.get_json()["stored"], first)
-        self.assertIn("error", other.get_json())
-        drafts = self._drafts_of(client_draft_id)
-        self.assertEqual(len(drafts), 1)
-        self.assertEqual(drafts[0].answers_sha256, first["answers_sha256"])
+        older = {**_complete_answers(), "Id10017": "Older"}
+        other = self._upload(tokens, client_draft_id, draft={"data": older, **self._times(timedelta(hours=1))})
+        body = other.get_json()
+        self.assertEqual(other.status_code, 200, body)
+        self.assertEqual(
+            (body["kept"], body["locked"], body["received_sha256"], body["answers_sha256"]),
+            ("server", False, self._hash(older), first["answers_sha256"]),
+        )
+        self.assertEqual(len(self._drafts_of(client_draft_id)), 1)
+        self.assertEqual(self._drafts_of(client_draft_id)[0].answers_sha256, first["answers_sha256"])
+        history = self._history(first["case"]["death_id"])
+        self.assertEqual([h.answers_sha256 for h in history], [self._hash(older)])
+        self.assertEqual(history[0].sections[0].data["Id10017"], "Older")
+        # A retry stores no second history row.
+        retry = self._upload(tokens, client_draft_id, draft={"data": older, **self._times(timedelta(hours=1))})
+        self.assertEqual(retry.get_json()["kept"], "server")
+        self.assertEqual(len(self._history(first["case"]["death_id"])), 1)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == first["va_sid"])), 1)
 
-    def test_resend_of_an_upload_stored_without_a_hash_is_409_hash_mismatch(self):
+    def test_a_resend_after_coding_finished_is_history_and_locked(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id).get_json()
+        set_submission_workflow_state(first["va_sid"], WORKFLOW_CODER_FINALIZED, reason="test", by_role="test")
+        db.session.commit()
+        changed = {**_complete_answers(), "Id10017": "Late"}
+        other = self._upload(tokens, client_draft_id, draft={"data": changed})
+        body = other.get_json()
+        self.assertEqual(other.status_code, 200, body)
+        self.assertEqual(
+            (body["kept"], body["locked"], body["received_sha256"], body["answers_sha256"]),
+            ("server", True, self._hash(changed), first["answers_sha256"]),
+        )
+        self.assertEqual([h.answers_sha256 for h in self._history(first["case"]["death_id"])], [self._hash(changed)])
+        self.assertEqual(get_submission_workflow_state(first["va_sid"]), WORKFLOW_CODER_FINALIZED)
+        # An identical resend stays a no-op.
+        same = self._upload(tokens, client_draft_id)
+        self.assertEqual((same.status_code, same.get_json()["kept"], same.get_json()["locked"]), (200, "incoming", False))
+
+    def test_resend_of_an_upload_stored_without_a_hash_adopts_the_sent_hash(self):
         _device, tokens = self._session()
         client_draft_id = uuid.uuid4()
         self.assertEqual(self._upload(tokens, client_draft_id).status_code, 201)
         self._drafts_of(client_draft_id)[0].answers_sha256 = None
         db.session.commit()
         legacy = self._upload(tokens, client_draft_id)
-        self.assertEqual((legacy.status_code, legacy.get_json()["code"]), (409, "hash_mismatch"))
-        self.assertIsNone(legacy.get_json()["stored"]["answers_sha256"])
+        self.assertEqual(legacy.status_code, 200, legacy.get_json())
+        self.assertEqual(legacy.get_json()["answers_sha256"], self._hash(_complete_answers()))
+        self.assertEqual(self._drafts_of(client_draft_id)[0].answers_sha256, self._hash(_complete_answers()))
 
     def test_concurrent_resend_compares_the_hash_too(self):
         _device, tokens = self._session()
@@ -861,8 +953,93 @@ class DeviceApiTests(BaseTestCase):
         lookups.clear()
         with mock.patch.object(intake_svc, "find_device_upload", side_effect=find_late):
             other = self._upload(tokens, client_draft_id, draft={"data": {**_complete_answers(), "Id10017": "Changed"}})
-        self.assertEqual((other.status_code, other.get_json()["code"]), (409, "hash_mismatch"))
-        self.assertEqual(other.get_json()["stored"], first)
+        self.assertEqual((other.status_code, other.get_json()["kept"]), (200, "incoming"))
+        self.assertEqual(len(self._drafts_of(client_draft_id)), 1)
+
+    def test_a_second_upload_of_an_interview_the_caller_submitted_is_a_correction(self):
+        _device, tokens = self._session()
+        first = self._upload(tokens).get_json()
+        death_id = first["case"]["death_id"]
+        submissions = db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissions))
+        changed = {**_complete_answers(), "Id10017": "Again"}
+        second_id = uuid.uuid4()
+        second = self._upload(tokens, second_id, death_id=death_id, draft={"data": changed})
+        body = second.get_json()
+        self.assertEqual(second.status_code, 201, body)
+        self.assertEqual(
+            (body["va_sid"], body["superseded"], body["kept"], body["locked"], body["received_sha256"]),
+            (first["va_sid"], False, "incoming", False, self._hash(changed)),
+        )
+        self.assertEqual(body["answers_sha256"], self._hash(changed))
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissions)), submissions)
+        self.assertFalse(db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "superseded")).all())
+        # Its retry is the same correction, not another.
+        again = self._upload(tokens, second_id, death_id=death_id, draft={"data": changed})
+        self.assertEqual((again.status_code, again.get_json()["kept"]), (201, "incoming"))
+        self.assertEqual(len(self._history(death_id)), 1)
+
+    def test_a_phone_completion_beats_newer_unfinished_browser_saves_and_they_become_history(self):
+        _device, tokens = self._session()
+        death = self._web_case()
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id)
+        intake_svc.save_draft_sections(draft, sections={"consented": {"Id10017": "Browser unfinished"}})
+        db.session.commit()
+        response = self._upload(
+            tokens, death_id=str(death.death_id), draft={"data": _complete_answers(), **self._times(timedelta(hours=1))})
+        body = response.get_json()
+        self.assertEqual(response.status_code, 201, body)
+        self.assertEqual((body["kept"], body["locked"], body["case"]["status"]), ("incoming", False, "submitted"))
+        db.session.expire_all()
+        submitted = db.session.get(VaWebIntakeDraft, draft.draft_id)
+        self.assertEqual((submitted.status, submitted.va_sid), ("submitted", body["va_sid"]))
+        history = self._history(str(death.death_id))
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].sections[0].data, {"Id10017": "Browser unfinished"})
+
+    def test_a_phone_completion_after_older_browser_saves_keeps_no_history(self):
+        _device, tokens = self._session()
+        death = self._web_case()
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id)
+        intake_svc.save_draft_sections(draft, sections={"consented": {"Id10017": "Browser"}})
+        draft.updated_at = datetime.now(UTC) - timedelta(hours=2)
+        db.session.commit()
+        response = self._upload(tokens, death_id=str(death.death_id), draft={"data": _complete_answers(), **self._times()})
+        self.assertEqual((response.status_code, response.get_json()["kept"]), (201, "incoming"))
+        self.assertEqual(self._history(str(death.death_id)), [])
+
+    def test_a_correction_never_notifies_the_case_again(self):
+        _device, tokens = self._session()
+        death = self._web_case()
+        intake_svc.start_draft(self.teammate, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id)
+        db.session.commit()
+        client_draft_id = uuid.uuid4()
+        self.assertEqual(self._upload(tokens, client_draft_id, death_id=str(death.death_id)).status_code, 201)
+
+        def sent():
+            return db.session.scalar(sa.select(sa.func.count()).select_from(MapUserNotification).where(
+                MapUserNotification.kind == "case_submitted_by_other", MapUserNotification.death_id == death.death_id))
+
+        self.assertEqual(sent(), 1)
+        for answers in ({**_complete_answers(), "Id10017": "A"}, {**_complete_answers(), "Id10017": "B"}):
+            self.assertEqual(self._upload(tokens, client_draft_id, draft={"data": answers}).get_json()["kept"], "incoming")
+            self.assertEqual(self._upload(tokens, death_id=str(death.death_id), draft={"data": answers}).status_code, 201)
+        self.assertEqual(sent(), 1)
+
+    def test_a_newer_completed_resend_that_is_partial_moves_the_case_out_of_coding(self):
+        _device, tokens = self._session()
+        client_draft_id = uuid.uuid4()
+        first = self._upload(tokens, client_draft_id).get_json()
+        partial = {"Id10013": "yes", "Id10017": "Bina", "interview_outcome": "partially_completed"}
+        response = self._upload(
+            tokens, client_draft_id, draft={"data": partial}, completion={"valid": False, "issues": []})
+        body = response.get_json()
+        self.assertEqual((response.status_code, body["kept"], body["outcome"]), (200, "incoming", "partially_completed"))
+        self.assertEqual(body["case"]["status"], "paused")
+        self.assertEqual(get_submission_workflow_state(first["va_sid"]), WORKFLOW_CONSENT_REFUSED)
+        self.assertIsNone(db.session.get(VaDeathRegister, uuid.UUID(first["case"]["death_id"])).va_sid)
 
     def test_upload_with_a_wrong_hash_or_bad_answers_stores_nothing(self):
         _device, tokens = self._session()
@@ -949,11 +1126,13 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(copy.answers_sha256, body["answers_sha256"])
         self.assertEqual(copy.answers_sha256, hashlib.sha256(
             json.dumps(answers, separators=(",", ":")).encode()).hexdigest())
-        # Its resend: the same hash is 200, other answers 409.
+        # Its resend: the same hash is 200; other answers are kept as history, locked.
         client_draft_id = copy.client_draft_id
         self.assertEqual(self._upload(tokens, client_draft_id, death_id=death_id, draft={"data": answers}).status_code, 200)
         changed = self._upload(tokens, client_draft_id, death_id=death_id, draft={"data": {**answers, "Id10017": "Z"}})
-        self.assertEqual((changed.status_code, changed.get_json()["code"]), (409, "hash_mismatch"))
+        self.assertEqual(
+            (changed.status_code, changed.get_json()["kept"], changed.get_json()["locked"]), (200, "server", True))
+        self.assertEqual(len(self._history(death_id)), 1)
         # The winning case's identity is untouched by the copy.
         self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).deceased_name, "Bina Sahu")
 

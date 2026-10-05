@@ -30,7 +30,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUsers,
 )
-from app.models.va_web_intake import CASE_FLAGS
+from app.models.va_web_intake import CASE_FLAGS, VaWebIntakeDraft
 from app.services import notification_service
 from app.services.authz import supervision
 from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
@@ -70,6 +70,9 @@ class WebIntakeError(ValueError):
 # ``is_interview_supervisor_for``. A supervisor may also do what a starter or
 # registrant may.
 TEAM, STARTER, REGISTRANT, SUPERVISOR = "team", "starter", "registrant", "supervisor"
+# ``submitter``: only the interviewer whose interview is the case's submission
+# (its draft carries ``case.va_sid``); no supervisor fallback.
+SUBMITTER = "submitter"
 
 #: (from_state, to_state) -> who may make it.
 TRANSITIONS: dict[tuple[str, str], str] = {
@@ -90,6 +93,12 @@ TRANSITIONS: dict[tuple[str, str], str] = {
     ("in_progress", "registered"): TEAM,
     ("in_progress", "submitted"): TEAM,
     ("paused", "submitted"): TEAM,
+    # The interviewer's latest completed version is a partial or a refusal
+    # (docs/policy/interview-revisions.md "Latest completed version wins"):
+    # the case leaves coding and waits for a new complete interview.
+    ("submitted", "paused"): SUBMITTER,
+    ("submitted", "refused"): SUBMITTER,
+    ("submitted", "not_reachable"): SUBMITTER,
     ("registered", "not_reachable"): TEAM,
     ("scheduled", "not_reachable"): TEAM,
     ("paused", "not_reachable"): TEAM,
@@ -114,7 +123,8 @@ TRANSITIONS: dict[tuple[str, str], str] = {
     ("paused", "cancelled"): SUPERVISOR,
 }
 
-#: Left only by a supervisor ``reopen``.
+#: Left by a supervisor ``reopen``, or (``submitted`` only) by the
+#: submitter's own later partial or refused version (``SUBMITTER`` rows).
 TERMINAL_STATES = frozenset({"submitted", "duplicate", "cancelled"})
 #: States an interviewer may flag as a possible duplicate or for cancellation.
 _FLAGGABLE = {
@@ -234,6 +244,13 @@ def _require_actor(kind: str, actor: VaUsers, case: VaDeathRegister):
     supervisor grant relied on, or None when no supervision was needed."""
     if kind == TEAM:
         return None
+    if kind == SUBMITTER:
+        if case.va_sid and db.session.scalar(sa.select(sa.exists().where(
+            VaWebIntakeDraft.va_sid == case.va_sid, VaWebIntakeDraft.user_id == actor.user_id,
+            VaWebIntakeDraft.status == "submitted",
+        ))):
+            return None
+        raise WebIntakeError("Only the interviewer whose interview was submitted may do that.", 403)
     if kind == STARTER and case.started_by_user_id == actor.user_id:
         return None
     if kind == REGISTRANT and case.registered_by == actor.user_id:
@@ -268,7 +285,8 @@ _KPI_RECOUNT_SIDS = "duplicate_kpi_recount_sids"
 def _recompute_kpi_rows_after_commit(va_sid: str) -> None:
     """Queue the stored daily KPI recount for *va_sid* once this transaction commits.
 
-    Confirming or undoing a duplicate changes what the daily aggregates
+    Confirming or undoing a duplicate, or an interviewer's revision that
+    moves the submission's ``updatedAt``, changes what the daily aggregates
     count (app/services/duplicate_exclusion.py); the worker must see the
     committed status, so the sid waits in ``session.info`` and is queued by
     ``_queue_kpi_recounts`` on commit, or dropped on rollback.

@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Sign-in by Mobile Number
@@ -114,5 +114,11 @@ Email accounts sign in exactly as today. Mobile numbers are not shown to
 unit data managers in search or lookup results
 ([dm-user-grant-management.md](dm-user-grant-management.md)). A mobile
 number is personal data: kept out of logs, exports and URLs.
+
+A mobile number signs in on the app like an email. The app accepts any
+account that holds an interviewer, coder, coding_tester or reviewer grant that
+opens its gate in at least one project, not only interviewers (owner,
+2026-10-05; [Field Data Collection](field-data-collection.md), "Who may sign
+in on a device").
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

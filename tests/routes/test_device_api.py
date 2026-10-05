@@ -418,6 +418,76 @@ class DeviceApiTests(BaseTestCase):
         response = self._sign_in(device, email="device.outsider@test.local")
         self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_interviewer_grant"))
 
+    def _worker(self, email, *roles, project_id=None):
+        """A user with one active project-scope grant per role in *roles*."""
+        user = self._get_or_make_user(email, PASSWORD)
+        grants = [
+            VaUserAccessGrants(
+                user_id=user.user_id, role=role, scope_type=VaAccessScopeTypes.project,
+                project_id=project_id or self.PROJECT_ID, notes="device api test grant",
+                grant_status=VaStatuses.active,
+            )
+            for role in roles
+        ]
+        db.session.add_all(grants)
+        db.session.commit()
+        return user, grants
+
+    def test_coding_roles_without_an_interviewer_grant_sign_in_and_refresh(self):
+        device = self._enrol()
+        for role in (VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.reviewer):
+            email = f"device.{role.value}.only@test.local"
+            self._worker(email, role)
+            _device, tokens = self._session(device, email=email)
+            access = self._sign_in(device, email=email).get_json()["access"]
+            granted = [g["role"] for p in access["projects"] for g in p["grants"]]
+            self.assertEqual(granted, [role.value])
+            refreshed = self._refresh(tokens["refresh_token"])
+            self.assertEqual(refreshed.status_code, 200, refreshed.get_json())
+            me = self.client.get("/api/v1/me/access", headers=self._bearer(refreshed.get_json()))
+            self.assertEqual(me.status_code, 200)
+            self.assertEqual(me.get_json()["projects"][0]["grants"][0]["role"], role.value)
+
+    def test_other_roles_alone_do_not_open_a_device_session(self):
+        device = self._enrol()
+        for role in (VaAccessRoles.collaborator, VaAccessRoles.data_manager):
+            email = f"device.{role.value}.only@test.local"
+            self._worker(email, role)
+            response = self._sign_in(device, email=email)
+            self.assertEqual(
+                (response.status_code, response.get_json()["code"]), (403, "no_interviewer_grant"))
+
+    def test_withdrawn_coder_grant_revokes_the_session_at_refresh(self):
+        email = "device.coder.revoked@test.local"
+        _user, (grant,) = self._worker(email, VaAccessRoles.coder)
+        device, tokens = self._session(email=email)
+        grant.grant_status = VaStatuses.deactive
+        db.session.commit()
+        gone = self._refresh(tokens["refresh_token"])
+        self.assertEqual((gone.status_code, gone.get_json()["code"]), (401, "session_revoked"))
+        refused = self._sign_in(device, email=email)
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
+
+    def test_interviewer_with_web_intake_off_signs_in_on_a_coder_grant_elsewhere(self):
+        email = "device.intake.off@test.local"
+        _user, _grants = self._worker(email, VaAccessRoles.interviewer)
+        _user, (coder,) = self._worker(email, VaAccessRoles.coder, project_id=self.OTHER_PROJECT_ID)
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        project.web_intake_mode = "off"
+        db.session.commit()
+        self.addCleanup(self._set_intake_mode, self.PROJECT_ID, "both")
+        device, tokens = self._session(email=email)
+        self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 200)
+        # Without the coder grant the intake-off interviewer has nothing to open.
+        coder.grant_status = VaStatuses.deactive
+        db.session.commit()
+        refused = self._sign_in(device, email=email)
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
+
+    def _set_intake_mode(self, project_id, mode):
+        db.session.get(VaProjectMaster, project_id).web_intake_mode = mode
+        db.session.commit()
+
     def test_sign_in_refused_on_a_revoked_device(self):
         device = self._enrol()
         devices.revoke_device(db.session.get(AuthDevice, uuid.UUID(device["device_id"])), actor=self.base_admin_user)

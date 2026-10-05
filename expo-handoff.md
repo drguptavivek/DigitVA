@@ -477,6 +477,8 @@ page; interviewers never see the other interviewer's name.
 
 ## 10. Self-coding: "Code this case now" (`digitva-xuxk`, server built)
 
+Expo status, 2026-10-05: interim hint-only work claimed as `digitva-xuxk.1.1`. The coding action and release flow remain held by the missing `digitva-xl43` / `digitva-p6fs.4` workspace; no allocation endpoint will be called by this interim change. Planning, implementation and validation are in progress.
+
 App half: `digitva-xuxk.1`. Policy: `docs/policy/web-intake.md`
 ("Self-coding projects"), `docs/policy/coding-workflow-state-machine.md`
 ("Self-coding"), `docs/policy/coding-allocation-timeouts.md` ("Coder
@@ -520,3 +522,26 @@ until `digitva-xl43`, app `digitva-p6fs.4`). Until then, show `can_code_now`
 / `code_now` as a hint only ("Ready for you to code on the web"); do not call
 `code-now` from the app, since it would hold a case the user cannot open
 there. Build the button with `p6fs.4`.
+
+## 11. Coders and reviewers sign in to the app (`digitva-xl43.1`, server built)
+
+Owner 2026-10-05. Device sign-in and refresh now accept an active `coder`,
+`coding_tester` or `reviewer` grant as well as an interviewer one
+(`docs/policy/field-data-collection.md`, "Who may sign in on a device"). No
+new route; every route still checks its own role, so a coder-only user gets
+403 on `/intake/*`.
+
+1. **A user may have no interviewer access.** `access` on the sign-in reply
+   and `GET /me/access` list their coder/reviewer grants (`codes` per coding
+   grant); there may be no interviewer project. The app must not assume
+   collection: show no collection screens when no interviewer project exists
+   and say coding and review come with `digitva-p6fs.4`.
+2. **Refusal text.** The code stays `no_interviewer_grant` (the app matches
+   on it, `src/ui.tsx`), now meaning "no access in any project". The app's
+   `errNoGrant` string in `en.json` and `hi.json` ("no interviewer access in
+   this project") is wrong for the new rule; reword it.
+3. **Revocation** follows the wider rule: the session ends when the user holds
+   none of interviewer, coder, coding tester or reviewer.
+
+The coder's own save routes (`POST /coding/initial|finalize|not-codeable`)
+are being built under `digitva-xl43` and will be described here when landed.

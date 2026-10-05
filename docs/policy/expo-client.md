@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Expo Web Client Boundary
@@ -24,6 +24,13 @@ authenticated by it alone: a cookie on the same request is ignored, a bad
 token is a 401 (never a fallback), it needs no `X-CSRFToken` and it never
 sets a cookie. Terms, maintenance and forced-password-change gates apply to
 both credentials.
+
+A device session opens, and refreshes, for a worker with an active grant that
+opens its gate for interviewer, coder, coding_tester or reviewer in at least
+one project (owner, 2026-10-05; [Field Data
+Collection](field-data-collection.md), "Who may sign in on a device"). The
+session grants nothing by itself: each route keeps its own role and scope
+check.
 
 ## Browser access
 

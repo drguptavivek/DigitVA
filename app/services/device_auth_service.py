@@ -23,8 +23,9 @@ inside ``REFRESH_RETRY_GRACE`` of the rotation) is distinct from
 and so is reserved for an administrative revoke, a withdrawn grant or a
 changed account. Grant, device, project and account checks run at
 sign-in and at every refresh; the per-request access-token check covers the
-account (active, session version) and the device, so a withdrawn interviewer
-grant ends the session at the next refresh, within ``ACCESS_TTL``.
+account (active, session version) and the device, so a withdrawn grant (the
+worker holds no interviewer, coder, coding_tester or reviewer access left) ends
+the session at the next refresh, within ``ACCESS_TTL``.
 
 Second factor. Failed device second-factor attempts are counted per account
 from the audit trail (``SECOND_FACTOR_MAX_FAILURES`` in
@@ -56,11 +57,13 @@ from app.models import (
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
     AuthSecurityEvent,
+    VaAccessRoles,
     VaProjectMaster,
     VaStatuses,
     VaUsers,
 )
 from app.services import totp_service
+from app.services.authz import resolve_grants
 from app.services.security_event_service import record_security_event
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.services.user_account_service import canonical_mobile
@@ -180,16 +183,28 @@ def _project_active(project_id: str) -> bool:
     return project is not None and project.project_status == VaStatuses.active
 
 
-def has_interviewer_access(user: VaUsers) -> bool:
-    """The sign-in and refresh grant check: an active interviewer grant (any
-    scope) in at least one project, through the resolution the bootstrap
-    serves (``interviewer_context``, which skips a project whose
-    ``web_intake_mode`` is ``off``), so a session never opens with nothing
-    to collect in. The enrolment project is not required: a device works in
-    every project the worker is an interviewer in."""
+# Roles that may hold a device session without being an interviewer: the app
+# also serves coding and review (docs/policy/field-data-collection.md).
+_DEVICE_CODING_ROLES = frozenset(
+    {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.reviewer}
+)
+
+
+def has_device_access(user: VaUsers) -> bool:
+    """The sign-in, refresh and automatic-revocation grant check: the user
+    may interview in at least one project (``interviewer_context``, which
+    skips a project whose ``web_intake_mode`` is ``off``, so a session never
+    opens with nothing to collect in) or holds an explicit coder,
+    coding_tester or reviewer grant whose gate is open. Demo-training
+    virtual grants never count. Route authorization is separate: each route
+    still checks its own role. The enrolment project is not required."""
     from app.services.web_intake_service import interviewer_context
 
-    return bool(interviewer_context(user))
+    if interviewer_context(user):
+        return True
+    return any(
+        g.opens_gate for g in resolve_grants(user).of(_DEVICE_CODING_ROLES, virtual=False)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -474,9 +489,10 @@ def open_session(*, device_id, device_secret, email, password, otp=None) -> tupl
                 detail={"remaining": totp_service.remaining_recovery_code_count(user.user_id)},
             )
 
-    if not has_interviewer_access(user):
+    # The code stays ``no_interviewer_grant``: the app matches on it.
+    if not has_device_access(user):
         _sign_in_failed(device, user, "no_interviewer_grant")
-        raise DeviceAuthError("You have no interviewer access in any project.", "no_interviewer_grant", 403)
+        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
 
     session = AuthDeviceSession(
         device_id=device.device_id,
@@ -507,14 +523,14 @@ def _revoke(session: AuthDeviceSession, reason: str) -> None:
 
 def _session_still_allowed(session: AuthDeviceSession) -> tuple[bool, str]:
     """Whether a session may continue: device not revoked, account unchanged
-    and at least one active project to collect in."""
+    and at least one active project to collect or code in."""
     device = db.session.get(AuthDevice, session.device_id)
     if device is None or device.revoked_at is not None:
         return False, "device_revoked"
     user = db.session.get(VaUsers, session.user_id)
     if user is None or not user.is_active or (user.auth_session_version or 0) != session.user_session_version:
         return False, "account_changed"
-    if not has_interviewer_access(user):
+    if not has_device_access(user):
         return False, "grant_withdrawn"
     return True, ""
 

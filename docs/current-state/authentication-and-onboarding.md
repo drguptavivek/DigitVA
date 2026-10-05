@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-05
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -623,7 +623,7 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 | non-admin after the maintenance cutoff | 403 `maintenance` |
 | `needs_second_factor`: 5 or more `second_factor_invalid` failures in the last 15 minutes since the last device sign-in | 429 `second_factor_locked` |
 | `needs_second_factor`, no `otp` or a wrong one | 401 `second_factor_required` (the fifth wrong one records `second_factor_lockout`) |
-| no interviewer grant reaching the device's project (`interviewer_context`, which skips projects with web intake off) | 403 `no_interviewer_grant` |
+| no device access (`has_device_access`: `interviewer_context` non-empty, which skips projects with web intake off, or an explicit coder, coding_tester or reviewer grant whose gate is open) | 403 `no_interviewer_grant`, "You have no access in any project." |
 
 Every refusal after the device check is audited as `device_session_failed`
 with the device id and reason only. Success records

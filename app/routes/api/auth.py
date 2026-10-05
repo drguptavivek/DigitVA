@@ -122,7 +122,8 @@ def enroll():
 @limiter.limit("10 per minute", key_func=_body_key("device_id"))
 @limiter.limit("20 per hour", key_func=_body_key("email"))
 def open_session():
-    """Interviewer sign-in on an enrolled device; the ``email`` field takes an
+    """Worker sign-in on an enrolled device (interviewer, coder, coding tester or
+    reviewer, ``has_device_access``); the ``email`` field takes an
     email or a mobile number (docs/policy/mobile-sign-in.md). Rate limits match the web
     password step (docs/policy/authentication-factors.md section 1), per IP,
     per device and per account; the device credential replaces the CAPTCHA."""
@@ -141,8 +142,8 @@ def open_session():
 def refresh_session():
     """Rotate the refresh token, presented with the device's id and secret;
     optional ``count``/``unique_ids``/``client_draft_ids``/``client_death_ids`` record the
-    outstanding-work report in the same call. The session lasts while the
-    worker has an interviewer grant in at least one project."""
+    outstanding-work report in the same call. The session lasts while
+    ``has_device_access`` holds for the worker."""
     p = _body()
     issued, user = devices.refresh_session(
         p.get("refresh_token"), device_id=p.get("device_id"), device_secret=p.get("device_secret"),

@@ -88,10 +88,12 @@ values). The device secret is compared with `hmac.compare_digest`.
   device whose user is active with an unchanged `auth_session_version` (a
   password or factor reset ends device sessions too). `last_seen_at` is
   written at most once a minute.
-- The interviewer grant is checked at sign-in and at every refresh, not per
-  request: the worker needs an interviewer grant in at least one project
-  (`has_interviewer_access`: `interviewer_context` non-empty, so a project
-  whose `web_intake_mode` is off does not count). Losing the last one ends
+- The grant is checked at sign-in and at every refresh, not per request:
+  the worker needs access in at least one project (`has_device_access`:
+  `interviewer_context` non-empty, so a project whose `web_intake_mode` is
+  off does not count there, or an explicit coder, coding_tester or reviewer
+  grant whose gate is open; demo-training virtual grants never count; owner
+  2026-10-05). Routes still check their own role. Losing the last one ends
   the session at the next refresh (`session_revoked`), within the 15-minute
   access lifetime. The enrolment project (`AuthDevice.project_id`) is not
   required: it is the device's admin home (listed, revoked and closed

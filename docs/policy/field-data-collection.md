@@ -79,10 +79,11 @@ Requirements, all of which must hold before the app collects real data:
   deleted. The device is not an archive and holds no history of past cases.
   There is no time ceiling on unsent work (decision C3).
 - **Revocable device sessions.** A refresh credential is bound to a
-  (device, interviewer) pair, revocable server-side, and revoked automatically
-  when that interviewer's grant is withdrawn. Revocation wipes **that
-  interviewer's store only** and refuses further collection under that account;
-  other accounts on the same handset are untouched.
+  (device, worker) pair, revocable server-side, and revoked automatically
+  when the worker no longer holds any grant that opens a device session (see
+  "Who may sign in on a device" below). Revocation wipes **that worker's store
+  only** and refuses further use under that account; other accounts on the
+  same handset are untouched.
 - **Wipe on logout**, covering that interviewer's database, attachments and
   cached keys.
 - **Outstanding work is visible server-side.** Each sync reports the device's
@@ -106,8 +107,10 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   (unique, from a redeemed code or verified email; mobile-sign-in.md) and its
   password and, when the account has factors, a TOTP or recovery code
   ([Authentication Factors](authentication-factors.md)); a device session
-  requires an active `interviewer` grant in at least one project (see
-  "Multi-project devices" below), checked again at every refresh.
+  requires an active grant that opens its gate for `interviewer`, `coder`,
+  `coding_tester` or `reviewer` in at least one project (see "Who may sign
+  in on a device" and "Multi-project devices" below), checked again at every
+  refresh.
 - **Tokens**: opaque, stored hashed; access 15 minutes; refresh rotated on
   every use and presented with the device secret; reuse of a retired refresh
   token revokes the session. Proposed C1: refresh lifetime 30 days, sliding,
@@ -117,8 +120,8 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
 - **Only revocation wipes.** The app wipes an interviewer's store only when
   the server answers `session_revoked`, which it sends only for an
   administrative or device revoke (a lost phone must not keep data) or when
-  the worker has no active project left (grant withdrawn or last project
-  closed). Closing the device's enrolment project alone ends nothing while
+  the worker has no access left (every interviewer, coder, coding_tester and
+  reviewer grant withdrawn, or their last project closed). Closing the device's enrolment project alone ends nothing while
   the worker has another project, so moving between phones and projects is
   not hampered. A password or factor reset or a deactivated account answers
   `session_ended`:
@@ -199,6 +202,32 @@ in other states may be listed online with masked phones; the app does not
 keep their contact details, so the device still holds no history of past
 cases.
 
+**Who may sign in on a device** (owner, 2026-10-05). Coders, coding testers
+and reviewers may sign in to the app without any interviewer grant. Device
+sign-in and refresh need at least one of: an interviewer grant that reaches a
+project whose web intake is not off (so an interview can start), or an active
+`coder`, `coding_tester` or `reviewer` grant whose gate is open (the same
+"opens its gate" rule the web app applies). Demo-training grants never
+count. A user holding only other roles (collaborator, data manager,
+supervisor, site or project PI) is still refused with 403
+`no_interviewer_grant`; the code keeps its name because the app matches on
+it, only the message changed. The session carries no authority of its own:
+every route still checks its own role, action and scope, so a worker who only
+codes can use only the coding routes and the interview and intake routes
+remain interviewer-only. The automatic revocation above applies when the
+user holds none of these any more, and a worker with an interviewer grant in
+a web-intake-off project but a coder grant elsewhere keeps the session. The
+per-worker encrypted store and its wipe rules are unchanged; for a worker who
+only codes the store holds no collected interviews, so a wipe loses nothing
+that was not already on the server.
+Two groups newly get a device session this way: mentor-institute staff
+(coder, reviewer or coding tester grants only; they still cannot interview),
+and a data manager or admin who also holds a coder or reviewer grant, who then
+reaches their own data-manager routes by bearer as on the web, behind the same
+second-factor rules. A device refresh token lasts up to 30 days (90 at most),
+longer than a 30-minute web session; a lost phone is handled by revoking the
+device.
+
 **Multi-project devices** (owner, 2026-10-03; no older apps in the field,
 so no compatibility path, 2026-10-04). A native device may hold data for
 every project the signed-in worker is an interviewer in (the intake
@@ -206,7 +235,8 @@ context), with no admin step. Every project-scoped request names its
 project, which must be one of those; the enrolment project is not a default
 and does not limit access (it stays the device's admin home: listed and
 revoked there, and its closure ends the device). The session lasts while the
-worker has at least one authorized project and is revoked
+worker holds at least one grant that opens a device session (an interviewer
+project, or a coder, coding_tester or reviewer grant elsewhere) and is revoked
 (`session_revoked`) when none remains. When a project drops out of the
 access summary's project list the app deletes that project's local data (drafts,
 cases, contact details), as it deletes a store on `session_revoked`. The

@@ -19,6 +19,11 @@ from flask import (
 from flask_login import current_user
 
 from app import limiter, talisman
+from app.services.cod_bucket_mapping_service import (
+    default_reporting_scheme_code,
+    export_public_cod_bucket_scheme,
+    list_public_cod_bucket_schemes,
+)
 from app.services.icd10_2019_2_service import (
     AGE_GROUP_SELECTABLE_OPTIONS,
     SEX_SELECTABLE_OPTIONS,
@@ -93,6 +98,7 @@ HELP_PAGES = [
     ("icd11-codes",           "ICD-11 Code Browser",           "fa-book-medical",        "Coding Workflow",  None),
     ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
+    ("cod-bucket-schemes",    "COD Bucket Schemes",           "fa-sitemap",              "Coding Workflow",  None),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
     # ── Data Manager ─────────────────────────────────────────────────
@@ -1013,3 +1019,81 @@ def _public_csv_dir():
     """File cache for public CSVs: APP_DATA/public_csv (instance/data if unset)."""
     app_data = current_app.config.get("APP_DATA") or os.path.join(current_app.instance_path, "data")
     return os.path.join(app_data, "public_csv")
+
+
+# ---------------------------------------------------------------------------
+# Public read-only COD bucket schemes (docs/policy/icd10-to-icd11-transition.md s8)
+# ---------------------------------------------------------------------------
+
+_BUCKET_CSV_HEADERS = [
+    "scheme_code", "scheme_name", "age_band", "bucket_path",
+    "classification", "code", "title", "match_type",
+]
+
+
+def _public_bucket_scheme_or_404(scheme_code):
+    """The public projection of an active scheme; unknown or inactive is 404."""
+    try:
+        return export_public_cod_bucket_scheme(scheme_code=scheme_code)
+    except LookupError:
+        abort(404)
+
+
+@help_bp.route("/help/cod-bucket-schemes")
+@limiter.limit("60 per minute")
+def cod_bucket_schemes():
+    """Public picker; the chosen scheme's tree is fetched as JSON by the page."""
+    schemes = list_public_cod_bucket_schemes()
+    codes = [scheme["scheme_code"] for scheme in schemes]
+    requested = request.args.get("scheme", "").strip()
+    default = default_reporting_scheme_code()
+    selected = requested if requested in codes else (default if default in codes else None)
+    page_info = _PAGES_BY_SLUG["cod-bucket-schemes"]
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/cod-bucket-schemes.html",
+        bucket_schemes=schemes,
+        bucket_selected=selected,
+        **_base_ctx(),
+    )
+
+
+@help_bp.route("/help/cod-bucket-schemes/<scheme_code>.json")
+@limiter.limit("60 per minute")
+def cod_bucket_scheme_json(scheme_code):
+    """One active scheme: age bands, bucket tree and mapped ICD codes."""
+    return jsonify(_public_bucket_scheme_or_404(scheme_code))
+
+
+@help_bp.route("/help/cod-bucket-schemes/<scheme_code>.csv")
+@limiter.limit("60 per minute")
+def cod_bucket_scheme_csv(scheme_code):
+    """The same mappings as CSV, one row per ICD code and age band."""
+    data = _public_bucket_scheme_or_404(scheme_code)
+    scheme = data["scheme"]
+    band_labels = {band["age_scope"]: band["age_band"] for band in data["age_bands"]}
+    buckets = {bucket["id"]: bucket for bucket in data["buckets"]}
+    return _csv_response(
+        _BUCKET_CSV_HEADERS,
+        (
+            [
+                csv_cell(str(value or ""))
+                for value in (
+                    scheme["scheme_code"],
+                    scheme["scheme_name"],
+                    band_labels.get(buckets[row["bucket"]]["age_scope"], ""),
+                    buckets[row["bucket"]]["bucket_path"],
+                    row["classification"],
+                    row["code"],
+                    row["title"],
+                    row["match_type"],
+                )
+            ]
+            for row in data["mappings"]
+        ),
+        f"{scheme['scheme_code'].lower()}_cod_bucket_mappings.csv",
+    )

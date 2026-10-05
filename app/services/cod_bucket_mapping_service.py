@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
 
-from app import db
+from app import cache, db
 from app.models import (
     MapIcdCodBucket,
     MapIcd10LegacyReportingAlias,
@@ -2211,6 +2211,92 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
             for row in mapping_rows
         ],
     }
+
+
+_PUBLIC_SCHEME_CACHE_PREFIX = "public_cod_bucket_scheme:"
+_PUBLIC_SCHEME_CACHE_SECONDS = 600
+
+
+def list_public_cod_bucket_schemes() -> list[dict]:
+    """`scheme_code` / `scheme_name` of every active scheme, for the public picker."""
+    return [
+        {"scheme_code": code, "scheme_name": name}
+        for code, name in db.session.execute(
+            sa.select(MasCodBucketScheme.scheme_code, MasCodBucketScheme.scheme_name)
+            .where(MasCodBucketScheme.is_active.is_(True))
+            .order_by(MasCodBucketScheme.scheme_code.asc())
+        )
+    ]
+
+
+def export_public_cod_bucket_scheme(*, scheme_code: str) -> dict:
+    """Read-only projection of one active scheme for the public Help page.
+
+    Built on `export_cod_bucket_scheme_json` so the tree and mapping read
+    path stays single. Keeps only what a reader needs (scheme code and name,
+    age band, bucket path and label, ICD code, classification, display
+    title, match type) and drops ids, source-sheet fields, notes, `is_active`
+    and timestamps. Inactive schemes, age bands, buckets and mappings are
+    excluded. Raises `LookupError` for an unknown or inactive scheme.
+
+    Each bucket gets a small integer `id` (its list position) and a `parent`
+    id; each mapping names its bucket by `bucket` id, so a bucket path is
+    sent once rather than once per code. The result is cached per scheme for
+    `_PUBLIC_SCHEME_CACHE_SECONDS`: the bucket tables are written from many
+    admin paths (no single choke point to invalidate from), so the TTL is
+    how long a public reader can see a stale scheme. Only successful
+    projections are cached.
+    """
+    key = f"{_PUBLIC_SCHEME_CACHE_PREFIX}{scheme_code}"
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+
+    full = export_cod_bucket_scheme_json(scheme_code=scheme_code)
+    if not full["scheme"]["is_active"]:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+
+    bands = [band for band in full["age_bands"] if band["is_active"]]
+    scopes = {band["value"] for band in bands}
+    nodes = [
+        node
+        for node in full["nodes"]
+        if node["is_active"] and (node["age_scope"] or "") in scopes
+    ]
+    # Internal node ids are swapped for list positions; they never leave here.
+    index = {node["node_id"]: position for position, node in enumerate(nodes)}
+    projection = {
+        "scheme": {
+            "scheme_code": full["scheme"]["scheme_code"],
+            "scheme_name": full["scheme"]["scheme_name"],
+        },
+        "age_bands": [
+            {"age_scope": band["value"], "age_band": band["label"]} for band in bands
+        ],
+        "buckets": [
+            {
+                "id": position,
+                "parent": index.get(node["parent_node_id"]),
+                "age_scope": node["age_scope"] or "",
+                "bucket_path": node["path_label"],
+                "bucket_label": node["node_label"],
+            }
+            for position, node in enumerate(nodes)
+        ],
+        "mappings": [
+            {
+                "bucket": index[row["node_id"]],
+                "classification": row["icd_classification"],
+                "code": row["icd_code"],
+                "title": row["icd_to_display"],
+                "match_type": row["match_type"],
+            }
+            for row in full["mappings"]
+            if row["is_active"] and row["node_id"] in index
+        ],
+    }
+    cache.set(key, projection, timeout=_PUBLIC_SCHEME_CACHE_SECONDS)
+    return projection
 
 
 def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodBucketScheme:

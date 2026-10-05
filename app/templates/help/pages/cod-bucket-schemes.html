@@ -1,0 +1,172 @@
+{# Rendered by help.cod_bucket_schemes (not help.page). Data comes from
+   help.cod_bucket_scheme_json (export_public_cod_bucket_scheme); read-only.
+   Policy: docs/policy/icd10-to-icd11-transition.md section 8. #}
+<p>
+  How each cause-of-death bucket scheme groups deaths: the age bands, the bucket
+  tree inside each band, and the ICD-10 and ICD-11 codes mapped to every bucket
+  (only the classifications a scheme maps appear). Pick a scheme, then an age
+  band, or search by code, title or bucket. This page is read-only.
+</p>
+
+{% if not bucket_schemes %}
+  <p class="text-muted">No bucket scheme is published at the moment.</p>
+{% else %}
+<form method="get" action="{{ url_for('help.cod_bucket_schemes') }}" class="row g-2 align-items-end mb-3" id="bucket-scheme-form">
+  <div class="col-md-4">
+    <label class="form-label small mb-1" for="bucket-scheme">Scheme</label>
+    <select class="form-select form-select-sm" id="bucket-scheme" name="scheme">
+      {% for scheme in bucket_schemes %}
+        <option value="{{ scheme.scheme_code }}" {% if scheme.scheme_code == bucket_selected %}selected{% endif %}>{{ scheme.scheme_name }} ({{ scheme.scheme_code }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Show</button></div>
+</form>
+
+{% if bucket_selected %}
+<div id="bucket-view"
+     data-json-url="{{ url_for('help.cod_bucket_scheme_json', scheme_code=bucket_selected) }}"
+     data-csv-url="{{ url_for('help.cod_bucket_scheme_csv', scheme_code=bucket_selected) }}">
+  <div class="row g-2 align-items-end mb-2">
+    <div class="col-md-4">
+      <label class="form-label small mb-1" for="bucket-age">Age band</label>
+      <select class="form-select form-select-sm" id="bucket-age"></select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small mb-1" for="bucket-q">Search</label>
+      <input type="search" class="form-control form-control-sm" id="bucket-q" maxlength="100"
+             placeholder="Code, title or bucket">
+    </div>
+    <div class="col-md-4 small text-md-end">
+      <a href="{{ url_for('help.cod_bucket_scheme_json', scheme_code=bucket_selected) }}" download><i class="fa-solid fa-download me-1"></i>JSON</a>
+      <span class="text-muted mx-1">|</span>
+      <a href="{{ url_for('help.cod_bucket_scheme_csv', scheme_code=bucket_selected) }}" download><i class="fa-solid fa-download me-1"></i>CSV</a>
+    </div>
+  </div>
+  <p class="small text-muted mb-2" id="bucket-status" aria-live="polite">Loading...</p>
+  <div id="bucket-tree"></div>
+</div>
+
+<script>
+(function () {
+  var MAX_ROWS = 500;
+  var view = document.getElementById("bucket-view");
+  var ageSel = document.getElementById("bucket-age");
+  var qBox = document.getElementById("bucket-q");
+  var status = document.getElementById("bucket-status");
+  var tree = document.getElementById("bucket-tree");
+  var CLS = {icd10: "ICD-10", icd11: "ICD-11"};
+  var data = null;
+
+  document.getElementById("bucket-scheme").addEventListener("change", function () {
+    this.form.submit();
+  });
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function rowsTable(rows) {
+    var table = el("table", "table table-sm small mb-2");
+    var head = el("tr");
+    ["Classification", "Code", "Title", "Match"].forEach(function (h) {
+      head.appendChild(el("th", "", h));
+    });
+    table.appendChild(el("thead")).appendChild(head);
+    var body = el("tbody");
+    rows.forEach(function (m) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", CLS[m.classification] || m.classification));
+      tr.appendChild(el("td", "", m.code));
+      tr.appendChild(el("td", "", m.title || ""));
+      tr.appendChild(el("td", "", m.match_type || ""));
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    return table;
+  }
+
+  function render() {
+    var scope = ageSel.value;
+    var q = qBox.value.trim().toLowerCase();
+    var buckets = {};
+    var children = {};
+    var roots = [];
+    data.buckets.forEach(function (b) {
+      if (b.age_scope !== scope) return;
+      buckets[b.id] = b;
+      if (b.parent === null || b.parent === undefined) roots.push(b);
+      else (children[b.parent] = children[b.parent] || []).push(b);
+    });
+    var byBucket = {};
+    data.mappings.forEach(function (m) {
+      var b = buckets[m.bucket];
+      if (!b) return;
+      if (q && (m.code + " " + (m.title || "") + " " + b.bucket_path).toLowerCase().indexOf(q) < 0) return;
+      (byBucket[m.bucket] = byBucket[m.bucket] || []).push(m);
+    });
+
+    var shown = 0, matched = 0;
+    function count(b) {
+      var n = (byBucket[b.id] || []).length;
+      (children[b.id] || []).forEach(function (c) { n += count(c); });
+      return n;
+    }
+    function build(b) {
+      var n = count(b);
+      if (q && !n) return null;
+      var d = el("details", "ms-3 mb-1");
+      d.appendChild(el("summary", "", b.bucket_label + " (" + n + ")"));
+      (children[b.id] || []).forEach(function (c) {
+        var kid = build(c);
+        if (kid) d.appendChild(kid);
+      });
+      var rows = byBucket[b.id] || [];
+      function fill() {
+        if (d.dataset.filled || !rows.length) return;
+        d.dataset.filled = "1";
+        var room = Math.max(0, MAX_ROWS - shown);
+        var slice = q ? rows.slice(0, room) : rows;
+        shown += slice.length;
+        d.appendChild(rowsTable(slice));
+      }
+      if (q) { d.open = true; fill(); } else { d.addEventListener("toggle", function () { if (d.open) fill(); }); }
+      return d;
+    }
+
+    tree.textContent = "";
+    roots.forEach(function (b) {
+      matched += count(b);
+      var node = build(b);
+      if (node) tree.appendChild(node);
+    });
+    status.textContent = q
+      ? matched + " matching mappings" + (matched > shown ? "; showing the first " + shown + ", refine the search" : "")
+      : roots.length + " top-level buckets, " + matched + " mappings in this age band";
+  }
+
+  fetch(view.dataset.jsonUrl, {headers: {Accept: "application/json"}})
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (json) {
+      data = json;
+      json.age_bands.forEach(function (band) {
+        var opt = el("option", "", band.age_band);
+        opt.value = band.age_scope;
+        ageSel.appendChild(opt);
+      });
+      ageSel.addEventListener("change", render);
+      var timer = null;
+      qBox.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(render, 200);
+      });
+      render();
+    })
+    .catch(function () { status.textContent = "This scheme could not be loaded."; });
+})();
+</script>
+{% endif %}
+{% endif %}

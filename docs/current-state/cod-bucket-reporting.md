@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-25
+last_updated: 2026-10-06
 ---
 
 # COD Bucket Reporting
@@ -100,6 +100,17 @@ The data-management report page at `/data-management/cod-buckets` now:
 - keeps the detailed age-scope tables and dropped-COD drilldown modal below the
   chart
 - is styled for printing without internal table/card scroll regions
+
+## Public bucket scheme page
+
+`/help/cod-bucket-schemes` (GET, 60 per minute, no login) lists the active
+schemes and shows one at a time: age band, bucket tree, mapped ICD-10 and
+ICD-11 codes, client-side search. `/help/cod-bucket-schemes/<code>.json` and
+`.csv` are the downloads. Data: `export_public_cod_bucket_scheme`
+(`app/services/cod_bucket_mapping_service.py`), a public-fields-only
+projection of `export_cod_bucket_scheme_json` (a fixed number of queries per
+scheme, no cache). Policy: `docs/policy/icd10-to-icd11-transition.md` section 8.
+The `cod-buckets` help page stays restricted to data managers and admins.
 
 ## Public mapping list
 

@@ -3,7 +3,7 @@ title: ICD-10 to ICD-11 Transition for VA Cause Buckets
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-06
 ---
 
 # ICD-10 to ICD-11 Transition for VA Cause Buckets
@@ -515,3 +515,24 @@ cause, and whether that follows WHO or is a DigitVA decision.
     "0 unmapped". The route name stays `unmapped` as requested.
   - Chapter X's 17,159 extension codes are left out. They are never bucketed,
     and none of them is selectable.
+
+## 8. Public bucket scheme page (`digitva-yds.3`, 2026-10-06)
+
+DigitVA publishes, without login, every **active** COD bucket scheme at
+`/help/cod-bucket-schemes` (picker, age band, bucket tree, mapped ICD-10 and
+ICD-11 codes, client-side search), with `/help/cod-bucket-schemes/<scheme_code>.json`
+and `.csv` downloads. It is read-only and GET only. The admin and data-manager
+pages are unchanged.
+
+- **Scope:** active schemes, active age bands, buckets and mapping rows.
+  An inactive or unknown scheme is 404.
+- **Public fields only:** scheme code and name; age band (scope and label);
+  bucket path and label; ICD classification, code, display title and match
+  type. The page loads one scheme at a time.
+- **Never published:** mapping, node and scheme ids, source sheet and row,
+  source category, mapping note, `is_active`, timestamps, and any user or audit
+  field. (A per-row WHO-versus-DigitVA origin is not stored on bucket rows, so
+  it is not shown; the origin view stays on `/help/va-code-mappings`.)
+- The projection is `export_public_cod_bucket_scheme` in
+  `app/services/cod_bucket_mapping_service.py`, built on the admin export read
+  path. The CSV cells neutralise spreadsheet formulas.

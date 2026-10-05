@@ -40,6 +40,11 @@ from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
+from app.services.workflow.revision_request_sql import (
+    dm_reopen_event_sql,
+    odk_detected_event_sql,
+    revision_request_open_sql,
+)
 
 bp = Blueprint("dm_kpi_pipeline", __name__)
 log = logging.getLogger(__name__)
@@ -290,14 +295,18 @@ def upstream_changes():
     D-WT-02 (Upstream Change Resolution Time), D-WT-04 (Reopen Rate).
 
     C-10 — Upstream Change Queue:
-      Definition: COUNT WHERE workflow_state = 'finalized_upstream_changed'.
+      Definition: COUNT WHERE workflow_state = 'finalized_upstream_changed'
+                  and the latest workflow event is not a send-back or reopen
+                  (ODK upstream changes only). The open send-backs and reopens
+                  are counted apart as ``c10_sent_back_count``.
       Scope: CODED.
       Time frame: Snapshot.
       Source: va_submission_workflow (direct query, no MV).
 
     C-11 — % Forms with Upstream Changes:
       Numerator: COUNT of submissions with at least one
-                 upstream_change_detected event.
+                 upstream_change_detected event that is an ODK change (a
+                 send-back or reopen reuses the event; its reason excludes it).
       Denominator: COUNT of CODED submissions.
       Rate: N / D × 100.
       Time frames: 7d, cumulative.
@@ -305,12 +314,17 @@ def upstream_changes():
     D-WT-02 — Upstream Change Resolution Time:
       Definition: For resolved upstream changes in 7d, resolved_at − created_at.
       Aggregate: PERCENTILE(0.5).
-      Source: va_submission_upstream_changes.
+      Source: va_submission_upstream_changes (rows exist for ODK changes
+              only, so send-backs are already excluded).
       Time frame: 7d.
 
     D-WT-04 — Reopen Rate:
       Numerator: COUNT of events with transition_id IN
-                 ('upstream_change_accepted', 'admin_override_to_recode') in window.
+                 ('upstream_change_accepted', 'admin_override_to_recode') in window,
+                 minus the interviewer's revision restarts and a supervisor's
+                 chosen interview (transition_reason ``interviewer_revision`` /
+                 ``interview_chosen``), which are not data-manager reopens.
+                 Those restarts are ``d_wt_04_revision_restarts_7d``.
       Denominator: COUNT of coder_finalized events in window.
       Rate: N / D × 100.
       Scope: CODED.
@@ -322,9 +336,10 @@ def upstream_changes():
 
     def compute():
         # C-10: upstream change queue (snapshot)
-        queue_count = db.session.execute(
+        queue_row = db.session.execute(
             sa.text(f"""
-                SELECT COUNT(*) AS cnt
+                SELECT COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE {revision_request_open_sql("w.va_sid")}) AS sent_back
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
@@ -334,7 +349,9 @@ def upstream_changes():
                   AND w.workflow_state = 'finalized_upstream_changed'
             """),
             {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
+        ).mappings().first()
+        sent_back_count = queue_row["sent_back"] or 0
+        queue_count = (queue_row["total"] or 0) - sent_back_count
 
         # C-11: % forms with upstream changes (cumulative)
         upstream_pct = db.session.execute(
@@ -359,6 +376,7 @@ def upstream_changes():
                         SELECT 1 FROM va_submission_workflow_events e
                         WHERE e.va_sid = c.va_sid
                           AND e.transition_id = 'upstream_change_detected'
+                          AND {odk_detected_event_sql("e")}
                     )) AS with_upstream
                 FROM coded c
             """),
@@ -394,7 +412,11 @@ def upstream_changes():
                 SELECT
                     COUNT(*) FILTER (WHERE e.transition_id IN (
                         'upstream_change_accepted', 'admin_override_to_recode'
-                    )) AS reopened,
+                    ) AND {dm_reopen_event_sql("e")}) AS reopened,
+                    COUNT(*) FILTER (
+                        WHERE e.transition_id = 'upstream_change_accepted'
+                          AND e.transition_reason = 'interviewer_revision'
+                    ) AS revision_restarts,
                     COUNT(*) FILTER (WHERE e.transition_id = 'coder_finalized') AS finalized
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
@@ -409,10 +431,12 @@ def upstream_changes():
 
         reopened = reopen["reopened"] or 0 if reopen else 0
         finalized = reopen["finalized"] or 0 if reopen else 0
+        revision_restarts = reopen["revision_restarts"] or 0 if reopen else 0
         reopen_rate = round(reopened / finalized * 100, 1) if finalized > 0 else 0.0
 
         return {
             "c10_queue_count": queue_count,
+            "c10_sent_back_count": sent_back_count,
             "c11_with_upstream": with_upstream,
             "c11_total_coded": total_coded,
             "c11_rate": upstream_rate,
@@ -420,6 +444,7 @@ def upstream_changes():
             "d_wt_04_reopened_7d": reopened,
             "d_wt_04_finalized_7d": finalized,
             "d_wt_04_reopen_rate": reopen_rate,
+            "d_wt_04_revision_restarts_7d": revision_restarts,
         }
 
     return jsonify(cached_kpi("upstream_changes", compute))

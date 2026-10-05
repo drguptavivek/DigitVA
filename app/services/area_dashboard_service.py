@@ -484,7 +484,9 @@ DM_URL_FILTERS = (
 
 # Card counts that equal one data manager workflow filter exactly. The DM
 # groups (pending_coding, coded) do not match the card's pending or coded
-# definitions, so those counts get no data manager link.
+# definitions, so those counts get no data manager link. ``upstream_changed``
+# counts ODK changes only, which is what the finalized_upstream_changed filter
+# selects (a send-back or reopen is the sent_back_for_revision filter).
 _DM_WORKFLOW_FILTERS = {
     "reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
     "reviewer_finalized": WORKFLOW_REVIEWER_FINALIZED,

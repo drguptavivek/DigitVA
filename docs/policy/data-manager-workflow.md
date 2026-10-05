@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-10-05
 ---
 
 # Data Manager Workflow Policy
@@ -127,7 +127,16 @@ Export policy:
 - SmartVA-specific exports must not include the full raw VA payload when a
   narrower SmartVA-specific shape is sufficient
 
-For pending `finalized_upstream_changed` submissions, data managers may also:
+A send-back or reopen of a web or device interview shares the state
+`finalized_upstream_changed` but is not an ODK change. The dashboard labels it
+"Sent back for revision", counts it apart in KPIs and filters
+(`workflow=sent_back_for_revision`; `workflow=finalized_upstream_changed` means
+ODK changes only), and offers `Cancel request` instead of `View Changes`:
+`POST /api/v1/data-management/submissions/<va_sid>/cancel-revision-request`
+returns the case to the state it was sent back from, its coding untouched.
+Rejecting such a case through the upstream reject route cancels it the same way.
+
+For pending ODK `finalized_upstream_changed` submissions, data managers may also:
 
 - open a shared `View Changes` modal from the dashboard
 - open the same `View Changes` modal from the read-only submission detail page

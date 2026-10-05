@@ -7583,7 +7583,8 @@ def admin_sync_revoked_stats():
     """Return counts of submissions in finalized_upstream_changed state.
 
     These are protected submissions that had upstream ODK data changes
-    and are pending data-manager review.
+    and are pending data-manager review. A send-back or reopen shares the
+    state but is not an ODK change; open revision requests are not counted.
     """
     try:
         from app.models.va_submissions import VaSubmissions
@@ -7593,6 +7594,7 @@ def admin_sync_revoked_stats():
         from app.models.va_sites import VaSites
         from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
         from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+        from app.services.workflow.revision_request_sql import revision_request_open_condition
 
         # Fetch revoked counts per form
         revoked_by_form = dict(
@@ -7605,6 +7607,7 @@ def admin_sync_revoked_stats():
                 .where(
                     VaSubmissionWorkflow.workflow_state
                     == WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+                    sa.not_(revision_request_open_condition(VaSubmissions.va_sid)),
                     not_confirmed_duplicate_condition(VaSubmissions.va_sid),
                 )
                 .group_by(VaSubmissions.va_form_id)

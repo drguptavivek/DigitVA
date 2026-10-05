@@ -13,6 +13,7 @@ import sqlalchemy as sa
 
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.revision_request_sql import odk_changed_sql
 
 log = get_task_logger(__name__)
 
@@ -396,7 +397,10 @@ def _count_reviewer_finalized(db, site_id: str, snapshot_date: date) -> int:
 
 
 def _count_upstream_changed_eod(db, site_id: str, snapshot_date: date) -> int:
-    """Count submissions with upstream changes as of end of snapshot_date."""
+    """Count submissions with ODK upstream changes as of end of snapshot_date.
+
+    Open send-backs and reopens share the stored state and are not counted.
+    """
     count = db.session.execute(
         sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow w
@@ -405,7 +409,7 @@ def _count_upstream_changed_eod(db, site_id: str, snapshot_date: date) -> int:
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
-              AND w.workflow_state = 'finalized_upstream_changed'
+              AND {odk_changed_sql("w")}
         """),
         {**IN_ODK_BIND, "site_id": site_id},
     ).scalar() or 0

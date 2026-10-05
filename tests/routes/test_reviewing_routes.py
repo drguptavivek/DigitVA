@@ -399,6 +399,36 @@ class ReviewingRoutesTests(BaseTestCase):
             )
         )
 
+    def test_admin_revoked_stats_ignores_open_revision_requests(self):
+        """digitva-jcll: a send-back shares the state but is not an ODK change."""
+        odk_sid = "uuid:admin-revoked-odk"
+        sent_back_sid = "uuid:admin-revoked-sent-back"
+        for sid, reason in (
+            (odk_sid, "upstream_odk_data_changed"),
+            (sent_back_sid, "sent_back_for_revision"),
+        ):
+            self._add_submission(sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+            db.session.add(
+                VaSubmissionWorkflowEvent(
+                    va_sid=sid,
+                    transition_id="upstream_change_detected",
+                    previous_state="coder_finalized",
+                    current_state=WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+                    actor_kind="system",
+                    actor_role="vasystem",
+                    transition_reason=reason,
+                )
+            )
+        db.session.commit()
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/api/sync/revoked-stats")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["totals"]["revoked"], 1)  # the ODK one only
+        self.assertEqual(payload["projects"][0]["revoked"], 1)
+
     def test_admin_revoked_stats_uses_canonical_workflow_state(self):
         sid = "uuid:admin-revoked-stats"
         self._add_submission(sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)

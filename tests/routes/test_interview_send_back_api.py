@@ -532,6 +532,116 @@ class InterviewSendBackTests(BaseTestCase):
         revise = self._revise(va_sid, _answers(Id10017="Binita"))
         self.assertEqual((revise.status_code, revise.get_json()["code"]), (409, "revision_locked"))
 
+    # ── the data manager's cancel route (digitva-jcll) ─────────────────────
+
+    def _cancel(self, va_sid, user_id):
+        self._login(user_id)
+        return self.client.post(
+            f"/api/v1/data-management/submissions/{va_sid}/cancel-revision-request", headers=self._csrf_headers())
+
+    def test_cancel_route_returns_a_send_back_to_its_state_and_keeps_the_cod(self):
+        va_sid, final = self._finalised()
+        self.assertEqual(self._send_back(va_sid, self.coder_id).status_code, 200)
+        self._assert_state(va_sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+
+        response = self._cancel(va_sid, self.dm_id)
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["previous_state"], WORKFLOW_CODER_FINALIZED)
+        self.assertIn("Revision request cancelled", response.get_json()["message"])
+        self._assert_state(va_sid, WORKFLOW_CODER_FINALIZED)
+        self.assertEqual(db.session.get(VaFinalAssessments, final.va_finassess_id).va_finassess_status, VaStatuses.active)
+        self.assertIn("revision_request_cancelled_by_data_manager", self._actions(va_sid))
+        # Cancelled: the dashboard no longer sees an open request.
+        from app.services.workflow.revision_request_sql import open_revision_request_sids
+        self.assertEqual(open_revision_request_sids([va_sid]), set())
+
+    def test_cancel_route_returns_a_reviewer_send_back_to_the_reviewer_state(self):
+        va_sid, _final = self._finalised(WORKFLOW_REVIEWER_ELIGIBLE)
+        self.assertEqual(self._send_back(va_sid, self.reviewer_id).status_code, 200)
+
+        response = self._cancel(va_sid, self.dm_id)
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["previous_state"], WORKFLOW_REVIEWER_ELIGIBLE)
+        self._assert_state(va_sid, WORKFLOW_REVIEWER_ELIGIBLE)
+
+    def test_cancel_route_refuses_an_odk_changed_case(self):
+        va_sid, _final = self._finalised()
+        mark_upstream_change_detected(va_sid, reason="upstream_odk_data_changed", actor=system_actor())
+        db.session.commit()
+        self._assert_state(va_sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+
+        response = self._cancel(va_sid, self.dm_id)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no open revision request", response.get_json()["error"])
+        self.assertIn("code", response.get_json())
+        self._assert_state(va_sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self.assertNotIn("revision_request_cancelled_by_data_manager", self._actions(va_sid))
+
+    def test_cancel_route_answers_404_for_an_unknown_submission(self):
+        response = self._cancel("uuid:no-such-submission", self.dm_id)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json()["code"], "not_found")
+        self.assertIn("error", response.get_json())
+
+    def test_reject_route_keeps_its_own_text_when_there_is_nothing_to_resolve(self):
+        # An ODK-changed case with neither a pending upstream row nor an open request.
+        va_sid, _final = self._finalised()
+        mark_upstream_change_detected(va_sid, reason="upstream_odk_data_changed", actor=system_actor())
+        db.session.commit()
+        self._login(self.dm_id)
+
+        response = self.client.post(
+            f"/api/v1/data-management/submissions/{va_sid}/reject-upstream-change", headers=self._csrf_headers())
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"], "Submission has no pending upstream change record.")
+
+    def test_cancel_route_refuses_a_case_that_is_not_waiting_for_a_revision(self):
+        va_sid, _final = self._finalised()
+
+        response = self._cancel(va_sid, self.dm_id)
+
+        self.assertEqual(response.status_code, 400)
+        self._assert_state(va_sid, WORKFLOW_CODER_FINALIZED)
+
+    def test_cancel_route_refuses_a_data_manager_outside_the_project(self):
+        va_sid, _final = self._finalised()
+        self.assertEqual(self._send_back(va_sid, self.coder_id).status_code, 200)
+
+        response = self._cancel(va_sid, self.other_dm_id)
+
+        self.assertEqual(response.status_code, 403)
+        self._assert_state(va_sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self.assertNotIn("revision_request_cancelled_by_data_manager", self._actions(va_sid))
+
+    def test_reject_route_message_follows_the_kind_of_change(self):
+        va_sid, _final = self._finalised()
+        self.assertEqual(self._send_back(va_sid, self.coder_id).status_code, 200)
+        self._login(self.dm_id)
+
+        response = self.client.post(
+            f"/api/v1/data-management/submissions/{va_sid}/reject-upstream-change", headers=self._csrf_headers())
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(
+            response.get_json()["message"],
+            f"Revision request cancelled; the case returned to {WORKFLOW_CODER_FINALIZED}.",
+        )
+        self.assertNotIn("ODK", response.get_json()["message"])
+
+        # An ODK change keeps the existing wording (the service answers None).
+        va_sid, _final = self._finalised()
+        self._login(self.dm_id)
+        with mock.patch("app.routes.api.data_management.dm_reject_upstream_change", return_value=None):
+            response = self.client.post(
+                f"/api/v1/data-management/submissions/{va_sid}/reject-upstream-change", headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertIn("Latest upstream ODK data adopted", response.get_json()["message"])
+
     def test_a_cancelled_reviewer_session_send_back_returns_to_reviewer_eligible(self):
         va_sid, _final = self._finalised(WORKFLOW_REVIEWER_CODING_IN_PROGRESS)
         db.session.add(VaAllocations(

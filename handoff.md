@@ -42,10 +42,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    a. **Field collection integrity: done** (server 2026-10-04/05, app by
       the Expo session). Closed: `2bxa`, `latk`, `xz83`, `xuf9`, `6pwq`,
       `hdrv`, `w5jw`. Still open: `digitva-bhpl` until the app's revise
-      screen `digitva-bhpl.2` lands (contract `expo-handoff.md` section 5);
-      `digitva-jcll` (DM dashboard and KPIs count send-backs as ODK upstream
-      changes; View Changes fails on a sent-back case; small, do it between
-      `xl43` phases). Added 2026-10-05:
+      screen `digitva-bhpl.2` lands (contract `expo-handoff.md` section 5).
+      `digitva-jcll` done 2026-10-05: a send-back is a virtual
+      `sent_back_for_revision` state in counts and labels (latest event
+      reason, `app/services/workflow/revision_request_sql.py`), DM "Cancel
+      request" route; MV-based cards still lag live state up to an hour, as
+      for every state. Added 2026-10-05:
       `digitva-xpqm` the coder gets the interviewer's last completed version
       (reverses the "phone completion wins" default; app half `xpqm.2`,
       handoff section 8) and `digitva-bqzm` a supervisor chooses between two
@@ -67,14 +69,16 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       phase 1, coder Step 1 / final / not codeable (`coder_cod_service`,
       `POST /api/v1/coding/initial|finalize|not-codeable`, `eeec15eb`), and
       `xl43.1` app sign-in for coders and reviewers (`4d20ccb3`, contract
-      `expo-handoff.md` section 11). Next: phase 2, case content reads
-      (nav, category data with PII redaction and the Redis section cache,
-      case meta, step state, saved assessments, SmartVA result,
-      other-conditions options); then phase 3: media over `/api/v1`
+      `expo-handoff.md` section 11), phase 2 case content reads
+      (`case_content_service`, `GET /api/v1/va/<sid>/workspace` and
+      `/categories/<code>`, `f98617f3`; section cache key now carries the
+      payload version and role; contract `expo-handoff.md` section 12).
+      Next: phase 3: media over `/api/v1`
       (bearer), `{error, code}` on reviewing/NQA/social-autopsy, reviewer
       queue (available, stats, history), reviewer release, private user
-      note. Unblocks `digitva-p6fs.4`; add the phase 1 save routes to
-      `expo-handoff.md` when phase 2 lands. Known gap: the 1.2 MB body cap
+      note. Then `digitva-xl43.3` DORIS prefill in the workspace, and a
+      read-only view mode if the app needs one. Unblocks `digitva-p6fs.4`.
+      Known gap: the 1.2 MB body cap
       reads `Content-Length` only (no global `MAX_CONTENT_LENGTH`).
    c. `digitva-ey38` `code` on every remaining `/api/v1` error
       (data-management, va/nqa+so, area, cod-buckets, ...) and a contract
@@ -92,6 +96,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    Self-coding: migration `b4k8m2r6w9x3`; bump `STATIC_ASSET_VERSION`
    (intake form, worklist and coder dashboard scripts changed) and the authz
    global version below (grant cache `_FORMAT` is now 2).
+   `digitva-jcll`: bump `STATIC_ASSET_VERSION` (DM dashboard, KPI and
+   workflow-guide scripts changed); KPI JSON caches live 5 minutes. No
+   migration.
    SmartVA (`0ba9833b`): rebuild the image (font cache prebuilt, smaller
    context), restart the Celery worker and beat (beat seeds the 30 s
    `sweep_smartva_pending`); `SMARTVA_CHARTS=1` only for debugging. Web and

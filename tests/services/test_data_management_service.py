@@ -863,6 +863,22 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         state = get_submission_workflow_state(va_sid)
         self.assertEqual(state, WORKFLOW_CODER_FINALIZED)
 
+    def test_reject_of_an_odk_change_returns_none_and_cancel_refuses_it(self):
+        """digitva-jcll: only a send-back/reopen is cancellable."""
+        from app.services.data_management_service import dm_cancel_revision_request
+
+        va_sid = self._create_revoked_submission("reject-odk-kind")
+        dm_user = self._create_dm_user()
+
+        with self.assertRaises(ValueError) as ctx:
+            dm_cancel_revision_request(dm_user, va_sid)
+        self.assertIn("no open revision request", str(ctx.exception))
+        self.assertEqual(get_submission_workflow_state(va_sid), "finalized_upstream_changed")
+
+        self.assertIsNone(dm_reject_upstream_change(dm_user, va_sid))
+        db.session.commit()
+        self.assertEqual(get_submission_workflow_state(va_sid), WORKFLOW_CODER_FINALIZED)
+
     def test_preserves_final_assessments(self):
         """Reject should keep final assessments active."""
         va_sid = self._create_revoked_submission("reject-2")

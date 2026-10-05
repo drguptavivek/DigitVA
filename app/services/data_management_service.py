@@ -96,6 +96,11 @@ from app.services.workflow.definition import (
     WORKFLOW_SCREENING_PENDING,
     WORKFLOW_SMARTVA_PENDING,
 )
+from app.services.workflow.revision_request_sql import (
+    SENT_BACK_FOR_REVISION,
+    open_revision_request_sids,
+    workflow_filter_conditions,
+)
 from app.services.workflow.upstream_changes import (
     UPSTREAM_CHANGE_STATUS_ACCEPTED,
     UPSTREAM_CHANGE_STATUS_KEPT_CURRENT_ICD,
@@ -671,6 +676,7 @@ _WORKFLOW_LABEL = {
     "coding_in_progress":           "Coding In Progress",
     "coder_finalized":              "Coder Finalized",
     "finalized_upstream_changed":   "Finalized - ODK Data Changed",
+    SENT_BACK_FOR_REVISION:         "Sent back for revision",
     "consent_refused":              "Consent Refused",
 }
 
@@ -813,7 +819,9 @@ def dm_submissions_page(
                 WORKFLOW_REVIEWER_FINALIZED,
             ]))
         else:
-            conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
+            conditions.extend(workflow_filter_conditions(
+                workflow, VaSubmissionWorkflow.workflow_state, VaSubmissions.va_sid
+            ))
 
     analytics_age_band_column = (
         _mv_ref.c.analytics_age_band
@@ -926,6 +934,12 @@ def dm_submissions_page(
 
     has_more = offset + len(rows) < total
 
+    # One query for the page: which fuc rows are open revision requests
+    # (send-back or reopen) rather than ODK changes.
+    revision_sids = open_revision_request_sids(
+        row["va_sid"] for row in rows if row.get("workflow_state") == "finalized_upstream_changed"
+    )
+
     data = []
     for row in rows:
         r = va_render_serialisedates(
@@ -934,6 +948,10 @@ def dm_submissions_page(
         )
         r["coded_on"] = _format_datetime_for_current_user(row.get("coded_on"))
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
+        r["revision_requested"] = r["va_sid"] in revision_sids
+        if r["revision_requested"]:
+            r["workflow_label"] = _WORKFLOW_LABEL[SENT_BACK_FOR_REVISION]
+
         r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
         _redact_staff_identity_row(r, redact=redact_pii)
         data.append(r)
@@ -1057,7 +1075,9 @@ def _dm_submission_query_parts(
                 WORKFLOW_REVIEWER_FINALIZED,
             ]))
         else:
-            conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
+            conditions.extend(workflow_filter_conditions(
+                workflow, VaSubmissionWorkflow.workflow_state, VaSubmissions.va_sid
+            ))
 
     return attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions
 
@@ -2860,12 +2880,68 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
     )
 
 
-def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
+def dm_cancel_revision_request(
+    user, va_sid: str, *, no_request_message: str = "Submission has no open revision request."
+) -> str:
+    """Cancel an open send-back or reopen: the case returns to the state it left.
+
+    Only a case in ``finalized_upstream_changed`` whose latest workflow event
+    is a revision request qualifies; an ODK upstream change is not cancellable
+    (it is accepted or kept). Its coding stays untouched. Returns the state
+    the case returned to.
+
+    Raises ValueError / PermissionError on invalid input or access denial.
+    Does NOT commit — caller is responsible.
+    """
+    from app.services.workflow.definition import (
+        WORKFLOW_CODER_FINALIZED,
+        WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    )
+    from app.services.workflow.transitions import keep_current_icd_on_upstream_change
+
+    _dm_submission_scope_check(user, va_sid)
+
+    workflow_record = get_submission_workflow_record(va_sid, for_update=True)
+    current_state = workflow_record.workflow_state if workflow_record else None
+    if current_state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
+        raise ValueError(
+            f"Submission is in state '{current_state}', not finalized_upstream_changed."
+        )
+    send_back = get_open_revision_request(va_sid)
+    if send_back is None:
+        raise ValueError(no_request_message)
+
+    actor = _upstream_resolution_actor(user)
+    target_state = send_back.previous_state or WORKFLOW_CODER_FINALIZED
+    keep_current_icd_on_upstream_change(
+        va_sid,
+        target_state=target_state,
+        reason="data_manager_cancelled_revision_request",
+        actor=actor,
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole=actor.audit_role,
+            va_audit_by=user.user_id,
+            va_audit_operation="u",
+            va_audit_action="revision_request_cancelled_by_data_manager",
+        )
+    )
+    return target_state
+
+
+def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> str | None:
     """Promote new ODK data while preserving the current finalized ICD decision.
 
     The incoming upstream payload becomes the active submission payload, but
     finalized ICD/COD artifacts remain active and the workflow returns to the
     prior finalized state instead of reopening coding.
+
+    A case with no pending upstream change that holds an open send-back or
+    reopen is cancelled instead (``dm_cancel_revision_request``) and the state
+    it returned to is returned, so the caller can answer accordingly; None
+    when the upstream ODK change was kept.
 
     Raises ValueError / PermissionError on invalid input or access denial.
     Does NOT commit — caller is responsible.
@@ -2888,30 +2964,11 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
 
     pending_change = get_latest_pending_upstream_change(va_sid)
     if pending_change is None:
-        send_back = get_open_revision_request(va_sid)
-        if send_back is None:
-            raise ValueError("Submission has no pending upstream change record.")
-        # A coder's or reviewer's send-back, or a supervisor's reopen, is
-        # waiting for the interviewer's revision and holds no upstream
-        # payload. Rejecting it cancels it: the case returns to the state it
-        # was sent back from, its coding untouched.
-        actor = _upstream_resolution_actor(user)
-        keep_current_icd_on_upstream_change(
-            va_sid,
-            target_state=send_back.previous_state or WORKFLOW_CODER_FINALIZED,
-            reason="data_manager_cancelled_revision_request",
-            actor=actor,
+        # No upstream payload: the only other reason for this state is a
+        # send-back or reopen. Rejecting it cancels it.
+        return dm_cancel_revision_request(
+            user, va_sid, no_request_message="Submission has no pending upstream change record."
         )
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=va_sid,
-                va_audit_byrole=actor.audit_role,
-                va_audit_by=user.user_id,
-                va_audit_operation="u",
-                va_audit_action="revision_request_cancelled_by_data_manager",
-            )
-        )
-        return
 
     restore_state = pending_change.workflow_state_before or WORKFLOW_CODER_FINALIZED
     if restore_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
@@ -2980,11 +3037,12 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
     )
 
 
-def dm_reject_upstream_change(user, va_sid: str) -> None:
+def dm_reject_upstream_change(user, va_sid: str) -> str | None:
     """Backward-compatible alias for keeping the current ICD decision.
 
     Route names and some callers still use "reject" language, but the current
     behavior is to adopt the latest ODK payload while preserving finalized ICD
-    artifacts and finalized workflow state.
+    artifacts and finalized workflow state. Returns the state a cancelled
+    send-back/reopen returned to, None for an ODK change.
     """
-    dm_keep_current_icd_on_upstream_change(user, va_sid)
+    return dm_keep_current_icd_on_upstream_change(user, va_sid)

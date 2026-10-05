@@ -2104,3 +2104,51 @@ class DataManagerDashboardTests(BaseTestCase):
         response = self.client.get(f"/data-management/view/{retired_sid}")
 
         self.assertEqual(response.status_code, 200)
+
+    # ------------------------------------------------------------------
+    # Send-backs and reopens share finalized_upstream_changed with ODK
+    # changes; the page and its filters tell them apart (digitva-jcll).
+    # ------------------------------------------------------------------
+
+    def _add_revision_cases(self) -> dict[str, str]:
+        from tests.revision_request_fixtures import seed_revision_cases
+
+        sids = seed_revision_cases(
+            self.FORM_ID, self.base_coder_user.user_id, datetime.now(timezone.utc),
+            prefix=f"dmpage{uuid.uuid4().hex[:6]}",
+        )
+        db.session.commit()
+        return sids
+
+    def _rows(self, query: str) -> dict[str, dict]:
+        response = self.client.get(f"/api/v1/data-management/submissions?size=200{query}")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        return {row["va_sid"]: row for row in response.get_json()["data"]}
+
+    def test_rows_carry_revision_requested_and_the_sent_back_label(self):
+        self._login(self.dm_user_id)
+        sids = self._add_revision_cases()
+
+        rows = self._rows("")
+
+        for name in ("sent_back", "reopened"):
+            self.assertIn(sids[name], rows)
+            self.assertTrue(rows[sids[name]]["revision_requested"], name)
+            self.assertEqual(rows[sids[name]]["workflow_label"], "Sent back for revision")
+            self.assertEqual(rows[sids[name]]["workflow_state"], "finalized_upstream_changed")
+        for name in ("odk", "legacy", "odk_after"):
+            self.assertIn(sids[name], rows)
+            self.assertFalse(rows[sids[name]]["revision_requested"], name)
+            self.assertEqual(rows[sids[name]]["workflow_label"], "Finalized - ODK Data Changed")
+        self.assertFalse(rows[sids["coded"]]["revision_requested"])
+
+    def test_the_two_workflow_filters_split_the_upstream_states(self):
+        self._login(self.dm_user_id)
+        sids = self._add_revision_cases()
+        mine = set(sids.values())
+
+        odk_rows = set(self._rows("&workflow=finalized_upstream_changed")) & mine
+        sent_back_rows = set(self._rows("&workflow=sent_back_for_revision")) & mine
+
+        self.assertEqual(odk_rows, {sids["odk"], sids["legacy"], sids["odk_after"]})
+        self.assertEqual(sent_back_rows, {sids["sent_back"], sids["reopened"]})

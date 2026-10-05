@@ -42,8 +42,12 @@ manager's accept block, shared as `reopen_coding_after_revision`
 (`app/services/coding_release_service.py`), under a system actor with the
 reason `interviewer_revision`; any lingering pending upstream payload version
 is rejected. An unchanged revision leaves the case sent back. A data manager's
-reject of the upstream change cancels a send-back or reopen: the case returns
-to the state it came from. Only web and device interviews: an ODK submission is
+`Cancel request` (`POST /api/v1/data-management/submissions/<va_sid>/cancel-revision-request`,
+`dm_cancel_revision_request`), or a reject of the case through the upstream
+reject route, cancels a send-back or reopen: the case returns to the state it
+came from. Dashboards, KPIs and the data-manager page tell a send-back from an
+ODK change by the latest workflow event's reason and show it as "Sent back for
+revision" (`app/services/workflow/revision_request_sql.py`, `digitva-jcll`). Only web and device interviews: an ODK submission is
 refused (409 `not_web_submission`), ODK has its own needs-revision path.
 
 **Not built**: the phone's Revise screen and "my submitted interviews" list,

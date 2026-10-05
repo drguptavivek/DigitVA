@@ -259,6 +259,10 @@
         // C-10: Upstream queue — API: upstream.c10_queue_count
         document.getElementById('dm-kpi-upstream-queue').textContent =
           upstream.c10_queue_count || 0;
+        // Open send-backs and reopens are not ODK changes; counted apart.
+        document.getElementById('dm-kpi-upstream-queue-sub').textContent =
+          'C-10 · ODK changes' + (upstream.c10_sent_back_count
+            ? ' · ' + upstream.c10_sent_back_count + ' sent back' : '');
 
         // C-11: Upstream rate — API: upstream.c11_rate
         document.getElementById('dm-kpi-upstream-rate').textContent =
@@ -712,17 +716,25 @@
     }
 
     // Row 5: Reviewed
-    if ((s.reviewed || 0) > 0 || (s.upstream_changed || 0) > 0) {
+    if ((s.reviewed || 0) > 0 || (s.upstream_changed || 0) > 0 || (s.sent_back || 0) > 0) {
       html += '<div class="wf-connector-down"></div>';
 
-      var hasUpstream = (s.upstream_changed || 0) > 0;
+      var hasUpstream = (s.upstream_changed || 0) > 0 || (s.sent_back || 0) > 0;
       if (hasUpstream) {
         html += '<div class="wf-branch-row">';
         html += '<div class="wf-branch-side wf-branch-left">';
-        html += '<div class="wf-node wf-exception">';
-        html += '<div class="wf-node-label"><small>Upstream Changed</small></div>';
-        html += '<div class="wf-node-count-small">' + s.upstream_changed + '</div>';
-        html += '</div>';
+        if ((s.upstream_changed || 0) > 0) {
+          html += '<div class="wf-node wf-exception">';
+          html += '<div class="wf-node-label"><small>Upstream Changed</small></div>';
+          html += '<div class="wf-node-count-small">' + s.upstream_changed + '</div>';
+          html += '</div>';
+        }
+        if ((s.sent_back || 0) > 0) {
+          html += '<div class="wf-node wf-exception">';
+          html += '<div class="wf-node-label"><small>Sent Back for Revision</small></div>';
+          html += '<div class="wf-node-count-small">' + s.sent_back + '</div>';
+          html += '</div>';
+        }
         html += '</div>';
         html += '<div class="wf-branch-main">';
         html += '<div class="wf-node wf-review">';
@@ -919,7 +931,7 @@
         var stateOrder = ['consent_refused', 'attachment_sync_pending', 'screening_pending',
           'smartva_pending', 'ready_for_coding', 'coding_in_progress', 'coder_step1_saved',
           'coder_finalized', 'reviewer_eligible', 'reviewer_coding_in_progress',
-          'reviewer_finalized', 'finalized_upstream_changed',
+          'reviewer_finalized', 'finalized_upstream_changed', 'sent_back_for_revision',
           'not_codeable_by_coder', 'not_codeable_by_data_manager'];
 
         var datasets = stateOrder
@@ -975,6 +987,7 @@
     reviewer_coding_in_progress: 'Reviewer in Progress',
     reviewer_finalized: 'Reviewer Finalized',
     finalized_upstream_changed: 'Upstream Changed',
+    sent_back_for_revision: 'Sent Back for Revision',
     not_codeable_by_coder: 'Not Codeable (Coder)',
     not_codeable_by_data_manager: 'Not Codeable (DM)',
     consent_refused: 'Not Analysable',
@@ -992,6 +1005,7 @@
     reviewer_coding_in_progress: 'review',
     reviewer_finalized: 'review',
     finalized_upstream_changed: 'exception',
+    sent_back_for_revision: 'exception',
     not_codeable_by_coder: 'exclusion',
     not_codeable_by_data_manager: 'exclusion',
     consent_refused: 'exclusion',

@@ -12,6 +12,11 @@ from app import db
 from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.revision_request_sql import (
+    dm_reopen_event_sql,
+    odk_detected_event_sql,
+    revision_request_open_sql,
+)
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
@@ -54,6 +59,10 @@ _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
     """Workflow and final-COD authority counts over the forms *scope_sql* selects.
 
+    ``upstream_changed`` and the upstream event counts are ODK changes only;
+    open send-backs and reopens count as ``sent_back``
+    (``app/services/workflow/revision_request_sql.py``).
+
     *scope_sql* is a fixed predicate on ``va_submissions s`` / ``va_forms f`` written by a caller in
     this module, never user input; its values travel in *scope_params*. One
     query. Counts only, no staff or subject identity.
@@ -85,8 +94,14 @@ def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
         event_totals AS (
             SELECT
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_admin_override) AS admin_reset_events,
-                COUNT(*) FILTER (WHERE e.transition_id = :transition_upstream_detected) AS upstream_change_events,
-                COUNT(*) FILTER (WHERE e.transition_id = :transition_upstream_accepted) AS upstream_change_accept_events,
+                COUNT(*) FILTER (
+                    WHERE e.transition_id = :transition_upstream_detected
+                      AND {odk_detected_event_sql("e")}
+                ) AS upstream_change_events,
+                COUNT(*) FILTER (
+                    WHERE e.transition_id = :transition_upstream_accepted
+                      AND {dm_reopen_event_sql("e")}
+                ) AS upstream_change_accept_events,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_recode_started) AS recode_started_events,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_recode_finalized) AS recode_finalized_events,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_reviewer_started) AS reviewer_started_events,
@@ -107,7 +122,12 @@ def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
             ) AS reviewer_finalized_submissions,
             COUNT(*) FILTER (
                 WHERE ss.workflow_state = :workflow_upstream_changed
+                  AND NOT {revision_request_open_sql("ss.va_sid")}
             ) AS upstream_changed_submissions,
+            COUNT(*) FILTER (
+                WHERE ss.workflow_state = :workflow_upstream_changed
+                  AND {revision_request_open_sql("ss.va_sid")}
+            ) AS sent_back_submissions,
             COUNT(*) FILTER (
                 WHERE ss.workflow_state IN (:workflow_not_codeable_coder, :workflow_not_codeable_dm)
             ) AS total_not_codeable,
@@ -168,6 +188,7 @@ def _workflow_kpis(scope_sql: str, scope_params: dict) -> dict:
             "reviewer_finalized": kpi_row["reviewer_finalized_submissions"] or 0,
             "post_coder_complete": kpi_row["post_coder_complete_submissions"] or 0,
             "upstream_changed": kpi_row["upstream_changed_submissions"] or 0,
+            "sent_back": kpi_row["sent_back_submissions"] or 0,
         },
         "authority_kpis": {
             "coder_authority": kpi_row["coder_authority_submissions"] or 0,
@@ -372,8 +393,14 @@ def _dashboard_data(
                 e.va_sid,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_coder_finalized) AS coder_finalized_count,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_admin_override) AS admin_reset_count,
-                COUNT(*) FILTER (WHERE e.transition_id = :transition_upstream_detected) AS upstream_change_count,
-                COUNT(*) FILTER (WHERE e.transition_id = :transition_upstream_accepted) AS upstream_accept_count,
+                COUNT(*) FILTER (
+                    WHERE e.transition_id = :transition_upstream_detected
+                      AND {odk_detected_event_sql("e")}
+                ) AS upstream_change_count,
+                COUNT(*) FILTER (
+                    WHERE e.transition_id = :transition_upstream_accepted
+                      AND {dm_reopen_event_sql("e")}
+                ) AS upstream_accept_count,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_recode_started) AS recode_started_count,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_recode_finalized) AS recode_finalized_count,
                 COUNT(*) FILTER (WHERE e.transition_id = :transition_reviewer_started) AS reviewer_started_count,

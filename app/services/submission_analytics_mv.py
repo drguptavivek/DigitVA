@@ -54,6 +54,11 @@ from app.services.workflow.definition import (
     WORKFLOW_SCREENING_PENDING,
     WORKFLOW_SMARTVA_PENDING,
 )
+from app.services.workflow.revision_request_sql import (
+    SENT_BACK_FOR_REVISION,
+    revision_request_open_condition,
+    workflow_filter_conditions,
+)
 
 CORE_MV_NAME = "va_submission_analytics_core_mv"
 DEMOGRAPHICS_MV_NAME = "va_submission_analytics_demographics_mv"
@@ -1322,7 +1327,7 @@ def build_dm_mv_filter_conditions(
                 WORKFLOW_REVIEWER_FINALIZED,
             ]))
         else:
-            conditions.append(core.c.workflow_state == workflow)
+            conditions.extend(workflow_filter_conditions(workflow, core.c.workflow_state, core.c.va_sid))
     return conditions
 
 
@@ -1436,6 +1441,8 @@ def get_dm_kpi_from_mv(
         .select_from(joined)
         .where(where)
         .where(core.c.workflow_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        # ODK changes only: an open send-back or reopen is not "revoked".
+        .where(sa.not_(revision_request_open_condition(core.c.va_sid)))
     ) or 0
     coded = db.session.scalar(
         sa.select(sa.func.count())
@@ -1514,13 +1521,24 @@ def get_dm_kpi_from_mv(
     consent_refused = sum(not_analysable_by_reason.values())
 
     # Per-state counts for the workflow flowchart — single GROUP BY query
+    # (effective state: open revision requests read as sent_back_for_revision)
+    effective_state = sa.case(
+        (
+            sa.and_(
+                core.c.workflow_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+                revision_request_open_condition(core.c.va_sid),
+            ),
+            SENT_BACK_FOR_REVISION,
+        ),
+        else_=core.c.workflow_state,
+    ).label("effective_state")
     state_rows = db.session.execute(
-        sa.select(core.c.workflow_state, sa.func.count().label("cnt"))
+        sa.select(effective_state, sa.func.count().label("cnt"))
         .select_from(joined)
         .where(where)
-        .group_by(core.c.workflow_state)
+        .group_by(effective_state)
     ).all()
-    workflow_counts = {row.workflow_state: row.cnt for row in state_rows}
+    workflow_counts = {row.effective_state: row.cnt for row in state_rows}
 
     return {
         "total_submissions": total,

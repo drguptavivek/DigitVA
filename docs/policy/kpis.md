@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Data Manager KPI Framework
@@ -275,14 +275,15 @@ every interview that cannot be analysed, whatever the reason.
 
 ### C-10: Upstream Change Queue
 
-- **Definition:** COUNT where `workflow_state = 'finalized_upstream_changed'`
-- **Source:** `va_submission_workflow` WHERE `workflow_state = 'finalized_upstream_changed'`
+- **Definition:** COUNT where `workflow_state = 'finalized_upstream_changed'` and the latest workflow event is not a send-back or reopen (ODK upstream changes only)
+- **Source:** `va_submission_workflow` WHERE `workflow_state = 'finalized_upstream_changed'`, split on the latest event's `transition_reason` (`app/services/workflow/revision_request_sql.py`)
+- **Companion:** `c10_sent_back_count` counts the same state when the latest event is `sent_back_for_revision` / `reopened_for_revision` (a coder or reviewer send-back, a supervisor reopen). It is a virtual state `sent_back_for_revision`, never stored
 - **Scope:** CODED
 - **Time Frame:** Snapshot
 
 ### C-11: % Forms with Upstream Changes
 
-- **Numerator:** COUNT of submissions that have at least one `va_submission_workflow_events` row with `transition_id = 'upstream_change_detected'`
+- **Numerator:** COUNT of submissions that have at least one `va_submission_workflow_events` row with `transition_id = 'upstream_change_detected'` whose `transition_reason` is not a revision request (`sent_back_for_revision`, `reopened_for_revision`) or `interview_chosen`: ODK changes only
 - **Denominator:** COUNT of CODED submissions
 - **Rate:** N / D × 100
 - **Scope:** CODED
@@ -395,7 +396,8 @@ every interview that cannot be analysed, whatever the reason.
 | Attachments not synced | `workflow_state = 'attachment_sync_pending'` | Trigger attachment sync |
 | Missing attachments | Past SmartVA gate but `va_submission_attachments` count = 0 | Re-trigger attachment sync; check ODK Central |
 | SmartVA not run | `workflow_state = 'smartva_pending'` | Check SmartVA queue |
-| Upstream change pending | `workflow_state = 'finalized_upstream_changed'` | Accept or reject upstream change |
+| Upstream change pending | `workflow_state = 'finalized_upstream_changed'`, latest event not a revision request | Accept or reject upstream change |
+| Sent back for revision | `workflow_state = 'finalized_upstream_changed'`, latest event a send-back or reopen | Wait for the interviewer or cancel the request |
 | Missing language | `va_narration_language IS NULL/empty` | Fix language mapping |
 | Unmapped language | `va_narration_language NOT IN (SELECT alias FROM map_language_aliases)` | Add alias mapping |
 | Language gap | Language has zero coders | Recruit/reassign coders |
@@ -474,6 +476,7 @@ Backlog         27         8        10       25
 - Numerator: For each resolved upstream change in 7d, `resolved_at − created_at`
 - Aggregate: PERCENTILE(0.5)
 - Source: `va_submission_upstream_changes`
+- Note: rows exist for ODK changes only, so send-backs and reopens are already excluded
 - Time Frame: 7d
 
 **D-WT-03: Coding Backlog Trend**
@@ -482,7 +485,8 @@ Backlog         27         8        10       25
 - Display: Line chart, default 90-day window
 
 **D-WT-04: Reopen Rate**
-- Numerator: COUNT of events with `transition_id IN ('upstream_change_accepted', 'admin_override_to_recode')` in window
+- Numerator: COUNT of events with `transition_id IN ('upstream_change_accepted', 'admin_override_to_recode')` in window, minus events whose `transition_reason` is `interviewer_revision` (the interviewer's revision restarting a sent-back case) or `interview_chosen` (a supervisor's choice of the other interview); neither is a data-manager reopen
+- Companion: `d_wt_04_revision_restarts_7d` counts the `interviewer_revision` restarts
 - Denominator: COUNT of `coder_finalized` events in window
 - Rate: N/D × 100
 - Scope: CODED
@@ -534,10 +538,12 @@ Backlog         27         8        10       25
 | coder_finalized | <24h (recode window) | >24h | >7d |
 | reviewer_eligible | indefinite (optional) | N/A | N/A |
 | reviewer_coding_in_progress | <4h | >24h | >7d |
-| finalized_upstream_changed | <48h | >48h | >7d |
+| finalized_upstream_changed (ODK changes) | <48h | >48h | >7d |
+| sent_back_for_revision (virtual: fuc whose latest event is a send-back or reopen) | <48h | >48h | >7d |
 
 - Terminal states excluded: reviewer_finalized, not_codeable_by_coder, not_codeable_by_data_manager, consent_refused
 - Response: `alerts[]` with `state`, `label`, `total`, `gt_48h`, `gt_7d`, `p50_age_hours`, `alert_level` (normal/warning/critical/info), `dm_action`
+- State counts, the flowchart (`stages.upstream_changed` and `stages.sent_back`) and stagnation group by the effective state; `state-velocity` (D-WF-02) still reports raw stored states
 - Special: coder_finalized includes `within_24h` and `gt_24h` split (24h recode window is normal)
 - Rendering: Alert table with traffic-light color coding
 - Endpoint: `GET /api/v1/analytics/dm-kpi/workflow/stagnation`

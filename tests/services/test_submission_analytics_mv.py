@@ -1693,6 +1693,43 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["pending_submissions"], 3)
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
 
+    def test_kpi_splits_send_backs_from_odk_upstream_changes(self):
+        """digitva-jcll: revoked and the fuc filter are ODK-only; send-backs apart."""
+        from app.models import VaSubmissionWorkflowEvent
+
+        cases = {
+            "uuid:mv-rev-odk": "upstream_odk_data_changed",
+            "uuid:mv-rev-sent-back": "sent_back_for_revision",
+            "uuid:mv-rev-legacy": None,  # fuc with no event at all
+        }
+        for sid, reason in cases.items():
+            self._add_submission(sid, {}, workflow_state="finalized_upstream_changed")
+            if reason:
+                db.session.add(
+                    VaSubmissionWorkflowEvent(
+                        va_sid=sid,
+                        transition_id="upstream_change_detected",
+                        previous_state="coder_finalized",
+                        current_state="finalized_upstream_changed",
+                        actor_kind="system",
+                        actor_role="vasystem",
+                        transition_reason=reason,
+                    )
+                )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [])
+        odk_kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="finalized_upstream_changed")
+        sent_back_kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="sent_back_for_revision")
+
+        self.assertEqual(kpi["total_submissions"], 3)  # present before asserting the split
+        self.assertEqual(kpi["revoked_submissions"], 2)
+        self.assertEqual(kpi["workflow_counts"]["finalized_upstream_changed"], 2)
+        self.assertEqual(kpi["workflow_counts"]["sent_back_for_revision"], 1)
+        self.assertEqual(odk_kpi["total_submissions"], 2)
+        self.assertEqual(sent_back_kpi["total_submissions"], 1)
+
     def test_not_analysable_card_splits_consent_refused_rows_by_reason(self):
         for sid, outcome in (
             ("uuid:mv-na-refused", "refused"),

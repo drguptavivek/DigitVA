@@ -167,7 +167,9 @@
     at least one active reviewer final assessment. Excludes coder_finalized forms less
     than 24 hours old (the recode window).</li>
   <li><strong>Upstream change queue</strong> &mdash; count of submissions currently in
-    the finalized_upstream_changed state, indicating ODK data changed after coding</li>
+    the finalized_upstream_changed state because ODK data changed after coding. Cases a
+    coder, reviewer or supervisor sent back for the interviewer's revision share that
+    state but are counted apart as &ldquo;sent back for revision&rdquo;.</li>
   <li><strong>Upstream change resolution time</strong> &mdash; median time to resolve
     upstream changes over the trailing 7 days</li>
   <li><strong>Coder-reviewer disagreement rate</strong> &mdash; among submissions with
@@ -338,6 +340,10 @@
     <tr>
       <td>Upstream change pending</td>
       <td>Accept or reject the upstream change</td>
+    </tr>
+    <tr>
+      <td>Sent back for revision</td>
+      <td>Wait for the interviewer, or cancel the request</td>
     </tr>
     <tr>
       <td>Missing or unmapped language</td>

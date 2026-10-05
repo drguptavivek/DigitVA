@@ -101,6 +101,7 @@ class SitePiReportingServiceTests(BaseTestCase):
         current_state: str,
         *,
         minutes_ago: int = 0,
+        reason: str | None = None,
     ) -> None:
         db.session.add(
             VaSubmissionWorkflowEvent(
@@ -108,6 +109,7 @@ class SitePiReportingServiceTests(BaseTestCase):
                 transition_id=transition_id,
                 previous_state=previous_state,
                 current_state=current_state,
+                transition_reason=reason,
                 actor_kind="system",
                 actor_role="vasystem",
                 event_created_at=datetime.now(timezone.utc) - timedelta(minutes=minutes_ago),
@@ -272,6 +274,44 @@ class SitePiReportingServiceTests(BaseTestCase):
 
         coder_row = next(row for row in data["coder_kpis"] if row["coder_name"] == self.base_coder_user.name)
         self.assertEqual(coder_row["total_done"], 2)
+
+    def test_sitepi_upstream_counts_are_odk_only_and_send_backs_count_apart(self):
+        """digitva-jcll: a send-back or reopen is not an ODK upstream change."""
+        sid_odk = "uuid:sitepi-rev-odk"
+        sid_sent_back = "uuid:sitepi-rev-sent-back"
+        sid_restarted = "uuid:sitepi-rev-restarted"
+        self._add_submission(sid_odk, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self._add_submission(sid_sent_back, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self._add_submission(sid_restarted, WORKFLOW_READY_FOR_CODING)
+        self._add_event(
+            sid_odk, TRANSITION_UPSTREAM_CHANGE_DETECTED, "coder_finalized",
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED, minutes_ago=30, reason="upstream_odk_data_changed",
+        )
+        self._add_event(
+            sid_sent_back, TRANSITION_UPSTREAM_CHANGE_DETECTED, "coder_finalized",
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED, minutes_ago=20, reason="sent_back_for_revision",
+        )
+        self._add_event(
+            sid_restarted, TRANSITION_UPSTREAM_CHANGE_DETECTED, "coder_finalized",
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED, minutes_ago=20, reason="reopened_for_revision",
+        )
+        self._add_event(
+            sid_restarted, TRANSITION_UPSTREAM_CHANGE_ACCEPTED, WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+            WORKFLOW_READY_FOR_CODING, minutes_ago=10, reason="interviewer_revision",
+        )
+        db.session.commit()
+
+        data = get_sitepi_dashboard_data(self.BASE_PROJECT_ID, self.BASE_SITE_ID)
+
+        self.assertEqual(data["total_submissions"], 3)
+        self.assertEqual(data["current_state_kpis"]["upstream_changed"], 1)
+        self.assertEqual(data["current_state_kpis"]["sent_back"], 1)
+        self.assertEqual(data["cycle_kpis"]["upstream_changes"], 1)
+        self.assertEqual(data["cycle_kpis"]["upstream_accepts"], 0)
+        by_sid = {row["va_sid"]: row for row in data["submission_rows"]}
+        self.assertEqual(by_sid[sid_odk]["upstream_change_count"], 1)
+        self.assertEqual(by_sid[sid_sent_back]["upstream_change_count"], 0)
+        self.assertEqual(by_sid[sid_restarted]["upstream_accept_count"], 0)
 
     def test_sitepi_dashboard_excludes_submissions_retired_from_odk(self):
         """Retired submissions drop out of every Site PI count.

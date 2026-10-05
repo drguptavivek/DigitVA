@@ -40,6 +40,11 @@ from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services import not_analysable
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
+from app.services.workflow.revision_request_sql import (
+    SENT_BACK_FOR_REVISION,
+    odk_changed_sql,
+    sent_back_sql,
+)
 
 bp = Blueprint("dm_kpi_exclusions", __name__)
 log = logging.getLogger(__name__)
@@ -297,6 +302,10 @@ def blocked_forms():
       - attachment_sync_pending → DM: trigger attachment sync
       - smartva_pending         → DM: check SmartVA queue
       - finalized_upstream_changed → DM: accept or reject upstream change
+                                     (ODK changes only)
+      - sent_back_for_revision  → DM: wait for the interviewer or cancel the
+                                  request (finalized_upstream_changed whose
+                                  latest event is a send-back or reopen)
       - missing_language        → DM: fix language mapping
       - odk_has_issues          → DM: coordinate with field team
 
@@ -317,9 +326,21 @@ def blocked_forms():
             ("attachment_sync_pending", "Attachments not synced", "Trigger attachment sync"),
             ("smartva_pending", "SmartVA not run", "Check SmartVA queue"),
             ("finalized_upstream_changed", "Upstream change pending", "Accept or reject upstream change"),
+            (
+                SENT_BACK_FOR_REVISION,
+                "Sent back for revision",
+                "Wait for the interviewer or cancel the request",
+            ),
         ]
 
         for state, label, action in categories:
+            # The two upstream kinds share the stored state; split on the latest event.
+            if state == SENT_BACK_FOR_REVISION:
+                state_sql = sent_back_sql("w")
+            elif state == "finalized_upstream_changed":
+                state_sql = odk_changed_sql("w")
+            else:
+                state_sql = f"w.workflow_state = '{state}'"
             count = db.session.execute(
                 sa.text(f"""
                     SELECT COUNT(*) AS cnt
@@ -329,7 +350,7 @@ def blocked_forms():
                     WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
-                      AND w.workflow_state = '{state}'
+                      AND {state_sql}
                 """),
                 {**IN_ODK_BIND, **scope.params},
             ).scalar() or 0

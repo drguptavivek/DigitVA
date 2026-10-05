@@ -213,6 +213,7 @@
     reviewer_coding_in_progress:  { label: 'Reviewer Coding',         color: '#047857' },
     reviewer_finalized:           { label: 'Reviewer Finalized',       color: '#065f46' },
     finalized_upstream_changed:   { label: 'Upstream Changed',         color: '#9333ea' },
+    sent_back_for_revision:       { label: 'Sent Back for Revision',   color: '#0d9488' },
     not_codeable_by_data_manager: { label: 'Not Codeable — DM',        color: '#ea580c' },
     consent_refused:              { label: 'Consent Refused',          color: '#dc2626' },
   };
@@ -475,7 +476,10 @@
       const state = params.value;
       const label = (params.data && params.data.workflow_label) || state || '';
       if (state === 'finalized_upstream_changed') {
-        this.eGui.innerHTML = `<span class="badge" style="background:#9333ea;">${label}</span>`;
+        // A send-back or reopen shares the state with an ODK change; the
+        // server marks it (revision_requested) and labels it.
+        const colour = params.data && params.data.revision_requested ? '#0d9488' : '#9333ea';
+        this.eGui.innerHTML = `<span class="badge" style="background:${colour};">${label}</span>`;
         return;
       }
       let cls = 'bg-light text-dark border';
@@ -519,6 +523,12 @@
         // Viewers open the read-only area view; no data-manager actions.
         this.eGui.innerHTML = `
           <a href="/coding/area/${encodeURIComponent(sid)}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>`;
+      } else if (state === 'finalized_upstream_changed' && params.data.revision_requested) {
+        // Send-back / reopen: there is no upstream ODK data to review, only a
+        // request to cancel while the interviewer revises.
+        this.eGui.innerHTML = `
+          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>
+          <button class="btn btn-sm btn-outline-danger py-0 px-1 dm-cancel-revision-btn" data-sid="${sid}">Cancel request</button>`;
       } else if (state === 'finalized_upstream_changed') {
         const formId = params.data ? params.data.va_uniqueid_masked : '';
         this.eGui.innerHTML = `
@@ -747,16 +757,38 @@
       });
     });
 
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.dm-cancel-revision-btn');
+      if (!btn || !btn.dataset.sid) return;
+      openConfirm({
+        sid: btn.dataset.sid,
+        action: 'cancel-revision',
+        title: 'Confirm Cancel Revision Request',
+        body: 'This cancels the send-back or reopen. The case returns to the state it was in before, with its coding untouched.',
+        buttonClass: 'btn-danger',
+        buttonLabel: 'Cancel Request',
+      });
+    });
+
+    const ACTION_LABELS = {
+      accept: 'Accept And Recode',
+      reject: 'Keep Current ICD Decision',
+      'cancel-revision': 'Cancel Request',
+    };
+
     confirmSubmitBtn.addEventListener('click', () => {
       const sid = confirmSubmitBtn.dataset.sid;
       const action = confirmSubmitBtn.dataset.action;
       if (!sid || !action) return;
       confirmSubmitBtn.disabled = true;
       confirmSubmitBtn.textContent = '…';
-      jsonFetch(`/api/v1/data-management/submissions/${sid}/${action}-upstream-change`, { method: 'POST' })
+      const path = action === 'cancel-revision' ? 'cancel-revision-request' : `${action}-upstream-change`;
+      jsonFetch(`/api/v1/data-management/submissions/${sid}/${path}`, { method: 'POST' })
         .then(() => {
           if (action === 'accept') {
             toast('Upstream change accepted for recoding — submission moved to SmartVA pending.', 'success');
+          } else if (action === 'cancel-revision') {
+            toast('Revision request cancelled', 'success');
           } else {
             toast('Latest ODK data adopted — current finalized ICD decision kept.', 'success');
           }
@@ -768,10 +800,10 @@
             gridApi.purgeInfiniteCache();
           }
         })
-        .catch(err => toast(`${action === 'accept' ? 'Accept And Recode' : 'Keep Current ICD Decision'} failed: ` + err.message, 'danger'))
+        .catch(err => toast(`${ACTION_LABELS[action]} failed: ` + err.message, 'danger'))
         .finally(() => {
           confirmSubmitBtn.disabled = false;
-          confirmSubmitBtn.textContent = action === 'accept' ? 'Accept And Recode' : 'Keep Current ICD Decision';
+          confirmSubmitBtn.textContent = ACTION_LABELS[action];
         });
     });
   }

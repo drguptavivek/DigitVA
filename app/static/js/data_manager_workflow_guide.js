@@ -21,6 +21,7 @@
     RCI: 'reviewer_coding_in_progress',
     RF: 'reviewer_finalized',
     RVK: 'finalized_upstream_changed',
+    SBR: 'sent_back_for_revision',
   };
 
   function loadMermaid() {
@@ -75,6 +76,7 @@
 
     CF(["✅ Coder Finalized\n(${count('coder_finalized')})"])
     RVK(["⚠️ Upstream Changed\n(${count('finalized_upstream_changed')})"])
+    SBR(["↩ Sent Back for Revision\n(${count('sent_back_for_revision')})"])
 
     ODK -->|"no / missing consent"| CR
     ODK -->|"consent valid, DM screening"| SP
@@ -103,6 +105,10 @@
     RF -->|"ODK data changed"| RVK
     RVK -.->|"accept — recode"| RFC
     RVK -.->|"reject — restore"| CF
+    CF -->|"sent back / reopened"| SBR
+    RF -->|"sent back / reopened"| SBR
+    SBR -.->|"interviewer revises — recode"| RFC
+    SBR -.->|"DM cancels — restore"| CF
 
     click CR __dm_workflow_click
     click SP __dm_workflow_click
@@ -118,6 +124,7 @@
     click RCI __dm_workflow_click
     click RF __dm_workflow_click
     click RVK __dm_workflow_click
+    click SBR __dm_workflow_click
 
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
     style SP   fill:#f1f5f9,stroke:#64748b,color:#334155
@@ -133,6 +140,7 @@
     style RCI  fill:#a7f3d0,stroke:#047857,color:#064e3b
     style RF   fill:#6ee7b7,stroke:#065f46,color:#064e3b
     style RVK  fill:#fdf4ff,stroke:#9333ea,color:#581c87
+    style SBR  fill:#f0fdfa,stroke:#0d9488,color:#134e4a
 `;
   }
 

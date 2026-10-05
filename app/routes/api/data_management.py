@@ -33,6 +33,7 @@ from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
+    dm_cancel_revision_request,
     dm_coded_cod_snapshot_export_csv,
     dm_coder_daily_statistics,
     dm_filter_options,
@@ -663,6 +664,7 @@ def sync_submission(va_sid: str):
 # ---------------------------------------------------------------------------
 # POST /submissions/<sid>/accept-upstream-change
 # POST /submissions/<sid>/reject-upstream-change
+# POST /submissions/<sid>/cancel-revision-request
 # ---------------------------------------------------------------------------
 
 @bp.post("/submissions/<va_sid>/accept-upstream-change")
@@ -733,9 +735,15 @@ def screening_reject(va_sid: str):
 def reject_upstream_change(va_sid: str):
     """Keep the current ICD decision while adopting the latest upstream ODK data."""
     try:
-        dm_reject_upstream_change(current_user, va_sid)
+        cancelled_to = dm_reject_upstream_change(current_user, va_sid)
         db.session.commit()
         _refresh_dm_dashboard_analytics()
+        if cancelled_to is not None:
+            # A send-back or reopen carries no ODK data: rejecting it cancels it.
+            return jsonify({
+                "message": f"Revision request cancelled; the case returned to {cancelled_to}.",
+                "previous_state": cancelled_to,
+            })
         return jsonify({
             "message": (
                 "Latest upstream ODK data adopted. Current finalized ICD decision kept."
@@ -749,6 +757,30 @@ def reject_upstream_change(va_sid: str):
         db.session.rollback()
         log.error("reject_upstream_change failed for %s", va_sid, exc_info=True)
         return jsonify({"error": "Operation failed. Check server logs."}), 500
+
+
+@bp.post("/submissions/<va_sid>/cancel-revision-request")
+@role_required("data_manager", "admin")
+def cancel_revision_request(va_sid: str):
+    """Cancel an open send-back or reopen; the case returns to the state it left."""
+    try:
+        returned_to = dm_cancel_revision_request(current_user, va_sid)
+        db.session.commit()
+        _refresh_dm_dashboard_analytics()
+        return jsonify({
+            "message": f"Revision request cancelled; the case returned to {returned_to}.",
+            "previous_state": returned_to,
+        })
+    except PermissionError as exc:
+        return jsonify({"error": str(exc), "code": "forbidden"}), 403
+    except ValueError as exc:
+        if str(exc) == "Submission not found.":
+            return jsonify({"error": str(exc), "code": "not_found"}), 404
+        return jsonify({"error": str(exc), "code": "not_cancellable"}), 400
+    except Exception:
+        db.session.rollback()
+        log.error("cancel_revision_request failed for %s", va_sid, exc_info=True)
+        return jsonify({"error": "Operation failed. Check server logs.", "code": "server_error"}), 500
 
 
 # ---------------------------------------------------------------------------

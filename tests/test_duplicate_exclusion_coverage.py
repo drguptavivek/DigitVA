@@ -68,6 +68,10 @@ _COD_WRITE_ROUTE = (
 )
 _MV_DDL = "materialized-view definition or refresh; exclusion is applied at query time"
 _SYNC = "ODK sync / payload maintenance; must keep a duplicate's data current for a reopen"
+_RESOLVER = (
+    "classifies a finalized_upstream_changed row as ODK change or send-back; callers "
+    "apply their own scope and duplicate predicates"
+)
 
 EXEMPT = {
     "models/va_submission_workflow.py::VaSubmissionWorkflow.__repr__": "debug repr",
@@ -129,14 +133,14 @@ EXEMPT = {
         "coding list or count"
     ),
     "routes/api/reviewing.py::finalize": _ONE_ROW,
-    "routes/va_form.py::renderpartial": (
-        "renders one submission a user already reached through an allocation or view grant"
-    ),
-    "services/case_transition_service.py::_needs_data_manager": (
     "routes/api/va_case.py::workspace": (
         "reads one case's workflow state for the caller's own allocated case, gated by "
         "the active allocation; a view, not a coding list or count"
     ),
+    "routes/va_form.py::renderpartial": (
+        "renders one submission a user already reached through an allocation or view grant"
+    ),
+    "services/case_transition_service.py::_needs_data_manager": (
         "reads one case's coding state to decide who may confirm it"
     ),
     "services/coding_allocation_service.py::cleanup_expired_demo_coding_artifacts": (
@@ -154,6 +158,12 @@ EXEMPT = {
     "services/data_management_service.py::dm_screening_reject": _WRITER,
     "services/data_management_service.py::dm_accept_upstream_change": _WRITER,
     "services/data_management_service.py::dm_keep_current_icd_on_upstream_change": _WRITER,
+    "services/data_management_service.py::dm_cancel_revision_request": _WRITER,
+    "services/workflow/revision_request_sql.py::effective_workflow_state_sql": _RESOLVER,
+    "services/workflow/revision_request_sql.py::odk_changed_sql": _RESOLVER,
+    "services/workflow/revision_request_sql.py::sent_back_sql": _RESOLVER,
+    "services/workflow/revision_request_sql.py::revision_request_open_condition": _RESOLVER,
+    "services/workflow/revision_request_sql.py::open_revision_request_sids": _RESOLVER,
     "services/open_submission_repair_service.py::_advance_workflow_after_current_payload_repair": _SYNC,
     "services/payload_enrichment_backfill_service.py::_run_single_submission_workflow_transition": _SYNC,
     "services/payload_enrichment_backfill_service.py::_find_transition_eligible_rows": _SYNC,

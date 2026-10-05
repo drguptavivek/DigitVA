@@ -13,6 +13,13 @@ Sources:
   - va_submission_workflow_events (transitions, durations)
   - va_submissions, va_forms (scope filtering)
 
+``finalized_upstream_changed`` rows split by the latest event's reason: an ODK
+upstream change keeps the state, an open send-back or reopen reads as the
+virtual state ``sent_back_for_revision`` (``revision_request_sql``). The split
+applies to state counts, the flowchart and stagnation; ``state_velocity``
+(D-WF-02) still reports raw stored states, so its ``finalized_upstream_changed``
+row blends both kinds.
+
 Submissions retired from ODK are excluded from every count, list,
 grouping and average below (docs/policy/odk-retired-submissions.md).
 """
@@ -29,6 +36,11 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.revision_request_sql import (
+    SENT_BACK_FOR_REVISION,
+    effective_workflow_state_sql,
+    revision_reasons_sql,
+)
 from app.routes.api.dm_kpi.dm_kpi_scope import DmScope, cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_workflow", __name__)
@@ -38,6 +50,7 @@ log = logging.getLogger(__name__)
 _IN_ODK_SQL = in_odk_sql("s")
 # Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
+_REVISION_REASONS_SQL = revision_reasons_sql()
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +69,7 @@ STATE_LABELS: dict[str, str] = {
     "reviewer_coding_in_progress": "Reviewer in Progress",
     "reviewer_finalized": "Reviewer Finalized",
     "finalized_upstream_changed": "Upstream Changed",
+    "sent_back_for_revision": "Sent Back for Revision",
     "not_codeable_by_coder": "Not Codeable (Coder)",
     "not_codeable_by_data_manager": "Not Codeable (DM)",
     "consent_refused": "Consent Refused",
@@ -73,6 +87,7 @@ STATE_PHASES: dict[str, str] = {
     "reviewer_coding_in_progress": "review",
     "reviewer_finalized": "review",
     "finalized_upstream_changed": "exception",
+    "sent_back_for_revision": "exception",
     "not_codeable_by_coder": "exclusion",
     "not_codeable_by_data_manager": "exclusion",
     "consent_refused": "exclusion",
@@ -98,6 +113,7 @@ BRANCHES = {
     "not_codeable_by_data_manager": {"branch_from": "screening_pending", "kind": "exclusion"},
     "not_codeable_by_coder": {"branch_from": "coding_in_progress", "kind": "exclusion"},
     "finalized_upstream_changed": {"branch_from": "reviewer_eligible", "kind": "exception"},
+    "sent_back_for_revision": {"branch_from": "reviewer_eligible", "kind": "exception"},
 }
 
 # States that are optional (not traversed by all submissions)
@@ -121,6 +137,7 @@ STAGNATION_THRESHOLDS: dict[str, dict] = {
     "reviewer_eligible": {"normal": None, "alert": None, "critical": None},
     "reviewer_coding_in_progress": {"normal": 4, "alert": 168},
     "finalized_upstream_changed": {"normal": 48, "alert": 168},
+    "sent_back_for_revision": {"normal": 48, "alert": 168},
 }
 
 DM_ACTIONS: dict[str, str] = {
@@ -134,6 +151,7 @@ DM_ACTIONS: dict[str, str] = {
     "reviewer_eligible": "Assign reviewers or leave as-is",
     "reviewer_coding_in_progress": "Check reviewer allocation timeout",
     "finalized_upstream_changed": "Accept or reject upstream change",
+    "sent_back_for_revision": "Wait for the interviewer or cancel the request",
 }
 
 
@@ -142,17 +160,21 @@ DM_ACTIONS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 def _state_counts(scope: DmScope) -> dict[str, int]:
-    """Return {workflow_state: count} for the DM's scoped submissions."""
+    """Return {state: count} for the DM's scoped submissions.
+
+    The state is the effective one: ``finalized_upstream_changed`` counts ODK
+    changes only, open revision requests count as ``sent_back_for_revision``.
+    """
     rows = db.session.execute(
         sa.text(f"""
-            SELECT w.workflow_state AS state, COUNT(*) AS count
+            SELECT {effective_workflow_state_sql("w")} AS state, COUNT(*) AS count
             FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
-            GROUP BY w.workflow_state
+            GROUP BY 1
         """),
         {**IN_ODK_BIND, **scope.params},
     ).mappings().all()
@@ -233,8 +255,10 @@ def flowchart():
             + counts.get("reviewer_coding_in_progress", 0)
             + counts.get("reviewer_finalized", 0)
             + counts.get("finalized_upstream_changed", 0)
+            + counts.get(SENT_BACK_FOR_REVISION, 0)
         )
         upstream_changed = counts.get("finalized_upstream_changed", 0)
+        sent_back = counts.get(SENT_BACK_FOR_REVISION, 0)
         reviewed = counts.get("reviewer_finalized", 0)
 
         # coder_finalized breakdown
@@ -263,6 +287,7 @@ def flowchart():
                     "beyond_24h": beyond_24h,
                 },
                 "upstream_changed": upstream_changed,
+                "sent_back": sent_back,
                 "reviewed": reviewed,
             },
             "conversion": {
@@ -399,12 +424,13 @@ def stagnation():
         return jsonify({"alerts": [], "total_stagnant_gt_48h": 0, "total_stagnant_gt_7d": 0})
 
     def compute():
-        non_terminal = list(STAGNATION_THRESHOLDS.keys())
+        # Stored states to scan; the virtual key lives inside finalized_upstream_changed.
+        non_terminal = [k for k in STAGNATION_THRESHOLDS if k != SENT_BACK_FOR_REVISION]
 
         rows = db.session.execute(
             sa.text(f"""
                 SELECT
-                    w.workflow_state AS state,
+                    {effective_workflow_state_sql("w")} AS state,
                     COUNT(*) AS total,
                     COUNT(*) FILTER (
                         WHERE w.workflow_updated_at < NOW() - INTERVAL '2 hours'
@@ -432,7 +458,7 @@ def stagnation():
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND w.workflow_state = ANY(:non_terminal)
-                GROUP BY w.workflow_state
+                GROUP BY 1
                 ORDER BY gt_7d DESC
             """),
             {**IN_ODK_BIND, **scope.params, "non_terminal": non_terminal},
@@ -522,7 +548,10 @@ def daily_transitions():
             sa.text(f"""
                 SELECT
                     DATE(e.event_created_at) AS day,
-                    e.current_state AS target_state,
+                    (CASE WHEN e.current_state = 'finalized_upstream_changed'
+                           AND e.transition_reason IN {_REVISION_REASONS_SQL}
+                          THEN '{SENT_BACK_FOR_REVISION}'
+                          ELSE e.current_state END) AS target_state,
                     COUNT(*) AS count
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
@@ -539,7 +568,7 @@ def daily_transitions():
                         AND tr.actor_user_id = e.actor_user_id
                         AND tr.event_created_at >= e.event_created_at
                   )
-                GROUP BY DATE(e.event_created_at), e.current_state
+                GROUP BY 1, 2
                 ORDER BY day ASC
             """),
             {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},

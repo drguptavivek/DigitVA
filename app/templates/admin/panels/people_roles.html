@@ -1,0 +1,102 @@
+{#
+  People & roles panel (digitva-nk1): who holds which role where in a project.
+  Read-only. The page shell renders no data; app/static/js/admin/people_roles.js
+  fills it from GET /api/v1/projects/<project_id>/people-roles, which decides
+  what this viewer may see. Policy: docs/policy/people-and-roles-page.md.
+
+  locked_project_id (set when the Project Setup home includes this panel): the
+  project picker is hidden and that project is loaded. Reusable: the standalone
+  page (/people-roles) includes it unlocked.
+#}
+{% set locked_project_id = locked_project_id|default('') %}
+<div id="panel-people-roles" data-locked-project="{{ locked_project_id }}"
+     data-projects-url="{{ url_for('api_v1.area_api.projects') }}"
+     data-api-url="{{ url_for('api_v1.people_roles_api.people_roles', project_id='__PROJECT__') }}"
+     data-csv-url="{{ url_for('api_v1.people_roles_api.people_roles_csv', project_id='__PROJECT__') }}"
+     data-user-tz="{{ current_user.timezone or 'Asia/Kolkata' }}">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h5 class="mb-0"><i class="fa-solid fa-people-group me-2 text-secondary"></i>People &amp; roles</h5>
+    <div class="d-flex align-items-center gap-2{{ ' d-none' if locked_project_id }}">
+      <label for="pr-project" class="form-label small mb-0 text-nowrap">Project</label>
+      <select id="pr-project" class="form-select form-select-sm" style="min-width:16rem;"></select>
+    </div>
+  </div>
+
+  <div id="pr-empty" class="alert alert-secondary small py-2 d-none">
+    You do not hold a grant on any active project, so there is no one to list.
+  </div>
+  <div id="pr-error" class="alert alert-warning small py-2 d-none" role="alert"></div>
+
+  <div id="pr-body" class="d-none">
+    <form id="pr-filters" class="row g-2 align-items-end mb-2" onsubmit="return false;">
+      <div class="col-6 col-md-3 col-xl-2">
+        <label for="pr-level" class="form-label small mb-0">Unit type</label>
+        <select id="pr-level" class="form-select form-select-sm"></select>
+      </div>
+      {# display:contents lets each picker sit in the filter grid like the other filters #}
+      <div id="pr-unit-pickers" style="display:contents;"></div>
+      <div class="col-6 col-md-3 col-xl-2">
+        <label for="pr-cadre" class="form-label small mb-0">Cadre</label>
+        <select id="pr-cadre" class="form-select form-select-sm"></select>
+      </div>
+      <div class="col-6 col-md-3 col-xl-2">
+        <label for="pr-capability" class="form-label small mb-0">Can do</label>
+        <select id="pr-capability" class="form-select form-select-sm"></select>
+      </div>
+      <div class="col-6 col-md-3 col-xl-2 d-none" id="pr-status-wrap">
+        <label for="pr-status" class="form-label small mb-0">Grant status</label>
+        <select id="pr-status" class="form-select form-select-sm">
+          <option value="active">Active</option>
+          <option value="deactivated">Deactivated</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-xl-2">
+        <label for="pr-mode" class="form-label small mb-0">Unit mode</label>
+        <select id="pr-mode" class="form-select form-select-sm" disabled>
+          <option value="granted_here">Granted here</option>
+          <option value="can_act_here">Can act here</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-4 col-xl-3">
+        <label for="pr-q" class="form-label small mb-0">Search</label>
+        <input id="pr-q" type="search" class="form-control form-control-sm" maxlength="64"
+               placeholder="Name or job title" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <a id="pr-csv" class="btn btn-sm btn-outline-secondary" href="#" download>
+          <i class="fa-solid fa-file-csv me-1"></i>CSV
+        </a>
+      </div>
+    </form>
+
+    <div class="small text-muted mb-2">
+      <span class="me-3"><span class="text-success fw-bold" aria-hidden="true">&#9679;</span> granted</span>
+      <span class="me-3"><span class="text-danger fw-bold" aria-hidden="true">&#9675;</span> may be given for this cadre here, not granted</span>
+      <span class="me-3"><span class="text-secondary fw-bold" aria-hidden="true">&#9680;</span> view only</span>
+      <span><span class="text-secondary fw-bold" aria-hidden="true">&#8856;</span> inactive</span>
+    </div>
+
+    <div id="pr-truncated" class="alert alert-warning small py-2 d-none" role="status">
+      The project has more grants than the page can read; the list, and the CSV, are cut short. Narrow them with the filters.
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle small" id="pr-table">
+        <thead id="pr-head"></thead>
+        <tbody id="pr-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="small text-muted" id="pr-count" aria-live="polite"></span>
+      <div class="btn-group btn-group-sm">
+        <button type="button" class="btn btn-outline-secondary" id="pr-prev">Previous</button>
+        <button type="button" class="btn btn-outline-secondary" id="pr-next">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin/people_roles.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

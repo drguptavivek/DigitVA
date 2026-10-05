@@ -1,7 +1,7 @@
 ---
 title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
-status: proposed
+status: active
 owner: engineering
 last_updated: 2026-10-06
 ---
@@ -9,14 +9,16 @@ last_updated: 2026-10-06
 # People and Roles Page
 
 A compact view of who holds which role where in a project, and the project's
-access audit page. Owner decisions 2026-10-01 (bead `digitva-nk1`). The model
+access audit page. Owner decisions 2026-10-01 (bead `digitva-nk1`), status active since the owner accepted the defaults
+below on 2026-10-06. The model
 it shows is in [District Reference Model](district-reference-model.md); the
 rules it reflects stay in [Organization Model Policy](organization-model.md)
 and [Access Control Model](access-control-model.md).
 
 The page is **read-only**. Grants are still created, changed and revoked in
-Access Grants and the admin user panel; each row links there for users who
-may edit.
+Access Grants and the admin user panel. A per-row link there for users who
+may edit is **deferred**: the API carries no edit flag yet, so the page has
+no such link.
 
 ## Who may open it
 
@@ -33,8 +35,19 @@ part of one team.
   recorded here as such.
 - A user with a project-scope grant, an admin, and a project PI see the whole
   project.
+- **Site rows** (a `project_site` grant of a classical project) are listed
+  only to those whole-project viewers and to a viewer who holds a grant at
+  that same site; a unit-scoped viewer, or a viewer at another site, does not
+  see them. Project-scope rows ("Whole project") stay visible to everyone with
+  a grant. The number of units a grant covers below it counts only the units
+  the viewer can see.
 - **Plain collaborators see initials** (owner, 2026-10-01) instead of full
-  names, with cadre, unit and capabilities. Grounds: a staff directory is not
+  names, with cadre, unit and capabilities. "Plain" is what the service
+  checks: the viewer is outside the identity tier below and
+  `should_redact_pii` is true for them, that is, they hold no
+  PII-granting role (`_PII_GRANTING_ROLES`) in any active project. A viewer
+  with a PII-granting role (interviewer, coder, coding tester, PII
+  collaborator, and the identity tier) sees full names. Grounds: a staff directory is not
   death-linked staff identity, which the Access Control Model defines as who
   collected, coded or reviewed a death. Initials do not hide a person who is
   the only one of their cadre at a unit; the owner accepted that. The
@@ -43,9 +56,10 @@ part of one team.
 - **Emails, deactivated users, deactivated grants and global admins** are
   shown to admins, project PIs, data managers, site PIs, interview
   supervisors (in-charges) and reviewers (owner, 2026-10-01), within what each may see.
-  Other viewers (interviewers, coders, coding testers, plain and PII
-  collaborators) see name, cadre, unit and capabilities of active people
-  only.
+  Other viewers (interviewers, coders, coding testers, collaborators) see
+  name, cadre, unit and capabilities of active people only; the name is full
+  for the first three and a PII collaborator, initials for a plain
+  collaborator.
 - **Audit columns and flags** (below) are shown only to admins, project PIs
   and data managers (data managers within their own grant scope).
 
@@ -70,7 +84,7 @@ the page never decides access itself.
 | Review | `reviewer` |
 | Test code | `coding_tester` |
 | Manage data | `data_manager` |
-| Sees personal details | **per person, not per row**: shown once on the person, true unless all their active grants, across every active project, are plain `collaborator` (`should_redact_pii`, `app/services/viewer_pii_service.py`) |
+| View PII | **per person, not per row**: green for every row of a person who holds a PII-granting role (`_PII_GRANTING_ROLES`: admin, project PI, site PI, data manager, coder, coding tester, reviewer, interviewer, PII collaborator) **in this project** (a global admin everywhere), the same rule as `should_redact_pii` (`app/services/viewer_pii_service.py`) restricted to the project shown (`pii_visible_user_ids(ids, project_id=...)`); a role held only in another project does not turn it on; a person without one (a plain collaborator, an interview supervisor alone) gets no green. The row's own grants only name the roles in the cell's tooltip |
 | Read-only view | `collaborator`, `collaborator_pii` |
 | Site lead | `site_pi` at `project_site` scope (classical projects). In an organizational project the oversight duty at a unit is the **In-charge** (District, Block or PHC in-charge; decision 2026-10-02, `site_pi` held at `org_unit`, see [Access Control Model](access-control-model.md), "In-charge"; implementation tracked in digitva-0wc) |
 | Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants" (digitva-0wc stage 6) |
@@ -84,6 +98,8 @@ naming the role and the grant.
 |---|---|
 | Green ● | An active grant gives this ability here. |
 | Red ○ | The person's cadre **may** be given it at this level (level x cadre grid) but the person does not have it. |
+| Grey ◐ | View only: a coder grant above the coding scope level (decision 5 below). |
+| Grey ⊘ | Inactive: the grant, the user or the unit is deactivated (decision 4 below). |
 | Blank | Not allowed for this cadre at this level, or the column has no grid flag and no grant gives it. |
 
 The red marker uses the grid flags only: *Fill VA* for Interview, *Code VA*
@@ -131,16 +147,15 @@ For admins, project PIs and data managers only.
     batches or a staff member on leave is not flagged, short enough to catch
     accounts of people who have moved on within one quarterly review.
 
-### Gaps to close before the audit columns work
+### Audit data prerequisites (both built)
 
-- **Granted by is recorded only on the project user import.**
-  `project_user_import_service` sets `va_user_access_grants.created_by_user_id`;
-  the admin grant routes, the data-manager routes, `flask users grant-admin`
-  and the seed commands do not (most of them write the actor to the
-  `grants.log` file instead; the CLI writes nothing). Every write path must
-  set the column; older grants show "not recorded". The model comment in
-  `app/models/va_user_access_grants.py` and
-  `docs/current-state/data-model.md` saying the column is unused are stale.
+- **Granted by is written on every web grant write (`digitva-nk1`, built).**
+  The admin grant create and admin-toggle create, the data-manager grant
+  create and user-plus-grant create, and the project user import set
+  `va_user_access_grants.created_by_user_id` to the acting user on insert.
+  **Reactivating a grant does not restamp it**: granted at/by stay the
+  original grant's. `flask users grant-admin` and the seed commands leave it
+  null, and grants written before this show "not recorded".
 - **Web sign-in is recorded (`digitva-ci8`, built).** Owner, 2026-10-01:
   record every web sign-in.
   - Each completed web sign-in writes an `auth_security_events` row,
@@ -188,6 +203,25 @@ Owner, 2026-10-02: each person may have a free-text **job title** (for example
 One bounded query per project for grants joined to users, units (ltree path)
 and cadres, plus one for the grid. "Can act here" resolves ancestors from the
 selected unit's path, not per row. No per-row queries.
+
+## Decided 2026-10-06 (owner accepted the defaults)
+
+1. Entry point: one `GET /api/v1/projects/<pid>/people-roles` (and `.csv`)
+   and a standalone `/people-roles` page for every grant holder, also shown
+   in the admin setup People section for admin and PI.
+2. Reactivating a grant does not restamp granted-by or granted-at.
+3. Dormant N is 90 days, a code constant; a per-project setting is deferred
+   (no migration).
+4. Cells of an inactive user or inactive unit are greyed, with the row flag.
+5. A coder grant above the coding scope level shows a grey "view only" Code
+   cell (`ResolvedGrants.codes()` is false there).
+6. Row key: person x location x cadre.
+7. An In-charge (`site_pi` at a unit) sees the audit columns as a data
+   manager does, for their own subtree.
+8. Site-project (no tree) rows are listed, with no grid (hollow) cells.
+9. This policy is active, and [Access Control Model](access-control-model.md)
+   records the widening: people in the units you reach plus your reporting
+   line.
 
 ## Decided 2026-10-01
 

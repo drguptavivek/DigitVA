@@ -1,7 +1,7 @@
 # People & roles page (digitva-nk1)
 
-- Status: plan, owner decisions pending (2026-10-06)
-- Policy: docs/policy/people-and-roles-page.md (status proposed)
+- Status: built 2026-10-06 (three parts below); owner accepted the defaults
+- Policy: docs/policy/people-and-roles-page.md (active)
 
 ## Gap to close first
 `va_user_access_grants.created_by_user_id` is written only by the project
@@ -34,5 +34,7 @@ and grant create) leave it null. CLI and seed stay null ("not recorded").
    people_roles.py` (JSON + CSV), tests incl. query-count and redaction.
 3. UI: `admin/panels/people_roles.html`, `static/js/admin/people_roles.js`,
    page route, setup-home include; colour + symbol + tooltip cells.
+   **Done 2026-10-06** (route `app/routes/people_roles_page.py`, panel, JS, navbar link,
+   setup-home include, tests in `tests/test_people_roles_page.py`).
 Writers for 1 and 2 touch disjoint files and can run in parallel; 3 follows
 2's response shape.

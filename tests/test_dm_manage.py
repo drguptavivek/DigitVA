@@ -791,3 +791,62 @@ class DmManageTests(BaseTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data["grant"]["status"], "active")
+
+    # ── Granted by (digitva-nk1) ───────────────────────────────────────────────
+
+    def test_dm_grant_create_records_granted_by_and_reactivation_keeps_it(self):
+        self._login(self.project_dm_id)
+        body = {
+            "user_id": self.target_id,
+            "role": "coder",
+            "scope_type": "project",
+            "project_id": self.project_id,
+        }
+        created = self.client.post(
+            "/data-management/api/access-grants", json=body, headers=self._csrf_headers()
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == self.target.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.coder,
+            )
+        )
+        # Present first: the creator is recorded before we assert it survives.
+        self.assertEqual(grant.created_by_user_id, self.project_dm.user_id)
+
+        grant.grant_status = VaStatuses.deactive
+        db.session.flush()
+        # A second data manager reactivates it; granted-by stays the first.
+        other_dm = self._create_user(f"dm.other.{uuid.uuid4().hex[:8]}@example.com")
+        self._grant(
+            other_dm, VaAccessRoles.data_manager, VaAccessScopeTypes.project,
+            "second DM", project_id=self.project_id,
+        )
+        self._login(str(other_dm.user_id))
+        again = self.client.post(
+            "/data-management/api/access-grants", json=body, headers=self._csrf_headers()
+        )
+        self.assertEqual(again.status_code, 200, again.get_json())
+        db.session.refresh(grant)
+        self.assertEqual(grant.grant_status, VaStatuses.active)
+        self.assertEqual(grant.created_by_user_id, self.project_dm.user_id)
+
+    def test_dm_user_with_initial_grant_records_granted_by(self):
+        self._login(self.project_dm_id)
+        resp = self.client.post(
+            "/data-management/api/users",
+            json=self._valid_create_user_payload("granted.by.user@example.com"),
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(resp.status_code, 201, resp.get_json())
+        new_user = db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.email == "granted.by.user@example.com")
+        )
+        grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == new_user.user_id
+            )
+        )
+        self.assertIsNotNone(grant)
+        self.assertEqual(grant.created_by_user_id, self.project_dm.user_id)

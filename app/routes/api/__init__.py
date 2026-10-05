@@ -21,6 +21,7 @@ from app.routes.api import (  # noqa: E402, F401
     me,
     nqa,
     organization,
+    people_roles,
     profile,
     reviewing,
     so,
@@ -58,6 +59,7 @@ api_v1.register_blueprint(intake.bp, url_prefix="/intake")
 api_v1.register_blueprint(me.bp, url_prefix="/me")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(organization.bp, url_prefix="/organization")
+api_v1.register_blueprint(people_roles.bp, url_prefix="/projects")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")
 api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")

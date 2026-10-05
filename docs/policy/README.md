@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Policy Docs
@@ -34,7 +34,7 @@ Current policy docs:
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
 - [District Reference Model](district-reference-model.md) — proposed district tree, cadres, grid flags and typical roles
-- [People and Roles Page](people-and-roles-page.md) — proposed roles matrix and access audit page
+- [People and Roles Page](people-and-roles-page.md) — roles matrix and access audit page (active)
 - [ODK Retired Submissions Policy](odk-retired-submissions.md) — submissions missing in ODK are kept, not codeable, not counted by default
 - [ODK Sync Policy](odk-sync-policy.md) — workflow state guards for ODK sync
 - [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs

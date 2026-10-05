@@ -137,6 +137,8 @@
       <section class="setup-section d-none" data-section="people">
         {% include "admin/panels/access_grants.html" %}
         <hr class="my-4">
+        {% include "admin/panels/people_roles.html" %}
+        <hr class="my-4">
         {% include "admin/panels/project_pi.html" %}
         {% if current_user.is_admin() %}
         <hr class="my-4">

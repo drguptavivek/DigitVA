@@ -2207,6 +2207,57 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(emails(f"_lain{sfx}"), set())
 
 
+    # -- granted by (digitva-nk1): created_by_user_id on every web grant write --
+
+    def _granted_by(self, grant_id):
+        db.session.expire_all()
+        return db.session.get(VaUserAccessGrants, uuid.UUID(grant_id)).created_by_user_id
+
+    def test_admin_grant_create_records_granted_by_and_reactivation_keeps_it(self):
+        self._login(self.admin_user_id)
+        body = {
+            "user_id": self.target_id,
+            "role": "reviewer",
+            "scope_type": "project_site",
+            "project_site_id": str(self._project_site_id(self.project_id, self.site_a)),
+        }
+        created = self.client.post(
+            "/admin/api/access-grants", json=body, headers=self._csrf_headers()
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        grant_id = created.get_json()["grant"]["grant_id"]
+        # Present first: the creator is recorded before we assert it survives.
+        self.assertEqual(self._granted_by(grant_id), self.admin_user.user_id)
+
+        self.client.post(
+            f"/admin/api/access-grants/{grant_id}/toggle", headers=self._csrf_headers()
+        )
+        # A different admin-capable actor (the project PI) reactivates it.
+        self._login(self.manager_id)
+        again = self.client.post(
+            "/admin/api/access-grants", json=body, headers=self._csrf_headers()
+        )
+        self.assertEqual(again.status_code, 200, again.get_json())
+        self.assertEqual(self._granted_by(grant_id), self.admin_user.user_id)
+
+    def test_admin_toggle_admin_records_granted_by_on_a_new_grant(self):
+        self._login(self.admin_user_id)
+        response = self.client.post(
+            f"/admin/api/users/{self.target_id}/toggle-admin",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertTrue(response.get_json()["is_admin"])
+        grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == uuid.UUID(self.target_id),
+                VaUserAccessGrants.role == VaAccessRoles.admin,
+            )
+        )
+        self.assertIsNotNone(grant)
+        self.assertEqual(grant.created_by_user_id, self.admin_user.user_id)
+
+
 class AdminWebFormLocalesApiTests(BaseTestCase):
     """GET /admin/api/web-form-locales — the bundled questionnaire's languages.
 

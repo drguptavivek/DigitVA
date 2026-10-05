@@ -179,6 +179,7 @@ class ProjectSetupPanelTests(BaseTestCase):
             "panel-project-forms",
             "panel-odk-connections",
             "panel-access-grants",
+            "panel-people-roles",
             "panel-project-pi",
         ):
             with self.subTest(panel=root):

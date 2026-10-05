@@ -1506,9 +1506,10 @@ Other important tables:
 - `va_project_sites`
 - `va_user_access_grants` — see [Unit-scoped access grants](#unit-scoped-access-grants)
   for the `org_unit` scope columns. Also carries `created_by_user_id` (UUID, nullable,
-  FK `fk_va_user_access_grants_created_by` -> `va_users.user_id`). Nothing reads or writes it
-  today; DM-created users are attributed through `va_users.other["created_by_user_id"]`
-  instead, so the column is a drop candidate rather than live state.
+  FK `fk_va_user_access_grants_created_by` -> `va_users.user_id`): the granting user, written
+  on insert by the admin and data-manager grant routes and the project user import. A
+  reactivated grant keeps its original value (insert-only); null means not recorded
+  (CLI, seed, older grants). Read by the People & roles page as "granted by".
 - `va_usernotes`
 - `va_smartva_form_runs`
 - `va_smartva_runs`

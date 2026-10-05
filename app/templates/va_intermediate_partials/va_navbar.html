@@ -75,6 +75,15 @@
     </li>
   {% endif %}
 
+  {% if current_user.is_authenticated and current_user.has_any_active_grant() %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('people_roles_page.page') }}">
+        <i class="fa-solid fa-people-group me-1"></i>
+        People
+      </a>
+    </li>
+  {% endif %}
+
   {% if current_user.is_authenticated and current_user.is_data_manager() %}
     <li class="nav-item">
       <a class="nav-link" href="{{ url_for('data_management.dashboard') }}">

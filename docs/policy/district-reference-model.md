@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-06
 ---
 
 # District Reference Model
@@ -14,6 +14,9 @@ It is a **reference**, not a rule: every project defines its own levels,
 cadres and grants ([Organization Model Policy](organization-model.md)). The
 binding rules stay in that policy and in the
 [Access Control Model](access-control-model.md).
+
+The page that shows who holds which role where is specified in [People and
+Roles Page](people-and-roles-page.md).
 
 Status: active, accepted by the owner 2026-10-01 (parts marked proposed below, such as `death_reporter`, remain proposals). The `TST001` test project
 (`flask seed test-project`, bead `digitva-5mo`) is built from the default

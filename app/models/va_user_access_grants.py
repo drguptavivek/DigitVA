@@ -140,10 +140,9 @@ class VaUserAccessGrants(db.Model):
         sa.ForeignKey("mas_cadre.cadre_id", name="fk_va_user_access_grants_cadre"),
         nullable=True,
     )
-    # Present in the database since migration b5c6d7e8f9a0. No application code
-    # reads or writes it today — DM-created users are attributed through
-    # va_users.other["created_by_user_id"] instead. Mapped here so the models
-    # match the live schema; see docs/current-state/data-model.md.
+    # Who granted it (People & roles page audit). Set on insert by every web
+    # grant write and the project user import; a reactivated grant keeps the
+    # original value. Null = not recorded (CLI, seed, grants before this).
     created_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("va_users.user_id", name="fk_va_user_access_grants_created_by"),

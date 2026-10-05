@@ -480,6 +480,12 @@ Rules:
 
 Broad access must be granted explicitly.
 
+One owner-decided exception to "a grant confers nothing above its unit": a
+grant holder may see the *people* in the units their grants reach plus their
+reporting line above (People & roles page), with plain collaborators getting
+initials. It is a read-only staff directory, not death access; see [People and
+Roles Page](people-and-roles-page.md).
+
 The system must not infer broader access from missing values or partial keys.
 
 ## Role To Scope Rules

@@ -12,6 +12,7 @@ from app.routes.api import api_v1
 from app.routes.help import help_bp
 from app.routes.intake import intake
 from app.routes.area import area
+from app.routes.people_roles_page import people_roles_page
 # Extends the `admin` blueprint in place (like app/routes/admin_organization.py);
 # imported here so its rules are registered before the blueprint is.
 from app.routes import admin_translations  # noqa: F401
@@ -35,3 +36,4 @@ def register_blueprints(app):
     app.register_blueprint(help_bp)
     app.register_blueprint(intake, url_prefix="/intake")
     app.register_blueprint(area, url_prefix="/area")
+    app.register_blueprint(people_roles_page)

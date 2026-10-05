@@ -1,0 +1,12 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | People & roles{% endblock %}
+
+{% block content %}
+{# Page shell: renders no data. The panel's script fills it from
+   /api/v1/projects/<project_id>/people-roles. #}
+<div class="content-section mb-4">
+  <p class="text-muted small">Who holds which role where, in the projects you hold a grant on. Read-only.</p>
+  {% include "admin/panels/people_roles.html" %}
+</div>
+{% endblock %}

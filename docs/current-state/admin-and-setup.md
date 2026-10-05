@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Admin And Setup Model
@@ -51,8 +51,9 @@ The `/admin` interface provides the following management panels:
     for the per-unit coding gates (unit tree) and the per-site coding gate
     (Project Sites row settings), which live on rows of those panels.
     Coding intake and ICD classification are in Basics.
-  - People: Access Grants (list and new grants in the project) and Project PIs
-    (assign form's project fixed).
+  - People: Access Grants (list and new grants in the project), the
+    People & roles panel (read-only matrix, below) and Project PIs (assign
+    form's project fixed).
   - Sync & activity: Attachments filtered to the project, with the app-wide
     parts hidden and not loaded (integrity check, S3 sweep and quarantine,
     worker delivery counters, SmartVA run archive, database backups), and the
@@ -62,6 +63,25 @@ The `/admin` interface provides the following management panels:
     app-wide (runs, schedule, maintenance, coverage), so it is linked, not
     hosted.
   The sidebar panels stay. Admin only, the same gate as Projects.
+- **People & roles** — read-only matrix of who holds which role where in a
+  project (bead digitva-nk1; policy `docs/policy/people-and-roles-page.md`,
+  API in `api-v1.md`). Panel `admin/panels/people_roles.html` with
+  `static/js/admin/people_roles.js`, hosted in two places: the Setup home People
+  section (locked to the project; reachable by admins only, since the Setup
+  home is admin only) and the standalone page `GET /people-roles`
+  (`app/routes/people_roles_page.py`, template
+  `va_frontpages/va_people_roles.html`, navbar link "People" for any user with
+  an active grant). The page is a shell like the Area dashboard: login required,
+  listed in `SELF_SERVICE_ENDPOINTS`, renders no rows; the script reads the
+  project list from `/api/v1/area/projects` and the rows from
+  `GET /api/v1/projects/<id>/people-roles`, which decides per project what the
+  caller sees. Filters: unit type, one cascading unit picker per level, cadre
+  (the list grows from the rows seen, the API has no cadre list), capability,
+  grant status (identity tier only), search and mode (needs a unit); 100 rows a
+  page; the CSV link carries the same query. Cells carry a symbol, a title and an
+  aria-label (green filled circle granted, red open circle may be given, grey
+  half circle view only, grey crossed circle inactive); audit columns show only
+  when the API says the viewer has them. All server text goes in by `textContent`.
 - **Sites** — site master management (create, activate, deactivate)
 - **Users** — user account management (create, reset password, toggle active status, assign coder languages)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment

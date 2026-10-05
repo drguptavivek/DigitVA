@@ -834,6 +834,7 @@ def manage_create_user():
         cadre_id=scope.cadre_id,
         notes="auto-created with user",
         grant_status=VaStatuses.active,
+        created_by_user_id=current_user.user_id,
     )
     db.session.add(new_grant)
     # docs/policy/mobile-sign-in.md section 3: a mobile-only account gets its
@@ -1209,6 +1210,7 @@ def manage_create_access_grant():
             cadre_id=scope.cadre_id,
             notes=payload.get("notes"),
             grant_status=VaStatuses.active,
+            created_by_user_id=current_user.user_id,
         )
         db.session.add(grant)
 

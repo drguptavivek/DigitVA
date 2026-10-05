@@ -536,6 +536,94 @@ Concurrent first saves can insert two rows (no unique constraint; the web has
 the same limit); reads take the latest by `note_updated_at`. Upgrade: a partial
 unique index on `(note_by, note_vasubmission)` where active.
 
+## People and roles (`GET /api/v1/projects/<project_id>/people-roles` and `.csv`, `app/routes/api/people_roles.py`)
+
+Read-only; `app/services/people_roles_service.py`; policy
+`docs/policy/people-and-roles-page.md` (bead digitva-nk1). Cookie or bearer
+session; any user with a live grant in the project (an admin always). A project
+the caller holds no grant in, or a closed one, is 404 `not_found` whether it
+exists or not; the refusal comes before the parameters are read. Query (all
+optional): `level` (level code), `unit` (unit id, must be in the caller's
+audience, else 404), `cadre` (cadre code), `capability` (a column key),
+`status` (`active` default, `deactivated`, `all`; only the identity tier gets
+deactivated grants, others are clamped to active), `q` (name, job title and,
+for the identity tier, email; 64 characters), `mode` (`granted_here` default |
+`can_act_here`, only with `unit`), `limit` (default 200, clamped 1..500),
+`offset`. A bad value is 400 `invalid_request`. `no-store`. `units` and
+`cadres` (below) are in the body only when `offset` is 0, so a later page does
+not repeat them; the CSV never carries them.
+
+```json
+{"project_id": "CSC001",
+ "viewer": {"identity": true, "names": "full|initials", "audit": "all|scoped|none"},
+ "filters": {"level": null, "unit": null, "cadre": null, "capability": null,
+             "status": "active", "q": null, "mode": "granted_here"},
+ "dormant_days": 90, "total": 41, "limit": 200, "offset": 0, "truncated": false,
+ "columns": [{"key": "code", "label": "Code", "people": 5, "hollow": 2}],
+ "rows": [{
+   "row_id": "<user>|unit|<unit id>|<cadre id>",
+   "person": {"user_id": "<uuid>", "name": "Priya Rao | P. R.", "initials_only": false,
+              "email": "<identity tier only, else null>", "job_title": "..|null",
+              "active": true, "sees_pii": true},
+   "cadre": {"cadre_id": "<uuid>", "code": "MO", "name": "Medical Officer"},
+   "location": {"kind": "unit", "org_unit_id": "<uuid>", "unit_code": "P01",
+                "unit_name": "PHC One", "level_code": "phc", "level_name": "PHC-AAM",
+                "depth": 4, "path": "D01.C01.P01", "active": true},
+   "covered_below": 0,
+   "grants": [{"role": "coder", "status": "active|deactive"}],
+   "cells": {"code": {"state": "granted", "roles": ["coder"]}},
+   "audit": {"granted_at": "<iso>|null", "granted_by": "<name>|null",
+             "last_sign_in_at": "<iso>|null",
+             "flags": ["exceeds_grid"],
+             "grants": [{"role": "coder", "status": "active", "granted_at": "<iso>",
+                         "granted_by": "<name>|null"}]}}],
+ "cadres": [{"cadre_id": "<uuid>", "code": "MO", "name": "Medical Officer"}],
+ "units": {"levels": [{"level_code": "phc", "level_name": "PHC-AAM", "depth": 4}],
+           "units": [{"org_unit_id": "<uuid>", "unit_code": "P01", "unit_name": "PHC One",
+                      "level_code": "phc", "depth": 4, "parent_org_unit_id": "<uuid>|null",
+                      "path": "D01.C01.P01", "is_active": true}]}}
+```
+
+`cadres` is every distinct cadre among the caller's audience rows (status and
+visibility applied, before the level, cadre, capability, `q` and mode filters),
+sorted by name, so the cadre filter does not depend on the page. One row per
+person x location x cadre. `location.kind`: `unit`, `site` (a
+`project_site` grant: `project_site_id`, `site_id`, `site_name`, `active`),
+`project` (whole project, visible to every caller; a `site` row only to
+whole-project callers and to a caller with a grant at that same site) or `platform` (a global admin, identity tier only);
+only `unit` carries `covered_below` (active units strictly below, counting only units in the caller's audience) and gets
+red cells. `cells` has one entry per `columns` key, in the one mapping
+`CAPABILITY_ROLES` (Report deaths, Interview, Supervise, Code, Review, Test
+code, Manage data, View PII, Read-only, Site lead, Manage grants). Site lead is a
+`site_pi` grant at site scope only (an In-charge, `site_pi` at a unit, gets
+Supervise, Manage data and Manage grants instead). View PII is per person and
+**in this project**. `state`: `granted`
+(green; an active grant on an active user and unit), `hollow` (red; the
+cadre's grid flag *Fill VA* / *Code VA* / *Supervise interviews* allows it at
+the level but nothing gives it), `view_only` (a coder grant above the coding
+scope level), `inactive` (grey; the grant, user or unit is deactivated) or
+`blank`; `roles` names the row's roles that give the cell. `audit` is null
+unless the caller is an admin, project PI or project-scope data manager (every
+row) or holds a data-manager-shaped grant (rows inside its subtree). Flags:
+`exceeds_grid`, `no_cadre`, `inactive_user`, `inactive_unit` (also a
+deactivated site), `no_active_grant` (only under `status=deactivated|all`),
+`dormant` (no sign-in for 90 days; a null `last_sign_in_at` is "not recorded",
+never dormant). `units` is the caller's audience (their units, the units above
+them, and below for a wide grant) for cascading pickers; deactivated units only
+for the identity tier. At most 10000 grant rows are read; past that
+`truncated` is true (the CSV then carries the header `X-Truncated: true`). The
+`no_active_grant` flag reads the project's active grants with its own query, so
+the cap cannot make it wrong. Cost: 13 queries for any number of people (grants,
+units, levels, grid, project, PII set, authz resolution).
+
+`GET .../people-roles.csv` takes the same query (no `limit`/`offset`) through
+the same service and redaction, so its rows are the JSON `total` rows in the
+same order: one header row (person, email, job_title, person_status, cadre,
+location, level, path, units_below, one column per capability, and for any
+audit tier granted_at, granted_by, last_sign_in_at, flags), cells as the state
+word or empty, text cells starting with `=`, `+`, `-` or `@` prefixed with `'`.
+Rate limit 20 per minute (JSON 120). Tests: `tests/test_people_roles.py`.
+
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.

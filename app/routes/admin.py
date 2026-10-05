@@ -2530,6 +2530,7 @@ def admin_toggle_user_admin(target_user_id):
                 scope_type=VaAccessScopeTypes.global_scope,
                 grant_status=VaStatuses.active,
                 notes="toggled via admin panel",
+                created_by_user_id=current_user.user_id,
             )
             db.session.add(grant)
         else:
@@ -2761,6 +2762,7 @@ def admin_create_access_grant():
             cadre_id=scope.cadre_id,
             notes=payload.get("notes"),
             grant_status=VaStatuses.active,
+            created_by_user_id=current_user.user_id,
         )
         db.session.add(grant)
 

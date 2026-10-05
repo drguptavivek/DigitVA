@@ -125,6 +125,9 @@ SELF_SERVICE_ENDPOINTS = {
                       "from /api/v1/area/*, which authz decides (effective_roles, "
                       "reachable_unit_ids). A user with no grant sees an empty page "
                       "(area-dashboard.md).",
+    "people_roles_page.page": "People & roles page shell: renders no data; every row comes "
+                              "from /api/v1/projects/<id>/people-roles, which decides per "
+                              "project what the caller may see (people-and-roles-page.md).",
     "profile.view": "The signed-in user's own profile page.",
     "profile.force_password_change": "The signed-in user's own forced password change.",
     "api_v1.profile_api.get_profile": "Own profile.",

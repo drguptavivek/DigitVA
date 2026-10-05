@@ -28,9 +28,12 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
+    VaNarrativeAssessment,
     VaProjectMaster,
     VaReviewerFinalAssessments,
     VaSmartvaResults,
+    VaSocialAutopsyAnalysis,
+    VaSocialAutopsyAnalysisOption,
     VaStatuses,
     VaSubmissions,
     VaSubmissionWorkflow,
@@ -41,6 +44,8 @@ from app.services import case_content_service as case_content
 from app.services.authz import invalidate
 from app.services.category_rendering_service import get_category_rendering_service
 from app.services.final_cod_authority_service import start_recode_episode
+from app.services.narrative_qa_service import NARRATIVE_QA_FIELDS
+from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import (
     ensure_active_payload_version,
     get_active_payload_version,
@@ -376,6 +381,183 @@ class VaCaseApiTests(BaseTestCase):
         body = self._workspace(sid)
         self.assertIsNone(body["assessments"]["initial"])
         self.assertEqual(body["assessments"]["initial_prefill"]["id"], str(prior.va_iniassess_id))
+
+    # -- workspace: ICD catalogue, NQA and Social Autopsy (xl43.6, xl43.7) -------
+
+    def _set_project(self, **columns):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        for name, value in columns.items():
+            setattr(project, name, value)
+        db.session.commit()
+
+    def _post(self, sid, tail, body, user=None):
+        self._login(user or self.base_coder_id)
+        return self.client.post(f"{BASE}/{sid}/{tail}", json=body, headers=self._csrf_headers())
+
+    def test_icd_classification_follows_the_project(self):
+        sid = self._coding_case()
+        self.assertEqual(self._workspace(sid)["case"]["icd_classification"], "icd10")
+        # ICD-11 always pairs with DORIS entry (a table constraint).
+        self._set_project(icd_classification="icd11", cod_entry_mode="doris")
+        self.assertEqual(self._workspace(sid)["case"]["icd_classification"], "icd11")
+
+    @patch("app.routes.api.icd11.search_icd11_mms", return_value=[])
+    @patch("app.routes.api.icd10.search_icd10_2019_2_coding_choices", return_value=[])
+    def test_a_bearer_reaches_the_coding_search_of_the_projects_catalogue(self, icd10, icd11):
+        sid = self._coding_case()
+        _device, tokens = self._session(email=_CODER_EMAIL, password=_CODER_PASSWORD)
+        bearer_only = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        for classification, entry_mode, url, search in (
+            ("icd10", "simple", f"/api/v1/icd10/2019-2/coding-search/{sid}", icd10),
+            ("icd11", "doris", f"/api/v1/icd11/coding-search/{sid}", icd11),
+        ):
+            self._set_project(icd_classification=classification, cod_entry_mode=entry_mode)
+            response = bearer_only.get(url, query_string={"q": "fever"}, headers=self._bearer(tokens))
+            self.assertEqual(response.status_code, 200, (classification, response.get_json()))
+            search.assert_called_once()
+
+    def test_narrative_qa_and_social_autopsy_are_null_when_switched_off(self):
+        self._mode(nqa=True, social_autopsy=True)
+        sid = self._coding_case()
+        on = self._workspace(sid)
+        # Present when on ...
+        self.assertEqual(on["narrative_qa"]["fields"], NARRATIVE_QA_FIELDS)
+        self.assertEqual(on["narrative_qa"]["max_score"], 10)
+        self.assertIsNone(on["narrative_qa"]["saved"])
+        self.assertEqual(on["social_autopsy"]["questions"], SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS)
+        self.assertIsNone(on["social_autopsy"]["saved"])
+        # ... and null, not missing, when off.
+        self._mode()
+        off = self._workspace(sid)
+        self.assertIn("narrative_qa", off)
+        self.assertIn("social_autopsy", off)
+        self.assertIsNone(off["narrative_qa"])
+        self.assertIsNone(off["social_autopsy"])
+
+    def test_the_reviewer_social_autopsy_follows_the_reviewer_switch(self):
+        self._mode(nqa=True)
+        sid = self._reviewing_case()
+        self._set_project(social_autopsy_enabled=False, reviewer_social_autopsy_enabled=True)
+        body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
+        self.assertEqual(body["social_autopsy"]["questions"], SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS)
+        self.assertEqual(body["narrative_qa"]["fields"], NARRATIVE_QA_FIELDS)
+        self._set_project(social_autopsy_enabled=True, reviewer_social_autopsy_enabled=False)
+        body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
+        self.assertIn("social_autopsy", body)
+        self.assertIsNone(body["social_autopsy"])
+        # The coder switch alone governs the coder's workspace.
+        coding = self._coding_case()
+        self.assertIsNotNone(self._workspace(coding)["social_autopsy"])
+
+    def _sa_answers(self):
+        first, *rest = SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+        codes = [o["option_code"] for o in first["options"] if o["option_code"] != "none"]
+        picked = [
+            {"delay_level": first["delay_level"], "option_code": code}
+            for code in reversed(codes[:2])
+        ]
+        return picked + [{"delay_level": q["delay_level"], "option_code": "none"} for q in rest]
+
+    def test_the_callers_saved_answers_come_back(self):
+        self._mode(nqa=True, social_autopsy=True)
+        sid = self._coding_case()
+        values = {"length": 2, "pos_symptoms": 3, "neg_symptoms": 1, "chronology": 0,
+                  "doc_review": 1, "comorbidity": 0}
+        saved = self._post(sid, "narrative-qa", {"va_actiontype": "varesumecoding", **values})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        answers = self._sa_answers()
+        saved = self._post(sid, "social-autopsy", {
+            "va_actiontype": "varesumecoding", "selected_options": answers, "remark": " why ",
+        })
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        body = self._workspace(sid)
+        self.assertEqual(body["narrative_qa"]["saved"], {
+            "cannot_grade": False, "values": values, "score": 7, "rating": "Good",
+        })
+        expected = sorted((a["delay_level"], a["option_code"]) for a in answers)
+        self.assertEqual(
+            [(o["delay_level"], o["option_code"]) for o in body["social_autopsy"]["saved"]["selected_options"]],
+            expected,
+        )
+        self.assertEqual(body["social_autopsy"]["saved"]["remark"], "why")
+        self.assertEqual(body["blocked_by"], [])
+
+        saved = self._post(sid, "narrative-qa", {"va_actiontype": "varesumecoding", "cannot_grade": True})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(self._workspace(sid)["narrative_qa"]["saved"], {
+            "cannot_grade": True, "values": dict.fromkeys(values, 0), "score": 0,
+            "rating": "Cannot Grade",
+        })
+
+    def test_the_reviewers_saved_answers_come_back(self):
+        self._mode(nqa=True, social_autopsy=True)
+        sid = self._reviewing_case()
+        values = {"length": 1, "pos_symptoms": 1, "neg_symptoms": 0, "chronology": 0,
+                  "doc_review": 0, "comorbidity": 0}
+        for tail, body in (
+            ("narrative-qa", values),
+            ("social-autopsy", {"selected_options": self._sa_answers()}),
+        ):
+            saved = self._post(sid, tail, {"va_actiontype": "varesumereviewing", **body}, user=self.reviewer_id)
+            self.assertEqual(saved.status_code, 200, (tail, saved.get_json()))
+        body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
+        self.assertEqual(body["narrative_qa"]["saved"]["values"], values)
+        self.assertEqual(body["narrative_qa"]["saved"]["rating"], "Poor")
+        self.assertIsNone(body["social_autopsy"]["saved"]["remark"])
+        self.assertEqual(
+            len(body["social_autopsy"]["saved"]["selected_options"]), len(self._sa_answers())
+        )
+
+    def test_another_users_saved_answers_never_appear(self):
+        self._mode(nqa=True, social_autopsy=True)
+        sid = self._coding_case()
+        other = self._make_user(f"xl43p7.other.{uuid.uuid4().hex[:6]}@test.local", "Other7123")
+        version = get_active_payload_version(sid).payload_version_id
+        db.session.add(VaNarrativeAssessment(
+            va_sid=sid, va_nqa_by=other.user_id, payload_version_id=version, va_nqa_length=3,
+            va_nqa_pos_symptoms=3, va_nqa_neg_symptoms=1, va_nqa_chronology=1,
+            va_nqa_doc_review=1, va_nqa_comorbidity=1, va_nqa_score=10,
+            va_nqa_status=VaStatuses.active,
+        ))
+        analysis = VaSocialAutopsyAnalysis(
+            va_sid=sid, va_saa_by=other.user_id, payload_version_id=version,
+            va_saa_remark="not yours", va_saa_status=VaStatuses.active,
+        )
+        analysis.selected_options.append(VaSocialAutopsyAnalysisOption(
+            delay_level=SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS[0]["delay_level"], option_code="none",
+        ))
+        db.session.add(analysis)
+        db.session.commit()
+        # Present: both rows exist and are active, the other user's.
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaNarrativeAssessment).where(
+            VaNarrativeAssessment.va_sid == sid, VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+        )), 1)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSocialAutopsyAnalysis).where(
+            VaSocialAutopsyAnalysis.va_sid == sid, VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+        )), 1)
+        body = self._workspace(sid)
+        self.assertIsNotNone(body["narrative_qa"])
+        self.assertIsNone(body["narrative_qa"]["saved"])
+        self.assertIsNotNone(body["social_autopsy"])
+        self.assertIsNone(body["social_autopsy"]["saved"])
+
+    def test_an_nqa_value_outside_the_options_is_still_refused(self):
+        self._mode(nqa=True)
+        sid = self._coding_case()
+        valid = {"va_actiontype": "varesumecoding", "length": 1, "pos_symptoms": 1,
+                 "neg_symptoms": 0, "chronology": 0, "doc_review": 0, "comorbidity": 0}
+        for key, bad in (("length", 0), ("length", 4), ("pos_symptoms", 4), ("neg_symptoms", 2),
+                         ("comorbidity", -1), ("doc_review", "x"), ("chronology", None)):
+            response = self._post(sid, "narrative-qa", {**valid, key: bad})
+            self.assertEqual(
+                (response.status_code, response.get_json()),
+                (400, {"error": f"Invalid or missing fields: {key}", "code": "invalid_request"}),
+                (key, bad),
+            )
+        missing = {k: v for k, v in valid.items() if k not in ("length", "comorbidity")}
+        response = self._post(sid, "narrative-qa", missing)
+        self.assertEqual(response.get_json()["error"], "Invalid or missing fields: length, comorbidity")
+        self.assertEqual(self._post(sid, "narrative-qa", valid).status_code, 200)
 
     def test_narrative_qa_blocks_the_final_until_saved(self):
         self._mode(nqa=True)

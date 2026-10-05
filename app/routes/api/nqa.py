@@ -27,6 +27,7 @@ from app.services.coding_service import get_project_for_submission
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
 )
+from app.services.narrative_qa_service import narrative_qa_allowed_values
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_narrative_assessments,
     get_submission_with_current_payload,
@@ -88,36 +89,30 @@ def save_narrative_qa(va_sid: str):
 
     cannot_grade = bool(data.get("cannot_grade"))
 
-    def _int(key, min_val, max_val):
-        try:
-            v = int(data[key])
-            if not (min_val <= v <= max_val):
-                raise ValueError
-            return v
-        except (KeyError, TypeError, ValueError):
-            return None
-
     if cannot_grade:
         length = pos_symptoms = neg_symptoms = chronology = doc_review = comorbidity = 0
         score = 0
     else:
-        length       = _int("length",       1, 3)
-        pos_symptoms = _int("pos_symptoms", 1, 3)
-        neg_symptoms = _int("neg_symptoms", 0, 1)
-        chronology   = _int("chronology",   0, 1)
-        doc_review   = _int("doc_review",   0, 1)
-        comorbidity  = _int("comorbidity",  0, 1)
+        values = {}
+        for key, allowed in narrative_qa_allowed_values().items():
+            try:
+                value = int(data[key])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                value = None
+            values[key] = value if value in allowed else None
 
-        missing = [k for k, v in {
-            "length": length, "pos_symptoms": pos_symptoms,
-            "neg_symptoms": neg_symptoms, "chronology": chronology,
-            "doc_review": doc_review, "comorbidity": comorbidity,
-        }.items() if v is None]
+        missing = [k for k, v in values.items() if v is None]
         if missing:
             return _error(
                 f"Invalid or missing fields: {', '.join(missing)}", 400, "invalid_request"
             )
 
+        length = values["length"]
+        pos_symptoms = values["pos_symptoms"]
+        neg_symptoms = values["neg_symptoms"]
+        chronology = values["chronology"]
+        doc_review = values["doc_review"]
+        comorbidity = values["comorbidity"]
         score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
     _, active_payload_version = get_submission_with_current_payload(
         va_sid,

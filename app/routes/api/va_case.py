@@ -49,7 +49,14 @@ from app.services.coder_cod_service import (
 from app.services.coding_service import get_project_for_submission
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import get_active_recode_episode
+from app.services.icd_coding_value import DEFAULT_ICD_CLASSIFICATION
+from app.services.narrative_qa_service import NARRATIVE_QA_FIELDS, NARRATIVE_QA_MAX_SCORE
+from app.services.payload_bound_coding_artifact_service import (
+    get_current_payload_narrative_assessment,
+    get_current_payload_social_autopsy_analysis,
+)
 from app.services.reviewer_coding_service import ReviewerCodingError, require_reviewing_session
+from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.user_note_service import get_active_note, save_note
 from app.services.workflow.state_store import get_submission_workflow_state
@@ -229,15 +236,60 @@ def _not_codeable_json(row) -> dict | None:
     }
 
 
+def _narrative_qa_json(case: _Case, va_sid: str, user_id) -> dict | None:
+    """The NQA form and the caller's own answers on the current payload, or
+    ``None`` when the project has Narrative QA off (the save then 400s).
+
+    A cannot-grade save stores zeros; they are returned as stored."""
+    if not (case.project and case.project.narrative_qa_enabled):
+        return None
+    row = get_current_payload_narrative_assessment(va_sid, user_id)
+    saved = None
+    if row is not None:
+        saved = {
+            "cannot_grade": bool(row.va_nqa_cannot_grade),
+            "values": {
+                field["key"]: getattr(row, f"va_nqa_{field['key']}") for field in NARRATIVE_QA_FIELDS
+            },
+            "score": row.va_nqa_score,
+            "rating": row.rating,
+        }
+    return {"fields": NARRATIVE_QA_FIELDS, "max_score": NARRATIVE_QA_MAX_SCORE, "saved": saved}
+
+
+def _social_autopsy_json(case: _Case, va_sid: str, user_id) -> dict | None:
+    """The SA questions and the caller's own answers on the current payload,
+    or ``None`` when this role's SA switch is off (the save then 403s)."""
+    if not social_autopsy_enabled(case.project, case.va_action):
+        return None
+    row = get_current_payload_social_autopsy_analysis(va_sid, user_id)
+    saved = None
+    if row is not None:
+        # One SELECT for the row's options; sorted as the save normalizes them.
+        pairs = sorted((option.delay_level, option.option_code) for option in row.selected_options)
+        saved = {
+            "selected_options": [
+                {"delay_level": delay_level, "option_code": option_code}
+                for delay_level, option_code in pairs
+            ],
+            "remark": row.va_saa_remark,
+        }
+    return {"questions": SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS, "saved": saved}
+
+
 @bp.get("/<va_sid>/workspace")
 @role_required("coder", "coding_tester", "reviewer")
 def workspace(va_sid):
     """The workspace shell for ``?mode=coding|reviewing``.
 
     200 ``{case, categories, default_category, step, blocked_by,
-    assessments, smartva, other_conditions_options}``; ``step`` is
-    ``initial | final | done``. Errors ``{error, code}``: 400
-    ``invalid_request`` (mode), 403 ``forbidden`` / ``no_allocation``, 404
+    assessments, smartva, other_conditions_options, narrative_qa,
+    social_autopsy}``; ``step`` is ``initial | final | done``.
+    ``case.icd_classification`` (``icd10 | icd11``) names the coding search
+    to call. ``narrative_qa`` / ``social_autopsy`` are ``None`` when the
+    project's switch for this role is off, else the form definition plus the
+    caller's own ``saved`` answers on the current payload (or ``None``).
+    Errors ``{error, code}``: 400 ``invalid_request`` (mode), 403 ``forbidden`` / ``no_allocation``, 404
     ``not_found``.
     """
     case = _authorize(va_sid)
@@ -324,6 +376,13 @@ def workspace(va_sid):
             "instance_name": case.submission.va_uniqueid_masked,
             "form_type_code": case.form_type_code,
             "project_mode": case.project_mode,
+            # get_icd_classification_for_submission's answer from the project
+            # already loaded (same submission -> form -> project path).
+            "icd_classification": (
+                case.project.icd_classification
+                if case.project and case.project.icd_classification
+                else DEFAULT_ICD_CLASSIFICATION
+            ),
             "workflow_state": get_submission_workflow_state(va_sid),
             "narrative_qa_enabled": bool(case.project and case.project.narrative_qa_enabled),
             "social_autopsy_enabled": social_autopsy_enabled(case.project, case.va_action),
@@ -352,6 +411,8 @@ def workspace(va_sid):
         "assessments": assessments,
         "smartva": smartva,
         "other_conditions_options": options,
+        "narrative_qa": _narrative_qa_json(case, va_sid, uid),
+        "social_autopsy": _social_autopsy_json(case, va_sid, uid),
     }
     return _private(jsonify(body))
 

@@ -119,7 +119,7 @@ def who_icd_api_proxy(va_sid: str, resource: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-11.", 400)
+        return _error("This project codes in ICD-10.", 400)
 
     try:
         _validate_who_proxy_query()
@@ -153,7 +153,7 @@ def icd11_selection_check(va_sid: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-11.", 400)
+        return _error("This project codes in ICD-10.", 400)
 
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
@@ -195,7 +195,7 @@ def icd11_coding_search(va_sid: str):
     if err:
         return err
     if get_icd_classification_for_submission(va_sid) == "icd10":
-        return _error("This project codes in ICD-11.", 400)
+        return _error("This project codes in ICD-10.", 400)
 
     search_id = coding_search_telemetry_service.resolve_search_id(
         request.args.get("search_id")

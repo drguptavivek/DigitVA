@@ -325,13 +325,26 @@ reviewer with `Action.REVIEW` and their own active reviewing allocation
 
 | Key | Content |
 | --- | --- |
-| `case` | `va_sid`, `instance_name` (the masked id), `form_type_code`, `project_mode` (`masked_simple`, `masked_doris`, `unmasked_simple`, `unmasked_doris`), `workflow_state`, `narrative_qa_enabled`, `social_autopsy_enabled` |
+| `case` | `va_sid`, `instance_name` (the masked id), `form_type_code`, `project_mode` (`masked_simple`, `masked_doris`, `unmasked_simple`, `unmasked_doris`), `icd_classification` (`icd10` or `icd11`: the project setting `icd_coding_value.get_icd_classification_for_submission` reads, default `icd10`; the client calls the matching coding search, `GET /api/v1/icd10/2019-2/coding-search/<va_sid>?q=` or `GET /api/v1/icd11/coding-search/<va_sid>?q=`, and the other one answers 400), `workflow_state`, `narrative_qa_enabled`, `social_autopsy_enabled` |
 | `categories`, `default_category` | ordered `[{code, label, nav_label, render_mode}]` the mode's role sees (the COD panel `vacodassessment` last), and the code to open first |
 | `step` | `initial`, `final` or `done`. Coding: Step 1 while the caller has neither an active Step 1 nor a not-codeable review (an unmasked project has no Step 1, so `final`); `final` once Step 1 is saved; `done` after a not-codeable review with no Step 1. Reviewing: masked and no own Step 1 is `initial`, own Step 1 or an unmasked project is `final`, a saved reviewer final is `done` |
 | `blocked_by` | codes that stop the final save: `narrative_qa` (coders; NQA enabled and not saved by the caller) and `social_autopsy` (the role's analysis required and not saved) |
 | `assessments` | always these keys, null when absent. Coding: `initial` (the caller's own active Step 1: `id`, `immediate_cod`, `antecedent_cod`, `other_conditions` as a list, `created_at`), `initial_prefill` (what the Step 1 form opens with: the same row, or in a recode episode the caller's latest prior draft), `final` (the authoritative coder final: `id`, `conclusive_cod`, `immediate_cod`, `other_conditions`, `remark`, `created_at`; only once `step` is `final`, as the web's Step 2 form shows it, so a masked Step 1 stays blind to an earlier coder's result), `not_codeable` (`reason`, `other`, `created_at`; only the caller's own review). Reviewing: `coder_initial`, `final` and `not_codeable` as read-only reference (the web panel shows them to a reviewer), and the caller's own `reviewer_initial` and `reviewer_final` (another reviewer's final is neither shown nor makes `step` `done`). Another coder's Step 1 is never shown to a coder |
 | `smartva` | the active SmartVA result read live (not from the section cache; it completes asynchronously): `age`, `gender`, `key_symptoms`, `causes` (`rank`, `cause`, `icd10`, `icd11` mapping, `likelihood`), `symptoms`; null when none, and on a masked project until the caller has their own Step 1 (Step 1 is blind) |
 | `other_conditions_options` | the Step 1 other-conditions list of the age group (`coding`); null for `reviewing`, whose form takes free text |
+| `narrative_qa` | null unless the project has Narrative QA on; else `{fields, max_score, saved}`. `fields` is `app/services/narrative_qa_service.NARRATIVE_QA_FIELDS`, the list the web form renders: `[{key, label, options: [{value, label}]}]` in question order, `key` being the save body key. `max_score` is 10. `saved` is null, or the caller's own answers on the current payload: `{cannot_grade, values: {key: int}, score, rating}` (`rating` `Good`, `Fair`, `Poor` or `Cannot Grade`); a cannot-grade save stores every value and the score as 0, returned as stored |
+| `social_autopsy` | null unless the role's Social Autopsy switch is on (`social_autopsy_enabled` for `coding`, `reviewer_social_autopsy_enabled` for `reviewing`; on when the case has no project, as the save allows); else `{questions, saved}`. `questions` is `SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS`: `[{delay_level, title, options: [{option_code, label, description}]}]`. `saved` is null, or the caller's own analysis on the current payload: `{selected_options: [{delay_level, option_code}] sorted by delay level then option code, remark}` |
+
+The two forms save through the existing `POST /api/v1/va/<va_sid>/narrative-qa`
+(body `{va_actiontype, cannot_grade, length, pos_symptoms, neg_symptoms,
+chronology, doc_review, comorbidity}`) and `POST /api/v1/va/<va_sid>/social-autopsy`
+(body `{va_actiontype, selected_options: [{delay_level, option_code}], remark}`);
+errors are in the section above. Both decide coder or reviewer from the body's
+`va_actiontype`: a reviewer must send `varesumereviewing` (or
+`vastartreviewing`); anything else is taken as a coder save and checked
+against a coding allocation. Social Autopsy `none` is exclusive within a delay
+level: the server keeps only `none` for a level that has it, drops duplicates,
+and every delay level must be answered.
 
 `GET /<va_sid>/categories/<code>?mode=` returns `{code, label, render_mode,
 summary_items, subcategories, blocked_by}`. `subcategories` is an ordered list

@@ -218,72 +218,19 @@
 
         <div id="nqa-questions" class="row g-3"
              {% if nqa and nqa.va_nqa_cannot_grade %}style="display:none;"{% endif %}>
+          {% for field in narrative_qa_fields %}
           <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q1. Length of Narrative</label>
+            <label class="form-label fw-semibold mb-1">{{ field.label }}</label>
             <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(1, "< 3 sentences"), (2, "3–5 sentences"), (3, "> 5 sentences")] %}
+              {% for opt in field.options %}
                 <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_length" id="nqa_length_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_length == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_length_{{ val }}">{{ lbl }}</label>
+                  <input class="form-check-input nqa-radio" type="radio" name="nqa_{{ field.key }}" id="nqa_{{ field.key }}_{{ opt.value }}" value="{{ opt.value }}" {% if nqa and nqa['va_nqa_' ~ field.key] == opt.value %}checked{% endif %}>
+                  <label class="form-check-label" for="nqa_{{ field.key }}_{{ opt.value }}">{{ opt.label }}</label>
                 </div>
               {% endfor %}
             </div>
           </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q2. Number of Positive Symptoms</label>
-            <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(1, "< 3 symptoms"), (2, "3–5 symptoms"), (3, "> 5 symptoms")] %}
-                <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_pos_symptoms" id="nqa_pos_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_pos_symptoms == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_pos_{{ val }}">{{ lbl }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q3. Presence of Negative Symptoms</label>
-            <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(0, "Absent"), (1, "Present")] %}
-                <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_neg_symptoms" id="nqa_neg_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_neg_symptoms == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_neg_{{ val }}">{{ lbl }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q4. Chronology of Events</label>
-            <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(0, "Cannot be established"), (1, "Can be established")] %}
-                <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_chronology" id="nqa_chrono_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_chronology == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_chrono_{{ val }}">{{ lbl }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q5. Document Review</label>
-            <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(0, "Not present / Inconclusive"), (1, "Provides useful data")] %}
-                <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_doc_review" id="nqa_doc_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_doc_review == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_doc_{{ val }}">{{ lbl }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-12">
-            <label class="form-label fw-semibold mb-1">Q6. Comorbidities / Risk Factors</label>
-            <div class="d-flex gap-3 flex-wrap">
-              {% for val, lbl in [(0, "Not present"), (1, "Present")] %}
-                <div class="form-check">
-                  <input class="form-check-input nqa-radio" type="radio" name="nqa_comorbidity" id="nqa_comorb_{{ val }}" value="{{ val }}" {% if nqa and nqa.va_nqa_comorbidity == val %}checked{% endif %}>
-                  <label class="form-check-label" for="nqa_comorb_{{ val }}">{{ lbl }}</label>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
+          {% endfor %}
         </div>
         <div class="d-flex align-items-center gap-3 mt-3 flex-wrap">
           <div id="nqa-score-wrap">

@@ -72,6 +72,7 @@ from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
 )
+from app.services.narrative_qa_service import NARRATIVE_QA_FIELDS
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
@@ -679,6 +680,7 @@ def renderpartial(va_sid, va_partial):
             narrative_qa_enabled = artifacts.narrative_qa_enabled,
             social_autopsy_enabled = artifacts.social_autopsy_enabled,
             va_narrative_assessment = artifacts.va_narrative_assessment,
+            narrative_qa_fields = NARRATIVE_QA_FIELDS,
             social_autopsy_analysis_questions = SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
             va_social_autopsy_analysis = artifacts.va_social_autopsy_analysis,
             social_autopsy_selected_pairs = artifacts.social_autopsy_selected_pairs,

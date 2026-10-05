@@ -78,12 +78,17 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       rendered pages), private note `GET|PUT /api/v1/va/<sid>/note`, flat
       `{error, code}` on reviewing/NQA/Social Autopsy, reviewer queue
       (`/reviewing/stats|available|history`) and release (owner: Step 1
-      kept). The app's coding/review workspace `digitva-p6fs.4` can start
-      once two gaps the Expo session reported close (section 12
-      status line): `digitva-xl43.6` the workspace names the case's ICD-10
-      or ICD-11 catalogue, `digitva-xl43.7` NQA and Social Autopsy form
-      metadata and the caller's saved values come from the server. Do
-      these next. Then `digitva-xl43.3` DORIS prefill, a read-only view mode
+      kept). The two gaps the Expo session reported are closed: the
+      workspace carries `case.icd_classification` (`xl43.6`) and
+      `narrative_qa` / `social_autopsy` blocks with field metadata and the
+      caller's saved answers (`xl43.7`; NQA fields single-sourced in
+      `narrative_qa_service.NARRATIVE_QA_FIELDS`, both web templates render
+      from it). Contract: `docs/current-state/api-v1.md` "Workspace
+      content". Tell the Expo session (`expo-handoff.md` section 12 still
+      lists them as gaps), so the app's `digitva-p6fs.4` can start.
+      The full suite was stopped at about 80% on owner request; only the
+      targeted modules ran (164 passed). Run it once at the next commit.
+      Then `digitva-xl43.3` DORIS prefill, a read-only view mode
       if the app needs one; device check that native players do not forward
       the bearer to the S3 presigned redirect (`digitva-p6fs.5`).
       Body caps read `Content-Length` and refuse a body without one (413);

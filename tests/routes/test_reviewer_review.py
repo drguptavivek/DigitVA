@@ -1,5 +1,10 @@
 from datetime import datetime, timezone
+import re
 import uuid
+from types import SimpleNamespace
+
+from flask import render_template
+from markupsafe import escape
 
 from app import db
 from app.models import (
@@ -28,6 +33,7 @@ from app.models import (
     MasCategoryDisplayConfig,
     MasFormTypes,
 )
+from app.services.narrative_qa_service import NARRATIVE_QA_FIELDS
 from app.services.reviewer_coding_service import submit_reviewer_final_cod
 from app.services.reviewer_coding_service import submit_reviewer_initial_cod
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -303,6 +309,69 @@ class TestReviewerReviewRoute(BaseTestCase):
         self.assertIn("/api/v1/va/", body)
         self.assertNotIn("Does the VA form have any serious issues", body)
         self.assertNotIn("therefore should not be allocated to VA coders", body)
+
+    def _assert_nqa_radios(self, html, checked):
+        """Each NARRATIVE_QA_FIELDS question renders its radios, labels and
+        the saved answer's checked state."""
+        for field in NARRATIVE_QA_FIELDS:
+            key = field["key"]
+            self.assertIn(str(escape(field["label"])), html)
+            radios = re.findall(
+                rf'<input class="form-check-input nqa-radio" type="radio"\s+name="nqa_{key}"[^>]*>',
+                html,
+            )
+            self.assertEqual(len(radios), len(field["options"]), key)
+            self.assertEqual(
+                [r for r in radios if " checked" in r],
+                [r for r in radios if f'value="{checked[key]}"' in r],
+                key,
+            )
+            for option in field["options"]:
+                self.assertIn(
+                    f'for="nqa_{key}_{option["value"]}">{escape(option["label"])}</label>', html
+                )
+
+    def test_the_nqa_form_renders_from_the_shared_fields(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.narrative_qa_enabled = True
+        db.session.commit()
+        checked = {"length": 2, "pos_symptoms": 3, "neg_symptoms": 1, "chronology": 0,
+                   "doc_review": 1, "comorbidity": 0}
+        saved = self.client.post(
+            f"/api/v1/va/{self.sid}/narrative-qa",
+            json={"va_actiontype": "varesumereviewing", **checked},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+
+        response = self.client.get(
+            f"/vaform/{self.sid}/vanarrationanddocuments"
+            "?action=vareview&actiontype=varesumereviewing"
+        )
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('id="nqa-card"', html)
+        self._assert_nqa_radios(html, checked)
+
+    def test_the_fallback_narration_template_renders_the_shared_fields(self):
+        # vanarrationanddocuments.html renders only when the category has no
+        # display config; rendered directly with the route's NQA context.
+        checked = {"length": 1, "pos_symptoms": 2, "neg_symptoms": 0, "chronology": 1,
+                   "doc_review": 0, "comorbidity": 1}
+        nqa = SimpleNamespace(
+            va_nqa_cannot_grade=False, va_nqa_score=5, rating="Fair", rating_class="warning",
+            **{f"va_nqa_{key}": value for key, value in checked.items()},
+        )
+        with self.app.test_request_context():
+            html = render_template(
+                "va_formcategory_partials/vanarrationanddocuments.html",
+                category_data={"narration": {}}, va_sid=self.sid, va_action="vacode",
+                va_actiontype="varesumecoding", narrative_qa_enabled=True,
+                va_narrative_assessment=nqa, narrative_qa_fields=NARRATIVE_QA_FIELDS,
+                info_list=[], flip_list=[],
+            )
+        self.assertIn('id="nqa-card"', html)
+        self._assert_nqa_radios(html, checked)
 
     def test_reviewer_can_save_shared_nqa_with_active_reviewing_allocation(self):
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)

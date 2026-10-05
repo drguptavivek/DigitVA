@@ -3569,13 +3569,18 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     Two top-level units are not neighbours. Subjects without a name or date of
     death, already closed, or with a flag waiting for a supervisor get none. At most *per_case* candidates per
     subject, most similar first. Rows: ``subject_id``, ``death_id``,
-    ``unique_id``, ``status``, ``unit_name``, ``score``.
+    ``unique_id``, ``status``, ``unit_name``, ``score``, and the candidate's
+    ``deceased_name``, ``date_of_death``, ``deceased_sex``, ``age_years``,
+    ``informant_name``, ``address_village_ward`` and ``interviewer_name`` (who started its
+    interview, NULL when nobody did: a registrant may not be an interviewer),
+    all from the same statement.
     """
     if not subject_ids or scope is None:
         return []
     subject = aliased(VaDeathRegister)
     subject_unit = aliased(MasOrgUnit)
     unit = aliased(MasOrgUnit)
+    interviewer = aliased(VaUsers)
     closed = ("cancelled", "duplicate")
     days = sa.literal_column(str(DUPLICATE_DAYS), sa.Integer)  # a constant, never input
     score = sa.func.similarity(
@@ -3588,6 +3593,13 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
             VaDeathRegister.unique_id,
             VaDeathRegister.status,
             unit.unit_name,
+            VaDeathRegister.deceased_name,
+            VaDeathRegister.date_of_death,
+            VaDeathRegister.deceased_sex,
+            VaDeathRegister.age_years,
+            VaDeathRegister.informant_name,
+            VaDeathRegister.address_village_ward,
+            interviewer.name.label("interviewer_name"),
             score.label("score"),
             sa.func.row_number()
             .over(partition_by=subject.death_id, order_by=(score.desc(), VaDeathRegister.death_id))
@@ -3608,6 +3620,10 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
         )
         .outerjoin(subject_unit, subject_unit.org_unit_id == subject.org_unit_id)
         .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
+        .outerjoin(
+            interviewer,
+            interviewer.user_id == VaDeathRegister.started_by_user_id,
+        )
         .where(
             subject.death_id.in_(subject_ids),
             subject.status.not_in(closed),
@@ -3645,9 +3661,13 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
     A warning for the interviewer, never a block and never a merge: flagging
     stays a person's decision (decisions 6 and 14). The caller has already
     checked *user* may see *case* (``get_death``). Rules in
-    ``_possible_duplicate_rows``. The hint names the other case by its id,
-    unit and state only, never its identity (docs/policy/web-intake.md,
-    "Duplicate and cancel flags").
+    ``_possible_duplicate_rows``. Each candidate carries what tells a person
+    whether it is the same death (name, date of death, village, age, sex,
+    informant, previous interviewer); the candidates are only cases inside
+    *user*'s scope, so nothing of any other case is returned
+    (docs/policy/web-intake.md, "Duplicate and cancel flags"). ``village`` is
+    the village or ward of the candidate's recorded address, None when empty
+    (never the org unit, which comes as ``unit_name``).
     """
     rows = _possible_duplicate_rows([case.death_id], _worklist_scope(user), per_case=DUPLICATE_CANDIDATES_MAX)
     return [
@@ -3657,6 +3677,13 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
             "unit_name": row.unit_name,
             "state": row.status,
             "score": round(float(row.score), 2),
+            "deceased_name": row.deceased_name,
+            "date_of_death": row.date_of_death.isoformat() if row.date_of_death else None,
+            "village": row.address_village_ward or None,
+            "age_years": row.age_years,
+            "sex": row.deceased_sex,
+            "informant_name": row.informant_name,
+            "previous_interviewer_name": row.interviewer_name,
         }
         for row in rows
     ]

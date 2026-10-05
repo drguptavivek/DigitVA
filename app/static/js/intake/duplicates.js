@@ -1,7 +1,8 @@
 // Possible-duplicate banner of the web intake form (phase 6, digitva-vzk.11).
 // A warning only: the interviewer may still submit. The flag button sends the
 // existing duplicate flag, which a supervisor confirms or rejects; nothing is
-// ever merged. Case details are set as text, never as markup.
+// ever merged. Case details are set as text, never as markup. The server only
+// sends candidates inside the viewer's scope.
 
 // The answers the case's identity is synced from (web_intake_service
 // _identity_from_answers): names, sex, date of death and the answers it is
@@ -23,9 +24,16 @@ export function renderPossibleDuplicates(box, cases, onFlag) {
   list.className = "mb-1 ps-3";
   for (const c of cases) {
     const item = document.createElement("li");
-    // Id, unit and state only: the hint never shows the other case's identity
-    // (docs/policy/web-intake.md, "Duplicate and cancel flags").
-    item.append([c.unique_id, c.unit_name || "no unit", c.state].join(" · ") + " ");
+    // What tells whether it is the same death (docs/policy/web-intake.md,
+    // "Duplicate and cancel flags"); a missing field is left out.
+    const parts = [
+      c.unique_id, c.deceased_name, c.date_of_death, c.village, c.unit_name,
+      c.age_years != null ? c.age_years + " y" : null, c.sex,
+      c.informant_name ? "informant " + c.informant_name : null,
+      c.previous_interviewer_name ? "interviewer " + c.previous_interviewer_name : null,
+      c.state,
+    ];
+    item.append(parts.filter(Boolean).join(" · ") + " ");
     const flag = document.createElement("button");
     flag.type = "button";
     flag.className = "btn btn-sm btn-outline-dark py-0";

@@ -648,9 +648,16 @@ section, so the phone's old value is not removed).
   route), other open or submitted cases in the same project are compared:
   date of death within 3 days, same sex, similar normalised name, same or
   neighbouring unit. A match shows "Possible duplicate of <case id>" to the
-  interviewer before submit. It is a hint; only a supervisor resolves it. The
-  hint shows the case id, never the other case's identity. Rules as built:
-  "Built in phase 6" below.
+  interviewer before submit. It is a hint; only a supervisor resolves it.
+  **What the hint shows (owner, 2026-10-01).** Only for a candidate inside the
+  viewer's own scope (the worklist scope, "Who sees which cases"): its id, the
+  deceased's name, date of death, village (the village or ward of the case's
+  recorded address; empty when none), its unit, age, sex, the informant's name and the previous interviewer's
+  name (the user who started the interview; none when nobody did). A case outside the viewer's scope is never
+  returned: no detail, no id. Duplicate decisions sit at CHC, PHC and district
+  hospital level: the supervisor deactivates (**cancel**), reactivates
+  (**reopen**) or confirms as **duplicate** a case, each with a reason that is
+  logged in the case's audit. Rules as built: "Built in phase 6" below.
 
 ### One submission per case: first complete wins
 
@@ -1155,11 +1162,22 @@ its name and date of death.
   otherwise it gets no hint.
 - **Scope:** candidates are limited to the caller's worklist reach
   (`_worklist_scope`), so the hint never names a case the caller cannot open;
-  a match outside it is not shown to that caller.
+  a match outside it is not shown to that caller at all (no id, no detail).
 - **Case API:** `GET /api/v1/intake/cases/<death_id>/possible-duplicates`
   (interviewer; the case through `get_death`, out of scope reads as 404):
   up to 50, most similar first, each with `death_id`, `unique_id`,
-  `unit_name`, `state` and `score`. No name, sex, date, phone or address.
+  `unit_name`, `state` and `score`, and, from the same query (owner,
+  2026-10-01), `deceased_name`, `date_of_death`, `village` (the village or
+  ward of the case's address, null when empty; the unit is `unit_name`), `age_years`, `sex`, `informant_name` and
+  `previous_interviewer_name` (the user who started the interview; null when
+  nobody did, the registrant is not assumed to be an interviewer). The
+  deceased name, date of death, village, age, sex and informant name are
+  already visible to the same viewer through case detail, so nothing is
+  redacted. `previous_interviewer_name` is new here: the worklist and case
+  detail deliberately never name another interviewer, and it is shown only
+  because the owner's 2026-10-01 rule names it, for in-scope candidates only.
+  No phone or address. The worklist's per-row `possible_duplicates`
+  stays `death_id` and `unique_id` only.
 - **Form page:** checked on open, after a save that touched the identity
   answers (`Id10017`, `Id10018`, `Id10019`, `Id10023`, `Id10023_a`,
   `Id10023_b`) and just before submit. A warning banner "Possible duplicate

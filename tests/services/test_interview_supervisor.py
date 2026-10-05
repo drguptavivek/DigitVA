@@ -673,6 +673,34 @@ class InterviewSupervisorTests(BaseTestCase):
             self._grant_id(self.sam, VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id),
         )
 
+    def test_cancel_reopen_and_duplicate_log_their_reason_and_refuse_a_blank_one(self):
+        case, kept, dup = self._register(), self._register(), self._register()
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        base = "/api/v1/intake/supervision/cases"
+
+        def post(death, action, **body):
+            return self.client.post(f"{base}/{death.death_id}/{action}", json=body, headers=self._csrf_headers())
+
+        self.assertEqual(post(case, "cancel", reason="  ").status_code, 400)
+        self.assertEqual(db.session.get(VaDeathRegister, case.death_id).status, "registered")
+        self.assertEqual(post(case, "cancel", reason="entered twice").status_code, 200)
+        self.assertEqual(post(case, "reopen", reason="  ").status_code, 400)
+        self.assertEqual(db.session.get(VaDeathRegister, case.death_id).status, "cancelled")
+        self.assertEqual(post(case, "reopen", reason="was a real death").status_code, 200)
+        self.assertEqual(
+            post(dup, "duplicate", duplicate_of=str(kept.death_id), reason="same death as the kept one").status_code, 200
+        )
+        reasons = {
+            (row.death_id, row.action): row.reason
+            for row in db.session.scalars(
+                sa.select(MapCaseTransition).where(MapCaseTransition.death_id.in_([case.death_id, dup.death_id]))
+            )
+        }
+        self.assertEqual(reasons[(case.death_id, "supervisor_cancel")], "entered twice")
+        self.assertEqual(reasons[(case.death_id, "reopen")], "was a real death")
+        self.assertEqual(reasons[(dup.death_id, "confirm_duplicate")], "same death as the kept one")
+
     def test_a_direct_duplicate_mark_on_a_coded_case_waits_for_a_data_manager(self):
         kept = self._register()
         coded = self._submitted_with_workflow("coder_finalized")

@@ -178,7 +178,10 @@ def _case_reply(death, status=200):
 
 @bp.get("/cases/<death_id>")
 @role_required("interviewer")
-@limiter.limit("120 per minute")
+# A device downloads its active cases one detail call each after the list, so
+# the budget covers a large worklist; each call is one indexed case read
+# (digitva-p6fs.33).
+@limiter.limit("600 per minute")
 def case_detail(death_id):
     """One case with its full contact details (and prefill, when the caller may
     start or resume it), visible exactly as

@@ -3,8 +3,8 @@
 Policy: docs/policy/web-intake.md, "Built in phase 6". Covers the matching
 rules (date window edges, unknown sex, name normalisation and variants, unit
 neighbourhood, project, cancelled, confirmed duplicate, self, a pending flag,
-caller scope), the worklist's batched check (one statement), the case API (scope
-404, no identity) and that a possible duplicate never blocks submit.
+caller scope), the details an in-scope hint carries, the worklist's batched check
+(one statement), the case API (scope 404) and that a possible duplicate never blocks submit.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -220,6 +220,80 @@ class PossibleDuplicateTests(BaseTestCase):
         self.assertIn(str(parent.death_id), self._matches(subject))
         self.assertNotIn(str(parent.death_id), self._matches(subject, user=self.carol))
 
+    def test_an_in_scope_candidate_carries_its_details_and_an_out_of_scope_one_leaves_no_trace(self):
+        subject = self._case(unit="PDB3", name="Sita Rani")
+        near = self._case(unit="PDB3", name="Sita Rani", user=self.alice)
+        near.age_years, near.informant_name, near.started_by_user_id = 61, "Mohan Rani", self.carol.user_id
+        near.address_village_ward = "Kandaghat"
+        far = self._case(unit="PDD2", name="Sita Rani", sex="female")
+        far.informant_name = "Hidden Informant"
+        db.session.flush()
+
+        hints = intake_svc.possible_duplicates(self.carol, subject)
+        # The in-scope one is present first, so its absence-check below is meaningful.
+        self.assertEqual([h["death_id"] for h in hints], [str(near.death_id)])
+        self.assertEqual(hints[0], {
+            "death_id": str(near.death_id), "unique_id": near.unique_id, "unit_name": "Unit PDB3",
+            "state": near.status, "score": 1.0, "deceased_name": "Sita Rani",
+            "date_of_death": DOD.isoformat(), "village": "Kandaghat", "age_years": 61, "sex": "female",
+            "informant_name": "Mohan Rani", "previous_interviewer_name": self.carol.name,
+        })
+        # Alice reaches both: with nobody having started it, no interviewer is named
+        # (the registrant is not assumed to be one).
+        by_id = {h["death_id"]: h for h in intake_svc.possible_duplicates(self.alice, subject)}
+        self.assertIsNone(by_id[str(far.death_id)]["previous_interviewer_name"])
+        self.assertEqual(by_id[str(far.death_id)]["informant_name"], "Hidden Informant")
+        # No recorded village is null, never the unit name.
+        self.assertIsNone(by_id[str(far.death_id)]["village"])
+        self.assertEqual(by_id[str(far.death_id)]["unit_name"], "Unit PDD2")
+        # Carol never sees the other one: no id, no detail.
+        self.assertNotIn(far.unique_id, repr(hints))
+        self.assertNotIn("Hidden Informant", repr(hints))
+
+    def test_pending_cancelled_and_duplicate_candidates_leave_no_id_or_name(self):
+        subject = self._case(unit="PDB3", name="Gita Bai")
+        active = self._case(unit="PDB3", name="Gita Bai")
+        # Another interviewer's "details pending" start is theirs alone.
+        pending = self._case(unit="PDB3", name="Gita Baai", user=self.alice)
+        pending.status, pending.started_by_user_id = "draft_identity", self.alice.user_id
+        cancelled = self._case(unit="PDB3", name="Gita Bai")
+        cancelled.status = "cancelled"
+        confirmed = self._case(unit="PDB3", name="Gita Bai")
+        confirmed.status = "duplicate"
+        db.session.flush()
+
+        for viewer in (self.carol, self.alice):
+            hints = intake_svc.possible_duplicates(viewer, subject)
+            ids = [h["death_id"] for h in hints]
+            self.assertIn(str(active.death_id), ids)  # present, so the absences below mean something
+            if viewer is self.carol:
+                self.assertNotIn(str(pending.death_id), ids)
+                self.assertNotIn(pending.unique_id, repr(hints))
+                self.assertNotIn("Gita Baai", repr(hints))
+            for closed in (cancelled, confirmed):
+                self.assertNotIn(str(closed.death_id), ids)
+                self.assertNotIn(closed.unique_id, repr(hints))
+
+    def test_candidate_details_cost_no_extra_statements_per_candidate(self):
+        subject = self._case(unit="PDB1")
+        counts = []
+        for extra in (1, 4):
+            for _ in range(extra):
+                self._case(unit="PDB2")
+            statements = []
+
+            def record(conn, cursor, statement, parameters, context, executemany):
+                statements.append(statement)
+
+            sa.event.listen(db.engine, "before_cursor_execute", record)
+            try:
+                hints = intake_svc.possible_duplicates(self.alice, subject)
+            finally:
+                sa.event.remove(db.engine, "before_cursor_execute", record)
+            counts.append((len(hints), len(statements)))
+        self.assertGreater(counts[1][0], counts[0][0])
+        self.assertEqual(counts[0][1], counts[1][1], counts)
+
     # ── worklist batch ─────────────────────────────────────────────────────
 
     def test_the_worklist_page_check_is_one_statement(self):
@@ -266,8 +340,12 @@ class PossibleDuplicateTests(BaseTestCase):
         rows = response.get_json()["possible_duplicates"]
         self.assertEqual([r["death_id"] for r in rows], [str(twin.death_id)])
         self.assertEqual(rows[0]["unique_id"], twin.unique_id)
-        # Id, unit and state only: never the other case's identity or contact.
-        self.assertEqual(set(rows[0]), {"death_id", "unique_id", "unit_name", "state", "score"})
+        # Identity of an in-scope case, never phone or address.
+        self.assertEqual(set(rows[0]), {
+            "death_id", "unique_id", "unit_name", "state", "score", "deceased_name", "date_of_death",
+            "village", "age_years", "sex", "informant_name", "previous_interviewer_name",
+        })
+        self.assertEqual((rows[0]["deceased_name"], rows[0]["sex"]), ("Kamla Devi", "female"))
 
         worklist = self.client.get("/api/v1/intake/cases").get_json()["cases"]
         row = {r["death_id"]: r for r in worklist}[str(subject.death_id)]

@@ -18,8 +18,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only, one dedicated Sonnet
 > runner does one full suite per commit:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_<name> minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (3637 passed, 6 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
-> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
+> (3690 passed, 9 min, on 2026-10-05 with the app container at 1 GB; at the old 756 MB a full run was OOM-killed, exit 137; `test_odk_site_mappings` flakes under load; recreate `minerva_test_runner` if a run dies). Narrow tasks to Sonnet/Luna, broad
+> ones to Opus/Sol (`AGENTS.md`). Dev DB head: `b4k8m2r6w9x3`. Shared checkout: the Expo session has uncommitted work in `mobile/`; build commit lists with `grep -Ev '^(mobile|vendor)/'` (BSD grep has no `\|`) and check the staged list before committing. Coding goes to Sonnet code-writers (owner, 2026-10-04); code must be fast and efficient (bd memory `perf-first`). This backend
 > session commits every backend file, including the Expo client API; the Expo
 > session owns `mobile/` and `vendor/` only. Use `bd`; commit in the repo's
 > voice and push. Ask the owner one question at a time, in plain terms.
@@ -44,7 +44,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       `hdrv`, `w5jw`. Still open: `digitva-bhpl` until the app's revise
       screen `digitva-bhpl.2` lands (contract `expo-handoff.md` section 5);
       `digitva-jcll` (DM dashboard and KPIs count send-backs as ODK upstream
-      changes; View Changes fails on a sent-back case). Added 2026-10-05:
+      changes; View Changes fails on a sent-back case; small, do it between
+      `xl43` phases). Added 2026-10-05:
       `digitva-xpqm` the coder gets the interviewer's last completed version
       (reverses the "phone completion wins" default; app half `xpqm.2`,
       handoff section 8) and `digitva-bqzm` a supervisor chooses between two
@@ -59,10 +60,22 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       and `docs/policy/interview-revisions.md`). Manual check owed: the
       browser form's stale-tab 409 (`draft_stale`) and the worklist
       other-draft badge were not driven in a browser (proof-of-work CAPTCHA).
-   b. `digitva-xl43` coding and review workspace API: case content by
-      category and the Step 1 / final COD steps are server HTML partials
-      (`va_form.renderpartial`) today, so no app can code or review;
-      unblocks `digitva-p6fs.4`.
+   b. **`digitva-xl43` coding and review workspace API: next.** Plan
+      `.tasks/2026-10-05-coding-workspace-api.md` (owner: option A, logic
+      moves out of `va_form.renderpartial` into services that the web
+      partials and `/api/v1` both call; web screens unchanged). Done:
+      phase 1, coder Step 1 / final / not codeable (`coder_cod_service`,
+      `POST /api/v1/coding/initial|finalize|not-codeable`, `eeec15eb`), and
+      `xl43.1` app sign-in for coders and reviewers (`4d20ccb3`, contract
+      `expo-handoff.md` section 11). Next: phase 2, case content reads
+      (nav, category data with PII redaction and the Redis section cache,
+      case meta, step state, saved assessments, SmartVA result,
+      other-conditions options); then phase 3: media over `/api/v1`
+      (bearer), `{error, code}` on reviewing/NQA/social-autopsy, reviewer
+      queue (available, stats, history), reviewer release, private user
+      note. Unblocks `digitva-p6fs.4`; add the phase 1 save routes to
+      `expo-handoff.md` when phase 2 lands. Known gap: the 1.2 MB body cap
+      reads `Content-Length` only (no global `MAX_CONTENT_LENGTH`).
    c. `digitva-ey38` `code` on every remaining `/api/v1` error
       (data-management, va/nqa+so, area, cod-buckets, ...) and a contract
       review of those blueprints.
@@ -83,8 +96,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    context), restart the Celery worker and beat (beat seeds the 30 s
    `sweep_smartva_pending`); `SMARTVA_CHARTS=1` only for debugging. Web and
    app interviews already sitting in `smartva_pending` are picked up by the
-   first sweep. Docker Desktop's disk was at 91% on 2026-10-05; a build
-   filled it once and stopped dev Postgres (build cache prune recovered it). The
+   first sweep. If Docker's disk fills, dev Postgres stops (prune unused
+   images; volumes hold data). The
    app build with `expo-handoff.md` section 1 must ship with this server.
    Earlier notes: Bump `STATIC_ASSET_VERSION` with the API release (cached
    old intake scripts call removed routes). `digitva-5hmc`: production
@@ -115,7 +128,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `digitva-sn1.1.7`, `digitva-cts`, `digitva-hln`, `digitva-ddv.5`,
    `digitva-fb5`, flaky `test_odk_site_mappings`.
 
-## Production release notes (this session)
+## Production release notes
 
 - Production DB is at `d3f1a7c92b64` (2026-09-17), about 77 migrations
   behind head and before org units exist; the release is one large upgrade.

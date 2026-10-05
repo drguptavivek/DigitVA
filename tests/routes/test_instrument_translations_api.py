@@ -10,6 +10,7 @@ import re
 from datetime import UTC, datetime
 
 from app import db
+from app.models import VaProjectMaster
 from app.models.mas_instrument_locales import (
     LIFECYCLE_APPROVED,
     LIFECYCLE_IN_REVIEW,
@@ -93,6 +94,30 @@ class InstrumentTranslationServingTests(BaseTestCase):
         self.assertEqual(payload["questions"][self.item_key]["label"], "पहला प्रश्न")
         self.assertEqual(payload["choices"]["yes_no/yes"]["label"], "हाँ")
 
+    def test_a_machine_constraint_draft_is_not_served_and_an_accepted_one_is(self):
+        """digitva-8go.1: constraint_message rides the same pack as label/hint,
+        and a machine draft stays out of it until a speaker accepts it."""
+        _string("hi", "Id10010", "नाम में केवल अक्षर और रिक्त स्थान हो सकते हैं",
+                field="constraint_message", source="machine")
+        db.session.commit()
+        self._login(self.base_coder_id)
+        payload = self.client.get(self._url("hi")).get_json()
+        # Present first: the locale does serve questions, and the label we set up.
+        self.assertIn(self.item_key, payload["questions"])
+        self.assertNotIn("Id10010", payload["questions"])
+
+        row = db.session.get(
+            MapInstrumentTranslations,
+            (INSTRUMENT, "hi", "question", "Id10010", "constraint_message"),
+        )
+        row.source = "edited"
+        db.session.commit()
+        payload = self.client.get(self._url("hi")).get_json()
+        self.assertEqual(
+            payload["questions"]["Id10010"]["constraint_message"],
+            "नाम में केवल अक्षर और रिक्त स्थान हो सकते हैं",
+        )
+
     def test_the_base_locale_is_always_served_and_carries_no_strings(self):
         self._login(self.base_coder_id)
         payload = self.client.get(self._url("en")).get_json()
@@ -138,6 +163,41 @@ class InstrumentTranslationServingTests(BaseTestCase):
         self._login(self.base_coder_id)
         self.assertEqual(self.client.get(self._url("zz")).status_code, 404)
         self.assertEqual(self.client.get(self._url("hi", "NOPE")).status_code, 404)
+
+    def test_every_advertised_locale_is_downloadable_for_the_project(self):
+        """digitva-p6fs.27: the device must never be offered a locale whose
+        download 404s. Advertising (served_instrument_locales, the set behind
+        form-options ``available_locales``) and serving share one predicate;
+        this pins it. Present first: each locale is asserted advertised or
+        not before its download status is."""
+        from app.routes.api.organization import served_instrument_locales
+
+        # ar: approved with no translation row, but not active -> servable
+        # only if active or in_review, so it is neither offered nor served.
+        _locale("ar", active=False, name="Arabic", lifecycle_state=LIFECYCLE_APPROVED)
+        # ur: active (hence approved) yet no translation row at all.
+        _locale("ur", active=True, name="Urdu")
+        db.session.commit()
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        # kn is still a draft with strings: never offered, never served.
+        code, advertised = served_instrument_locales(project)
+        self.assertEqual(code, INSTRUMENT)
+        self.assertLessEqual({"en", "hi", "ur"}, advertised)
+        self.assertNotIn("ar", advertised)
+        self.assertNotIn("kn", advertised)
+
+        self._login(self.base_admin_id)
+        for locale in sorted(advertised):
+            response = self.client.get(
+                self._url(locale), query_string={"project_id": self.BASE_PROJECT_ID}
+            )
+            self.assertEqual(response.status_code, 200, f"advertised {locale!r} must download")
+
+        for locale in ("ar", "kn"):
+            response = self.client.get(
+                self._url(locale), query_string={"project_id": self.BASE_PROJECT_ID}
+            )
+            self.assertEqual(response.status_code, 404, f"unadvertised {locale!r}")
 
     def test_an_unchanged_version_revalidates_to_304(self):
         self._login(self.base_coder_id)
@@ -696,6 +756,115 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             self._api("/strings/accept"), json=payload, headers=self._csrf_headers(),
         )
         self.assertIn(as_plain.status_code, (302, 403))
+
+    # -- constraint messages and guidance (digitva-8go.1) -----------------------
+
+    def _question_row(self, name):
+        payload = self.client.get(self._api(f"/questions?q={name}")).get_json()
+        return next(i for i in payload["items"] if i["name"] == name)
+
+    def test_a_constraint_message_is_editable_and_round_trips(self):
+        """Id10010's message exists only as a build override of the workbook, so
+        this also proves the reference takes constraint messages from the
+        built instrument."""
+        self._login(self.base_admin_id)
+        row = self._question_row("Id10010")
+        self.assertEqual(
+            row["constraint_message"]["english"],
+            "Interviewer name can contain letters and spaces only",
+        )
+        self.assertIsNone(row["constraint_message"]["translated"])
+
+        response = self.client.put(
+            self._api("/strings"),
+            json={"item_kind": "question", "item_key": "Id10010",
+                  "field": "constraint_message", "text": "केवल अक्षर और रिक्त स्थान"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+
+        row = self._question_row("Id10010")
+        self.assertEqual(row["constraint_message"]["translated"], "केवल अक्षर और रिक्त स्थान")
+        self.assertEqual(row["constraint_message"]["source"], "edited")
+        served = self.client.get(self._api("/export")).get_json()
+        self.assertEqual(
+            served["questions"]["Id10010"]["constraint_message"], "केवल अक्षर और रिक्त स्थान"
+        )
+
+    def test_a_guidance_note_is_editable_and_a_dropped_constraint_is_not_offered(self):
+        self._login(self.base_admin_id)
+        guidance = self._question_row("Id10130")["guidance"]
+        self.assertTrue(guidance["english"])
+        response = self.client.put(
+            self._api("/strings"),
+            json={"item_kind": "question", "item_key": "Id10130",
+                  "field": "guidance_hint", "text": '<span style="color:blue">नोट</span>'},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(
+            self._question_row("Id10130")["guidance"]["translated"],
+            '<span style="color:blue">नोट</span>',
+        )
+        # Id10365 has a message in the workbook but the build drops it, so the
+        # form never shows one: nothing to translate, and the edit is refused.
+        self.assertNotIn("constraint_message", self._question_row("Id10365"))
+        refused = self.client.put(
+            self._api("/strings"),
+            json={"item_kind": "question", "item_key": "Id10365",
+                  "field": "constraint_message", "text": "x"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(refused.status_code, 400)
+
+    def test_accepting_a_machine_constraint_draft_makes_it_served(self):
+        _string("hi", "Id10010", "मशीन मसौदा", field="constraint_message", source="machine")
+        db.session.commit()
+        self._login(self.base_admin_id)
+        before = self.client.get(self._api("/export")).get_json()
+        self.assertNotIn("Id10010", before["questions"])
+        response = self.client.post(
+            self._api("/strings/accept"),
+            json={"item_kind": "question", "item_key": "Id10010",
+                  "field": "constraint_message"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        after = self.client.get(self._api("/export")).get_json()
+        self.assertEqual(after["questions"]["Id10010"]["constraint_message"], "मशीन मसौदा")
+
+    def test_notes_are_a_separate_breakdown_that_leaves_the_headline_alone(self):
+        reference = svc.reference_items(INSTRUMENT)
+        constraint_keys = {k for k in reference if k[2] == "constraint_message"}
+        guidance_keys = {k for k in reference if k[2] == "guidance_hint"}
+        self.assertIn(("question", "Id10010", "constraint_message"), constraint_keys)
+        self.assertEqual(svc.reference_note_keys(INSTRUMENT), constraint_keys | guidance_keys)
+        # The headline denominator is everything except constraint messages,
+        # exactly what it was before they joined the reference.
+        self.assertEqual(
+            svc.reference_item_keys(INSTRUMENT), set(reference) - constraint_keys
+        )
+
+        def hi():
+            return next(r for r in svc.locale_status(INSTRUMENT) if r["locale_code"] == "hi")
+
+        base = hi()
+        self.assertEqual(base["reference_notes"], len(constraint_keys | guidance_keys))
+        _string("hi", "Id10010", "मशीन", field="constraint_message", source="machine")
+        db.session.flush()
+        self.assertEqual(hi()["translated_notes"], base["translated_notes"])  # a draft counts for nothing
+        row = db.session.get(
+            MapInstrumentTranslations,
+            (INSTRUMENT, "hi", "question", "Id10010", "constraint_message"),
+        )
+        row.source = "edited"
+        db.session.flush()
+        after = hi()
+        self.assertEqual(after["translated_notes"], base["translated_notes"] + 1)
+        self.assertGreater(after["notes_coverage"], base["notes_coverage"])
+        # Constraint messages are not in the headline, so it did not move.
+        self.assertEqual(after["translated_items"], base["translated_items"])
+        self.assertEqual(after["reference_items"], base["reference_items"])
 
     # -- export and import --------------------------------------------------
 

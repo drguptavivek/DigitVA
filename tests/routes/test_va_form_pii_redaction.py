@@ -395,6 +395,17 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
                 self.assertNotIn(self.PII_VALUE, body)
                 self.assertNotIn(self.STAFF_VALUE, body)
 
+    def test_view_only_coder_and_reviewer_get_the_content_partial_in_scope(self):
+        """digitva-blp: a coder or reviewer admitted by VIEW reads a real
+        category partial through ``vaarea``, not only the shell."""
+        self._fresh_cache()
+        for role in (VaAccessRoles.coder, VaAccessRoles.reviewer):
+            with self.subTest(role=role.value):
+                self._login(self._viewer(role))
+                response = self._viewer_partial("vaarea")
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(self.PUBLIC_VALUE, response.get_data(as_text=True))
+
     def test_viewer_collaborator_pii_sees_personal_data_and_staff_identity(self):
         self._fresh_cache()
         self._login(self._viewer(VaAccessRoles.collaborator_pii))

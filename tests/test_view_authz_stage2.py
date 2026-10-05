@@ -79,6 +79,16 @@ class ViewAuthzStageTwoTests(CodingScopeFixtureMixin, BaseTestCase):
                     action=action, actiontype="vaview",
                 ), 200)
 
+    def test_the_area_shell_for_a_view_only_coder_is_read_only(self):
+        coder = self._user("blp.shell", VaAccessRoles.coder, self.chc)
+        self._login(str(coder.user_id))
+        response = self.client.get("/coding/area/csc-s2-phc-a")
+        self.assertEqual(response.status_code, 200)
+        shell = response.get_data(as_text=True)
+        self.assertIn("Verbal Autopsy Submission (read-only)", shell)
+        self.assertNotIn("Verbal Autopsy Data Manager Review", shell)
+        self.assertNotIn("Data Triage", shell)
+
     def test_a_view_only_reviewer_opens_the_area_view_and_its_partials(self):
         reviewer = self._user("blp.reviewer", VaAccessRoles.reviewer, self.chc)
         self.assertEqual(self._get(reviewer, "/coding/area/csc-s2-phc-b"), 200)

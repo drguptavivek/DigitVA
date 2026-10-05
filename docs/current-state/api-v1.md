@@ -235,6 +235,65 @@ Autopsy Analysis not yet saved) and `invalid_doris`; 503 `who_unavailable` /
 `who_not_configured`. Not codeable also flags ODK Central for revision; a
 failed flag is audited and does not fail the save.
 
+## Workspace content (`GET /api/v1/va/<va_sid>/workspace` and `.../categories/<code>`, `app/routes/api/va_case.py`)
+
+The coding and review workspace content for any client (digitva-xl43 phase 2).
+The reads are `app/services/case_content_service.py`, which the web partials
+(`va_form.renderpartial` GET) render from too. Gate `coder`, `coding_tester` or
+`reviewer`; cookie or bearer. `mode` is required: `coding` or `reviewing`
+(anything else is 400 `invalid_request`). Authorization runs before any
+payload read: `coding` needs a coder or coding tester with `Action.CODE`
+(`RECODE` in a recode episode) on the case and their own active coding
+allocation (`coder_cod_service.require_coding_session`); `reviewing` needs a
+reviewer with `Action.REVIEW` and their own active reviewing allocation
+(`reviewer_coding_service.require_reviewing_session`). There is no read-only
+"view" mode yet, and admin demo coding is not served.
+
+`GET /<va_sid>/workspace?mode=` answers `Cache-Control: private, no-store`:
+
+| Key | Content |
+| --- | --- |
+| `case` | `va_sid`, `instance_name` (the masked id), `form_type_code`, `project_mode` (`masked_simple`, `masked_doris`, `unmasked_simple`, `unmasked_doris`), `workflow_state`, `narrative_qa_enabled`, `social_autopsy_enabled` |
+| `categories`, `default_category` | ordered `[{code, label, nav_label, render_mode}]` the mode's role sees (the COD panel `vacodassessment` last), and the code to open first |
+| `step` | `initial`, `final` or `done`. Coding: Step 1 while the caller has neither an active Step 1 nor a not-codeable review (an unmasked project has no Step 1, so `final`); `final` once Step 1 is saved; `done` after a not-codeable review with no Step 1. Reviewing: masked and no own Step 1 is `initial`, own Step 1 or an unmasked project is `final`, a saved reviewer final is `done` |
+| `blocked_by` | codes that stop the final save: `narrative_qa` (coders; NQA enabled and not saved by the caller) and `social_autopsy` (the role's analysis required and not saved) |
+| `assessments` | always these keys, null when absent. Coding: `initial` (the caller's own active Step 1: `id`, `immediate_cod`, `antecedent_cod`, `other_conditions` as a list, `created_at`), `initial_prefill` (what the Step 1 form opens with: the same row, or in a recode episode the caller's latest prior draft), `final` (the authoritative coder final: `id`, `conclusive_cod`, `immediate_cod`, `other_conditions`, `remark`, `created_at`; only once `step` is `final`, as the web's Step 2 form shows it, so a masked Step 1 stays blind to an earlier coder's result), `not_codeable` (`reason`, `other`, `created_at`; only the caller's own review). Reviewing: `coder_initial`, `final` and `not_codeable` as read-only reference (the web panel shows them to a reviewer), and the caller's own `reviewer_initial` and `reviewer_final` (another reviewer's final is neither shown nor makes `step` `done`). Another coder's Step 1 is never shown to a coder |
+| `smartva` | the active SmartVA result read live (not from the section cache; it completes asynchronously): `age`, `gender`, `key_symptoms`, `causes` (`rank`, `cause`, `icd10`, `icd11` mapping, `likelihood`), `symptoms`; null when none, and on a masked project until the caller has their own Step 1 (Step 1 is blind) |
+| `other_conditions_options` | the Step 1 other-conditions list of the age group (`coding`); null for `reviewing`, whose form takes free text |
+
+`GET /<va_sid>/categories/<code>?mode=` returns `{code, label, render_mode,
+summary_items, subcategories, blocked_by}`. `subcategories` is an ordered list
+`[{code, label, render_mode, items: [{label, value, flip, info}]}]`, never a
+label-keyed object (the JSON provider sorts keys); `flip` and `info` are the
+mapping's flip and info labels the web badges use. The `workflow_panel`
+category (`vacodassessment`) carries the narration and documents and the health
+history subcategories the COD panel shows. `blocked_by` is `narrative_qa` or
+`social_autopsy` while that category's required form is unsaved. The data is
+the section cache (below) with PII redaction. A category the mode's role does
+not see is 404 `not_found`, like one that does not exist. Every category reply is
+`Cache-Control: private, no-store` (PHI on a shared browser), stricter than the
+web partial, which keeps `max-age=300` for data categories.
+
+Attachment item values are the existing `/attachment/<token>` URLs, which need
+the cookie session; digitva-xl43 phase 3 replaces them with bearer-capable
+`/api/v1` URLs. DORIS fields (certificate prefill, process URLs) are not in
+this body yet: digitva-xl43.3; `case.project_mode` tells the client.
+
+Errors `{error, code}`: 400 `invalid_request`; 403 `forbidden` (wrong role for
+the mode, or the case is outside the caller's scope) and `no_allocation`; 404
+`not_found` (unknown case or category).
+
+Section cache: Redis, 30 minutes, key
+`form_data:<sid>:<payload_version_id>:<role>:<category>` plus `:nopii` for a
+viewer who must not see personal data. The role bucket (`coder`, `reviewer`,
+`data_manager`, `viewer`) keeps roles mapped through different field mappings
+from sharing an entry, and the payload version keeps an interviewer revision
+from being served the old answers. `invalidate_section_data_cache` drops every
+role and PII variant of the current version but has no production caller: the
+payload version in the key is what stops stale answers after an interviewer
+revision or another interview chosen, while edits to the field mapping or the
+PII set still wait out the 30-minute TTL.
+
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.

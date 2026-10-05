@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-05
 ---
 
 # Category Rendering And Visibility
@@ -552,3 +552,18 @@ rules above.
   are now form-type aware
 - left-nav visibility is derived from stored preprocess output, while panel content is
   recalculated at request time
+
+## Section data cache
+
+The data of a category (summary items, rendered fields, the COD panel evidence)
+is built by `app/services/case_content_service.py` (`get_section_data`) for
+both the web partials and `/api/v1/va/<sid>/categories/<code>`, and cached in
+Redis for 30 minutes under
+`form_data:<sid>:<payload_version_id>:<role>:<category>` (plus `:nopii` for a
+viewer without PII). The role bucket matters because coder and reviewer views
+use the legacy coder field mapping and every other role the DB mapping; the
+payload version means a revised interview is never served its old answers.
+`invalidate_section_data_cache(sid)` drops every role and PII variant of the
+current version but has no production caller: the payload version in the key is
+what stops stale answers after a revision, while mapping or PII-set edits still
+wait out the 30-minute TTL.

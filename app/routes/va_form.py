@@ -8,7 +8,6 @@ import sqlalchemy as sa
 from flask import (
     Blueprint,
     abort,
-    current_app,
     flash,
     jsonify,
     make_response,
@@ -20,7 +19,6 @@ from flask import (
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 
-from app import cache as flask_cache
 from app import db
 from app.decorators import role_required, va_validate_permissions
 from app.forms import (
@@ -32,9 +30,7 @@ from app.forms import (
     VaUsernoteForm,
 )
 from app.models import (
-    VaCoderReview,
     VaDataManagerReview,
-    VaFinalAssessments,
     VaInitialAssessments,
     VaReviewerReview,
     VaSmartvaResults,
@@ -48,6 +44,13 @@ from app.models import (
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services import attachment_service
 from app.services.authz import Action, AuthzError, require
+from app.services.case_content_service import (
+    get_case_artifacts,
+    get_section_data,
+    get_step1_prefill,
+    nqa_blocks_final,
+    response_contains_user_specific_artifacts,
+)
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -68,29 +71,18 @@ from app.services.coder_cod_service import (
     submit_coder_not_codeable,
 )
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-from app.services.data_management_service import CSV_EXPORT_OMIT_PAYLOAD_FIELDS
 from app.services.doris_prefill import doris_prefill_from_payload
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
-    get_active_recode_episode,
     get_authoritative_final_assessment,
-    get_authoritative_final_cod_record,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
-    get_current_payload_narrative_assessment,
-    get_current_payload_reviewer_review,
-    get_current_payload_social_autopsy_analysis,
     get_submission_with_current_payload,
-)
-from app.services.reviewer_final_assessment_service import (
-    get_latest_active_reviewer_final_assessment,
-    get_latest_active_reviewer_initial_assessment,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
-from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
@@ -111,34 +103,16 @@ from app.utils import (
     va_get_form_type_code_for_form,
     va_permission_abortwithflash,
     va_permission_ensureallocation,
-    va_render_processcategorydata,
 )
-from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
 
 log = logging.getLogger(__name__)
 va_form = Blueprint("va_form", __name__)
-
-_SECTION_CACHE_TIMEOUT = 1800  # 30 minutes
-
-
-def _section_data_cache_key(va_sid: str, va_partial: str) -> str:
-    """Cache key for rendered category data (payload-derived, not user-specific)."""
-    return f"form_data:{va_sid}:{va_partial}"
-
-
-def _response_contains_user_specific_artifacts(va_partial: str, va_action: str) -> bool:
-    """Return whether a rendered partial includes user-specific coding artifacts."""
-    if va_action not in {"vacode", "vareview"}:
-        return False
-    # vacodassessment picks Step 1 or Step 2 from the user's own saved
-    # assessment; a cached copy reopens Step 1 after it was saved.
-    return va_partial in {"vanarrationanddocuments", "social_autopsy", "vacodassessment"}
 
 
 def _apply_partial_cache_policy(response, va_partial: str, va_action: str):
     """Apply HTTP cache headers for rendered form partials."""
     response.cache_control.private = True
-    if _response_contains_user_specific_artifacts(va_partial, va_action):
+    if response_contains_user_specific_artifacts(va_partial, va_action):
         response.cache_control.no_store = True
         response.cache_control.max_age = 0
     else:
@@ -146,33 +120,9 @@ def _apply_partial_cache_policy(response, va_partial: str, va_action: str):
     return response
 
 
-def _invalidate_section_data_cache(va_sid: str) -> None:
-    """Drop all cached form-data entries for a submission."""
-    sub = db.session.get(VaSubmissions, va_sid)
-    if not sub:
-        return
-    _ftc = va_get_form_type_code_for_form(sub.va_form_id)
-    _pv = get_active_payload_version(va_sid)
-    _pd = _pv.payload_data if _pv else None
-    visible = get_visible_category_codes(_pd, sub.va_form_id)
-    for _partial in visible:
-        _key = _section_data_cache_key(va_sid, _partial)
-        flask_cache.delete(_key)
-        flask_cache.delete(f"{_key}:nopii")
-
-
 def _nqa_blocks_final(va_sid, va_action, project) -> bool:
-    """True when this coder must save the NQA before the final COD form.
-
-    Saving the NQA reloads the page, so a final assessment typed before it
-    would be lost; callers show ``_nqa_required_notice.html`` instead.
-    """
-    return bool(
-        va_action == "vacode"
-        and project
-        and project.narrative_qa_enabled
-        and not get_current_payload_narrative_assessment(va_sid, current_user.user_id)
-    )
+    """True when this coder must save the NQA before the final COD form."""
+    return nqa_blocks_final(va_sid, va_action, project, current_user.user_id)
 
 
 _DORIS_ENVELOPE_FIELDS = (
@@ -314,43 +264,6 @@ def _doris_conflict(code: str, message: str, processing: dict | None = None):
     return jsonify(payload), 409
 
 
-def _get_display_initial_assessment(va_sid: str):
-    """Return the initial COD to display for view/history contexts.
-
-    Prefer the current active initial assessment. If the active draft was
-    superseded during final COD submission, fall back to the source initial
-    assessment linked from the authoritative coder final assessment.
-    """
-    initial_assessment = db.session.scalar(
-        sa.select(VaInitialAssessments).where(
-            (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-            & (VaInitialAssessments.va_sid == va_sid)
-        )
-    )
-    if initial_assessment is not None:
-        return initial_assessment
-
-    authoritative_coder_final = get_authoritative_final_assessment(va_sid)
-    if (
-        authoritative_coder_final is None
-        or authoritative_coder_final.source_initial_assessment_id is None
-    ):
-        return None
-
-    return db.session.get(
-        VaInitialAssessments,
-        authoritative_coder_final.source_initial_assessment_id,
-    )
-
-
-def _is_social_autopsy_enabled_for_submission(va_sid: str, va_action: str = "vacode") -> bool:
-    """Return whether the app-owned Social Autopsy analysis form is enabled."""
-    project = _get_project_for_submission(va_sid)
-    if project is None:
-        return True
-    if va_action == "vareview":
-        return bool(project.reviewer_social_autopsy_enabled)
-    return bool(project.social_autopsy_enabled)
 DATA_MANAGER_TRIAGE_ALLOWED_STATES = {
     WORKFLOW_SCREENING_PENDING,
     WORKFLOW_READY_FOR_CODING,
@@ -654,7 +567,6 @@ def renderpartial(va_sid, va_partial):
             va_action,
             va_partial,
         )
-        va_mapping_choice = _mapping_svc.get_choices(_form_type_code)
         va_mapping_flip = _mapping_svc.get_flip_labels(_form_type_code)
         va_mapping_info = _mapping_svc.get_info_labels(_form_type_code)
         subcategory_labels = _mapping_svc.get_subcategory_labels(_form_type_code, va_partial)
@@ -662,190 +574,40 @@ def renderpartial(va_sid, va_partial):
             _form_type_code,
             va_partial,
         )
-        # --- Cache expensive form-data queries (not user-specific) ---
-        # Redaction depends on the viewer's role (should_redact_pii), so the
-        # redacted and unredacted renders must not share a cache entry —
-        # otherwise whichever viewer renders a section first decides what
-        # every later viewer of that section sees. See
-        # docs/policy/access-control-model.md, "collaborator".
-        _redact_pii = should_redact_pii(current_user)
-        _data_cache_key = _section_data_cache_key(va_sid, va_partial)
-        if _redact_pii:
-            _data_cache_key += ":nopii"
-        _cached_data = flask_cache.get(_data_cache_key)
-        if _cached_data is not None:
-            summary_items = _cached_data["summary_items"]
-            va_processedcategorydata = _cached_data["va_processedcategorydata"]
-            cod_attachments_data = _cached_data["cod_attachments_data"]
-            cod_attachments_labels = _cached_data["cod_attachments_labels"]
-            cod_attachments_render_modes = _cached_data["cod_attachments_render_modes"]
-            cod_health_history_data = _cached_data["cod_health_history_data"]
-            cod_health_history_labels = _cached_data["cod_health_history_labels"]
-            smartva = _cached_data["smartva"]
-        else:
-            # For a no-PII viewer, strip payload fields flagged `is_pii` before
-            # they ever reach summary/category rendering, rather than trying to
-            # filter the rendered (label-keyed) output afterwards.
-            # An unconfirmed PII set means nobody has said which of this form
-            # type's fields are personal data, so no field can be trusted not
-            # to be: withhold the whole payload rather than redact by an
-            # answer that was never given. See
-            # docs/policy/access-control-model.md, "The PII set must be
-            # confirmed per form type".
-            _render_payload_data = va_payload_data
-            if _redact_pii and va_payload_data:
-                _pii_status = _mapping_svc.get_pii_set_status(_form_type_code)
-                if not _pii_status.confirmed:
-                    current_app.logger.warning(
-                        "pii set unconfirmed | %s | payload withheld",
-                        _form_type_code,
-                    )
-                    _render_payload_data = {}
-                else:
-                    # The confirmed PII set plus what the submissions export
-                    # omits for every role: staff identity (SubmitterName),
-                    # the instance identifiers and the narration image and
-                    # audio fields, whose tokens must not render for a plain
-                    # collaborator. Same rule as _filter_export_payload.
-                    _withheld_fields = _pii_status.field_ids | CSV_EXPORT_OMIT_PAYLOAD_FIELDS
-                    _render_payload_data = {
-                        field_id: value
-                        for field_id, value in va_payload_data.items()
-                        if field_id not in _withheld_fields
-                    }
-            summary_items = build_submission_summary(
-                _form_type_code,
-                _render_payload_data,
-            )
-            va_datalevel = va_get_render_datalevel(
-                va_action,
-                _form_type_code,
-                visible_category_codes,
-            )
-            va_processedcategorydata = va_render_processcategorydata(_render_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
-            cod_attachments_data = {}
-            cod_attachments_labels = {}
-            cod_attachments_render_modes = {}
-            cod_health_history_data = {}
-            cod_health_history_labels = {}
-            if category_config and category_config.render_mode == "workflow_panel":
-                cod_attachments_data = va_render_processcategorydata(
-                    _render_payload_data,
-                    va_submission.va_form_id,
-                    va_datalevel,
-                    va_mapping_choice,
-                    "vanarrationanddocuments",
-                    va_sid=va_submission.va_sid,
-                )
-                cod_attachments_labels = _mapping_svc.get_subcategory_labels(
-                    _form_type_code,
-                    "vanarrationanddocuments",
-                )
-                cod_attachments_render_modes = _mapping_svc.get_subcategory_render_modes(
-                    _form_type_code,
-                    "vanarrationanddocuments",
-                )
-                cod_health_history_data = va_render_processcategorydata(
-                    _render_payload_data,
-                    va_submission.va_form_id,
-                    va_datalevel,
-                    va_mapping_choice,
-                    "vahealthhistorydetails",
-                    va_sid=va_submission.va_sid,
-                )
-                cod_health_history_labels = _mapping_svc.get_subcategory_labels(
-                    _form_type_code,
-                    "vahealthhistorydetails",
-                )
-            smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
-            flask_cache.set(_data_cache_key, {
-                "summary_items": summary_items,
-                "va_processedcategorydata": va_processedcategorydata,
-                "cod_attachments_data": cod_attachments_data,
-                "cod_attachments_labels": cod_attachments_labels,
-                "cod_attachments_render_modes": cod_attachments_render_modes,
-                "cod_health_history_data": cod_health_history_data,
-                "cod_health_history_labels": cod_health_history_labels,
-                "smartva": smartva,
-            }, timeout=_SECTION_CACHE_TIMEOUT)
+        section = get_section_data(
+            va_submission=va_submission,
+            active_version=_active_version,
+            form_type_code=_form_type_code,
+            va_action=va_action,
+            va_partial=va_partial,
+            category_config=category_config,
+            visible_category_codes=visible_category_codes,
+            user=current_user,
+        )
+        summary_items = section["summary_items"]
+        va_processedcategorydata = section["va_processedcategorydata"]
+        cod_attachments_data = section["cod_attachments_data"]
+        cod_attachments_labels = section["cod_attachments_labels"]
+        cod_attachments_render_modes = section["cod_attachments_render_modes"]
+        cod_health_history_data = section["cod_health_history_data"]
+        cod_health_history_labels = section["cod_health_history_labels"]
+        smartva = section["smartva"]
         va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
             _form_type_code,
             va_action,
             visible_category_codes,
             va_partial,
         )
-        next_block_message = _get_required_completion_block(
-            va_sid,
-            va_partial,
-            va_action,
-            va_actiontype,
+        artifacts = get_case_artifacts(
+            va_sid=va_sid,
+            va_partial=va_partial,
+            va_action=va_action,
+            va_actiontype=va_actiontype,
+            project=project,
+            user_id=current_user.user_id,
         )
-        reviewobject = None
-        if va_action == "vareview":
-            reviewobject = get_current_payload_reviewer_review(
-                va_sid,
-                current_user.user_id,
-            )
-        elif va_action == "vacode":
-            reviewobject = db.session.scalar(
-                sa.select(VaReviewerReview).where(
-                    (VaReviewerReview.va_rreview_status == VaStatuses.active)
-                    & (VaReviewerReview.va_sid == va_sid)
-                )
-            )
-        authoritative_final_assess = get_authoritative_final_cod_record(va_sid)
-        vafinexists = authoritative_final_assess.va_sid if authoritative_final_assess else None
-        vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
-        # For coding sessions scope vainiexists to the current user — a previous
-        # user's active initial assessment must not redirect this user to step 2.
-        # For review/view contexts leave it unscoped (show any coder's assessment).
-        _ini_filter = [
-            VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-            VaInitialAssessments.va_sid == va_sid,
-        ]
-        if va_action == "vacode":
-            _ini_filter.append(VaInitialAssessments.va_iniassess_by == current_user.user_id)
-        vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where(*_ini_filter))
-        va_final_assess = authoritative_final_assess
-        va_initial_assess = _get_display_initial_assessment(va_sid)
-        va_reviewer_initial_assess = None
-        va_reviewer_final_assess = None
-        if va_action == "vareview":
-            va_reviewer_initial_assess = get_latest_active_reviewer_initial_assessment(
-                va_sid,
-                current_user.user_id,
-            )
-            va_reviewer_final_assess = get_latest_active_reviewer_final_assessment(
-                va_sid
-            )
-        va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
-        da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
-        da_va_initial_assess = None
-        da_va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.deactive)&(VaCoderReview.va_sid == va_sid)&(VaCoderReview.va_creview_by == current_user.user_id)))
-        # return render_template(
-        #     f"va_formcategory_partials/{va_partial}.html",
-        #     va_codingplatformid = va_submission.va_uniqueid_masked,
-        #     va_processedcategorydata = va_processedcategorydata,
-        #     va_previouscategory = va_previouscategory,
-        #     va_nextcategory = va_nextcategory,
-        #     va_mappingflip = va_mapping_flip,
-        #     va_mappinginfo = va_mapping_info,
-        # )
-        # NQA context (only relevant for vanarrationanddocuments in coding/reviewing)
-        _nqa_project = _get_project_for_submission(va_sid) if va_partial == "vanarrationanddocuments" else None
-        narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)
-        social_autopsy_enabled = (
-            _is_social_autopsy_enabled_for_submission(va_sid, va_action)
-            if va_partial == "social_autopsy"
-            else False
-        )
-        va_narrative_assessment = None
-        if narrative_qa_enabled and va_action in {"vacode", "vareview"}:
-            va_narrative_assessment = get_current_payload_narrative_assessment(
-                va_sid,
-                current_user.user_id,
-            )
-        va_social_autopsy_analysis = None
+        va_reviewer_final_assess = artifacts.va_reviewer_final_assess
+        va_reviewer_initial_assess = artifacts.va_reviewer_initial_assess
         va_usernote = db.session.scalar(
             sa.select(VaUsernotes).where(
                 VaUsernotes.note_by == current_user.user_id,
@@ -853,17 +615,6 @@ def renderpartial(va_sid, va_partial):
                 VaUsernotes.note_status == VaStatuses.active,
             )
         )
-        if va_partial == "social_autopsy" and va_action in {"vacode", "vareview"} and social_autopsy_enabled:
-            va_social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
-                va_sid,
-                current_user.user_id,
-            )
-        social_autopsy_selected_pairs = set()
-        if va_social_autopsy_analysis:
-            social_autopsy_selected_pairs = {
-                f"{item.delay_level}::{item.option_code}"
-                for item in va_social_autopsy_analysis.selected_options
-            }
         template_name = f"va_formcategory_partials/{va_partial}.html"
         if category_config and category_config.render_mode == "table_sections":
             template_name = "va_formcategory_partials/category_table_sections.html"
@@ -921,26 +672,26 @@ def renderpartial(va_sid, va_partial):
             va_partial = va_partial,
             summary = va_submission.va_summary,
             summary_items = summary_items,
-            reviewobject = reviewobject,
-            vafinexists = vafinexists,
-            vaerrexists = vaerrexists,
-            vainiexists = vainiexists,
-            va_final_assess = va_final_assess,
-            va_initial_assess = va_initial_assess,
+            reviewobject = artifacts.reviewobject,
+            vafinexists = artifacts.vafinexists,
+            vaerrexists = artifacts.vaerrexists,
+            vainiexists = artifacts.vainiexists,
+            va_final_assess = artifacts.va_final_assess,
+            va_initial_assess = artifacts.va_initial_assess,
             va_reviewer_initial_assess=va_reviewer_initial_assess,
             va_reviewer_final_assess=va_reviewer_final_assess,
-            va_coder_review = va_coder_review,
+            va_coder_review = artifacts.va_coder_review,
             smartva = smartva,
-            da_va_final_assess = da_va_final_assess,
-            da_va_initial_assess = da_va_initial_assess,
-            da_va_coder_review = da_va_coder_review,
-            narrative_qa_enabled = narrative_qa_enabled,
-            social_autopsy_enabled = social_autopsy_enabled,
-            va_narrative_assessment = va_narrative_assessment,
+            da_va_final_assess = artifacts.da_va_final_assess,
+            da_va_initial_assess = artifacts.da_va_initial_assess,
+            da_va_coder_review = artifacts.da_va_coder_review,
+            narrative_qa_enabled = artifacts.narrative_qa_enabled,
+            social_autopsy_enabled = artifacts.social_autopsy_enabled,
+            va_narrative_assessment = artifacts.va_narrative_assessment,
             social_autopsy_analysis_questions = SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
-            va_social_autopsy_analysis = va_social_autopsy_analysis,
-            social_autopsy_selected_pairs = social_autopsy_selected_pairs,
-            next_block_message = next_block_message,
+            va_social_autopsy_analysis = artifacts.va_social_autopsy_analysis,
+            social_autopsy_selected_pairs = artifacts.social_autopsy_selected_pairs,
+            next_block_message = artifacts.next_block_message,
             cod_attachments_data = cod_attachments_data,
             cod_attachments_labels = cod_attachments_labels,
             cod_attachments_render_modes = cod_attachments_render_modes,
@@ -1152,32 +903,12 @@ def renderpartial(va_sid, va_partial):
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)
         # GET — pre-populate from any existing active initial assessment
-        existing_assess = db.session.scalar(
-            sa.select(VaInitialAssessments)
-            .where(
-                VaInitialAssessments.va_sid == va_sid,
-                VaInitialAssessments.va_iniassess_by == current_user.user_id,
-                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-            )
-            .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
+        existing_assess = get_step1_prefill(
+            va_sid,
+            current_user.user_id,
+            va_action,
+            recode_resume=va_actiontype == "varesumecoding",
         )
-        # Recode resume fallback: when a recode session has no active Step 1
-        # of the caller's own (another coder's recode, or a release cleared
-        # it), prefill Step 1 from the coder's latest prior initial draft.
-        if (
-            existing_assess is None
-            and va_action == "vacode"
-            and va_actiontype == "varesumecoding"
-            and get_active_recode_episode(va_sid)
-        ):
-            existing_assess = db.session.scalar(
-                sa.select(VaInitialAssessments)
-                .where(
-                    VaInitialAssessments.va_sid == va_sid,
-                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
-                )
-                .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
-            )
         doris_initial_certificate, doris_prefill_provenance = _doris_initial(
             existing_assess.doris_certificate
             if existing_assess and existing_assess.doris_certificate
@@ -1763,38 +1494,3 @@ def serve_media(va_form_id, va_filename):
 #             print(f"Field {field} errors:", errors)
 #             for error in errors:
 #                 flash(f'{field}: {error}', 'danger')
-
-
-def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str, va_actiontype: str):
-    """Return a blocking message if the current category has an incomplete required form."""
-    if va_action not in {"vacode", "vareview"}:
-        return None
-    if va_actiontype not in {
-        "vastartcoding",
-        "vapickcoding",
-        "varesumecoding",
-        "vademo_start_coding",
-        "vastartreviewing",
-        "varesumereviewing",
-    }:
-        return None
-
-    if va_partial == "social_autopsy" and _is_social_autopsy_enabled_for_submission(va_sid, va_action):
-        analysis = get_current_payload_social_autopsy_analysis(
-            va_sid,
-            current_user.user_id,
-        )
-        if not analysis:
-            return "Save the Social Autopsy Analysis before proceeding to the next category."
-
-    if va_partial == "vanarrationanddocuments":
-        project = _get_project_for_submission(va_sid)
-        if project and project.narrative_qa_enabled:
-            nqa = get_current_payload_narrative_assessment(
-                va_sid,
-                current_user.user_id,
-            )
-            if not nqa:
-                return "Complete the Narrative Quality Assessment before proceeding."
-
-    return None

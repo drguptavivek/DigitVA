@@ -475,7 +475,7 @@ class TestMaskedDorisCoding(BaseTestCase):
             )
         )
 
-    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=None)
+    @patch("app.services.case_content_service.get_current_payload_narrative_assessment", return_value=None)
     @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
     @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     @patch("app.services.reviewer_coding_service.verify_process_submission")
@@ -496,7 +496,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertNotIn("data-doris-final-host", body)
         self.assertIsNotNone(self._saved_step1(sid))
 
-    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=object())
+    @patch("app.services.case_content_service.get_current_payload_narrative_assessment", return_value=object())
     @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value=None)
     @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
     @patch("app.services.reviewer_coding_service.verify_process_submission")
@@ -543,7 +543,7 @@ class TestMaskedDorisCoding(BaseTestCase):
                 headers={**self._csrf_headers(), "HX-Request": "true"},
             )
 
-    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=None)
+    @patch("app.services.case_content_service.get_current_payload_narrative_assessment", return_value=None)
     def test_masked_simple_step1_post_shows_nqa_notice_when_nqa_missing(self, _nqa):
         self._mode(masked=True, doris=False)
         self._require_nqa()
@@ -558,7 +558,7 @@ class TestMaskedDorisCoding(BaseTestCase):
         self.assertNotIn("conclusive-cod-select", body)
         self.assertIsNotNone(self._saved_step1(sid))
 
-    @patch("app.routes.va_form.get_current_payload_narrative_assessment", return_value=object())
+    @patch("app.services.case_content_service.get_current_payload_narrative_assessment", return_value=object())
     def test_masked_simple_step1_post_shows_step2_when_nqa_done(self, _nqa):
         self._mode(masked=True, doris=False)
         self._require_nqa()

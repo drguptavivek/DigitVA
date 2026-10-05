@@ -245,7 +245,7 @@ _REVIEWING_REFUSALS = {
 }
 
 
-def _require_reviewer_access(user, va_sid: str) -> None:
+def require_reviewer_access(user, va_sid: str) -> None:
     """Raise ReviewerCodingError unless *user* may REVIEW the submission.
 
     Every reviewer entry point (start, Step 1, final) calls it before any
@@ -261,6 +261,30 @@ def _require_reviewer_access(user, va_sid: str) -> None:
     if decision.reason is Reason.PROJECT_CLOSED:
         raise ReviewerCodingError(decision.message, 403)
     raise ReviewerCodingError(_OUT_OF_REVIEWING_SCOPE, 403)
+
+
+def require_reviewing_session(user, va_sid: str) -> None:
+    """Raise ReviewerCodingError unless *user* may review *va_sid* now.
+
+    REVIEW authz first (404 / 403, no ``code``: the reviewing API words those
+    itself), then the caller's own active reviewing allocation on this case
+    (403 ``no_allocation``), as the workspace API needs before it reads anything.
+    """
+    require_reviewer_access(user, va_sid)
+    held = db.session.scalar(
+        sa.select(VaAllocations.va_allocation_id).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    )
+    if held is None:
+        raise ReviewerCodingError(
+            "You do not have an active reviewing allocation for this submission.",
+            403,
+            code="no_allocation",
+        )
 
 
 def get_active_reviewing_allocation(user_id) -> str | None:
@@ -281,7 +305,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, va_sid)
+    require_reviewer_access(user, va_sid)
     if submission.va_narration_language not in user.vacode_language:
         raise ReviewerCodingError(
             f"Your profile does not support reviewing forms in {submission.va_narration_language}.",
@@ -369,7 +393,7 @@ def submit_reviewer_final_cod(
     )
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, va_sid)
+    require_reviewer_access(user, va_sid)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
         raise ReviewerCodingError(
@@ -607,7 +631,7 @@ def submit_reviewer_initial_cod(
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    _require_reviewer_access(user, va_sid)
+    require_reviewer_access(user, va_sid)
     project = get_project_for_submission(va_sid)
     if project is None:
         raise ReviewerCodingError("Project not found.", 404)

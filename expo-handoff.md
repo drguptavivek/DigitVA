@@ -543,5 +543,40 @@ new route; every route still checks its own role, so a coder-only user gets
 3. **Revocation** follows the wider rule: the session ends when the user holds
    none of interviewer, coder, coding tester or reviewer.
 
-The coder's own save routes (`POST /coding/initial|finalize|not-codeable`)
-are being built under `digitva-xl43` and will be described here when landed.
+The coding and review workspace routes are in section 12.
+
+## 12. Coding and review workspace (`digitva-xl43` phases 1-2, server built)
+
+App half: `digitva-p6fs.4`. Full bodies and every error code:
+`docs/current-state/api-v1.md`, "Coder COD writes" and "Workspace content".
+Either credential; errors are `{error, code}`. Every route below needs the
+caller's own active allocation on the case (403 `no_allocation` otherwise);
+the existing allocation routes get one (`GET/POST /coding/allocation`,
+`POST /coding/submissions/<va_sid>/code-now`, `POST /coding/recode/<va_sid>`,
+`POST /coding/allocation/release`; reviewers `GET /reviewing/allocation`,
+`POST /reviewing/allocation/<va_sid>`).
+
+1. **Open a case:** `GET /api/v1/va/<va_sid>/workspace?mode=coding|reviewing`
+   gives the case header, the ordered category list (`categories`,
+   `default_category`), which COD step is due (`step`: `initial`, `final`,
+   `done`) and what blocks the final save (`blocked_by`: `narrative_qa`,
+   `social_autopsy`), the saved assessments (Step 1 prefill included), the
+   SmartVA result (null at masked Step 1: Step 1 is blind) and the Step 1
+   other-conditions list. Do not cache it (`no-store`).
+2. **Show a category:** `GET /api/v1/va/<va_sid>/categories/<code>?mode=`
+   gives ordered `subcategories[].items[] {label, value, flip, info}`; keep
+   the server's order. The COD panel category `vacodassessment` carries the
+   narration, documents and health history shown beside the COD form.
+3. **Save COD (coders):** `POST /api/v1/coding/initial/<va_sid>` (masked
+   projects, when `step` is `initial`), `POST /api/v1/coding/finalize/<va_sid>`
+   (when `step` is `final`), `POST /api/v1/coding/not-codeable/<va_sid>`.
+   Reviewers: `POST /api/v1/reviewing/initial/<va_sid>` and
+   `/reviewing/finalize/<va_sid>`. After a save,
+   reload the workspace for the next step; 422 `final_blocked` lists the
+   blocking gates in `messages`.
+4. **Not yet served** (phase 3, do not build against the web routes):
+   attachments and media still come back as cookie-only `/attachment/<token>`
+   URLs; DORIS projects (`case.project_mode` ending `_doris`) have no
+   certificate prefill in the workspace (`digitva-xl43.3`); no read-only view
+   of a finished case; the reviewer queue, reviewer release and the private
+   note.

@@ -274,18 +274,21 @@ class CoderNotCodeableResult:
     odk_error: str | None
 
 
-def derive_actiontype(va_sid: str) -> str:
+def derive_actiontype(va_sid: str, *, recode_active: bool | None = None) -> str:
     """The web's ``actiontype`` for a client that sends none (the JSON API).
 
     Demo practice (``vademo_start_coding``) stamps the saved rows with an
-    expiry; a case in a recode episode is coded as RECODE.
+    expiry; a case in a recode episode is coded as RECODE. ``recode_active``
+    passes on a caller's own read of the episode (None reads it here).
     """
     if should_use_demo_actiontype_for_submission(va_sid):
         return DEMO_ACTIONTYPE
-    return RECODE_ACTIONTYPE if get_active_recode_episode(va_sid) else ""
+    if recode_active is None:
+        recode_active = get_active_recode_episode(va_sid) is not None
+    return RECODE_ACTIONTYPE if recode_active else ""
 
 
-def _require_coding_write(user, va_sid: str, actiontype: str) -> VaAllocations:
+def require_coding_session(user, va_sid: str, actiontype: str) -> VaAllocations:
     """The caller's active coding allocation, once authz allows the write.
 
     CODE, or RECODE for ``varecode``; an admin's demo session is its own path
@@ -429,7 +432,7 @@ def submit_coder_initial_cod(
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     if db.session.get(VaSubmissions, va_sid) is None:
         raise CoderCodingError("Submission not found.", 404, code="not_found")
-    allocation = _require_coding_write(user, va_sid, actiontype)
+    allocation = require_coding_session(user, va_sid, actiontype)
     project = _load_project(va_sid)
     mode = project_mode(project)
     if not is_masked(mode):
@@ -706,7 +709,7 @@ def submit_coder_final_cod(
     """
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     # Authorize before the row lock: a refused caller never waits on it.
-    allocation = _require_coding_write(user, va_sid, actiontype)
+    allocation = require_coding_session(user, va_sid, actiontype)
     project = _load_project(va_sid)
     mode = project_mode(project)
     # Masked DORIS Step 2 only confirms the underlying cause; the
@@ -1003,7 +1006,7 @@ def submit_coder_not_codeable(
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     if db.session.get(VaSubmissions, va_sid) is None:
         raise CoderCodingError("Submission not found.", 404, code="not_found")
-    allocation = _require_coding_write(user, va_sid, actiontype)
+    allocation = require_coding_session(user, va_sid, actiontype)
     if reason not in NOT_CODEABLE_REASONS:
         raise CoderCodingError(
             "Please describe the reason for why the VA form could not be coded.",

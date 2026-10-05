@@ -22,14 +22,21 @@ from app.services.icd_coding_value import build_icd11_provenance_for_values
 
 def get_latest_active_reviewer_final_assessment(
     va_sid: str,
+    reviewer_user_id=None,
 ) -> VaReviewerFinalAssessments | None:
-    """Return the latest active reviewer final-COD row for a submission."""
+    """Return the latest active reviewer final-COD row for a submission.
+
+    ``reviewer_user_id`` limits it to that reviewer's own row.
+    """
+    filters = [
+        VaReviewerFinalAssessments.va_sid == va_sid,
+        VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+    ]
+    if reviewer_user_id is not None:
+        filters.append(VaReviewerFinalAssessments.va_rfinassess_by == reviewer_user_id)
     return db.session.scalar(
         db.select(VaReviewerFinalAssessments)
-        .where(
-            VaReviewerFinalAssessments.va_sid == va_sid,
-            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
-        )
+        .where(*filters)
         .order_by(VaReviewerFinalAssessments.va_rfinassess_createdat.desc())
     )
 

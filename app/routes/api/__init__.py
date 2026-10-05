@@ -23,6 +23,7 @@ from app.routes.api import (  # noqa: E402, F401
     profile,
     reviewing,
     so,
+    va_case,
     va_definitions,
     workflow,
 )
@@ -58,6 +59,7 @@ api_v1.register_blueprint(organization.bp, url_prefix="/organization")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")
 api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")
+api_v1.register_blueprint(va_case.bp, url_prefix="/va")
 api_v1.register_blueprint(va_definitions.bp, url_prefix="/va-definitions")
 api_v1.register_blueprint(workflow.bp, url_prefix="/workflow")
 

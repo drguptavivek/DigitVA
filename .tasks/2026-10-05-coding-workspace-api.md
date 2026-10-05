@@ -1,6 +1,6 @@
 # Coding and review workspace API (digitva-xl43)
 
-- Status: phase 1 done 2026-10-05; phase 2 next
+- Status: phases 1 and 2 done 2026-10-05 (phase 2 uncommitted until the main session lands it); phase 3 next
 - Priority: P1
 - Created: 2026-10-05
 
@@ -38,3 +38,15 @@ reviewer initial/final, ICD-10/ICD-11/DORIS search, workflow events.
 
 - `digitva-xl43.1` app sign-in for coders and reviewers (owner yes,
   2026-10-05), commit `4d20ccb3`.
+
+- `digitva-xl43.2` case content (phase 2): `app/services/case_content_service.py`
+  (section data with PII redaction and the Redis cache, saved artifacts and
+  step state, Step 1 prefill, SmartVA summary, blockers) with `renderpartial`
+  GET rendering from it, and `GET /api/v1/va/<sid>/workspace|categories/<code>`
+  (`app/routes/api/va_case.py`, `?mode=coding|reviewing`; no read-only view
+  mode yet, DORIS fields deferred to `digitva-xl43.3`). The section cache key
+  fixed two latent bugs: it had no role bucket (coder/reviewer legacy mapping
+  versus the DB mapping of data managers and viewers shared one entry) and no
+  payload version (an interviewer revision was served the old answers for 30
+  minutes; `_invalidate_section_data_cache` had no callers). Key is now
+  `form_data:<sid>:<payload_version_id>:<role>:<category>[:nopii]`.

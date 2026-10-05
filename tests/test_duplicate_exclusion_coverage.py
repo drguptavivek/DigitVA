@@ -133,6 +133,10 @@ EXEMPT = {
         "renders one submission a user already reached through an allocation or view grant"
     ),
     "services/case_transition_service.py::_needs_data_manager": (
+    "routes/api/va_case.py::workspace": (
+        "reads one case's workflow state for the caller's own allocated case, gated by "
+        "the active allocation; a view, not a coding list or count"
+    ),
         "reads one case's coding state to decide who may confirm it"
     ),
     "services/coding_allocation_service.py::cleanup_expired_demo_coding_artifacts": (

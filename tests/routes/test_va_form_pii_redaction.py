@@ -7,7 +7,7 @@ collaborator_pii open one submission read-only through ``/coding/area/<sid>``
 patching; the older tests keep the data-manager stand-in described next.
 
 The older tests below render as a ``data_manager`` and patch
-``should_redact_pii`` at its call site in ``app.routes.va_form`` to stand in
+``should_redact_pii`` at its call site in ``app.services.case_content_service`` to stand in
 for each redaction decision, so the redaction logic and its cache key are
 tested independently of who may reach the route.
 
@@ -226,7 +226,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         plain ``collaborator``."""
         self._login(self.dm_user_id)
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=True
+            "app.services.case_content_service.should_redact_pii", return_value=True
         ):
             response = self._get_partial()
         self.assertEqual(response.status_code, 200)
@@ -240,7 +240,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         unchanged)."""
         self._login(self.dm_user_id)
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=False
+            "app.services.case_content_service.should_redact_pii", return_value=False
         ):
             response = self._get_partial()
         self.assertEqual(response.status_code, 200)
@@ -266,7 +266,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         self._login(self.dm_user_id)
         # Present before: with the set confirmed, a redacting viewer still
         # sees the non-PII value.
-        with patch("app.routes.va_form.should_redact_pii", return_value=True):
+        with patch("app.services.case_content_service.should_redact_pii", return_value=True):
             before = self._get_partial()
         self.assertIn(self.PUBLIC_VALUE, before.get_data(as_text=True))
 
@@ -290,7 +290,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         flask_cache.clear()
         get_mapping_service().clear_cache()
 
-        with patch("app.routes.va_form.should_redact_pii", return_value=True):
+        with patch("app.services.case_content_service.should_redact_pii", return_value=True):
             withheld = self._get_partial()
         self.assertEqual(withheld.status_code, 200)
         withheld_body = withheld.get_data(as_text=True)
@@ -299,7 +299,7 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
 
         # Positive control: a viewer entitled to PII is unaffected.
         flask_cache.clear()
-        with patch("app.routes.va_form.should_redact_pii", return_value=False):
+        with patch("app.services.case_content_service.should_redact_pii", return_value=False):
             full = self._get_partial()
         self.assertIn(self.PUBLIC_VALUE, full.get_data(as_text=True))
 
@@ -309,13 +309,13 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         served the first call's cached PII value."""
         self._login(self.dm_user_id)
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=False
+            "app.services.case_content_service.should_redact_pii", return_value=False
         ):
             first = self._get_partial()
         self.assertIn(self.PII_VALUE, first.get_data(as_text=True))
 
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=True
+            "app.services.case_content_service.should_redact_pii", return_value=True
         ):
             second = self._get_partial()
         second_body = second.get_data(as_text=True)
@@ -332,13 +332,13 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         still get the real value, not the redacted cache entry."""
         self._login(self.dm_user_id)
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=True
+            "app.services.case_content_service.should_redact_pii", return_value=True
         ):
             first = self._get_partial()
         self.assertNotIn(self.PII_VALUE, first.get_data(as_text=True))
 
         with patch(
-            "app.routes.va_form.should_redact_pii", return_value=False
+            "app.services.case_content_service.should_redact_pii", return_value=False
         ):
             second = self._get_partial()
         self.assertIn(
@@ -605,19 +605,26 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
 
     def test_invalidating_section_cache_drops_the_redacted_entry_too(self):
         from app import cache as flask_cache
-        from app.routes.va_form import (
-            _invalidate_section_data_cache,
-            _section_data_cache_key,
+        from app.services.case_content_service import (
+            invalidate_section_data_cache,
+            section_data_cache_key,
         )
 
         self._fresh_cache()
-        key = _section_data_cache_key(self.VA_SID, "cat1")
-        for cache_key in (key, f"{key}:nopii"):
+        version_id = db.session.get(VaSubmissions, self.VA_SID).active_payload_version_id
+        self.assertIsNotNone(version_id)
+        # Every role and PII variant of the current payload version goes.
+        keys = [
+            section_data_cache_key(self.VA_SID, version_id, role, "cat1", redacted=redacted)
+            for role in ("coder", "reviewer", "data_manager", "viewer")
+            for redacted in (False, True)
+        ]
+        for cache_key in keys:
             flask_cache.set(cache_key, {"stale": True})
             self.assertIsNotNone(flask_cache.get(cache_key))
-        _invalidate_section_data_cache(self.VA_SID)
-        self.assertIsNone(flask_cache.get(key))
-        self.assertIsNone(flask_cache.get(f"{key}:nopii"))
+        invalidate_section_data_cache(self.VA_SID)
+        for cache_key in keys:
+            self.assertIsNone(flask_cache.get(cache_key), cache_key)
 
     def test_triage_post_follows_triage_scope_not_the_role(self):
         """The vadmtriage POST checked is_data_manager() with no scope: a data

@@ -10,7 +10,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.routes.va_form import _get_display_initial_assessment
+from app.services.case_content_service import get_display_initial_assessment as _get_display_initial_assessment
 from tests.base import BaseTestCase
 
 

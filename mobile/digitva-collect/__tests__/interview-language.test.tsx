@@ -12,12 +12,14 @@ const mockDefinitionCache = {
   removeProject: jest.fn(), clear: jest.fn(),
 };
 const mockBootstrap = {user: {user_id: "u1", name: "Worker"}, csrf: {header: "X-CSRFToken", token: "csrf"}, links: {intakeDrafts: "/api/v1/intake/drafts", intakeCases: "/api/v1/intake/cases"}};
+let mockCurrentBootstrap = mockBootstrap;
 let mockParams: {draftId?: string; deathId?: string; projectId?: string; siteId?: string; orgUnitId?: string; revisionDraftId?: string; revisionProjectId?: string; revisionSiteId?: string; revisionVaSid?: string} = {draftId: "draft-1"};
 const mockRouter = {back: jest.fn(), replace: jest.fn()};
+const mockServerFlush = jest.fn(async () => undefined);
 const mockHasServed = jest.fn(() => false);
 const mockMarkServed = jest.fn(async () => undefined);
 jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams}));
-jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
+jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
 jest.mock("../src/theme", () => ({useTheme: () => ({colors: {}})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
@@ -38,7 +40,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
   ServerDraftStore: jest.fn().mockImplementation(function (this: Record<string, unknown>) {
     Object.assign(this, {
       load: jest.fn(async () => ({})),
-      flush: jest.fn(async () => undefined),
+      flush: mockServerFlush,
       getLocaleMetadata: () => ({}),
       getServerUpdatedAt: () => "revision-1",
       restoreLocaleMetadata: jest.fn(),
@@ -65,6 +67,8 @@ beforeEach(() => {
   window.addEventListener = jest.fn();
   window.removeEventListener = jest.fn();
   jest.clearAllMocks();
+  mockCurrentBootstrap = mockBootstrap;
+  mockServerFlush.mockReset().mockResolvedValue(undefined);
   mockParams = {draftId: "draft-1"};
   setUiLocale("en");
   mockDefinitionCache.get.mockClear();
@@ -178,9 +182,87 @@ it("returns to collection after a normal 201 draft submission", async () => {
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);
-  await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
-  expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [] }, mockBootstrap.csrf, "revision-1");
+  const data = { Id10013: "yes", interview_outcome: "completed" };
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [], data }); });
+  expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data }, mockBootstrap.csrf, "revision-1");
   expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+  await act(async () => tree.unmount());
+});
+
+it("submits a stale completed tab's current answers after confirming the draft is submitted", async () => {
+  const answers = { Id10013: "yes", interview_outcome: "completed" };
+  const response = { draft: { draft_id: "draft-1", project_id: "P", site_id: "S", status: "submitted", updated_at: "submitted-at" }, envelope: {}, prefill: {} };
+  mockServerFlush.mockRejectedValueOnce(new ClientApiError(409, "draft_not_editable"));
+  (submitDraft as jest.Mock).mockResolvedValue({
+    va_sid: "sid-1", draft: response.draft, superseded: false, validation_err: [], kept: "server", locked: true
+  });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  (getDraft as jest.Mock).mockResolvedValueOnce(response);
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: answers }); });
+
+  expect(getDraft).toHaveBeenCalledTimes(2);
+  expect(submitDraft).toHaveBeenCalledWith(
+    "/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: answers }, mockBootstrap.csrf, "revision-1"
+  );
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: {
+    submissionHistory: "1", submissionLocked: "1"
+  } });
+  await act(async () => tree.unmount());
+});
+
+it("keeps an open draft stale after a 409 save and does not submit it", async () => {
+  mockServerFlush.mockRejectedValueOnce(new ClientApiError(409, "draft_stale", undefined, undefined, {
+    error: "This interview was also edited on another device; reload before saving."
+  }));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  (getDraft as jest.Mock).mockResolvedValueOnce({
+    draft: { draft_id: "draft-1", project_id: "P", site_id: "S", status: "draft", updated_at: "revision-1" },
+    envelope: {}, prefill: {},
+  });
+  const form = tree.root.findByType(WhoVaForm);
+  await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
+
+  expect(getDraft).toHaveBeenCalledTimes(2);
+  expect(submitDraft).not.toHaveBeenCalled();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).toContain("This interview was also edited on another device; reload before saving.");
+  await act(async () => tree.unmount());
+});
+
+it("does not submit a stale tab after the account changes during the submitted-status check", async () => {
+  const statusCheck = deferred<Awaited<ReturnType<typeof getDraft>>>();
+  mockServerFlush.mockRejectedValueOnce(new ClientApiError(409, "draft_not_editable"));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  (getDraft as jest.Mock).mockReturnValueOnce(statusCheck.promise);
+  const form = tree.root.findByType(WhoVaForm);
+  let completion!: Promise<void>;
+  await act(async () => {
+    completion = form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } });
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(getDraft).toHaveBeenCalledTimes(2);
+
+  mockCurrentBootstrap = {
+    ...mockBootstrap,
+    user: { user_id: "u2", name: "Other worker" },
+    csrf: { header: "X-CSRFToken", token: "other-csrf" },
+  };
+  await act(async () => { tree.update(<InterviewScreen />); });
+  const submitted = submittedDetail("draft-1");
+  statusCheck.resolve({
+    draft: { ...submitted.draft, status: "submitted" },
+    envelope: submitted.envelope as Awaited<ReturnType<typeof getDraft>>["envelope"],
+    prefill: submitted.prefill,
+  });
+  await act(async () => { await completion; });
+
+  expect(submitDraft).not.toHaveBeenCalled();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
   await act(async () => tree.unmount());
 });
 
@@ -199,6 +281,45 @@ it("keeps a valid revision editable and refuses the POST when consent is missing
   expect(postRevision).not.toHaveBeenCalled();
   expect(store.getCurrent().data).toMatchObject({ Id10007: "d1", interview_outcome: "partially_completed" });
   expect(JSON.stringify(tree.toJSON())).toContain(t("revisionConsentRequired"));
+  await act(async () => tree.unmount());
+});
+
+it.each([
+  ["refused", true, { Id10013: "no", interview_outcome: "refused" }],
+  ["partially_completed", false, { Id10013: "yes", interview_outcome: "partially_completed" }],
+] as const)("allows a completed public revision to change to %s", async (outcome, valid, data) => {
+  mockParams = { revisionDraftId: "d1", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-d1" };
+  const detail = submittedDetail("d1");
+  detail.envelope.data = { ...detail.envelope.data, interview_outcome: "completed" };
+  (getRevisionDetail as jest.Mock).mockReset().mockResolvedValue(detail);
+  (postRevision as jest.Mock).mockReset().mockImplementation(async (_csrf, snapshot) => ({
+    changed: true,
+    va_sid: "sid-d1",
+    payload_version_id: "version-2",
+    answers_sha256: snapshot.answersSha256,
+    outcome,
+    workflow_state: "paused",
+  }));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  const form = tree.root.findByType(WhoVaForm);
+  const store = form.props.draftStore;
+  const currentDraft = store.getCurrent();
+  store.save({ ...currentDraft, data: data as typeof currentDraft.data });
+  await act(async () => { form.props.onChange(); });
+  const reasonButton = tree.root.findAll((node) =>
+    String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"),
+  )[0];
+  await act(async () => { reasonButton.props.onPress(); });
+  await act(async () => { await form.props.onComplete({ valid, issues: [], data }); });
+
+  expect(postRevision).toHaveBeenCalledTimes(1);
+  const snapshot = (postRevision as jest.Mock).mock.calls[0][1];
+  expect(snapshot).toMatchObject({ reasonCode: "interviewer_correction", completion: { valid } });
+  expect(snapshot.answersJson).toBe(JSON.stringify(data));
+  expect(snapshot.answersSha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(snapshot.draft.completedAt).toMatch(/T.*[+-]\d{2}:\d{2}$/);
+  expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
   await act(async () => tree.unmount());
 });
 

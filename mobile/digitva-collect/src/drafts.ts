@@ -54,7 +54,7 @@ export interface DraftRow {
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
   /** A persistent upload refusal that needs interviewer attention. */
-  upload_issue?: "hash_mismatch" | "answers_hash_invalid" | "invalid_definition_pin" | null;
+  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | null;
   upload_issue_unique_id?: string | null;
   /** Server draft identity is separate from the stable local submission id. */
   server_draft_id?: string | null;
@@ -267,6 +267,11 @@ export async function migrate(db: Db): Promise<void> {
   if (!columns.some((column) => column.name === "upload_issue_unique_id")) {
     await db.execAsync("ALTER TABLE drafts ADD COLUMN upload_issue_unique_id TEXT");
   }
+  // Older clients blocked a resend after a 409 that the server no longer sends.
+  await db.runAsync(
+    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE upload_issue = ?",
+    ["hash_mismatch"],
+  );
   columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
   if (!columns.some((column) => column.name === "server_draft_id")) {
     await db.execAsync("ALTER TABLE drafts ADD COLUMN server_draft_id TEXT");
@@ -475,40 +480,38 @@ export async function draftForCase(db: Db, key: { deathId?: string; clientDeathI
   );
 }
 
-/** Save the verdict and completion time, clearing editable hash issues but preserving hash mismatches. */
+/** Save the verdict and completion time, clearing a previous editable hash issue. */
 export async function markCompleted(db: Db, id: string, completion: Completion): Promise<void> {
-  const current = await db.getFirstAsync<{ envelope: string; upload_issue: string | null }>(
-    "SELECT envelope, upload_issue FROM drafts WHERE id = ?",
+  const current = await db.getFirstAsync<{ envelope: string }>(
+    "SELECT envelope FROM drafts WHERE id = ?",
     [id]
   );
-  if (!current || current.upload_issue === "hash_mismatch") return;
+  if (!current) return;
   const draft = JSON.parse(current.envelope) as Record<string, unknown>;
   const envelope = JSON.stringify({ ...draft, completedAt: localDateTimeWithOffset() });
   const result = await db.runAsync(`UPDATE drafts SET
     envelope = ?, completed = 1, completion = ?,
     upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
     upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
-    WHERE id = ? AND envelope = ? AND upload_issue IS NOT 'hash_mismatch'`, [
+    WHERE id = ? AND envelope = ?`, [
     envelope,
     JSON.stringify({ valid: completion.valid, issues: completion.issues }),
     id,
     current.envelope
   ]);
   if (result && typeof result === "object" && "changes" in result && Number(result.changes) > 0) return;
-  const latest = await db.getFirstAsync<{ upload_issue: string | null }>("SELECT upload_issue FROM drafts WHERE id = ?", [id]);
-  if (latest?.upload_issue !== "hash_mismatch") throw new Error("draft_conflict");
+  throw new Error("draft_conflict");
 }
 
 /** Persist an upload refusal while retaining the interview and its answers. */
 export async function setDraftUploadIssue(
   db: Db,
   id: string,
-  issue: "hash_mismatch" | "answers_hash_invalid" | "invalid_definition_pin",
-  uniqueId?: string,
+  issue: "answers_hash_invalid" | "invalid_definition_pin",
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
     completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
-    WHERE id = ?`, [issue, issue === "hash_mismatch" ? uniqueId ?? null : null, issue, id]);
+    WHERE id = ?`, [issue, null, issue, id]);
 }
 
 /**

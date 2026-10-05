@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
+import { Text } from "react-native";
 import * as Crypto from "expo-crypto";
 
 const mockAccount = { user_id: "u1", name: "Interviewer" };
@@ -116,6 +117,7 @@ jest.mock("../src/AppState", () => ({
         callbacks: {
           onSuperseded?: (uniqueId: string) => void;
           onDraftConflict?: (draftId: string) => void;
+          onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void;
         } = {},
       ) => {
         const sync = await jest.requireMock("../src/sync").syncInterviewer(
@@ -123,6 +125,7 @@ jest.mock("../src/AppState", () => ({
           db,
           callbacks.onSuperseded,
           callbacks.onDraftConflict,
+          callbacks.onServerKept,
         );
         const reference = await jest
           .requireMock("../src/sync")
@@ -283,11 +286,14 @@ jest.mock("../src/i18n", () => ({
     if (key === "draftConflictNotice") {
       return "This interview was also edited on another device; the newer version was kept.";
     }
-    if (key === "draftHashMismatch") {
-      return "This interview was already uploaded; your later edits were not applied.";
-    }
     if (key === "draftHashInvalidAttention") {
       return "This interview could not be verified. Open it, review the answers, and try sending it again.";
+    }
+    if (key === "submissionHistoryNotice") {
+      return "A newer completed version is already with the coder; yours was saved as history.";
+    }
+    if (key === "submissionLockedNotice") {
+      return "Coding has finished; only a send-back or reopen can change the coder's version.";
     }
     if (key === "storedInterviewId") {
       return `Stored interview: ${values?.uniqueId ?? ""}`;
@@ -1027,40 +1033,82 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("keeps a hash-mismatched upload completed and shows the stored interview id", async () => {
-    const draft = {
+  it("ignores old hash mismatch issues while keeping completed drafts disabled", async () => {
+    const drafts = [{
       id: "draft-mismatch",
       project_id: "P1",
-      completed: 1,
+      completed: 0,
       updated_at: "2026-10-04T00:00:00.000Z",
       unique_id: "VA-LOCAL",
       upload_issue: "hash_mismatch",
       upload_issue_unique_id: "VA-STORED",
-    };
+    }, {
+      id: "draft-completed",
+      project_id: "P1",
+      completed: 1,
+      updated_at: "2026-10-04T00:00:00.000Z",
+      unique_id: "VA-COMPLETED",
+      upload_issue: null,
+      upload_issue_unique_id: null,
+    }];
     (
       jest.requireMock("../src/drafts").listDrafts as jest.Mock
-    ).mockResolvedValue([draft]);
+    ).mockResolvedValue(drafts);
     let tree: ReturnType<typeof create>;
     await act(async () => {
       tree = create(<Worklist />);
     });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain(
-      "This interview was already uploaded; your later edits were not applied.",
+    expect(rendered).not.toContain("This interview was already uploaded");
+    expect(rendered).not.toContain("VA-STORED");
+    const buttons = tree!.root
+      .findAllByProps({ accessibilityRole: "button" });
+    const oldIssueDraft = buttons.find((button) =>
+      button.findAllByType(Text).some((node) => String(node.props.children).includes("VA-LOCAL")),
     );
-    expect(rendered).toContain("Stored interview: VA-STORED");
-    const draftButton = tree!.root
-      .findAllByProps({ accessibilityRole: "button" })
-      .find(
-        (button) =>
-          button.props.disabled === true && button.props.onPress === undefined,
-      );
-    expect(draftButton).toBeDefined();
-    expect(draftButton!.props.disabled).toBe(true);
-    expect(mockRouter.push).not.toHaveBeenCalledWith(
-      expect.objectContaining({ pathname: "/form" }),
+    const completedDraft = buttons.find((button) =>
+      button.findAllByType(Text).some((node) => String(node.props.children).includes("VA-COMPLETED")),
     );
+    expect(oldIssueDraft?.props.disabled).toBe(false);
+    expect(completedDraft?.props.disabled).toBe(true);
+    await act(async () => oldIssueDraft?.props.onPress());
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: "/form", params: expect.objectContaining({ draftId: "draft-mismatch" }) }),
+    );
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows server-kept history and locked notices when the later refresh fails", async () => {
+    (syncInterviewer as jest.Mock).mockImplementationOnce(
+      async (
+        _userId: string,
+        _db: unknown,
+        _onSuperseded?: (uniqueId: string) => void,
+        _onDraftConflict?: (draftId: string) => void,
+        onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
+      ) => {
+        onServerKept?.({ uniqueId: "VA-KEPT", locked: true });
+        return {
+          sent: 1,
+          failed: 0,
+          remaining: 0,
+          supersededUniqueIds: [],
+          serverKeptUploads: [{ uniqueId: "VA-KEPT", locked: true }],
+        };
+      },
+    );
+    (refreshReferenceData as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await settle();
+
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("A newer completed version is already with the coder; yours was saved as history.");
+    expect(rendered).toContain("Coding has finished; only a send-back or reopen can change the coder's version.");
+    expect(rendered).toContain("Stored interview: VA-KEPT");
     await act(async () => tree!.unmount());
   });
 
@@ -1105,6 +1153,7 @@ describe("native project-aware routes", () => {
       failed: 0,
       remaining: 0,
       supersededUniqueIds: ["VA-FIRST"],
+      serverKeptUploads: [{ uniqueId: "VA-FIRST", locked: true }],
     });
     let tree: ReturnType<typeof create>;
     await act(async () => {
@@ -1119,6 +1168,7 @@ describe("native project-aware routes", () => {
       "A teammate’s interview of this case was submitted first; yours is kept.",
     );
     expect(rendered).toContain("Stored interview: VA-FIRST");
+    expect(rendered).not.toContain("A newer completed version is already with the coder");
     await act(async () => tree!.unmount());
   });
 

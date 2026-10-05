@@ -754,11 +754,18 @@ export function getDraft(
 export function submitDraft(
   link: string,
   draftId: string,
-  completion: { valid: boolean; issues: unknown[] },
+  completion: { valid: boolean; issues: unknown[]; data?: SubmissionData },
   csrf: ClientCsrf,
   ifUpdatedAt?: string,
 ): Promise<
-  | { va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[] }
+  | {
+      va_sid: string;
+      draft: DraftSummary;
+      superseded: false;
+      validation_err: unknown[];
+      kept?: "incoming" | "server";
+      locked?: boolean;
+    }
   | { va_sid: null; draft: DraftSummary; superseded: true; validation_err: null }
 > {
   const path = safeActionUrl(`${link}/${encodeURIComponent(draftId)}/submit`);
@@ -781,6 +788,20 @@ export function submitDraft(
     ) {
       return body as unknown as {
         va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[];
+      };
+    }
+    if (
+      status === 200 && draft && typeof body.va_sid === "string" && body.va_sid.length > 0 &&
+      body.superseded === false && Array.isArray(body.validation_err) &&
+      (body.kept === "incoming" || body.kept === "server") && typeof body.locked === "boolean"
+    ) {
+      return body as unknown as {
+        va_sid: string;
+        draft: DraftSummary;
+        superseded: false;
+        validation_err: unknown[];
+        kept: "incoming" | "server";
+        locked: boolean;
       };
     }
     if (

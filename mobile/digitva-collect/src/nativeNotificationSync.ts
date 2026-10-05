@@ -25,6 +25,7 @@ export interface NativeSyncResult {
 export interface NativeSyncCallbacks {
   onSuperseded?(uniqueId: string): void;
   onDraftConflict?(draftId: string): void;
+  onServerKept?(notice: { uniqueId: string; locked: boolean }): void;
 }
 
 function isAuthFailure(error: unknown): boolean {
@@ -77,6 +78,7 @@ export function runNativeSync(
       db,
       callbacks.onSuperseded,
       callbacks.onDraftConflict,
+      callbacks.onServerKept,
     );
     const reference = await refreshReferenceData(userId, db, { force: true });
     if (before) {

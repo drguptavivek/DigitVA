@@ -143,6 +143,26 @@ it("coalesces manual sync and keeps a new nudge pending while sync is running", 
   });
 });
 
+it("forwards server-kept upload notices from the coalesced sync", async () => {
+  const notice = { uniqueId: "VA-KEPT", locked: true };
+  mockSync.mockImplementationOnce(async (...args: unknown[]) => {
+    (args[4] as ((value: typeof notice) => void) | undefined)?.(notice);
+    return {
+      sent: 1,
+      failed: 0,
+      remaining: 0,
+      supersededUniqueIds: [],
+      serverKeptUploads: [notice],
+    };
+  });
+  const onServerKept = jest.fn();
+
+  const result = await runNativeSync("kept-upload-account", {} as never, { onServerKept });
+
+  expect(onServerKept).toHaveBeenCalledWith(notice);
+  expect(result.sync.serverKeptUploads).toEqual([notice]);
+});
+
 it("shares the minimum poll interval across foreground and background callers", async () => {
   let finish!: () => void;
   const foreground = runNotificationPoll("shared-poll", () => new Promise<void>((resolve) => { finish = resolve; }));

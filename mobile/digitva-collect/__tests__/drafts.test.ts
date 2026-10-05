@@ -212,27 +212,30 @@ describe("draft store", () => {
     expect(await draftIds(db)).toEqual(["a", "b"]);
   });
 
-  it("persists upload issues without making hash mismatches resendable", async () => {
+  it("clears legacy hash-mismatch markers without changing completed answers", async () => {
     const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     await store.save(draft("mismatch", "2026-09-30T01:00:00Z", { Id10007: "old" }));
     await store.save(draft("invalid", "2026-09-30T02:00:00Z", { Id10007: "bad" }));
     await markCompleted(db, "mismatch", { valid: true, issues: [] });
     await markCompleted(db, "invalid", { valid: true, issues: [] });
-    await setDraftUploadIssue(db, "mismatch", "hash_mismatch", "U-77");
     await setDraftUploadIssue(db, "invalid", "answers_hash_invalid");
+    await db.runAsync(
+      "UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ? WHERE id = ?",
+      ["hash_mismatch", "U-77", "mismatch"],
+    );
 
-    expect(await getDraftRow(db, "mismatch")).toMatchObject({ completed: 1, upload_issue: "hash_mismatch", upload_issue_unique_id: "U-77" });
+    const original = await db.getFirstAsync<{ envelope: string; completion: string }>(
+      "SELECT envelope, completion FROM drafts WHERE id = ?", ["mismatch"]
+    );
+    await migrate(db);
+    expect(await getDraftRow(db, "mismatch")).toMatchObject({ completed: 1, upload_issue: null, upload_issue_unique_id: null });
+    expect(await db.getFirstAsync<{ envelope: string; completion: string }>(
+      "SELECT envelope, completion FROM drafts WHERE id = ?", ["mismatch"]
+    )).toEqual(original);
     expect(await getDraftRow(db, "invalid")).toMatchObject({ completed: 0, upload_issue: "answers_hash_invalid" });
-    expect(await completedDrafts(db)).toEqual([]);
-
-    const blockedEnvelope = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["mismatch"]);
-    await markCompleted(db, "mismatch", { valid: false, issues: [] });
-    expect(await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["mismatch"])).toEqual(blockedEnvelope);
-
-    await store.save(draft("mismatch", "2026-09-30T03:00:00Z", { Id10007: "edited" }));
+    expect((await completedDrafts(db)).map(({ id }) => id)).toEqual(["mismatch"]);
     await markCompleted(db, "mismatch", { valid: true, issues: [] });
-    expect(await getDraftRow(db, "mismatch")).toMatchObject({ completed: 1, upload_issue: "hash_mismatch" });
-    expect(await completedDrafts(db)).toEqual([]);
+    expect(await getDraftRow(db, "mismatch")).toMatchObject({ completed: 1, upload_issue: null });
 
     await store.save(draft("invalid", "2026-09-30T04:00:00Z", { Id10007: "fixed" }));
     expect(await getDraftRow(db, "invalid")).toMatchObject({ completed: 0, upload_issue: null });

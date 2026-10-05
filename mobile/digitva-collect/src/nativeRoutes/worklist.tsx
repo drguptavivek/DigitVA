@@ -75,8 +75,6 @@ function localRevisionStatus(row: RevisionRow): string {
       return t("revisionCaseClosed");
     case "case_state_conflict":
       return t("revisionCaseConflict");
-    case "outcome_regression":
-      return t("revisionOutcomeRegression");
     case "invalid_reason":
     case "required_finish_partial":
       return t("revisionInvalidReason");
@@ -124,6 +122,9 @@ export default function Worklist() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [supersededUniqueIds, setSupersededUniqueIds] = useState<string[]>([]);
+  const [serverKeptUploads, setServerKeptUploads] = useState<
+    Array<{ uniqueId: string; locked: boolean }>
+  >([]);
   const [draftConflict, setDraftConflict] = useState(false);
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
@@ -196,6 +197,7 @@ export default function Worklist() {
     setSelectedProjectId(undefined);
     setPicking(false);
     setSupersededUniqueIds([]);
+    setServerKeptUploads([]);
     setDraftConflict(false);
   }, []);
 
@@ -636,6 +638,7 @@ export default function Worklist() {
     setBusy(true);
     setMessage("");
     setSupersededUniqueIds([]);
+    setServerKeptUploads([]);
     try {
       const { sync: result, reference: fresh } = await syncAccount(account.user_id, db, {
         onSuperseded: (uniqueId) => {
@@ -648,6 +651,20 @@ export default function Worklist() {
         onDraftConflict: () => {
           if (isCurrentSync()) setDraftConflict(true);
         },
+        onServerKept: (notice) => {
+          if (!isCurrentSync()) return;
+          setServerKeptUploads((current) => {
+            const existing = current.find((item) => item.uniqueId === notice.uniqueId);
+            if (existing) {
+              return current.map((item) =>
+                item.uniqueId === notice.uniqueId
+                  ? { ...item, locked: item.locked || notice.locked }
+                  : item,
+              );
+            }
+            return [...current, notice];
+          });
+        },
       });
       if (isCurrentSync()) {
         setMessage(
@@ -657,7 +674,22 @@ export default function Worklist() {
             remaining: result.remaining,
           }),
         );
-        setSupersededUniqueIds(result.supersededUniqueIds);
+        setSupersededUniqueIds((current) =>
+          [...new Set([...current, ...result.supersededUniqueIds])],
+        );
+        if (result.serverKeptUploads?.length) {
+          setServerKeptUploads((current) => {
+            const merged = new Map(current.map((notice) => [notice.uniqueId, notice]));
+            for (const notice of result.serverKeptUploads ?? []) {
+              const existing = merged.get(notice.uniqueId);
+              merged.set(notice.uniqueId, {
+                ...notice,
+                locked: notice.locked || existing?.locked === true,
+              });
+            }
+            return [...merged.values()];
+          });
+        }
         if (result.draftConflictIds?.length) setDraftConflict(true);
       }
       if (isCurrentSync()) {
@@ -969,24 +1001,19 @@ export default function Worklist() {
         <Pressable
           key={draft.id}
           accessibilityRole="button"
-          disabled={
-            draft.completed === 1 || draft.upload_issue === "hash_mismatch"
-          }
+          disabled={draft.completed === 1}
           style={styles.card}
-          onPress={
-            draft.upload_issue === "hash_mismatch"
-              ? undefined
-              : () =>
-                  router.push({
-                    pathname: "/form",
-                    params: {
-                      userId: account.user_id,
-                      draftId: draft.id,
-                      ...(draft.project_id
-                        ? { projectId: draft.project_id }
-                        : {}),
-                    },
-                  })
+          onPress={() =>
+            router.push({
+              pathname: "/form",
+              params: {
+                userId: account.user_id,
+                draftId: draft.id,
+                ...(draft.project_id
+                  ? { projectId: draft.project_id }
+                  : {}),
+              },
+            })
           }
         >
           <Text style={styles.text}>
@@ -996,18 +1023,6 @@ export default function Worklist() {
             {new Date(draft.updated_at).toLocaleString()} ·{" "}
             {draft.unique_id ?? draft.id.slice(0, 8)}
           </Text>
-          {draft.upload_issue === "hash_mismatch" ? (
-            <>
-              <Text style={styles.error}>{t("draftHashMismatch")}</Text>
-              {draft.upload_issue_unique_id ? (
-                <Text style={styles.muted}>
-                  {t("storedInterviewId", {
-                    uniqueId: draft.upload_issue_unique_id,
-                  })}
-                </Text>
-              ) : null}
-            </>
-          ) : null}
           {draft.upload_issue === "answers_hash_invalid" ? (
             <Text style={styles.error}>{t("draftHashInvalidAttention")}</Text>
           ) : null}
@@ -1090,6 +1105,19 @@ export default function Worklist() {
           </Text>
         </View>
       ))}
+      {serverKeptUploads
+        .filter((notice) => !supersededUniqueIds.includes(notice.uniqueId))
+        .map(({ uniqueId, locked }) => (
+          <View key={`server-kept-${uniqueId}`} style={styles.card}>
+            <Text style={styles.text}>{t("submissionHistoryNotice")}</Text>
+            {locked ? (
+              <Text style={styles.muted}>{t("submissionLockedNotice")}</Text>
+            ) : null}
+            <Text style={styles.muted}>
+              {t("storedInterviewId", { uniqueId })}
+            </Text>
+          </View>
+        ))}
       <Row>
         <Button
           kind="secondary"

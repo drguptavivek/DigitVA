@@ -55,11 +55,6 @@ import {
 import { applyTranslations, type Translations } from "../translations";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
-const INCOMPLETE_OUTCOMES = new Set([
-  "partially_completed",
-  "respondent_unavailable",
-  "refused",
-]);
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
   {
     code: "interviewer_correction",
@@ -105,10 +100,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isIncompleteOutcome(value: unknown): boolean {
-  return typeof value === "string" && INCOMPLETE_OUTCOMES.has(value);
-}
-
 function isPrefill(value: Record<string, unknown>): value is Record<string, unknown> & Prefill {
   return (
     (value.interviewer === undefined || isRecord(value.interviewer)) &&
@@ -133,8 +124,6 @@ function attentionMessage(code: string | null): string {
     case "invalid_reason":
     case "required_finish_partial":
       return t("revisionInvalidReason");
-    case "outcome_regression":
-      return t("revisionOutcomeRegression");
     case "not_found":
       return t("revisionUnavailable");
     case "answers_hash_invalid":
@@ -531,7 +520,6 @@ export default function Revision() {
     const canEdit = [
       "invalid_reason",
       "required_finish_partial",
-      "outcome_regression",
       "answers_hash_invalid",
       "local_hash_mismatch",
       "invalid_revision_snapshot",
@@ -595,7 +583,6 @@ export default function Revision() {
   }
 
   const originalOutcome = loaded.row.original_outcome;
-  const originalWasIncomplete = isIncompleteOutcome(originalOutcome);
   const originalNeedsFinishPartial =
     originalOutcome === null ||
     originalOutcome === "partially_completed" ||
@@ -617,11 +604,6 @@ export default function Revision() {
     const nextOutcome = effectiveRevisionOutcome(result.data, completion);
     if (result.valid && nextOutcome === null) {
       setMessage(t("revisionConsentRequired"));
-      return;
-    }
-    const nextIsIncomplete = isIncompleteOutcome(nextOutcome);
-    if (!originalWasIncomplete && nextIsIncomplete) {
-      setMessage(t("revisionOutcomeRegression"));
       return;
     }
     if (originalNeedsFinishPartial && nextOutcome === "completed" && reason !== "finish_partial") {

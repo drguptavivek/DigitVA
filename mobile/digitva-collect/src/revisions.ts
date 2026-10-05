@@ -465,11 +465,20 @@ async function markAttention(db: Db, rowJson: string, row: RevisionRow, code: st
 
 const TERMINAL_CODES = new Set([
   "revision_locked", "case_already_submitted", "case_closed", "case_state_conflict",
-  "invalid_reason", "outcome_regression", "answers_hash_required", "invalid_interview"
+  "invalid_reason", "answers_hash_required", "invalid_interview"
 ]);
 
 /** Send queued revisions independently; transient failures retain the exact ready snapshot. */
 export async function syncQueuedRevisions(userId: string, db: Db, authorizedProjects: Set<string>): Promise<{ sent: number; failed: number; attentionIds: string[] }> {
+  // Older clients parked completed-to-partial/refused edits under this now-obsolete refusal.
+  // Reset only the queue metadata so their frozen answers and definition pin can be retried.
+  await db.runAsync(
+    `UPDATE revision_drafts
+     SET state = 'ready', row_json = json_set(row_json, '$.state', 'ready', '$.refusal_code', NULL)
+     WHERE state = 'attention'
+       AND json_extract(CASE WHEN json_valid(row_json) THEN row_json ELSE '{}' END, '$.refusal_code') = 'outcome_regression'`,
+    [],
+  );
   let sent = 0;
   let failed = 0;
   const attentionIds: string[] = [];

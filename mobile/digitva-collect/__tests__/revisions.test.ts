@@ -246,6 +246,22 @@ describe("native submitted interview revisions", () => {
       .toBe("finish_partial");
   });
 
+  it.each([
+    ["partially_completed", "yes", false],
+    ["refused", "no", true],
+  ] as const)("allows a completed submission to be revised to %s", async (outcome, consent, valid) => {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail() });
+    const row = await beginRevision(USER, db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    await store.save({ ...(row.envelope as WhoVaDraft), data: { interview_outcome: outcome, Id10013: consent, Id10007: "changed" } });
+
+    const queued = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid, issues: [] });
+    expect(queued).toMatchObject({ state: "ready", original_outcome: "completed" });
+    expect(JSON.parse(queued.frozen_json!)).toMatchObject({ interview_outcome: outcome, Id10013: consent });
+  });
+
   it("uses backend effective outcomes for the finish_partial gate", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }
@@ -400,6 +416,40 @@ describe("native submitted interview revisions", () => {
     expect(result).toEqual({ sent: 1, failed: 0, attentionIds: [] });
     expect(sends).toBe(2);
     expect(deviceClocks[0]).not.toBe(deviceClocks[1]);
+    expect(await getRevisionRow(db, DRAFT_ID)).toBeNull();
+  });
+
+  it("retries legacy outcome-regression attention rows with the same frozen answers and pin", async () => {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail({ envelope: { ...envelope(), instrumentVersion: "historic-v1", definitionSha256: "d".repeat(64), definitionExtensions: ["geography"] } }) });
+    await beginRevision(USER, db, DRAFT_ID);
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    await store.save({ ...(envelope() as WhoVaDraft), instrumentVersion: "historic-v1", data: { interview_outcome: "partially_completed", Id10013: "yes", Id10007: "kept answer" } });
+    const ready = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: false, issues: [{ question: "Id10007", code: "required", message: "Required" }] });
+    const attention: RevisionRow = { ...ready, state: "attention", refusal_code: "outcome_regression" };
+    await db.runAsync("UPDATE revision_drafts SET state = ?, row_json = ? WHERE draft_id = ?", ["attention", JSON.stringify(attention), DRAFT_ID]);
+
+    let sentBody: Record<string, unknown> | undefined;
+    mockRequest(async (_userId, path, init) => {
+      if (path.includes("/revisions")) {
+        sentBody = (init as MockRequestInit & { bodyFactory: () => unknown }).bodyFactory() as Record<string, unknown>;
+        return { body: {
+          changed: true, va_sid: VA_SID, payload_version_id: "payload-legacy",
+          answers_sha256: ready.answers_sha256, outcome: "partially_completed", workflow_state: "smartva_pending"
+        } };
+      }
+      return { body: { drafts: [summary()] } };
+    });
+
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toEqual({ sent: 1, failed: 0, attentionIds: [] });
+    expect(sentBody).toMatchObject({ answers_json: ready.frozen_json, answers_sha256: ready.answers_sha256 });
+    expect(sentBody?.draft).toMatchObject({
+      completedAt: ready.envelope.completedAt,
+      instrumentVersion: "historic-v1",
+      definitionSha256: "d".repeat(64),
+      definitionExtensions: ["geography"],
+    });
     expect(await getRevisionRow(db, DRAFT_ID)).toBeNull();
   });
 

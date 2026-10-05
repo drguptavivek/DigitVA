@@ -87,7 +87,6 @@ function revisionErrorText(error: unknown): string {
     case_state_conflict: "revisionCaseConflict",
     case_closed: "revisionCaseClosed",
     case_already_submitted: "revisionAlreadySubmitted",
-    outcome_regression: "revisionOutcomeRegression",
     invalid_reason: "revisionInvalidReason",
     answers_hash_required: "serverValidation",
     answers_hash_invalid: "serverValidation",
@@ -489,7 +488,17 @@ export default function InterviewScreen() {
     setBusy(true);
     setMessage("");
     try {
-      await controller?.saveDraft();
+      try {
+        await controller?.saveDraft();
+        if (!isCurrent()) return;
+        if (store instanceof ServerDraftStore) await store.flush();
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (!(store instanceof ServerDraftStore) || !(error instanceof ClientApiError) || error.status !== 409) throw error;
+        const currentDraft = await getDraft(bootstrap.links.intakeDrafts, draftId, bootstrap.csrf);
+        if (!isCurrent()) return;
+        if (currentDraft.draft.status !== "submitted") throw error;
+      }
       if (!isCurrent()) return;
       if (store instanceof RevisionMemoryStore) {
         let snapshot = pendingRevisionRef.current;
@@ -531,18 +540,24 @@ export default function InterviewScreen() {
         await sendRevisionSnapshot(snapshot);
         return;
       }
-      if (store instanceof ServerDraftStore) await store.flush();
       const submission = await submitDraft(
         bootstrap.links.intakeDrafts,
         draftId,
-        { valid: result.valid, issues: result.issues },
+        { valid: result.valid, issues: result.issues, data: result.data },
         bootstrap.csrf,
         store instanceof ServerDraftStore ? store.getServerUpdatedAt() : undefined,
       );
       if (!isCurrent()) return;
-      router.replace(submission.superseded
-        ? { pathname: "/collection", params: { superseded: "1" } }
-        : "/collection");
+      if (submission.superseded) {
+        router.replace({ pathname: "/collection", params: { superseded: "1" } });
+      } else if (submission.kept === "server") {
+        router.replace({ pathname: "/collection", params: {
+          submissionHistory: "1",
+          submissionLocked: submission.locked === true ? "1" : "0",
+        } });
+      } else {
+        router.replace("/collection");
+      }
     } catch (error) {
       if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
     } finally {

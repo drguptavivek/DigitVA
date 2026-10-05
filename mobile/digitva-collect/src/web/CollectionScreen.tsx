@@ -34,7 +34,11 @@ type AuthoritativeRefreshResult = {
 
 export default function CollectionScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ superseded?: string }>();
+  const params = useLocalSearchParams<{
+    superseded?: string;
+    submissionHistory?: string;
+    submissionLocked?: string;
+  }>();
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
   const styles = useUiStyles();
@@ -212,6 +216,13 @@ export default function CollectionScreen() {
         <Text style={styles.muted} accessibilityRole="alert">
           {t("supersededInterviewNotice")}
         </Text>
+      ) : params.submissionHistory === "1" ? (
+        <View accessibilityRole="alert">
+          <Text style={styles.muted}>{t("submissionHistoryNotice")}</Text>
+          {params.submissionLocked === "1" ? (
+            <Text style={styles.muted}>{t("submissionLockedNotice")}</Text>
+          ) : null}
+        </View>
       ) : null}
       {!bootstrap?.capabilities.intake ? (
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>

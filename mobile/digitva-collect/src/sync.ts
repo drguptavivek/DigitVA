@@ -79,6 +79,7 @@ export interface SyncResult {
   failed: number;
   remaining: number;
   supersededUniqueIds: string[];
+  serverKeptUploads?: { uniqueId: string; locked: boolean }[];
   draftConflictIds?: string[];
   revisionAttentionIds?: string[];
   definitionRefresh?: DefinitionRefreshStatus[];
@@ -144,14 +145,26 @@ function acknowledgedCase(body: unknown): { deathId: string; state: string } {
   return { deathId, state };
 }
 
-/** Validate the server's stored-case identifier before retaining it for display. */
-function storedCaseUniqueId(error: ApiError): string | undefined {
-  const stored = error.payload?.stored;
-  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return undefined;
-  const caseBody = (stored as { case?: unknown }).case;
-  if (!caseBody || typeof caseBody !== "object" || Array.isArray(caseBody)) return undefined;
-  const uniqueId = (caseBody as { unique_id?: unknown }).unique_id;
-  return typeof uniqueId === "string" && uniqueId.trim() ? uniqueId : undefined;
+/** Validate an upload's case envelope, allowing nullable fields only for an unbound direct interview. */
+function acknowledgedUploadCase(body: unknown, expectedDeathId: string | null): void {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid_case_ack");
+  const acknowledged = (body as { case?: unknown }).case;
+  if (!acknowledged || typeof acknowledged !== "object" || Array.isArray(acknowledged)) {
+    throw new Error("invalid_case_ack");
+  }
+  const deathId = (acknowledged as { death_id?: unknown }).death_id;
+  const state = (acknowledged as { state?: unknown; status?: unknown }).state ??
+    (acknowledged as { status?: unknown }).status;
+  if (expectedDeathId !== null) {
+    if (typeof deathId !== "string" || !deathId || deathId !== expectedDeathId || typeof state !== "string" || !state) {
+      throw new Error("invalid_case_ack");
+    }
+  } else if (
+    (deathId !== null && (typeof deathId !== "string" || !deathId)) ||
+    (state !== null && (typeof state !== "string" || !state))
+  ) {
+    throw new Error("invalid_case_ack");
+  }
 }
 
 async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unknown): Promise<void> {
@@ -169,11 +182,13 @@ export async function syncInterviewer(
   userId: string,
   db: Db,
   onSuperseded?: (uniqueId: string) => void,
-  onDraftConflict?: (draftId: string) => void
+  onDraftConflict?: (draftId: string) => void,
+  onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void
 ): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
+  const serverKeptUploads: { uniqueId: string; locked: boolean }[] = [];
   const draftConflictIds: string[] = [];
 
   // The authoritative project list is refreshed before any outbound work so
@@ -312,17 +327,39 @@ export async function syncInterviewer(
           throw error;
         }
       }
-      const body = acknowledgement.body as { answers_sha256?: unknown; superseded?: unknown };
-      if (typeof body?.answers_sha256 !== "string" || body.answers_sha256.toLowerCase() !== answersHash) {
+      const responseBody = acknowledgement.body;
+      if (!responseBody || typeof responseBody !== "object" || Array.isArray(responseBody)) {
+        throw new Error("invalid_upload_ack");
+      }
+      const body = responseBody as {
+        received_sha256?: unknown;
+        kept?: unknown;
+        locked?: unknown;
+        superseded?: unknown;
+        case?: { unique_id?: unknown };
+      };
+      if (typeof body?.received_sha256 !== "string" || body.received_sha256.toLowerCase() !== answersHash) {
         throw new Error("invalid_answers_ack");
       }
-      const acknowledged = acknowledgedCase(acknowledgement.body);
-      if (item.death_id && acknowledged.deathId !== item.death_id) throw new Error("invalid_case_ack");
-      if (body.superseded === true) {
-        const caseBody = (acknowledgement.body as { case?: { unique_id?: unknown } }).case;
-        if (typeof caseBody?.unique_id !== "string" || !caseBody.unique_id.trim()) throw new Error("invalid_case_ack");
-        supersededUniqueIds.push(caseBody.unique_id);
-        onSuperseded?.(caseBody.unique_id);
+      if (
+        (body.kept !== "incoming" && body.kept !== "server") ||
+        typeof body.locked !== "boolean" ||
+        typeof body.superseded !== "boolean" ||
+        (body.superseded && (body.kept !== "server" || !body.locked))
+      ) {
+        throw new Error("invalid_upload_ack");
+      }
+      acknowledgedUploadCase(responseBody, item.death_id);
+      if (body.superseded || body.kept === "server") {
+        if (typeof body.case?.unique_id !== "string" || !body.case.unique_id.trim()) throw new Error("invalid_case_ack");
+        if (body.superseded) {
+          supersededUniqueIds.push(body.case.unique_id);
+          onSuperseded?.(body.case.unique_id);
+        } else {
+          const notice = { uniqueId: body.case.unique_id, locked: body.locked };
+          serverKeptUploads.push(notice);
+          onServerKept?.(notice);
+        }
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
       await deleteDraftSnapshot(db, item.id, item.envelope);
@@ -331,9 +368,6 @@ export async function syncInterviewer(
       // A per-draft refusal (409/413/422) keeps that draft and moves on; a
       // 422 (the interview as it stands) also reopens it for editing.
       const refused = refusal(error);
-      if (refused.status === 409 && refused.code === "hash_mismatch") {
-        await setDraftUploadIssue(db, item.id, "hash_mismatch", storedCaseUniqueId(refused));
-      }
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       if (refused.status === 422 && refused.code !== "answers_hash_invalid") await reopenDraft(db, item.id);
       failed += 1;
@@ -362,6 +396,7 @@ export async function syncInterviewer(
     failed,
     remaining,
     supersededUniqueIds,
+    ...(serverKeptUploads.length ? { serverKeptUploads } : {}),
     ...(draftConflictIds.length ? { draftConflictIds } : {}),
     ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {}),
     ...(definitionRefresh.length ? { definitionRefresh } : {})

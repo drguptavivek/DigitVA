@@ -416,6 +416,30 @@ describe("native submitted-interview revisions", () => {
     expect(mockQueue).not.toHaveBeenCalled();
   });
 
+  it("allows a completed revision to change to refused", async () => {
+    mockLocalRow = { ...mockRow, original_outcome: "completed" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    await act(async () => {
+      (mockFormProps.onDraftController as (controller: unknown) => void)({ saveDraft: mockSaveDraft });
+      tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" }).props.onClick();
+    });
+    const completion = { valid: true, issues: [] };
+    await act(async () => {
+      (mockFormProps.onComplete as (result: unknown) => void)({
+        ...completion,
+        data: { Id10013: "no", interview_outcome: "refused" },
+      });
+    });
+    await settle();
+
+    expect(mockQueue).toHaveBeenCalledWith(mockDb, "draft-1", "interviewer_correction", completion);
+    await act(async () => tree!.unmount());
+  });
+
   it("requires finish_partial when a partial original becomes effectively completed", async () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Revision />); });

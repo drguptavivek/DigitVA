@@ -13,7 +13,7 @@ const mockBootstrapB = {
   links: { intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 let mockCurrentBootstrap = mockBootstrap;
-let mockParams: { superseded?: string } = {};
+let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string } = {};
 const mockRouterPush = jest.fn();
 
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush }), useLocalSearchParams: () => mockParams }));
@@ -152,6 +152,29 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain('"otherDraftActive"');
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows server-kept history and locked notices, with superseded taking precedence", async () => {
+    mockParams = { submissionHistory: "1", submissionLocked: "1" };
+    mockGetIntakeContext.mockRejectedValueOnce(new Error("later refresh failed"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    let rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("submissionHistoryNotice");
+    expect(rendered).toContain("submissionLockedNotice");
+    expect(rendered).toContain("error");
+    expect(rendered).not.toContain("supersededInterviewNotice");
+    await act(async () => tree!.unmount());
+
+    mockParams = { superseded: "1", submissionHistory: "1", submissionLocked: "1" };
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("supersededInterviewNotice");
+    expect(rendered).not.toContain("submissionHistoryNotice");
+    expect(rendered).not.toContain("submissionLockedNotice");
     await act(async () => tree!.unmount());
   });
 

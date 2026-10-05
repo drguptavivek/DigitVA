@@ -160,6 +160,9 @@ function submissionSuccess(call: Call, extra: Record<string, unknown> = {}, stat
   const deathId = typeof body.death_id === "string" ? body.death_id : DEATH;
   return json(status, {
     answers_sha256: body.answers_sha256,
+    received_sha256: body.answers_sha256,
+    kept: extra.kept ?? (extra.superseded === true ? "server" : "incoming"),
+    locked: extra.locked ?? (extra.superseded === true),
     case: { death_id: deathId, unique_id: "U-1", status: "registered" },
     superseded: false,
     ...extra
@@ -671,7 +674,7 @@ describe("sync upload ordering", () => {
     expect(calls.filter(({ url }) => url.endsWith("/submissions")).length).toBe(firstSubmissionCount);
   });
 
-  it("sends the exact Unicode answers JSON and accepts a matching 200 direct acknowledgement", async () => {
+  it("sends the exact Unicode answers JSON and accepts a nullable-case direct acknowledgement", async () => {
     const db = memoryDb();
     await migrate(db);
     const unicodeData = { Id10013: "हिन्दी ☕", number: 1 } as SubmissionData;
@@ -681,8 +684,7 @@ describe("sync upload ordering", () => {
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
       if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
-        superseded: true,
-        case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
+        case: { death_id: null, unique_id: null, status: null }
       }, 200);
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
@@ -690,11 +692,10 @@ describe("sync upload ordering", () => {
 
     const onSuperseded = jest.fn();
     await expect(syncInterviewer(USER, db, onSuperseded)).resolves.toEqual({
-      sent: 1, failed: 0, remaining: 0, supersededUniqueIds: ["U-77"],
+      sent: 1, failed: 0, remaining: 0, supersededUniqueIds: [],
       definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }],
     });
-    expect(onSuperseded).toHaveBeenCalledTimes(1);
-    expect(onSuperseded).toHaveBeenCalledWith("U-77");
+    expect(onSuperseded).not.toHaveBeenCalled();
     const upload = calls.find((call) => call.url.endsWith("/submissions"))!;
     const exactJson = '{"Id10013":"हिन्दी ☕","number":1}';
     expect(upload.body?.answers_json).toBe(exactJson);
@@ -848,7 +849,7 @@ describe("sync upload ordering", () => {
     expect(await getRevisionRow(db, DRAFT)).toBeNull();
   });
 
-  it("stores hash mismatch and skips the same draft on later syncs", async () => {
+  it("accepts a server-kept upload using the received hash and reports its lock state", async () => {
     const db = memoryDb();
     await migrate(db);
     const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
@@ -856,19 +857,23 @@ describe("sync upload ordering", () => {
     await markCompleted(db, DRAFT, { valid: true, issues: [] });
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return json(409, {
-        code: "hash_mismatch",
-        stored: { case: { unique_id: "U-77" } }
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
+        answers_sha256: "0".repeat(64),
+        received_sha256: String(call.body?.answers_sha256).toUpperCase(),
+        kept: "server",
+        locked: true,
+        case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
       });
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });
 
-    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
-    expect(await getDraftRow(db, DRAFT)).toMatchObject({ completed: 1, upload_issue: "hash_mismatch", upload_issue_unique_id: "U-77" });
-    const sentBefore = calls.filter((call) => call.url.endsWith("/submissions")).length;
-    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
-    expect(calls.filter((call) => call.url.endsWith("/submissions")).length).toBe(sentBefore);
+    const onServerKept = jest.fn();
+    await expect(syncInterviewer(USER, db, undefined, undefined, onServerKept)).resolves.toMatchObject({
+      sent: 1, failed: 0, remaining: 0, serverKeptUploads: [{ uniqueId: "U-77", locked: true }]
+    });
+    expect(onServerKept).toHaveBeenCalledWith({ uniqueId: "U-77", locked: true });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
   });
 
   it("holds a completed draft with a partial definition pin for attention before upload", async () => {
@@ -953,7 +958,7 @@ describe("sync upload ordering", () => {
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
       if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
-        answers_sha256: "0".repeat(64),
+        received_sha256: "0".repeat(64),
         superseded: true,
         case: { death_id: DEATH, unique_id: "U-77", status: "registered" }
       });
@@ -963,6 +968,46 @@ describe("sync upload ordering", () => {
     const onSuperseded = jest.fn();
     await expect(syncInterviewer(USER, db, onSuperseded)).rejects.toThrow("invalid_answers_ack");
     expect(onSuperseded).not.toHaveBeenCalled();
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it("keeps an unbound direct draft when the received hash does not match", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, {
+        received_sha256: "0".repeat(64),
+        case: { death_id: null, unique_id: null, status: null }
+      });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).rejects.toThrow("invalid_answers_ack");
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it.each([
+    { kept: "other" },
+    { locked: "true" },
+  ])("keeps a draft when upload acknowledgement metadata is malformed (%o)", async (metadata) => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, metadata);
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await expect(syncInterviewer(USER, db)).rejects.toThrow("invalid_upload_ack");
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
   });
 
@@ -989,7 +1034,7 @@ describe("sync upload ordering", () => {
     expect(await getDraftRow(db, DRAFT)).toBeNull();
   });
 
-  it("keeps a draft when the acknowledged death id does not match its binding", async () => {
+  it.each([null, "other-death"])("keeps a bound draft when the acknowledged death id is %s", async (deathId) => {
     const db = memoryDb();
     await migrate(db);
     const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
@@ -997,7 +1042,7 @@ describe("sync upload ordering", () => {
     await markCompleted(db, DRAFT, { valid: true, issues: [] });
     server((call) => {
       if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
-      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: { death_id: "other-death", unique_id: "U-1", status: "registered" } });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: { death_id: deathId, unique_id: "U-1", status: "registered" } });
       if (call.url.endsWith("/outstanding")) return json(204, null);
       return json(200, { cases: [], next_cursor: null });
     });

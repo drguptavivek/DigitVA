@@ -190,7 +190,11 @@ const accepting = (listed: CaseRow[] = []) => (call: Call) => {
     return json(201, {
       va_sid: "x",
       case: { death_id: typeof call.body?.death_id === "string" ? call.body.death_id : DEATH, state: "registered" },
-      answers_sha256: call.body?.answers_sha256
+      answers_sha256: call.body?.answers_sha256,
+      received_sha256: call.body?.answers_sha256,
+      kept: "incoming",
+      locked: false,
+      superseded: false
     });
   }
   return json(204, null);

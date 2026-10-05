@@ -80,6 +80,7 @@ export interface SyncResult {
   remaining: number;
   supersededUniqueIds: string[];
   serverKeptUploads?: { uniqueId: string; locked: boolean }[];
+  canCodeNowUniqueIds?: string[];
   draftConflictIds?: string[];
   revisionAttentionIds?: string[];
   definitionRefresh?: DefinitionRefreshStatus[];
@@ -183,12 +184,14 @@ export async function syncInterviewer(
   db: Db,
   onSuperseded?: (uniqueId: string) => void,
   onDraftConflict?: (draftId: string) => void,
-  onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void
+  onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
+  onCanCodeNow?: (uniqueId: string) => void
 ): Promise<SyncResult> {
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
   const serverKeptUploads: { uniqueId: string; locked: boolean }[] = [];
+  const canCodeNowUniqueIds: string[] = [];
   const draftConflictIds: string[] = [];
 
   // The authoritative project list is refreshed before any outbound work so
@@ -336,6 +339,7 @@ export async function syncInterviewer(
         kept?: unknown;
         locked?: unknown;
         superseded?: unknown;
+        can_code_now?: unknown;
         case?: { unique_id?: unknown };
       };
       if (typeof body?.received_sha256 !== "string" || body.received_sha256.toLowerCase() !== answersHash) {
@@ -350,6 +354,14 @@ export async function syncInterviewer(
         throw new Error("invalid_upload_ack");
       }
       acknowledgedUploadCase(responseBody, item.death_id);
+      const acknowledgedUniqueId = body.case?.unique_id;
+      if (
+        body.can_code_now === true && !body.superseded &&
+        typeof acknowledgedUniqueId === "string" && acknowledgedUniqueId.trim()
+      ) {
+        canCodeNowUniqueIds.push(acknowledgedUniqueId);
+        onCanCodeNow?.(acknowledgedUniqueId);
+      }
       if (body.superseded || body.kept === "server") {
         if (typeof body.case?.unique_id !== "string" || !body.case.unique_id.trim()) throw new Error("invalid_case_ack");
         if (body.superseded) {
@@ -397,6 +409,7 @@ export async function syncInterviewer(
     remaining,
     supersededUniqueIds,
     ...(serverKeptUploads.length ? { serverKeptUploads } : {}),
+    ...(canCodeNowUniqueIds.length ? { canCodeNowUniqueIds: [...new Set(canCodeNowUniqueIds)] } : {}),
     ...(draftConflictIds.length ? { draftConflictIds } : {}),
     ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {}),
     ...(definitionRefresh.length ? { definitionRefresh } : {})

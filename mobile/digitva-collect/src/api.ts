@@ -220,6 +220,7 @@ export interface CaseRow {
   other_draft_active?: boolean;
   other_draft_started_at?: string | null;
   other_complete_interview?: boolean;
+  code_now?: boolean;
   [key: string]: unknown;
 }
 
@@ -766,8 +767,9 @@ export function submitDraft(
       validation_err: unknown[];
       kept?: "incoming" | "server";
       locked?: boolean;
+      can_code_now?: boolean;
     }
-  | { va_sid: null; draft: DraftSummary; superseded: true; validation_err: null }
+  | { va_sid: null; draft: DraftSummary; superseded: true; validation_err: null; can_code_now?: false }
 > {
   const path = safeActionUrl(`${link}/${encodeURIComponent(draftId)}/submit`);
   if (!path) throw new ApiError(400, "invalid_request");
@@ -787,8 +789,8 @@ export function submitDraft(
       status === 201 && draft && typeof body.va_sid === "string" && body.va_sid.length > 0 &&
       body.superseded === false && Array.isArray(body.validation_err)
     ) {
-      return body as unknown as {
-        va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[];
+      return { ...body, can_code_now: body.can_code_now === true } as unknown as {
+        va_sid: string; draft: DraftSummary; superseded: false; validation_err: unknown[]; can_code_now: boolean;
       };
     }
     if (
@@ -796,21 +798,22 @@ export function submitDraft(
       body.superseded === false && Array.isArray(body.validation_err) &&
       (body.kept === "incoming" || body.kept === "server") && typeof body.locked === "boolean"
     ) {
-      return body as unknown as {
+      return { ...body, can_code_now: body.can_code_now === true } as unknown as {
         va_sid: string;
         draft: DraftSummary;
         superseded: false;
         validation_err: unknown[];
         kept: "incoming" | "server";
         locked: boolean;
+        can_code_now: boolean;
       };
     }
     if (
       status === 200 && draft && body.va_sid === null &&
       body.superseded === true && body.validation_err === null
     ) {
-      return body as unknown as {
-        va_sid: null; draft: DraftSummary; superseded: true; validation_err: null;
+      return { ...body, can_code_now: false } as unknown as {
+        va_sid: null; draft: DraftSummary; superseded: true; validation_err: null; can_code_now: false;
       };
     }
     throw new ApiError(status, "malformed_response");

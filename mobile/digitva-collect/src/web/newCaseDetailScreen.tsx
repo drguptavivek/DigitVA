@@ -336,6 +336,9 @@ export default function NewCaseDetailScreen() {
             <Text style={styles.muted}>
               {row.unique_id} · {stateLabel(state)}
             </Text>
+            {row.code_now === true ? (
+              <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+            ) : null}
             {row.other_draft_active === true ? (
               <Text style={styles.error} accessibilityRole="alert">
                 {otherDraftNotice(row.other_draft_started_at)}

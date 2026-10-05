@@ -93,16 +93,24 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
       `.tasks/2026-10-05-access-contract.md`, contract `expo-handoff.md`
       section 11. Not in `actions`: `site_pi_report`, `supervise_intake`
       (decided outside `RULES`; `roles` carries them).
-      **Next: `digitva-xl43.3` DORIS prefill** (draft design in
-      `.tasks/2026-10-05-coding-workspace-api.md`, last section; show the
-      owner before coding), then a read-only view mode
-      if the app needs one; device check that native players do not forward
-      the bearer to the S3 presigned redirect (`digitva-p6fs.5`).
+      `digitva-xl43.3` done 2026-10-05: the workspace carries `doris`
+      (seed logic moved from `va_form.py` to `doris_context_service`, both
+      clients call it; every returned certificate is now PII-redacted;
+      contract `expo-handoff.md` section 12 item 9). Left in coding:
+      `digitva-xl43.8` read-only case view under `/api/v1` (finished or not
+      held; Expo holds finished-case view until it lands). Device check that
+      native players do not forward the bearer to the S3 presigned redirect
+      (`digitva-p6fs.5`).
       Body caps read `Content-Length` and refuse a body without one (413);
       there is no global `MAX_CONTENT_LENGTH`.
    c. `digitva-ey38` `code` on every remaining `/api/v1` error
       (data-management, area, cod-buckets, ...; reviewing, NQA and SO done) and a contract
       review of those blueprints.
+   d. Filed 2026-10-05 from the owner's coverage check: `digitva-uq6v`
+      correct a registered death's details (missing on web and API; owner
+      to decide who may correct and until when, before a policy baseline),
+      `digitva-3nxj` check ICD-11 coding search filters by age and sex as
+      ICD-10 does.
    Open owner question: fold form-options and prefill-policy into
    `me/access` (recommended: no). Admin stays browser-only (`/admin/api/*`).
 2. **Deploy notes.** This field-collection release: migrations

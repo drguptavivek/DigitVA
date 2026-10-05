@@ -1,4 +1,3 @@
-import copy
 import json
 import logging
 import uuid
@@ -38,7 +37,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissionWorkflowEvent,
 )
-from app.services import attachment_service
+from app.services import attachment_service, doris_context_service
 from app.services.authz import Action, AuthzError, require
 from app.services.case_content_service import (
     get_case_artifacts,
@@ -54,9 +53,6 @@ from app.services.category_rendering_service import (
 from app.services.cod_entry_mode import is_doris as _is_doris
 from app.services.cod_entry_mode import is_masked as _is_masked
 from app.services.cod_entry_mode import project_mode as _project_mode
-from app.services.cod_entry_mode import (
-    smartva_icd11_alternatives as _smartva_icd11_alternatives,
-)
 from app.services.coder_cod_service import (
     STEP1_REQUIRED_MESSAGE,
     TESTER_SAVED_MESSAGE,
@@ -67,7 +63,6 @@ from app.services.coder_cod_service import (
     submit_coder_not_codeable,
 )
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-from app.services.doris_prefill import doris_prefill_from_payload
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
@@ -132,51 +127,6 @@ _DORIS_ENVELOPE_FIELDS = (
 )
 
 
-def _masked_doris_step2_context(step1, smartva) -> dict:
-    """Template data for the masked DORIS Step 2 picker host.
-
-    The picker's API URLs default in the template from ``va_sid``.
-    """
-    return {
-        "smartva_icd11_alternatives": _smartva_icd11_alternatives(smartva),
-        "step1_doris_certificate": step1.doris_certificate if step1 else None,
-        "step1_doris_processing": (
-            {"doris": step1.doris_result, "codedit": step1.codedit_result}
-            if step1 and step1.doris_result is not None
-            else None
-        ),
-    }
-
-
-def _masked_reviewer_doris_context(va_sid, reviewer_initial, smartva):
-    """Seed row and template data for the masked DORIS reviewer panel.
-
-    Returns ``(doris_source, context)``. The reviewer's Step 1 editor starts
-    from their own saved certificate, else from the certificate of the
-    coder's Step 1 behind the authoritative coder final (the template
-    deep-copies it, so the coder's rows never change), else ``None`` for the
-    admin defaults. A saved reviewer Step 1 reopens display-only: no process
-    token is minted on GET, so saving a changed Step 1 still needs Process.
-    """
-    context = _masked_doris_step2_context(reviewer_initial, smartva)
-    if reviewer_initial is not None and reviewer_initial.doris_certificate:
-        if reviewer_initial.doris_result is not None:
-            context["doris_initial_processing"] = {
-                "certificate": reviewer_initial.doris_certificate,
-                "doris": reviewer_initial.doris_result,
-                "codedit": reviewer_initial.codedit_result,
-                "final_choice": reviewer_initial.va_antecedent_cod or "",
-            }
-        return reviewer_initial, context
-    coder_final = get_authoritative_final_assessment(va_sid)
-    coder_step1 = (
-        db.session.get(VaInitialAssessments, coder_final.source_initial_assessment_id)
-        if coder_final is not None and coder_final.source_initial_assessment_id
-        else None
-    )
-    return coder_step1, context
-
-
 _DORIS_CONFLICT_CODES = {
     "DORIS_CERTIFICATE_CHANGED",
     "DORIS_PROCESS_MISMATCH",
@@ -228,31 +178,6 @@ def _json_form_value(name: str):
         return json.loads(raw)
     except (TypeError, json.JSONDecodeError) as exc:
         raise ValueError(f"{name} must be valid JSON.") from exc
-
-
-def _doris_initial(saved_certificate, submission, project_mode) -> tuple[dict, dict]:
-    """``(initial certificate, prefill provenance)`` for a DORIS editor.
-
-    A saved (or just-submitted) certificate is shown as it is, with no
-    prefill markers. Otherwise a DORIS project's new certificate starts
-    with the non-cause fields the interview answers
-    (``doris_prefill_from_payload``, bead digitva-hln); these are interview
-    facts, not SmartVA output, so masked Step 1 shows them too.
-    """
-    if saved_certificate is not None:
-        certificate = copy.deepcopy(saved_certificate)
-        if should_redact_pii(current_user) and isinstance(certificate, dict):
-            # AdministrativeData holds the deceased's Sex, DateBirth,
-            # DateDeath and age; a plain viewer keeps the cause chain only.
-            certificate.pop("AdministrativeData", None)
-        return certificate, {}
-    if submission is None or not _is_doris(project_mode):
-        return {}, {}
-    if should_redact_pii(current_user):
-        # The prefill is the deceased's Sex, DateBirth, DateDeath and age.
-        return {}, {}
-    version = get_active_payload_version(submission.va_sid)
-    return doris_prefill_from_payload(version.payload_data if version else None)
 
 
 def _doris_conflict(code: str, message: str, processing: dict | None = None):
@@ -621,10 +546,9 @@ def renderpartial(va_sid, va_partial):
         doris_source = None
         masked_reviewer_doris = {}
         if _is_doris(project_mode) and not _is_masked(project_mode):
-            if va_action == "vareview" and va_reviewer_final_assess:
-                doris_source = va_reviewer_final_assess
-            else:
-                doris_source = get_authoritative_final_assessment(va_sid)
+            doris_source = doris_context_service.unmasked_seed_source(
+                va_sid, va_reviewer_final_assess
+            )
         elif (
             project_mode == "masked_doris"
             and va_action == "vareview"
@@ -633,12 +557,12 @@ def renderpartial(va_sid, va_partial):
             and category_config
             and category_config.render_mode == "workflow_panel"
         ):
-            doris_source, masked_reviewer_doris = _masked_reviewer_doris_context(
-                va_sid, va_reviewer_initial_assess, smartva
+            doris_source, masked_reviewer_doris = doris_context_service.masked_reviewer_context(
+                va_sid, va_reviewer_initial_assess, smartva, should_redact_pii(current_user)
             )
         # Only the workflow panel carries the editor; other categories skip
         # the payload read.
-        doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+        doris_initial_certificate, doris_prefill_provenance = doris_context_service.doris_initial(
             doris_source.doris_certificate
             if doris_source and doris_source.doris_certificate
             else None,
@@ -646,6 +570,7 @@ def renderpartial(va_sid, va_partial):
             if category_config and category_config.render_mode == "workflow_panel"
             else None,
             project_mode,
+            should_redact_pii(current_user),
         )
         response = make_response(render_template(
             template_name,
@@ -887,7 +812,9 @@ def renderpartial(va_sid, va_partial):
                     step1_saved=True,
                 )
             step2_context = (
-                _masked_doris_step2_context(new_review, smartva)
+                doris_context_service.masked_step2_context(
+                    new_review, smartva, should_redact_pii(current_user)
+                )
                 if project_mode == "masked_doris"
                 else {}
             )
@@ -902,12 +829,14 @@ def renderpartial(va_sid, va_partial):
             va_action,
             recode_resume=va_actiontype == "varesumecoding",
         )
-        doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+        redact_pii = should_redact_pii(current_user)
+        doris_initial_certificate, doris_prefill_provenance = doris_context_service.doris_initial(
             existing_assess.doris_certificate
             if existing_assess and existing_assess.doris_certificate
             else None,
             va_submission,
             project_mode,
+            redact_pii,
         )
         pre_immediate_cod = None
         pre_antecedent_cod = None
@@ -927,14 +856,10 @@ def renderpartial(va_sid, va_partial):
             project_mode == "masked_doris"
             and existing_assess is not None
             and existing_assess.va_iniassess_status == VaStatuses.active
-            and existing_assess.doris_result is not None
         ):
-            saved_doris_processing = {
-                "certificate": existing_assess.doris_certificate,
-                "doris": existing_assess.doris_result,
-                "codedit": existing_assess.codedit_result,
-                "final_choice": existing_assess.va_antecedent_cod or "",
-            }
+            saved_doris_processing = doris_context_service.saved_step1_processing(
+                existing_assess, redact_pii
+            )
         return render_template(
             f"va_form_partials/{va_partial}.html",
             form=form,
@@ -1041,12 +966,13 @@ def renderpartial(va_sid, va_partial):
             )
             # Only unmasked DORIS shows a certificate here; masked Step 2
             # confirms the cause without one.
-            doris_initial_certificate, doris_prefill_provenance = _doris_initial(
+            doris_initial_certificate, doris_prefill_provenance = doris_context_service.doris_initial(
                 submitted_certificate
                 if submitted_certificate is not None
                 else prior_certificate or None,
                 va_submission if project_mode == "unmasked_doris" else None,
                 project_mode,
+                should_redact_pii(current_user),
             )
             return render_template(
                 f"va_form_partials/{va_partial}.html",
@@ -1107,7 +1033,9 @@ def renderpartial(va_sid, va_partial):
                     f"/api/v1/doris-clinical/selection-check/{va_sid}"
                 ),
                 **(
-                    _masked_doris_step2_context(va_initial_assess, smartva)
+                    doris_context_service.masked_step2_context(
+                        va_initial_assess, smartva, should_redact_pii(current_user)
+                    )
                     if project_mode == "masked_doris"
                     else {}
                 ),

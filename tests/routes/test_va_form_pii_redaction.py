@@ -551,7 +551,10 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
                 )
                 self.assertEqual(response.status_code, 200)
         with patch("app.routes.va_form._is_doris", return_value=True), patch(
-            "app.routes.va_form.doris_prefill_from_payload", return_value=({}, {})
+            "app.services.doris_context_service.is_doris", return_value=True
+        ), patch(
+            "app.services.doris_context_service.doris_prefill_from_payload",
+            return_value=({}, {}),
         ) as prefill:
             for action in ("vaarea", "vadata"):
                 for partial in ("vainitialasses", "vafinalasses", "vacoderreview", "vareviewform"):
@@ -566,39 +569,32 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
     def test_doris_prefill_skips_a_redacting_viewer(self):
         """Defense in depth: the prefill reads interview facts from the raw
         payload, so a viewer the render redacts never gets it."""
-        import importlib
-
-        # app.routes re-exports the blueprint under the module's name.
-        va_form_routes = importlib.import_module("app.routes.va_form")
+        from app.services import doris_context_service
 
         submission = db.session.get(VaSubmissions, self.VA_SID)
         prefilled = ({"Sex": "female"}, {"Sex": "payload"})
-        with self.app.test_request_context(), patch.object(
-            va_form_routes, "_is_doris", return_value=True
-        ), patch.object(
-            va_form_routes, "doris_prefill_from_payload", return_value=prefilled
+        with patch.object(doris_context_service, "is_doris", return_value=True), patch.object(
+            doris_context_service, "doris_prefill_from_payload", return_value=prefilled
         ) as prefill:
             # Present: a viewer entitled to PII gets the prefill.
-            with patch.object(va_form_routes, "should_redact_pii", return_value=False):
-                self.assertEqual(va_form_routes._doris_initial(None, submission, "doris"), prefilled)
-            with patch.object(va_form_routes, "should_redact_pii", return_value=True):
-                self.assertEqual(va_form_routes._doris_initial(None, submission, "doris"), ({}, {}))
+            self.assertEqual(
+                doris_context_service.doris_initial(None, submission, "doris", False), prefilled
+            )
+            self.assertEqual(
+                doris_context_service.doris_initial(None, submission, "doris", True), ({}, {})
+            )
         self.assertEqual(prefill.call_count, 1)
 
     def test_a_saved_certificate_loses_its_administrative_data_for_a_redacting_viewer(self):
-        import importlib
+        from app.services import doris_context_service
 
-        va_form_routes = importlib.import_module("app.routes.va_form")
         saved = {
             "AdministrativeData": {"Sex": "female", "DateDeath": "2026-01-02"},
             "MedicalData": {"CauseA": "X"},
         }
-        with self.app.test_request_context():
-            with patch.object(va_form_routes, "should_redact_pii", return_value=False):
-                full, _ = va_form_routes._doris_initial(saved, None, "doris")
-            self.assertIn("AdministrativeData", full)
-            with patch.object(va_form_routes, "should_redact_pii", return_value=True):
-                redacted, _ = va_form_routes._doris_initial(saved, None, "doris")
+        full, _ = doris_context_service.doris_initial(saved, None, "doris", False)
+        self.assertIn("AdministrativeData", full)
+        redacted, _ = doris_context_service.doris_initial(saved, None, "doris", True)
         self.assertNotIn("AdministrativeData", redacted)
         self.assertEqual(redacted["MedicalData"], {"CauseA": "X"})
         self.assertIn("AdministrativeData", saved)  # the stored certificate is untouched

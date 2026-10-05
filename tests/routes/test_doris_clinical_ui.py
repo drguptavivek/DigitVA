@@ -2,7 +2,6 @@
 
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -248,13 +247,12 @@ class TestDorisInitialCertificate(unittest.TestCase):
     """The editor's starting certificate: saved as-is, else the prefill."""
 
     def test_a_saved_certificate_is_copied_without_prefill_markers(self):
-        from app.routes.va_form import _doris_initial
+        from app.services.doris_context_service import doris_initial
 
         saved = {"ICDVersion": "ICD11", "AdministrativeData": {"Sex": 2}}
-        # A coder, entitled to personal data (a redacting viewer's copy
-        # drops AdministrativeData: test_va_form_pii_redaction).
-        with patch("app.routes.va_form.should_redact_pii", return_value=False):
-            certificate, provenance = _doris_initial(saved, None, "masked_doris")
+        # A viewer entitled to personal data (a redacting viewer's copy
+        # drops AdministrativeData: test_doris_context_service).
+        certificate, provenance = doris_initial(saved, None, "masked_doris", False)
         self.assertEqual(certificate, saved)
         self.assertIsNot(certificate, saved)
         self.assertEqual(provenance, {})
@@ -262,11 +260,11 @@ class TestDorisInitialCertificate(unittest.TestCase):
     def test_no_prefill_outside_doris_or_without_a_submission(self):
         from types import SimpleNamespace
 
-        from app.routes.va_form import _doris_initial
+        from app.services.doris_context_service import doris_initial
 
-        self.assertEqual(_doris_initial(None, None, "unmasked_doris"), ({}, {}))
+        self.assertEqual(doris_initial(None, None, "unmasked_doris", False), ({}, {}))
         submission = SimpleNamespace(va_sid="uuid:not-read")
-        self.assertEqual(_doris_initial(None, submission, "masked_simple"), ({}, {}))
+        self.assertEqual(doris_initial(None, submission, "masked_simple", False), ({}, {}))
 
 
 class TestDorisPrefillEditorContract(unittest.TestCase):

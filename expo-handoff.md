@@ -610,9 +610,9 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
    blocking gates in `messages`. Reviewing, narrative QA and Social Autopsy
    refusals are now flat `{error, code}` too (a DORIS conflict adds
    `processing`).
-4. **Not yet served** (do not build against the web routes): DORIS projects
-   (`case.project_mode` ending `_doris`) have no certificate prefill in the
-   workspace (`digitva-xl43.3`); no read-only view of a finished case.
+4. **Not yet served** (do not build against the web routes): no read-only
+   view of a finished case or of a case the caller does not hold. DORIS
+   prefill is now served (item 9).
 5. **Media:** attachment `value`s in the category bodies are
    `/api/v1/attachments/<token>` (or `/attachments/legacy/<form>/<file>`)
    paths, the same for every client, ending in the original extension (sniff
@@ -668,3 +668,29 @@ the existing allocation routes get one (`GET/POST /coding/allocation`,
    a reviewer save without it is checked as a coder save and refused. Social
    Autopsy needs every delay level answered, and `none` is exclusive within a
    level. After a save, reload the workspace: `blocked_by` drops the gate.
+9. **DORIS projects** (`digitva-xl43.3`, server built 2026-10-05; this
+   lifts the DORIS hold in the Expo status line above). The workspace
+   carries `doris`: null unless `case.project_mode` is `masked_doris` or
+   `unmasked_doris`, else the certificate editor's seed, from the same
+   service the web screens use (full shape: `api-v1.md`, "Workspace
+   content", `doris` row):
+   - `initial_certificate` and `prefill_provenance`: the certificate to open
+     the editor with. A saved certificate (own Step 1, or for unmasked the
+     reviewer's own final, else the authoritative coder final) wins over the
+     interview prefill; `prefill_provenance` marks prefilled fields and is
+     empty for a saved certificate.
+   - Masked projects add `saved_processing` (`{certificate, doris, codedit,
+     final_choice}`: the caller's own processed Step 1, display-only; null
+     without one) and `step1_certificate` / `step1_processing` (the own
+     Step 1 that Step 2 confirms; null until there is one). A masked coder
+     gets these at both steps, so Step 1 can be reopened after it is saved.
+   - Reading the seed mints no process token: run
+     `POST /api/v1/doris-clinical/process/<va_sid>` before saving a changed
+     certificate, then send `doris_certificate`, `doris_result`,
+     `codedit_result`, `doris_process_token`, `doris_result_digest`,
+     `doris_client_revision` to the existing `/coding/initial|finalize` or
+     `/reviewing/initial|finalize` routes (masked Step 2 takes no
+     certificate). Other editor routes: `/api/v1/doris-clinical/{terms,
+     codeinfo,selection-check}/<va_sid>`.
+   - Masked Step 1 carries no SmartVA and never another coder's Step 1 or
+     final.

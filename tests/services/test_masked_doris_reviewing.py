@@ -379,7 +379,7 @@ class TestMaskedDorisReviewing(BaseTestCase):
         sid = self._start_review(smartva_icd="A16.9")
         self._login(self.reviewer_id)
         with patch(
-            "app.routes.va_form._masked_reviewer_doris_context",
+            "app.services.doris_context_service.masked_reviewer_context",
             return_value=(None, {}),
         ) as context:
             active = self.client.get(_PANEL_URL.format(sid=sid))

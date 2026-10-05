@@ -116,8 +116,8 @@ where Step 1 and, once saved, Step 2 sit on one page.
   It is seeded (deep copy) from the reviewer's own active Step 1 row when it
   has a certificate, else from the certificate of the coder's Step 1 behind
   the authoritative coder final (`source_initial_assessment_id`), else from
-  the interview prefill (`_masked_reviewer_doris_context` and
-  `_doris_initial` in `app/routes/va_form.py`). The reviewer processes it and confirms their own
+  the interview prefill (`masked_reviewer_context` and `doris_initial` in
+  `app/services/doris_context_service.py`). The reviewer processes it and confirms their own
   underlying cause. `POST /api/v1/reviewing/initial/<sid>` (JSON,
   `X-CSRFToken`, 1.2 MB limit) calls `submit_reviewer_initial_cod`, which
   verifies the envelopes with `role="reviewer"` and the reviewer's active
@@ -236,7 +236,9 @@ selection check, like a searched code. The Help field takes one verified code an
 certificate edits clear it with the results.
 
 A new clinical certificate starts with the non-cause fields the interview
-answers (`digitva-hln`): `_doris_initial` in `app/routes/va_form.py` reads
+answers (`digitva-hln`): `doris_initial` in
+`app/services/doris_context_service.py` (called by the web partials and, as
+`workspace_doris`, by `GET /api/v1/va/<sid>/workspace`) reads
 the active payload version and calls `doris_prefill_from_payload` in
 `app/services/doris_prefill.py`, one pure function for web and ODK cases
 that follows the mapping in `docs/policy/doris-cod-workflow.md`. Masked

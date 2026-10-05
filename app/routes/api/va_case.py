@@ -47,6 +47,7 @@ from app.services.coder_cod_service import (
     require_coding_session,
 )
 from app.services.coding_service import get_project_for_submission
+from app.services.doris_context_service import workspace_doris
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import get_active_recode_episode
 from app.services.icd_coding_value import DEFAULT_ICD_CLASSIFICATION
@@ -59,6 +60,7 @@ from app.services.reviewer_coding_service import ReviewerCodingError, require_re
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.user_note_service import get_active_note, save_note
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.utils import va_get_form_type_code_for_form
 
@@ -284,11 +286,13 @@ def workspace(va_sid):
 
     200 ``{case, categories, default_category, step, blocked_by,
     assessments, smartva, other_conditions_options, narrative_qa,
-    social_autopsy}``; ``step`` is ``initial | final | done``.
+    social_autopsy, doris}``; ``step`` is ``initial | final | done``.
     ``case.icd_classification`` (``icd10 | icd11``) names the coding search
     to call. ``narrative_qa`` / ``social_autopsy`` are ``None`` when the
     project's switch for this role is off, else the form definition plus the
     caller's own ``saved`` answers on the current payload (or ``None``).
+    ``doris`` is ``None`` outside DORIS projects, else the editor's seed
+    (``doris_context_service.workspace_doris``).
     Errors ``{error, code}``: 400 ``invalid_request`` (mode), 403 ``forbidden`` / ``no_allocation``, 404
     ``not_found``.
     """
@@ -413,6 +417,17 @@ def workspace(va_sid):
         "other_conditions_options": options,
         "narrative_qa": _narrative_qa_json(case, va_sid, uid),
         "social_autopsy": _social_autopsy_json(case, va_sid, uid),
+        "doris": workspace_doris(
+            va_sid=va_sid,
+            mode=case.mode,
+            project_mode=case.project_mode,
+            submission=case.submission,
+            active_version=case.active_version,
+            redact_pii=should_redact_pii(current_user),
+            step1=prefill if case.mode == "coding" else None,
+            reviewer_initial=artifacts.va_reviewer_initial_assess,
+            reviewer_final=artifacts.va_reviewer_final_assess,
+        ),
     }
     return _private(jsonify(body))
 

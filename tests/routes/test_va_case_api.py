@@ -31,6 +31,7 @@ from app.models import (
     VaNarrativeAssessment,
     VaProjectMaster,
     VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaSmartvaResults,
     VaSocialAutopsyAnalysis,
     VaSocialAutopsyAnalysisOption,
@@ -682,6 +683,148 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(
             body["assessments"]["reviewer_final"]["conclusive_cod"], f"cod by {self.reviewer.user_id}"
         )
+
+    # -- workspace: DORIS seeds (xl43.3) -----------------------------------------
+
+    _CERT = {"ICDVersion": "ICD11", "AdministrativeData": {"Sex": 1}, "Part1": [{"Conditions": []}]}
+    _RESULTS = {"doris_result": {"status": "ok"}, "codedit_result": {"status": "ok"}}
+
+    def _doris(self, masked):
+        self._set_project(masked_cod_required=masked, cod_entry_mode="doris", icd_classification="icd11")
+
+    def test_doris_is_null_outside_a_doris_project(self):
+        body = self._workspace(self._coding_case())
+        self.assertIn("doris", body)
+        self.assertIsNone(body["doris"])
+        self._mode(masked=True)
+        self.assertIsNone(self._workspace(self._coding_case())["doris"])
+
+    def test_a_masked_doris_step_one_starts_from_the_interview_prefill(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload={"Id10019": "female"})
+        body = self._workspace(sid)
+        self.assertEqual(body["step"], "initial")
+        doris = body["doris"]
+        self.assertEqual(doris["initial_certificate"]["AdministrativeData"]["Sex"], 2)
+        self.assertEqual(doris["prefill_provenance"]["AdministrativeData.Sex"]["sources"], ["Id10019"])
+        self.assertIsNone(doris["saved_processing"])
+        self.assertIsNone(doris["step1_certificate"])
+        self.assertIsNone(doris["step1_processing"])
+        # No SmartVA before Step 1, and nothing of it in the DORIS seed.
+        self.assertIsNone(body["smartva"])
+        self.assertNotIn("smartva", doris)
+
+    def test_a_saved_masked_doris_step_one_reopens_with_its_result_and_feeds_step_two(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload={"Id10019": "female"})
+        self._initial(sid, doris_certificate=self._CERT, **self._RESULTS)
+        body = self._workspace(sid)
+        self.assertEqual(body["step"], "final")
+        doris = body["doris"]
+        # The saved certificate is shown as it is: no prefill markers.
+        self.assertEqual(doris["initial_certificate"], self._CERT)
+        self.assertEqual(doris["prefill_provenance"], {})
+        self.assertEqual(doris["saved_processing"], {
+            "certificate": self._CERT, "doris": {"status": "ok"}, "codedit": {"status": "ok"},
+            "final_choice": "B20 HIV disease",
+        })
+        self.assertEqual(doris["step1_certificate"], self._CERT)
+        self.assertEqual(doris["step1_processing"], {"doris": {"status": "ok"}, "codedit": {"status": "ok"}})
+        # Display-only: no process token is minted by the read.
+        self.assertNotIn("process_token", doris["saved_processing"])
+
+    def test_a_step_one_without_a_result_does_not_reopen_as_processed(self):
+        self._doris(masked=True)
+        sid = self._coding_case()
+        self._initial(sid, doris_certificate=self._CERT)
+        doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["step1_certificate"], self._CERT)
+        self.assertIsNone(doris["saved_processing"])
+        self.assertIsNone(doris["step1_processing"])
+
+    def test_another_coders_step_one_certificate_never_seeds_a_masked_step_one(self):
+        self._doris(masked=True)
+        sid = self._coding_case()
+        other = self._make_user(f"xl43p2.o3.{uuid.uuid4().hex[:6]}@test.local", "Other3123")
+        self._initial(sid, user=other.user_id, doris_certificate=self._CERT, **self._RESULTS)
+        doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["initial_certificate"], {})
+        self.assertIsNone(doris["saved_processing"])
+        self.assertIsNone(doris["step1_certificate"])
+
+    def test_an_unmasked_doris_final_starts_from_the_prior_authoritative_final(self):
+        self._doris(masked=False)
+        sid = self._coding_case(payload={"Id10019": "female"})
+        # No prior final: the interview prefill.
+        doris = self._workspace(sid)["doris"]
+        self.assertEqual(set(doris), {"initial_certificate", "prefill_provenance"})
+        self.assertEqual(doris["initial_certificate"]["AdministrativeData"]["Sex"], 2)
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="1B10.Z TB", va_finassess_status=VaStatuses.active,
+            doris_certificate=self._CERT,
+        ))
+        db.session.commit()
+        doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["initial_certificate"], self._CERT)
+        self.assertEqual(doris["prefill_provenance"], {})
+
+    def _coder_final_behind_a_step_one(self, sid):
+        coder_initial = self._initial(sid, doris_certificate=self._CERT, **self._RESULTS)
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="1B10.Z TB", va_finassess_status=VaStatuses.active,
+            source_initial_assessment_id=coder_initial.va_iniassess_id,
+        ))
+        db.session.commit()
+
+    def test_a_masked_doris_reviewer_starts_from_the_coders_step_one_then_their_own(self):
+        self._doris(masked=True)
+        sid = self._reviewing_case()
+        self._coder_final_behind_a_step_one(sid)
+        body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
+        self.assertEqual(body["step"], "initial")
+        doris = body["doris"]
+        self.assertEqual(doris["initial_certificate"], self._CERT)
+        self.assertIsNone(doris["saved_processing"])
+        self.assertIsNone(doris["step1_certificate"])
+        own = {**self._CERT, "Part1": [{"Conditions": [{"Code": "own"}]}]}
+        db.session.add(VaReviewerInitialAssessments(
+            va_sid=sid, va_riniassess_by=self.reviewer.user_id, va_immediate_cod=_COD,
+            va_antecedent_cod="B20 HIV disease", doris_certificate=own, **self._RESULTS,
+        ))
+        db.session.commit()
+        doris = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["doris"]
+        self.assertEqual(doris["initial_certificate"], own)
+        self.assertEqual(doris["saved_processing"]["certificate"], own)
+        self.assertEqual(doris["saved_processing"]["final_choice"], "B20 HIV disease")
+        self.assertEqual(doris["step1_certificate"], own)
+        self.assertEqual(doris["step1_processing"], {"doris": {"status": "ok"}, "codedit": {"status": "ok"}})
+
+    def test_an_unmasked_doris_reviewer_starts_from_the_coder_final_then_their_own(self):
+        self._doris(masked=False)
+        sid = self._reviewing_case()
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="1B10.Z TB", va_finassess_status=VaStatuses.active,
+            doris_certificate=self._CERT,
+        ))
+        db.session.commit()
+        doris = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["doris"]
+        self.assertEqual(doris["initial_certificate"], self._CERT)
+        own = {**self._CERT, "Part1": [{"Conditions": [{"Code": "own"}]}]}
+        db.session.add(VaReviewerFinalAssessments(
+            va_sid=sid, va_rfinassess_by=self.reviewer.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="1B10.Z TB", va_rfinassess_remark="r",
+            va_rfinassess_status=VaStatuses.active, doris_certificate=own,
+        ))
+        db.session.commit()
+        doris = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["doris"]
+        self.assertEqual(doris["initial_certificate"], own)
 
     def test_social_autopsy_blocks_the_final_until_saved(self):
         self._mode(social_autopsy=True)

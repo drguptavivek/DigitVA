@@ -1,6 +1,6 @@
 # Coding and review workspace API (digitva-xl43)
 
-- Status: phases 1-3 done 2026-10-05 (`eeec15eb`, `f98617f3`, phase 3 3a `digitva-xl43.4` + 3b `digitva-xl43.5`); left: `digitva-xl43.3` DORIS prefill, a read-only view mode when the app needs one
+- Status: done 2026-10-06: phases 1-3 (`eeec15eb`, `f98617f3`, `digitva-xl43.4`, `xl43.5`), DORIS prefill `xl43.3`, read-only view `xl43.8`. The app side is `digitva-p6fs.4`.
 - Priority: P1
 - Created: 2026-10-05
 

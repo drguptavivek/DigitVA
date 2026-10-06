@@ -81,6 +81,28 @@ def parse_csv(stream):
     return parse_upload(stream, "users.csv")
 
 
+def _expand_default_roles(rows, units, cadres, permissions):
+    """Give a row that names no role the default roles of its cadre at its level.
+
+    Owner decision 2026-10-06 (digitva-vjt): a row with a blank ``role``, an
+    organization unit and a cadre stands for one grant per ``default_roles``
+    entry of that unit level's grid row. A row that names a role is left
+    alone, and so is a blank-role row the defaults cannot serve (no unit or
+    cadre, an unknown one, a grid row with no defaults): it fails the usual
+    ``role must be one of`` check. Each expanded row is validated like an
+    explicit one, so a default the importer may not grant fails that row.
+    """
+    for row in rows:
+        unit = units.get(row["org_unit_code"].upper()) if row["org_unit_code"] else None
+        cadre = cadres.get(row["cadre_code"].upper()) if row["cadre_code"] else None
+        permission = permissions.get((unit.org_level_id, cadre.cadre_id)) if unit and cadre else None
+        if row["role"].strip() or permission is None or not permission.default_roles:
+            yield row
+            continue
+        for role in permission.default_roles:
+            yield {**row, "role": role}
+
+
 def prepare(project_id, rows, *, actor):
     """Resolve all users, roles and scopes without writing; return an apply plan.
 
@@ -166,7 +188,8 @@ def prepare(project_id, rows, *, actor):
     seen = set()
     new_profiles = {}
     errors = []
-    for row in rows:
+    failed_rows = set()
+    for row in _expand_default_roles(rows, units, cadres, permissions):
         number = row["_line_number"]
         try:
             email = row["email"].strip().lower()
@@ -274,7 +297,10 @@ def prepare(project_id, rows, *, actor):
                          "user": user, "grant": grant,
                          "action": "create_user" if not user else ("reactivate" if grant and grant.grant_status != VaStatuses.active else "update_cadre" if grant and unit and cadre and grant.cadre_id != cadre.cadre_id else "retain" if grant else "grant")})
         except (ValueError, KeyError) as exc:
-            errors.append(f"Row {number}: {exc}")
+            # An expanded row can fail once per default role: report its original row once.
+            if number not in failed_rows:
+                failed_rows.add(number)
+                errors.append(f"Row {number}: {exc}")
     if errors:
         raise ProjectUserImportError("; ".join(errors))
     return plan

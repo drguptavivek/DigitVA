@@ -128,7 +128,10 @@ and keep working exactly as they did.
   unit grant and is checked against that level's permissions. A blank cadre
   preserves an existing active grant's cadre. `language_codes` is a
   semicolon-separated list of active language codes, required with `name` for
-  a new account.
+  a new account. A blank `role` on a row that names both a unit and a cadre
+  stands for one grant per default role of that cadre at that unit's level
+  (see "Default roles per level x cadre" under Unit-scoped grants); each is
+  checked like a named role, and a row that names a role gets only that role.
 - Both imports read the first XLSX worksheet. CSV accepts UTF-8 with optional
   BOM or Windows-1252, comma or semicolon separators (including Excel's
   `sep=` preamble), spaces and case differences in headers, and trailing
@@ -405,6 +408,19 @@ The rule and the shared predicate that implements it live in
   - a `death_reporter` grant (unit scope only) likewise **must** name a cadre
     with `can_report_deaths` ("Report deaths") at that level.
 - A cadre may only be set on a unit-scoped grant (database constraint).
+- **Default roles per level x cadre** (owner decision 2026-10-06,
+  `digitva-vjt`). A grid row stores `default_roles`, unit-scope roles only.
+  The admin grant form and the data manager grant form pre-tick them once a
+  unit and a cadre are chosen, and the project user import expands a row
+  with a blank `role` (and a unit and cadre) into one grant per default role.
+  The operator may untick any in the forms, and a row that names a role in
+  the import gets that role only. They are saved as ordinary grants: nothing
+  grants a default automatically, and editing a default later leaves existing
+  grants unchanged. A default may only name a role the row allows, by the
+  rule above (`CADRE_FLAG_BY_ROLE`, applied when the grid row is saved); see
+  [District Reference Model](district-reference-model.md), "Default roles by
+  cadre". The `level_cadres` sheet carries them as `default_roles`, role
+  names separated by `|`; blank keeps the row's current defaults.
 - One active grant per user × role × unit (partial unique index).
 - Deactivating a unit removes it, and everything beneath it, from every
   grant's resolved scope without touching the grant rows. Reactivating the

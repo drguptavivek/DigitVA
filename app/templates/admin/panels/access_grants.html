@@ -101,6 +101,13 @@
           <div class="form-text small" id="ag-cadre-help">Cadres defined at this unit's level.</div>
         </div>
 
+        {# digitva-vjt: the cadre's default roles at this level, pre-ticked; each ticked role is its own grant #}
+        <div class="col-12 d-none" id="ag-default-roles-field">
+          <label class="form-label small mb-1">Default roles for this cadre at this level</label>
+          <div id="ag-default-roles" class="d-flex flex-wrap gap-3 small"></div>
+          <div class="form-text small">Pre-ticked from the level permissions grid. Untick any; each ticked role (and the role above) is saved as its own grant.</div>
+        </div>
+
         <div class="col-12">
           <label class="form-label small mb-1">Notes</label>
           <input type="text" id="ag-notes" class="form-control form-control-sm"
@@ -298,7 +305,7 @@
   document.getElementById('ag-filter-role').addEventListener('change', applyFilters);
   document.getElementById('ag-filter-site').addEventListener('change', applyFilters);
 
-  var ROLE_LABEL = { coder:'Coder', coding_tester:'Coding Tester', reviewer:'Reviewer', data_manager:'Data Manager', site_pi:'Site PI', collaborator:'Viewer', collaborator_pii:'Viewer (with PII)', interview_supervisor:'Interview Supervisor', death_reporter:'Death Reporter', project_pi:'Project PI', admin:'Admin' };
+  var ROLE_LABEL = { coder:'Coder', coding_tester:'Coding Tester', reviewer:'Reviewer', data_manager:'Data Manager', site_pi:'Site PI', collaborator:'Viewer', collaborator_pii:'Viewer (with PII)', interview_supervisor:'Interview Supervisor', death_reporter:'Death Reporter', interviewer:'Interviewer', project_pi:'Project PI', admin:'Admin' };
   // site_pi held at a unit is the In-charge (access-control-model.md, "In-charge").
   function roleLabel(g) {
     if (g.role === 'site_pi' && g.scope_type === 'org_unit') return 'In-charge';
@@ -553,6 +560,7 @@
     document.getElementById('ag-unit-field').classList.toggle('d-none', !unitScope);
     document.getElementById('ag-cadre-field').classList.toggle('d-none', !unitScope);
     if (unitScope) loadProjectOrganization();
+    else clearDefaultRoles();
   });
 
   document.getElementById('ag-role').addEventListener('change', function () {
@@ -722,6 +730,7 @@
           : "Cadres defined at this unit's level (optional).";
     if (!unit) {
       sel.innerHTML = '<option value="">— select unit first —</option>';
+      renderDefaultRoles();
       return;
     }
     var allowed = _orgLevelCadres.filter(function (lc) {
@@ -730,6 +739,7 @@
     });
     if (!allowed.length) {
       sel.innerHTML = '<option value="">— none defined at ' + esc(unit.level_code) + ' —</option>';
+      renderDefaultRoles();
       return;
     }
     sel.innerHTML = (codingRole ? '' : '<option value="">— none —</option>')
@@ -739,9 +749,33 @@
           + esc(lc.cadre_code) + (cadre.cadre_name ? ' — ' + esc(cadre.cadre_name) : '')
           + '</option>';
       }).join('');
+    renderDefaultRoles();
+  }
+
+  // The grid row's default roles for the chosen unit level and cadre, ticked
+  // (digitva-vjt). Display only: the grants written are the ones submitted.
+  function clearDefaultRoles() {
+    document.getElementById('ag-default-roles-field').classList.add('d-none');
+    document.getElementById('ag-default-roles').innerHTML = '';
+  }
+
+  function renderDefaultRoles() {
+    if (document.getElementById('ag-scope').value !== 'org_unit') { clearDefaultRoles(); return; }
+    var unit = selectedUnit();
+    var cadreId = document.getElementById('ag-cadre').value;
+    var lc = unit && cadreId ? _orgLevelCadres.filter(function (x) {
+      return x.org_level_id === unit.org_level_id && x.cadre_id === cadreId && x.is_active;
+    })[0] : null;
+    var roles = (lc && lc.default_roles) || [];
+    document.getElementById('ag-default-roles-field').classList.toggle('d-none', !roles.length);
+    document.getElementById('ag-default-roles').innerHTML = roles.map(function (r) {
+      return '<label class="mb-0"><input type="checkbox" class="ag-default-role me-1" value="' + esc(r) + '" checked>'
+        + esc(r === 'site_pi' ? 'In-charge' : (ROLE_LABEL[r] || r)) + '</label>';
+    }).join('');
   }
 
   document.getElementById('ag-unit').addEventListener('change', populateCadreOptions);
+  document.getElementById('ag-cadre').addEventListener('change', renderDefaultRoles);
 
   // ── form submit ───────────────────────────────────────────────────────────
 
@@ -755,10 +789,18 @@
     var notes  = document.getElementById('ag-notes').value.trim();
 
     if (!userId) { errEl.textContent = 'Select a user.'; return; }
-    if (!role)   { errEl.textContent = 'Select a role.'; return; }
     if (!scope)  { errEl.textContent = 'Select a scope.'; return; }
 
-    var body = { user_id: userId, role: role, scope_type: scope };
+    // The role above plus every ticked default role: one grant each.
+    var roles = role ? [role] : [];
+    if (scope === 'org_unit') {
+      document.querySelectorAll('.ag-default-role:checked').forEach(function (box) {
+        if (roles.indexOf(box.value) < 0) roles.push(box.value);
+      });
+    }
+    if (!roles.length) { errEl.textContent = 'Select a role.'; return; }
+
+    var body = { user_id: userId, scope_type: scope };
     if (notes) body.notes = notes;
 
     if (scope === 'project_site') {
@@ -774,24 +816,40 @@
       body.org_unit_id = unitVal;
       var cadreVal = document.getElementById('ag-cadre').value;
       if (cadreVal) body.cadre_id = cadreVal;
-      if (CADRE_FLAG[role] && !cadreVal) {
-        errEl.textContent = role === 'coder'
-          ? 'A coder grant on a unit needs a cadre that may code at that level.'
-          : role === 'death_reporter'
-            ? 'A death reporter grant needs a cadre that may report deaths at that level.'
-            : 'An interview supervisor grant needs a cadre that may supervise interviews at that level.';
-        return;
+      for (var i = 0; i < roles.length; i++) {
+        if (CADRE_FLAG[roles[i]] && !cadreVal) {
+          errEl.textContent = roles[i] === 'coder'
+            ? 'A coder grant on a unit needs a cadre that may code at that level.'
+            : roles[i] === 'death_reporter'
+              ? 'A death reporter grant needs a cadre that may report deaths at that level.'
+              : 'An interview supervisor grant needs a cadre that may supervise interviews at that level.';
+          return;
+        }
       }
     }
 
     var btn = this;
     btn.disabled = true;
-    apiJson('/admin/api/access-grants', 'POST', body).then(function (res) {
+    var created = 0;
+    roles.reduce(function (chain, r) {
+      return chain.then(function (ok) {
+        if (!ok) return false;
+        return apiJson('/admin/api/access-grants', 'POST', Object.assign({}, body, { role: r })).then(function (res) {
+          if (!res.ok) {
+            errEl.textContent = (created ? created + ' granted; ' : '') + (ROLE_LABEL[r] || r) + ': ' + (res.data.error || 'Failed to create grant.');
+            return false;
+          }
+          created++;
+          return true;
+        });
+      });
+    }, Promise.resolve(true)).then(function (ok) {
       btn.disabled = false;
-      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to create grant.'; return; }
-      document.getElementById('ag-form-container').classList.add('d-none');
-      resetForm();
-      loadGrants();
+      if (created) loadGrants();
+      if (ok) {
+        document.getElementById('ag-form-container').classList.add('d-none');
+        resetForm();
+      }
     }).catch(function () {
       btn.disabled = false;
       errEl.textContent = 'Network error.';
@@ -811,6 +869,7 @@
     document.getElementById('ag-cadre-field').classList.add('d-none');
     document.getElementById('ag-unit').value = '';
     document.getElementById('ag-cadre').innerHTML = '<option value="">— select unit first —</option>';
+    clearDefaultRoles();
     document.getElementById('ag-form-error').textContent = '';
     hideUserResults();
   }

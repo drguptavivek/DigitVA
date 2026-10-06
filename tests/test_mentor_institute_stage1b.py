@@ -24,6 +24,7 @@ from app.models import (
     VaUsers,
 )
 from app.services import mentor_institute_service as mentors
+from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
 from app.services.authz import resolve_grants
 from tests.test_mentor_institute import REFUSED, MentorBase
@@ -431,6 +432,30 @@ class ImportAndWarningTests(Stage1bBase):
                 user_import.prepare(self.P1, [bad], actor=self.base_admin_user)
         plan = user_import.prepare(self.P1, [row("reviewer", "C01")], actor=self.base_admin_user)
         self.assertEqual(len(plan), 1)
+
+    def test_a_blank_role_row_expands_to_defaults_the_mentor_guard_still_checks(self):
+        d1, d2, chc, member = self._setup_one()
+        db.session.get(VaProjectMaster, self.P1).project_structure_mode = "organization"
+        db.session.commit()
+        chc_level = next(lv for lv in org.list_levels(self.P1) if lv.level_code == "chc")
+        mo = self._cadre(self.P1, "MO")
+        row = {"_line_number": 2, "email": member.email, "name": "", "role": "",
+               "org_unit_code": "C01", "cadre_code": "MO", "language_codes": "", "phone": ""}
+
+        def set_defaults(roles):
+            org.upsert_level_cadre(
+                self.P1, org_level_id=chc_level.org_level_id, cadre_id=mo.cadre_id,
+                can_fill_va_form=False, can_code_va_form=True, default_roles=roles)
+            db.session.commit()
+
+        set_defaults(["reviewer"])  # a mentor role: each expanded row passes the guard
+        plan = user_import.prepare(self.P1, [row], actor=self.base_admin_user)
+        self.assertEqual([item["role"].value for item in plan], ["reviewer"])
+        set_defaults(["reviewer", "interviewer", "data_manager"])  # two that are not: one error
+        with self.assertRaises(user_import.ProjectUserImportError) as raised:
+            user_import.prepare(self.P1, [row], actor=self.base_admin_user)
+        self.assertIn("mentoring institute", str(raised.exception))
+        self.assertEqual(str(raised.exception).count("Row 2"), 1)
 
     def test_add_member_warning_counts_grants_outside_the_attached_subtrees(self):
         d1, d2, chc, _ = self._setup_one()

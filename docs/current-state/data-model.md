@@ -278,7 +278,13 @@ rows here keep the Project > Site > Form model.
   `can_fill_va_form`, `can_code_va_form`, `can_supervise_interviews`
   (migration `d7f3b1a9c5e2`), `can_report_deaths` (migration
   `f2j6n9r4u1x7`; default false, set for ANM and MPW at `subcentre` and ASHA
-  at `village` where those rows exist), `is_active`; unique on (level, cadre)
+  at `village` where those rows exist), `default_roles` (migration
+  `g3k7o1s5w9a2`, digitva-vjt; `varchar[]` not null, default empty, CHECK
+  limits it to the unit-scope roles; the roles pre-ticked when a person of
+  that cadre is granted at that level, validated on save against the row's
+  flags with `CADRE_FLAG_BY_ROLE`; never a grant itself; a new grid takes
+  `DEFAULT_TYPICAL_ROLES`, an existing row starts empty), `is_active`; unique
+  on (level, cadre)
 
 ### `mas_org_unit_worker`
 

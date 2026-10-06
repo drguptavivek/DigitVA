@@ -13,6 +13,7 @@ from decimal import Decimal
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.types import UserDefinedType
 
 from app import db
@@ -285,6 +286,14 @@ class MapOrgLevelCadre(db.Model):
     __tablename__ = "map_org_level_cadre"
     __table_args__ = (
         sa.UniqueConstraint("org_level_id", "cadre_id", name="uq_map_org_level_cadre"),
+        # The unit-scope roles (org_grant_service.ROLES_ALLOWING_ORG_UNIT); the
+        # flag rule is the application's, applied on save.
+        sa.CheckConstraint(
+            "default_roles <@ ARRAY['site_pi', 'collaborator', 'collaborator_pii', 'coder', "
+            "'coding_tester', 'reviewer', 'data_manager', 'interviewer', "
+            "'interview_supervisor', 'death_reporter']::varchar[]",
+            name="default_roles_unit_roles",
+        ),
     )
 
     level_cadre_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -316,6 +325,14 @@ class MapOrgLevelCadre(db.Model):
     # death_reporter grant.
     can_report_deaths: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
+    # Owner 2026-10-06 (digitva-vjt): unit-scope roles pre-ticked when a person
+    # of this cadre is granted at this level. Never a grant itself; a role that
+    # needs a flag above is only accepted while the flag is set
+    # (organization_service.upsert_level_cadre). Assign a new list, never
+    # mutate in place: ARRAY is not change-tracked.
+    default_roles: so.Mapped[list[str]] = so.mapped_column(
+        ARRAY(sa.String), nullable=False, default=list, server_default=sa.text("'{}'")
     )
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=True, server_default=sa.true()

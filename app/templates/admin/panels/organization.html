@@ -59,11 +59,11 @@
         {{ lv.level_name }}{% if lv.is_optional %} (optional){% endif %}{% if not loop.last %} &gt; {% endif %}
       {%- endfor -%}
     </div>
-    <div class="text-muted mb-2">The grid is what a cadre <em>may</em> be given; typical roles are guidance; access comes only from each person's grants. Policy: <code>docs/policy/district-reference-model.md</code>.</div>
+    <div class="text-muted mb-2">The grid is what a cadre <em>may</em> be given; default roles are only pre-ticked when a person is granted, and the table shows how a new project starts; access comes only from each person's grants. Policy: <code>docs/policy/district-reference-model.md</code>.</div>
     <div class="mb-2"><a href="{{ roles_help_url }}">What each role can do</a></div>
     <div class="table-responsive">
       <table class="table table-sm table-bordered mb-0">
-        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Report deaths</th><th>Typical roles</th></tr></thead>
+        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Report deaths</th><th>Default roles</th></tr></thead>
         <tbody>
           {%- for row in ref_model.grid %}
           <tr>
@@ -427,7 +427,7 @@
             <label class="form-label small mb-1" for="org-import-sheet">This CSV holds</label>
             <select id="org-import-sheet" class="form-select form-select-sm">
               <option value="cadres">cadres: cadre_code, cadre_name</option>
-              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews, can_report_deaths</option>
+              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews, can_report_deaths, default_roles (role names separated by |; blank keeps the current ones)</option>
               <option value="units">units</option>
               <option value="workers">workers: worker_name, unit_code, cadre_code, phone, user_email, remarks (worker_code optional)</option>
               <option value="levels">levels</option>
@@ -442,7 +442,7 @@
           <pre id="org-import-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;"></pre>
           <hr>
           <h6>Project users and roles</h6>
-          <p class="small text-muted">Download the blank project users <a href="#" id="org-users-template">CSV</a> or <a href="#" id="org-users-template-xlsx">Excel template</a>. Enter email and role on every row. Leave <code>org_unit_code</code> blank for access to the <strong>whole project</strong>; enter a unit code to limit access to its subtree. A new account also needs name and active language codes separated by semicolons. Existing account profiles stay unchanged. Project PIs may grant only existing active users and cannot grant project PI.</p>
+          <p class="small text-muted">Download the blank project users <a href="#" id="org-users-template">CSV</a> or <a href="#" id="org-users-template-xlsx">Excel template</a>. Enter email and role on every row; or leave <code>role</code> blank on a row that names a unit and a cadre to give that cadre's default roles at that unit's level (set in Permissions by level). Leave <code>org_unit_code</code> blank for access to the <strong>whole project</strong>; enter a unit code to limit access to its subtree. A new account also needs name and active language codes separated by semicolons. Existing account profiles stay unchanged. Project PIs may grant only existing active users and cannot grant project PI.</p>
           <input type="file" id="org-users-file" class="form-control form-control-sm mb-2" accept=".csv,.xlsx">
           <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-primary" id="org-users-dry">Preview users</button>
@@ -1184,6 +1184,24 @@
   // One row per level listing only the cadres that exist there (an active
   // map_org_level_cadre row), each with its Fill / Code / Supervise permissions. Adding a
   // cadre creates the row; removing it deactivates the row, never deletes.
+  // Default roles (digitva-vjt): unit-scope roles pre-ticked in the grant forms
+  // for a person of this cadre at this level. A role with a flag is offered only
+  // while the row carries it (the server enforces the same rule on save).
+  var UNIT_ROLE_LABELS = [
+    ['site_pi', 'In-charge'], ['data_manager', 'Data manager'], ['coder', 'Coder'], ['reviewer', 'Reviewer'],
+    ['coding_tester', 'Coding tester'], ['interviewer', 'Interviewer'], ['interview_supervisor', 'Interview supervisor'],
+    ['death_reporter', 'Death reporter'], ['collaborator', 'Viewer'], ['collaborator_pii', 'Viewer (with PII)']
+  ];
+  var ROLE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  function defaultRolesHtml(lc, attrs) {
+    var chosen = lc.default_roles || [];
+    var boxes = UNIT_ROLE_LABELS.map(function (r) {
+      var off = ROLE_FLAG[r[0]] && !lc[ROLE_FLAG[r[0]]];
+      return '<label class="d-block mb-0 text-nowrap' + (off ? ' text-muted' : '') + '"><input type="checkbox" class="perm-role me-1"' + attrs + ' value="' + r[0] + '" '
+        + (chosen.indexOf(r[0]) >= 0 ? 'checked' : '') + (off ? ' disabled' : '') + '>' + esc(r[1]) + '</label>';
+    }).join('');
+    return '<details class="d-inline-block"><summary class="small" title="Pre-ticked when this cadre is granted at this level; saved as ordinary grants">Default roles (' + chosen.length + ')</summary>' + boxes + '</details>';
+  }
   function renderPermGrid() {
     var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
     if (!levels.length || !cadres.length) { $('org-perm-grid').innerHTML = '<p class="text-muted small">Define levels and cadres first.</p>'; return; }
@@ -1200,6 +1218,7 @@
           + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
           + '<label class="mb-0" title="May hold an interview supervisor grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '>Supervise interviews</label>'
           + '<label class="mb-0" title="May hold a death reporter grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '>Report deaths</label>'
+          + defaultRolesHtml(lc, attrs)
           + '<button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from this level"><i class="fa-solid fa-xmark"></i></button>'
           + '</span>';
       }).join('');
@@ -1211,8 +1230,9 @@
         + (chips || '<span class="text-muted me-2">No cadres at this level.</span>') + add + '</td></tr>';
     }).join('');
     $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><tbody>' + body + '</tbody></table>';
-    function save(l, c, fill, code, supervise, report, active) {
-      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, is_active: active })
+    // defaults omitted (undefined) keeps the row's current default roles.
+    function save(l, c, fill, code, supervise, report, active, defaults) {
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, default_roles: defaults, is_active: active })
         .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
     }
     document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
@@ -1222,6 +1242,11 @@
       var supervise = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="supervise"]').checked;
       var report = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="report"]').checked;
       save(l, c, fill, code, supervise, report, true);
+    }); });
+    document.querySelectorAll('.perm-role').forEach(function (box) { box.addEventListener('change', function () {
+      var l = box.dataset.l, c = box.dataset.c, lc = lookup[l + '|' + c];
+      var roles = Array.prototype.map.call(document.querySelectorAll('.perm-role[data-l="' + l + '"][data-c="' + c + '"]:checked'), function (b) { return b.value; });
+      save(l, c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, lc.can_report_deaths, true, roles);
     }); });
     document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
       if (sel.value) save(sel.dataset.l, sel.value, false, false, false, false, true);

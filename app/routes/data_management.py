@@ -607,6 +607,28 @@ def manage_organization():
     })
 
 
+@data_management.get("/api/grantable-roles")
+@role_required("data_manager", "admin")
+def manage_grantable_roles():
+    """The roles this interface lets the caller grant on one unit.
+
+    The grant form pre-ticks a cadre's default roles from it (digitva-vjt), so
+    it never offers one the write would refuse. Each role is asked of the same
+    ``_may_write`` (``authz.can_grant``) the write path uses; the answer is a
+    hint, the write decides. A unit the caller cannot grant on, or that does
+    not exist, yields an empty list.
+    """
+    try:
+        unit_id = uuid.UUID(request.args.get("org_unit_id", ""))
+    except ValueError:
+        return _json_error("Invalid org_unit_id.", 400)
+    roles = [
+        role.value for role in _DM_INTERFACE_ROLE_LIST
+        if _may_write(_grant_target(role, _U, None, None, unit_id), None)
+    ]
+    return jsonify({"roles": roles})
+
+
 #: Rows a data-manager user search returns; more matches set ``truncated``.
 _USER_SEARCH_LIMIT = 25
 

@@ -9,7 +9,7 @@ last_updated: 2026-10-06
 # District Reference Model
 
 A worked picture of how one district is set up: the unit tree, the cadres at
-each level, what each cadre may be given, and the roles people typically hold.
+each level, what each cadre may be given, and the default roles each cadre is given.
 It is a **reference**, not a rule: every project defines its own levels,
 cadres and grants ([Organization Model Policy](organization-model.md)). The
 binding rules stay in that policy and in the
@@ -73,7 +73,7 @@ This is the default template in code (`DEFAULT_LEVEL_TEMPLATE`,
 `app/services/organization_service.py`). *Populate district defaults* on the
 Organization page (`flask org seed-template`) adds whatever of it a project is
 missing and never changes an existing level, cadre or grid row, so flags an
-administrator set are kept. The page shows this table, with the typical roles,
+administrator set are kept. The page shows this table, with the default roles,
 under *District reference model*.
 
 | Level code | Level label | Depth |
@@ -108,13 +108,42 @@ not interview). The template applies to projects populated after that date;
 an existing project's grid rows are never rewritten, so its administrator
 clears *Fill VA* for them in the grid editor if wanted.
 
-## Typical roles by cadre
+## Default roles by cadre
 
-Advisory. These are the grants an administrator would normally give; each
-person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
-(display only, never read for authorization).
+Owner decision 2026-10-06 (`digitva-vjt`). Each grid row (level x cadre)
+carries **default roles**: the roles an administrator would normally give a
+person of that cadre at a unit of that level. They are stored on the grid row
+(`map_org_level_cadre.default_roles`), edited in the grid editor, and carried
+by the level_cadres sheet of the organization export and import
+(`default_roles`, role names separated by `|`).
 
-| Where | Cadre / person | Typical roles | Covers |
+- **Pre-ticked, never granted.** When a person of that cadre is granted at a
+  unit of that level, the admin grant form and the data manager grant form
+  pre-tick the defaults; the operator may untick any of them. The project
+  user import applies them only to a row that leaves `role` blank (and names a
+  unit and a cadre): such a row stands for one grant per default role. A row
+  that names a role gets that role only. Nothing grants a default on its own:
+  the grants written are the ones submitted, ordinary per-person grants.
+- **Editing a default later changes nothing already granted.** Existing
+  grants are rows of their own; a default only shapes the next grant form.
+- **Unit-scope roles only**, `death_reporter` included: the roles a unit grant
+  may carry (see [Organization Model Policy](organization-model.md),
+  "Unit-scoped grants").
+- **A default can only name roles the row allows**, by the same rule the grant
+  write uses: *Code VA* for `coder`, *Supervise interviews* for
+  `interview_supervisor`, *Report deaths* for `death_reporter`; `interviewer`
+  and the other unit roles have no flag. Saving defaults that break the rule
+  is refused; clearing a flag drops the stored defaults that relied on it.
+- **Seed.** A new project's grid takes the table below as its defaults
+  (`DEFAULT_TYPICAL_ROLES` in `app/services/organization_service.py`). An
+  existing project's grid rows are never rewritten: their defaults start empty
+  until an administrator sets them.
+- Blank `default_roles` in an import keeps the row's current defaults, like
+  the other optional columns; clear them in the grid editor.
+
+The table is the seed. Access still comes only from each person's grants.
+
+| Where | Cadre / person | Default roles | Covers |
 |---|---|---|---|
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
@@ -159,9 +188,3 @@ whose staff receive **ordinary unit grants** at or below those districts. See
 for the entity, the guard and who manages it. Mentor staff are not counted in
 the district's staff headcount; they are listed separately as the district's
 mentoring institute.
-
-## Proposed, not built
-
-- **Default roles per cadre** (`digitva-vjt`): the "Typical roles" column
-  stored on the grid and pre-ticked when a person is added at a unit; saved
-  as ordinary grants.

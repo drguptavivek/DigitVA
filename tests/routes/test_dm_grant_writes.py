@@ -554,3 +554,68 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
             user_import.prepare(TA, [{**row, "cadre_code": ""}], actor=self.users["pi_ta"])
         with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
             user_import.prepare(TA, [{**row, "org_unit_code": "", "cadre_code": ""}], actor=self.users["pi_ta"])
+
+
+class DmGrantPickerDefaultRolesTests(AuthzFixtureMixin, BaseTestCase):
+    """digitva-vjt: the grant form pre-ticks from the picker payload it already loads."""
+
+    @staticmethod
+    def _clear_defaults(level_cadre_id):
+        from app.models import MapOrgLevelCadre
+
+        db.session.get(MapOrgLevelCadre, level_cadre_id).default_roles = []
+        db.session.commit()
+
+    def test_the_organization_payload_carries_each_grid_rows_default_roles(self):
+        from app.models import MapOrgLevelCadre
+
+        self._login(str(self.users["dm_c1"].user_id))
+        row = db.session.scalar(
+            sa.select(MapOrgLevelCadre).join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+            .where(MasOrgLevel.project_id == TA, MapOrgLevelCadre.is_active.is_(True))
+        )
+        self.assertIsNotNone(row)
+        row.default_roles = ["interviewer", "reviewer"]
+        db.session.commit()
+        self.addCleanup(self._clear_defaults, row.level_cadre_id)
+        payload = self.client.get("/data-management/api/organization", query_string={"project_id": TA}).get_json()
+        match = [lc for lc in payload["level_cadres"] if lc["level_cadre_id"] == str(row.level_cadre_id)]
+        self.assertEqual([lc["default_roles"] for lc in match], [["interviewer", "reviewer"]])
+        self.assertTrue(all(isinstance(lc["default_roles"], list) for lc in payload["level_cadres"]))
+
+    def _grantable(self, key, unit_key):
+        response = self.client.get(
+            "/data-management/api/grantable-roles",
+            query_string={"org_unit_id": str(self.units[unit_key].org_unit_id)})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return set(response.get_json()["roles"])
+
+    def test_grantable_roles_follow_can_grant_at_the_chosen_unit(self):
+        # A unit DM gives data_manager strictly below its own unit, never at it.
+        self._login(str(self.users["dm_c1"].user_id))
+        at_own = self._grantable("dm_c1", "C1")
+        below = self._grantable("dm_c1", "P1")
+        self.assertIn("reviewer", at_own)
+        self.assertNotIn("data_manager", at_own)
+        self.assertIn("data_manager", below)
+        self.assertEqual(self._grantable("dm_c1", "D1"), set())   # above its own unit
+        self.assertEqual(self._grantable("dm_c1", "D2"), set())   # outside
+        # Never a role the page does not write, whoever asks.
+        self.assertFalse({"site_pi", "interview_supervisor", "project_pi", "admin"} & below)
+        # The answer is the write path's: each offered role posts, the withheld one is refused.
+        grantee = self._get_or_make_user("authz.dm.picker.grantee@test.local", "AuthzTest123")
+        body = {"user_id": str(grantee.user_id), "scope_type": "org_unit",
+                "org_unit_id": str(self.units["C1"].org_unit_id)}
+        for role, expected in (("reviewer", 201), ("data_manager", 403)):
+            response = self.client.post(
+                DM_GRANTS, json={**body, "role": role}, headers=self._csrf_headers())
+            self.assertEqual(response.status_code, expected, (role, response.get_json()))
+
+    def test_grantable_roles_refuses_a_bad_unit_id_and_a_non_manager(self):
+        self._login(str(self.users["dm_c1"].user_id))
+        self.assertEqual(self.client.get(
+            "/data-management/api/grantable-roles", query_string={"org_unit_id": "nope"}).status_code, 400)
+        self._login(str(self.users["reviewer_sp1"].user_id))
+        self.assertEqual(self.client.get(
+            "/data-management/api/grantable-roles",
+            query_string={"org_unit_id": str(self.units["C1"].org_unit_id)}).status_code, 403)

@@ -434,6 +434,8 @@ def admin_org_upsert_level_cadre(project_id):
     if err := _guard(project_id):
         return err
     p = _payload()
+    if p.get("default_roles") is not None and not isinstance(p["default_roles"], list):
+        return _json_error("default_roles must be a list of role names.", 400)
     try:
         row = org.upsert_level_cadre(
             project_id,
@@ -448,6 +450,7 @@ def admin_org_upsert_level_cadre(project_id):
             can_report_deaths=(
                 None if p.get("can_report_deaths") is None else bool(p["can_report_deaths"])
             ),
+            default_roles=p.get("default_roles"),
             is_active=bool(p.get("is_active", True)),
         )
         serialized = org.serialize_level_cadre(row, level=row.level, cadre=row.cadre)

@@ -259,7 +259,10 @@ ODK form fields, and Export / Import.
 - "Populate district defaults" adds the missing levels, cadres and grid rows
   of the district reference model (`docs/policy/district-reference-model.md`);
   existing ones are kept unchanged. The collapsed "District reference model"
-  card below the help box shows that model with advisory typical roles.
+  card below the help box shows that model with the default roles a new
+  project's grid starts with. Each grid row stores its own default roles
+  (Permissions by level), pre-ticked in the admin and data manager grant
+  forms and applied by the project users import to a row with a blank role.
 - Export: workbook (`/admin/api/organization/<project_id>/export.xlsx`), one
   CSV per sheet, the ODK choices CSV for cascading unit selects, and the ODK
   form (`.xlsx`) of the project (admin and project PI; below).

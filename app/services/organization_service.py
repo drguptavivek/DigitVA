@@ -15,6 +15,7 @@ import io
 import logging
 import re
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
@@ -31,6 +32,7 @@ from app.models import (
     MasOrgLevel,
     MasOrgUnit,
     MasOrgUnitWorker,
+    VaAccessRoles,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -132,10 +134,12 @@ DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool, bool
     ("subcentre", "ANM"): (False, False, False, True),
     ("village", "ASHA"): (True, False, False, True),
 }
-# Advisory only, shown on the Organization page: the grants an administrator
-# would normally give each cadre. Never read for authorization; access comes
-# only from each person's grants. site_pi here is the In-charge (site_pi held
-# at the unit; docs/policy/access-control-model.md, "In-charge").
+# The default roles a new project's grid starts with (digitva-vjt): the grants
+# an administrator would normally give each cadre, stored on the grid row as
+# ``default_roles`` and pre-ticked in the grant forms. Never read for
+# authorization; access comes only from each person's grants. site_pi here is
+# the In-charge (site_pi held at the unit; docs/policy/access-control-model.md,
+# "In-charge"). Also shown as the reference table on the Organization page.
 DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
     ("district", "CS"): ("site_pi",),
     ("district", "DPM"): ("data_manager",),
@@ -444,6 +448,7 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
         "can_code_va_form": row.can_code_va_form,
         "can_supervise_interviews": row.can_supervise_interviews,
         "can_report_deaths": row.can_report_deaths,
+        "default_roles": list(row.default_roles or []),
         "is_active": row.is_active,
     }
 
@@ -1273,6 +1278,51 @@ def list_level_cadres(project_id: str) -> list[dict]:
     return [serialize_level_cadre(row, level=level, cadre=cadre) for row, level, cadre in rows]
 
 
+def normalize_default_roles(
+    roles: Iterable[str] | None,
+    row: MapOrgLevelCadre,
+    *,
+    level: MasOrgLevel,
+    cadre: MasCadre,
+    drop_disallowed: bool = False,
+) -> list[str]:
+    """Validate a row's default roles against its flags; return them canonical.
+
+    Each role must be a unit-scope role (``ROLES_ALLOWING_ORG_UNIT``) and, when
+    ``CADRE_FLAG_BY_ROLE`` names a flag for it, the row must carry that flag:
+    the one rule a unit grant is written by (``validate_org_unit_grant``).
+    Duplicates collapse; the order is the role enum's, so a round trip through
+    an export is stable. Raises OrganizationError for the operator, or with
+    *drop_disallowed* leaves out a role whose flag the row lacks (the stored
+    defaults after a flag was cleared).
+    """
+    # org_grant_service imports this module, so the rule is read at call time.
+    from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
+
+    wanted = set()
+    for raw in roles or ():
+        name = str(raw).strip()
+        if not name:
+            continue
+        try:
+            role = VaAccessRoles(name)
+        except ValueError as exc:
+            raise OrganizationError(f"Unknown default role {name!r}.") from exc
+        if role not in ROLES_ALLOWING_ORG_UNIT:
+            raise OrganizationError(f"Default role {name!r} cannot be held at a unit.")
+        if role in CADRE_FLAG_BY_ROLE:
+            flag, permits = CADRE_FLAG_BY_ROLE[role]
+            if not getattr(row, flag):
+                if drop_disallowed:
+                    continue
+                raise OrganizationError(
+                    f"Default role {name!r} needs a cadre that may {permits}: cadre "
+                    f"{cadre.cadre_code!r} may not at level {level.level_code!r}."
+                )
+        wanted.add(role)
+    return [role.value for role in VaAccessRoles if role in wanted]
+
+
 def upsert_level_cadre(
     project_id: str,
     *,
@@ -1282,13 +1332,18 @@ def upsert_level_cadre(
     can_code_va_form: bool,
     can_supervise_interviews: bool | None = None,
     can_report_deaths: bool | None = None,
+    default_roles: Iterable[str] | None = None,
     is_active: bool = True,
 ) -> MapOrgLevelCadre:
     """Create or update one level x cadre row.
 
-    ``can_supervise_interviews`` and ``can_report_deaths`` of ``None`` keep the
-    row's current value (false on a new row), so callers and workbooks that
-    predate a flag cannot clear it.
+    ``can_supervise_interviews``, ``can_report_deaths`` and ``default_roles``
+    of ``None`` keep the row's current value (false or empty on a new row), so
+    callers and workbooks that predate a column cannot clear it. Default roles
+    that are supplied are checked against the row's resulting flags
+    (``normalize_default_roles``) and refused if the flags do not allow one;
+    kept ones that a cleared flag no longer allows are dropped, so a caller
+    that never mentions defaults can still clear the flag.
     """
     level = _get_level(project_id, org_level_id)
     cadre = _get_cadre(project_id, cadre_id)
@@ -1307,6 +1362,10 @@ def upsert_level_cadre(
         row.can_supervise_interviews = bool(can_supervise_interviews)
     if can_report_deaths is not None:
         row.can_report_deaths = bool(can_report_deaths)
+    row.default_roles = normalize_default_roles(
+        row.default_roles if default_roles is None else default_roles,
+        row, level=level, cadre=cadre, drop_disallowed=default_roles is None,
+    )
     if not is_active:
         active_workers = db.session.scalar(
             sa.select(sa.func.count())
@@ -1324,7 +1383,12 @@ def upsert_level_cadre(
                 f"at level {level.level_code!r} first."
             )
     row.is_active = bool(is_active)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except sa.exc.IntegrityError as exc:
+        # Fallback for a constraint the checks above missed (the default_roles
+        # CHECK, say): the operator gets a 400, never a 500. The caller rolls back.
+        raise OrganizationError("The level x cadre row violates a database constraint.") from exc
     return row
 
 
@@ -1537,6 +1601,7 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             can_code_va_form=can_code,
             can_supervise_interviews=can_supervise,
             can_report_deaths=can_report,
+            default_roles=DEFAULT_TYPICAL_ROLES.get((level_code, cadre_code), ()),
         )
         counts["level_cadres"] += 1
     db.session.flush()
@@ -1547,8 +1612,8 @@ def district_reference_model() -> dict:
     """The seed template as display data for the Organization page.
 
     Pure (no database): levels, cadres and one row per grid entry with its
-    flags and the advisory typical roles. Typical roles are guidance only and
-    are never used to decide access.
+    flags and the default roles a new project's grid is seeded with. Default
+    roles are pre-ticked in grant forms and never used to decide access.
     """
     level_names = {code: name for code, name, _depth, _optional in DEFAULT_LEVEL_TEMPLATE}
     cadre_names = dict(DEFAULT_CADRE_TEMPLATE)
@@ -1590,8 +1655,10 @@ _UNIT_HEADERS = (
 _CADRE_HEADERS = ("cadre_code", "cadre_name", "is_active")
 _LEVEL_CADRE_HEADERS = (
     "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
-    "can_report_deaths", "is_active",
+    "can_report_deaths", "default_roles", "is_active",
 )
+# Separates the role names in the default_roles cell of the level_cadres sheet.
+_DEFAULT_ROLES_SEPARATOR = "|"
 _WORKER_HEADERS = (
     "worker_code", "worker_name", "unit_code", "cadre_code", "phone", "user_email", "remarks", "is_active",
 )
@@ -1609,7 +1676,10 @@ def export_organization_rows(project_id: str) -> dict[str, list[dict]]:
         "levels": [{k: lv[k] for k in _LEVEL_HEADERS} for lv in levels],
         "units": [{k: u[k] for k in _UNIT_HEADERS} for u in units],
         "cadres": [{k: c[k] for k in _CADRE_HEADERS} for c in cadres],
-        "level_cadres": [{k: lc[k] for k in _LEVEL_CADRE_HEADERS} for lc in level_cadres],
+        "level_cadres": [
+            {k: _DEFAULT_ROLES_SEPARATOR.join(lc[k]) if k == "default_roles" else lc[k] for k in _LEVEL_CADRE_HEADERS}
+            for lc in level_cadres
+        ],
         "workers": [{k: w[k] for k in _WORKER_HEADERS} for w in workers],
     }
 
@@ -1948,6 +2018,11 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                     None if row.get("can_report_deaths") in (None, "")
                     else _to_bool(row["can_report_deaths"], what="can_report_deaths")
                 ),
+                # Blank or absent keeps the current defaults; the grid editor clears them.
+                default_roles=(
+                    None if str(row.get("default_roles") or "").strip() == ""
+                    else str(row["default_roles"]).split(_DEFAULT_ROLES_SEPARATOR)
+                ),
                 is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True,
             )
             if kwargs["is_active"]:
@@ -1969,6 +2044,7 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                         can_code_va_form=lc["can_code_va_form"],
                         can_supervise_interviews=lc["can_supervise_interviews"],
                         can_report_deaths=lc["can_report_deaths"],
+                        default_roles=lc["default_roles"],
                         is_active=False,
                     ),
                 ))

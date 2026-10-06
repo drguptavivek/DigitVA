@@ -286,7 +286,8 @@ class OrganizationServiceTests(BaseTestCase):
 
         # Import (CSV): the CHO gains the flag, the ANM loses it.
         edited = text.replace("subcentre,CHO,True,False,False,False", "subcentre,CHO,True,False,False,True")
-        edited = edited.replace("subcentre,ANM,False,False,False,True", "subcentre,ANM,False,False,False,False")
+        # The ANM's blank default_roles keeps the stored one, which the cleared flag then drops.
+        edited = edited.replace("subcentre,ANM,False,False,False,True,death_reporter", "subcentre,ANM,False,False,False,False,")
         self.assertNotEqual(edited, text)
         plan = org.import_organization(
             self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.encode()), "level_cadres"), dry_run=False)
@@ -295,6 +296,7 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual((flags[("subcentre", "CHO")], flags[("subcentre", "ANM")]), (True, False))
         # Import (XLSX rows): an empty cell keeps the stored value.
         sheet[("subcentre", "ANM")]["can_report_deaths"] = None
+        sheet[("subcentre", "ANM")]["default_roles"] = None
         plan = org.import_organization(self.PROJECT, {"level_cadres": list(sheet.values())}, dry_run=False)
         self.assertEqual(plan.errors, [])
         self.assertFalse(self._report_flags()[("subcentre", "ANM")])

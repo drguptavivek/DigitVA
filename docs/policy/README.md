@@ -33,7 +33,7 @@ Current policy docs:
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
-- [District Reference Model](district-reference-model.md) — proposed district tree, cadres, grid flags and typical roles
+- [District Reference Model](district-reference-model.md) — proposed district tree, cadres, grid flags and default roles
 - [People and Roles Page](people-and-roles-page.md) — roles matrix and access audit page (active)
 - [ODK Retired Submissions Policy](odk-retired-submissions.md) — submissions missing in ODK are kept, not codeable, not counted by default
 - [ODK Sync Policy](odk-sync-policy.md) — workflow state guards for ODK sync

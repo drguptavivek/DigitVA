@@ -37,25 +37,24 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    accepts them in the translations editor). Other locales still need
    drafts; then `digitva-zyf` (DORIS override messages; needs a vendor
    regeneration by the Expo session).
-2. **Owner decisions that unlock backend work** (policy is silent; ask one
-   at a time):
-   - `digitva-t6q` death_reporter role: does a reporter see or edit the
-     deaths they registered, may they log contact attempts and visits, and
-     does `interviewer` keep Register death? (L: enum, grid flag, migration,
-     route gates, `/me/access`.)
-   - `digitva-ej1` intake attachments: size and type limits, on-device
-     retention, online-only first or with the encrypted offline buffer.
-   - `digitva-aek` XLSForm download: source of truth (WHO reference xlsx plus
-     per-extension row specs, recommended), pyxform as a check, `form_id`
-     kept per project with version bumps.
-   - `digitva-vjt` default roles per cadre and `digitva-5op` translation
-     suggestions: both marked "not approved, policy first".
-   - `digitva-r1p` Project Setup for `project_pi` (now admin-only) and an
-     admin click-through of every hosted panel; `digitva-cbn` sign-off of
-     the web-form visual pass screenshots (`docs/design/web-form-visual-pass`).
+2. **Owner decisions and checks still open**:
+   - `digitva-i9lb` retention for web intake uploads that never reach a
+     submission (discarded and abandoned drafts, answers removed): a
+     discarded draft's files are deleted now; abandoned ones are kept until
+     a period is decided, then a bounded purge task.
+   - Browser check owed for web intake uploads (`c8b8edfa`, `digitva-ej1`):
+     record, attach, go offline, reconnect, submit; the logout wipe; the
+     7-day warning. Only server and node tests ran.
+   - `digitva-0lf7` send WHO the `Id10365` birth-size constraint defect
+     (`docs/kb/WHO_VA_2022_Docs/id10365-birth-size-flow.md`) with `Id10304_a`.
+   - `digitva-r1p` admin click-through of every Project Setup panel (needs
+     the admin's second factor); Setup stays admin-only (owner 2026-10-06).
+   - 15 imported translation rows carry a red `<span>` the English lacks
+     (Id10013 label in hi, kn, ml, kha, or, bn; Id10055 hint mr; hints of
+     Id10002/3/4/57 in or and ar): admin edits must drop the span, since
+     `update_string` now refuses markup the English lacks.
    - People & roles: per-row links to Access Grants are deferred (the API
-     has no edit flag); the Setup home panel is admin-only, PIs use
-     `/people-roles`.
+     has no edit flag); PIs use `/people-roles`.
 3. **Expo session's halves** (not this session's files): `digitva-p6fs.4`
    coding and review workspaces (server contract done: `xl43` closed),
    `digitva-xuxk.1` Code now button, `digitva-bhpl.2`, `xpqm.2`, `bqzm.2`,
@@ -76,7 +75,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 - Migrations: `c7p3d9k2m5t8` (`va_users.job_title`, `last_signed_in_at`),
   `d8q4e1h6n3v9` (`map_case_transitions.changes`), `e9h3k6p2s8v4` (Hindi
-  note drafts, data only). Earlier field-collection migrations: `d5f1b8a3c6e2`,
+  note drafts, data only), `f2j6n9r4u1x7` (death_reporter role, grid flag,
+  reporter list index), `g3k7o1s5w9a2` (grid default roles),
+  `g3k7n1s5v9y2` (translation suggestions), `g4k8p2t6x1b5` (web intake
+  attachments). Dev is at `g4k8p2t6x1b5`. Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case:
   check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.
@@ -84,8 +86,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   volume's free space before rollout. Sign-in IPs are wiped daily after 210
   days: restart the Celery worker so the beat row is seeded. Confirm the
   reverse proxy appends or overwrites `X-Forwarded-For`.
-- Bump `STATIC_ASSET_VERSION` (coding picker, intake duplicates, People &
-  roles, users panel scripts changed) and the authz global version (grant
+- Rebuild the images (`pyxform` dev dependency). Web intake uploads need
+  HTTPS (WebCrypto); `sox` is already in the image.
+- Bump `STATIC_ASSET_VERSION` (coding picker, intake form and attachment
+  buffer, intake duplicates, People & roles, grant forms, organization grid,
+  translations scripts changed) and the authz global version (grant
   cache `_FORMAT` is 3):
   `docker compose exec -T minerva_app_service uv run --no-sync python -c
   "import os,time,redis; redis.from_url(os.environ['REDIS_URL']).set('digitva_authz:gv', f'reset-{int(time.time())}')"`.

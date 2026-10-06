@@ -44,7 +44,8 @@ The `/admin` interface provides the following management panels:
   - Data collection: Project Forms (mapping conflicts narrowed to ones that
     involve the project) and ODK Connections (connections are global: it shows
     the connection serving the project, or all of them while it has none, and
-    offers only this project to assign). Web intake mode stays in Basics.
+    offers only this project to assign) and the **ODK form (XLSForm)** download
+    for the project (`digitva-aek`, below). Web intake mode stays in Basics.
   - Structure: Organization (organization-mode projects only) and Project Sites.
   - Coding: the Organization panel's Coding scope block (moved here by the
     Setup script; it keeps its own status line), plus links into Structure
@@ -260,7 +261,8 @@ ODK form fields, and Export / Import.
   existing ones are kept unchanged. The collapsed "District reference model"
   card below the help box shows that model with advisory typical roles.
 - Export: workbook (`/admin/api/organization/<project_id>/export.xlsx`), one
-  CSV per sheet, and the ODK choices CSV for cascading unit selects.
+  CSV per sheet, the ODK choices CSV for cascading unit selects, and the ODK
+  form (`.xlsx`) of the project (admin and project PI; below).
 - Import: upload the workbook, run the dry run, then apply. Rows are matched
   by code; nothing is deleted.
 - ODK form fields: the exact `survey` and `choices` rows for this project's
@@ -719,3 +721,22 @@ The admin UI makes the platform self-service for:
 - managing project and site master records
 
 Mapping spreadsheet regeneration and full platform initialization remain developer/operator tasks performed through the Flask shell.
+
+## ODK form download (digitva-aek)
+
+`GET /admin/api/projects/<project_id>/odk-xlsform.xlsx[?form_id=]` returns the
+project's ODK XLSForm (`survey`, `choices`, `settings`): the WHO VA 2022
+reference workbook plus the row specs of exactly the project's enabled
+extensions, its approved and active languages, and its sites and organization
+units. Admins and the project's PI only (`role_required("admin",
+"project_pi")` plus the project-manage check; others get 403); `form_id` is
+the project's mapped ODK form (several mapped forms: 409 listing them; none:
+`<PROJECT_ID>_WHOVA2022`); `version` is a new UTC stamp per download. An
+enabled extension with no row spec, or a non-WHO instrument, is refused (422 /
+409). Service `app/services/xlsform_service.py`, route
+`app/routes/admin_xlsform.py`, CLI `flask xlsform diff`
+(`docs/current-state/cli-reference.md`). Source of truth and rules:
+`docs/policy/va-form-project-configuration.md` ("The ODK form is a project
+output"). The reference workbook and the specs are parsed once per process;
+the download streams an in-memory workbook, and the organization units are
+bounded at 50,000 choices rows.

@@ -19,6 +19,7 @@ from app.routes import admin_translations  # noqa: F401
 from app.routes import admin_va_definitions  # noqa: F401
 from app.routes import admin_coding_search_telemetry  # noqa: F401
 from app.routes import admin_devices  # noqa: F401
+from app.routes import admin_xlsform  # noqa: F401
 
 
 def register_blueprints(app):

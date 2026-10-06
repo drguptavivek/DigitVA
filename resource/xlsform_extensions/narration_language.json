@@ -1,0 +1,36 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [],
+      "id": "narration_language",
+      "odk": {
+        "after": "noteon",
+        "note": "Choice list narr_language comes from the project's narration languages."
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "label": "Narration language",
+          "name": "narr_language",
+          "required": "yes",
+          "type": "select_one narr_language"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "(Capture image for narration) Photograph of the written narrative, if the narrative was recorded on paper",
+          "name": "imagenarr",
+          "parameters": "max-pixels=1024",
+          "type": "image"
+        }
+      ],
+      "title": "Narration language and narrative image"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "narration_language",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

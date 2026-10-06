@@ -72,6 +72,7 @@ dev = [
     "moto[s3]>=5.2.3",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pyxform>=4.5.0",
     "ruff>=0.1.0",
 ]
 

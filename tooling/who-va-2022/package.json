@@ -12,6 +12,7 @@
     "build:server-instrument": "node build-server-instrument.mjs",
     "build:composed-instrument": "node build-composed-instrument.mjs",
     "build:odk-doris-rows": "node build-odk-doris-rows.mjs",
+    "build:odk-extension-rows": "node build-odk-extension-rows.mjs",
     "validator": "node validator-server.mjs",
     "dev": "vite",
     "build:web": "vite build",

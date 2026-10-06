@@ -1,0 +1,382 @@
+{
+  "_comment": "Deliberate departures of the web instrument from the WHO V2.0 workbook (policy: docs/policy/va-form-project-configuration.md, 'Deviations from the WHO reference'). One list: tooling/who-va-2022/build-instrument-from-xlsform.py applies it to the instrument JSON, app/services/xlsform_service.py applies the same entries to the ODK form. Entries use the instrument's own field shapes.",
+  "notes": {
+    "Id10365": "The source constraint rejects a valid normal birth-weight combination (no health card, Id10363 = No, Id10365 = No). Dropped; owner decision 2026-10-06, see docs/kb/WHO_VA_2022_Docs/id10365-birth-size-flow.md. Every other WHO check stays.",
+    "Id10382": "Matches the interviewer guidance that 99 means don't know and a true 88-hour estimate is entered as 87; a clearer app-supplied message than the workbook's.",
+    "Id10023_a": "Clearer app-supplied English constraint message than the workbook's.",
+    "Id10023_b": "Clearer app-supplied English constraint message than the workbook's.",
+    "nmh": "Shown under consented > injuries_accidents so the mid-form guidance appears with the injury section instead of as a detached completion-screen item. ODK: the row moves to the top of that group.",
+    "language": "The web app ships English only; the workbook's placeholder 'Language 2' / 'Language 3' choices must never reach an interviewer. ODK: the list is the project's approved and active display locales instead (xlsform_service), which meets the same rule.",
+    "Id10007": "App-added name validation; the workbook carries none.",
+    "Id10010": "App-added name validation; the workbook carries none.",
+    "Id10477": "The package's own curated symptom checklist, narrower than the workbook's select_510 list.",
+    "Id10478": "The package's own curated symptom checklist, narrower than the workbook's select_511 list.",
+    "Id10479": "The package's own curated symptom checklist, narrower than the workbook's select_512 list.",
+    "Id10304_a": "digitva-13x: V2.0's relevant is unsatisfiable (docs/kb/WHO_VA_2022_Docs/id10304a-v2-relevance-defect.md).",
+    "Id10230": "digitva-13x: V2.0 narrows agegroup to adult-only 'a'; kept wider deliberately (policy doc).",
+    "consented": "Relabelled from the workbook's 'Skip to end if not consented'."
+  },
+  "questions": {
+    "Id10365": {
+      "constraint": null,
+      "constraintMessage": {},
+      "validation": {
+        "required": true,
+        "dataType": "string",
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {}
+      }
+    },
+    "Id10382": {
+      "constraint": {
+        "source": "(.>=0 and .<=98) or .=99"
+      },
+      "constraintMessage": {
+        "en": "Enter a whole number of hours from 0 to 98. Use 0 for less than 1 hour; use 23 or 25 when only the less-than or more-than-24-hour estimate is known; use 88 for refused; and use 99 for don't know. If the actual duration was 88 hours, enter 87."
+      },
+      "validation": {
+        "required": false,
+        "dataType": "number",
+        "constraint": {
+          "source": "(.>=0 and .<=98) or .=99"
+        },
+        "constraintMessage": {
+          "en": "Enter a whole number of hours from 0 to 98. Use 0 for less than 1 hour; use 23 or 25 when only the less-than or more-than-24-hour estimate is known; use 88 for refused; and use 99 for don't know. If the actual duration was 88 hours, enter 87."
+        }
+      }
+    },
+    "Id10023_a": {
+      "constraintMessage": {
+        "en": "Date of death must be on or after the date of birth and cannot be in the future."
+      },
+      "validation": {
+        "required": true,
+        "dataType": "date",
+        "constraint": {
+          "source": ".>=${Id10021} and . <= today()"
+        },
+        "constraintMessage": {
+          "en": "Date of death must be on or after the date of birth and cannot be in the future."
+        }
+      }
+    },
+    "Id10023_b": {
+      "constraintMessage": {
+        "en": "Date of death cannot be in the future."
+      },
+      "validation": {
+        "required": true,
+        "dataType": "date",
+        "constraint": {
+          "source": ". <= today()"
+        },
+        "constraintMessage": {
+          "en": "Date of death cannot be in the future."
+        }
+      }
+    },
+    "nmh": {
+      "sectionPath": [
+        "consented",
+        "injuries_accidents"
+      ]
+    },
+    "language": {
+      "choices": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English"
+          },
+          "sourceRow": 3
+        }
+      ],
+      "validation": {
+        "required": true,
+        "dataType": "string",
+        "choiceValues": [
+          "en"
+        ],
+        "constraintMessage": {}
+      }
+    },
+    "Id10007": {
+      "constraint": {
+        "source": "regex(., '^[A-Za-z ]+$')"
+      },
+      "constraintMessage": {
+        "en": "Respondent name can contain letters and spaces only"
+      },
+      "validation": {
+        "required": false,
+        "dataType": "string",
+        "constraintMessage": {
+          "en": "Respondent name can contain letters and spaces only"
+        },
+        "constraint": {
+          "source": "regex(., '^[A-Za-z ]+$')"
+        }
+      }
+    },
+    "Id10010": {
+      "constraint": {
+        "source": "regex(., '^[A-Za-z ]+$')"
+      },
+      "constraintMessage": {
+        "en": "Interviewer name can contain letters and spaces only"
+      },
+      "validation": {
+        "required": true,
+        "dataType": "string",
+        "constraint": {
+          "source": "regex(., '^[A-Za-z ]+$')"
+        },
+        "constraintMessage": {
+          "en": "Interviewer name can contain letters and spaces only"
+        }
+      }
+    },
+    "Id10477": {
+      "choices": [
+        {
+          "value": "Chronic_kidney_disease",
+          "label": {
+            "en": "Chronic kidney disease"
+          },
+          "sourceRow": 253
+        },
+        {
+          "value": "Dialysis",
+          "label": {
+            "en": "Dialysis"
+          },
+          "sourceRow": 254
+        },
+        {
+          "value": "Fever",
+          "label": {
+            "en": "Fever"
+          },
+          "sourceRow": 255
+        },
+        {
+          "value": "Heart_attack",
+          "label": {
+            "en": "Heart attack"
+          },
+          "sourceRow": 256
+        },
+        {
+          "value": "Heart_problem",
+          "label": {
+            "en": "Heart problem"
+          },
+          "sourceRow": 257
+        },
+        {
+          "value": "Jaundice",
+          "label": {
+            "en": "Jaundice"
+          },
+          "sourceRow": 258
+        },
+        {
+          "value": "Liver_failure",
+          "label": {
+            "en": "Liver failure"
+          },
+          "sourceRow": 259
+        },
+        {
+          "value": "Malaria",
+          "label": {
+            "en": "Malaria"
+          },
+          "sourceRow": 260
+        },
+        {
+          "value": "Pneumonia",
+          "label": {
+            "en": "Pneumonia"
+          },
+          "sourceRow": 261
+        },
+        {
+          "value": "Renal_kidney_failure",
+          "label": {
+            "en": "Renal (kidney) failure"
+          },
+          "sourceRow": 262
+        },
+        {
+          "value": "Suicide",
+          "label": {
+            "en": "Suicide"
+          },
+          "sourceRow": 263
+        },
+        {
+          "value": "None",
+          "label": {
+            "en": "None of the above words were mentioned"
+          },
+          "sourceRow": 264
+        }
+      ]
+    },
+    "Id10478": {
+      "choices": [
+        {
+          "value": "abdomen",
+          "label": {
+            "en": "Abdomen"
+          },
+          "sourceRow": 274
+        },
+        {
+          "value": "cancer",
+          "label": {
+            "en": "Cancer"
+          },
+          "sourceRow": 275
+        },
+        {
+          "value": "dehydration",
+          "label": {
+            "en": "Dehydration"
+          },
+          "sourceRow": 276
+        },
+        {
+          "value": "dengue",
+          "label": {
+            "en": "Dengue fever"
+          },
+          "sourceRow": 277
+        },
+        {
+          "value": "diarrhea",
+          "label": {
+            "en": "Diarrhoea"
+          },
+          "sourceRow": 278
+        },
+        {
+          "value": "fever",
+          "label": {
+            "en": "Fever"
+          },
+          "sourceRow": 279
+        },
+        {
+          "value": "heart_problem",
+          "label": {
+            "en": "Heart problems"
+          },
+          "sourceRow": 280
+        },
+        {
+          "value": "jaundice",
+          "label": {
+            "en": "Jaundice (yellow skin or eyes)"
+          },
+          "sourceRow": 281
+        },
+        {
+          "value": "pneumonia",
+          "label": {
+            "en": "Pneumonia"
+          },
+          "sourceRow": 282
+        },
+        {
+          "value": "rash",
+          "label": {
+            "en": "Rash"
+          },
+          "sourceRow": 283
+        },
+        {
+          "value": "None",
+          "label": {
+            "en": "None of the above words were mentioned"
+          },
+          "sourceRow": 284
+        }
+      ]
+    },
+    "Id10479": {
+      "choices": [
+        {
+          "value": "asphyxia",
+          "label": {
+            "en": "Asphyxia"
+          },
+          "sourceRow": 266
+        },
+        {
+          "value": "incubator",
+          "label": {
+            "en": "Incubator"
+          },
+          "sourceRow": 267
+        },
+        {
+          "value": "lung_problem",
+          "label": {
+            "en": "Lung problem"
+          },
+          "sourceRow": 268
+        },
+        {
+          "value": "pneumonia",
+          "label": {
+            "en": "Pneumonia"
+          },
+          "sourceRow": 269
+        },
+        {
+          "value": "preterm_delivery",
+          "label": {
+            "en": "Preterm delivery"
+          },
+          "sourceRow": 270
+        },
+        {
+          "value": "respiratory_distress",
+          "label": {
+            "en": "Respiratory distress"
+          },
+          "sourceRow": 271
+        },
+        {
+          "value": "None",
+          "label": {
+            "en": "None of the above words were mentioned"
+          },
+          "sourceRow": 272
+        }
+      ]
+    },
+    "Id10304_a": {
+      "relevant": {
+        "source": "selected(${Id10304},'yes')"
+      }
+    },
+    "Id10230": {
+      "ageGroup": "C_A"
+    }
+  },
+  "sections": {
+    "consented": {
+      "label": {
+        "en": "Interview completion"
+      }
+    }
+  }
+}

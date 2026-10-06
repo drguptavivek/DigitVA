@@ -1,0 +1,96 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [],
+      "id": "core_site",
+      "odk": {
+        "before": "Id10010"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "label": "Study site of the VA interviewer",
+          "name": "Site",
+          "required": "yes",
+          "type": "select_one site"
+        }
+      ],
+      "title": "Study site of the interviewer"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "core_unique_id",
+      "odk": {
+        "before": "Id10017",
+        "note": "DigitVA's sync reads unique_id; the web server builds it from the site and the start time."
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "calculation": "concat(${Site}, \"_\", format-date-time(${Id10011}, \"%H%M%S%3\"))",
+          "label": "Unique ID of the deceased.",
+          "name": "unique_id",
+          "type": "calculate"
+        }
+      ],
+      "title": "Unique id of the deceased"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "In person",
+          "list_name": "CONSENT_MODE",
+          "name": "in_person"
+        },
+        {
+          "label": "Telephonic",
+          "list_name": "CONSENT_MODE",
+          "name": "telephonic"
+        }
+      ],
+      "id": "core_consent_mode",
+      "odk": {
+        "after": "Id10013"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "label": "Mode in which consent was taken",
+          "name": "consent_mode",
+          "relevant": "selected(${Id10013}, 'yes')",
+          "type": "select_one CONSENT_MODE"
+        }
+      ],
+      "title": "Mode of consent"
+    },
+    {
+      "change": [],
+      "choices": [],
+      "id": "core_medical_certificate_upload",
+      "odk": {
+        "after": "Id10473"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "appearance": "image-or-pdf",
+          "hint": "Choose a JPEG or PNG image, or a PDF document.",
+          "label": "Upload medical certificate (image or PDF)",
+          "name": "custom_medical_certificate_upload",
+          "relevant": "selected(${Id10463}, 'yes')",
+          "type": "file"
+        }
+      ],
+      "title": "Medical certificate upload"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "digitva_core",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

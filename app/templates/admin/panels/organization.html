@@ -393,11 +393,13 @@
       <div class="col-md-5">
         <div class="card"><div class="card-body">
           <h6 class="card-title">Export</h6>
-          <p class="small text-muted">Master data as one workbook (levels, units, cadres, level_cadres, workers) or one CSV per sheet. The ODK choices CSV feeds the cascading unit selects of the XLSForm.</p>
+          <p class="small text-muted">Master data as one workbook (levels, units, cadres, level_cadres, workers) or one CSV per sheet. The ODK choices CSV feeds the cascading unit selects of the XLSForm. The ODK form (.xlsx) is the whole WHO VA 2022 form for this project: its enabled extensions, approved languages and these units, with a new version stamp each download.</p>
           <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-sm btn-outline-primary" id="org-export-xlsx" href="#"><i class="fa-solid fa-file-excel me-1"></i>Workbook (.xlsx)</a>
             <a class="btn btn-sm btn-outline-secondary" id="org-export-choices" href="#"><i class="fa-solid fa-list me-1"></i>ODK choices (.csv)</a>
+            <a class="btn btn-sm btn-outline-primary" id="org-export-xlsform" href="#"><i class="fa-solid fa-file-excel me-1"></i>ODK form (.xlsx)</a>
           </div>
+          <div class="mt-2 small" id="org-export-xlsform-note"></div>
           <div class="mt-2 small" id="org-export-csv-links"></div>
         </div></div>
       </div>
@@ -1585,6 +1587,40 @@
     });
   });
 
+  // The ODK form needs one ODK form id; a project with several (one per site)
+  // answers 409 with the list, shown here as one link per form.
+  $('org-export-xlsform').addEventListener('click', function (event) {
+    event.preventDefault();
+    var url = this.href, note = $('org-export-xlsform-note');
+    note.textContent = '';
+    fetch(url, { credentials: 'same-origin' }).then(function (response) {
+      if (response.ok) {
+        var match = /filename="?([^";]+)/.exec(response.headers.get('Content-Disposition') || '');
+        return response.blob().then(function (blob) {
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = match ? match[1] : 'odk-form.xlsx';
+          link.click();
+          URL.revokeObjectURL(link.href);
+        });
+      }
+      return response.json().then(function (body) {
+        note.textContent = body.error || 'The ODK form could not be built.';
+        (body.forms || []).forEach(function (formId) {
+          var item = document.createElement('a');
+          item.className = 'ms-2';
+          item.href = url + '?form_id=' + encodeURIComponent(formId);
+          item.textContent = formId;
+          note.appendChild(item);
+        });
+      }, function () {
+        note.textContent = 'The ODK form could not be built (HTTP ' + response.status + ').';
+      });
+    }).catch(function () {
+      note.textContent = 'The ODK form could not be downloaded. Check the connection and try again.';
+    });
+  });
+
   function renderTransfer() {
     $('org-units-template').href = base() + '/templates/units.csv';
     $('org-units-template-xlsx').href = base() + '/templates/units.xlsx';
@@ -1592,6 +1628,7 @@
     $('org-users-template-xlsx').href = base() + '/templates/project-users.xlsx';
     $('org-export-xlsx').href = base() + '/export.xlsx';
     $('org-export-choices').href = base() + '/odk-choices.csv';
+    $('org-export-xlsform').href = '/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-xlsform.xlsx';
     document.querySelectorAll('.org-csv-template').forEach(function (a) { a.href = base() + '/export/' + a.dataset.sheet + '.csv'; });
     $('org-export-csv-links').innerHTML = 'CSV: ' + ['levels','units','cadres','level_cadres','workers'].map(function (s) { return '<a href="' + base() + '/export/' + s + '.csv">' + s + '</a>'; }).join(' · ');
   }

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-06
 ---
 
 # CLI Reference
@@ -80,6 +80,18 @@ docker compose exec minerva_app_service uv run flask org import <project_id> org
 ```
 
 Policy: `docs/policy/organization-model.md`.
+
+## `xlsform` — The project's ODK form
+
+```bash
+docker compose exec minerva_app_service uv run flask xlsform diff --workbook <deployed.xlsx> --project <project_id> [--form-id <odk_form_id>]
+```
+
+Lists the survey rows and choices only the deployed workbook has, only the
+generated form has, and the rows both have whose type, relevance, constraint,
+calculation or choice filter differ. Nothing is merged or written. Policy:
+`docs/policy/va-form-project-configuration.md` ("The ODK form is a project
+output").
 
 ## `instrument-translations` — Instrument display languages
 

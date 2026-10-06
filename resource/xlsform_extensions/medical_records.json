@@ -1,0 +1,303 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Yes",
+          "list_name": "YES_NO_REF",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "list_name": "YES_NO_REF",
+          "name": "no"
+        },
+        {
+          "label": "Refused to answer",
+          "list_name": "YES_NO_REF",
+          "name": "ref"
+        }
+      ],
+      "id": "medical_records",
+      "odk": {
+        "after": "comment"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "appearance": "field-list",
+          "label": "Medical Records",
+          "name": "md_records",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Are there any medical documents available related to the deceased?",
+          "name": "md_available",
+          "type": "select_one YES_NO_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": ". >= 0 and . <= 30",
+          "constraint_message": "Enter a number from 0 to 30",
+          "hint": "0 to 30",
+          "label": "How many medical document pages will you photograph?",
+          "name": "md_count",
+          "relevant": "selected(${md_available}, 'yes')",
+          "type": "integer"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 01",
+          "name": "md_im1",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 1",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 02",
+          "name": "md_im2",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 2",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 03",
+          "name": "md_im3",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 3",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 04",
+          "name": "md_im4",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 4",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 05",
+          "name": "md_im5",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 5",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 06",
+          "name": "md_im6",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 6",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 07",
+          "name": "md_im7",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 7",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 08",
+          "name": "md_im8",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 8",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 09",
+          "name": "md_im9",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 9",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 10",
+          "name": "md_im10",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 10",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 11",
+          "name": "md_im11",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 11",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 12",
+          "name": "md_im12",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 12",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 13",
+          "name": "md_im13",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 13",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 14",
+          "name": "md_im14",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 14",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 15",
+          "name": "md_im15",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 15",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 16",
+          "name": "md_im16",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 16",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 17",
+          "name": "md_im17",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 17",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 18",
+          "name": "md_im18",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 18",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 19",
+          "name": "md_im19",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 19",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 20",
+          "name": "md_im20",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 20",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 21",
+          "name": "md_im21",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 21",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 22",
+          "name": "md_im22",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 22",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 23",
+          "name": "md_im23",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 23",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 24",
+          "name": "md_im24",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 24",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 25",
+          "name": "md_im25",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 25",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 26",
+          "name": "md_im26",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 26",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 27",
+          "name": "md_im27",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 27",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 28",
+          "name": "md_im28",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 28",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 29",
+          "name": "md_im29",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 29",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Medical Document Image 30",
+          "name": "md_im30",
+          "parameters": "max-pixels=1024",
+          "relevant": "${md_count} >= 30",
+          "type": "image"
+        },
+        {
+          "type": "end group"
+        }
+      ],
+      "title": "Medical Records"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "medical_records",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

@@ -407,6 +407,9 @@ def create_app(config_class=None):
     from app.commands.schema_drift import init_app as init_schema_drift_commands
     init_schema_drift_commands(app)
 
+    from app.commands.xlsform import init_app as init_xlsform_commands
+    init_xlsform_commands(app)
+
     # The coding screens' ICD classification switch
     # (va_form_partials/_icd_classification_switch.html).
     from app.services.icd_coding_value import (

@@ -2939,6 +2939,7 @@ def admin_panel_project_setup(project_id):
     section embeds; every other panel it hosts is admin-reachable on its own.
     Counts are two indexed aggregates, not row loads.
     """
+    from app.services.xlsform_service import mapped_form_ids
     from app.utils import smartva_allowed_countries
 
     project = db.session.get(VaProjectMaster, project_id)
@@ -2965,6 +2966,8 @@ def admin_panel_project_setup(project_id):
         locked_project_id=project.project_id,
         # The Project Forms panel (Data collection) renders these.
         smartva_countries=smartva_allowed_countries,
+        # One ODK form download per mapped form (digitva-aek).
+        odk_form_ids=mapped_form_ids(project_id),
     )
 
 

@@ -1,0 +1,103 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Yes",
+          "list_name": "YES_NO_REF",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "list_name": "YES_NO_REF",
+          "name": "no"
+        },
+        {
+          "label": "Refused to answer",
+          "list_name": "YES_NO_REF",
+          "name": "ref"
+        }
+      ],
+      "id": "death_summary",
+      "odk": {
+        "afterGroupEnd": "deathcert"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "appearance": "field-list",
+          "label": "Death Certificate (Images)",
+          "name": "death_summary",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Is there any death summary / certificate document (images) available for the deceased?",
+          "name": "ds_available",
+          "type": "select_one YES_NO_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": ". >= 0 and . <= 5",
+          "constraint_message": "Enter a number from 0 to 5",
+          "hint": "0 to 5",
+          "label": "How many death document pages will you photograph?",
+          "name": "ds_count",
+          "relevant": "selected(${ds_available}, 'yes')",
+          "type": "integer"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Death Document Image 01",
+          "name": "ds_im1",
+          "parameters": "max-pixels=1024",
+          "relevant": "${ds_count} >= 1",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Death Document Image 02",
+          "name": "ds_im2",
+          "parameters": "max-pixels=1024",
+          "relevant": "${ds_count} >= 2",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Death Document Image 03",
+          "name": "ds_im3",
+          "parameters": "max-pixels=1024",
+          "relevant": "${ds_count} >= 3",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Death Document Image 04",
+          "name": "ds_im4",
+          "parameters": "max-pixels=1024",
+          "relevant": "${ds_count} >= 4",
+          "type": "image"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Death Document Image 05",
+          "name": "ds_im5",
+          "parameters": "max-pixels=1024",
+          "relevant": "${ds_count} >= 5",
+          "type": "image"
+        },
+        {
+          "type": "end group"
+        }
+      ],
+      "title": "Death Certificate (Images)"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "death_summary",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

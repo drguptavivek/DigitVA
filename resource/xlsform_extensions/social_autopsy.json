@@ -1,0 +1,552 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Private Cashless",
+          "list_name": "sas01",
+          "name": "1"
+        },
+        {
+          "label": "Private Reimbursement",
+          "list_name": "sas01",
+          "name": "2"
+        },
+        {
+          "label": "Ayushman Bharat",
+          "list_name": "sas01",
+          "name": "3"
+        },
+        {
+          "label": "State/Central Government",
+          "list_name": "sas01",
+          "name": "4"
+        },
+        {
+          "label": "Employee based(ESI/CGHS/Others)",
+          "list_name": "sas01",
+          "name": "5"
+        },
+        {
+          "label": "None",
+          "list_name": "sas01",
+          "name": "6"
+        },
+        {
+          "label": "Home",
+          "list_name": "sas04",
+          "name": "1"
+        },
+        {
+          "label": "HCF",
+          "list_name": "sas04",
+          "name": "2"
+        },
+        {
+          "label": "In transit",
+          "list_name": "sas04",
+          "name": "3"
+        },
+        {
+          "label": "Others",
+          "list_name": "sas04",
+          "name": "4"
+        },
+        {
+          "label": "Yes",
+          "list_name": "YES_NO",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "list_name": "YES_NO",
+          "name": "no"
+        },
+        {
+          "label": "Died very soon",
+          "list_name": "sas02",
+          "name": "1"
+        },
+        {
+          "label": "Financial barrier",
+          "list_name": "sas02",
+          "name": "2"
+        },
+        {
+          "label": "Lack of transport",
+          "list_name": "sas02",
+          "name": "3"
+        },
+        {
+          "label": "Lack of people to help",
+          "list_name": "sas02",
+          "name": "4"
+        },
+        {
+          "label": "Health facility too far",
+          "list_name": "sas02",
+          "name": "5"
+        },
+        {
+          "label": "Others",
+          "list_name": "sas02",
+          "name": "6"
+        },
+        {
+          "label": "Home visit by physician",
+          "list_name": "sas03",
+          "name": "1"
+        },
+        {
+          "label": "Individual Practitioner",
+          "list_name": "sas03",
+          "name": "2"
+        },
+        {
+          "label": "Small hospital",
+          "list_name": "sas03",
+          "name": "3"
+        },
+        {
+          "label": "Medium Hospital",
+          "list_name": "sas03",
+          "name": "4"
+        },
+        {
+          "label": "Large hospital (Government/private medical colleges)",
+          "list_name": "sas03",
+          "name": "5"
+        },
+        {
+          "label": "Others",
+          "list_name": "sas03",
+          "name": "6"
+        },
+        {
+          "label": "Govt Ambulance",
+          "list_name": "sas05",
+          "name": "1"
+        },
+        {
+          "label": "Non- Govt Ambulance",
+          "list_name": "sas05",
+          "name": "2"
+        },
+        {
+          "label": "Own Motor Vehicle",
+          "list_name": "sas05",
+          "name": "3"
+        },
+        {
+          "label": "Own non-motor vehicle",
+          "list_name": "sas05",
+          "name": "4"
+        },
+        {
+          "label": "Hired Motor Vehicle",
+          "list_name": "sas05",
+          "name": "5"
+        },
+        {
+          "label": "Hired non-motor vehicle",
+          "list_name": "sas05",
+          "name": "6"
+        },
+        {
+          "label": "Physically carried",
+          "list_name": "sas05",
+          "name": "7"
+        },
+        {
+          "label": "Others",
+          "list_name": "sas05",
+          "name": "8"
+        },
+        {
+          "label": "Yes",
+          "list_name": "YES_NO_DK",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "list_name": "YES_NO_DK",
+          "name": "no"
+        },
+        {
+          "label": "Doesn't Know",
+          "list_name": "YES_NO_DK",
+          "name": "DK"
+        },
+        {
+          "label": "Lack of facility",
+          "list_name": "sas07",
+          "name": "1"
+        },
+        {
+          "label": "Specialist not available",
+          "list_name": "sas07",
+          "name": "2"
+        },
+        {
+          "label": "Financial constraints",
+          "list_name": "sas07",
+          "name": "3"
+        },
+        {
+          "label": "Patient/family decision",
+          "list_name": "sas07",
+          "name": "4"
+        },
+        {
+          "label": "Govt Ambulance",
+          "list_name": "sas06",
+          "name": "1"
+        },
+        {
+          "label": "Non- Govt Ambulance",
+          "list_name": "sas06",
+          "name": "2"
+        },
+        {
+          "label": "Own Motor Vehicle",
+          "list_name": "sas06",
+          "name": "3"
+        },
+        {
+          "label": "Own non-motor vehicle",
+          "list_name": "sas06",
+          "name": "4"
+        },
+        {
+          "label": "Physically carried",
+          "list_name": "sas06",
+          "name": "5"
+        },
+        {
+          "label": "Not Applicable",
+          "list_name": "sas06",
+          "name": "6"
+        },
+        {
+          "label": "Minutes",
+          "list_name": "sa_tu",
+          "name": "minutes"
+        },
+        {
+          "label": "Hours",
+          "list_name": "sa_tu",
+          "name": "hours"
+        },
+        {
+          "label": "Days",
+          "list_name": "sa_tu",
+          "name": "days"
+        },
+        {
+          "label": "Not Applicable",
+          "list_name": "sa_tu",
+          "name": "na"
+        }
+      ],
+      "id": "social_autopsy",
+      "odk": {
+        "afterGroupEnd": "narrat"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "label": "Social Autopsy Questionnaire",
+          "name": "socialautopsy",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "appearance": "field-list",
+          "label": "Socio Economic Details",
+          "name": "socioeconomic",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "1. Did the deceased have any health insurance?",
+          "name": "sa01",
+          "required": "yes",
+          "type": "select_one sas01"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "2. Place of death",
+          "name": "sa06",
+          "required": "yes",
+          "type": "select_one sas04"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "2.1 Please specify the other place of death",
+          "name": "sa06_a",
+          "relevant": "selected(${sa06}, '4')",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "3. Was any health care sought for the illness that led to death?",
+          "name": "sa02",
+          "required": "yes",
+          "type": "select_one YES_NO"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "4. If No health care was sought or treatment provided as per the advise, what were the reasons for the same?",
+          "name": "sa03",
+          "relevant": "selected(${sa02}, 'no')",
+          "required": "yes",
+          "type": "select_multiple sas02"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "4.1 Please specify the other reasons",
+          "name": "sa04",
+          "relevant": "selected(${sa03}, '6')",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "hint": "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\nMedium Hospital (polyclinics; 30-200 beds)\nLarge Hospital (corporate hospitals, Government/private medical colleges; ≥ 200 beds)",
+          "label": "5. If yes, type of first consultation",
+          "name": "sa05",
+          "relevant": "selected(${sa02}, 'yes')",
+          "required": "yes",
+          "type": "select_one sas03"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "5.1 Please specify the other type of first consultation",
+          "name": "sa05_a",
+          "relevant": "selected(${sa05}, '6')",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "type": "end group"
+        },
+        {
+          "agegroup": "ALL",
+          "appearance": "field-list",
+          "label": "Reaching health care facility (HCF)",
+          "name": "reachinghealthcare",
+          "relevant": "selected(${sa02}, 'yes')",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "6. What transport was used to reach HCF from home",
+          "name": "sa07",
+          "required": "yes",
+          "type": "select_one sas05"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "6.1 Please specify the other transport used to reach HCF from home",
+          "name": "sa07_a",
+          "relevant": "selected(${sa07}, '8')",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": ". >= 0 and . < 100",
+          "constraint_message": "The number of HCF the patient was taken can only range between 0 to 99 (both included).",
+          "label": "7. How many HCF did you take the patient",
+          "name": "sa09",
+          "required": "yes",
+          "type": "integer"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "8. Was the patient referred to another health facility?",
+          "name": "sa10",
+          "required": "yes",
+          "type": "select_one YES_NO_DK"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "9. What was the reason for referral?",
+          "name": "sa11",
+          "relevant": "selected(${sa10}, 'yes')",
+          "required": "yes",
+          "type": "select_multiple sas07"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "10. Did the patient go to the referred institution?",
+          "name": "sa12",
+          "relevant": "selected(${sa10}, 'yes')",
+          "required": "yes",
+          "type": "select_one YES_NO_DK"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "11. In case of referral to higher center, transport used",
+          "name": "sa08",
+          "relevant": "selected(${sa12}, 'yes')",
+          "required": "yes",
+          "type": "select_one sas06"
+        },
+        {
+          "type": "end group"
+        },
+        {
+          "agegroup": "ALL",
+          "appearance": "field-list",
+          "label": "Event Chronology",
+          "name": "eventchronology",
+          "relevant": "selected(${sa02}, 'yes')",
+          "type": "begin group"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Take the first onset of sign/symptom as “zero”. Please give the time taken for each of the following action points.",
+          "name": "sa_note",
+          "type": "note"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "12. Time taken to make the decision to seek healthcare",
+          "name": "sa_tu13",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "12.1. Enter the time taken to make the decision to seek healthcare (in ${sa_tu13})",
+          "name": "sa13",
+          "relevant": "${sa_tu13}!=\"na\" and ${sa_tu13}!=\"Na\" and ${sa_tu13}!=\"nA\" and ${sa_tu13}!=\"NA\" and ${sa_tu13}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "13. Time taken to make transport arrangement",
+          "name": "sa_tu14",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "13.1. Enter the time taken to make transport arrangement (in ${sa_tu14})",
+          "name": "sa14",
+          "relevant": "${sa_tu14}!=\"na\" and ${sa_tu14}!=\"Na\" and ${sa_tu14}!=\"nA\" and ${sa_tu14}!=\"NA\" and ${sa_tu14}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "14. Time taken to reach first HCF/physician consultant",
+          "name": "sa_tu15",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "14.1. Enter the time taken to reach first HCF/physician consultation (in ${sa_tu15})",
+          "name": "sa15",
+          "relevant": "${sa_tu15}!=\"na\" and ${sa_tu15}!=\"Na\" and ${sa_tu15}!=\"nA\" and ${sa_tu15}!=\"NA\" and ${sa_tu15}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "15. Time taken for the doctor to attend the patient",
+          "name": "sa_tu16",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "15.1. Enter the time taken for the doctor to attend the patient (in ${sa_tu16})",
+          "name": "sa16",
+          "relevant": "${sa_tu16}!=\"na\" and ${sa_tu16}!=\"Na\" and ${sa_tu16}!=\"nA\" and ${sa_tu16}!=\"NA\" and ${sa_tu16}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "16. Time taken for the initiation of the treatment or referral to higher center",
+          "name": "sa_tu17",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "16.1. Enter the time taken for the initiation of the treatment or referral to higher center (in ${sa_tu17})",
+          "name": "sa17",
+          "relevant": "${sa_tu17}!=\"na\" and ${sa_tu17}!=\"Na\" and ${sa_tu17}!=\"nA\" and ${sa_tu17}!=\"NA\" and ${sa_tu17}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "17. Time taken to reach the HCF where he/she died",
+          "name": "sa_tu18",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "label": "17.1. Enter the time taken to reach the HCF where he/she died  (in ${sa_tu18})",
+          "name": "sa18",
+          "relevant": "${sa_tu18}!=\"na\" and ${sa_tu18}!=\"Na\" and ${sa_tu18}!=\"nA\" and ${sa_tu18}!=\"NA\" and ${sa_tu18}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "hint": "Please mention the total duration from the time the decision to seek healthcare was made until the time of death.",
+          "label": "18. Unit for Time of Death",
+          "name": "sa_tu19",
+          "required": "yes",
+          "type": "select_one sa_tu"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(.,'^(?!0{1,3}$)\\d{1,3}$')",
+          "constraint_message": "Kindly enter a valid 1 to 3 digit number.",
+          "hint": "Please enter the total duration from the time the decision to seek healthcare was made until the time of death (in ${sa_tu19}).",
+          "label": "18.1. Time of Death (in ${sa_tu19})",
+          "name": "sa19",
+          "relevant": "${sa_tu19}!=\"na\" and ${sa_tu19}!=\"Na\" and ${sa_tu19}!=\"nA\" and ${sa_tu19}!=\"NA\" and ${sa_tu19}!=\"\"",
+          "required": "yes",
+          "type": "text"
+        },
+        {
+          "type": "end group"
+        },
+        {
+          "type": "end group"
+        }
+      ],
+      "title": "Social autopsy questionnaire"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "social_autopsy",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

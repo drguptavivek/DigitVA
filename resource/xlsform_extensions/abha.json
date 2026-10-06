@@ -1,0 +1,39 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [],
+      "id": "abha",
+      "odk": {
+        "after": "Id10018"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(., '^([0-9]{14}|[0-9]{2}-[0-9]{4}-[0-9]{4}-[0-9]{4})$')",
+          "constraint_message": "Enter the 14-digit ABHA number",
+          "hint": "Ayushman Bharat Health Account number, e.g. 12-3456-7890-1234",
+          "label": "ABHA number of the deceased (14 digits), if known",
+          "name": "abha_number",
+          "type": "text"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "regex(., '^[A-Za-z0-9._]{4,32}@(abdm|sbx)$')",
+          "constraint_message": "Enter an ABHA address such as name@abdm",
+          "hint": "e.g. name@abdm",
+          "label": "ABHA address of the deceased, if known",
+          "name": "abha_address",
+          "type": "text"
+        }
+      ],
+      "title": "ABHA identifiers"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "abha",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

@@ -51,7 +51,7 @@ identifiers with ODK ones. Corrected 2026-09-20 (`digitva-c48`).
 
 | Extension | What it contributes |
 |---|---|
-| `digitva_core` (always on) | Questions: `unique_id`, `Site`, `comment`, `consent_mode`, `custom_medical_certificate_upload`, `interview_outcome` (last question, own section `digitva_outcome`; completed / partially_completed / refused / respondent_unavailable; the server sets `refused` when `Id10013` = no and `completed` when the form is valid, otherwise the interviewer's pick; `digitva-vzk.2`, see [Web Intake Policy](web-intake.md), "The `interview_outcome` question"; ODK forms have no equivalent yet) |
+| `digitva_core` (always on) | Questions: `unique_id`, `Site`, `comment`, `consent_mode`, `custom_medical_certificate_upload`, `interview_outcome` (last question, own section `digitva_outcome`; completed / partially_completed / refused / respondent_unavailable; the server sets `refused` when `Id10013` = no and `completed` when the form is valid, otherwise the interviewer's pick; `digitva-vzk.2`, see [Web Intake Policy](web-intake.md), "The `interview_outcome` question"; ODK forms have no equivalent yet; **web-only and server-side, not carried to the ODK form**, and likewise the visit note `visit_address` / `visit_date` / `visit_remarks`, see "The ODK form is a project output") |
 | `social_autopsy` | Questions: the social-autopsy sections (`sa01`–`sa19`, `sa_tu13`–`sa_tu19`, `sas01`–`sas07`) |
 | `intake_screen` | **No instrument questions.** A single admin-configured welcome card, from the project setting `web_intake_intake_note`, rendered client-side (`app/templates/va_frontpages/va_intake_form.html`). It deliberately *replaces* ND01's three-item `begin_screen` group (`introduction`, `instructions`, `confirm_inst`) rather than reproducing it (2026-09-19). |
 | `geography` | **No instrument questions.** `survey_state`, `survey_district`, `survey_block` and `site_individual_id` are server-injected into the payload after validation (`app/services/web_intake_service.py`) from the death register and the interviewer's organization unit, per decision **O4** — they are never asked. The flag is derived and served but currently has no consumer (`digitva-ybt`). |
@@ -386,8 +386,10 @@ does not adopt wholesale. Decided, so as not to relitigate:
   'yes')` gating `ds_count` / `md_count`) — this is exactly what WP-A2 builds.
 - **Reject** ND01's `Id10002`/`Id10003` calculations: they hard-code one
   district, which is wrong for every deployment but ND01's own.
-- **Reject** ND01 dropping the `Id10365` constraint: it is a data-quality
-  check, not deployment-specific noise, and stays enforced.
+- ~~**Reject** ND01 dropping the `Id10365` constraint: it is a data-quality
+  check, not deployment-specific noise, and stays enforced.~~ **Superseded
+  2026-10-06:** the constraint is dropped everywhere; see "`Id10365`'s check
+  stays dropped" in "The ODK form is a project output".
 - **Reject** touching `Id10476`'s relevance: its reference expression is
   already effectively true until audio capture lands in the attachments
   phase 2 work; ND01's difference here is not a structural gap to close now.
@@ -758,6 +760,119 @@ right locale, so a malformed or misdirected upload still fails with its own
 error rather than the demotion refusal masking it. The import report names
 the demotion (`"demoted": true`), so it shows up in CLI output and in the
 logged `instrument locale demoted by import` line.
+
+## The ODK form is a project output (decided 2026-10-06, `digitva-aek`)
+
+The same configuration that drives the web form generates the project's ODK
+XLSForm, so ODK and web collect the same field names and relevance. The
+hand-maintained site workbooks in `docs/kb/WHO_VA_2022_Docs/` are no longer the
+way to change a form; they stay as the record of what was deployed.
+
+**Source of truth.** Three static inputs and the project, never the instrument
+JSON:
+
+- the WHO reference workbook in the repository,
+  `vendor/who-va-2022/2022whova_xls_form_for_odk_multilingual.xlsx` (V2.0, the
+  form the web instrument is rebuilt from, see "The curated reference form
+  moves to V2.0" above; byte-identical to the copy in
+  `docs/kb/WHO_VA_2022_Docs/`, which the Docker image does not ship), English
+  columns only. Its other
+  languages are ignored: translations come from the database. The two
+  deviations are applied (below);
+- one row spec per extension: `resource/xlsform_extensions/<extension>.json`,
+  generated from the extension's own definition
+  (`vendor/who-va-2022/src/digitva-extension.ts`) by
+  `tooling/who-va-2022/build-odk-extension-rows.mjs`, so a field's name, type,
+  relevance and constraint cannot drift from the web form. The DORIS rows are
+  `vendor/who-va-2022/src/generated/odk-doris-support-rows.json`, written by
+  `tooling/who-va-2022/build-odk-doris-rows.mjs`. A spec names where each block
+  goes (after or before a WHO row, or after a WHO group closes), its rows and
+  choices, and the WHO cells it changes (DORIS only). Not generated, because
+  they come from the project: `geography` (one cascading
+  `org_<level_code>_code` select per level, with the choices rows of the ODK
+  choices CSV, `parent_code` filter included) and `intake_screen` (the project's
+  welcome note as a note row);
+- the project: its languages, narration languages, sites and organization units.
+
+An extension enabled for a project with no spec is **refused** (422, naming
+it); a non-WHO questionnaire is refused (409). A form is never emitted
+partially. `interview_outcome` and the visit note (`digitva_visit_note`) are
+web-only and are not carried to ODK: the outcome is set by the server on
+submit, and the visit note is asked only of an identity-less refusal that the
+death register prefills. `digitva_core` adds `consent_mode`,
+`custom_medical_certificate_upload` (an ODK `file`), and the two rows ODK
+sync reads that the web server injects instead: `Site` and `unique_id`
+(`concat(${Site}, "_", format-date-time(${Id10011}, "%H%M%S%3"))`, without
+ND01's legacy survey-state/district/block references, which `geography` replaces
+with `org_<level_code>_code`). The legacy `survey_state`, `survey_district`,
+`survey_block` and `site_individual_id` fields are not generated.
+
+**Deviations from the WHO reference: one list, applied to web and ODK
+(2026-10-06).** The web instrument departs from the WHO V2.0 workbook in a
+handful of places: `Id10304_a` relevance and `Id10230` age group
+(`digitva-13x`), the `Id10365` constraint drop, the `Id10382` and `Id10023_a/b`
+constraints and messages, the name regexes on `Id10007` and `Id10010`, the
+curated `Id10477`-`Id10479` lists, the `nmh` move into `injuries_accidents`,
+the `consented` relabel, and the English-only `language` list. They are
+recorded once, with the reason for each, in
+`resource/who_va_2022_deviations.json`. The instrument build
+(`tooling/who-va-2022/build-instrument-from-xlsform.py`) and the ODK form
+(`app/services/xlsform_service.py`) both read that file and nothing else, so a
+new deviation is one entry there and reaches both; the generated instrument is
+byte-identical to what it was before the file existed. In ODK the `language`
+list is the project's approved and active display locales instead of English
+only (which also meets the rule that the workbook's placeholder languages never
+reach an interviewer), and `nmh` becomes the first row of its group. A test
+compares every deviated question of the ODK form with the web definition
+(constraint, message, relevance, age group, choices).
+
+**`Id10365`'s check stays dropped; every other WHO check stays (owner decision
+2026-10-06).** WHO's constraint on `Id10365` (`not(selected(${Id10363}, 'no')
+and selected(${Id10365}, 'no'))`) is dropped in the web instrument and the ODK
+form alike. It only fires on the no-health-card path with `Id10363` = No, and
+then refuses `Id10365` = No: a normal 2.5-4.5 kg baby, the commonest true
+answer. All ten deployed site workbooks already drop it, and the WHO field
+interviewer manual describes no such rule. The write-up for WHO is
+`docs/kb/WHO_VA_2022_Docs/id10365-birth-size-flow.md`. This supersedes the
+ND01 verdict "Reject ND01 dropping the `Id10365` constraint" above. A deviation
+may add or reword a check or change structure, but must not drop another WHO
+constraint without a new owner decision recorded here. The file's `Id10365`
+entry is unchanged by this decision, and its message stays untranslatable.
+
+**Who downloads.** A global admin or the PI of that project
+(`GET /admin/api/projects/<project_id>/odk-xlsform.xlsx`; the same
+project-manage check as grant management). The Project Setup page (Data
+collection, admin) and the Organization panel's Export tab (admin and PI) carry
+the button.
+
+**`form_id` and `version`.** `form_id` is the project's own and does not
+change, so Central sync is unbroken: the one ODK form the project maps in
+`map_project_site_odk`; a project with none (web-only) gets
+`<PROJECT_ID>_WHOVA2022`; a project with several (one per site, such as
+ICMR01) must name one with `?form_id=`, which is only ever matched against its
+mappings, and the answer without it is 409 listing them. `version` is a new
+UTC stamp (`YYYYMMDDHHMMSS`) on every download; nothing is stored. The
+`Site` list is that form's own site (a deployed form offers just its site), or
+the project's sites when the form is not mapped.
+
+**Translations.** Approved **and** active locales only
+(`mas_instrument_locales.lifecycle_state = 'approved'` and `is_active`), taken
+from `export_translations` (accepted rows only, machine drafts never), limited
+to the project's own languages when it sets `web_intake_available_locales`;
+`in_review` and `draft` locales are never emitted. They become
+`label::<Language> (<code>)`, `hint::`, `guidance_hint::` and
+`constraint_message::` columns (choices: `label::`). The WHO `language` list
+(the interview language) is the project's display locales; narration languages
+are a separate `narr_language` list, so the two axes stay apart.
+
+**Site-local rows.** Rows in a deployed workbook that the generated form lacks
+(and the reverse) are reported by `flask xlsform diff --workbook <path>
+--project <id> [--form-id <id>]`. Nothing is merged: the owner decides what a
+site-local row becomes. Translations and rows captured before a site switches
+to the generated form are diffed this way first.
+
+**Validation.** `pyxform` (a dev dependency) converts a generated form in the
+tests and fails them on any error.
 
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 

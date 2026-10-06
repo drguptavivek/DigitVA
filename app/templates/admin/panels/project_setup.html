@@ -94,6 +94,53 @@
         <p class="text-muted small">Web intake (off, direct questionnaire, death register first, or
           both), its form type and languages are project fields: <a href="#" data-section="basics">edit them in Basics</a>.</p>
         {% include "admin/panels/project_forms.html" %}
+        <div class="card mt-3" id="setup-odk-xlsform"><div class="card-body small">
+          <h6 class="card-title">ODK form (XLSForm)</h6>
+          <p class="text-muted mb-2">The WHO VA 2022 form for this project as an .xlsx: its enabled
+            extensions, its approved languages and its organization units, so ODK and the web form
+            collect the same fields. The ODK form id stays the project's own; every download carries
+            a new version stamp. The project PI can download it too.</p>
+          <div class="d-flex flex-wrap gap-2">
+            {% for form_id in (odk_form_ids if odk_form_ids|length > 1 else [None]) %}
+              <a class="btn btn-sm btn-outline-primary" data-odk-xlsform
+                 href="{{ url_for('admin.admin_project_odk_xlsform', project_id=project.project_id, form_id=form_id) }}">
+                <i class="fa-solid fa-file-excel me-1"></i>Download{% if form_id %} {{ form_id }}{% endif %}</a>
+            {% endfor %}
+          </div>
+          <div class="mt-2 small text-danger" id="setup-odk-xlsform-note"></div>
+        </div></div>
+        <script>
+        (function () {
+          // Fetch, so a refusal (403, 409, 422, a network error) is shown here
+          // rather than the browser navigating to the raw JSON.
+          var note = document.getElementById('setup-odk-xlsform-note');
+          document.querySelectorAll('#setup-odk-xlsform a[data-odk-xlsform]').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+              event.preventDefault();
+              note.textContent = '';
+              fetch(button.href, { credentials: 'same-origin' }).then(function (response) {
+                if (response.ok) {
+                  var match = /filename="?([^";]+)/.exec(response.headers.get('Content-Disposition') || '');
+                  return response.blob().then(function (blob) {
+                    var link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = match ? match[1] : 'odk-form.xlsx';
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                  });
+                }
+                return response.json().then(function (body) {
+                  note.textContent = body.error || 'The ODK form could not be built.';
+                }, function () {
+                  note.textContent = 'The ODK form could not be built (HTTP ' + response.status + ').';
+                });
+              }).catch(function () {
+                note.textContent = 'The ODK form could not be downloaded. Check the connection and try again.';
+              });
+            });
+          });
+        })();
+        </script>
         <hr class="my-4">
         {% include "admin/panels/odk_connections.html" %}
       </section>

@@ -625,6 +625,16 @@ Current seeded periodic tasks:
   event is kept. Idempotent, never raises, logs a count only. Beat row
   "Sign-in IP wipe — daily" is seeded at worker startup like the notification
   purge.
+- web intake upload purge daily, `purge_web_intake_uploads_task`
+  ([`app/tasks/web_intake_upload_tasks.py`](../../app/tasks/web_intake_upload_tasks.py)):
+  `web_intake_attachment_service.purge_expired_uploads` deletes uploads of open
+  drafts untouched for 30 days and uploads no answer references after 30 days
+  (never one a submission holds), 500 files per transaction, at most 20
+  transactions per run; per batch it locks the case rows then the draft rows
+  (`SKIP LOCKED`), removes the objects, deletes the rows and commits, one
+  `draft_attachments_purged` audit row per draft per batch (actor: the draft's
+  interviewer). Never raises, logs counts only. Beat row "Web intake upload purge — daily" is seeded at worker
+  startup like the sign-in IP wipe.
 - attachment S3 upload sweep every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`
   (default `10`), `run_attachment_s3_upload` — copies up to 500 attachment
   blobs per sweep into the bucket and verifies each one. It is left scheduled

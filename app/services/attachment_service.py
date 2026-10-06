@@ -1506,8 +1506,8 @@ def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
             )
         except Exception:
             log.warning(
-                "Could not remove a superseded attachment object for form %s",
-                va_form_id, exc_info=True,
+                "Could not remove a superseded attachment object for form %s | storage_name=%s",
+                va_form_id, old_storage_name, exc_info=True,
             )
 
 

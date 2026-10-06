@@ -70,6 +70,7 @@ import app.tasks.coding_search_telemetry_tasks  # noqa: F401, E402
 import app.tasks.notification_tasks  # noqa: F401, E402
 import app.tasks.security_event_tasks  # noqa: F401, E402
 import app.tasks.sync_tasks  # noqa: F401, E402
+import app.tasks.web_intake_upload_tasks  # noqa: F401, E402
 
 # Seed beat schedule and clean up orphaned run rows on startup
 with flask_app.app_context():
@@ -106,3 +107,7 @@ with flask_app.app_context():
     from app.tasks.security_event_tasks import ensure_sign_in_ip_wipe_scheduled
 
     ensure_sign_in_ip_wipe_scheduled()
+
+    from app.tasks.web_intake_upload_tasks import ensure_web_intake_upload_purge_scheduled
+
+    ensure_web_intake_upload_purge_scheduled()

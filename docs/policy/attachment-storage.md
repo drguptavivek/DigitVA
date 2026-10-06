@@ -139,6 +139,9 @@ Every uploaded object carries:
   `storage_name`, and only after the row already points at the new key and no
   other live row references the old one. A failed delete is logged and becomes
   an orphan key the integrity check reports; it never fails a sync.
+- The one other deletion is the web intake upload purge and a draft discard
+  (see "Web intake uploads"): files of an unsubmitted draft, never one a
+  submission row holds.
 - Attachments of submissions retired from ODK are uploaded like any other:
   their object **is** the archive.
 - `flask attachments s3-upload` and `local-quarantine` never delete anything.
@@ -469,7 +472,15 @@ cache entry), so the token's later owner is never shadowed by a pre-submit
 record. Discarding a draft deletes the files uploaded for it and their stored
 objects (`delete_draft_uploads`, through `cleanup_superseded`, which leaves an
 object any submission row still holds); a draft abandoned without a discard is
-the periodic purge's, `digitva-i9lb`. An `.amr` upload is capped at 5 MB and
+the daily purge's (`purge_web_intake_uploads_task`, `digitva-i9lb`): files of a
+draft untouched for 30 days and files no answer references any more after 30
+days, never a file a `va_submission_attachments` row holds; the purge removes
+the objects under the case lock before it commits its row deletions (a failed
+commit leaves rows the next run deletes), a discard removes them after its
+commit
+([Web Intake Policy](web-intake.md), "Retention of uploads"). This is
+the one exception to "Never delete" above, scoped to files DigitVA itself
+stored for a draft; an ODK-sourced attachment is still never deleted. An `.amr` upload is capped at 5 MB and
 each SoX call has a 60-second timeout (`SOX_TIMEOUT_SECONDS`, which also
 bounds ODK sync's conversion): a timeout is an `AmrConversionError`.
 

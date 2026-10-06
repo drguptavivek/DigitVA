@@ -554,7 +554,9 @@ class IntakeAttachmentTests(BaseTestCase):
         self.assertEqual(self._submit(draft["draft_id"], self._complete_data(Id10476_audio=self._reference(cid))).status_code, 201)
         draft_row = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
         self.assertEqual(svc.delete_draft_uploads(draft_row), 1)  # the pending row goes ...
-        self.assertEqual(len(self._stored_files()), 1)  # ... the object a submission holds stays
+        db.session.commit()
+        svc.delete_committed_blobs()  # the objects are removed only now ...
+        self.assertEqual(len(self._stored_files()), 1)  # ... and the one a submission holds stays
 
     def test_the_per_draft_cap_is_rechecked_under_the_draft_lock(self):
         self._login(self.interviewer_id)

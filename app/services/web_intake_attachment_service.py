@@ -19,15 +19,23 @@ import hashlib
 import logging
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app import db
-from app.models import VaSubmissionAttachments, VaWebIntakeAttachment, VaWebIntakeDraft
+from app.models import (
+    VaDeathRegister,
+    VaSubmissionAttachments,
+    VaWebIntakeAttachment,
+    VaWebIntakeDraft,
+    VaWebIntakeDraftSection,
+)
 from app.services import attachment_service
+from app.services import case_transition_service as cases
 from app.services.attachment_store import AttachmentStoreError
 from app.services.case_transition_service import WebIntakeError
 
@@ -269,22 +277,201 @@ def store_upload(
     return row, True
 
 
+_BLOBS_TO_DELETE = "web_intake_blobs_to_delete"
+
+
+def _delete_upload_rows(rows_and_forms: list[tuple[VaWebIntakeAttachment, str]]) -> None:
+    """Delete the rows and queue their objects for ``delete_committed_blobs``
+    (the discard path, where the caller's request commits).
+
+    The objects wait in ``session.info`` and go only after the caller's
+    commit, so a commit that fails leaves rows that still point at objects
+    that still exist (and a rollback drops the queue). Flushes. The purge does
+    not use this: it holds the case lock and removes objects before the commit
+    (``_purge_batch``).
+    """
+    queue = db.session().info.setdefault(_BLOBS_TO_DELETE, [])
+    for row, form_id in rows_and_forms:
+        queue.append((row.local_path, form_id, row.storage_name))
+        db.session.delete(row)
+    db.session.flush()
+
+
+def delete_committed_blobs() -> None:
+    """Remove the objects ``_delete_upload_rows`` queued; call it right after
+    the commit that deleted their rows. Both this and the purge remove an
+    object through ``_discard_blob`` -> ``cleanup_superseded``, which still
+    leaves an object any submission row holds and logs a failure (with the
+    storage token) instead of raising: the object becomes an orphan that
+    ``attachment integrity`` reports."""
+    for local_path, form_id, storage_name in db.session().info.pop(_BLOBS_TO_DELETE, ()):
+        _discard_blob(local_path, form_id, storage_name)
+
+
+@sa.event.listens_for(Session, "after_soft_rollback")
+def _drop_queued_blobs(session, previous_transaction):
+    if previous_transaction.parent is None:
+        session.info.pop(_BLOBS_TO_DELETE, None)
+
+
 def delete_draft_uploads(draft: VaWebIntakeDraft) -> int:
     """Delete the files uploaded for *draft* that no submission holds, and
     their stored objects; returns how many. For a discarded draft: its files
     would otherwise sit in the store, personal data nobody can reach. A file a
-    submission already links (same ``storage_name``) is left alone. Flushes;
-    the caller commits."""
+    submission already links (same ``storage_name``) keeps its object. Flushes;
+    the caller commits, then calls ``delete_committed_blobs``."""
     rows = db.session.scalars(
         sa.select(VaWebIntakeAttachment).where(VaWebIntakeAttachment.draft_id == draft.draft_id)
     ).all()
-    gone = [(r.local_path, draft.form_id, r.storage_name) for r in rows]
-    for row in rows:
+    _delete_upload_rows([(row, draft.form_id) for row in rows])
+    return len(rows)
+
+
+#: Owner decision 2026-10-06 (digitva-i9lb): uploads of an open draft untouched
+#: this long, and uploads no answer of their draft references any more, go.
+UPLOAD_RETENTION_DAYS = 30
+#: Files per transaction, and transactions per run: a run deletes at most
+#: ``PURGE_BATCH * PURGE_MAX_BATCHES`` files, the backlog goes on tomorrow.
+PURGE_BATCH = 500
+PURGE_MAX_BATCHES = 20
+PURGE_ACTION = "draft_attachments_purged"
+PURGE_REASON_IDLE = "idle_30d"
+PURGE_REASON_UNREFERENCED = "unreferenced_30d"
+
+
+def _candidates(cutoff: datetime, draft_ids: set[uuid.UUID] | None = None):
+    """The expired uploads (see ``_purge_batch``), oldest first, at most
+    ``PURGE_BATCH``, with the draft's form, case, owner and idle flag; limited
+    to *draft_ids* when given. Index: ``ix_va_web_intake_attachments_created_at``."""
+    up, draft = VaWebIntakeAttachment, VaWebIntakeDraft
+    # ponytail: substring test on the section JSON, ~15 small sections per draft; a
+    # reference nested in another structure still counts (keeps the file).
+    referenced = sa.exists().where(
+        VaWebIntakeDraftSection.draft_id == up.draft_id,
+        sa.func.strpos(sa.cast(VaWebIntakeDraftSection.data, sa.Text), sa.cast(up.client_attachment_id, sa.Text)) > 0,
+    )
+    linked = sa.exists().where(VaSubmissionAttachments.storage_name == up.storage_name)
+    idle = draft.updated_at < cutoff
+    stmt = (
+        sa.select(up, draft.form_id, draft.death_id, draft.user_id, idle)
+        .join(draft, draft.draft_id == up.draft_id)
+        .where(draft.status == "draft", up.created_at < cutoff, ~linked, sa.or_(idle, ~referenced))
+        .order_by(up.created_at, up.draft_id, up.client_attachment_id)
+        .limit(PURGE_BATCH)
+        .execution_options(populate_existing=True)
+    )
+    if draft_ids is not None:
+        stmt = stmt.where(draft.draft_id.in_(draft_ids))
+    return stmt
+
+
+def _lock_cases(case_ids: set[uuid.UUID]) -> dict[uuid.UUID, VaDeathRegister]:
+    """Lock the cases among *case_ids* nobody else holds (``SKIP LOCKED``, in
+    id order); a case in use is left to the next run."""
+    if not case_ids:
+        return {}
+    return {
+        d.death_id: d
+        for d in db.session.scalars(
+            sa.select(VaDeathRegister)
+            .where(VaDeathRegister.death_id.in_(case_ids))
+            .order_by(VaDeathRegister.death_id)
+            .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
+        )
+    }
+
+
+def _lock_drafts(draft_ids: set[uuid.UUID]) -> set[uuid.UUID]:
+    """Lock the drafts among *draft_ids* nobody else holds; returns those."""
+    if not draft_ids:
+        return set()
+    return set(db.session.scalars(
+        sa.select(VaWebIntakeDraft.draft_id)
+        .where(VaWebIntakeDraft.draft_id.in_(draft_ids))
+        .order_by(VaWebIntakeDraft.draft_id)
+        .with_for_update(skip_locked=True)
+    ))
+
+
+def _purge_batch(cutoff: datetime) -> int:
+    """Delete up to ``PURGE_BATCH`` expired uploads in one transaction; returns
+    the files deleted.
+
+    A file is expired when it is older than *cutoff*, its draft is still open
+    (``draft``), no submission row holds its object, and either the draft's
+    last answer save is older than *cutoff* or no section of the draft names
+    the file's id. Draft rows and answers are never touched; oldest first.
+
+    Locks are taken in the order every case writer (save, submit, discard)
+    uses: the case rows first, then the draft rows. Both are ``SKIP LOCKED``, so
+    the purge never waits (it cannot deadlock) and leaves a case or draft in use
+    to the next run. The candidates are then read again under the locks. Submit
+    links a file to its submission under the same case lock, so with the lock
+    held no link can appear: the purge removes each object (``_discard_blob``
+    still keeps one a submission row holds), then deletes the rows and one
+    audit row per draft, then commits. If the commit fails the rows remain, the
+    next run selects them again and deletes them (an object already gone is
+    tolerated), so no committed row ever points at a deleted object and no
+    object is orphaned.
+    """
+    first = db.session.execute(_candidates(cutoff)).all()
+    if not first:
+        return 0
+    deaths = _lock_cases({death_id for _row, _form, death_id, *_ in first if death_id})
+    # A draft with no case has no case lock to take; its own row lock is all there is.
+    lockable = {row.draft_id for row, _form, death_id, *_ in first if death_id is None or death_id in deaths}
+    held = _lock_drafts(lockable)
+    rows = db.session.execute(_candidates(cutoff, held)).all() if held else []
+    if not rows:
+        db.session.rollback()  # releases the locks taken
+        return 0
+
+    per_draft: dict[uuid.UUID, dict] = {}
+    for row, form_id, death_id, user_id, is_idle in rows:
+        entry = per_draft.setdefault(row.draft_id, {"death_id": death_id, "user_id": user_id, "idle": is_idle, "files": 0})
+        entry["files"] += 1
+        _discard_blob(row.local_path, form_id, row.storage_name)
         db.session.delete(row)
     db.session.flush()
-    for local_path, form_id, storage_name in gone:
-        _discard_blob(local_path, form_id, storage_name)
-    return len(gone)
+
+    for draft_id, entry in per_draft.items():
+        death = deaths.get(entry["death_id"])
+        if death is None:
+            # ponytail: no case, no audit table to write; the log is the record.
+            log.info("web intake upload purge: draft without a case, no audit row | draft=%s | files=%d", draft_id, entry["files"])
+            continue
+        reason = PURGE_REASON_IDLE if entry["idle"] else PURGE_REASON_UNREFERENCED
+        # The row needs an actor (the column is NOT NULL): the draft's interviewer.
+        cases.record_system_action(
+            death, actor_user_id=entry["user_id"], action=PURGE_ACTION, reason=f"{reason}: {entry['files']} file(s)",
+        )
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return len(rows)
+
+
+def purge_expired_uploads(now: datetime | None = None) -> dict[str, int]:
+    """Delete web intake uploads past the retention (``UPLOAD_RETENTION_DAYS``):
+    those of a draft untouched that long, and those no answer references any
+    more once older than that. Bounded: ``PURGE_MAX_BATCHES`` batches of
+    ``PURGE_BATCH``. Never deletes a file a submission holds or a draft.
+    Commits per batch; a failed batch raises with earlier ones kept. Returns
+    ``{"files": n, "batches": n}``; the caller logs counts only."""
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=UPLOAD_RETENTION_DAYS)
+    files = batches = 0
+    while batches < PURGE_MAX_BATCHES:
+        deleted = _purge_batch(cutoff)
+        if not deleted:
+            break
+        files += deleted
+        batches += 1
+        if deleted < PURGE_BATCH:
+            break
+    return {"files": files, "batches": batches}
 
 
 def _blob_mime(row: VaWebIntakeAttachment) -> str:

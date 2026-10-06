@@ -1633,7 +1633,7 @@ Migration `g4k8p2t6x1b5` (digitva-ej1). A file a web interviewer uploaded while 
 - `mime_type` — validated type of the uploaded original, decided from its leading bytes (an `.amr` is stored as an MP3 derivative)
 - `size_bytes`, `sha256` of the bytes received, `created_at` (timezone-aware)
 
-Indexes: the primary key; `uq_va_web_intake_attachments_storage_name` (unique). Discarding a draft deletes its rows and their stored objects; rows of submitted drafts stay (their objects are held by `va_submission_attachments`). Abandoned drafts' rows are the periodic purge's (`digitva-i9lb`).
+Indexes: the primary key; `uq_va_web_intake_attachments_storage_name` (unique); `ix_va_web_intake_attachments_created_at` (migration `h5m2r8v4z1d9`, the daily purge's age scan). Discarding a draft deletes its rows and their stored objects; rows of submitted drafts stay (their objects are held by `va_submission_attachments`). The daily purge (`digitva-i9lb`) deletes the rows of an open draft untouched for 30 days and rows no answer references after 30 days, never one a submission holds, and audits each draft as `draft_attachments_purged` in `map_case_transitions`.
 
 ### `map_project_site_odk`
 

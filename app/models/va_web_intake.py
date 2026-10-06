@@ -400,6 +400,8 @@ class VaWebIntakeAttachment(db.Model):
     __tablename__ = "va_web_intake_attachments"
     __table_args__ = (
         sa.Index("uq_va_web_intake_attachments_storage_name", "storage_name", unique=True),
+        # The daily purge (digitva-i9lb) selects uploads older than 30 days.
+        sa.Index("ix_va_web_intake_attachments_created_at", "created_at"),
     )
 
     draft_id: so.Mapped[uuid.UUID] = so.mapped_column(

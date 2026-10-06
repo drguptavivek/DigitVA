@@ -280,8 +280,44 @@ draft's interviewer, so a form can show a file the device no longer holds; it is
 served `no-store`, with `Content-Security-Policy: sandbox; default-src 'none'`,
 `nosniff`, and a PDF as `Content-Disposition: attachment`. Discarding a draft
 deletes the files uploaded for it, and their stored objects, in the same
-request (audited as `draft_attachments_deleted` on the case); the periodic
-purge of abandoned drafts' files is `digitva-i9lb`.
+request (audited as `draft_attachments_deleted` on the case; the objects are
+removed after the discard is committed).
+
+**Retention of uploads (owner, 2026-10-06, `digitva-i9lb`).** A daily task
+(`purge_web_intake_uploads_task`) deletes, from a draft that is still open
+(`draft`):
+
+- every uploaded file of a draft whose last answer save is more than **30
+  days** old (and the file itself more than 30 days old: uploading is
+  activity), and
+- any uploaded file **no answer of its draft references** any more, once the
+  file is more than 30 days old (the interviewer removed the answer).
+
+Never deleted: a file a submission holds (a `va_submission_attachments` row
+with the same `storage_name`: row and object stay), the draft itself and its
+answers, and anything of a submitted, discarded, superseded or replaced draft
+(a discard deletes its own files; a submitted draft's files are the
+submission's). The reference test is conservative: a file whose id appears
+anywhere in a section's saved answers counts as referenced. The run is
+bounded: batches of 500 files, at most 20 batches a day, the rest the next
+day. Per batch the purge locks the case rows, then the draft rows (the order
+save, submit and discard use; `SKIP LOCKED`, so it never waits and a case or
+draft in use waits for the next run), re-reads the candidates under the locks,
+removes each stored object (one a submission holds is still left alone; submit
+links files under the same case lock, so none can appear meanwhile), deletes
+the rows and writes the audit rows, then commits. A failed commit leaves the
+rows; the next run deletes them and tolerates the object already being gone,
+so no committed row points at a deleted object and no object is orphaned. A
+failed object removal is logged at warning with its storage token and leaves
+an orphan the integrity check reports. (A discard, where the interviewer is
+waiting, deletes its rows in the request and removes the objects after the
+commit.) Each draft touched in a batch gets one `map_case_transitions` row on
+its case (one per batch it appears in, so a draft with more than 500 old files
+has several), action `draft_attachments_purged`, state unchanged, actor the
+draft's interviewer (the column is not nullable), reason `idle_30d: <n>
+file(s)` or `unreferenced_30d: <n> file(s)`; counts only, never a filename or
+an answer. A draft with no case gets no audit row, only a log line with the
+draft id and the count. The log carries counts only.
 
 **Submit.** The answers hold `who-va-attachment:<client_attachment_id>`
 references (the page's attachment objects). At submit, each reference to a

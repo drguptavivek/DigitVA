@@ -19,6 +19,7 @@ This module only decides *which kind* of actor a transition needs.
 from __future__ import annotations
 
 import logging
+import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -385,6 +386,20 @@ def record_action(case: VaDeathRegister, *, actor: VaUsers, action: str, reason:
     who may act."""
     _audit(case, actor=actor, action=action, from_state=case.status, to_state=case.status,
            reason=_clean_reason(reason), grant=supervising_grant(actor, case), changes=changes)
+
+
+def record_system_action(case: VaDeathRegister, *, actor_user_id: uuid.UUID, action: str,
+                         reason: str | None = None) -> None:
+    """Audit an action a scheduled job took on *case* (state unchanged), with
+    no supervisor grant. *actor_user_id* is the person whose data the job
+    touched (the row needs an actor); *reason* is a short code and counts,
+    never personal data. No permission check."""
+    db.session.add(
+        MapCaseTransition(
+            death_id=case.death_id, action=action, from_state=case.status, to_state=case.status,
+            reason=_clean_reason(reason), actor_user_id=actor_user_id,
+        )
+    )
 
 
 def flag_case(case: VaDeathRegister, *, actor: VaUsers, kind: str, reason: str | None = None,

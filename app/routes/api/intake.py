@@ -502,6 +502,7 @@ def discard_draft(draft_id):
     draft = intake_svc.get_draft(current_user, draft_id, require_open=True)
     intake_svc.discard_draft(draft, current_user)
     db.session.commit()
+    attachments_svc.delete_committed_blobs()  # the files go only once the discard is committed
     return jsonify({"draft": intake_svc.serialize_draft(draft)})
 
 

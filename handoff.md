@@ -32,13 +32,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **Dev DB upgrade owed**: migration `e9h3k6p2s8v4` (data only: 429 Hindi
-   machine drafts of guidance and constraint messages, `689bb139`) is not yet
-   applied to the dev DB; dev head is `d8q4e1h6n3v9`. The owner runs
-   `docker compose exec -T minerva_app_service uv run --no-sync flask db upgrade`
-   (a writer's attempt was refused by the permission check). Other locales
-   still need drafts; then `digitva-zyf` (DORIS override messages; needs a
-   vendor regeneration by the Expo session).
+1. **Translation drafts**: dev is at `e9h3k6p2s8v4` (429 Hindi machine
+   drafts of guidance and constraint messages, `689bb139`; a Hindi reader
+   accepts them in the translations editor). Other locales still need
+   drafts; then `digitva-zyf` (DORIS override messages; needs a vendor
+   regeneration by the Expo session).
 2. **Owner decisions that unlock backend work** (policy is silent; ask one
    at a time):
    - `digitva-t6q` death_reporter role: does a reporter see or edit the

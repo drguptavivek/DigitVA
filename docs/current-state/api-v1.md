@@ -320,6 +320,56 @@ unmasked project) and the DORIS conflicts `DORIS_CERTIFICATE_CHANGED` (carries
 route always had: 403 on start and the saves (400 for a masked final without
 Step 1), 409 on reviewer release and when a release lands during a final save.
 
+## Coder pick list and history (`GET /api/v1/coding/available|history`, `app/routes/api/coding.py`)
+
+Gate `coder`, `coding_tester` or `admin`. Paging is opt-in, because the web
+coder dashboard (`va_code_dashboard.js`) reads both lists whole and renders
+them in a client-side table: **without `limit` the body is exactly what it was**
+(`{forms, count}`, `{history, count}`, every row key unchanged).
+
+| Parameter | Rule |
+| --- | --- |
+| `limit` | 1 to 200. Switches paging on. |
+| `offset` | 0 to 1,000,000, with `limit` only; `offset` alone is 400. |
+| `project_id` | Optional, upper-cased, at most 64 characters. Narrows to one project **within** the caller's own reach: a project the caller holds no grant on answers an empty list (`forms` / `history` `[]`), never its rows. Works with or without `limit`. |
+
+With `limit` the body is `{forms|history, count, limit, offset, has_more}`;
+`count` is the page's size and `has_more` is answered by fetching one extra
+row, so there is no total. A bad parameter is 400 `invalid_request`.
+Same rows, same keys and the same authorization as the unpaged body.
+
+- `/available` order is project, site, submission date, masked id, `va_sid`
+  (the last added, so a page boundary never splits equal rows). The pool is
+  live: a case another coder takes between two pages shifts the later pages
+  by one, so a client that must not miss a case refetches from `offset=0`.
+- `/history` is the demo rows first (`is_demo`, unexpired), then the caller's
+  own finals and not-codeable reviews on cases they may still view, newest
+  coding date first, ties broken by submission date, status (completed
+  before not-codeable), `va_sid` and row id, so pages never gap or repeat.
+  `recodeable` is set on each page row. A paged request bypasses the five
+  minute dashboard cache and reads the current rows.
+- Cost: `limit` and `offset` run in SQL (`LIMIT`/`OFFSET` over a UNION of the
+  two history tables, and on the pick query), at most about a dozen queries
+  whatever the size; the history sort reads only the caller's own rows
+  (`va_finassess_by` index), the pick query the caller's pick-mode forms
+  (`va_form_id` index). No migration.
+
+## Workflow events (`GET /api/v1/workflow/events/<va_sid>`, `app/routes/api/workflow.py`)
+
+Any signed-in user; authorized by `READ_EVENTS` (the submission's VIEW scope):
+403 `forbidden`, 404 `not_found`, unchanged by paging. Without `limit` the body
+is unchanged: `{va_sid, events}`, every event, **oldest first**. With `limit`
+(1 to 200) it is a newest-first page: `{va_sid, events, limit, next_cursor}`;
+pass `next_cursor` back as `cursor` for the next older page, `null` on the last
+(also when the last page is exactly full). The cursor is opaque, the last
+event's `(event_created_at, event_id)`, so events that share an instant never
+gap or repeat, and a new event arriving during the walk cannot shift it.
+`cursor` without `limit`, a malformed `cursor` or a bad `limit` is 400
+`invalid_request`. An event row is `event_id`, `transition_id`,
+`previous_state`, `current_state`, `actor_kind`, `actor_role`,
+`transition_reason`, `event_created_at`. One query, an index range scan on
+`(va_sid, event_created_at)`.
+
 ## Reviewer queue (`GET /api/v1/reviewing/stats|available|history`, `app/routes/api/reviewing.py`)
 
 The reviewer dashboard's reads for any client, from

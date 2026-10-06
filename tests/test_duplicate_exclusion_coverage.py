@@ -51,7 +51,7 @@ PREDICATE_PATTERN = re.compile(
 #: Shared builders that apply the predicate for their callers.
 COVERED_HELPERS = frozenset({
     "services/coder_workflow_service.py::_available_submission_filters",
-    "services/coder_workflow_service.py::get_pick_available_forms",
+    "services/coder_workflow_service.py::_pick_available_stmt",
     "services/submission_analytics_mv.py::_mv_scope_filter",
     "services/submission_analytics_mv.py::build_dm_mv_filter_conditions",
     "services/data_management_service.py::_dm_submission_query_parts",

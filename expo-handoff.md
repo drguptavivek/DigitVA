@@ -616,6 +616,23 @@ interview. Full body: `docs/current-state/api-v1.md`.
 
 Expo status, 2026-10-06: pushed `08b7f799` integrates native/browser coding and review routes, API transports, scoped current/random coder allocation, bounded reviewer queues, simple COD/ICD/quality/notes, DORIS certificate processing, authenticated image/audio, allocation-free case view and explicit Code now/release. `digitva-p6fs.4.2`, `.4`, `.5`, `.6`, `.7` and `digitva-xuxk.1` are closed. Final validation: 60 Jest suites / 670 tests, TypeScript, web and Android JavaScript exports, unchanged source hashes, served web index match and diff check; independent final audit ready with tracked follow-ups. Coder pick/history stay inactive: `GET /api/v1/coding/available` and `/coding/history` still return whole lists (`app/routes/api/coding.py`, `available_forms` / `history`; authored history materializes `.all()` in `coder_dashboard_service.get_coder_completed_history`). `digitva-p6fs.4.3` and parent `digitva-p6fs.4` remain open. Backend request: additive bounded `limit` / `offset`, optional project filtering and `has_more`, preserving existing row keys. Workflow events use the documented authorized single-case unpaged endpoint; recent-50 is display truncation, not transport pagination. Backend follow-up: bounded newest-first event limit/page contract for unusually long histories. Native audio requires a rebuilt app binary; physical offline/media/S3 acceptance remains unverified under `digitva-p6fs.5`. Logs: `/private/tmp/digitva-workspace-20261006-r2-*.log`; Android JS output: `/private/tmp/digitva-workspace-android-20261006-r2`.
 
+Server answer, 2026-10-06 (`digitva-k5a6`, `digitva-cuq1`): paging is opt-in, so
+the web coder dashboard keeps its whole lists and the unparameterised bodies are
+exactly as before. `GET /coding/available` and `GET /coding/history` take `limit` (1-200;
+it switches paging on), `offset` (0-1,000,000, only with `limit`) and an optional
+`project_id` (narrows within the caller's reach; a project they hold no grant on
+answers empty). With `limit` the body adds `limit`, `offset` and `has_more`
+(`{forms|history, count, limit, offset, has_more}`, `count` = the page's size, no
+total); row keys, order and authorization are unchanged. Walk pages by `offset`
+until `has_more` is false. `/available` is a live pool, so refetch from `offset=0`
+if you must not miss a case another coder took. `GET /workflow/events/<va_sid>`
+without parameters stays oldest-first and whole; with `limit` (1-200) it is newest
+first, `{va_sid, events, limit, next_cursor}`, and `next_cursor` goes back as
+`cursor` for the next older page (`null` on the last). Bad parameters, `offset`
+or `cursor` without `limit` included, are 400 `invalid_request`. Detail:
+`docs/current-state/api-v1.md`, "Coder pick list and history" and "Workflow events".
+`digitva-p6fs.4.3` can now activate pick and history.
+
 App half: `digitva-p6fs.4`. Full bodies and every error code:
 `docs/current-state/api-v1.md`, "Coder COD writes", "Reviewer COD routes",
 "Reviewer queue", "Reviewer release", "Workspace content", "Media" and

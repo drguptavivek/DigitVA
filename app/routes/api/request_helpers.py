@@ -52,6 +52,53 @@ def error(message, code=None, status_code=400, **extra):
     return jsonify({"error": message, "code": code or status_code_name(status_code), **extra}), status_code
 
 
+#: Page-size ceiling of the optional-paging list routes (``GET /coding/available``,
+#: ``/coding/history``, ``/workflow/events/<sid>``); ``limit`` is clamped by
+#: refusal (400), not silently.
+MAX_PAGE_LIMIT = 200
+_MAX_PAGE_OFFSET = 1_000_000
+_MAX_PROJECT_ID = 64
+
+
+class BadQuery(ValueError):
+    """A query parameter a list route refuses: answer 400 ``invalid_request``."""
+
+
+def _int_arg(name: str, low: int, high: int) -> int | None:
+    raw = request.args.get(name)
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        raise BadQuery(f"{name} must be a whole number.") from None
+    if not low <= value <= high:
+        raise BadQuery(f"{name} must be between {low} and {high}.")
+    return value
+
+
+def optional_page_args() -> tuple[int | None, int]:
+    """``(limit, offset)`` of a route whose paging is opt-in.
+
+    ``limit`` (1..``MAX_PAGE_LIMIT``) switches paging on; without it the route
+    answers its unpaged body, so ``offset`` alone is refused rather than
+    guessed at. Raises ``BadQuery``.
+    """
+    limit = _int_arg("limit", 1, MAX_PAGE_LIMIT)
+    offset = _int_arg("offset", 0, _MAX_PAGE_OFFSET)
+    if limit is None and offset is not None:
+        raise BadQuery("offset requires limit.")
+    return limit, offset or 0
+
+
+def project_filter_arg() -> str | None:
+    """The optional ``project_id`` filter, upper-cased as ``/coding/stats`` reads it."""
+    project_id = (request.args.get("project_id") or "").strip().upper() or None
+    if project_id and len(project_id) > _MAX_PROJECT_ID:
+        raise BadQuery("project_id is too long.")
+    return project_id
+
+
 def intake_error(exc: intake_svc.WebIntakeError):
     return error(str(exc), exc.code or INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code)
 

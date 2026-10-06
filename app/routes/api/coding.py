@@ -12,6 +12,7 @@ from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
     get_coder_demo_history,
+    get_coder_history_page,
     get_coder_output_summary,
     get_coder_project_options,
     get_coder_project_ids,
@@ -26,6 +27,7 @@ from app.services.coder_workflow_service import (
     allocate_random_form,
     get_coder_ready_stats,
     get_pick_available_forms,
+    get_pick_available_page,
     is_upstream_recode,
     require_active_coding_allocation,
     mark_reviewer_eligible_after_recode_window_submissions,
@@ -34,7 +36,14 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.routes.api.request_helpers import error as api_error, intake_error, parse_body
+from app.routes.api.request_helpers import (
+    BadQuery,
+    error as api_error,
+    intake_error,
+    optional_page_args,
+    parse_body,
+    project_filter_arg,
+)
 from app.services import smartva_service
 from app.services.authz import Action, Reason, can
 from app.services.coder_cod_service import (
@@ -559,11 +568,32 @@ def not_codeable(va_sid):
 @bp.get("/available")
 @role_required("coder", "coding_tester", "admin")
 def available_forms():
-    """Return forms available for pick-mode coding."""
+    """Return forms available for pick-mode coding.
+
+    Without ``limit``: the whole list, ``{forms, count}`` (the web dashboard).
+    With ``limit`` (1..200) and optional ``offset`` (>= 0): one page,
+    ``{forms, count, limit, offset, has_more}``, ``count`` the page's size.
+    ``project_id`` narrows either form to one project of the caller's reach
+    (another project's id answers an empty list). 400 ``invalid_request`` for
+    a bad parameter, ``offset`` without ``limit`` included.
+    """
+    try:
+        limit, offset = optional_page_args()
+        project_id = project_filter_arg()
+    except BadQuery as exc:
+        return api_error(str(exc), "invalid_request", 400)
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
-    forms = get_pick_available_forms(current_user, pick_form_ids)
-    return jsonify({"forms": forms, "count": len(forms)})
+    if limit is None:
+        forms = get_pick_available_forms(current_user, pick_form_ids, project_id)
+        return jsonify({"forms": forms, "count": len(forms)})
+    forms, has_more = get_pick_available_page(
+        current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id
+    )
+    return jsonify({
+        "forms": forms, "count": len(forms), "limit": limit, "offset": offset,
+        "has_more": has_more,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -589,8 +619,29 @@ def stats():
 @bp.get("/history")
 @role_required("coder", "coding_tester", "admin")
 def history():
-    """Return the coder's completed coding history with recodeable flags."""
+    """Return the coder's completed coding history with recodeable flags.
+
+    Without ``limit``: the whole list, ``{history, count}`` (the web
+    dashboard). With ``limit`` (1..200) and optional ``offset`` (>= 0): one
+    page of the same rows in the same order, ``{history, count, limit,
+    offset, has_more}``, ``count`` the page's size. ``project_id`` narrows
+    either form to one project of the caller's reach. 400 ``invalid_request``
+    for a bad parameter, ``offset`` without ``limit`` included.
+    """
+    try:
+        limit, offset = optional_page_args()
+        project_id = project_filter_arg()
+    except BadQuery as exc:
+        return api_error(str(exc), "invalid_request", 400)
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
+    if limit is not None:
+        rows, has_more = get_coder_history_page(
+            current_user, va_form_access, limit=limit, offset=offset, project_id=project_id
+        )
+        return jsonify({
+            "history": rows, "count": len(rows), "limit": limit, "offset": offset,
+            "has_more": has_more,
+        })
     rows = get_coder_completed_history(current_user, va_form_access)
     recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))
     for row in rows:
@@ -599,6 +650,8 @@ def history():
     for row in demo_rows:
         row["recodeable"] = False
     rows = [*demo_rows, *rows]
+    if project_id:
+        rows = [row for row in rows if row["project_id"] == project_id]
     return jsonify({"history": rows, "count": len(rows)})
 
 

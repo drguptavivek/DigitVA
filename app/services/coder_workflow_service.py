@@ -143,7 +143,7 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
         ) or 0
 
     random_ready = _count_ready(random_form_ids) if random_form_ids else 0
-    pick_ready = len(get_pick_available_forms(user, pick_form_ids)) if pick_form_ids else 0
+    pick_ready = count_pick_available(user, pick_form_ids) if pick_form_ids else 0
 
     return {
         "random_ready": random_ready,
@@ -1185,12 +1185,10 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
     return AllocationResult(va_sid=va_new_sid, actiontype="vademo_start_coding")
 
 
-def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
-    """Return submissions available for pick-mode coding, ordered for display."""
-    if not pick_form_ids:
-        return []
-
-    stmt = (
+def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None = None):
+    """The pick list's query: ordered for display, ``va_sid`` last so a page
+    boundary never falls between equal rows. Callers add the page's bounds."""
+    return (
         sa.select(
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
@@ -1206,7 +1204,7 @@ def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(
-            *_available_submission_filters(pick_form_ids, user=user),
+            *_available_submission_filters(pick_form_ids, project_id=project_id, user=user),
             # The gates allocate_pick_form enforces, so the list agrees (F16).
             *_coding_gate_filters(pick_form_ids, user),
         ))
@@ -1215,13 +1213,65 @@ def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
             VaForms.site_id,
             VaSubmissions.va_submission_date,
             VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_sid,
         )
     )
+
+
+def get_pick_available_forms(
+    user, pick_form_ids: list[str], project_id: str | None = None
+) -> list[dict]:
+    """Return submissions available for pick-mode coding, ordered for display.
+
+    Unpaged: the web dashboard reads the whole list. *project_id* only narrows
+    the pool the caller's own scope already allows. See
+    ``get_pick_available_page`` for the bounded form.
+    """
+    if not pick_form_ids:
+        return []
     from app.utils import va_render_serialisedates
     return [
         va_render_serialisedates(row, ["va_submission_date"])
-        for row in db.session.execute(stmt).mappings().all()
+        for row in db.session.execute(
+            _pick_available_stmt(user, pick_form_ids, project_id)
+        ).mappings().all()
     ]
+
+
+def count_pick_available(user, pick_form_ids: list[str]) -> int:
+    """Size of the pick list, counted in SQL: the same rows as
+    ``get_pick_available_forms``, none of them materialized."""
+    if not pick_form_ids:
+        return 0
+    stmt = _pick_available_stmt(user, pick_form_ids).order_by(None).subquery()
+    return db.session.scalar(sa.select(sa.func.count()).select_from(stmt)) or 0
+
+
+def get_pick_available_page(
+    user,
+    pick_form_ids: list[str],
+    *,
+    limit: int,
+    offset: int,
+    project_id: str | None = None,
+) -> tuple[list[dict], bool]:
+    """One page of the pick list and whether more follow.
+
+    Same rows and order as ``get_pick_available_forms``; ``limit + 1`` rows are
+    fetched to answer ``has_more`` without a count. OFFSET is a position in a
+    live pool: a case another coder takes between two pages shifts the later
+    ones by one, so a client that must not skip refetches the first page.
+    """
+    if not pick_form_ids:
+        return [], False
+    from app.utils import va_render_serialisedates
+    rows = db.session.execute(
+        _pick_available_stmt(user, pick_form_ids, project_id).limit(limit + 1).offset(offset)
+    ).mappings().all()
+    return (
+        [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]],
+        len(rows) > limit,
+    )
 
 
 def is_upstream_recode(va_sid: str) -> bool:

@@ -177,91 +177,103 @@ def get_coder_not_codeable_count(user_id, accessible_form_ids: Sequence[str]) ->
     return get_coder_output_summary(user_id)["not_codeable"]
 
 
-def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> list[dict]:
-    """Return cached coder history rows for non-demo authored outputs.
+def _history_selects(user, scoped_form_ids, project_id: str | None = None):
+    """The two history queries (coder finals, coder reviews), one row shape.
 
     Only submissions *user* may still VIEW (what the history's view link
     opens): authoring an outcome grants nothing once the case is rerouted
-    out of the user's unit, even on a form they still hold.
+    out of the user's unit, even on a form they still hold. *project_id* only
+    narrows what that scope already allows.
     """
     from app.services.authz import Action, scope_filter
 
+    user_id = user.user_id
+    view_scope = scope_filter(user, Action.VIEW)
+    final_sel = (
+        sa.select(
+            VaForms.project_id.label("project_id"),
+            VaForms.site_id.label("site_id"),
+            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            VaSubmissions.va_form_id,
+            VaSubmissions.va_sid,
+            VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_deceased_age,
+            VaSubmissions.va_deceased_gender,
+            VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
+            sa.literal("VA Coding Completed").label("va_code_status"),
+            VaFinalAssessments.is_tester,
+        )
+        .select_from(VaFinalAssessments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaFinalAssessments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaFinalAssessments.va_finassess_by == user_id,
+            # A tester's own test codings are stored deactive; they stay
+            # in their history, labelled, never in the KPIs (digitva-ggc3).
+            sa.or_(
+                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                VaFinalAssessments.is_tester.is_(True),
+            ),
+            VaSubmissions.va_form_id.in_(scoped_form_ids),
+            view_scope,
+        )
+    )
+    review_sel = (
+        sa.select(
+            VaForms.project_id.label("project_id"),
+            VaForms.site_id.label("site_id"),
+            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            VaSubmissions.va_form_id,
+            VaSubmissions.va_sid,
+            VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_deceased_age,
+            VaSubmissions.va_deceased_gender,
+            VaCoderReview.va_creview_createdat.label("va_coding_date"),
+            sa.literal("Not Codeable").label("va_code_status"),
+            VaCoderReview.is_tester,
+        )
+        .select_from(VaCoderReview)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaCoderReview.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaCoderReview.va_creview_by == user_id,
+            sa.or_(
+                VaCoderReview.va_creview_status == VaStatuses.active,
+                VaCoderReview.is_tester.is_(True),
+            ),
+            VaSubmissions.va_form_id.in_(scoped_form_ids),
+            view_scope,
+        )
+    )
+    if project_id:
+        final_sel = final_sel.where(VaForms.project_id == project_id)
+        review_sel = review_sel.where(VaForms.project_id == project_id)
+    return final_sel, review_sel
+
+
+def _history_row(row) -> dict:
+    serialized = va_render_serialisedates(dict(row), ["va_submission_date"])
+    coding_date = serialized.get("va_coding_date")
+    serialized["va_coding_date"] = coding_date.isoformat() if coding_date else ""
+    return serialized
+
+
+def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> list[dict]:
+    """Return cached coder history rows for non-demo authored outputs.
+
+    The whole list, for the web dashboard; ``get_coder_history_page`` is the
+    bounded form.
+    """
     user_id = user.user_id
     scoped_form_ids = _exclude_demo_form_ids(accessible_form_ids)
     if not scoped_form_ids:
         return []
 
     def compute():
-        view_scope = scope_filter(user, Action.VIEW)
-        final_rows = db.session.execute(
-            sa.select(
-                VaForms.project_id.label("project_id"),
-                VaForms.site_id.label("site_id"),
-                sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
-                VaSubmissions.va_form_id,
-                VaSubmissions.va_sid,
-                VaSubmissions.va_uniqueid_masked,
-                VaSubmissions.va_deceased_age,
-                VaSubmissions.va_deceased_gender,
-                VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
-                sa.literal("VA Coding Completed").label("va_code_status"),
-                VaFinalAssessments.is_tester,
-            )
-            .select_from(VaFinalAssessments)
-            .join(VaSubmissions, VaSubmissions.va_sid == VaFinalAssessments.va_sid)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(
-                VaFinalAssessments.va_finassess_by == user_id,
-                # A tester's own test codings are stored deactive; they stay
-                # in their history, labelled, never in the KPIs (digitva-ggc3).
-                sa.or_(
-                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
-                    VaFinalAssessments.is_tester.is_(True),
-                ),
-                VaSubmissions.va_form_id.in_(scoped_form_ids),
-                view_scope,
-            )
-        ).mappings().all()
-
-        review_rows = db.session.execute(
-            sa.select(
-                VaForms.project_id.label("project_id"),
-                VaForms.site_id.label("site_id"),
-                sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
-                VaSubmissions.va_form_id,
-                VaSubmissions.va_sid,
-                VaSubmissions.va_uniqueid_masked,
-                VaSubmissions.va_deceased_age,
-                VaSubmissions.va_deceased_gender,
-                VaCoderReview.va_creview_createdat.label("va_coding_date"),
-                sa.literal("Not Codeable").label("va_code_status"),
-                VaCoderReview.is_tester,
-            )
-            .select_from(VaCoderReview)
-            .join(VaSubmissions, VaSubmissions.va_sid == VaCoderReview.va_sid)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(
-                VaCoderReview.va_creview_by == user_id,
-                sa.or_(
-                    VaCoderReview.va_creview_status == VaStatuses.active,
-                    VaCoderReview.is_tester.is_(True),
-                ),
-                VaSubmissions.va_form_id.in_(scoped_form_ids),
-                view_scope,
-            )
-        ).mappings().all()
-
-        rows = []
-        for row in [*final_rows, *review_rows]:
-            serialized = va_render_serialisedates(
-                dict(row),
-                ["va_submission_date"],
-            )
-            coding_date = serialized.get("va_coding_date")
-            serialized["va_coding_date"] = (
-                coding_date.isoformat() if coding_date else ""
-            )
-            rows.append(serialized)
+        final_sel, review_sel = _history_selects(user, scoped_form_ids)
+        final_rows = db.session.execute(final_sel).mappings().all()
+        review_rows = db.session.execute(review_sel).mappings().all()
+        rows = [_history_row(row) for row in [*final_rows, *review_rows]]
         rows.sort(
             key=lambda row: (
                 row.get("va_coding_date") or "",
@@ -282,18 +294,10 @@ def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> lis
     )
 
 
-def get_coder_demo_history(user_id) -> list[dict]:
-    """Return the coder's demo final codes that have not expired yet.
-
-    Demo work is kept out of the cached history and KPIs, but a trainee
-    should still find what they just saved. Rows are read uncached so each
-    disappears when its retention ends, matching the cleanup task's naive
-    UTC comparison. Demo projects need no grant, so rows are scoped by
-    author, not form access. Not-codeable reviews carry no demo expiry and
-    are left out.
-    """
+def _demo_history_stmt(user_id, project_id: str | None = None):
+    """Unexpired demo finals of *user_id*; see ``get_coder_demo_history``."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    rows = db.session.execute(
+    stmt = (
         sa.select(
             VaForms.project_id.label("project_id"),
             VaForms.site_id.label("site_id"),
@@ -316,21 +320,112 @@ def get_coder_demo_history(user_id) -> list[dict]:
             VaFinalAssessments.demo_expires_at > now,
             VaProjectMaster.demo_training_enabled.is_(True),
         )
-        .order_by(VaFinalAssessments.va_finassess_createdat.desc())
+    )
+    if project_id:
+        stmt = stmt.where(VaForms.project_id == project_id)
+    return stmt
+
+
+def _demo_history_row(row) -> dict:
+    item = va_render_serialisedates(dict(row), ["va_submission_date"])
+    item["va_coding_date"] = row["va_coding_date"].isoformat()
+    # Stored as naive UTC; the Z lets the browser show local time.
+    item["demo_expires_at"] = row["demo_expires_at"].isoformat() + "Z"
+    item["va_code_status"] = "VA Coding Completed"
+    item["is_demo"] = True
+    return item
+
+
+def get_coder_history_page(
+    user,
+    accessible_form_ids: Sequence[str],
+    *,
+    limit: int,
+    offset: int,
+    project_id: str | None = None,
+) -> tuple[list[dict], bool]:
+    """One page of the coder's history and whether more follow.
+
+    The list ``GET /coding/history`` serves whole: demo rows first, then the
+    authored outputs newest first. Ordered by coding date, submission date,
+    status (completed before not-codeable), ``va_sid`` and the row id, so a
+    page boundary never falls between ties. Bounds go into SQL, a constant
+    number of queries whatever the history's size; the cached full list is not
+    read. ``recodeable`` is set on each row. ``limit + 1`` rows answer
+    ``has_more`` without a count.
+    """
+    user_id = user.user_id
+    demo_stmt = _demo_history_stmt(user_id, project_id)
+    demo_total = db.session.scalar(
+        sa.select(sa.func.count()).select_from(demo_stmt.order_by(None).subquery())
+    )
+    demo_rows = db.session.execute(
+        demo_stmt.order_by(VaFinalAssessments.va_finassess_createdat.desc(), VaFinalAssessments.va_finassess_id.desc())
+        .limit(limit + 1)
+        .offset(offset)
     ).mappings().all()
-    history = []
+    rows = [_demo_history_row(row) for row in demo_rows]
     for row in rows:
-        item = va_render_serialisedates(dict(row), ["va_submission_date"])
-        item["va_coding_date"] = row["va_coding_date"].isoformat()
-        # Stored as naive UTC; the Z lets the browser show local time.
-        item["demo_expires_at"] = row["demo_expires_at"].isoformat() + "Z"
-        item["va_code_status"] = "VA Coding Completed"
-        item["is_demo"] = True
-        history.append(item)
-    return history
+        row["recodeable"] = False
+
+    real_rows: list[dict] = []
+    need = limit + 1 - len(rows)
+    scoped_form_ids = _exclude_demo_form_ids(accessible_form_ids)
+    if need > 0 and scoped_form_ids:
+        final_sel, review_sel = _history_selects(user, scoped_form_ids, project_id)
+        union = sa.union_all(
+            final_sel.add_columns(VaFinalAssessments.va_finassess_id.label("row_id")),
+            review_sel.add_columns(VaCoderReview.va_creview_id.label("row_id")),
+        ).subquery()
+        page = db.session.execute(
+            sa.select(union)
+            .order_by(
+                union.c.va_coding_date.desc(),
+                union.c.va_submission_date.desc().nulls_last(),
+                union.c.va_code_status.desc(),
+                union.c.va_sid.desc(),
+                union.c.row_id.desc(),
+            )
+            .limit(need)
+            .offset(max(0, offset - demo_total))
+        ).mappings().all()
+        for row in page:
+            item = _history_row({k: v for k, v in row.items() if k != "row_id"})
+            real_rows.append(item)
+        recodeable = set(
+            get_coder_recodeable_sids(
+                user,
+                accessible_form_ids,
+                sids=[item["va_sid"] for item in real_rows[:limit]],
+            )
+        )
+        for item in real_rows:
+            item["recodeable"] = item["va_sid"] in recodeable
+    rows.extend(real_rows)
+    return rows[:limit], len(rows) > limit
 
 
-def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[str]:
+def get_coder_demo_history(user_id) -> list[dict]:
+    """Return the coder's demo final codes that have not expired yet.
+
+    Demo work is kept out of the cached history and KPIs, but a trainee
+    should still find what they just saved. Rows are read uncached so each
+    disappears when its retention ends, matching the cleanup task's naive
+    UTC comparison. Demo projects need no grant, so rows are scoped by
+    author, not form access. Not-codeable reviews carry no demo expiry and
+    are left out.
+    """
+    rows = db.session.execute(
+        _demo_history_stmt(user_id).order_by(
+            VaFinalAssessments.va_finassess_createdat.desc()
+        )
+    ).mappings().all()
+    return [_demo_history_row(row) for row in rows]
+
+
+def get_coder_recodeable_sids(
+    user, accessible_form_ids: Sequence[str], sids: Sequence[str] | None = None
+) -> list[str]:
     """Return recently finalized SIDs that are eligible for recode.
 
     The same rule ``recode_limit_error`` applies when the recode starts
@@ -340,10 +435,13 @@ def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[
     already re-coded once is not offered again. And the same scope:
     only submissions *user* may RECODE (authz), so a case rerouted out of
     their unit is not offered on a form they still hold.
+
+    *sids*, when given, narrows the answer to those submissions (a page's
+    rows), in the same one query.
     """
     from app.services.authz import Action, scope_filter
 
-    if not accessible_form_ids:
+    if not accessible_form_ids or (sids is not None and not sids):
         return []
     user_id = user.user_id
 
@@ -410,6 +508,8 @@ def get_coder_recodeable_sids(user, accessible_form_ids: Sequence[str]) -> list[
             finals_in_window + reviews_in_window <= 1,
         )
     )
+    if sids is not None:
+        stmt = stmt.where(VaSubmissions.va_sid.in_(sids))
     return db.session.scalars(stmt).all()
 
 

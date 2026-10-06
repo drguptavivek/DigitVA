@@ -629,6 +629,26 @@ audit tier granted_at, granted_by, last_sign_in_at, flags), cells as the state
 word or empty, text cells starting with `=`, `+`, `-` or `@` prefixed with `'`.
 Rate limit 20 per minute (JSON 120). Tests: `tests/test_people_roles.py`.
 
+## Translation suggestions (`/api/v1/translations`, `app/routes/api/translation_suggestions.py`)
+
+Questionnaire translations for grant holders (digitva-5op; policy
+`docs/policy/va-form-project-configuration.md`, "District review and
+suggestions"). Cookie session, CSRF on POST, `{error, code}` errors; authz is
+decided before any parameter is read.
+
+| Route | |
+|---|---|
+| `GET /translations/<project_id>` | `{project_id, instrument_code, can_decide, locales: [{code, label}]}`: the project's served locales only, never `en` or a draft locale. 404 without a grant in the project. |
+| `GET /translations/<project_id>/<locale>/questions?q&page&page_size` | The questions in form order with English and the served translation (`page_size` at most 50); machine drafts are blank. |
+| `POST /translations/<project_id>/<locale>/suggestions` | Body `item_kind`, `item_key`, `field`, `proposed_text`, `reason`. 201 `{id, status}`. 400 `invalid_request`; 404; 409 `already_pending` (one pending per user and string) or `too_many_pending` (50 per user); 422 `invalid_translation`; 429 (30 per hour per user). |
+| `GET /translations/suggestions?project_id&locale&limit&offset` | The pending queue the caller may decide (admin: all; project PI: own projects, locales the project serves): `{total, limit, offset, items}`; `total` is the badge. 403 for anyone else. |
+| `POST /translations/suggestions/<id>/accept`, `/reject` | Body `note` optional. 200 `{id, status, version, changes_all_projects}`. 404 (not the caller's to decide), 403 (locale not served by the caller's project; `own_suggestion` when a PI accepts their own), 409 `already_decided` or `stale` `{current_text}`, 422 `invalid_translation` or a reference mismatch. Accepting changes the language for every project that serves it. |
+
+Translation text is validated in `update_string` for every writer (admin
+editor and accepted suggestions): `${name}` references only as in the English
+string, markup only as in the English string, links only http(s), no control
+characters other than tab and line ends.
+
 ## GET /api/v1/me/access (body)
 
 The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache-Control: no-store`.

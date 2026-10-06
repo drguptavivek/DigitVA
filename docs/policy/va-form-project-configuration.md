@@ -761,6 +761,62 @@ error rather than the demotion refusal masking it. The import report names
 the demotion (`"demoted": true`), so it shows up in CLI output and in the
 logged `instrument locale demoted by import` line.
 
+### District review and suggestions (decided 2026-10-06, `digitva-5op`)
+
+**Anyone granted on a project can read its questionnaire translations and
+suggest a wording; only an administrator or that project's PI changes one.**
+
+| Who | May |
+| --- | --- |
+| Any user with an active grant in the project, any role, scope or level | Read, side by side with the English, the questionnaire strings of the locales **the project serves**, in form order, and suggest a wording for one string (proposed text and a reason) |
+| An administrator | Accept or reject any pending suggestion |
+| The project's `project_pi` | Accept or reject a pending suggestion **made in that project**, for a locale **that project still serves** |
+| Everyone else | Nothing: no grant in the project is a 404, as for the people-and-roles page |
+
+* **Read.** The reader sees English and the *served* translation only: a
+  `machine` draft is shown as "not yet translated", exactly as it is absent
+  from the served payload. A locale is readable when the project's
+  `web_intake_available_locales` (NULL: every servable one) offers it and it
+  is active or `in_review`; never `draft`, never `en`. Pages are bounded
+  (page size clamped server-side).
+* **No direct editing by district staff.** A suggestion changes nothing until
+  it is accepted. Instrument strings only: the Android app's own interface
+  strings (`hi.json`) are not covered.
+* **A suggestion records what its author saw.** `seen_text` is the served
+  translation (NULL for none) at the time of the suggestion, taken by the
+  server, never from the client. One pending suggestion per user and string.
+  Length caps: the proposed text `MAX_TRANSLATION_TEXT_CHARS`, the reason 1000
+  characters. Rate-limited per user.
+* **Accept writes through the one edit path**, `update_string`: the string
+  becomes the proposed text with `source = 'edited'`, the key is re-checked
+  against the reference form, and the locale's version moves, so the edit
+  reaches interviewers like any other. **Accept is refused with 409 when the
+  served translation is no longer what the suggester saw**; reject it, or ask
+  for a fresh suggestion. Reject leaves the translation untouched. Either
+  decision may carry a note (1000 characters) and is final.
+* **Translations are instrument-level, not project-level.** A project PI who
+  accepts a suggestion changes that string **for every project using that
+  locale of the instrument**. The accept screen says so ("changes this
+  language for all projects") and this is the reason a PI is limited to
+  locales their project serves.
+* **The text is checked, on every write through `update_string` and when a
+  suggestion is made** (422 `invalid_translation`, naming the problem): every
+  `${name}` must be a reference the English text of that string has; markup is
+  limited to the tags written exactly as in that English (a guidance note's
+  `<span style="color:blue">`); markdown links must be `http://` or
+  `https://`; no NUL or other control character except tab, newline and
+  carriage return. Workbook and XLIFF imports do not go through this check.
+* **A PI cannot accept their own suggestion** (403 `own_suggestion`); an
+  administrator can. Rejecting one's own is allowed. A user may hold at most
+  50 pending suggestions (409 `too_many_pending`).
+* **Audit.** The suggestion row keeps who suggested and when, who decided
+  and when, the decision and the note; the accept also logs the usual
+  `instrument translation edited` line with the accepting user, and the
+  decision line names both users.
+* **Pending count, no email.** The administrator's Instrument Translations
+  panel and a PI's "Review suggestions" tab show the pending count; nothing
+  is sent.
+
 ## The ODK form is a project output (decided 2026-10-06, `digitva-aek`)
 
 The same configuration that drives the web form generates the project's ODK

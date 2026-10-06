@@ -1,0 +1,32 @@
+{#
+  Pending translation suggestions from district staff (digitva-5op). Shared by
+  the admin Instrument Translations panel and the PI's "Review suggestions" tab
+  on /questionnaire-translations. Self-initialising: app/static/js/
+  translation_review_queue.js fills it from GET /api/v1/translations/suggestions
+  (the server decides what this viewer may decide) and draws every server string
+  with textContent. CSRF: data-csrf, else the admin console's window._adminCsrf.
+  Policy: docs/policy/va-form-project-configuration.md.
+#}
+<div class="card mb-4" data-review-queue
+     data-csrf="{{ csrf_token() }}"
+     data-queue-url="{{ url_for('api_v1.translation_suggestions_api.pending') }}"
+     data-accept-url="{{ url_for('api_v1.translation_suggestions_api.accept', suggestion_id=0) }}"
+     data-reject-url="{{ url_for('api_v1.translation_suggestions_api.reject', suggestion_id=0) }}">
+  <div class="card-body">
+    <h6 class="card-title mb-2">
+      Suggestions from district staff
+      <span class="badge bg-danger ms-1 d-none" data-pending-badge aria-label="pending suggestions"></span>
+    </h6>
+    <p class="small text-muted mb-3">
+      Translations belong to the questionnaire, not to a project:
+      <strong>accepting changes this language for all projects</strong> that use it.
+      The accepted text is saved as an edited translation and goes out on the
+      language's next version.
+    </p>
+    <div class="alert alert-warning small py-2 d-none" data-queue-error role="alert"></div>
+    <div class="small text-muted" data-queue-empty>No suggestions are waiting.</div>
+    <div data-queue-list></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary d-none mt-2" data-queue-more>Load more</button>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/translation_review_queue.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

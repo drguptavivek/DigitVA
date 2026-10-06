@@ -128,6 +128,10 @@ SELF_SERVICE_ENDPOINTS = {
     "people_roles_page.page": "People & roles page shell: renders no data; every row comes "
                               "from /api/v1/projects/<id>/people-roles, which decides per "
                               "project what the caller may see (people-and-roles-page.md).",
+    "translation_suggestions_page.page": "Questionnaire translations page shell: renders no "
+                                         "data; every string and queue row comes from "
+                                         "/api/v1/translations/..., which decides per project "
+                                         "(va-form-project-configuration.md).",
     "profile.view": "The signed-in user's own profile page.",
     "profile.force_password_change": "The signed-in user's own forced password change.",
     "api_v1.profile_api.get_profile": "Own profile.",

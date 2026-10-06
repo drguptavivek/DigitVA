@@ -82,6 +82,12 @@
         People
       </a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('translation_suggestions_page.page') }}">
+        <i class="fa-solid fa-language me-1"></i>
+        Translations
+      </a>
+    </li>
   {% endif %}
 
   {% if current_user.is_authenticated and current_user.is_data_manager() %}

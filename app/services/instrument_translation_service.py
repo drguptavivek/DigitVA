@@ -207,6 +207,15 @@ class InstrumentTranslationError(RuntimeError):
     """The import or edit cannot be performed as asked."""
 
 
+class InvalidTranslationText(InstrumentTranslationError):
+    """The text itself is unsafe or would break the form (``validate_translation_text``).
+
+    Callers that map errors to HTTP answer 422 ``invalid_translation``.
+    """
+
+    code = "invalid_translation"
+
+
 @dataclass
 class ImportReport:
     """What one import (or cross-check) found and did.
@@ -1649,6 +1658,67 @@ def _trim(text: str | None) -> str:
     return text if len(text) <= _LOG_TEXT_LIMIT else text[:_LOG_TEXT_LIMIT] + "…"
 
 
+# ${name} references, C0 controls other than tab, newline and carriage return
+# (a stored NUL cannot even reach PostgreSQL), complete tags, markdown links.
+_REFERENCE_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_.\-]*)\}")
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_TAG_RE = re.compile(r"<[^<>]*>")
+_OPEN_TAG_RE = re.compile(r"<\s*[/!?]?\s*[A-Za-z]")
+_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]*)\)")
+_HTTP_URL_RE = re.compile(r"https?://", re.IGNORECASE)
+
+
+def _normalized_tag(tag: str) -> str:
+    return re.sub(r"\s+", " ", tag.strip())
+
+
+def validate_translation_text(text: str, english: str | None) -> None:
+    """Refuse a translation that could break or hijack the rendered form.
+
+    The English source of the same string sets what is allowed, because it is
+    the one text the form's authors wrote:
+
+    * every ``${name}`` reference must be one the English has (so it names a
+      real field of the form), and no ``${`` may be malformed;
+    * markup: only tags written exactly as in the English (``<span style=...>``
+      in a guidance note), nothing else that looks like a tag;
+    * markdown links only to ``http://`` or ``https://``;
+    * no NUL or other control character besides tab, newline and carriage
+      return.
+
+    Raises :class:`InvalidTranslationText` naming the problem.
+    """
+    english = english or ""
+    if _CONTROL_RE.search(text):
+        raise InvalidTranslationText("A translation may not contain control characters.")
+
+    allowed_refs = set(_REFERENCE_RE.findall(english))
+    found_refs = _REFERENCE_RE.findall(text)
+    if text.count("${") != len(found_refs):
+        raise InvalidTranslationText("A ${...} reference in the translation is malformed.")
+    for name in found_refs:
+        if name not in allowed_refs:
+            raise InvalidTranslationText(
+                f"${{{name}}} is not a reference of the English text; keep only the "
+                "references the English has."
+            )
+
+    allowed_tags = {_normalized_tag(t) for t in _TAG_RE.findall(english)}
+    leftover = text
+    for tag in _TAG_RE.findall(text):
+        if _normalized_tag(tag) not in allowed_tags:
+            raise InvalidTranslationText(
+                f"The markup {tag!r} is not in the English text; only the English's own tags are allowed."
+            )
+        leftover = leftover.replace(tag, "")
+    if _OPEN_TAG_RE.search(leftover):
+        raise InvalidTranslationText("The translation contains markup that is not in the English text.")
+
+    for url in _MARKDOWN_LINK_RE.findall(text):
+        if not _HTTP_URL_RE.match(url.strip()):
+            raise InvalidTranslationText("A link in the translation must start with http:// or https://.")
+
+
 def update_string(
     instrument_code: str,
     locale_code: str,
@@ -1678,10 +1748,12 @@ def update_string(
             f"A translation may not exceed {MAX_TRANSLATION_TEXT_CHARS} characters."
         )
     key = (item_kind, item_key, field)
-    if key not in reference_items(instrument_code):
+    reference = reference_items(instrument_code)
+    if key not in reference:
         raise InstrumentTranslationError(
             f"{item_kind} {item_key!r} has no {field} in the reference form."
         )
+    validate_translation_text(text, reference[key])
     locale_row = get_locale(instrument_code, locale_code)
     if locale_row is None:
         raise InstrumentTranslationError(

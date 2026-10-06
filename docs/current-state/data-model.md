@@ -473,6 +473,29 @@ pre-built and immutable.
   inactive) when absent and inserts the same 214 strings `b6d2f4a9c1e7`
   seeds, as `source='machine'` from the start (`b6d2f4a9c1e7` only inserts
   where a locale row already exists, so a fresh database got none of them).
+
+### `map_instrument_translation_suggestions`
+
+Migration `g3k7n1s5v9y2` (digitva-5op). One district-staff suggestion for one
+instrument translation string; accepting writes through `update_string`
+(source `edited`), so this table is the audit of who suggested and who decided.
+
+- `id` identity PK; `instrument_code` + `locale_code` FK -> `mas_instrument_locales`
+  (ON DELETE CASCADE); `item_kind`, `item_key`, `field` (the string, as in
+  `map_instrument_translations`)
+- `proposed_text`; `seen_text` (the served translation the suggester saw, NULL if
+  none: the staleness check on accept); `reason` (<= 1000)
+- `project_id` FK -> `va_project_master`: the project it was suggested in, whose
+  project PI may decide
+- `suggested_by`, `suggested_at`; `status` (`pending` | `accepted` | `rejected`,
+  CHECK); `decided_by`, `decided_at`, `decision_note` (CHECK: a decided row has a
+  decider and a time)
+- indexes `ix_mits_locale_status` (instrument_code, locale_code, status, id),
+  `ix_mits_project_status` (project_id, status, id), and the partial unique
+  `uq_mits_pending_per_user` (suggested_by, instrument_code, locale_code,
+  item_kind, item_key, field) WHERE status = 'pending'
+- policy: `docs/policy/va-form-project-configuration.md`, "District review and
+  suggestions"
   `7134cb5dc7b6` reads its rows from the checked-in
   `resource/digitva_layer_translations_2026_09_20.csv` rather than a third
   copy of the literal — `b6d2f4a9c1e7` and `c1a4b6e8d3f2` are applied and

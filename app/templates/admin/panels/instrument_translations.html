@@ -18,6 +18,7 @@
     <h5 class="mb-0">
       <i class="fa-solid fa-language me-2 text-secondary"></i>Instrument Translations
       <span class="text-muted small ms-2">{{ instrument_code }}</span>
+      <span class="badge bg-danger ms-2 d-none" data-pending-badge aria-label="pending suggestions"></span>
     </h5>
   </div>
 
@@ -36,6 +37,9 @@
 
   {# Locale table — filled by JS #}
   <div id="itr-locales-wrap"></div>
+
+  {# District staff's suggested wordings (digitva-5op): accept or reject #}
+  {% include "admin/panels/_translation_review_queue.html" %}
 
   {# Import form #}
   <div class="card mb-4">

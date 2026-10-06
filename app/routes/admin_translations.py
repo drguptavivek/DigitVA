@@ -31,6 +31,7 @@ from app.services.instrument_translation_service import (
     XLIFF_EXTENSIONS,
     XLIFF_MEDIA_TYPE,
     InstrumentTranslationError,
+    InvalidTranslationText,
     accept_machine_translation,
     export_translations,
     export_xliff,
@@ -304,6 +305,9 @@ def admin_instrument_translation_put_string(instrument_code, locale):
             text=fields["text"],
             actor_id=current_user.user_id,
         )
+    except InvalidTranslationText as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc), "code": exc.code}), 422
     except InstrumentTranslationError as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)

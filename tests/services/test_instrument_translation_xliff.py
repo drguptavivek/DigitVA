@@ -261,9 +261,14 @@ class InstrumentTranslationXliffTests(BaseTestCase):
         self.assertEqual(notes["choice.yes_no.yes.label"], ["yes_no"])
 
     def test_export_escapes_rather_than_concatenating_markup(self):
-        svc.update_string(
-            INSTRUMENT, "hi", item_kind="question", item_key="Q1",
-            field="label", text='<b>"क"</b> & more',
+        # update_string refuses markup the English lacks (digitva-5op), so put
+        # the row in the way a workbook import still can.
+        db.session.merge(
+            MapInstrumentTranslations(
+                instrument_code=INSTRUMENT, locale_code="hi", item_kind="question",
+                item_key="Q1", field="label", text='<b>"क"</b> & more',
+                source=SOURCE_IMPORTED, updated_at=datetime.now(UTC),
+            )
         )
         db.session.flush()
         document = svc.export_xliff(INSTRUMENT, "hi")

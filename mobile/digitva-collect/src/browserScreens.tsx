@@ -9,4 +9,4 @@ export const CollectionScreen = NativeWebRoute;
 export const DeathRegistrationScreen = NativeWebRoute;
 export const InterviewScreen = NativeWebRoute;
 export const SettingsScreen = NativeWebRoute;
-export const WorkspaceScreen = NativeWebRoute;
+export { WorkspaceScreen } from "./nativeRoutes/workspaceScreens";

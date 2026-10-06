@@ -26,6 +26,7 @@ import {
   acceptDeviceTerms,
   authedRawRequest,
   authedRequest,
+  getAuthenticatedAttachmentSource,
   loadAccounts,
   refreshAccessSummary,
   SessionRevokedError,
@@ -46,7 +47,10 @@ const interviewAccess = (webIntakeMode: "direct" | "death_register" | "both" = "
   roles: ["interviewer"],
   projects: [{ project_id: "P1", project_name: "Project", has_tree: false,
     grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
-    actions: { interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: webIntakeMode, org_units: [] }] },
+    actions: {
+      interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: webIntakeMode, org_units: [] }],
+      register_death: [{ site_id: "S1", site_name: "Site", web_intake_mode: webIntakeMode, org_units: [] }],
+    },
     sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] }] }],
 });
 
@@ -290,7 +294,7 @@ it("stores collection access from validated summaries without revoking retained 
 it("keeps collection closed when the server returns no interview eligibility", async () => {
   seed({ access: "a", refresh: "r1" });
   const noInterview = { ...interviewAccess(), roles: ["interviewer"], projects: [{
-    ...interviewAccess().projects[0], actions: { interview: [] },
+    ...interviewAccess().projects[0], actions: { interview: [], register_death: [] },
   }] };
   mockServer((call) => call.url.endsWith("/me/access") ? json(200, noInterview) : json(200, {}));
 
@@ -309,7 +313,7 @@ it("fails closed without wiping when interview eligibility is malformed", async 
   const malformedAccess = { ...interviewAccess(), projects: [{
     ...interviewAccess().projects[0], actions: { interview: [{
       ...interviewAccess().projects[0].actions.interview[0], web_intake_mode: "invalid",
-    }] },
+    }], register_death: [] },
   }] };
   mockServer((call) => call.url.endsWith("/me/access") ? json(200, malformedAccess) : json(200, {}));
 
@@ -580,6 +584,10 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
     user_id: USER,
     name: "A",
     collection_access: false,
+    registration_access: false,
+    registered_deaths_access: false,
+    coding_access: false,
+    reviewing_access: false,
   });
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
@@ -607,7 +615,47 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A" });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", collection_access: false }]);
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false }]);
+});
+
+it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  const login = {
+    access_token: "a",
+    access_expires_at: "",
+    refresh_token: "r",
+    refresh_expires_at: "",
+    user: { user_id: USER, name: "A" },
+    access: { ...ACCESS, roles: ["coder", "reviewer"] },
+  };
+  mockServer((call) => call.url.endsWith("/me/access")
+    ? json(200, login.access)
+    : json(201, login));
+  await signIn("a@example.org", "pw");
+  expect(await loadAccounts()).toEqual([{
+    user_id: USER,
+    name: "A",
+    collection_access: false,
+    registration_access: false,
+    registered_deaths_access: false,
+    coding_access: true,
+    reviewing_access: true,
+  }]);
+
+  mockServer((call) => call.url.endsWith("/me/access")
+    ? json(200, { ...ACCESS, is_admin: true, demo_coding: { available: true, project_ids: ["P1"] } })
+    : json(200, {}));
+  await refreshAccessSummary(USER);
+  expect(await loadAccounts()).toEqual([{
+    user_id: USER,
+    name: "A",
+    collection_access: false,
+    registration_access: false,
+    registered_deaths_access: false,
+    coding_access: false,
+    reviewing_access: false,
+  }]);
 });
 
 it("shares one refresh between raw and JSON calls and retains raw response headers", async () => {
@@ -654,4 +702,79 @@ it("shares one refresh between raw and JSON calls and retains raw response heade
   expect(calls.find((call) => call.url.endsWith("/definition") && call.auth === "Bearer new-access"))
     .toBeDefined();
   expect(mockDeleteDb).not.toHaveBeenCalled();
+});
+
+it("refreshes a nearly expired token before returning an in-memory attachment source", async () => {
+  seed({ access: "old-access", refresh: "r1" });
+  mockSecure.set(`tokens.${USER}`, JSON.stringify({
+    access_token: "old-access",
+    access_expires_at: new Date(Date.now() + 10_000).toISOString(),
+    refresh_token: "r1",
+    refresh_expires_at: "",
+  }));
+  mockServer((call) => call.url.endsWith("/sessions/refresh") ? json(200, {
+    access_token: "fresh-access", access_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    refresh_token: "r2", refresh_expires_at: "", access: ACCESS,
+  }) : json(404, {}));
+
+  const source = await getAuthenticatedAttachmentSource(USER, "/api/v1/attachments/0123456789abcdef0123456789abcdef.jpg");
+
+  expect(source).toEqual({
+    uri: `${SERVER}/api/v1/attachments/0123456789abcdef0123456789abcdef.jpg`,
+    headers: { Authorization: "Bearer fresh-access" },
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/sessions/refresh`);
+  expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!).access_token).toBe("fresh-access");
+});
+
+it("fails closed when a refreshed attachment token has malformed expiry metadata", async () => {
+  seed({ access: "old-access", refresh: "r1" });
+  mockServer(() => json(200, {
+    access_token: "fresh-access", access_expires_at: "invalid-date",
+    refresh_token: "r2", refresh_expires_at: "", access: ACCESS,
+  }));
+
+  await expect(getAuthenticatedAttachmentSource(USER, "/api/v1/attachments/0123456789abcdef0123456789abcdef.jpg"))
+    .rejects.toBeInstanceOf(SignInRequiredError);
+});
+
+it("rejects unsafe attachment paths before reading an authenticated source", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer(() => json(404, {}));
+  await expect(getAuthenticatedAttachmentSource(USER, "https://outside.invalid/api/v1/attachments/a.jpg"))
+    .rejects.toThrow("invalid_attachment_path");
+  expect(calls).toHaveLength(0);
+});
+
+it("does not return an attachment source when the account signs out during refresh", async () => {
+  seed({ access: "old-access", refresh: "r1" });
+  mockSecure.set(`tokens.${USER}`, JSON.stringify({
+    access_token: "old-access",
+    access_expires_at: new Date(Date.now() + 10_000).toISOString(),
+    refresh_token: "r1",
+    refresh_expires_at: "",
+  }));
+  let startRefresh!: () => void;
+  let finishRefresh!: (response: Response) => void;
+  const refreshStarted = new Promise<void>((resolve) => { startRefresh = resolve; });
+  const refreshResponse = new Promise<Response>((resolve) => { finishRefresh = resolve; });
+  mockServer((call) => {
+    if (call.url.endsWith("/sessions/refresh")) {
+      startRefresh();
+      return refreshResponse;
+    }
+    return json(404, {});
+  });
+
+  const source = getAuthenticatedAttachmentSource(USER, "/api/v1/attachments/0123456789abcdef0123456789abcdef.jpg");
+  await refreshStarted;
+  mockSecure.delete(`tokens.${USER}`);
+  mockSecure.set("accounts", JSON.stringify([{ user_id: "other", name: "B" }]));
+  finishRefresh(json(200, {
+    access_token: "fresh-access", access_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    refresh_token: "r2", refresh_expires_at: "", access: ACCESS,
+  }));
+
+  await expect(source).rejects.toBeInstanceOf(SignInRequiredError);
 });

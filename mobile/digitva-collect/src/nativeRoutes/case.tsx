@@ -12,7 +12,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Linking, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -41,6 +41,9 @@ import {
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import { CodeNowButton } from "../workspace/CodeNowButton";
+import { createWorkspaceApi } from "../workspace/api";
+import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 
 function displayDate(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -89,6 +92,10 @@ export default function Case() {
   const { accounts } = useAppState();
   const account = accounts.find((a) => a.user_id === params.userId);
   const accountId = account?.user_id;
+  const workspaceApi = useMemo(
+    () => accountId ? createWorkspaceApi(createNativeWorkspaceTransport(accountId)) : undefined,
+    [accountId],
+  );
   const [db, setDb] = useState<Db | undefined>();
   const [found, setFound] = useState<CaseDetail | undefined>();
   const [registration, setRegistration] = useState<Registration | undefined>();
@@ -627,6 +634,16 @@ export default function Case() {
         />
       ) : found ? (
         <Text style={styles.muted}>{t("caseActionsUnavailable")}</Text>
+      ) : null}
+      {account?.coding_access === true && found?.code_now === true &&
+      typeof found.va_sid === "string" && workspaceApi ? (
+        <CodeNowButton
+          api={workspaceApi}
+          vaSid={found.va_sid}
+          disabled={actionBusy}
+          onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { userId: account.user_id, vaSid, mode: "coding" } })}
+          onAccessLost={() => router.replace({ pathname: "/workspace", params: { userId: account.user_id } })}
+        />
       ) : null}
       {mode ? (
         <View style={{ gap: 8 }}>

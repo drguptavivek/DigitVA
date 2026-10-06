@@ -10,8 +10,8 @@ const mockSignOut = jest.fn<Promise<void>, [string]>(async () => undefined);
 const mockState = {
   ready: true,
   authenticated: true,
-  bootstrap: { user: { user_id: "worker", name: "Worker" }, capabilities: { intake: false } },
-  accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined }],
+  bootstrap: { user: { user_id: "worker", name: "Worker" }, csrf: "csrf", access: { roles: [] }, capabilities: { intake: false, registerDeath: false, registeredDeaths: false } },
+  accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined, registration_access: false as boolean | undefined }],
   reload: mockReload,
   lockNow: jest.fn(async () => undefined),
 };
@@ -22,6 +22,7 @@ jest.mock("expo-router", () => ({
     return ReactActual.createElement("redirect", { href });
   },
   useGlobalSearchParams: () => mockParams,
+  useLocalSearchParams: () => mockParams,
   usePathname: () => mockPathname,
   useRouter: () => mockRouter,
 }));
@@ -50,6 +51,17 @@ jest.mock("../src/web/common", () => {
       ReactActual.createElement("web-shell", null, children),
   };
 });
+jest.mock("../src/client/session", () => ({
+  loadBrowserSession: async () => ({
+    authenticated: true,
+    bootstrap: {
+      user: { user_id: "worker", name: "Worker" },
+      csrf: "csrf",
+      access: { roles: [] },
+      capabilities: { intake: false, registerDeath: false, registeredDeaths: false },
+    },
+  }),
+}));
 
 import NativeCollectionGate from "../src/NativeCollectionGate.native";
 import BrowserCollectionGate from "../src/NativeCollectionGate";
@@ -58,8 +70,8 @@ import WorkspaceScreen from "../src/web/WorkspaceScreen";
 beforeEach(() => {
   mockPathname = "/case";
   mockParams = { userId: "worker" };
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false }];
-  mockState.bootstrap = { user: { user_id: "worker", name: "Worker" }, capabilities: { intake: false } };
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false }];
+  mockState.bootstrap = { user: { user_id: "worker", name: "Worker" }, csrf: "csrf", access: { roles: [] }, capabilities: { intake: false, registerDeath: false, registeredDeaths: false } };
   jest.clearAllMocks();
 });
 
@@ -75,22 +87,43 @@ it("blocks a direct native collection route for a confirmed role-only account", 
 });
 
 it("keeps mixed-role native collection routes available", async () => {
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: true }];
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: true, registration_access: true }];
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<NativeCollectionGate>collection screen</NativeCollectionGate>); });
   expect(JSON.stringify(tree.toJSON())).toContain("collection screen");
   await act(async () => tree.unmount());
 });
 
+it("does not let a workspace route select another device account", async () => {
+  mockPathname = "/workspace";
+  mockParams = { userId: "other-user", mode: "view" };
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>private case data</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("redirect");
+  expect(JSON.stringify(tree.toJSON())).not.toContain("private case data");
+  await act(async () => tree.unmount());
+});
+
+it("blocks registration routes for interviewers without registration access", async () => {
+  mockPathname = "/register";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: true, registration_access: false }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>registration form</NativeCollectionGate>); });
+
+  expect(JSON.stringify(tree.toJSON())).not.toContain("registration form");
+  expect(mockRefreshAccess).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
 it("keeps an unknown native access state behind the gate until refresh succeeds", async () => {
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: undefined }];
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: undefined, registration_access: undefined }];
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<NativeCollectionGate>collection screen</NativeCollectionGate>); });
 
   expect(JSON.stringify(tree.toJSON())).not.toContain("collection screen");
   expect(mockRefreshAccess).toHaveBeenCalledWith("worker");
   expect(tree.root.findAllByProps({ label: "retryAccess" })).toHaveLength(2);
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: undefined }];
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: undefined, registration_access: undefined }];
   await act(async () => { tree.update(<NativeCollectionGate>collection screen</NativeCollectionGate>); });
   expect(mockRefreshAccess).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());

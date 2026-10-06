@@ -26,6 +26,7 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
+import type { AccessSummary } from "../src/api";
 import { canUseBundledFallbackForProject, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
@@ -65,7 +66,7 @@ const referenceFixture = (projects = [project()]): Bootstrap => ({
   projects
 });
 
-const access = (projects = [project()]) => ({
+const access = (projects = [project()]): AccessSummary => ({
   user: { user_id: USER, name: "A" },
   is_admin: false,
   roles: ["interviewer"],
@@ -79,7 +80,7 @@ const access = (projects = [project()]) => ({
       site_id: site.site_id, site_name: site.site_name ?? site.site_id,
       web_intake_mode: "both" as const,
       org_units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", path: "U" }],
-    })) },
+    })), register_death: [] },
     sites: item.sites.map((site) => ({ site_id: site.site_id, site_name: site.site_name ?? site.site_id, roles: ["interviewer"] })),
     levels: [],
     units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", level_code: "phc", path: "U", is_active: true, selectable: true, roles: ["interviewer"], can_code: false }]
@@ -321,6 +322,30 @@ describe("project scoped reference data", () => {
     expect(reconciled?.projects.map(({ project: item }) => item.project_id)).toEqual(["P1"]);
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", ["P2"])).toBeNull();
     expect(calls).toEqual([]);
+  });
+
+  it("retains registration data while hiding projects that have only reporter access", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture()) : json(200, { scoped: false, levels: [], units: [] }));
+    await refreshReferenceData(USER, db, { force: true });
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: SITE, fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" } });
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft());
+
+    const reporterAccess = access([]);
+    reporterAccess.roles = ["death_reporter"];
+    reporterAccess.projects = [{
+      ...access([project()]).projects[0],
+      grants: [],
+      actions: { interview: [], register_death: [{
+        site_id: SITE, site_name: SITE, web_intake_mode: "death_register", org_units: [],
+      }] },
+    }];
+    const cached = await reconcileReferenceAccess(db, reporterAccess);
+
+    expect(cached).toBeUndefined();
+    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [PROJECT])).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [PROJECT])).not.toBeNull();
   });
 
   it("throttles a failed automatic refresh for one day but retries on force", async () => {

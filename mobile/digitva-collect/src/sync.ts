@@ -671,16 +671,20 @@ export async function reconcileReferenceAccess(
       .filter((project) => project.actions.interview.length > 0)
       .map((project) => [project.project_id, project]),
   );
+  const retainedProjectIds = new Set(access.projects
+    .filter((project) => project.actions.interview.length > 0 || project.actions.register_death.length > 0)
+    .map((project) => project.project_id));
   const localProjectIds = new Set(await projectIds(db));
   for (const item of previous?.projects ?? []) localProjectIds.add(item.project.project_id);
   for (const projectId of localProjectIds) {
-    if (!authorized.has(projectId)) await purgeProjectData(db, projectId, access.user.user_id);
+    if (!retainedProjectIds.has(projectId)) await purgeProjectData(db, projectId, access.user.user_id);
   }
   const definitions = createNativeDefinitionCache(
     db as Parameters<typeof createNativeDefinitionCache>[0],
     access.user.user_id,
   );
   for (const project of authorized.values()) definitions.restoreProject(project.project_id);
+  if (!authorized.size) return undefined;
   if (!previous || !referenceIsComplete(previous)) return undefined;
 
   const projects: ReferencePack["projects"] = [];
@@ -797,13 +801,16 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   const access = parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
   const accessProjects = access.projects.filter((project) => project.actions.interview.length > 0);
   const authorized = new Set(accessProjects.map((project) => project.project_id));
+  const retainedProjectIds = new Set(access.projects
+    .filter((project) => project.actions.interview.length > 0 || project.actions.register_death.length > 0)
+    .map((project) => project.project_id));
   // Older app versions stored a different reference shape under this key.
   // Treat it as absent so a malformed cache cannot block a fresh bootstrap.
   const previous = await readReferencePack(db);
   const localProjectIds = new Set(await projectIds(db));
   for (const project of previous?.projects ?? []) localProjectIds.add(project.project.project_id);
   for (const projectId of localProjectIds) {
-    if (!authorized.has(projectId)) await purgeProjectData(db, projectId, userId);
+    if (!retainedProjectIds.has(projectId)) await purgeProjectData(db, projectId, userId);
   }
   const removedFromPrevious = previous?.projects.some(({ project }) => !authorized.has(project.project_id)) ?? false;
   if (previous && removedFromPrevious) {

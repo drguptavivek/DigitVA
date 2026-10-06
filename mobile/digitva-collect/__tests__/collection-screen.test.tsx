@@ -4,16 +4,35 @@ import { act, create } from "react-test-renderer";
 const mockBootstrap = {
   user: { user_id: "u1", name: "Interviewer" },
   csrf: { header: "X-CSRFToken", token: "csrf" },
-  capabilities: { intake: true, coding: false, reviewing: false },
-  links: { intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
+  capabilities: { intake: true, registerDeath: true, registeredDeaths: false, coding: false, reviewing: false },
+  access: {
+    user: { user_id: "u1", name: "Interviewer" },
+    is_admin: false,
+    roles: ["interviewer"],
+    demo_coding: { available: false, project_ids: [] },
+    projects: [{
+      project_id: "P1",
+      project_name: "Project",
+      has_tree: false,
+      grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+      sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] }],
+      actions: {
+        interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+        register_death: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+      },
+    }],
+  },
+  links: { login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 const mockBootstrapB = {
   ...mockBootstrap,
+  user: { user_id: "u2", name: "Next interviewer" },
+  access: { ...mockBootstrap.access, user: { user_id: "u2", name: "Next interviewer" } },
   csrf: { header: "X-CSRFToken", token: "csrf-b" },
-  links: { intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
+  links: { login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 let mockCurrentBootstrap = mockBootstrap;
-let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string } = {};
+let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string; readyVaSid?: string } = {};
 const mockRouterPush = jest.fn();
 
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush }), useLocalSearchParams: () => mockParams }));
@@ -179,26 +198,31 @@ describe("CollectionScreen refresh", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("shows a submitted coding hint once and gives server case flags precedence", async () => {
-    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY" };
+  it("uses matching case readiness as authoritative and preserves its coding action", async () => {
+    mockCurrentBootstrap = { ...mockBootstrap, access: { ...mockBootstrap.access, roles: ["coder"] } };
+    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY", readyVaSid: "sid-ready" };
     mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "d1", unique_id: "VA-READY", state: "submitted", code_now: true },
+      { death_id: "d1", unique_id: "VA-READY", va_sid: "sid-ready", state: "submitted", code_now: true },
       { death_id: "d2", unique_id: "VA-MALFORMED", state: "submitted", code_now: "true" },
     ], next_cursor: null });
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<CollectionScreen />); });
     await settle();
     let rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered.match(/readyForCodeOnWeb/g)).toHaveLength(1);
+    expect(rendered).toContain("readyForCode");
+    expect(rendered).not.toContain("readyForCodeOnWeb");
+    expect(tree!.root.findAll((node) => node.props["data-label"] === "codeNow")).toHaveLength(1);
     await act(async () => tree!.unmount());
 
-    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY" };
+    mockParams = { canCodeNow: "1", readyUniqueId: "VA-READY", readyVaSid: "sid-ready" };
     mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "d1", unique_id: "VA-READY", state: "submitted", code_now: false },
+      { death_id: "d1", unique_id: "VA-READY", va_sid: "sid-ready", state: "submitted", code_now: false },
     ], next_cursor: null });
     await act(async () => { tree = create(<CollectionScreen />); });
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
+    rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).not.toContain("readyForCodeOnWeb");
+    expect(tree!.root.findAll((node) => node.props["data-label"] === "codeNow")).toHaveLength(0);
     await act(async () => tree!.unmount());
 
     mockParams = { submissionHistory: "1", submissionLocked: "1", canCodeNow: "1" };

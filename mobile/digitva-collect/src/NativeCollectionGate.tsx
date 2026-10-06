@@ -9,13 +9,12 @@ import { Button, Screen, useUiStyles } from "./ui";
 const COLLECTION_ROUTES = new Set([
   "/case",
   "/collection",
-  "/death-registration",
   "/form",
   "/interview",
-  "/register",
   "/revision",
   "/worklist",
 ]);
+const REGISTRATION_ROUTES = new Set(["/death-registration", "/register"]);
 
 /** Block direct browser collection routes before their screens make intake calls. */
 export default function NativeCollectionGate({
@@ -30,10 +29,11 @@ export default function NativeCollectionGate({
   const { ready, bootstrap } = useAppState();
   const styles = useUiStyles();
 
-  if (!COLLECTION_ROUTES.has(pathname)) return children;
+  if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname)) return children;
   if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!bootstrap) return <Redirect href="/" />;
-  if (bootstrap.capabilities.intake) return children;
+  if (COLLECTION_ROUTES.has(pathname) && bootstrap.capabilities.intake) return children;
+  if (REGISTRATION_ROUTES.has(pathname) && bootstrap.capabilities.registerDeath) return children;
   return (
     <Screen title={t("workspaceTitle")}>
       <Text style={styles.text}>{t("codingReviewPending")}</Text>

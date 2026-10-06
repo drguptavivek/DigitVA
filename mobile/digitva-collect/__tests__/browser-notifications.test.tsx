@@ -30,9 +30,25 @@ import CollectionScreen from "../src/web/CollectionScreen";
 const userA = {
   user: { user_id: "u1", name: "Worker" },
   csrf: { header: "X-CSRFToken", token: "csrf" },
-  capabilities: { intake: true, coding: false, reviewing: false },
+  capabilities: { intake: true, registerDeath: true, registeredDeaths: false, coding: false, reviewing: false },
   links: { login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" },
-  access: { user: { user_id: "u1", name: "Worker" }, is_admin: false, demo_coding: { available: false, project_ids: [] }, projects: [] },
+  access: {
+    user: { user_id: "u1", name: "Worker" },
+    is_admin: false,
+    roles: ["interviewer"],
+    demo_coding: { available: false, project_ids: [] },
+    projects: [{
+      project_id: "P1",
+      project_name: "Project",
+      has_tree: false,
+      grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+      sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] }],
+      actions: {
+        interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+        register_death: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+      },
+    }],
+  },
 };
 const sessionA = { authenticated: true, bootstrap: userA };
 const emptyPage = (after: number) => ({ notifications: [], next_cursor: after });

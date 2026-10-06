@@ -556,11 +556,13 @@ export default function InterviewScreen() {
           submissionLocked: submission.locked === true ? "1" : "0",
           ...(submission.can_code_now === true ? { canCodeNow: "1" } : {}),
           ...(submission.can_code_now === true && submission.draft.unique_id ? { readyUniqueId: submission.draft.unique_id } : {}),
+          ...(submission.can_code_now === true ? { readyVaSid: submission.va_sid } : {}),
         } });
       } else if (submission.can_code_now === true) {
         router.replace({ pathname: "/collection", params: {
           canCodeNow: "1",
           ...(submission.draft.unique_id ? { readyUniqueId: submission.draft.unique_id } : {}),
+          readyVaSid: submission.va_sid,
         } });
       } else {
         router.replace("/collection");

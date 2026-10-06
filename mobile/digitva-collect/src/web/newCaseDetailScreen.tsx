@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking, Text, View } from "react-native";
 
 import {
@@ -20,6 +20,9 @@ import { t, type StringKey } from "../i18n";
 import { stateLabel, Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { RegistrationFieldControl } from "./registrationControls";
+import { CodeNowButton } from "../workspace/CodeNowButton";
+import { createWorkspaceApi } from "../workspace/api";
+import { createWebWorkspaceTransport } from "../workspace/transport.web";
 
 const CONTACT_OUTCOMES = [
   "reached",
@@ -72,7 +75,7 @@ export default function NewCaseDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ deathId?: string | string[] }>();
   const deathId = paramValue(params.deathId);
-  const { bootstrap } = useAppState();
+  const { bootstrap, reload } = useAppState();
   const styles = useUiStyles();
   const [row, setRow] = useState<CaseDetail>();
   const [loading, setLoading] = useState(true);
@@ -86,6 +89,11 @@ export default function NewCaseDetailScreen() {
   const busyRef = useRef(false);
   const actionRef = useRef(0);
   if (bootstrapRef.current !== bootstrap) bootstrapRef.current = bootstrap;
+  const workspaceApi = useMemo(
+    () => bootstrap ? createWorkspaceApi(createWebWorkspaceTransport(bootstrap.csrf)) : undefined,
+    [bootstrap?.csrf, bootstrap?.user.user_id],
+  );
+  const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
 
   const load = useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current;
@@ -336,7 +344,15 @@ export default function NewCaseDetailScreen() {
             <Text style={styles.muted}>
               {row.unique_id} · {stateLabel(state)}
             </Text>
-            {row.code_now === true ? (
+            {row.code_now === true && canCode && typeof row.va_sid === "string" && workspaceApi ? (
+              <CodeNowButton
+                api={workspaceApi}
+                vaSid={row.va_sid}
+                disabled={busy}
+                onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
+                onAccessLost={() => { void reload(); router.replace("/workspace"); }}
+              />
+            ) : row.code_now === true ? (
               <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
             ) : null}
             {row.other_draft_active === true ? (

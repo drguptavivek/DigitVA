@@ -13,7 +13,7 @@ let state: ReturnType<typeof useAppState>;
 function Consumer() { state = useAppState(); return null; }
 const bootstrap = {
   user: { user_id: "u1", name: "Worker" }, csrf: { header: "X-CSRFToken", token: "csrf" },
-  capabilities: { intake: true, coding: false, reviewing: false }, links: { login: "/vaauth/valogin?next=%2Fapp%2F", logout: "/vaauth/valogout" },
+  capabilities: { intake: true, registerDeath: false, registeredDeaths: false, coding: false, reviewing: false }, links: { login: "/vaauth/valogin?next=%2Fapp%2F", logout: "/vaauth/valogout" },
   access: { user: { user_id: "u1", name: "Worker" }, is_admin: false, demo_coding: { available: false, project_ids: [] }, projects: [] }
 };
 const session = { authenticated: true, bootstrap };
@@ -60,7 +60,7 @@ it("removes cached browser definitions when interviewer actions disappear", asyn
   const project = (projectId: string, interview: boolean) => ({
     project_id: projectId,
     grants: [{ role: "interviewer", active: true, source: "assigned" }],
-    actions: { interview: interview ? [{ site_id: "S1" }] : [] }
+    actions: { interview: interview ? [{ site_id: "S1" }] : [], register_death: [] }
   });
   const initial = {
     ...bootstrap,

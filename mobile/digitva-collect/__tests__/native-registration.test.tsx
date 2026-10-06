@@ -31,7 +31,7 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
   WHO_VA_BUILT_IN_UI_TRANSLATIONS: { hi: { dateFormatHint: "हिंदी" } }
 }), { virtual: true });
 
-import { NativeRegistrationFieldControl, requiredBirthField } from "../src/nativeRoutes/register";
+import { birthModeFor, NativeRegistrationFieldControl, requiredBirthField } from "../src/nativeRoutes/register";
 import type { RegistrationFields } from "../src/cases";
 
 const base: RegistrationFields = { deceased_name: "Asha", deceased_sex: "female", date_of_death: "2026-09-30" };
@@ -43,9 +43,12 @@ describe("native death registration controls", () => {
     expect(requiredBirthField("exact", base)).toBe("date_of_birth");
     expect(requiredBirthField("month-year", base)).toBe("date_of_birth_partial");
     expect(requiredBirthField("year", base)).toBe("date_of_birth_partial");
+    expect(requiredBirthField("unknown", base)).toBeUndefined();
     expect(requiredBirthField("exact", { ...base, date_of_birth: "1987-04-12" })).toBeUndefined();
     expect(requiredBirthField("month-year", { ...base, date_of_birth_partial: "1987-04" })).toBeUndefined();
     expect(requiredBirthField("year", { ...base, date_of_birth_partial: "1987" })).toBeUndefined();
+    expect(birthModeFor({ ...base, age_years: "39" })).toBe("unknown");
+    expect(birthModeFor({ ...base, date_of_birth: "1987-04-12", age_years: "39" })).toBe("exact");
   });
 
   it("passes the active Hindi locale and WHO Hindi UI messages to native controls", () => {

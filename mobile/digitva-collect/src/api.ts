@@ -43,14 +43,24 @@ export interface AccessProject {
   has_tree: boolean;
   grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
-  actions: { interview: Array<{
+  actions: { interview: AccessActionContext[]; register_death: AccessActionContext[] };
+  units?: AccessUnit[];
+  levels?: Array<{ level_code: string; level_name: string; depth: number }>;
+}
+
+export interface AccessActionContext {
     site_id: string;
     site_name: string;
     web_intake_mode: "direct" | "death_register" | "both";
     org_units: Array<{ org_unit_id: string; unit_code: string; unit_name: string; path: string }>;
-  }> };
-  units?: AccessUnit[];
-  levels?: Array<{ level_code: string; level_name: string; depth: number }>;
+}
+
+function isAccessActionContext(entry: unknown): entry is AccessActionContext {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
+  return record(entry) && typeof entry.site_id === "string" && typeof entry.site_name === "string" &&
+    ["direct", "death_register", "both"].includes(String(entry.web_intake_mode)) && Array.isArray(entry.org_units) &&
+    entry.org_units.every((unit) => record(unit) &&
+      ["org_unit_id", "unit_code", "unit_name", "path"].every((field) => typeof unit[field] === "string"));
 }
 
 export interface AccessSummary {
@@ -71,7 +81,7 @@ export function parseAccessSummary(value: unknown): AccessSummary {
   for (const project of value.projects) {
     if (!record(project) || typeof project.project_id !== "string" || typeof project.project_name !== "string" ||
         typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites) ||
-        !record(project.actions) || !Array.isArray(project.actions.interview)) throw new ApiError(200, "malformed_response");
+        !record(project.actions) || !Array.isArray(project.actions.interview) || !Array.isArray(project.actions.register_death)) throw new ApiError(200, "malformed_response");
     for (const grant of project.grants) {
       if (!record(grant) || typeof grant.role !== "string" || !["project", "project_site", "org_unit"].includes(String(grant.scope)) ||
           typeof grant.active !== "boolean" || !["assigned", "self_coding"].includes(String(grant.source)) ||
@@ -80,12 +90,10 @@ export function parseAccessSummary(value: unknown): AccessSummary {
           (["coder", "coding_tester", "reviewer"].includes(grant.role) && typeof grant.codes !== "boolean")) throw new ApiError(200, "malformed_response");
     }
     for (const entry of project.actions.interview) {
-      if (!record(entry) || typeof entry.site_id !== "string" || typeof entry.site_name !== "string" ||
-          !["direct", "death_register", "both"].includes(String(entry.web_intake_mode)) || !Array.isArray(entry.org_units) ||
-          entry.org_units.some((unit) => !record(unit) ||
-            !["org_unit_id", "unit_code", "unit_name", "path"].every((field) => typeof unit[field] === "string"))) {
-        throw new ApiError(200, "malformed_response");
-      }
+      if (!isAccessActionContext(entry)) throw new ApiError(200, "malformed_response");
+    }
+    for (const entry of project.actions.register_death) {
+      if (!isAccessActionContext(entry)) throw new ApiError(200, "malformed_response");
     }
     for (const site of project.sites) {
       if (!record(site) || typeof site.site_id !== "string" || typeof site.site_name !== "string" || !strings(site.roles)) throw new ApiError(200, "malformed_response");
@@ -111,14 +119,19 @@ export async function getAccessSummary(csrf?: ClientCsrf, server = "", token?: s
 export function accessCapabilities(access: AccessSummary): ClientBootstrap["capabilities"] {
   return {
     intake: access.projects.some((project) => project.actions.interview.length > 0),
+    registerDeath: access.projects.some((project) => project.actions.register_death.length > 0),
+    registeredDeaths: access.roles.includes("death_reporter"),
     coding: access.roles.some((role) => ["coder", "coding_tester"].includes(role)) || access.demo_coding.available,
     reviewing: access.roles.includes("reviewer")
   };
 }
 
 /** Expand server interview roots in tree order and retain their ancestor context. */
-export function intakeContextFromAccess(access: AccessSummary): IntakeContextEntry[] {
-  return access.projects.flatMap((project) => project.actions.interview.map((entry) => {
+export function intakeContextFromAccess(
+  access: AccessSummary,
+  action: "interview" | "register_death" = "interview",
+): IntakeContextEntry[] {
+  return access.projects.flatMap((project) => project.actions[action].map((entry) => {
     const roots = entry.org_units;
     const units = project.units?.filter((unit) => !roots.length || roots.some((root) =>
       unit.path === root.path || unit.path.startsWith(`${root.path}.`) || root.path.startsWith(`${unit.path}.`),
@@ -131,6 +144,24 @@ export function intakeContextFromAccess(access: AccessSummary): IntakeContextEnt
       site_name: entry.site_name, web_intake_mode: entry.web_intake_mode,
       org_units: units ?? roots.map((unit) => ({ ...unit, selectable: true })),
     };
+  }));
+}
+
+/** Check a registration target against the interview context before offering start-interview. */
+export function hasInterviewRegistrationAccess(
+  access: AccessSummary,
+  projectId: string,
+  siteId: string,
+  orgUnitId?: string,
+): boolean {
+  const project = access.projects.find((entry) => entry.project_id === projectId);
+  return Boolean(project?.actions.interview.some((entry) => {
+    if (entry.site_id !== siteId) return false;
+    if (!orgUnitId || entry.org_units.length === 0) return true;
+    const unit = project.units?.find((item) => item.org_unit_id === orgUnitId);
+    return Boolean(unit && entry.org_units.some((root) =>
+      unit.path === root.path || unit.path.startsWith(`${root.path}.`),
+    ));
   }));
 }
 
@@ -151,7 +182,7 @@ export interface ClientLinks {
 export interface ClientBootstrap {
   user: { user_id: string; name: string };
   csrf: ClientCsrf;
-  capabilities: { intake: boolean; coding: boolean; reviewing: boolean };
+  capabilities: { intake: boolean; registerDeath: boolean; registeredDeaths: boolean; coding: boolean; reviewing: boolean };
   access: AccessSummary;
   links: ClientLinks;
 }
@@ -242,6 +273,49 @@ export interface CaseRow {
   other_complete_interview?: boolean;
   code_now?: boolean;
   [key: string]: unknown;
+}
+
+export interface RegisteredDeathPage {
+  deaths: CaseRow[];
+  next_cursor: string | null;
+}
+
+/** Read one bounded page of the caller's own registered deaths. */
+export async function getRegisteredDeaths(
+  csrf: ClientCsrf,
+  registeredMine: boolean,
+  cursor?: string | null,
+): Promise<RegisteredDeathPage> {
+  const params = new URLSearchParams({ limit: "50" });
+  if (registeredMine) params.set("registered", "mine");
+  if (cursor) params.set("cursor", cursor);
+  return parseRegisteredDeathPage(await requestClientJson<unknown>(`${INTAKE_API}/deaths?${params}`, { csrf }));
+}
+
+/** Validate the server-owned shape used by the own-registration list. */
+export function parseRegisteredDeathPage(value: unknown): RegisteredDeathPage {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
+  const optionalString = (item: Record<string, unknown>, key: string) => item[key] === undefined || typeof item[key] === "string";
+  const optionalNullableString = (item: Record<string, unknown>, key: string) => item[key] === undefined || item[key] === null || typeof item[key] === "string";
+  if (!record(value) || !Array.isArray(value.deaths) ||
+      !(value.next_cursor === null || typeof value.next_cursor === "string")) {
+    throw new ApiError(200, "malformed_response");
+  }
+  const deathIds = new Set<string>();
+  for (const death of value.deaths) {
+    if (!record(death) || typeof death.death_id !== "string" || !death.death_id.trim() ||
+        typeof death.unique_id !== "string" || !death.unique_id.trim() || deathIds.has(death.death_id) ||
+        !["status", "state", "project_id", "site_id"]
+          .every((key) => optionalString(death, key)) ||
+        !["deceased_name", "deceased_sex", "date_of_death", "site_name", "unit_name", "org_unit_name", "org_unit_id", "informant_phone_masked", "informant_phone_2_masked", "last_contact_at", "next_visit_at", "updated_at"]
+          .every((key) => optionalNullableString(death, key)) ||
+        !(death.age_years === undefined || death.age_years === null ||
+          (typeof death.age_years === "number" && Number.isFinite(death.age_years)))) {
+      throw new ApiError(200, "malformed_response");
+    }
+    deathIds.add(death.death_id);
+  }
+  return { deaths: value.deaths as CaseRow[], next_cursor: value.next_cursor as string | null };
 }
 
 export interface CaseDetailDeceased {
@@ -637,9 +711,12 @@ export async function fetchClientBootstrap(): Promise<BootstrapResult> {
 }
 
 /** Read collection sites, modes, and unit scope from the authoritative access answer. */
-export async function getIntakeContext(csrf: ClientCsrf): Promise<IntakeBootstrap> {
+export async function getIntakeContext(
+  csrf: ClientCsrf,
+  action: "interview" | "register_death" = "interview",
+): Promise<IntakeBootstrap> {
   const access = await getAccessSummary(csrf);
-  const contexts = intakeContextFromAccess(access);
+  const contexts = intakeContextFromAccess(access, action);
   return {
     user: access.user,
     context: contexts,

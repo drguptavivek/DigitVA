@@ -1,10 +1,32 @@
 import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
-import { Text } from "react-native";
+import { AppState, Text } from "react-native";
 import * as Crypto from "expo-crypto";
 
-const mockAccount = { user_id: "u1", name: "Interviewer" };
+const mockAccount = {
+  user_id: "u1",
+  name: "Interviewer",
+  collection_access: true,
+  registration_access: true,
+};
 const mockDb = { getFirstAsync: jest.fn(async () => null) };
+const mockDeathRegistrationAccess = {
+  user: mockAccount,
+  is_admin: false,
+  roles: ["interviewer"],
+  demo_coding: { available: false, project_ids: [] },
+  projects: [{
+    project_id: "P1",
+    project_name: "Project P1",
+    has_tree: false,
+    grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+    sites: [{ site_id: "S1", site_name: "Site 1", roles: ["interviewer"] }],
+    actions: {
+      interview: [{ site_id: "S1", site_name: "Site 1", web_intake_mode: "both", org_units: [] }],
+      register_death: [{ site_id: "S1", site_name: "Site 1", web_intake_mode: "both", org_units: [] }],
+    },
+  }],
+};
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 const mockReload = jest.fn();
 const mockChooseUiLocale = jest.fn(async () => undefined);
@@ -151,6 +173,7 @@ jest.mock("../src/formDefinitionRuntime", () => ({
 }));
 jest.mock("../src/formDefinitions", () => jest.requireActual("../src/formDefinitions"));
 jest.mock("../src/auth", () => ({
+  refreshAccessSummaryForAction: jest.fn(async () => mockDeathRegistrationAccess),
   authedRawRequest: jest.fn(async () => ({
     status: 200,
     headers: { definitionSha256: mockDefinitionResponse?.sha256 },
@@ -919,7 +942,7 @@ describe("native project-aware routes", () => {
       `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
     );
     expect(rendered).toContain("otherDraftSyncNotice");
-    expect(rendered).toContain("readyForCodeOnWeb");
+    expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
     const viewDetails = tree!.root.findAllByProps({
@@ -983,7 +1006,7 @@ describe("native project-aware routes", () => {
 
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
-    expect(rendered).toContain("readyForCodeOnWeb");
+    expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("logAttempt");
     await act(async () => tree!.unmount());
   });
@@ -1024,7 +1047,7 @@ describe("native project-aware routes", () => {
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("otherDraftActive");
-    expect(rendered).toContain("readyForCodeOnWeb");
+    expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("otherDraftSyncNotice");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
@@ -1075,6 +1098,7 @@ describe("native project-aware routes", () => {
   });
 
   it("uses the selected project's mode for registration and validates before saving", async () => {
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
     mockParams = { userId: "u1", projectId: "P1", clientDeathId: "local-1" };
     (
       jest.requireMock("../src/cases").getRegistration as jest.Mock
@@ -1203,7 +1227,7 @@ describe("native project-aware routes", () => {
     expect(rendered).toContain("A newer completed version is already with the coder; yours was saved as history.");
     expect(rendered).toContain("Coding has finished; only a send-back or reopen can change the coder's version.");
     expect(rendered).toContain("Stored interview: VA-KEPT");
-    expect(rendered).toContain("readyForCodeOnWeb");
+    expect(rendered).toContain("readyForCode");
     await act(async () => tree!.unmount());
   });
 
@@ -1226,17 +1250,17 @@ describe("native project-aware routes", () => {
     (refreshReferenceData as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
     await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).toContain("readyForCodeOnWeb");
+    expect(JSON.stringify(tree!.toJSON())).toContain("readyForCode");
 
     const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
     await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCode");
 
     (syncInterviewer as jest.Mock).mockResolvedValueOnce({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
     await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCodeOnWeb");
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCode");
     await act(async () => tree!.unmount());
   });
 

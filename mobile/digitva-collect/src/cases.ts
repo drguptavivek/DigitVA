@@ -568,13 +568,11 @@ export function prefillFromRegistration(
       deceased.ageInYears = age;
       answers.age_group = "adult";
       answers.age_adult = age;
-      lockedQuestionNames.push("age_group", "age_adult");
     } else if (age >= 1 && age <= 11) {
       answers.Id10020 = "no";
       answers.age_group = "child";
       answers.age_child_unit = "years";
       answers.age_child_years = age;
-      lockedQuestionNames.push("age_group", "age_child_unit", "age_child_years");
     }
   }
   if (!fields.date_of_birth && fields.date_of_birth_partial) {

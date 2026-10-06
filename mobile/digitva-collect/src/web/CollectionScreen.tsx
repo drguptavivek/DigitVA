@@ -1,10 +1,13 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { getCases, getDrafts, getIntakeContext, type CaseRow, type DraftSummary, type IntakeBootstrap } from "../client/api";
 import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisions";
 import { useAppState } from "../AppState";
+import { CodeNowButton } from "../workspace/CodeNowButton";
+import { createWorkspaceApi } from "../workspace/api";
+import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { t, type StringKey } from "../i18n";
 import { Button, stateLabel, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
@@ -40,10 +43,16 @@ export default function CollectionScreen() {
     submissionLocked?: string;
     canCodeNow?: string;
     readyUniqueId?: string;
+    readyVaSid?: string;
   }>();
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
   const styles = useUiStyles();
+  const workspaceApi = useMemo(
+    () => bootstrap ? createWorkspaceApi(createWebWorkspaceTransport(bootstrap.csrf)) : undefined,
+    [bootstrap?.csrf, bootstrap?.user.user_id],
+  );
+  const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
@@ -227,7 +236,17 @@ export default function CollectionScreen() {
         </View>
       ) : null}
       {params.canCodeNow === "1" && !cases.some((row) => row.unique_id === params.readyUniqueId) ? (
-        <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+        <View style={styles.card}>
+          <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+          {canCode && typeof params.readyVaSid === "string" && params.readyVaSid.trim() && workspaceApi ? (
+            <CodeNowButton
+              api={workspaceApi}
+              vaSid={params.readyVaSid.trim()}
+              onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
+              onAccessLost={() => { void appState.reload(); router.replace("/workspace"); }}
+            />
+          ) : null}
+        </View>
       ) : null}
       {!bootstrap?.capabilities.intake ? (
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
@@ -313,13 +332,29 @@ export default function CollectionScreen() {
                 <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
               ) : null}
               {row.code_now === true ? (
-                <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+                <Text style={styles.muted}>{t("readyForCode")}</Text>
               ) : null}
+              {canCode && row.code_now === true && typeof row.va_sid === "string" && workspaceApi ? <CodeNowButton
+                api={workspaceApi}
+                vaSid={row.va_sid}
+                onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
+                onAccessLost={() => {
+                  void appState.reload();
+                  router.replace("/workspace");
+                }}
+              /> : null}
               <Button
                 kind="secondary"
                 label={t("viewDetails")}
                 onPress={() => router.push({ pathname: "/case", params: { deathId: row.death_id } })}
               />
+              {row.other_complete_interview !== true && row.details_pending !== true ? (
+                <Button
+                  kind="secondary"
+                  label={t("editRegistration")}
+                  onPress={() => router.push({ pathname: "/death-registration", params: { deathId: row.death_id } })}
+                />
+              ) : null}
               {row.my_draft_id && !TERMINAL_CASE_STATES.has(row.state ?? row.status ?? "") ? (
                 <Button label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: row.my_draft_id!, ...(row.project_id ? { projectId: row.project_id } : {}), ...(row.site_id ? { siteId: row.site_id } : {}), ...(row.org_unit_id ? { orgUnitId: row.org_unit_id } : {}) } })} />
               ) : null}

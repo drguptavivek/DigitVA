@@ -79,20 +79,21 @@ describe("offline registration WHO prefill", () => {
     expect(prefill).not.toHaveProperty("interviewer");
   });
 
-  it("locks adult and child age answers only when an exact DOB is absent", () => {
-    const adult = prefillFromRegistration({ ...fields, age_years: "58" });
+  it("keeps registered adult and child age answers editable and preserves identity locks", () => {
+    const interviewer = { name: "Anita Rao", id: "user-123" };
+    const adult = prefillFromRegistration({ ...fields, age_years: "58" }, interviewer);
     expect(adult.deceased).toMatchObject({ ageInYears: 58 });
     expect(adult.answers).toMatchObject({ age_group: "adult", age_adult: 58 });
-    expect(adult.lockedQuestionNames).toEqual(["age_group", "age_adult"]);
+    expect(adult.lockedQuestionNames).toEqual(["Id10010", "Id10010c"]);
 
-    const child = prefillFromRegistration({ ...fields, age_years: "5" });
+    const child = prefillFromRegistration({ ...fields, age_years: "5" }, interviewer);
     expect(child.answers).toMatchObject({ Id10020: "no", age_group: "child", age_child_unit: "years", age_child_years: 5 });
-    expect(child.lockedQuestionNames).toEqual(["age_group", "age_child_unit", "age_child_years"]);
+    expect(child.lockedQuestionNames).toEqual(["Id10010", "Id10010c"]);
 
-    const exact = prefillFromRegistration({ ...fields, age_years: "58", date_of_birth: "1968-01-01" });
+    const exact = prefillFromRegistration({ ...fields, age_years: "58", date_of_birth: "1968-01-01" }, interviewer);
     expect(exact.deceased).toHaveProperty("dateOfBirth", "1968-01-01");
     expect(exact.deceased).not.toHaveProperty("ageInYears");
     expect(exact.answers).not.toHaveProperty("age_group");
-    expect(exact.lockedQuestionNames).not.toContain("age_group");
+    expect(exact.lockedQuestionNames).toEqual(["Id10010", "Id10010c"]);
   });
 });

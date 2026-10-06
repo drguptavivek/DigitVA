@@ -23,6 +23,7 @@ import { accessCapabilities, ApiError, AUTH_API, parseAccessSummary, requestJson
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import type { UnlockResult } from "./interviewerDb";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
+import { attachmentMediaKind } from "./workspace/media/path";
 
 export { SessionRevokedError, SignInRequiredError } from "./authErrors";
 
@@ -39,6 +40,13 @@ export interface Account {
   name: string;
   /** Last validated server answer; absent until sign-in or access refresh succeeds. */
   collection_access?: boolean;
+  /** Registration reach is independent from permission to interview. */
+  registration_access?: boolean;
+  /** The own-registration list is available only to death reporters. */
+  registered_deaths_access?: boolean;
+  /** Explicit active workflow grants, refreshed from /me/access. */
+  coding_access?: boolean;
+  reviewing_access?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
   terms_required?: boolean;
@@ -144,25 +152,55 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
   }
 }
 
+/** Refresh access when an action depends on fresh authorization; offline is not a grant. */
+export async function refreshAccessSummaryForAction(userId: string): Promise<AccessSummary> {
+  const device = await loadDevice();
+  const tokens = await readJson<Tokens>(tokensKey(userId));
+  if (!device || !tokens) throw new ApiError(401, "unauthorized");
+  const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
+  return publishAccessSummary(userId, body);
+}
+
 async function publishAccessSummary(userId: string, value: unknown): Promise<AccessSummary> {
   let access: AccessSummary;
   try {
     access = parseAccessSummary(value);
   } catch (error) {
-    await setCollectionAccess(userId, false);
+    await setAccountAccess(userId, false, false, false, false, false);
     throw error;
   }
   await setAccessBlocked(userId, undefined);
-  await setCollectionAccess(userId, accessCapabilities(access).intake);
+  const capabilities = accessCapabilities(access);
+  await setAccountAccess(
+    userId,
+    capabilities.intake,
+    capabilities.registerDeath,
+    capabilities.registeredDeaths,
+    access.roles.some((role) => role === "coder" || role === "coding_tester"),
+    access.roles.includes("reviewer"),
+  );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
 }
 
-async function setCollectionAccess(userId: string, allowed: boolean): Promise<void> {
+async function setAccountAccess(
+  userId: string,
+  collection: boolean,
+  registration: boolean,
+  registeredDeaths: boolean,
+  coding: boolean,
+  reviewing: boolean,
+): Promise<void> {
   const accounts = await loadAccounts();
-  if (!accounts.some((account) => account.user_id === userId && account.collection_access !== allowed)) return;
+  if (!accounts.some((account) => account.user_id === userId &&
+      (account.collection_access !== collection || account.registration_access !== registration ||
+        account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
+        account.reviewing_access !== reviewing))) return;
   await writeJson(ACCOUNTS_KEY, accounts.map((account) =>
-    account.user_id === userId ? { ...account, collection_access: allowed } : account,
+    account.user_id === userId
+      ? { ...account, collection_access: collection, registration_access: registration,
+        registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing }
+      : account,
   ));
   for (const listener of accountListeners) listener();
 }
@@ -320,6 +358,48 @@ export async function unlockInterviewer(
 // spend the same refresh token: reuse of a rotated token revokes the session.
 const refreshing = new Map<string, Promise<Tokens>>();
 const refreshingAccessTokens = new Map<string, string>();
+
+/** Authenticated native Image/Audio source with a short-lived, memory-only bearer header. */
+export async function getAuthenticatedAttachmentSource(
+  userId: string,
+  path: string,
+): Promise<{ uri: string; headers: { Authorization: string } }> {
+  if (!attachmentMediaKind(path)) throw new Error("invalid_attachment_path");
+  const [device, tokens, accounts] = await Promise.all([
+    loadDevice(),
+    readJson<Tokens>(tokensKey(userId)),
+    loadAccounts(),
+  ]);
+  if (!device || !tokens?.access_token || !accounts.some((account) => account.user_id === userId
+    && !account.needs_sign_in && !account.terms_required && !account.access_blocked)) {
+    throw new SignInRequiredError();
+  }
+
+  let current = tokens;
+  const pendingRefresh = refreshing.get(userId);
+  if (pendingRefresh) current = await pendingRefresh;
+  const expiresAt = Date.parse(current.access_expires_at);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60_000) {
+    current = await refresh(userId, device.server);
+  }
+  const refreshedExpiry = Date.parse(current.access_expires_at);
+  if (!Number.isFinite(refreshedExpiry) || refreshedExpiry <= Date.now()) throw new SignInRequiredError();
+
+  const [latestDevice, latestTokens, latestAccounts] = await Promise.all([
+    loadDevice(),
+    readJson<Tokens>(tokensKey(userId)),
+    loadAccounts(),
+  ]);
+  if (!latestDevice || latestDevice.device_id !== device.device_id || latestDevice.server !== device.server
+    || !latestTokens?.access_token || !latestAccounts.some((account) => account.user_id === userId
+      && !account.needs_sign_in && !account.terms_required && !account.access_blocked)) {
+    throw new SignInRequiredError();
+  }
+  const latestExpiry = Date.parse(latestTokens.access_expires_at);
+  if (!Number.isFinite(latestExpiry) || latestExpiry <= Date.now()) throw new SignInRequiredError();
+  const uri = new URL(path, `${device.server.replace(/\/+$/, "")}/`).toString();
+  return { uri, headers: { Authorization: `Bearer ${latestTokens.access_token}` } };
+}
 
 function refresh(userId: string, server: string): Promise<Tokens> {
   let pending = refreshing.get(userId);

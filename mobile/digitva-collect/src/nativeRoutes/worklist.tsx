@@ -12,7 +12,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -45,6 +45,10 @@ import {
   targetsFrom,
 } from "../sync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import RegisteredDeaths from "./RegisteredDeaths";
+import { CodeNowButton } from "../workspace/CodeNowButton";
+import { createWorkspaceApi } from "../workspace/api";
+import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 
 function displayDate(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -95,6 +99,17 @@ function fieldValue(
 }
 
 export default function Worklist() {
+  const { userId, registeredMine } = useLocalSearchParams<{ userId: string; registeredMine?: string }>();
+  const { accounts } = useAppState();
+  const account = accounts.find((item) => item.user_id === userId);
+  const reporterOnly = account?.collection_access !== true && account?.registration_access === true;
+  if (reporterOnly || (registeredMine === "1" && account?.registered_deaths_access === true)) {
+    return <RegisteredDeaths userId={userId} registeredMine={!reporterOnly} />;
+  }
+  return <InterviewWorklist />;
+}
+
+function InterviewWorklist() {
   const styles = useUiStyles();
   const router = useRouter();
   const { userId, refresh: refreshOnFocus } = useLocalSearchParams<{
@@ -103,6 +118,10 @@ export default function Worklist() {
   }>();
   const { accounts, reload, lockNow, lockVersion, syncAccount } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
+  const workspaceApi = useMemo(
+    () => account ? createWorkspaceApi(createNativeWorkspaceTransport(account.user_id)) : undefined,
+    [account?.user_id],
+  );
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
@@ -763,18 +782,19 @@ export default function Worklist() {
       )
     : [];
   const projects = referenceData?.projects.map(({ project }) => project) ?? [];
+  const authorizedProjectIds = new Set(projects.map(({ project_id }) => project_id));
+  const authorizedCases = cases.filter((row) => row.project_id && authorizedProjectIds.has(row.project_id));
+  const authorizedRegistrations = registrations.filter((row) => authorizedProjectIds.has(row.project_id));
+  const authorizedDrafts = drafts.filter((row) => row.project_id && authorizedProjectIds.has(row.project_id));
   const visibleCases = selectedProjectId
-    ? cases.filter((row) => row.project_id === selectedProjectId)
-    : cases;
+    ? authorizedCases.filter((row) => row.project_id === selectedProjectId)
+    : authorizedCases;
   const visibleRegistrations = selectedProjectId
-    ? registrations.filter((row) => row.project_id === selectedProjectId)
-    : registrations;
+    ? authorizedRegistrations.filter((row) => row.project_id === selectedProjectId)
+    : authorizedRegistrations;
   const visibleDrafts = selectedProjectId
-    ? drafts.filter((row) => row.project_id === selectedProjectId)
-    : drafts;
-  const authorizedProjectIds = new Set(
-    referenceData?.projects.map(({ project }) => project.project_id) ?? [],
-  );
+    ? authorizedDrafts.filter((row) => row.project_id === selectedProjectId)
+    : authorizedDrafts;
   const visibleRevisions = revisions.filter(
     (row) =>
       authorizedProjectIds.has(row.project_id) &&
@@ -788,6 +808,15 @@ export default function Worklist() {
   return (
     <Screen title={t("worklistTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
+      {account.coding_access ? <Button label={t("navCoding")} onPress={() => router.push({ pathname: "/coding", params: { userId: account.user_id } })} /> : null}
+      {account.reviewing_access ? <Button label={t("navReview")} onPress={() => router.push({ pathname: "/reviewing", params: { userId: account.user_id } })} /> : null}
+      {account.registered_deaths_access ? (
+        <Button
+          kind="secondary"
+          label={t("myRegisteredDeaths")}
+          onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })}
+        />
+      ) : null}
       {projects.length > 1 ? (
         <View style={{ gap: 8 }}>
           <Text style={styles.text}>{t("chooseProject")}</Text>
@@ -894,8 +923,17 @@ export default function Worklist() {
             <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
           ) : null}
           {row.code_now === true ? (
-            <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
+            <Text style={styles.muted}>{t("readyForCode")}</Text>
           ) : null}
+          {account?.coding_access === true && row.code_now === true && typeof row.va_sid === "string" && workspaceApi ? <CodeNowButton
+            api={workspaceApi}
+            vaSid={row.va_sid}
+            onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { userId: account.user_id, vaSid, mode: "coding" } })}
+            onAccessLost={() => {
+              void reload();
+              router.replace({ pathname: "/workspace", params: { userId: account.user_id } });
+            }}
+          /> : null}
           {[
             fieldValue(
               t("fieldAge").replace(/\s*\*\s*$/, ""),

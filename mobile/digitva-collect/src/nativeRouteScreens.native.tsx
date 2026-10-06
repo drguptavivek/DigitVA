@@ -8,3 +8,4 @@ export { default as SignIn } from "./nativeRoutes/sign-in";
 export { default as Unlock } from "./nativeRoutes/unlock";
 export { default as Worklist } from "./nativeRoutes/worklist";
 export { default as Revision } from "./nativeRoutes/revision";
+export { CodingScreen as Coding, ReviewingScreen as Reviewing, WorkspaceScreen as Workspace } from "./nativeRoutes/workspaceScreens";

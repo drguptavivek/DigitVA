@@ -5,8 +5,27 @@ const mockRouter = { push: jest.fn(), back: jest.fn() };
 const makeBootstrap = (suffix = "") => ({
   user: { user_id: `u1${suffix}`, name: "Interviewer" },
   csrf: { header: "X-CSRFToken", token: `csrf${suffix}` },
-  capabilities: { intake: true, coding: false, reviewing: false },
+  capabilities: { intake: true, registerDeath: true, registeredDeaths: false, coding: false, reviewing: false },
+  access: {
+    user: { user_id: `u1${suffix}`, name: "Interviewer" },
+    is_admin: false,
+    roles: ["interviewer"],
+    demo_coding: { available: false, project_ids: [] },
+    projects: [{
+      project_id: "P1",
+      project_name: "Project",
+      has_tree: false,
+      grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+      sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] }],
+      actions: {
+        interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+        register_death: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [] }],
+      },
+    }],
+  },
   links: {
+    login: "/vaauth/valogin",
+    logout: "/vaauth/valogout",
     intakeCases: "/api/v1/intake/cases",
     intakeDrafts: "/api/v1/intake/drafts",
   },

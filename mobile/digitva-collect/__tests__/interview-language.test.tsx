@@ -11,7 +11,29 @@ const mockDefinitionCache = {
   put: jest.fn(async () => undefined),
   removeProject: jest.fn(), clear: jest.fn(),
 };
-const mockBootstrap = {user: {user_id: "u1", name: "Worker"}, csrf: {header: "X-CSRFToken", token: "csrf"}, links: {intakeDrafts: "/api/v1/intake/drafts", intakeCases: "/api/v1/intake/cases"}};
+const mockBootstrap = {
+  user: {user_id: "u1", name: "Worker"},
+  csrf: {header: "X-CSRFToken", token: "csrf"},
+  capabilities: {intake: true, registerDeath: true, registeredDeaths: false, coding: false, reviewing: false},
+  access: {
+    user: {user_id: "u1", name: "Worker"},
+    is_admin: false,
+    roles: ["interviewer"],
+    demo_coding: {available: false, project_ids: []},
+    projects: [{
+      project_id: "P",
+      project_name: "Project",
+      has_tree: false,
+      grants: [{role: "interviewer", scope: "project", active: true, source: "assigned"}],
+      sites: [{site_id: "S", site_name: "Site", roles: ["interviewer"]}],
+      actions: {
+        interview: [{site_id: "S", site_name: "Site", web_intake_mode: "both", org_units: []}],
+        register_death: [{site_id: "S", site_name: "Site", web_intake_mode: "both", org_units: []}],
+      },
+    }],
+  },
+  links: {login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeDrafts: "/api/v1/intake/drafts", intakeCases: "/api/v1/intake/cases"},
+};
 let mockCurrentBootstrap = mockBootstrap;
 let mockParams: {draftId?: string; deathId?: string; projectId?: string; siteId?: string; orgUnitId?: string; revisionDraftId?: string; revisionProjectId?: string; revisionSiteId?: string; revisionVaSid?: string} = {draftId: "draft-1"};
 const mockRouter = {back: jest.fn(), replace: jest.fn()};
@@ -198,7 +220,7 @@ it("routes an acknowledged can-code-now response to collection as a hint", async
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);
   await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { canCodeNow: "1", readyUniqueId: "VA-1" } });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1" } });
   await act(async () => tree.unmount());
 });
 
@@ -221,7 +243,7 @@ it("submits a stale completed tab's current answers after confirming the draft i
     "/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: answers }, mockBootstrap.csrf, "revision-1"
   );
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: {
-    submissionHistory: "1", submissionLocked: "1", canCodeNow: "1", readyUniqueId: "VA-1"
+    submissionHistory: "1", submissionLocked: "1", canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1"
   } });
   await act(async () => tree.unmount());
 });

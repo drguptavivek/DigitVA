@@ -1,6 +1,6 @@
 import {
   ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
-  getCaseDetail, getCases, getIntakeContext, getProjectFormOptions, intakeContextFromAccess, parseAccessSummary, registerDeath,
+  getCaseDetail, getCases, getIntakeContext, getProjectFormOptions, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, parseRegisteredDeathPage, registerDeath,
   requestClientJson, requestJson, requestRaw, submitDraft, type AccessSummary
 } from "../src/api";
 import { Platform } from "react-native";
@@ -19,7 +19,7 @@ const access: AccessSummary = {
       { role: "coder", scope: "org_unit", org_unit_id: "c", unit_name: "c", codes: true, active: true, source: "assigned" }],
     actions: { interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [
       { org_unit_id: "i", unit_code: "i", unit_name: "i", path: "root.i" },
-    ] }] },
+    ] }], register_death: [] },
     sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] },
       { site_id: "S2", site_name: "Other", roles: ["coder"] }],
     levels: [{ level_code: "phc", level_name: "PHC", depth: 1 }],
@@ -241,15 +241,54 @@ it("uses authoritative interview entries and preserves only authorized subtrees 
   expect(context[0].org_units?.[2].selectable).toBe(true);
   expect(context[0].org_units?.[3].selectable).toBe(false);
   expect(context[0].web_intake_mode).toBe("both");
-  expect(accessCapabilities(access)).toEqual({ intake: true, coding: true, reviewing: false });
+  expect(accessCapabilities(access)).toEqual({ intake: true, registerDeath: false, registeredDeaths: false, coding: true, reviewing: false });
   expect(accessCapabilities({ ...access, roles: ["reviewer"] }).reviewing).toBe(true);
   expect(accessCapabilities({ ...access, roles: [], demo_coding: { available: true, project_ids: ["D"] } }).coding).toBe(true);
+});
+
+it("keeps reporter registration roots separate from interview roots", () => {
+  const reporter = {
+    ...access,
+    roles: ["death_reporter"],
+    projects: [{ ...access.projects[0], actions: {
+      interview: [],
+      register_death: [{ ...access.projects[0].actions.interview[0], org_units: [
+        { org_unit_id: "c", unit_code: "c", unit_name: "c", path: "root.c" },
+      ] }],
+    } }],
+  };
+  const parsed = parseAccessSummary(reporter);
+
+  expect(intakeContextFromAccess(parsed)).toEqual([]);
+  expect(intakeContextFromAccess(parsed, "register_death")[0].org_units?.map(({ org_unit_id }) => org_unit_id)).toEqual(["ancestor", "c"]);
+  expect(accessCapabilities(parsed)).toMatchObject({ intake: false, registerDeath: true, registeredDeaths: true });
+});
+
+it("rejects missing or malformed registration roots", () => {
+  const project = access.projects[0];
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...project, actions: { interview: project.actions.interview } }] })).toThrow(ApiError);
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...project, actions: { interview: [], register_death: [{ ...project.actions.interview[0], org_units: [{ org_unit_id: "c" }] }] } }] })).toThrow(ApiError);
+});
+
+it("reads reporter deaths in bounded cursor pages and validates consumed display fields", async () => {
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response({
+    deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: "A", date_of_death: null, unit_name: null }],
+    next_cursor: "opaque+/=",
+  }));
+  const page = await getRegisteredDeaths(csrf, true, "before+/=");
+
+  expect(page.next_cursor).toBe("opaque+/=");
+  expect(String(fetch.mock.calls[0][0])).toBe("/api/v1/intake/deaths?limit=50&registered=mine&cursor=before%2B%2F%3D");
+  expect(() => parseRegisteredDeathPage({ deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: {} }], next_cursor: null })).toThrow(ApiError);
+  expect(() => parseRegisteredDeathPage({ deaths: [{ death_id: "d1", unique_id: "U1", status: 4 }], next_cursor: null })).toThrow(ApiError);
+  expect(() => parseRegisteredDeathPage({ deaths: [{ death_id: "", unique_id: "U1" }], next_cursor: null })).toThrow(ApiError);
+  expect(() => parseRegisteredDeathPage({ deaths: [{ death_id: "d1", unique_id: "U1" }, { death_id: "d1", unique_id: "U2" }], next_cursor: null })).toThrow(ApiError);
 });
 
 it("treats empty interview unit roots as unrestricted tree access", () => {
   const broad = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
     { ...access.projects[0].actions.interview[0], org_units: [] },
-  ] } }] };
+  ], register_death: [] } }] };
   const units = intakeContextFromAccess(parseAccessSummary(broad))[0].org_units;
   expect(units?.map((entry) => entry.org_unit_id)).toEqual(["ancestor", "i", "i.child", "i.disabled", "c"]);
   expect(units?.map((entry) => entry.selectable)).toEqual([false, true, true, false, true]);
@@ -299,7 +338,7 @@ it("loads browser access without probing project metadata and uses its CSRF head
   const result = await fetchClientBootstrap();
   expect(result).toMatchObject({ authenticated: true, bootstrap: {
     user: { user_id: "u1", name: "Worker" }, csrf: { header: "X-CSRFToken", token: "session-csrf" },
-    capabilities: { intake: true, coding: true, reviewing: false },
+    capabilities: { intake: true, registerDeath: false, registeredDeaths: false, coding: true, reviewing: false },
     links: { login: "/vaauth/valogin?next=%2Fapp%2F", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases" }
   } });
   if (!result.authenticated) throw new Error("Expected browser session");
@@ -310,7 +349,7 @@ it("loads browser access without probing project metadata and uses its CSRF head
 
 it("keeps collection closed when interview entries are empty despite misleading roles", async () => {
   const noInterview = { ...access, roles: ["interviewer"], projects: [{
-    ...access.projects[0], actions: { interview: [] },
+    ...access.projects[0], actions: { interview: [], register_death: [] },
   }] };
   const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response(noInterview, 200, "application/json", "session-csrf"));
 
@@ -324,7 +363,7 @@ it("does not show coding for an inactive coder grant absent from top-level roles
   const inactiveCoder = { ...access, roles: [], projects: [{
     ...access.projects[0], has_tree: false,
     grants: [{ role: "coder", scope: "project", codes: true, active: false, source: "assigned" }],
-    actions: { interview: [] },
+    actions: { interview: [], register_death: [] },
   }] };
   expect(accessCapabilities(parseAccessSummary(inactiveCoder)).coding).toBe(false);
 });
@@ -333,7 +372,7 @@ it("does not fetch intake resources for coder-only access", async () => {
   const coderAccess: AccessSummary = { ...access, projects: [{
     project_id: "P2", project_name: "Coding", has_tree: false,
     grants: [{ role: "coder", scope: "project", codes: true, active: true, source: "assigned" }],
-    actions: { interview: [] }, sites: [],
+    actions: { interview: [], register_death: [] }, sites: [],
   }] };
   const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response(coderAccess, 200, "application/json", "session-csrf"));
 
@@ -346,15 +385,15 @@ it("does not fetch intake resources for coder-only access", async () => {
 it.each(["broken", "off", null, 4])("rejects malformed or closed interview entries at the access boundary: %s", (mode) => {
   const malformed = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
     { ...access.projects[0].actions.interview[0], web_intake_mode: mode },
-  ] } }] };
+  ], register_death: [] } }] };
 
   expect(() => parseAccessSummary(malformed)).toThrow(ApiError);
 });
 
 it("rejects incomplete interview entries and unit roots at the access boundary", () => {
   const entry = access.projects[0].actions.interview[0];
-  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: undefined }] } }] })).toThrow(ApiError);
-  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: [{ org_unit_id: "i" }] }] } }] })).toThrow(ApiError);
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: undefined }], register_death: [] } }] })).toThrow(ApiError);
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: [{ org_unit_id: "i" }] }], register_death: [] } }] })).toThrow(ApiError);
 });
 
 it.each([undefined, null, "yes"])("rejects an absent or malformed top-level roles field: %s", (roles) => {
@@ -469,7 +508,7 @@ it("preserves server interview entry order and modes for multiple sites", async 
   const twoSites = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
     { ...access.projects[0].actions.interview[0], site_id: "S1", site_name: "One", web_intake_mode: "both" as const },
     { ...access.projects[0].actions.interview[0], site_id: "S2", site_name: "Two", web_intake_mode: "direct" as const },
-  ] } }] };
+  ], register_death: [] } }] };
   const fetch = jest.spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(response(twoSites));
   const context = await getIntakeContext(csrf);

@@ -151,7 +151,10 @@ function mockServer(handler: (call: Call) => Response, detailFor: (deathId: stri
       demo_coding: { available: false, project_ids: [] },
       projects: [{ project_id: PROJECT, project_name: "P", has_tree: false,
         grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
-        actions: { interview: [{ site_id: "S1", site_name: "S1", web_intake_mode: "both", org_units: [] }] },
+        actions: {
+          interview: [{ site_id: "S1", site_name: "S1", web_intake_mode: "both", org_units: [] }],
+          register_death: [{ site_id: "S1", site_name: "S1", web_intake_mode: "both", org_units: [] }]
+        },
         sites: [{ site_id: "S1", site_name: "S1", roles: ["interviewer"] }] }],
     });
     if (call.url.includes("/organization/") && call.url.endsWith("/form-options")) return json(200, { web_intake_mode: "both", instrument_version: "server" });
@@ -580,7 +583,7 @@ describe("draft binding", () => {
     expect(prefillFromRegistration(fields)).toEqual({
       deceased: { givenNames: "Ram", surname: "Lal Verma", sex: "male", dateOfDeath: "2026-09-28", ageInYears: 58 },
       answers: { Id10007: "Sita", age_group: "adult", age_adult: 58 },
-      lockedQuestionNames: ["age_group", "age_adult"]
+      lockedQuestionNames: []
     });
     expect(prefillFromRegistration({ ...fields, deceased_name: "Asha", deceased_sex: "unknown", age_years: "5" }).deceased).toEqual({
       givenNames: "Asha",
@@ -593,7 +596,7 @@ describe("draft binding", () => {
     expect(prefillFromRegistration({ ...fields, date_of_birth_partial: "1987-04" })).toEqual({
       deceased: { givenNames: "Ram", surname: "Lal Verma", sex: "male", dateOfDeath: "2026-09-28", ageInYears: 58 },
       answers: { Id10007: "Sita", age_group: "adult", age_adult: 58, Id10020: "no", dob_precision: "month_year", dob_month_year: "1987-04-01" },
-      lockedQuestionNames: ["age_group", "age_adult"]
+      lockedQuestionNames: []
     });
     expect(prefillFromRegistration({ ...fields, date_of_birth_partial: "1987" }).deceased).not.toHaveProperty("dateOfBirth");
     expect(prefillFromRegistration({ ...fields, date_of_birth_partial: "1987" }).answers).toMatchObject({

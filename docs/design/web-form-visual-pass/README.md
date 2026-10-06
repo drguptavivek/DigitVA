@@ -1,9 +1,9 @@
 ---
 title: Web VA questionnaire visual pass (before/after)
 doc_type: design
-status: proposed
+status: active
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-06
 ---
 
 # Web VA questionnaire visual pass

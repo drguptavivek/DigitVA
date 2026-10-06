@@ -121,7 +121,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | `GET /me/access` | The whole access body, below. Sets `X-CSRFToken` for a cookie request. |
 | `GET /me/notifications?after=<id>` | The caller's own notifications, below. Either credential. 120/min. |
 | `POST /me/terms` | Below. Also `POST /profile/terms` (the same view). |
-| `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. Other `role` values and none are the browsing views. |
+| `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. `role=death_reporter` is the same rule over a death reporter's own unit grants (the Register death picker for a reporter). Other `role` values and none are the browsing views. |
 | `GET /organization/<project>/form-options` | `form_options_payload`: `config_version`, `enabled_extensions`, `form_types`, `intake_note`, `default_locale`, `available_locales`, `translation_versions`, `narration_languages`, `show_guidance`, `web_intake_mode` (which capture paths are open), `instrument_version` (the composed form version, `served_form_service.composed_version`), `definition_sha256` (the project's definition fingerprint). Any grant reaching the project. |
 | `GET /intake/projects/<project>/prefill-policy` | `web_intake_service.prefill_policy`; the project must be one of the caller's interviewer projects (403 `project_forbidden`). |
 | `GET /instruments/<code>/translations/<locale>[?project_id=]` | `translations_response` (weak ETag, 304). Without `project_id`: any servable (active or `in_review`) locale to any signed-in user. With it: also needs a grant reaching the project (403 `forbidden`; unknown or inactive project 404 `not_found`) and serves only that project's instrument and `available_locales`, else 404 `not_found` (the offline app passes it). 120/min. |
@@ -135,7 +135,11 @@ and the `units` picker per project that has a tree.
 ## Intake (`/api/v1/intake`, `app/routes/api/intake.py`)
 
 Paths are under `/api/v1`. Either credential; the caller needs the
-interviewer role (supervision: `interview_supervisor` or `data_manager`).
+interviewer role (supervision: `interview_supervisor` or `data_manager`). The
+death register is the exception: `POST /intake/deaths`, `GET /intake/deaths`
+and `PATCH /intake/deaths/<id>` also take a `death_reporter` (unit-scope role
+for ANM, MPW and ASHA, `digitva-t6q`), who registers deaths without any
+interview right.
 
 | Call | Notes |
 |---|---|
@@ -148,7 +152,8 @@ interviewer role (supervision: `interview_supervisor` or `data_manager`).
 | `POST /intake/cases/<death_id>/flags`, `/pause` | The browser worklist's calls, now for every client. Each replies `{"case": <detail>}`, the body of `GET /intake/cases/<id>` (below). |
 | `GET /intake/cases/<death_id>/possible-duplicates` reply | `{"possible_duplicates": [...]}`, up to 50, most similar first, only cases inside the caller's own worklist scope (a case outside it is never returned, no id and no detail). Each: `death_id`, `unique_id`, `unit_name`, `state`, `score`, and `deceased_name`, `date_of_death` (ISO date), `village` (the village or ward of the case's recorded address, `null` when empty; the org unit is `unit_name`), `age_years`, `sex`, `informant_name`, `previous_interviewer_name` (the user who started the interview, `null` when nobody did; new here, since the worklist and case detail never name another interviewer, and shown only for these in-scope candidates by the owner's 2026-10-01 rule). The detail keys are additive. No phone or address. The per-row `possible_duplicates` of `GET /intake/cases` and the device list stays `death_id` and `unique_id` only. |
 | `GET/POST /intake/deaths` | List (`project_id`, `site_id` required) and register (`project_id` required; `client_death_id` optional, idempotent), below. |
-| `PATCH /intake/deaths/<death_id>` | Correct a registered death until an interview of it is completed (`interviewer`, `interview_supervisor` or `data_manager`; the caller must see or supervise the case, else 404). Body: only the register fields to change, optional `if_updated_at` (the `case.updated_at` last seen). 200 `{"case": <detail>}`; 409 `case_completed` (a completed interview exists) / `details_pending` / `death_stale`; 422 `invalid_death` (`register_death`'s validation, a list or object in a field, nothing to change). Audited as `details_edited`: the audit's `reason` names the fields, its `changes` column keeps each one's old and new value (never returned by any API). Policy: [Web Intake](../policy/web-intake.md) "Correcting a registered death". |
+| `POST /intake/deaths` / `GET /intake/deaths` (death reporter) | A `death_reporter` registers a death as an interviewer does (same body, same 201 `{"case": <detail>}`, same `client_death_id` idempotency) in the unit subtree its grant reaches (403 outside it, or in a project whose `web_intake_mode` keeps no death register). The reply's `case` carries no `prefill` and `links` is only `{"update": "/api/v1/intake/deaths/<id>"}`: no start-interview, attempts or visit link. `GET /intake/deaths` serves a reporter (one with no interviewer right) **its own registered deaths** within reach, newest activity first: query `project_id`, `site_id` (optional narrowing; no reach there is 403), `limit` (default 50, clamped to 200), `cursor`; reply `{"deaths": [<death, as the interviewer's list, `va_sid` null>], "next_cursor": str \| null}`; malformed `limit`/`cursor` 400. Index-backed (`ix_va_death_register_registered_by`). A user who also holds `interviewer` gets the interviewer list unchanged (`project_id` and `site_id` required, no cursor) unless they ask `?registered=mine`, which serves any caller holding a `death_reporter` grant this same paged list (any other value is 400). A reply about a case is reporter-shaped (no `prefill`, `links` only `update`, no `other_draft_*`) for a caller with a `death_reporter` grant that no interviewer grant of theirs reaches the case through. Every other `/intake` route (worklist, case detail, drafts, attempts, visit, pause, flags, uploads, outstanding, prefill-policy, supervision) answers a reporter 403. |
+| `PATCH /intake/deaths/<death_id>` | Correct a registered death until an interview of it is completed (`interviewer`, `interview_supervisor`, `data_manager`, or the `death_reporter` who registered it and whose grant still reaches its unit; the caller must see or supervise the case, else 404). Body: only the register fields to change, optional `if_updated_at` (the `case.updated_at` last seen). 200 `{"case": <detail>}`; 409 `case_completed` (a completed interview exists) / `details_pending` / `death_stale`; 422 `invalid_death` (`register_death`'s validation, a list or object in a field, nothing to change). Audited as `details_edited`: the audit's `reason` names the fields, its `changes` column keeps each one's old and new value (never returned by any API). Policy: [Web Intake](../policy/web-intake.md) "Correcting a registered death". |
 | `POST /intake/cases/<death_id>/attempts`, `/visit` | Attempts (`client_attempt_id` optional, idempotent) and visits, keyed by the case (no `project_id`), below. |
 | `POST /intake/drafts/sync` | The phone's in-progress interview into the caller's one open draft of a case; newer save wins whole, the loser is kept as a `replaced` draft. Reply `{draft, kept, conflict, answers_sha256, message, envelope}`; 422 `answers_hash_*`/`invalid_interview` store nothing; 409 on a closed case. Contract: [Device Collection API](device-collection-api.md) "Draft sync". |
 | `GET/POST /intake/drafts`, `GET/PATCH /intake/drafts/<id>`, `POST /intake/drafts/<id>/discard`, `/submit` | The web draft store. Draft saves and submits take no body cap beyond the service's answer checks. `PATCH` takes optional `if_updated_at` (the last seen `draft.updated_at`): a newer saved version is 409 `draft_stale`, nothing written. One open draft per interviewer per case: `POST` returns the caller's own, another interviewer's never blocks (no 409). `/submit`: 201 `{va_sid, draft, superseded: false, validation_err, can_code_now}`; on a draft that is already `submitted` (a stale tab) it is a correction, 200 with the same body plus `kept` and `locked`; on an open draft whose case's winning submission is the caller's own earlier draft it is the same correction (the draft is closed as `replaced`; `va_sid` and `draft` are the winning interview's); on a case already `submitted`, `duplicate` or `cancelled` (a teammate won, or a supervisor closed it) the draft is kept as `superseded` (no submission, case untouched) and the reply is 200 `{va_sid: null, draft, superseded: true, validation_err: null, can_code_now: false}`. `can_code_now` (bool, also on the correction's reply and on the `/intake/submissions` result) is true when the caller may now be offered "Code this case now": a completed interview with valid consent in a self-coding project where the caller holds a coder grant that codes (`web_intake_service.can_code_now`; grants only, the action re-checks). |
@@ -756,13 +761,19 @@ site or unit.
     listed; `roles` and `units[].roles` carry them. One key is not reach:
     `interview`, the project's entries of `web_intake_service.interviewer_context`
     (the intake routes' check; one entry per site, with `web_intake_mode` and the
-    interviewer's units there).
+    interviewer's units there). `register_death` is the same shape for the
+    register-death routes' check (`web_intake_service.register_death_context`):
+    the sites and units where the caller, as an interviewer or a
+    `death_reporter`, may register a death, in a project whose
+    `web_intake_mode` is `death_register` or `both`. An app shows Register
+    death from this list, with or without interview rights; `interview` alone
+    gates the interview screens.
   - `sites`: active project-sites the active grants reach, with the roles that
     reach each: a project or unit grant reaches every active site of the
     project, a site grant its own site; derived `data_manager` and
     `interview_supervisor` as in `roles`. `interviewer` is listed at a site
     only where `interviewer_context` lists that site (web intake on, an active
-    form there). A site with no role left is omitted.
+    form there); `death_reporter` only where `register_death` lists it. A site with no role left is omitted.
   - `has_tree`, `levels`, `units`: `levels` and `units` only when `has_tree`.
     Units are active and placed (unplaced units are skipped), in path order.
     Fields as the organization API's `/units`, plus `roles`, `selectable` and
@@ -774,8 +785,8 @@ site or unit.
   grant (a site grant reaches that site's cases in any unit, so the whole tree
   is shown for it); a `project_pi` on the project holds every role they have
   there, `data_manager` and `interview_supervisor` included, on every unit,
-  except `interviewer`: web intake has no PI bypass, so a unit interviewer
-  grant stays its subtree (`web_intake_service.reachable_unit_ids`); an In-charge (`site_pi` at a unit) holds the derived
+  except `interviewer` and `death_reporter`: web intake has no PI bypass, so a
+  unit interviewer or death_reporter grant stays its subtree (`web_intake_service.reachable_unit_ids`); an In-charge (`site_pi` at a unit) holds the derived
   `data_manager` and `interview_supervisor` on that unit's subtree only;
   otherwise the subtrees of that role's unit grants. `interviewer` is on no
   unit when the project's `actions.interview` is empty (web intake off).

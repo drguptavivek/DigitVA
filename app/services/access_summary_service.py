@@ -50,15 +50,25 @@ def build_access_summary(user) -> dict:
     """The access summary of *user*; see docs/current-state/api-v1.md."""
     # Imported here: these import this package or route modules at load.
     from app.services.device_auth_service import has_device_access
-    from app.services.web_intake_service import interviewer_context, self_coding_project_ids
+    from app.services.web_intake_service import (
+        interviewer_context,
+        register_death_context,
+        self_coding_project_ids,
+    )
 
     mark_consulted()
     resolved = resolve_grants(user)
     # Once per call: the intake routes' check, shared with has_device_access.
     context = interviewer_context(user)
+    # Where the register-death routes accept the caller (an interviewer's
+    # entries, or a death_reporter's as well): actions.register_death.
+    register_context = register_death_context(user, context)
     interviewing: dict[str, list[dict]] = {}
     for entry in context:
         interviewing.setdefault(entry["project_id"], []).append(entry)
+    registering: dict[str, list[dict]] = {}
+    for entry in register_context:
+        registering.setdefault(entry["project_id"], []).append(entry)
     self_coding = self_coding_project_ids(user)
     explicit = [g for g in resolved.grants if not g.virtual]
     by_project: dict[str, list] = {}
@@ -94,7 +104,7 @@ def build_access_summary(user) -> dict:
     projects = [
         _project(project_id, grants, resolved, names.get(project_id),
                  sites.get(project_id, []), unit_names, interviewing.get(project_id, []),
-                 project_id in self_coding)
+                 project_id in self_coding, registering.get(project_id, []))
         for project_id, grants in sorted(by_project.items())
     ]
     demo_projects = sorted({g.project_id for g in resolved.grants if g.virtual})
@@ -113,7 +123,7 @@ def build_access_summary(user) -> dict:
                 "configured": totp_service.has_any_factor(user.user_id),
             },
             "pii_visible": not should_redact_pii(user),
-            "device_access": has_device_access(user, context),
+            "device_access": has_device_access(user, context, register_context),
             "mentor": {
                 "member": user.user_id in mentor_institute_service.member_user_ids([user.user_id]),
                 "admin_of": [
@@ -139,7 +149,7 @@ def _roles(grant, resolved) -> set:
 
 
 def _project(project_id, grants, resolved, name, site_rows, unit_names, interview,
-             code_now) -> dict:
+             code_now, register) -> dict:
     has_tree = resolved.has_tree(project_id)
     grants = sorted(grants, key=lambda g: (
         g.role.value, g.scope_type.value, g.site_id or "", str(g.org_unit_id or "")))
@@ -151,13 +161,18 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
     for g in active:
         if g.scope_type == _PS:
             site_grants.setdefault(g.site_id, set()).update(_roles(g, resolved))
-    # Interviewer only where the intake routes list the site (interviewer_context).
+    # Interviewer only where the intake routes list the site (interviewer_context),
+    # death_reporter only where the register routes do (register_death_context).
     interviewing = {entry["site_id"] for entry in interview}
+    registering = {entry["site_id"] for entry in register}
     site_list = []
     for row in site_rows:
-        roles = (roles_all_sites | site_grants.get(row.site_id, set())) - {VaAccessRoles.interviewer}
+        held = roles_all_sites | site_grants.get(row.site_id, set())
+        roles = held - {VaAccessRoles.interviewer, VaAccessRoles.death_reporter}
         if row.site_id in interviewing:
             roles.add(VaAccessRoles.interviewer)
+        if row.site_id in registering and VaAccessRoles.death_reporter in held:
+            roles.add(VaAccessRoles.death_reporter)
         if roles:
             site_list.append({
                 "site_id": row.site_id,
@@ -169,6 +184,13 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
     actions["interview"] = [
         {k: entry[k] for k in ("site_id", "site_name", "web_intake_mode", "org_units")}
         for entry in interview
+    ]
+    # The sites (and units) the register-death routes accept, an interviewer's
+    # or a death_reporter's; the app shows Register death from this, with or
+    # without interview rights.
+    actions["register_death"] = [
+        {k: entry[k] for k in ("site_id", "site_name", "web_intake_mode", "org_units")}
+        for entry in register
     ]
     body = {
         "project_id": project_id,
@@ -185,9 +207,14 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
         "sites": site_list,
     }
     if has_tree:
-        # A unit interviewer grant always opens its gate, but with no site the
-        # intake routes accept (web intake off) it reaches no unit either.
-        tree_grants = active if interview else [g for g in active if g.role != VaAccessRoles.interviewer]
+        # A unit interviewer (or death_reporter) grant always opens its gate, but
+        # with no site the intake routes accept (web intake off) it reaches no
+        # unit either.
+        tree_grants = [
+            g for g in active
+            if (interview or g.role != VaAccessRoles.interviewer)
+            and (register or g.role != VaAccessRoles.death_reporter)
+        ]
         body.update(_tree(project_id, tree_grants, resolved))
     return body
 
@@ -236,10 +263,10 @@ def _tree(project_id, grants, resolved) -> dict:
     tree = units_payload(project_id, None)
     if any(g.role == VaAccessRoles.project_pi for g in grants):
         # Web intake has no project_pi bypass (web_intake_service.reachable_unit_ids):
-        # a unit interviewer grant stays its subtree.
+        # a unit interviewer or death_reporter grant stays its subtree.
         whole = set().union(*(
             _roles(g, resolved) for g in grants
-            if not (g.scope_type == _U and g.role == VaAccessRoles.interviewer)))
+            if not (g.scope_type == _U and g.role in (VaAccessRoles.interviewer, VaAccessRoles.death_reporter))))
     else:
         whole = set().union(*(_roles(g, resolved) for g in grants if g.scope_type != _U))
     coders = [

@@ -115,7 +115,7 @@ def project_units(project_id: str):
       ``role`` narrows scoping to that one role's grants (e.g.
       ``role=interviewer`` for the web intake picker) instead of the union of
       every role the user holds on the project. Unknown value -> 400.
-      ``role=interviewer`` answers by the web intake rule
+      ``role=interviewer`` (and ``role=death_reporter``) answers by the web intake rule
       (``web_intake_service.reachable_unit_ids``): grant-only, no admin or
       PI bypass, the same tree device ``/units`` returns.
 
@@ -135,11 +135,12 @@ def project_units(project_id: str):
     except ValueError as exc:
         role, role_error = None, str(exc)
     # authz decides first; the refusals keep their order (404, 400, 403).
-    if role is VaAccessRoles.interviewer:
+    if role in (VaAccessRoles.interviewer, VaAccessRoles.death_reporter):
         # Intake pickers (Jinja, Expo web) get the same grant-only tree as
         # device /units, decided from the user's grants alone (owner,
-        # 2026-10-04); the create-time check stays the authority.
-        reachable = intake_svc.reachable_unit_ids(current_user, project_id)
+        # 2026-10-04); the create-time check stays the authority. A
+        # death_reporter's picker is its own role's reach (digitva-t6q).
+        reachable = intake_svc.reachable_unit_ids(current_user, project_id, roles=frozenset({role}))
     else:
         reachable = _reachable_unit_ids(project_id, role)
     project = db.session.get(VaProjectMaster, project_id)

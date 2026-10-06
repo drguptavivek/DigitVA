@@ -438,6 +438,25 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(blocked.status_code, 400)
         self.assertIn("first", blocked.get_json()["error"])
 
+    def test_put_level_cadres_without_the_report_deaths_key_keeps_the_stored_value(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        self.client.post(self._url("/seed-template"), json={}, headers=headers)
+        levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
+        cadres = {c["cadre_code"]: c for c in self.client.get(self._url()).get_json()["cadres"]}
+        body = {"org_level_id": levels["subcentre"]["org_level_id"], "cadre_id": cadres["ANM"]["cadre_id"],
+                "can_fill_va_form": False, "can_code_va_form": False}
+        # Present first: the seeded ANM may report deaths at a sub-centre.
+        seeded = {(r["level_code"], r["cadre_code"]): r for r in self.client.get(self._url("/level-cadres")).get_json()["level_cadres"]}
+        self.assertTrue(seeded[("subcentre", "ANM")]["can_report_deaths"])
+        kept = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
+        self.assertEqual(kept.status_code, 200, kept.get_json())
+        self.assertTrue(kept.get_json()["level_cadre"]["can_report_deaths"])
+        cleared = self.client.put(self._url("/level-cadres"), json={**body, "can_report_deaths": False}, headers=headers)
+        self.assertFalse(cleared.get_json()["level_cadre"]["can_report_deaths"])
+        again = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
+        self.assertFalse(again.get_json()["level_cadre"]["can_report_deaths"])  # absent keeps the cleared value
+
     def _seed_one_unit(self, headers):
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
         level = self.client.get(self._url("/levels")).get_json()["levels"][0]

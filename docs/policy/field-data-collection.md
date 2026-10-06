@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Field Data Collection Policy
@@ -108,7 +108,8 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   password and, when the account has factors, a TOTP or recovery code
   ([Authentication Factors](authentication-factors.md)); a device session
   requires an active grant that opens its gate for `interviewer`, `coder`,
-  `coding_tester` or `reviewer` in at least one project (see "Who may sign
+  `coding_tester` or `reviewer` in at least one project (or a `death_reporter`
+  grant in a project that keeps a death register) (see "Who may sign
   in on a device" and "Multi-project devices" below), checked again at every
   refresh.
 - **Tokens**: opaque, stored hashed; access 15 minutes; refresh rotated on

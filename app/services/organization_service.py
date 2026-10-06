@@ -111,23 +111,26 @@ DEFAULT_CADRE_TEMPLATE: tuple[tuple[str, str], ...] = (
     ("ASHA", "Accredited Social Health Activist"),
 )
 # (level_code, cadre_code) -> (can_fill_va_form, can_code_va_form,
-# can_supervise_interviews): what a cadre MAY be given at that level.
-DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool]] = {
-    ("district", "CS"): (False, False, True),
-    ("district", "DPM"): (False, False, False),
-    ("district", "DEPI"): (False, False, False),
-    ("district", "MO"): (False, True, False),
-    ("district", "SN"): (True, False, False),
-    ("chc", "SMO"): (False, True, True),
-    ("chc", "MO"): (False, True, False),
-    ("chc", "BPM"): (False, False, False),
-    ("chc", "SN"): (True, False, False),
-    ("phc", "MO"): (False, True, True),
-    ("phc", "CHO"): (True, False, False),
-    ("subcentre", "CHO"): (True, False, False),
-    ("subcentre", "MPW"): (True, False, False),
-    ("subcentre", "ANM"): (True, False, False),
-    ("village", "ASHA"): (True, False, False),
+# can_supervise_interviews, can_report_deaths): what a cadre MAY be given at
+# that level.
+DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool, bool]] = {
+    ("district", "CS"): (False, False, True, False),
+    ("district", "DPM"): (False, False, False, False),
+    ("district", "DEPI"): (False, False, False, False),
+    ("district", "MO"): (False, True, False, False),
+    ("district", "SN"): (True, False, False, False),
+    ("chc", "SMO"): (False, True, True, False),
+    ("chc", "MO"): (False, True, False, False),
+    ("chc", "BPM"): (False, False, False, False),
+    ("chc", "SN"): (True, False, False, False),
+    ("phc", "MO"): (False, True, True, False),
+    ("phc", "CHO"): (True, False, False, False),
+    ("subcentre", "CHO"): (True, False, False, False),
+    # Owner 2026-10-06: ANM and MPW report deaths and must not interview, so
+    # no Fill VA (new projects only; an existing grid row is never rewritten).
+    ("subcentre", "MPW"): (False, False, False, True),
+    ("subcentre", "ANM"): (False, False, False, True),
+    ("village", "ASHA"): (True, False, False, True),
 }
 # Advisory only, shown on the Organization page: the grants an administrator
 # would normally give each cadre. Never read for authorization; access comes
@@ -145,10 +148,10 @@ DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
     ("chc", "SN"): ("interviewer",),
     ("phc", "MO"): ("site_pi", "coder"),
     ("subcentre", "CHO"): ("interviewer",),
+    ("subcentre", "MPW"): ("death_reporter",),
+    ("subcentre", "ANM"): ("death_reporter",),
+    ("village", "ASHA"): ("death_reporter",),
 }
-# Cadres with no role yet: they report deaths, which no role covers today.
-_TYPICAL_ROLES_NOTE = "none yet; death_reporter proposed"
-_NO_ROLE_YET_CADRES = frozenset({"ANM", "MPW", "ASHA"})
 
 EXPORT_SHEETS = ("levels", "units", "cadres", "level_cadres", "workers")
 
@@ -440,6 +443,7 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
         "can_fill_va_form": row.can_fill_va_form,
         "can_code_va_form": row.can_code_va_form,
         "can_supervise_interviews": row.can_supervise_interviews,
+        "can_report_deaths": row.can_report_deaths,
         "is_active": row.is_active,
     }
 
@@ -1277,12 +1281,14 @@ def upsert_level_cadre(
     can_fill_va_form: bool,
     can_code_va_form: bool,
     can_supervise_interviews: bool | None = None,
+    can_report_deaths: bool | None = None,
     is_active: bool = True,
 ) -> MapOrgLevelCadre:
     """Create or update one level x cadre row.
 
-    ``can_supervise_interviews`` of ``None`` keeps the row's current value (false
-    on a new row), so callers and workbooks that predate the flag cannot clear it.
+    ``can_supervise_interviews`` and ``can_report_deaths`` of ``None`` keep the
+    row's current value (false on a new row), so callers and workbooks that
+    predate a flag cannot clear it.
     """
     level = _get_level(project_id, org_level_id)
     cadre = _get_cadre(project_id, cadre_id)
@@ -1299,6 +1305,8 @@ def upsert_level_cadre(
     row.can_code_va_form = bool(can_code_va_form)
     if can_supervise_interviews is not None:
         row.can_supervise_interviews = bool(can_supervise_interviews)
+    if can_report_deaths is not None:
+        row.can_report_deaths = bool(can_report_deaths)
     if not is_active:
         active_workers = db.session.scalar(
             sa.select(sa.func.count())
@@ -1516,7 +1524,7 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             .where(MasOrgLevel.project_id == project_id)
         ).all()
     )
-    for (level_code, cadre_code), (can_fill, can_code, can_supervise) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+    for (level_code, cadre_code), (can_fill, can_code, can_supervise, can_report) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
         level = existing_levels.get(level_code)
         cadre = existing_cadres.get(cadre_code)
         if level is None or cadre is None or (level.org_level_id, cadre.cadre_id) in existing_pairs:
@@ -1528,6 +1536,7 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             can_fill_va_form=can_fill,
             can_code_va_form=can_code,
             can_supervise_interviews=can_supervise,
+            can_report_deaths=can_report,
         )
         counts["level_cadres"] += 1
     db.session.flush()
@@ -1544,7 +1553,7 @@ def district_reference_model() -> dict:
     level_names = {code: name for code, name, _depth, _optional in DEFAULT_LEVEL_TEMPLATE}
     cadre_names = dict(DEFAULT_CADRE_TEMPLATE)
     grid = []
-    for (level_code, cadre_code), (can_fill, can_code, can_supervise) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+    for (level_code, cadre_code), (can_fill, can_code, can_supervise, can_report) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
         roles = DEFAULT_TYPICAL_ROLES.get((level_code, cadre_code), ())
         grid.append(
             {
@@ -1555,8 +1564,8 @@ def district_reference_model() -> dict:
                 "can_fill_va_form": can_fill,
                 "can_code_va_form": can_code,
                 "can_supervise_interviews": can_supervise,
+                "can_report_deaths": can_report,
                 "typical_roles": list(roles),
-                "typical_roles_note": _TYPICAL_ROLES_NOTE if not roles and cadre_code in _NO_ROLE_YET_CADRES else None,
             }
         )
     return {
@@ -1580,7 +1589,8 @@ _UNIT_HEADERS = (
 )
 _CADRE_HEADERS = ("cadre_code", "cadre_name", "is_active")
 _LEVEL_CADRE_HEADERS = (
-    "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews", "is_active",
+    "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
+    "can_report_deaths", "is_active",
 )
 _WORKER_HEADERS = (
     "worker_code", "worker_name", "unit_code", "cadre_code", "phone", "user_email", "remarks", "is_active",
@@ -1934,6 +1944,10 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                     None if row.get("can_supervise_interviews") in (None, "")
                     else _to_bool(row["can_supervise_interviews"], what="can_supervise_interviews")
                 ),
+                can_report_deaths=(
+                    None if row.get("can_report_deaths") in (None, "")
+                    else _to_bool(row["can_report_deaths"], what="can_report_deaths")
+                ),
                 is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True,
             )
             if kwargs["is_active"]:
@@ -1954,6 +1968,7 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                         can_fill_va_form=lc["can_fill_va_form"],
                         can_code_va_form=lc["can_code_va_form"],
                         can_supervise_interviews=lc["can_supervise_interviews"],
+                        can_report_deaths=lc["can_report_deaths"],
                         is_active=False,
                     ),
                 ))

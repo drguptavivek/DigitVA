@@ -18,7 +18,7 @@ binding rules stay in that policy and in the
 The page that shows who holds which role where is specified in [People and
 Roles Page](people-and-roles-page.md).
 
-Status: active, accepted by the owner 2026-10-01 (parts marked proposed below, such as `death_reporter`, remain proposals). The `TST001` test project
+Status: active, accepted by the owner 2026-10-01 (`death_reporter` was decided 2026-10-06, `digitva-t6q`). The `TST001` test project
 (`flask seed test-project`, bead `digitva-5mo`) is built from the default
 template in code, with its village level deactivated (it has no villages).
 
@@ -27,14 +27,15 @@ template in code, with its village level deactivated (it has no villages).
 Three layers, in order. Only the last one gives anyone access.
 
 1. **Level x cadre grid** (per project). Says which cadres exist at a level and
-   what they **may be given**: *Fill VA*, *Code VA*, *Supervise interviews*.
+   what they **may be given**: *Fill VA*, *Code VA*, *Supervise interviews*,
+   *Report deaths*.
    It is a ceiling, checked when a grant is written; nobody gets a role from
    it.
 2. **Grant** (per person). One role at one scope: the whole project, a site,
    or an organization unit. A unit grant covers that unit and everything
    below it, never anything above. A unit grant carries the person's cadre;
-   `coder` and `interview_supervisor` grants are refused unless the cadre has
-   the matching flag at that level.
+   `coder`, `interview_supervisor` and `death_reporter` grants are refused
+   unless the cadre has the matching flag at that level.
 3. **Union.** A person's rights are all their active grants added together.
    Roles are additive; there is no "deny" grant. To withhold a role from one
    person, do not grant it (or deactivate the grant).
@@ -84,23 +85,28 @@ under *District reference model*.
 | `subcentre` | SC-AAM / Sub-centre | 5 |
 | `village` | Village | 6 |
 
-| Level code | Cadre | Fill VA | Code VA | Supervise interviews |
-|---|---|---|---|---|
-| `district` | CS Civil Surgeon | – | – | ✓ |
-| `district` | DPM District Programme Manager | – | – | – |
-| `district` | DEPI District Epidemiologist | – | – | – |
-| `district` | MO Medical Officer | – | ✓ | – |
-| `district` | SN Staff Nurse | ✓ | – | – |
-| `chc` | SMO Senior Medical Officer | – | ✓ | ✓ |
-| `chc` | MO Medical Officer | – | ✓ | – |
-| `chc` | BPM Block Programme Manager | – | – | – |
-| `chc` | SN Staff Nurse | ✓ | – | – |
-| `phc` | MO Medical Officer | – | ✓ | ✓ |
-| `phc` | CHO Community Health Officer | ✓ | – | – |
-| `subcentre` | CHO Community Health Officer | ✓ | – | – |
-| `subcentre` | MPW Multipurpose Worker | ✓ | – | – |
-| `subcentre` | ANM Auxiliary Nurse Midwife | ✓ | – | – |
-| `village` | ASHA Accredited Social Health Activist | ✓ | – | – |
+| Level code | Cadre | Fill VA | Code VA | Supervise interviews | Report deaths |
+|---|---|---|---|---|---|
+| `district` | CS Civil Surgeon | – | – | ✓ | – |
+| `district` | DPM District Programme Manager | – | – | – | – |
+| `district` | DEPI District Epidemiologist | – | – | – | – |
+| `district` | MO Medical Officer | – | ✓ | – | – |
+| `district` | SN Staff Nurse | ✓ | – | – | – |
+| `chc` | SMO Senior Medical Officer | – | ✓ | ✓ | – |
+| `chc` | MO Medical Officer | – | ✓ | – | – |
+| `chc` | BPM Block Programme Manager | – | – | – | – |
+| `chc` | SN Staff Nurse | ✓ | – | – | – |
+| `phc` | MO Medical Officer | – | ✓ | ✓ | – |
+| `phc` | CHO Community Health Officer | ✓ | – | – | – |
+| `subcentre` | CHO Community Health Officer | ✓ | – | – | – |
+| `subcentre` | MPW Multipurpose Worker | – | – | – | ✓ |
+| `subcentre` | ANM Auxiliary Nurse Midwife | – | – | – | ✓ |
+| `village` | ASHA Accredited Social Health Activist | ✓ | – | – | ✓ |
+
+ANM and MPW have no *Fill VA* (owner, 2026-10-06: they report deaths and must
+not interview). The template applies to projects populated after that date;
+an existing project's grid rows are never rewritten, so its administrator
+clears *Fill VA* for them in the grid editor if wanted.
 
 ## Typical roles by cadre
 
@@ -113,7 +119,7 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 | Project | Project PI | `project_pi` | whole project |
 | Project | Project data manager | `data_manager` | whole project |
 | DH | CS (or CMO) | District in-charge (`site_pi` at the unit, shown as In-charge) | whole district, with every data manager power in it plus field supervision and the unit site PI report (see [Access Control Model](access-control-model.md), "In-charge"; built in digitva-0wc stages 5 and 6) |
-| DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is interviewer-only) |
+| DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is for `interviewer` and `death_reporter`) |
 | DH | DEPI | `collaborator_pii` | read-only with personal details |
 | DH | MO | `coder`, or `reviewer` | whole district |
 | DH | SN | `interviewer` | facility deaths at the DH |
@@ -123,8 +129,8 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 | CHC | SN | `interviewer` | facility deaths at the CHC |
 | PHC-AAM | MO | PHC in-charge (`site_pi` at the unit, shown as In-charge), `coder` | its SC-AAMs |
 | SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
-| SC-AAM | ANM, MPW | none yet; `death_reporter` proposed | report deaths only |
-| Village | ASHA | none yet; `death_reporter` proposed | report deaths only |
+| SC-AAM | ANM, MPW | `death_reporter` | own SC-AAM: register deaths and correct their details until an interview is completed; no interviewing |
+| Village | ASHA | `death_reporter` | own village: as the ANM and MPW |
 | Mentoring institute | Faculty, residents | `coder`, `reviewer`, `coding_tester`, `collaborator_pii` | only the districts the institute is attached to, through ordinary unit grants at those districts |
 
 ## Who manages accounts and grants
@@ -133,8 +139,8 @@ person's grants are still chosen one by one. In code: `DEFAULT_TYPICAL_ROLES`
 |---|---|---|---|
 | Admin | ✓ | every role, every scope | none |
 | Project PI | existing users only | every role except `admin` and `project_pi`, unit grants included; `data_manager` at any level | own project only |
-| In-charge (district, block, PHC) | ✓ | `data_manager` on their own unit and below; the data manager's six roles anywhere in their area | their own unit and units beneath it |
-| Data manager | ✓ | `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
+| In-charge (district, block, PHC) | ✓ | `data_manager` on their own unit and below; the data manager's seven roles anywhere in their area | their own unit and units beneath it |
+| Data manager | ✓ | `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
 | Everyone else | – | – | – |
 
 Decision 2026-10-02 (see [Access Control Model](access-control-model.md),
@@ -156,9 +162,6 @@ mentoring institute.
 
 ## Proposed, not built
 
-- **`death_reporter` role** (`digitva-t6q`): ANM, MPW and ASHA register deaths
-  but never start an interview. A unit-scope role gated by a new *Report
-  deaths* grid flag, like `interview_supervisor`.
 - **Default roles per cadre** (`digitva-vjt`): the "Typical roles" column
   stored on the grid and pre-ticked when a person is added at a unit; saved
   as ordinary grants.

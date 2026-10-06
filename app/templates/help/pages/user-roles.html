@@ -44,7 +44,7 @@
     <tr><td><a href="#role-reviewer">reviewer</a></td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-interviewer">interviewer</a></td><td>Yes</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>project, site, unit</td></tr>
     <tr><td><a href="#role-interview_supervisor">interview_supervisor</a></td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Yes</td><td>Area only</td><td>&ndash;</td><td>unit only</td></tr>
-    <tr class="text-muted"><td><a href="#role-death_reporter">death_reporter</a> <span class="badge text-bg-secondary">Planned</span></td><td>Planned</td><td>Never</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>unit</td></tr>
+    <tr><td><a href="#role-death_reporter">death_reporter</a></td><td>Yes</td><td>Never</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>Own deaths</td><td>&ndash;</td><td>&ndash;</td><td>unit only</td></tr>
   </tbody>
 </table>
 </div>
@@ -176,13 +176,13 @@
 </section>
 
 <section id="role-death_reporter">
-  <h3>death_reporter <span class="badge text-bg-secondary">Planned &mdash; not available yet</span></h3>
-  <p>This role does not exist yet and cannot be granted. It is proposed for ANM, MPW and ASHA workers, who report deaths but have no role today.</p>
+  <h3>death_reporter</h3>
+  <p><strong>For:</strong> field workers who report a death but do not interview (for example an ANM or MPW at a sub-centre, an ASHA at a village). <strong>Scope:</strong> organization unit only, with a cadre allowed to <em>Report deaths</em> at that level.</p>
   <ul>
-    <li><strong>Proposed scope:</strong> organization unit.</li>
-    <li><strong>Would:</strong> register deaths and add details useful before the interview visit.</li>
-    <li><strong>Would never:</strong> start or resume an interview.</li>
-    <li>It would be limited by a planned <em>Report deaths</em> column in the level &times; cadre grid.</li>
+    <li><strong>Can:</strong> in the DigitVA mobile app, register a death, see the list of the deaths they registered, and correct the details of one of them until an interview of it is completed.</li>
+    <li><strong>Cannot:</strong> start or resume an interview, log contact attempts or visits, see anyone else's cases, code, review or manage users. They have no web intake page.</li>
+    <li><strong>Personal details:</strong> only of the deaths they registered.</li>
+    <li><strong>Granted by:</strong> an admin, a project PI of the project, an In-charge or a data manager (inside their own subtree).</li>
   </ul>
 </section>
 

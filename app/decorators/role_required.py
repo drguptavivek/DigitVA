@@ -77,6 +77,7 @@ _ROLE_METHODS = {
     "project_pi":     _opens("project_pi"),
     "interviewer":    _opens("interviewer"),
     "interview_supervisor": _opens("interview_supervisor"),
+    "death_reporter": _opens("death_reporter"),
     # Not a grant role: a flag on an institute membership (staff management
     # only, never grants), so effective_roles does not answer it.
     "mentor_institute_admin": lambda u: u.is_mentor_institute_admin(),

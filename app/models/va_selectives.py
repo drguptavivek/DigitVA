@@ -34,6 +34,9 @@ class VaAccessRoles(enum.Enum):
     # Org-unit scope only; supervises interviews in the unit's subtree. See
     # docs/policy/access-control-model.md, "interview_supervisor".
     interview_supervisor = "interview_supervisor"
+    # Org-unit scope only; registers deaths and lists its own, never interviews.
+    # See docs/policy/access-control-model.md, "death_reporter".
+    death_reporter = "death_reporter"
 
 
 class VaAccessScopeTypes(enum.Enum):

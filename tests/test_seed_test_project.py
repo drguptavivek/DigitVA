@@ -10,6 +10,7 @@ from app.models import (
     MasCadre,
     MasOrgUnit,
     MasOrgUnitWorker,
+    VaAccessRoles,
     VaAccessScopeTypes,
     VaStatuses,
     VaUserAccessGrants,
@@ -84,6 +85,7 @@ class SeedTestProjectTests(BaseTestCase):
                 row["can_fill_va_form"],
                 row["can_code_va_form"],
                 row["can_supervise_interviews"],
+                row["can_report_deaths"],
             )
             for row in org.list_level_cadres(TEST_PROJECT_ID)
         }
@@ -109,11 +111,12 @@ class SeedTestProjectTests(BaseTestCase):
             )
             self.assertIsNotNone(worker)
             self.assertEqual(worker.unit.unit_code, unit_code)
+            # The one grant is a death_reporter at their sub-centre.
             self.assertEqual(
-                db.session.scalar(
-                    sa.select(sa.func.count()).where(VaUserAccessGrants.user_id == user.user_id)
-                ),
-                0,
+                db.session.scalars(
+                    sa.select(VaUserAccessGrants.role).where(VaUserAccessGrants.user_id == user.user_id)
+                ).all(),
+                [VaAccessRoles.death_reporter],
             )
 
         workers = db.session.scalar(

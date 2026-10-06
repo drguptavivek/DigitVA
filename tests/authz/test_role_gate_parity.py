@@ -30,6 +30,7 @@ LEGACY = {
     "site_pi": lambda u: u.is_site_pi(),
     "project_pi": lambda u: u.is_project_pi(),
     "interviewer": lambda u: u.is_interviewer(),
+    "death_reporter": lambda u: u.is_death_reporter(),
     "interview_supervisor": lambda u: u.is_interview_supervisor(),
     "mentor_institute_admin": lambda u: u.is_mentor_institute_admin(),
     "collaborator": lambda u: u.is_viewer(),

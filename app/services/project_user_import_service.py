@@ -209,7 +209,9 @@ def prepare(project_id, rows, *, actor):
             if not permitted[target_key]:
                 raise ProjectUserImportError(NOT_PERMITTED)
             # site_pi in an organization project is the In-charge, held at a unit.
-            if not unit and role in (VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi):
+            if not unit and role in (
+                VaAccessRoles.interview_supervisor, VaAccessRoles.death_reporter, VaAccessRoles.site_pi
+            ):
                 raise ProjectUserImportError(f"{role.value} requires an organization unit")
             cadre_code = row["cadre_code"].upper()
             if cadre_code and not unit:

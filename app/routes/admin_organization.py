@@ -445,6 +445,9 @@ def admin_org_upsert_level_cadre(project_id):
             can_supervise_interviews=(
                 None if p.get("can_supervise_interviews") is None else bool(p["can_supervise_interviews"])
             ),
+            can_report_deaths=(
+                None if p.get("can_report_deaths") is None else bool(p["can_report_deaths"])
+            ),
             is_active=bool(p.get("is_active", True)),
         )
         serialized = org.serialize_level_cadre(row, level=row.level, cadre=row.cadre)

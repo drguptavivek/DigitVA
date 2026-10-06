@@ -127,6 +127,17 @@ SUPERVISING_ROLES = frozenset({
     VaAccessRoles.site_pi,
 })
 
+# Roles that may register a death (``POST /intake/deaths``) and so reach the
+# death register: an interviewer, and a death_reporter, who registers and
+# corrects its own deaths but never interviews (digitva-t6q). The one
+# definition: the register routes, ``web_intake_service.interviewer_context``
+# (which tags each entry with the roles that reach it), ``/me/access`` and the
+# People & roles "Report deaths" column all read it.
+DEATH_REGISTERING_ROLES = frozenset({
+    VaAccessRoles.interviewer,
+    VaAccessRoles.death_reporter,
+})
+
 
 # ---------------------------------------------------------------------------
 # Grant management (design section 2.5; access-control-model.md "Who creates
@@ -143,6 +154,7 @@ DM_SITE_ASSIGNABLE = frozenset({
 # district project, own level included. data_manager itself goes strictly below.
 DM_TREE_ASSIGNABLE = frozenset({
     VaAccessRoles.interviewer,
+    VaAccessRoles.death_reporter,
     VaAccessRoles.coder,
     VaAccessRoles.reviewer,
     VaAccessRoles.coding_tester,

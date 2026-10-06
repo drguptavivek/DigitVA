@@ -211,6 +211,15 @@ class VaUsers(UserMixin, db.Model):
 
         return "interviewer" in role_flags(self)
 
+    def is_death_reporter(self):
+        """Role gate only, as ``authz.effective_roles`` says: a ``death_reporter``
+        unit grant (registers and corrects deaths, never interviews). The unit
+        a death may be registered in is
+        ``web_intake_service.register_death_context()``/``_require_scope()``."""
+        from app.services.authz.predicates import role_flags
+
+        return "death_reporter" in role_flags(self)
+
     def is_interview_supervisor(self):
         """Role gate for intake supervision, as ``authz.effective_roles`` says:
         an ``interview_supervisor`` unit grant, the In-charge (site_pi at a

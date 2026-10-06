@@ -191,6 +191,25 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         # The same grant for someone outside the institute is written.
         self.assertEqual(self._post(DM_GRANTS, self._body(R.data_manager, U, "P1")).status_code, 201)
 
+    def test_a_death_reporter_grant_needs_a_cadre_with_the_flag_and_only_at_unit_scope(self):
+        self.assertIn(R.death_reporter, DM_TREE_ASSIGNABLE)
+        self._as("dm_c1")
+        none = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1"))
+        self.assertEqual(none.status_code, 400, none.get_json())
+        self.assertIn("requires a cadre", none.get_json()["error"])
+        cho = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1", cadre_id=str(self._cadre("CHO").cadre_id)))
+        self.assertEqual(cho.status_code, 400, cho.get_json())
+        self.assertIn("may not report deaths", cho.get_json()["error"])
+        self.assertIsNone(self._held_by_grantee(R.death_reporter))
+        anm = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1", cadre_id=str(self._cadre("ANM").cadre_id)))
+        self.assertEqual(anm.status_code, 201, anm.get_json())
+        self.assertIsNotNone(self._held_by_grantee(R.death_reporter))
+        # Never at project scope, even for a project data manager.
+        self._as("dm_ta")
+        project = self._post(DM_GRANTS, self._body(R.death_reporter, P, TA))
+        self.assertEqual(project.status_code, 400, project.get_json())
+        self.assertIn("cannot use project scope", project.get_json()["error"])
+
     def test_a_refusal_never_discloses_institute_membership(self):
         mentor = self.users["mentor"]
         self._as("dm_c1")
@@ -520,3 +539,18 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
             ["create_user"])
         with self.assertRaisesRegex(user_import.ProjectUserImportError, "account is unavailable"):
             user_import.prepare(TA, new, actor=self.users["pi_ta"])
+
+    def test_import_refuses_a_death_reporter_row_without_the_cadre_flag_or_a_unit(self):
+        db.session.get(VaProjectMaster, TA).project_structure_mode = "organization"
+        db.session.flush()
+        row = {"_line_number": 2, "email": self.grantee.email, "name": "", "role": "death_reporter",
+               "org_unit_code": "SC1", "cadre_code": "ANM", "language_codes": "", "phone": ""}
+        # Present first: the ANM, who may report deaths at a sub-centre, is accepted.
+        plan = user_import.prepare(TA, [row], actor=self.users["pi_ta"])
+        self.assertEqual([item["action"] for item in plan], ["grant"])
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre permitted to report deaths"):
+            user_import.prepare(TA, [{**row, "cadre_code": "CHO"}], actor=self.users["pi_ta"])
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre permitted to report deaths"):
+            user_import.prepare(TA, [{**row, "cadre_code": ""}], actor=self.users["pi_ta"])
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
+            user_import.prepare(TA, [{**row, "org_unit_code": "", "cadre_code": ""}], actor=self.users["pi_ta"])

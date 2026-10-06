@@ -312,6 +312,11 @@ class MapOrgLevelCadre(db.Model):
     can_supervise_interviews: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
+    # Owner 2026-10-06 (digitva-t6q): a cadre at this level may hold a
+    # death_reporter grant.
+    can_report_deaths: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=True, server_default=sa.true()
     )

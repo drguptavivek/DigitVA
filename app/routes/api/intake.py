@@ -35,6 +35,7 @@ from app.services import case_transition_service as case_svc
 from app.services import device_auth_service as devices
 from app.services import interview_send_back_service as send_back_svc
 from app.services import web_intake_service as intake_svc
+from app.services.authz.actions import DEATH_REGISTERING_ROLES
 
 bp = Blueprint("intake_api", __name__)
 
@@ -146,6 +147,20 @@ def list_cases():
     return jsonify(intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=interviewer_context()))
 
 
+def _reporter_only() -> bool:
+    """The caller is a death_reporter and no interviewer (an interview
+    supervisor or data manager correcting a death keeps the full body)."""
+    return current_user.is_death_reporter() and not current_user.is_interviewer()
+
+
+def _reporter_view(death) -> bool:
+    """Whether the reply about *death* is the reporter's registration-only
+    shape: the caller holds a death_reporter grant and no interviewer grant
+    of theirs reaches this case (so a both-roles user gets the interview's
+    prefill and links only where they interview)."""
+    return current_user.is_death_reporter() and not intake_svc.interviewer_reaches(current_user, death)
+
+
 def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False,
                other_complete_interview=False, ready_for_coding=False) -> dict:
     """The case with its full contact details (``serialize_case_detail``), this
@@ -156,6 +171,15 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
         current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission,
         other_complete_interview, ready_for_coding,
     )
+    if _reporter_view(death):
+        # A death_reporter registers and corrects; the interview, the contact
+        # attempts and the visit are not theirs, so no prefill, no link to a
+        # route that answers 403, and nothing about other interviewers' drafts
+        # (digitva-t6q).
+        for key in ("other_draft_active", "other_draft_started_at"):
+            body.pop(key, None)
+        body["links"] = {"update": url_for(".update_death", death_id=death.death_id)}
+        return body
     prefill = intake_svc.case_prefill(current_user, death, my_draft_id)
     if prefill is not None:
         body["prefill"] = prefill
@@ -279,8 +303,19 @@ def pause_interview(death_id):
 
 
 @bp.get("/deaths")
-@role_required("interviewer")
+@role_required("interviewer", "death_reporter")
 def list_deaths():
+    """The death register of one project-site (an interviewer: ``project_id``
+    and ``site_id`` required), or, for a death_reporter without interviewer
+    rights, the deaths they registered across their reach: optional
+    ``project_id``, ``site_id``, ``limit``, ``cursor``; replies ``{"deaths",
+    "next_cursor"}`` (``web_intake_service.reported_deaths_page``). A user who
+    holds both roles asks for that list with ``registered=mine``."""
+    registered = request.args.get("registered")
+    if registered not in (None, "", "mine"):
+        return error("registered must be mine.", "invalid_request", 400)
+    if _reporter_only() or (registered == "mine" and current_user.is_death_reporter()):
+        return jsonify(intake_svc.reported_deaths_page(current_user, request.args))
     project_id = request.args.get("project_id", "")
     site_id = request.args.get("site_id", "")
     status = request.args.get("status") or None
@@ -291,16 +326,16 @@ def list_deaths():
 
 
 @bp.post("/deaths")
-@role_required("interviewer")
+@role_required("interviewer", "death_reporter")
 def register_death():
-    """Register a death. Body: ``project_id``, ``site_id``, ``org_unit_id`` and
+    """Register a death (an interviewer or a death_reporter). Body: ``project_id``, ``site_id``, ``org_unit_id`` and
     the register form's fields, optional ``client_death_id`` (UUID): an offline
     registration is idempotent on it, a resend returns the same case with 200.
     Replies ``{"case": <detail>}``, as ``GET /cases/<id>``."""
     p = parse_body()
     client_death_id = _client_id(p, "client_death_id")
     site_id = _site_id(p)
-    project_id = request_project_id(p)
+    project_id = request_project_id(p, roles=DEATH_REGISTERING_ROLES)
 
     if client_death_id is not None:
         existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
@@ -333,7 +368,7 @@ def register_death():
 
 
 @bp.patch("/deaths/<death_id>")
-@role_required("interviewer", "interview_supervisor", "data_manager")
+@role_required("interviewer", "interview_supervisor", "data_manager", "death_reporter")
 def update_death(death_id):
     """Correct a registered death until an interview of it is completed. Body:
     only the register form's fields to change (an unknown key is 422), optional ``if_updated_at`` (the

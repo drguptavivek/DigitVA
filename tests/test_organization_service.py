@@ -63,15 +63,21 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(self._levels()["phc"].odk_field_name, "org_phc_code")
         grid = {
             (row["level_code"], row["cadre_code"]): (
-                row["can_fill_va_form"], row["can_code_va_form"], row["can_supervise_interviews"]
+                row["can_fill_va_form"], row["can_code_va_form"], row["can_supervise_interviews"],
+                row["can_report_deaths"],
             )
             for row in org.list_level_cadres(self.PROJECT)
         }
         self.assertEqual(grid, org.DEFAULT_LEVEL_CADRE_TEMPLATE)
-        self.assertEqual(grid[("district", "CS")], (False, False, True))
-        self.assertEqual(grid[("chc", "SMO")], (False, True, True))
-        self.assertEqual(grid[("phc", "MO")], (False, True, True))
-        self.assertEqual(grid[("chc", "MO")], (False, True, False))
+        self.assertEqual(grid[("district", "CS")], (False, False, True, False))
+        self.assertEqual(grid[("chc", "SMO")], (False, True, True, False))
+        self.assertEqual(grid[("phc", "MO")], (False, True, True, False))
+        self.assertEqual(grid[("chc", "MO")], (False, True, False, False))
+        # Owner 2026-10-06: ANM and MPW at the sub-centre and ASHA at the village report deaths.
+        reporters = {key for key, flags in grid.items() if flags[3]}
+        self.assertEqual(
+            reporters, {("subcentre", "ANM"), ("subcentre", "MPW"), ("village", "ASHA")}
+        )
 
     def test_seed_template_never_overwrites_an_existing_row(self):
         org.seed_default_organization(self.PROJECT)
@@ -112,9 +118,10 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(rows[("chc", "SMO")]["typical_roles"], ["site_pi", "reviewer"])
         self.assertEqual(rows[("phc", "MO")]["typical_roles"], ["site_pi", "coder"])
         self.assertTrue(rows[("district", "CS")]["can_supervise_interviews"])
-        self.assertEqual(rows[("subcentre", "ANM")]["typical_roles"], [])
-        self.assertIn("death_reporter", rows[("village", "ASHA")]["typical_roles_note"])
-        self.assertIsNone(rows[("phc", "CHO")]["typical_roles_note"])
+        for key in (("subcentre", "ANM"), ("subcentre", "MPW"), ("village", "ASHA")):
+            self.assertEqual(rows[key]["typical_roles"], ["death_reporter"])
+            self.assertTrue(rows[key]["can_report_deaths"])
+        self.assertFalse(rows[("subcentre", "CHO")]["can_report_deaths"])
 
     # -- tree rules ----------------------------------------------------------
 
@@ -241,6 +248,72 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertIn("subcentre/CHO", plan.deactivates["level_cadres"])
         self.assertIsNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
         self.assertFalse(db.session.get(type(worker), worker.worker_id).is_active)
+
+    # -- the Report deaths flag (digitva-t6q) ---------------------------------
+
+    def _report_flags(self):
+        return {
+            (r["level_code"], r["cadre_code"]): r["can_report_deaths"]
+            for r in org.list_level_cadres(self.PROJECT)
+        }
+
+    def test_upsert_with_no_report_deaths_value_keeps_the_stored_one(self):
+        org.seed_default_organization(self.PROJECT)
+        lv = self._levels()
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
+        args = dict(org_level_id=lv["subcentre"].org_level_id, cadre_id=cadres["ANM"].cadre_id,
+                    can_fill_va_form=False, can_code_va_form=False)
+        self.assertTrue(self._report_flags()[("subcentre", "ANM")])  # present first
+        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args, can_report_deaths=None).can_report_deaths)
+        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args, can_report_deaths=False).can_report_deaths)
+        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args).can_report_deaths)
+
+    def test_the_report_deaths_flag_goes_through_csv_and_xlsx_export_and_import(self):
+        import csv
+
+        org.seed_default_organization(self.PROJECT)
+        # Export: the header and the row (CSV), the sheet (XLSX).
+        text = org.export_organization_csv(self.PROJECT, "level_cadres")
+        reader = csv.DictReader(io.StringIO(text))
+        self.assertIn("can_report_deaths", reader.fieldnames)
+        rows = {(r["level_code"], r["cadre_code"]): r for r in reader}
+        self.assertEqual(rows[("subcentre", "ANM")]["can_report_deaths"], "True")
+        self.assertEqual(rows[("subcentre", "CHO")]["can_report_deaths"], "False")
+        workbook = org.parse_organization_workbook(io.BytesIO(org.export_organization_xlsx(self.PROJECT)))
+        sheet = {(r["level_code"], r["cadre_code"]): r for r in workbook["level_cadres"]}
+        self.assertTrue(sheet[("subcentre", "ANM")]["can_report_deaths"])
+        self.assertFalse(sheet[("subcentre", "CHO")]["can_report_deaths"])
+
+        # Import (CSV): the CHO gains the flag, the ANM loses it.
+        edited = text.replace("subcentre,CHO,True,False,False,False", "subcentre,CHO,True,False,False,True")
+        edited = edited.replace("subcentre,ANM,False,False,False,True", "subcentre,ANM,False,False,False,False")
+        self.assertNotEqual(edited, text)
+        plan = org.import_organization(
+            self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.encode()), "level_cadres"), dry_run=False)
+        self.assertEqual(plan.errors, [])
+        flags = self._report_flags()
+        self.assertEqual((flags[("subcentre", "CHO")], flags[("subcentre", "ANM")]), (True, False))
+        # Import (XLSX rows): an empty cell keeps the stored value.
+        sheet[("subcentre", "ANM")]["can_report_deaths"] = None
+        plan = org.import_organization(self.PROJECT, {"level_cadres": list(sheet.values())}, dry_run=False)
+        self.assertEqual(plan.errors, [])
+        self.assertFalse(self._report_flags()[("subcentre", "ANM")])
+        self.assertTrue(self._report_flags()[("village", "ASHA")])
+
+    def test_deactivating_a_level_cadre_by_import_keeps_its_report_deaths_flag(self):
+        from app.models import MapOrgLevelCadre
+
+        org.seed_default_organization(self.PROJECT)
+        rows = [r for r in org.export_organization_rows(self.PROJECT)["level_cadres"]
+                if (r["level_code"], r["cadre_code"]) != ("village", "ASHA")]
+        plan = org.import_organization(self.PROJECT, {"level_cadres": rows}, dry_run=False, deactivate_missing=True)
+        self.assertEqual(plan.errors, [])
+        self.assertIn("village/ASHA", plan.deactivates["level_cadres"])
+        village = self._levels()["village"]
+        asha = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}["ASHA"]
+        row = db.session.scalar(sa.select(MapOrgLevelCadre).where(
+            MapOrgLevelCadre.org_level_id == village.org_level_id, MapOrgLevelCadre.cadre_id == asha.cadre_id))
+        self.assertEqual((row.is_active, row.can_report_deaths), (False, True))
 
     def test_level_cannot_deactivate_while_units_exist(self):
         self._seed_tree()

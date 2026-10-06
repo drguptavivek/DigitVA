@@ -291,6 +291,27 @@ class CellTests(PeopleRolesBase):
         self.assertEqual(self._state(row, "interview"), "hollow")
         self.assertEqual(self._state(row, "read_only"), "granted")
 
+    def test_report_deaths_is_given_by_interviewer_and_death_reporter_and_is_red_by_its_own_flag(self):
+        sc1 = org.create_unit(
+            self.PROJECT, org_level_id=self.levels["subcentre"].org_level_id,
+            parent_org_unit_id=self.p1.org_unit_id, unit_code="S01", unit_name="SC One")
+        db.session.commit()
+        reporter = self._grant("anm_reporter", R.death_reporter, sc1, "ANM")
+        cho = self._grant("cho_sc", R.interviewer, sc1, "CHO")
+        # Read-only grants keep the person listed with a cadre but give no ability.
+        anm_viewer = self._grant("anm_viewer", R.collaborator, sc1, "ANM")
+        cho_viewer = self._grant("cho_viewer", R.collaborator, sc1, "CHO")
+        result = self._call(self.base_admin_user)
+        row = self._row(result, reporter)
+        self.assertEqual(self._state(row, "report_deaths"), "granted")
+        self.assertEqual(row["cells"]["report_deaths"]["roles"], ["death_reporter"])
+        # A reporter does not interview: the Interview cell is never green.
+        self.assertNotEqual(self._state(row, "interview"), "granted")
+        self.assertEqual(self._state(self._row(result, cho), "report_deaths"), "granted")
+        # Red by can_report_deaths: an ANM may report at a sub-centre, a CHO may not.
+        self.assertEqual(self._state(self._row(result, anm_viewer), "report_deaths"), "hollow")
+        self.assertEqual(self._state(self._row(result, cho_viewer), "report_deaths"), "blank")
+
     def test_derived_roles_in_charge_and_data_manager(self):
         self._team()
         result = self._call(self.base_admin_user)
@@ -481,6 +502,20 @@ class RedactionTests(PeopleRolesBase):
         self.assertTrue(row["person"]["initials_only"])
         self.assertNotIn("Priya", str(result))
         self.assertNotIn("@test.local", str(result["rows"]))
+
+    def test_a_death_reporter_sees_initials_and_redacted_staff_like_a_plain_collaborator(self):
+        self._team()
+        reporter = self._grant("reporter", R.death_reporter, self.p1)
+        self._user("coder1").name = "Priya Sharma Rao"
+        db.session.commit()
+        # The role is outside the PII allowlist, so it unredacts nothing.
+        self.assertTrue(should_redact_pii(reporter))
+        result = self._call(reporter)
+        self.assertEqual(result["viewer"]["names"], "initials")
+        row = self._row(result, self.coder1)  # present first: an in-scope peer is listed
+        self.assertEqual(row["person"]["name"], "P. S. R.")
+        self.assertIsNone(row["person"]["email"])
+        self.assertNotIn("Priya", str(result))
 
     def test_each_role_gets_its_tier(self):
         self._team()

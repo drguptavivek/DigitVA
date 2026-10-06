@@ -370,7 +370,7 @@
 
   var ROLE_NAMES = {
     coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager',
-    reviewer: 'Reviewer', interviewer: 'Interviewer', collaborator: 'Viewer',
+    reviewer: 'Reviewer', interviewer: 'Interviewer', death_reporter: 'Death reporter (unit only)', collaborator: 'Viewer',
     collaborator_pii: 'Viewer (with PII)'
   };
   var _projectHasTree = {};
@@ -422,15 +422,17 @@
   }
 
   // Cadres defined at the unit's level; for a coder only those allowed to code
-  // there (the rule org_grant_service.validate_org_unit_grant enforces).
+  // there, for a death reporter only those allowed to report deaths (the rule
+  // org_grant_service.validate_org_unit_grant enforces).
   function fillCadreSelect(sel, org, unitId, role) {
     var unit = org.units.filter(function (u) { return u.org_unit_id === unitId; })[0];
     if (!unit) { sel.innerHTML = '<option value="">-- select unit first --</option>'; return; }
-    var coding = role === 'coder';
+    var flag = { coder: 'can_code_va_form', death_reporter: 'can_report_deaths' }[role];
+    var coding = !!flag;
     var names = {};
     org.cadres.forEach(function (c) { names[c.cadre_id] = c.cadre_name; });
     var allowed = org.level_cadres.filter(function (lc) {
-      return lc.org_level_id === unit.org_level_id && lc.is_active && (!coding || lc.can_code_va_form);
+      return lc.org_level_id === unit.org_level_id && lc.is_active && (!coding || lc[flag]);
     });
     if (!allowed.length) {
       sel.innerHTML = '<option value="">-- none defined at ' + esc(unit.level_code) + ' --</option>';

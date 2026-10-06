@@ -43,6 +43,7 @@ from app.models import (
 from app.services import organization_service as org
 from app.services.access_summary_service import _codes, _roles
 from app.services.authz import reachable_unit_ids, resolve_grants
+from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.grants import Grant, ResolvedGrants, _load_projects
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.viewer_pii_service import (
@@ -73,10 +74,10 @@ _MAX_TEXT = 64
 # interview_supervisor. ``view_pii`` is per person, not per row: it is read
 # from ``pii_visible_user_ids`` (the same ``_PII_GRANTING_ROLES`` set, across
 # every project the person holds) and the roles here only name which of the
-# row's own grants contribute. ``death_reporter`` joins "report_deaths" when
-# the role exists; today only the interviewer registers deaths.
+# row's own grants contribute. "report_deaths" is every role that registers a
+# death (authz DEATH_REGISTERING_ROLES).
 CAPABILITY_ROLES: dict[str, frozenset[VaAccessRoles]] = {
-    "report_deaths": frozenset({R.interviewer}),
+    "report_deaths": DEATH_REGISTERING_ROLES,
     "interview": frozenset({R.interviewer}),
     "supervise": frozenset({R.interview_supervisor, R.data_manager}),
     "code": frozenset({R.coder}),
@@ -106,6 +107,7 @@ CAPABILITY_LABELS = {
 SITE_SCOPE_ONLY = frozenset({"site_lead"})
 # Hollow (red) cells: the level x cadre grid flag that says "may be given".
 HOLLOW_FLAGS = {
+    "report_deaths": "can_report_deaths",
     "interview": "can_fill_va_form",
     "code": "can_code_va_form",
     "supervise": "can_supervise_interviews",

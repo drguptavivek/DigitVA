@@ -42,7 +42,8 @@ from app.models import (
 # The rollout note under "collaborator" narrowed only that role, so admin,
 # data_manager, coder, coding_tester, reviewer and interviewer keep the
 # personal data they saw before the viewer split. Left out: collaborator
-# (redacted by definition) and interview_supervisor, whose identifier access
+# (redacted by definition), death_reporter (its intake serializers do not
+# redact, so it needs no lift; digitva-t6q) and interview_supervisor, whose identifier access
 # is confined to the intake worklist and case views (docs/policy/web-intake.md,
 # "Privacy rule (item 14)") and never lifts this redaction.
 _PII_GRANTING_ROLES = frozenset({

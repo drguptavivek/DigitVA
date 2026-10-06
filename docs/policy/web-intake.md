@@ -27,6 +27,12 @@ submission enters the workflow. Plan:
   At unit scope the cadre must have `can_fill_va_form` at that level (see
   [Organization Model Policy](organization-model.md)). Interviewers see only
   their own drafts and the deaths of their own scope.
+- **Role** `death_reporter` (owner, 2026-10-01 and 2026-10-06, `digitva-t6q`)
+  registers deaths without interviewing: the ANM and MPW at a sub-centre and
+  the ASHA at a village report deaths but never fill a questionnaire. A
+  unit-scope grant only, gated at grant time by the level x cadre flag
+  `can_report_deaths` ("Report deaths"; see "Death reporters" below).
+  `interviewer` keeps Register death unchanged.
 - **Role gate vs scope.** `VaUsers.is_interviewer()` decides only whether a
   user may reach `/intake/` at all: it is true when the user holds an
   interviewer grant that resolves to a `va_forms` row (project or
@@ -1204,7 +1210,9 @@ its name and date of death.
   Refused, incomplete and partial interviews do not lock the case.
 - Who: anyone who sees the case (the interviewer scope of `get_death`, so
   grants of every width) and the supervisors of the case
-  (`is_interview_supervisor_for`). Out of reach reads as 404. A case still
+  (`is_interview_supervisor_for`), and a `death_reporter` for the deaths it
+  registered that its unit grant still reaches (see "Death reporters"). Out
+  of reach reads as 404. A case still
   awaiting its details (`draft_identity`) is not edited here (409
   `details_pending`); its interview captures them.
 - Validation is `register_death`'s, one function over the case as it would
@@ -1255,6 +1263,54 @@ its name and date of death.
   whose old value is null. That is harmless: nothing was overwritten.
 - Optional `if_updated_at` (the case's `updated_at` last seen): a newer
   change is 409 `death_stale`.
+
+### Death reporters (owner, 2026-10-01 and 2026-10-06, `digitva-t6q`)
+
+- **Who.** `death_reporter` is a unit-scope role (database `role_scope`
+  CHECK; never project or site scope). A death_reporter grant on a unit
+  requires a cadre that has `can_report_deaths` at the unit's level, checked
+  when the grant is written (`CADRE_FLAG_BY_ROLE`), exactly as `coder` and
+  `interview_supervisor` are. Seeded defaults: on for ANM and MPW at the
+  SC-AAM level (`subcentre`) and for ASHA at the village level, where those
+  cadres and levels exist. Mentoring institute members may not hold it.
+- **What it may do.** Register a death (the same flow, endpoint and
+  validation as an interviewer's Register death, in the unit subtree of its
+  grant) and see the list of the deaths **it registered**. It may correct one
+  of its own registered deaths until an interview is completed: exactly the
+  `PATCH /api/v1/intake/deaths/<id>` rule of "Correcting a registered death"
+  (409 `case_completed`, `details_pending`, `death_stale`, 422
+  `invalid_death`), extended so a reporter qualifies for the deaths it
+  registered that its grant still reaches. Everything else is read-only.
+- **What it may not do.** Start or resume an interview, save or submit a
+  draft, log a contact attempt or a visit, pause, flag, or any other worklist
+  action: those routes are interviewer-only and answer 403. It sees no other
+  user's cases (a death registered by someone else in its unit reads as 404),
+  no worklist and no prefill.
+- **The list.** `GET /api/v1/intake/deaths` serves a reporter its own
+  registered deaths (`registered_by` = the caller) within its reach, newest
+  first, keyset-paged on `(updated_at, death_id)` with `limit` (default 50,
+  maximum 200) and `next_cursor`, optionally narrowed by `project_id` and
+  `site_id`. A user who also holds `interviewer` keeps the interviewer list
+  unchanged (`project_id` and `site_id` required).
+- **`/me/access`** carries the role in `roles` and a new
+  `actions.register_death` per project, derived from the same reach the
+  register routes enforce, so an app shows Register death without
+  interview rights; `actions.interview` stays interviewer-only.
+- **Other surfaces.** A reporter's grant is an ordinary unit grant, so the
+  existing any-grant rules apply: the area dashboard and the People & roles
+  page open for its unit ([Area Dashboard](area-dashboard.md) and
+  [People and Roles Page](people-and-roles-page.md)), with staff identity
+  redacted to initials, as for a plain collaborator. `death_reporter` is not
+  in `_PII_GRANTING_ROLES` (its intake replies carry no redaction, so it needs
+  no lift).
+- **Both roles.** A user holding `interviewer` and `death_reporter` asks for
+  the registered-by-me list with `GET /intake/deaths?registered=mine`. A reply
+  about a case carries the interview's prefill and links only where an
+  interviewer grant of theirs reaches that case; otherwise it is the
+  reporter's registration-only shape (no prefill, no interview links, no
+  other interviewers' draft hints).
+- **Not built.** No browser page for reporters: the surface is the Android
+  collection app. A death_reporter has no `/intake/` page.
 
 ### Open design items (questions for the owner)
 

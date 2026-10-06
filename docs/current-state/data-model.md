@@ -276,7 +276,9 @@ rows here keep the Project > Site > Form model.
 
 - which cadres exist at a level: `org_level_id`, `cadre_id`,
   `can_fill_va_form`, `can_code_va_form`, `can_supervise_interviews`
-  (migration `d7f3b1a9c5e2`), `is_active`; unique on (level, cadre)
+  (migration `d7f3b1a9c5e2`), `can_report_deaths` (migration
+  `f2j6n9r4u1x7`; default false, set for ANM and MPW at `subcentre` and ASHA
+  at `village` where those rows exist), `is_active`; unique on (level, cadre)
 
 ### `mas_org_unit_worker`
 
@@ -311,8 +313,8 @@ rows here keep the Project > Site > Form model.
 - the grant covers the unit's whole subtree (`path <@ grant unit path`)
 - check constraints: the scope shape, the role/scope pairs (`collaborator`,
   `collaborator_pii`, `coder`, `coding_tester`, `reviewer`, `data_manager`,
-  `interviewer` may use `org_unit`; `interview_supervisor` may use **only**
-  `org_unit`; `site_pi` may use `project_site` or `org_unit`, the In-charge,
+  `interviewer` may use `org_unit`; `interview_supervisor` and
+  `death_reporter` (migration `f2j6n9r4u1x7`) may use **only** `org_unit`; `site_pi` may use `project_site` or `org_unit`, the In-charge,
   since migration `e2b7c4d9a1f3`, which reversed `c4a9e7d2b6f1`'s
   tightening; the unit rows `c4a9e7d2b6f1` deactivated stay deactive), and
   `cadre_id` only on unit grants
@@ -532,7 +534,9 @@ its case at once). `status` is the case state, written only by
   `cancelled`) and refuses while any case has no identity.
 - Index `ix_va_death_register_updated (updated_at, death_id)` serves the
   supervisor list's keyset paging. A draft save bumps the case's `updated_at`
-  (last activity).
+  (last activity). Index `ix_va_death_register_registered_by (registered_by,
+  updated_at, death_id)` (migration `f2j6n9r4u1x7`) serves a death reporter's
+  own list ("registered by me, newest activity first", keyset-paged).
 - `next_visit_at`, `last_contact_at` (timestamptz, nullable): the appointment
   or follow-up date and the latest contact attempt. Index
   `ix_va_death_register_next_visit (next_visit_at, updated_at, death_id)`

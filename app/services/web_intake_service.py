@@ -55,6 +55,7 @@ from app.services import notification_service, org_grant_service, served_form_se
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
 from app.services.authz import resolve_grants, subtree_select, supervision
+from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
 from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
@@ -123,8 +124,11 @@ __all__ = [
     "resolve_intake_note",
     "get_web_intake_mode",
     "interviewer_context",
+    "register_death_context",
     "register_death",
     "list_deaths",
+    "reported_deaths_page",
+    "interviewer_reaches",
     "get_death",
     "flag_death",
     "set_visit",
@@ -277,15 +281,25 @@ def _mode_allows(mode: str, *, death_register: bool) -> bool:
     return mode == ("death_register" if death_register else "direct")
 
 
-def interviewer_context(user: VaUsers) -> list[dict]:
+_INTERVIEWER = frozenset({VaAccessRoles.interviewer})
+_DEATH_REPORTER = frozenset({VaAccessRoles.death_reporter})
+
+
+def interviewer_context(user: VaUsers, roles: frozenset = _INTERVIEWER) -> list[dict]:
     """Projects and sites where this user may fill questionnaires.
 
     One entry per (project, site) reachable through interviewer grants at
     project, project-site or organization-unit scope, for projects whose
     web intake is switched on. Unit grants list the units the interviewer
     belongs to so drafts and deaths can be attributed to a unit.
+
+    *roles* names the grants the reach is built from. The default, interviewer
+    alone, is every interviewing surface; the register routes pass
+    ``DEATH_REGISTERING_ROLES`` (``register_death_context``), and a
+    ``death_reporter``'s own reach is built from that role alone
+    (``_DEATH_REPORTER``), so neither role widens the other's.
     """
-    grants = list(resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False))
+    grants = list(resolve_grants(user).of(roles, virtual=False))
     pairs: dict[tuple[str, str], dict] = {}
 
     # Project and project-site grants: the sites of the project's active
@@ -394,6 +408,24 @@ def interviewer_context(user: VaUsers) -> list[dict]:
     return context
 
 
+def register_death_context(user: VaUsers, interview_context: list[dict] | None = None) -> list[dict]:
+    """The ``interviewer_context`` entries where *user* may register a death:
+    reached through an interviewer or death_reporter grant, in a project
+    whose ``web_intake_mode`` keeps a death register. The one predicate of the
+    register routes (``register_death`` checks scope through the same
+    ``_require_scope``), ``/me/access`` ``actions.register_death`` and the
+    app's sign-in check. *interview_context*: the caller's already computed
+    ``interviewer_context(user)``, reused when they hold no death_reporter
+    grant (then it is the whole answer)."""
+    if interview_context is not None and not any(
+        resolve_grants(user).of(_DEATH_REPORTER, virtual=False)
+    ):
+        entries = interview_context
+    else:
+        entries = interviewer_context(user, DEATH_REGISTERING_ROLES)
+    return [e for e in entries if _mode_allows(e["web_intake_mode"], death_register=True)]
+
+
 def self_coding_project_ids(user: VaUsers) -> frozenset[str]:
     """Projects where *user* may be offered "Code this case now": a self-coding
     project in which they hold a coder grant that codes (gate open, coding
@@ -425,7 +457,8 @@ def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
     )
 
 
-def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = None) -> set[uuid.UUID] | None:
+def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = None,
+                       roles: frozenset = _INTERVIEWER) -> set[uuid.UUID] | None:
     """Active units of *project_id* this interviewer may attribute an entry to.
 
     The unit-picking half of the rule ``_worklist_scope`` applies to cases
@@ -442,11 +475,12 @@ def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = Non
     project allows, and the create-time check (``_require_scope``, which
     passes its site) still holds each site to its own grants.
 
-    No admin or project_pi bypass: web intake is strictly grant-based.
+    No admin or project_pi bypass: web intake is strictly grant-based. *roles*
+    as ``interviewer_context``.
     """
     mark_consulted()
     units: set[uuid.UUID] = set()
-    for grant in resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False):
+    for grant in resolve_grants(user).of(roles, virtual=False):
         if grant.project_id != project_id:
             continue
         if not grant.is_wide:
@@ -458,7 +492,8 @@ def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = Non
     return set(db.session.scalars(subtree_select(units)))
 
 
-def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None) -> dict:
+def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None,
+                   roles: frozenset = _INTERVIEWER) -> dict:
     """Return the context entry for (project, site) or raise 403.
 
     In a project with an organization tree, a unit must always be named,
@@ -468,15 +503,16 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     interviewer grant on this project-site may name *any* active unit of
     the project; a unit-scoped grant is held to its own subtree
     (``reachable_unit_ids``). A project with no tree
-    keeps the pre-phase-4 behaviour: no unit is required.
+    keeps the pre-phase-4 behaviour: no unit is required. *roles* as
+    ``interviewer_context``: the grants whose reach is checked.
     """
     entry = None
-    for candidate in interviewer_context(user):
+    for candidate in interviewer_context(user, roles):
         if candidate["project_id"] == project_id and candidate["site_id"] == site_id:
             entry = candidate
             break
     if entry is None:
-        raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
+        raise WebIntakeError("You do not have access to that project and site.", 403)
 
     has_tree = project_id in org_grant_service.projects_with_org_tree({project_id})
     if not has_tree:
@@ -495,7 +531,7 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     except (ValueError, TypeError, AttributeError):
         raise WebIntakeError("Invalid organization unit.", 400) from None
 
-    reachable = reachable_unit_ids(user, project_id, site_id)
+    reachable = reachable_unit_ids(user, project_id, site_id, roles)
     if reachable is not None and unit_id not in reachable:
         raise WebIntakeError("That organization unit is outside what you may access.", 403)
 
@@ -680,7 +716,8 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
         raise WebIntakeError("This project does not use the death register.", 403)
-    _require_scope(user, project_id, site_id, org_unit_id)
+    # An interviewer or a death_reporter (register_death_context's predicate).
+    _require_scope(user, project_id, site_id, org_unit_id, DEATH_REGISTERING_ROLES)
     cleaned = _clean_death_fields(fields)
     unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
     number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
@@ -758,6 +795,74 @@ def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
     return death
 
 
+def _reporter_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
+    """Whether *death* is one *user* registered and a death_reporter grant of
+    theirs still reaches (project, site and unit): the reporter's whole
+    claim on a case. An interviewer's reach is ``get_death``'s, separate on
+    purpose, so holding both roles never lets one lend the other its cases."""
+    if death.registered_by != user.user_id:
+        return False
+    try:
+        _require_scope(user, death.project_id, death.site_id, death.org_unit_id, _DEATH_REPORTER)
+    except WebIntakeError:
+        return False
+    return True
+
+
+def interviewer_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
+    """Whether *user*'s interviewer grants reach *death*: the worklist's own
+    scope (``_worklist_scope``), so it agrees with what ``GET /cases/<id>``
+    shows. Decides whether a reply carries the interview's prefill and links
+    (a user holding both roles gets the reporter-shaped body for a case they
+    reach only as a reporter)."""
+    scope = _worklist_scope(user)
+    return scope is not None and bool(db.session.scalar(
+        sa.select(sa.exists().where(scope, VaDeathRegister.death_id == death.death_id))
+    ))
+
+
+#: Page size of a reporter's list, as the worklist's.
+REPORTED_PAGE_DEFAULT = 50
+REPORTED_PAGE_MAX = 200
+
+
+def reported_deaths_page(user: VaUsers, args) -> dict:
+    """``GET /api/v1/intake/deaths`` for a death_reporter: the deaths *user*
+    registered that their death_reporter grants reach, newest activity first,
+    keyset-paged on (updated_at, death_id): ``{"deaths": [...],
+    "next_cursor": str | None}``.
+
+    *args* is the query string: ``project_id`` and ``site_id`` (optional
+    narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
+    1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
+    Rows are ``serialize_death`` without the submission id: a reporter has no
+    business with the interview.
+    """
+    try:
+        limit = max(1, min(int(args.get("limit") or REPORTED_PAGE_DEFAULT), REPORTED_PAGE_MAX))
+    except ValueError:
+        raise WebIntakeError("limit must be a whole number.") from None
+    context = interviewer_context(user, _DEATH_REPORTER)
+    project_id, site_id = args.get("project_id") or None, args.get("site_id") or None
+    if project_id is not None or site_id is not None:
+        context = [e for e in context if project_id in (None, e["project_id"]) and site_id in (None, e["site_id"])]
+        if not context:
+            raise WebIntakeError("You do not have access to that project and site.", 403)
+    scope = _worklist_scope(user, context, _DEATH_REPORTER)
+    if scope is None:
+        return {"deaths": [], "next_cursor": None}
+    stmt = sa.select(VaDeathRegister).where(scope, VaDeathRegister.registered_by == user.user_id)
+    if args.get("cursor"):
+        at, death_id = _decode_cursor(args["cursor"])
+        stmt = stmt.where(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
+    rows = list(db.session.scalars(
+        stmt.order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc()).limit(limit + 1)
+    ))
+    page = rows[:limit]
+    next_cursor = _encode_cursor(page[-1].updated_at, page[-1].death_id) if len(rows) > limit else None
+    return {"deaths": [dict(serialize_death(d), va_sid=None) for d in page], "next_cursor": next_cursor}
+
+
 def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None = None,
                duplicate_of: object | None = None) -> VaDeathRegister:
     """Flag a case in scope as a possible duplicate of another case in scope, or
@@ -804,7 +909,8 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     *changes* holds only the fields to change, named as ``register_death``'s
     are; the result is validated by the same ``_clean_death_fields`` over the
     case as it would stand. Allowed to whoever sees the case (``get_death``)
-    or supervises it. Refused: 404 out of reach; 409 ``details_pending`` (a
+    or supervises it, or is the death_reporter who registered it
+    (``_reporter_reaches``). Refused: 404 out of reach; 409 ``details_pending`` (a
     direct start's identity comes from its interview), ``case_completed``
     (the completed interview holds the better data, docs/policy/web-intake.md
     "Correcting a registered death"), ``death_stale`` when *if_updated_at* is
@@ -821,7 +927,7 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
             death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
         except ValueError:
             death = None
-        if death is None or not cases.is_interview_supervisor_for(user, death):
+        if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
             raise
     death = cases.lock_case(death)
     if not changes:
@@ -3180,7 +3286,13 @@ def find_device_registration(user: VaUsers, project_id: str, client_death_id: uu
         return None
     if death.registered_by != user.user_id:
         raise WebIntakeError("That client_death_id is already in use.", 409)
-    return get_device_case(user, project_id, death.death_id)
+    try:
+        return get_device_case(user, project_id, death.death_id)
+    except WebIntakeError:
+        # A death_reporter registered it: theirs by the reporter's reach.
+        if death.project_id == project_id and _reporter_reaches(user, death):
+            return death
+        raise
 
 
 def find_device_attempt(user: VaUsers, death_id: object, client_attempt_id: uuid.UUID) -> VaDeathRegister | None:
@@ -3250,7 +3362,7 @@ def _after_worklist_cursor(raw: str):
     )
 
 
-def _worklist_scope(user: VaUsers, context: list[dict] | None = None):
+def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: frozenset = _INTERVIEWER):
     """SQL condition for the cases this interviewer's grants reach, or None.
 
     Per project-site of ``interviewer_context`` (*context* when the caller
@@ -3260,17 +3372,18 @@ def _worklist_scope(user: VaUsers, context: list[dict] | None = None):
     A wider grant wins over a unit grant on the same project-site
     (docs/policy/web-intake.md, "Who sees which cases"). The subtrees stay
     sub-selects, so the grants cost one memoised lookup however many
-    project-sites there are.
+    project-sites there are. *roles* as ``interviewer_context`` (*context*
+    must then be built from the same roles).
     """
     wide: set[tuple[str, str | None]] = set()
     unit_grants: dict[str, set[uuid.UUID]] = {}
-    for grant in resolve_grants(user).of({VaAccessRoles.interviewer}, virtual=False):
+    for grant in resolve_grants(user).of(roles, virtual=False):
         if grant.is_wide:
             wide.add((grant.project_id, grant.site_id))  # site_id None: project grant
         else:
             unit_grants.setdefault(grant.project_id, set()).add(grant.org_unit_id)
     conditions = []
-    for entry in interviewer_context(user) if context is None else context:
+    for entry in interviewer_context(user, roles) if context is None else context:
         project_id, site_id = entry["project_id"], entry["site_id"]
         pair = sa.and_(VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id)
         if (project_id, None) not in wide and (project_id, site_id) not in wide:

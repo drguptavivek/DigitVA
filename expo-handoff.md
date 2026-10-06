@@ -585,6 +585,33 @@ new route; every route still checks its own role, so a coder-only user gets
 
 The coding and review workspace routes are in section 12.
 
+### Death reporters: Register death without interview rights (`digitva-t6q`, server built 2026-10-06)
+
+For the Expo session. ANM and MPW at a sub-centre and ASHA at a village hold
+the new unit-scope role `death_reporter`: they register deaths and never
+interview. Full body: `docs/current-state/api-v1.md`.
+
+- **Show Register death when `projects[].actions.register_death` is
+  non-empty** (one entry per site, same shape as `actions.interview`: `site_id`,
+  `site_name`, `web_intake_mode`, `org_units`). It is the union of
+  interviewer and death_reporter reach, derived from the check the register
+  route enforces; use its `org_units` for the unit picker (or `GET
+  /organization/<project>/units?role=death_reporter`).
+- **Hide the interview screens unless `actions.interview` is non-empty.** A
+  user whose only role is `death_reporter` has `roles: ["death_reporter"]`,
+  an empty `actions.interview`, and must see no worklist, no Start interview,
+  no attempts, no visits (every one answers 403). `account.device_access` is
+  true for a reporter while some project keeps a death register, so sign-in
+  and refresh work.
+- **Register:** the same `POST /intake/deaths`. The reply's `case` has no
+  `prefill`, and `links` is only `{"update": ...}`.
+- **My registered deaths:** `GET /intake/deaths` (no `project_id` or `site_id`
+  needed for a reporter) returns the caller's own registered deaths,
+  newest first, with `limit` (default 50, max 200) and `cursor` /
+  `next_cursor`; a user who also holds `interviewer` passes `?registered=mine`. Correct one with `PATCH /intake/deaths/<id>` (section 13: the
+  same rule; 409 `case_completed` once an interview is completed). Everything
+  else is read-only for a reporter.
+
 ## 12. Coding and review workspace (`digitva-xl43` phases 1-3, server built)
 
 Expo status, 2026-10-05: ICD catalogue and Narrative QA / Social Autopsy metadata are verified in `b0c91950`; DORIS seed and processing are now served in `86a74164`. The read-only planner updated the complete simple/DORIS workspace plan: shared contract/transport first, independent queue, simple COD/quality/note, DORIS React form and media packages next, platform/lifecycle integration last. The existing WHO interview vendor package has no DORIS editor; Expo will implement the served certificate state/API contract using shared React UI. Implementation waits on section 11 landing and its remaining broad-plus-unit server scope defect. Finished-case view and physical-device media acceptance remain pending; no allocation is acquired by the app yet.

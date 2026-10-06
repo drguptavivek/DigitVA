@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-06
 ---
 
 # Test Project TST001 (Intake Test)
@@ -81,8 +81,8 @@ onboarded, Asia/Kolkata, English. Unit-scoped grants carry the cadre.
 | test.sn.chc01 | CHC01 SN | interviewer | intake |
 | test.mo.phc01, test.mo.phc02 | PHC01 / PHC02 MO | interview_supervisor, coder | coder |
 | test.cho.sc01 .. sc06 | SC01 .. SC06 CHO | interviewer | intake |
-| test.anm.sc01 | SC01 ANM | none (worker only) | intake |
-| test.mpw.sc04 | SC04 MPW | none (worker only) | intake |
+| test.anm.sc01 | SC01 ANM | death_reporter | intake |
+| test.mpw.sc04 | SC04 MPW | death_reporter | intake |
 
-ANM and MPW have an account and a worker row but no grant; a future
-`death_reporter` role is meant to cover them.
+ANM and MPW (no Fill VA in the template grid) hold a `death_reporter` grant at their sub-centre: they register
+deaths in the app and never interview (`digitva-t6q`).

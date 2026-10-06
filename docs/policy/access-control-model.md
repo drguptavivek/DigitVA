@@ -35,6 +35,7 @@ DigitVA uses these roles:
 - `coding_tester`
 - `reviewer`
 - `interviewer`
+- `death_reporter`
 - `interview_supervisor`
 
 Roles are additive and do not inherit from each other.
@@ -419,6 +420,27 @@ May not:
 
 See [Web Intake Policy](web-intake.md).
 
+### `death_reporter`
+
+Reporting role for field workers who register deaths but must not interview
+(ANM and MPW at a sub-centre, ASHA at a village; owner decisions 2026-10-01
+and 2026-10-06, `digitva-t6q`), held at `org_unit` scope only.
+
+May:
+
+- register a death, as an interviewer does, in its unit's subtree
+- see the list of the deaths it registered, and correct the details of one
+  of them until an interview of it is completed (the `PATCH /intake/deaths`
+  rule)
+
+May not:
+
+- start or resume an interview, log contact attempts or visits, or use any
+  worklist action; see another user's cases; code or review
+
+A `death_reporter` grant needs a cadre with the `can_report_deaths` flag at
+the unit's level. See [Web Intake Policy](web-intake.md), "Death reporters".
+
 ### `interview_supervisor`
 
 Supervision role for web intake, held at `org_unit` scope only.
@@ -503,6 +525,9 @@ The system must not infer broader access from missing values or partial keys.
 - `reviewer` uses `project`, `project_site` or `org_unit`
 - `interviewer` uses `project`, `project_site` or `org_unit` (see
   [Web Intake Policy](web-intake.md))
+- `death_reporter` uses `org_unit` only (database `role_scope` CHECK); it
+  registers deaths and lists its own (see [Web Intake Policy](web-intake.md),
+  "Death reporters")
 - `interview_supervisor` uses `org_unit` only (database `role_scope` CHECK);
   it supervises web intake cases in the unit's subtree, as do `data_manager`
   grants in their own scope (see [Web Intake Policy](web-intake.md), "Supervisors").
@@ -567,8 +592,9 @@ guard applies when a grant is written (create, reactivate, import).
 A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
 nothing at runtime consults it, but it is validated on write: the cadre must
 be defined at the unit's level, a `coder` grant requires a cadre that may
-code at that level, and an `interview_supervisor` grant a cadre that may
-supervise interviews there. Cadre rules live in
+code at that level, an `interview_supervisor` grant a cadre that may
+supervise interviews there, and a `death_reporter` grant a cadre that may
+report deaths there (`can_report_deaths`). Cadre rules live in
 [Organization Model Policy](organization-model.md).
 
 ## Who creates which grants
@@ -608,14 +634,14 @@ below a `project_site` grant there is nothing.
 - `project_pi` creates `data_manager` grants at any level of their project.
 - An **In-charge** creates `data_manager` grants at their own level and on
   units beneath it, within their own area (the District in-charge creates the
-  District Programme Manager), and the six roles below anywhere in their area,
-  as a data manager does.
+  District Programme Manager), and the seven roles below anywhere in their
+  area, as a data manager does.
 - A `data_manager` creates:
   - `data_manager` grants only strictly below their own grant, inside their
     own subtree;
-  - `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
-    `collaborator_pii` grants at any level inside their own subtree, their own
-    level included.
+  - `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`,
+    `collaborator` and `collaborator_pii` grants at any level inside their own
+    subtree, their own level included.
 - The same rule applies to every data manager of a district project, whatever
   the grant's scope. A project-scope data manager's subtree is the whole
   project.

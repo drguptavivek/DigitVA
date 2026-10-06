@@ -54,6 +54,7 @@ ROLES_ALLOWING_ORG_UNIT = frozenset(
         VaAccessRoles.data_manager,
         VaAccessRoles.interviewer,
         VaAccessRoles.interview_supervisor,
+        VaAccessRoles.death_reporter,
     }
 )
 
@@ -68,6 +69,7 @@ ROLES_REQUIRING_CODING_CADRE = frozenset({VaAccessRoles.coder})
 CADRE_FLAG_BY_ROLE = {
     VaAccessRoles.coder: ("can_code_va_form", "code VA forms"),
     VaAccessRoles.interview_supervisor: ("can_supervise_interviews", "supervise interviews"),
+    VaAccessRoles.death_reporter: ("can_report_deaths", "report deaths"),
 }
 
 

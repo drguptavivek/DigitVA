@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-06
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -103,9 +103,9 @@ district project, whatever the scope of their grant:
 
 - `data_manager` grants only **strictly below** their own grant, inside their
   subtree;
-- `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator` and
-  `collaborator_pii` grants at **any level** inside their subtree, their own
-  level included.
+- `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`,
+  `collaborator` and `collaborator_pii` grants at **any level** inside their
+  subtree, their own level included (`death_reporter` at unit scope only).
 
 So a project-scoped data-manager assigns `data_manager` at project-site or
 any unit level but never at project level; a unit-scoped data-manager assigns
@@ -185,7 +185,7 @@ A data-manager lists the grants they may manage under "Scope Rules", within
 their own scope:
 
 - site projects: `coder`, `coding_tester` and `data_manager` grants
-- district projects: grants of `interviewer`, `coder`, `reviewer`,
+- district projects: grants of `interviewer`, `death_reporter`, `coder`, `reviewer`,
   `coding_tester`, `collaborator` and `collaborator_pii` anywhere inside their
   subtree, and `data_manager` grants strictly below their own (for an
   In-charge, at their own level too)

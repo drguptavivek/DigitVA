@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Workflow And Permissions
@@ -851,6 +851,16 @@ Grant scope is resolved back to forms and submissions as follows:
   `project_pi`). The role gates `VaUsers.is_interview_supervisor()` and
   `is_site_pi()` (no form argument) wrap `authz.effective_roles` since stage 5
   (`role_required("interview_supervisor")`), the API `/api/v1/intake/supervision/`
+- the death register (`digitva-t6q`): `POST /api/v1/intake/deaths` takes an
+  `interviewer` or a `death_reporter` (`authz.actions.DEATH_REGISTERING_ROLES`);
+  their reach is `web_intake_service.interviewer_context(user, roles)` and
+  `_require_scope(..., roles)`, built from the grants of exactly those roles
+  (so neither role lends the other its cases), `register_death_context` being
+  the predicate `/me/access` `actions.register_death` and the app sign-in
+  check read. A reporter's `GET /intake/deaths` is `reported_deaths_page` and
+  its `PATCH /intake/deaths/<id>` the deaths it registered that its unit grant
+  still reaches (`_reporter_reaches`); every interview route stays
+  `role_required("interviewer")`
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)
 

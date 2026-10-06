@@ -77,7 +77,7 @@ the page never decides access itself.
 
 | Column | Given by roles |
 |---|---|
-| Report deaths | `interviewer` (and `death_reporter` once it exists); `data_manager` does not register deaths (`app/routes/intake.py`, register routes are interviewer-only) |
+| Report deaths | `interviewer` and `death_reporter` (both register deaths); `data_manager` does not register deaths (the register routes take `interviewer` and `death_reporter` only) |
 | Interview | `interviewer` |
 | Supervise | `interview_supervisor` (held by the in-charges until the In-charge role is built), `data_manager`; in an organizational project also the In-charge and the `project_pi` (decision 2026-10-02, see [Access Control Model](access-control-model.md); implementation tracked in digitva-0wc) |
 | Code | `coder` |
@@ -87,7 +87,7 @@ the page never decides access itself.
 | View PII | **per person, not per row**: green for every row of a person who holds a PII-granting role (`_PII_GRANTING_ROLES`: admin, project PI, site PI, data manager, coder, coding tester, reviewer, interviewer, PII collaborator) **in this project** (a global admin everywhere), the same rule as `should_redact_pii` (`app/services/viewer_pii_service.py`) restricted to the project shown (`pii_visible_user_ids(ids, project_id=...)`); a role held only in another project does not turn it on; a person without one (a plain collaborator, an interview supervisor alone) gets no green. The row's own grants only name the roles in the cell's tooltip |
 | Read-only view | `collaborator`, `collaborator_pii` |
 | Site lead | `site_pi` at `project_site` scope (classical projects). In an organizational project the oversight duty at a unit is the **In-charge** (District, Block or PHC in-charge; decision 2026-10-02, `site_pi` held at `org_unit`, see [Access Control Model](access-control-model.md), "In-charge"; implementation tracked in digitva-0wc) |
-| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants" (digitva-0wc stage 6) |
+| Manage grants | `admin`, `project_pi`; `data_manager` for `coder`, `coding_tester` and `data_manager` grants at its own project or site scope (site projects; `app/routes/data_management.py`). In an organizational project the In-charge (`data_manager` at its own level and below) and the `data_manager` (`data_manager` strictly below its own level; `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` anywhere in its subtree), per [Access Control Model](access-control-model.md), "Who creates which grants" (digitva-0wc stage 6) |
 
 ## Cell legend
 
@@ -103,9 +103,9 @@ naming the role and the grant.
 | Blank | Not allowed for this cadre at this level, or the column has no grid flag and no grant gives it. |
 
 The red marker uses the grid flags only: *Fill VA* for Interview, *Code VA*
-for Code, *Supervise interviews* for Supervise (Report deaths gets its own
-flag with `death_reporter`). Only *Code VA* and *Supervise interviews* are
-enforced when a grant is written (`CADRE_FLAG_BY_ROLE`,
+for Code, *Supervise interviews* for Supervise, *Report deaths*
+(`can_report_deaths`) for Report deaths. *Code VA*, *Supervise interviews*
+and *Report deaths* are enforced when a grant is written (`CADRE_FLAG_BY_ROLE`,
 `app/services/org_grant_service.py`); *Fill VA* is informational and an
 interviewer grant may carry no cadre. Columns with no grid flag show only
 green or blank.

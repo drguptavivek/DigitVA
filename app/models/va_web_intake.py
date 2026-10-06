@@ -57,6 +57,8 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_project_dod", "project_id", "date_of_death"),
         sa.Index("ix_va_death_register_org_unit", "org_unit_id"),
         sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
+        # A death reporter's own list: registered_by = me, newest activity first.
+        sa.Index("ix_va_death_register_registered_by", "registered_by", "updated_at", "death_id"),
         # The worklist sorts by next visit, then last activity.
         sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
         # Every coding reader asks "is this va_sid a confirmed duplicate?"

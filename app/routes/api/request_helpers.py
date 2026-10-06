@@ -7,8 +7,15 @@ request, never taken from the device's enrolment.
 from flask import jsonify, request
 from flask_login import current_user
 
+from app.models import VaAccessRoles
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
+from app.services.authz.actions import DEATH_REGISTERING_ROLES
+
+#: Interviewer reach alone, the default of every intake route; the register
+#: routes pass ``authz.actions.DEATH_REGISTERING_ROLES`` (a death_reporter
+#: registers too).
+INTERVIEWER = frozenset({VaAccessRoles.interviewer})
 
 #: WebIntakeError carries a status only; the contract wants a machine code.
 INTAKE_CODES = {400: "invalid_request", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid_interview"}
@@ -58,25 +65,30 @@ def parse_body() -> dict:
     return body if isinstance(body, dict) else {}
 
 
-def interviewer_context() -> list[dict]:
-    """``interviewer_context`` of the caller, computed once per request. Kept
-    in the WSGI environ, not ``g``, which can outlive the request (as
-    ``authz.resolve_grants``)."""
-    context = request.environ.get("digitva.interviewer_context")
-    if context is None:
-        context = request.environ["digitva.interviewer_context"] = intake_svc.interviewer_context(current_user)
-    return context
+def interviewer_context(roles: frozenset = INTERVIEWER) -> list[dict]:
+    """``interviewer_context`` of the caller for *roles* (interviewer alone by
+    default), computed once per request and roleset. Kept in the WSGI environ,
+    not ``g``, which can outlive the request (as ``authz.resolve_grants``)."""
+    cache = request.environ.setdefault("digitva.interviewer_context", {})
+    if roles not in cache:
+        cache[roles] = intake_svc.interviewer_context(current_user, roles)
+    return cache[roles]
 
 
-def require_project(project_id: str) -> str:
-    """*project_id* must be one of the interviewer's projects (403
+def require_project(project_id: str, roles: frozenset = INTERVIEWER) -> str:
+    """*project_id* must be one of the caller's projects for *roles* (403
     ``project_forbidden``, alike whether it exists or not)."""
-    if not any(e["project_id"] == project_id for e in interviewer_context()):
-        raise devices.DeviceAuthError("You have no interviewer access in that project.", "project_forbidden", 403)
+    if not any(e["project_id"] == project_id for e in interviewer_context(roles)):
+        message = (
+            "You have no access to register deaths in that project."
+            if roles == DEATH_REGISTERING_ROLES
+            else "You have no interviewer access in that project."
+        )
+        raise devices.DeviceAuthError(message, "project_forbidden", 403)
     return project_id
 
 
-def request_project_id(p: dict | None = None, *, required: bool = True) -> str | None:
+def request_project_id(p: dict | None = None, *, required: bool = True, roles: frozenset = INTERVIEWER) -> str | None:
     """The ``project_id`` the request names (query string, or the JSON body
     *p* of a POST), checked by ``require_project``. Missing is 400
     ``invalid_request`` when *required*, else None."""
@@ -87,4 +99,4 @@ def request_project_id(p: dict | None = None, *, required: bool = True) -> str |
         return None
     if not isinstance(raw, str):
         raise devices.DeviceAuthError("project_id must be text.", "invalid_request", 400)
-    return require_project(raw.strip())
+    return require_project(raw.strip(), roles)

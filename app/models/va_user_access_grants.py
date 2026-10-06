@@ -36,7 +36,8 @@ class VaUserAccessGrants(db.Model):
             (role = 'project_pi' AND scope_type = 'project') OR
             (role = 'site_pi' AND scope_type IN ('project_site', 'org_unit')) OR
             (role IN ('collaborator', 'collaborator_pii', 'coder', 'coding_tester', 'reviewer', 'data_manager', 'interviewer') AND scope_type IN ('project', 'project_site', 'org_unit')) OR
-            (role = 'interview_supervisor' AND scope_type = 'org_unit')
+            (role = 'interview_supervisor' AND scope_type = 'org_unit') OR
+            (role = 'death_reporter' AND scope_type = 'org_unit')
             """,
             name="role_scope",
         ),

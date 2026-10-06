@@ -6,6 +6,7 @@ routes would 405 and trip the IP ban. Policy: docs/policy/area-dashboard.md.
 """
 from urllib.parse import parse_qs, urlsplit
 
+from app import db
 from app.services import area_dashboard_service as area
 from tests.services.test_area_dashboard_service import AreaDashboardFixture, AreaStaffFixture
 
@@ -128,6 +129,25 @@ class AreaStaffRouteTests(AreaStaffFixture):
         self.assertTrue(body["staff_identity_redacted"])
         self.assertEqual((body["interviewers"], body["coders"]), ([], []))
         self.assertNotIn(self.interviewer.name.encode(), hidden.data)
+
+    def test_a_death_reporter_reaches_its_area_with_staff_identity_redacted(self):
+        from app.models import VaAccessRoles, VaAccessScopeTypes
+
+        reporter = self._get_or_make_user("area.reporter@test.local", "AreaUser123")
+        self._grant(reporter, VaAccessRoles.death_reporter, VaAccessScopeTypes.org_unit,
+                    org_unit_id=self.chc_a.org_unit_id)
+        db.session.commit()
+        params = {"project": self.TREE, "unit": str(self.chc_a.org_unit_id)}
+        # Present first: a coder in the same area is shown the interviewer's name.
+        self._as(self.unit_user)
+        self.assertIn(self.interviewer.name, [r["name"] for r in self.client.get(STAFF, query_string=params).get_json()["interviewers"]])
+        self._as(reporter)
+        response = self.client.get(STAFF, query_string=params)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["staff_identity_redacted"])
+        self.assertEqual((body["interviewers"], body["coders"]), ([], []))
+        self.assertNotIn(self.interviewer.name.encode(), response.data)
 
     def test_same_not_found_rules_as_summary(self):
         self._as(self.unit_user)

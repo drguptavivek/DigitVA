@@ -381,3 +381,42 @@ class VaWebIntakeDraftSection(db.Model):
     )
 
     draft: so.Mapped["VaWebIntakeDraft"] = so.relationship("VaWebIntakeDraft", back_populates="sections")
+
+
+class VaWebIntakeAttachment(db.Model):
+    """One file uploaded for a draft, waiting for its submission (``digitva-ej1``).
+
+    ``va_submission_attachments`` is keyed by a submission id the draft does
+    not have yet, so a file uploaded during the interview waits here, keyed by
+    the draft and the UUID the page generated for it (``client_attachment_id``,
+    the idempotency key: a retried upload finds this row and stores nothing).
+    The bytes are in the attachment store under ``storage_name``; submit copies
+    this row into ``va_submission_attachments`` pointing at the same object.
+    The uploader's filename is never kept (it can name the deceased):
+    ``filename`` is the id plus the extension of the detected type, and is the
+    value the payload carries for the answer.
+    """
+
+    __tablename__ = "va_web_intake_attachments"
+    __table_args__ = (
+        sa.Index("uq_va_web_intake_attachments_storage_name", "storage_name", unique=True),
+    )
+
+    draft_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_web_intake_drafts.draft_id"), primary_key=True
+    )
+    client_attachment_id: so.Mapped[uuid.UUID] = so.mapped_column(sa.Uuid(as_uuid=True), primary_key=True)
+    filename: so.Mapped[str] = so.mapped_column(sa.String(255), nullable=False)
+    storage_name: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    local_path: so.Mapped[str | None] = so.mapped_column(sa.String(512), nullable=True)
+    store_state: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    # The validated type of the uploaded original (decided from its bytes).
+    mime_type: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    size_bytes: so.Mapped[int] = so.mapped_column(sa.BigInteger, nullable=False)
+    sha256: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+
+    def __repr__(self) -> str:
+        return f"<VaWebIntakeAttachment {self.draft_id}/{self.client_attachment_id}>"

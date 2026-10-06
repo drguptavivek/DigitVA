@@ -15,6 +15,18 @@
   </div>
 </div>
 <div id="wv-alert" class="alert d-none small py-2"></div>
+{# Attachments kept on this device until the server confirms them
+   (docs/policy/web-intake.md, "Attachments"): a status line, and a warning
+   for files about to be, or just, deleted after seven days unsent. #}
+<div id="wv-att-warning" class="alert alert-warning d-none small py-2">
+  <div class="d-flex justify-content-between align-items-start gap-2">
+    <span id="wv-att-warning-text"></span>
+    <button type="button" class="btn-close" id="wv-att-warning-close" aria-label="Dismiss"></button>
+  </div>
+</div>
+{# Files the server would not take now (draft closed or gone): kept, listed, never silently deleted. #}
+<div id="wv-att-held" class="alert alert-warning d-none small py-2"></div>
+<div id="wv-att-status" class="small text-muted mb-1" role="status"></div>
 {# Possible duplicates (phase 6, digitva-vzk.11): a warning, never a block. #}
 <div id="wv-duplicates" class="alert alert-warning d-none small py-2"></div>
 {# Pinned deceased summary (digitva-wdj): left-aligned, same row as the
@@ -47,12 +59,15 @@
 import * as WhoVa from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ who_va_bundle_version(config.STATIC_ASSET_VERSION)|urlencode }}";
 import { applyTranslations } from "{{ url_for('static', filename='js/intake/translations.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 import { summaryFromAnswers, summaryFromPrefill } from "{{ url_for('static', filename='js/intake/summary.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { createBuffer, createIdbBacking, createUploader } from "{{ url_for('static', filename='js/intake/attachment_buffer.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { createAttachmentPlatform } from "{{ url_for('static', filename='js/intake/attachment_platform.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 import { renderPossibleDuplicates, touchesIdentity } from "{{ url_for('static', filename='js/intake/duplicates.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 
 const DRAFT = {{ draft | tojson }};
 const PREFILL = {{ prefill | tojson }};
 const API = "/api/v1/intake/drafts/" + encodeURIComponent(DRAFT.draft_id);
 const CSRF = {{ csrf_token() | tojson }};
+const USER_ID = {{ current_user.user_id | string | tojson }};
 const $ = (id) => document.getElementById(id);
 const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.classList.add("d-none"); return; } el.className = `alert alert-${kind} small py-2`; el.textContent = msg; };
 // Pinned deceased summary (digitva-wdj): name, date of death, age, sex only
@@ -257,10 +272,12 @@ const draftStore = {
     envelope.instrumentVersion ||= instrumentIdentity.version;
     envelope.currentSection ||= instrumentIdentity.firstSection;
     envelope.id = id;
+    latestAnswers = envelope.data || {};
     baselineLoaded = true;
     return envelope;
   },
   save(draft) {
+    latestAnswers = draft.data || {};
     updateSummary(summaryFromAnswers(draft.data));
     pendingDraft = draft;
     const settled = new Promise((resolve, reject) => waiters.push({ resolve, reject }));
@@ -453,6 +470,144 @@ function offerCodeNow(vaSid) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Attachments: an encrypted on-device buffer, sent when the network allows and
+// deleted once the server confirms (docs/policy/web-intake.md, "Attachments").
+// Never the package's plaintext default platform.
+// ---------------------------------------------------------------------------
+const attachmentApi = (draftId) => "/api/v1/intake/drafts/" + encodeURIComponent(draftId);
+const SWEEP_EVERY_MS = 60 * 60 * 1000;
+let attachmentBuffer = null;
+let attachmentUploader = null;
+// The answers the form last handed draftStore.save(), so a file can be named by
+// the question it answers (never by its file name).
+let latestAnswers = {};
+let latestInstrument = null;
+const heldFiles = new Map();
+
+const attKind = (type) => (type || "").startsWith("audio/") ? "recording" : type === "application/pdf" ? "PDF" : "image";
+const attDay = (ms) => new Date(ms).toLocaleDateString();
+function showAttachmentWarning(lines) {
+  if (!lines.length) return;
+  $("wv-att-warning-text").textContent = lines.join(" ");
+  $("wv-att-warning").classList.remove("d-none");
+}
+$("wv-att-warning-close").addEventListener("click", () => $("wv-att-warning").classList.add("d-none"));
+
+function questionLabelFor(id) {
+  for (const [name, value] of Object.entries(latestAnswers)) {
+    if (value && typeof value === "object" && value.id === id) {
+      const q = latestInstrument && latestInstrument.questions.find((x) => x.name === name);
+      const label = q && q.label && (q.label[$("wv-locale")?.value || "en"] || q.label.en);
+      return String(label || name).replace(/<[^>]*>/g, "").trim();
+    }
+  }
+  return null;
+}
+const describeFile = (e) => questionLabelFor(e.id) || `${attKind(e.fileType || e.type)} of ${attDay(e.createdAt)}`;
+
+function renderHeldFiles() {
+  const box = $("wv-att-held");
+  box.replaceChildren();
+  box.classList.toggle("d-none", heldFiles.size === 0);
+  for (const [id, e] of heldFiles) {
+    const row = document.createElement("div");
+    row.className = "d-flex justify-content-between align-items-center gap-2";
+    const text = document.createElement("span");
+    text.textContent = `${describeFile(e)}: ${e.status === 404
+      ? "this interview no longer exists on the server, so the file could not be sent."
+      : "this interview is no longer open for changes (it was submitted or discarded), so the file could not be sent."} It is still kept on this device.`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-sm btn-outline-danger";
+    button.textContent = "Delete from this device";
+    button.addEventListener("click", async () => {
+      await attachmentBuffer.remove(id);
+      heldFiles.delete(id);
+      renderHeldFiles();
+      refreshAttachmentStatus().catch(() => {});
+    });
+    row.append(text, button);
+    box.append(row);
+  }
+}
+
+async function refreshAttachmentStatus() {
+  if (!attachmentBuffer) return;
+  const held = (await attachmentBuffer.entries()).length;
+  $("wv-att-status").textContent = held
+    ? `${held} file${held === 1 ? "" : "s"} waiting to be sent${navigator.onLine === false ? " (offline)" : ""}.`
+    : "";
+}
+
+// Warn first, then delete: the warning names the kind and the day captured and
+// stays on screen until dismissed.
+async function sweepAttachments() {
+  const { expired, expiring } = await attachmentBuffer.sweep();
+  const lines = [];
+  if (expired.length) {
+    lines.push("These files were not sent within 7 days and are being deleted from this device; record or attach them again: "
+      + expired.map((e) => `${attKind(e.type)} of ${attDay(e.createdAt)}`).join(", ") + ".");
+  }
+  if (expiring.length) {
+    lines.push("These files have not been sent and will be deleted from this device within a day: "
+      + expiring.map((e) => `${attKind(e.type)} of ${attDay(e.createdAt)}`).join(", ") + ". Connect to the network to send them.");
+  }
+  showAttachmentWarning(lines);
+  for (const e of expired) await attachmentBuffer.remove(e.id);
+  await refreshAttachmentStatus();
+}
+
+async function setupAttachments() {
+  // WebCrypto and IndexedDB exist only in a secure context; without them the
+  // form stays without attachment controls rather than store anything in the clear.
+  if (!window.indexedDB || !window.crypto || !window.crypto.subtle) {
+    $("wv-att-status").textContent = "Recording and attaching files is unavailable in this browser.";
+    return undefined;
+  }
+  attachmentBuffer = createBuffer({ userId: USER_ID, draftId: DRAFT.draft_id, backing: createIdbBacking(window.indexedDB) });
+  await attachmentBuffer.wipeOthers();
+  attachmentUploader = createUploader({
+    buffer: attachmentBuffer,
+    apiBase: attachmentApi,
+    csrf: () => CSRF,
+    onEvent: (e) => {
+      if (e.type === "held") {
+        heldFiles.set(e.id, e);
+        renderHeldFiles();
+      } else if (e.type === "rejected") {
+        heldFiles.delete(e.id);
+        renderHeldFiles();
+        alertBox("warning", `${describeFile(e)}: ${e.message || "the server refused this file."} It was not kept; record or attach it again.`);
+      } else if (e.type === "confirmed") {
+        heldFiles.delete(e.id);
+        renderHeldFiles();
+      }
+      refreshAttachmentStatus().catch(() => {});
+    },
+  });
+  window.addEventListener("online", () => attachmentUploader.flush().then(refreshAttachmentStatus).catch(() => {}));
+  window.addEventListener("offline", () => refreshAttachmentStatus().catch(() => {}));
+  await sweepAttachments();
+  setInterval(() => sweepAttachments().catch(() => {}), SWEEP_EVERY_MS);
+  attachmentUploader.flush().then(refreshAttachmentStatus).catch(() => {});
+  // Signing out deletes the buffer and its key; unsent files are warned about first.
+  document.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !/\/valogout$/.test(form.getAttribute("action") || "")) return;
+    event.preventDefault();
+    const unsent = (await attachmentBuffer.entries()).length;
+    if (unsent && !window.confirm(`${unsent} file${unsent === 1 ? " has" : "s have"} not been sent and will be deleted from this device when you sign out. Sign out anyway?`)) return;
+    await attachmentBuffer.wipe().catch(() => {});
+    form.submit();
+  }, true);
+  return createAttachmentPlatform({
+    WhoVa, buffer: attachmentBuffer, uploader: attachmentUploader,
+    attachmentUrl: (id) => attachmentApi(DRAFT.draft_id) + "/attachments/" + encodeURIComponent(id),
+  });
+}
+
 async function main() {
   const opts = await api("/api/v1/organization/" + encodeURIComponent(DRAFT.project_id) + "/form-options");
   if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
@@ -466,6 +621,7 @@ async function main() {
     return;
   }
   const chosenInstrument = buildInstrument(options.enabled_extensions || []);
+  latestInstrument = chosenInstrument;
   sectionOf = sectionMapFor(chosenInstrument);
   instrumentIdentity = {
     id: chosenInstrument.id,
@@ -487,6 +643,8 @@ async function main() {
   syncShowEnglish(el, options, locale);
   await applyLocale(el, chosenInstrument, instrumentCode, locale);
   el.draftStore = draftStore;
+  const platform = await setupAttachments();
+  if (platform) el.platform = platform;
   if (PREFILL.lockedQuestionNames && "lockedQuestionNames" in el) el.lockedQuestionNames = PREFILL.lockedQuestionNames;
   el.addEventListener("who-va-draft-error", (e) => alertBox("warning", "Draft could not be saved: " + (e.detail?.message || e.detail)));
   el.addEventListener("who-va-complete", async (e) => {
@@ -494,6 +652,15 @@ async function main() {
     if (!result.valid) { alertBox("warning", `The questionnaire has ${result.issues?.length || 0} unresolved issue(s).`); return; }
     alertBox("info", "Submitting…");
     try { await flushDraft(); } catch (err) { /* surfaced by who-va-draft-error */ }
+    // Every attached file must be on the server before the interview is submitted.
+    if (attachmentUploader) {
+      await attachmentUploader.flush().catch(() => {});
+      const waiting = await attachmentUploader.pending(DRAFT.draft_id);
+      if (waiting) {
+        alertBox("warning", `${waiting} attached file${waiting === 1 ? " is" : "s are"} still waiting to be sent. Submit again once ${waiting === 1 ? "it has" : "they have"} been sent.`);
+        return;
+      }
+    }
     await checkDuplicates().catch(() => {});  // refreshed before submit; never gates it
     const res = await api(API + "/submit", "POST", { if_updated_at: draftUpdatedAt, completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }

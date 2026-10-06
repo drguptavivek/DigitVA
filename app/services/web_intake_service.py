@@ -52,6 +52,7 @@ from app.models.va_web_intake import (
 )
 from app.services import case_transition_service as cases
 from app.services import notification_service, org_grant_service, served_form_service
+from app.services import web_intake_attachment_service as attachments
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
 from app.services.authz import resolve_grants, subtree_select, supervision
@@ -1426,14 +1427,18 @@ def list_drafts(user: VaUsers, *, status: str = "draft") -> list[VaWebIntakeDraf
     return list(db.session.scalars(stmt.order_by(VaWebIntakeDraft.updated_at.desc()).limit(200)).all())
 
 
-def get_draft(user: VaUsers, draft_id: object, *, for_update: bool = False) -> VaWebIntakeDraft:
+def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) -> VaWebIntakeDraft:
+    """The caller's own draft (404 for anyone else's or an unknown id: the one
+    ownership predicate of every draft route). *require_open* also refuses a
+    draft that is no longer ``draft`` (409). Takes no row lock;
+    ``lock_draft_for_browser_write`` takes the case lock a write needs."""
     try:
         draft = db.session.get(VaWebIntakeDraft, uuid.UUID(str(draft_id)))
     except ValueError:
         draft = None
     if draft is None or draft.user_id != user.user_id:
         raise WebIntakeError("Draft not found.", 404)
-    if for_update and draft.status != "draft":
+    if require_open and draft.status != "draft":
         raise WebIntakeError("This draft is no longer editable.", 409)
     return draft
 
@@ -1612,6 +1617,21 @@ _ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrume
 _DEVICE_TIME_KEYS = ("startedAt", "completedAt")
 
 
+def scrub_attachment_names(answers: dict) -> dict:
+    """*answers* without the file names inside attachment references.
+
+    A reference carries ``name`` and ``originalName``; the package fills them
+    from the picked file, and a file name can name the deceased or the
+    respondent. The server keeps only the id, ``uri``, type, size and the
+    like: names are dropped before any answer is stored (docs/policy/web-intake.md,
+    "Attachments"). A new dict; values that are not references are shared."""
+    return {
+        key: ({k: v for k, v in value.items() if k not in ("name", "originalName")}
+              if isinstance(value, dict) and _is_attachment_reference(value) else value)
+        for key, value in answers.items()
+    }
+
+
 def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
@@ -1642,7 +1662,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         if name != DEVICE_SECTION:
             browser_keys.update(answers)
         row = existing.get(name)
-        answers = _enforce_locked(answers, locked, row.data if row is not None else None)
+        answers = scrub_attachment_names(_enforce_locked(answers, locked, row.data if row is not None else None))
         if row is None:
             row = VaWebIntakeDraftSection(draft_id=draft.draft_id, section_name=name, data=answers)
             db.session.add(row)
@@ -1713,6 +1733,13 @@ def discard_draft(draft: VaWebIntakeDraft, actor: VaUsers | None = None) -> None
             cases.transition(death, "registered", actor=actor, action="draft_discarded")
     elif death is not None and death.status == "draft_identity":
         cases.transition(death, "cancelled", actor=actor, action="draft_discarded")
+    # The draft's uploaded files go with it (their stored objects too): a
+    # discarded draft is never submitted, so nothing would ever read them.
+    deleted = attachments.delete_draft_uploads(draft)
+    if deleted and death is not None:
+        cases.record_action(death, actor=actor, action="draft_attachments_deleted")
+    if deleted:
+        log.info("draft discarded with %d uploaded file(s) deleted | unique_id=%s | by=%s", deleted, draft.unique_id, actor.user_id)
     db.session.flush()
 
 
@@ -1729,11 +1756,16 @@ def _is_attachment_reference(value: object) -> bool:
     return False
 
 
-def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web", meta: dict | None = None, carry: dict | None = None) -> tuple[dict, dict]:
+def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web", meta: dict | None = None, carry: dict | None = None, attachments_from: VaWebIntakeDraft | None = None) -> tuple[dict, dict]:
     """Return (payload, attachment_references) shaped like a synced ODK record.
 
-    Attachment answers are lifted out of the payload (phase 2 uploads them
-    through the attachment store) and their slot names returned separately.
+    An attachment answer whose file the server holds (uploaded for
+    *attachments_from*, default *draft*: ``web_intake_attachment_service``)
+    carries that file's filename in the payload, as an ODK answer does, and is
+    linked to the submission by ``attachments.link_to_submission``. An answer
+    whose file has not reached the server is lifted out of the payload and
+    returned in ``attachment_references`` (slot name -> reference): empty means
+    every attachment is held. ``AttachmentsExpected`` counts both kinds.
 
     ``meta`` replaces ``draft.meta`` when given (a revision builds the next
     version before it changes the draft).
@@ -1750,23 +1782,22 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     ``data`` is expected to already have had ``strip_irrelevant_answers``
     applied (see ``submit_draft``): an attachment reference for a question
     that became irrelevant (e.g. an ``md_im*`` slot after ``md_available``
-    flips to "no") must never reach ``references`` here, or it is counted in
-    ``AttachmentsExpected`` and becomes phase 2's to upload. Today this is
-    free -- ``who-va-attachment:`` values are client-local blob ids; nothing
-    server-side is uploaded until a later phase reads
-    ``draft.meta["attachmentReferences"]``, so dropping the reference here
-    orphans no server storage. Phase 2 must not re-derive relevance from
-    scratch against the browser's local blob store; it should trust that a
-    reference present here was already relevant at submit time.
+    flips to "no") must never reach here, or it is counted in
+    ``AttachmentsExpected``. A file uploaded for such a slot stays in
+    ``va_web_intake_attachments``, unlinked.
     """
     payload: dict = {}
     references: dict = {}
+    wanted = {key: attachments.reference_id(value) for key, value in (data or {}).items() if _is_attachment_reference(value)}
+    held = attachments.pending_filenames((attachments_from or draft).draft_id, {i for i in wanted.values() if i})
     for key, value in (data or {}).items():
-        if _is_attachment_reference(value):
+        if key not in wanted:
+            payload[key] = value
+        elif wanted[key] in held:
+            payload[key] = held[wanted[key]]
+        else:
             references[key] = value
             payload[key] = None
-        else:
-            payload[key] = value
 
     form = db.session.get(VaForms, draft.form_id)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
@@ -1820,8 +1851,8 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["start"] = meta["startedAt"] if started_at else meta.get("createdAt") or submitted_iso
     payload["end"] = meta["completedAt"] if completed_at else submitted_iso
     payload["today"] = (completed_at or submitted_at).date().isoformat()
-    payload["AttachmentsExpected"] = len(references)
-    payload["AttachmentsPresent"] = 0
+    payload["AttachmentsExpected"] = len(wanted)
+    payload["AttachmentsPresent"] = len(wanted) - len(references)
     payload["intake_source"] = intake_source
     # What the respondent was shown: the working language and the exact
     # translation version behind it, so the screen is reconstructible.
@@ -1938,6 +1969,7 @@ def _set_final_section(draft: VaWebIntakeDraft, data: dict) -> None:
     """Store *data* as the draft's ``final`` section: the exact final raw
     answers, locked answers included, before irrelevant ones are stripped. A
     browser section saved under that name is overwritten, not duplicated."""
+    data = scrub_attachment_names(data)
     for row in draft.sections:
         if row.section_name == FINAL_SECTION:
             row.data = data
@@ -1977,7 +2009,7 @@ def _is_outdated_form_version(version: str) -> bool:
         return False
 
 
-def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, submitted_at: datetime, expression_now: datetime, visit_note: dict, intake_source: str, meta: dict | None = None, carry: dict | None = None) -> tuple[dict, dict, list]:
+def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, submitted_at: datetime, expression_now: datetime, visit_note: dict, intake_source: str, meta: dict | None = None, carry: dict | None = None, attachments_from: VaWebIntakeDraft | None = None) -> tuple[dict, dict, list]:
     """The coding payload for the final raw answers *data*, with its
     attachment references and the server's own validation diagnostic:
     ``(payload, references, validation_err)``. Shared by a first submit and an
@@ -2000,6 +2032,7 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     stripped_data = {**stripped_data, **visit_note}
     payload, references = build_web_payload(
         draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source, meta=meta, carry=carry,
+        attachments_from=attachments_from,
     )
     return payload, references, validation_err
 
@@ -2082,6 +2115,14 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         draft, user, data, submitted_at=submitted_at, expression_now=expression_now,
         visit_note=visit_note, intake_source=intake_source,
     )
+    if references and intake_source == "web":
+        # Every file the answers name must be on the server first (the page
+        # sends them before it submits); a case must not reach coding with a
+        # file missing. A device upload keeps the reference, as before.
+        raise WebIntakeError(
+            f"{len(references)} attached file(s) have not finished uploading; wait for them to be sent, then submit again.",
+            409, "attachments_pending",
+        )
     form = db.session.get(VaForms, draft.form_id)
     fields = build_submission_projection(form, payload)
     va_sid = fields["va_sid"]
@@ -2112,6 +2153,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     )
     db.session.add(submission)
     db.session.flush()
+    attachments.link_to_submission(va_sid, draft.draft_id, payload)
     # Attribute the death to an organization unit, exactly as ODK sync does:
     # the web questionnaire carries the same org_<level_code>_code fields, and
     # the project-site's ODK mapping supplies the same fallback unit.
@@ -2410,6 +2452,7 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         revision_reason_code=reason_code,
         answers_sha256=answers_sha256,
     )
+    attachments.link_to_submission(va_sid, draft.draft_id, payload)
     # updatedAt moved: the stored daily KPI rows of the submission's days are recounted.
     cases._recompute_kpi_rows_after_commit(va_sid)
     _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
@@ -2657,7 +2700,7 @@ def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object
     payload, references, validation_err = build_final_payload(
         winner, chosen_user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
         intake_source=prior.get("intake_source") or "web", meta=meta,
-        carry={k: v for k, v in prior.items() if k != "SubmitterName"},
+        carry={k: v for k, v in prior.items() if k != "SubmitterName"}, attachments_from=candidate,
     )
     payload["updatedAt"] = now.isoformat()
     fields = build_submission_projection(db.session.get(VaForms, winner.form_id), payload)
@@ -2671,6 +2714,7 @@ def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object
         created_by_role=actor.audit_role, created_by=user.user_id, validation_err=validation_err,
         revision_reason_code="supervisor_choice", answers_sha256=candidate.answers_sha256,
     )
+    attachments.link_to_submission(va_sid, candidate.draft_id, payload)
     cases._recompute_kpi_rows_after_commit(va_sid)
 
     enters_coding = consent_is_valid(normalize_consent(raw.get("Id10013")))
@@ -2825,7 +2869,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
         submitted_at=now,
         client_valid=completion.get("valid") is True,
     )
-    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=data))
+    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=scrub_attachment_names(data)))
     db.session.add(draft)
     db.session.flush()
     log.info("device interview kept as superseded copy | unique_id=%s | case_status=%s | by=%s", death.unique_id, death.status, user.user_id)
@@ -3074,7 +3118,7 @@ def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None,
         meta={"replacedDraftId": str(draft.draft_id), **meta}, prefill={},
         status="replaced", answers_sha256=sha256,
     )
-    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=answers))
+    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=scrub_attachment_names(answers)))
     db.session.add(row)
 
 

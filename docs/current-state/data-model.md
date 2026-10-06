@@ -1623,6 +1623,18 @@ Current behavior:
   per row. Object-level truth comes from
   `scripts/check_attachment_integrity.py --store s3`
 
+### `va_web_intake_attachments`
+
+Migration `g4k8p2t6x1b5` (digitva-ej1). A file a web interviewer uploaded while the draft was still open; submit copies it into `va_submission_attachments` over the same stored object ([Web Intake Policy](../policy/web-intake.md), "Attachments"; [Attachment Storage and Delivery Policy](../policy/attachment-storage.md), "Web intake uploads").
+
+- primary key (`draft_id`, `client_attachment_id`): `draft_id` -> `va_web_intake_drafts.draft_id`; `client_attachment_id` is the UUID the page made for the file, so a retried upload finds its row and stores nothing
+- `filename` — `<client_attachment_id><ext>` of the detected type; the value the submission payload carries for the answer and the `va_submission_attachments.filename` it becomes. The uploader's own filename is never kept
+- `storage_name` — opaque store token (unique), `local_path` (local store only), `store_state` (`local` or `s3`)
+- `mime_type` — validated type of the uploaded original, decided from its leading bytes (an `.amr` is stored as an MP3 derivative)
+- `size_bytes`, `sha256` of the bytes received, `created_at` (timezone-aware)
+
+Indexes: the primary key; `uq_va_web_intake_attachments_storage_name` (unique). Discarding a draft deletes its rows and their stored objects; rows of submitted drafts stay (their objects are held by `va_submission_attachments`). Abandoned drafts' rows are the periodic purge's (`digitva-i9lb`).
+
 ### `map_project_site_odk`
 
 Purpose:

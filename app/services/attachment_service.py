@@ -1131,6 +1131,12 @@ def deliver(record: AttachmentRecord):
 # no sync module knows where an attachment lives or how a derivative is made.
 # ---------------------------------------------------------------------------
 
+#: Longest one SoX call may run. A hung or pathological file must not hold a
+#: web worker or a sync worker; a timeout is a failed conversion
+#: (``AmrConversionError``, the explicit error state), never a hang.
+SOX_TIMEOUT_SECONDS = 60
+
+
 class AmrConversionError(RuntimeError):
     """AMR→MP3 conversion failed; the attachment is recorded as an error."""
 
@@ -1190,7 +1196,9 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
         # Probe source bitrate via soxi
         target_bitrate = 24  # sensible default
         try:
-            duration = float(subprocess.check_output(["soxi", "-D", amr_path]).decode().strip())
+            duration = float(
+                subprocess.check_output(["soxi", "-D", amr_path], timeout=SOX_TIMEOUT_SECONDS).decode().strip()
+            )
             file_size = os.path.getsize(amr_path)
             source_kbps = int((file_size * 8) / duration / 1000)
             target_bitrate = max(16, min(64, source_kbps * 2))
@@ -1205,6 +1213,7 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
             check=True,
             capture_output=True,
             text=True,
+            timeout=SOX_TIMEOUT_SECONDS,
         )
         os.remove(amr_path)
         log.info(

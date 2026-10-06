@@ -604,7 +604,7 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(draft.status, "discarded")
         self.assertEqual(death.status, "registered")
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
-            intake_svc.get_draft(self.interviewer, draft.draft_id, for_update=True)
+            intake_svc.get_draft(self.interviewer, draft.draft_id, require_open=True)
         self.assertEqual(ctx.exception.status_code, 409)
 
     # ── submission ─────────────────────────────────────────────────────────

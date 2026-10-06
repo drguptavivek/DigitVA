@@ -110,13 +110,12 @@ submission enters the workflow. Plan:
   - `death_summary` — the optional upload of death summary documents, on for
     every project unless an administrator switches
     `web_intake_death_summary_enabled` off. Never a mandatory response.
-    Rendering waits for attachments phase 2; the flag and the extension are
-    served now.
+    Rendered with the other attachment controls ([Attachments](#attachments-audio-narration-document-images-and-files)).
 - **Media (decision W6, 2026-09-19)**: no media is mandatory. Audio narration
   is encouraged, a typed narrative is wanted, and medical papers, discharge
   summaries and prior death certificates are uploaded as available.
   Mandatory-media rules, if they are ever wanted, are project configuration
-  added with attachments phase 2.
+  added later; the attachment build (2026-10-06) added none.
 - **Questionnaire content**: the WHO instrument plus DigitVA's extension
   questions (`abha_number`, `abha_address`, `narr_language`, `imagenarr`,
   `md_count`, `md_im1..30`, `ds_count`, `ds_im1..5`). Context fields
@@ -232,11 +231,124 @@ submission's organization unit, falling back to the form-level setting
   Policy](coding-workflow-state-machine.md), "SmartVA on completion"). A web
   form is on no scheduled SmartVA path, so without this the case would wait
   there.
-  Attachment upload (audio narration, document images) is phase 2; until
-  then attachment answers are lifted out of the payload and kept on the
-  draft as references.
+  Attachments (audio narration, document images, files) are uploaded as the
+  interviewer adds them and linked at submit
+  ([Attachments](#attachments-audio-narration-document-images-and-files)):
+  an answer that names an uploaded file carries its filename, so the case
+  renders it like an ODK attachment, and the case still waits for attachments
+  only when a referenced file has not reached the server (a web submit is then
+  refused, 409 `attachments_pending`; a device upload keeps such a reference on
+  the draft, as before).
 - Every submission writes a `va_submissions_auditlog` row with role
   `vainterviewer`.
+
+## Attachments (audio narration, document images, files)
+
+Decided by the owner on 2026-09-28 and 2026-10-06 (`digitva-ej1`). The web
+questionnaire records audio narration, captures or selects images, and
+selects files (a death certificate, discharge summary, medical records). No
+attachment is mandatory (decision W6).
+
+**What is accepted.** Audio (webm, wav, amr, mp3, m4a), images (jpeg, png) and
+PDF, at most **25 MB per file** (an AMR recording at most **5 MB**: the server converts it in the request, with a 60-second limit on each SoX call; a conversion that fails or times out is `422 audio_conversion_failed`) and at most 60 files per draft (counted under a lock on the draft, so parallel uploads cannot pass it). The server
+decides the type from the file's **leading bytes**, never from the extension
+or the `Content-Type` the browser sent: an unrecognised signature is refused
+`415 unsupported_media_type`, a body over the cap `413 payload_too_large`
+(`Content-Length` is required, `411 length_required`; an empty body is `422
+empty_attachment`). The questionnaire package also shrinks an image to a JPEG
+of at most 2 MB and keeps a PDF only up to 5 MB on the device; those are the
+package's own limits and lie inside the server's.
+
+**Upload.** `PUT /api/v1/intake/drafts/<draft_id>/attachments/<client_attachment_id>`
+with the raw bytes, cookie plus `X-CSRFToken`. The id is the UUID the page
+generated for the file (the `id` of the answer's attachment reference), so a
+retried upload never duplicates: a second `PUT` of an id already stored
+answers `200` with the same record and stores nothing. The page sends the file's
+SHA-256 in `X-Content-SHA256`; the server refuses a body that does not match it
+(`400 checksum_mismatch`) and, for a retried id, a different checksum or size
+under the same id is `409 attachment_id_conflict`. The interviewer scope
+is the draft's: another interviewer's draft, or an unknown one, is `404`; a
+draft that is no longer open is `409`. The bytes go through the attachment
+store ([Attachment Storage and Delivery Policy](attachment-storage.md)):
+the same local or S3 store, the same opaque `storage_name`, never the
+interviewer's filename: a filename can name the deceased, so the page replaces it with the id-based name before the answer is saved and the server drops `name` and `originalName` from every attachment reference it stores (draft sections, the final section, history). An
+`.amr` narration is converted to MP3 by the same SoX step ODK sync uses; web
+recordings are stored as recorded (browsers play webm, m4a, wav and mp3). The
+file waits in `va_web_intake_attachments`, keyed by draft and client id, until
+the draft is submitted. `GET` of the same path returns the file to the
+draft's interviewer, so a form can show a file the device no longer holds; it is
+served `no-store`, with `Content-Security-Policy: sandbox; default-src 'none'`,
+`nosniff`, and a PDF as `Content-Disposition: attachment`. Discarding a draft
+deletes the files uploaded for it, and their stored objects, in the same
+request (audited as `draft_attachments_deleted` on the case); the periodic
+purge of abandoned drafts' files is `digitva-i9lb`.
+
+**Submit.** The answers hold `who-va-attachment:<client_attachment_id>`
+references (the page's attachment objects). At submit, each reference to a
+file the server holds becomes the ODK-style filename in the payload and a
+`va_submission_attachments` row (`exists_on_odk = true`, which for a web form
+means live) for the new submission, pointing at the same stored object; the
+reference never leaves the draft. `AttachmentsExpected` counts the references
+and `AttachmentsPresent` the files found. A web submit with a reference whose
+file has not reached the server is refused (`409 attachments_pending`) so that
+no case reaches coding with a missing file: the page finishes its sends first.
+
+**The offline buffer (owner, 2026-10-06).** A browser may hold an
+interviewer's attachment while it has no network and send it when the network
+returns. This is a deliberate, bounded exception to [Field Data Collection
+Policy](field-data-collection.md) Path A ("nothing persisted on the device"),
+which that policy now names. Questionnaire answers are not part of it: they
+stay on the server draft only.
+
+- **Encrypted, always.** The package's plaintext default
+  (`createInsecureWhoVaBrowserDefaults`) is never used. Every file is
+  encrypted before it is written (WebCrypto AES-GCM, 256-bit, a fresh 96-bit
+  IV per file; the user id, draft id, attachment id and type are bound as
+  additional authenticated data, so a record moved to another draft or
+  relabelled does not decrypt). The key is generated per signed-in user per browser,
+  **non-extractable**, and stored as a `CryptoKey` object in IndexedDB; the
+  file, its type and its timestamps are stored beside it, and nothing is
+  written in the clear (no thumbnail, no filename, no plaintext copy; previews
+  are in-memory `blob:` URLs revoked after use). A non-extractable key cannot
+  be exported by script, but **the key and the ciphertext sit in the same
+  browser profile**: anyone who can copy that profile directory (a backup, a
+  disk image, someone with the operating-system account) gets both, and code
+  running in the page can decrypt through the key without ever reading it. So
+  the encryption protects only against reading the database *without* the key
+  store, not against a copy of the whole profile or a signed-in browser. It is
+  weaker than Path B's hardware keystore and is not a substitute for a locked
+  device and an own, unshared browser profile. The buffer holds only what the
+  interview just captured, for at most seven days.
+- **Sent when the network returns.** The page sends on load, when the browser
+  reports it is online, and on a retry timer with exponential backoff (2
+  seconds up to 5 minutes). A timeout, a 5xx or a 429 retries. A
+  `413`, `415` or `422` can never succeed: the file is deleted and the page
+  says so, per file. A `404` or `409` (the draft is gone, or no longer open
+  because it was submitted or discarded) **keeps** the encrypted copy: the
+  page lists the file (named by the question it answers, never by file name)
+  with the reason and offers to delete it; it is not retried, and the
+  seven-day rule still applies.
+- **Deleted once the server confirms.** The encrypted copy is removed as soon
+  as the server answers `200`/`201` with the stored record. The form then
+  shows the file from the server copy.
+- **Seven days.** An unsent file older than seven days is deleted. The page
+  shows a visible warning first, naming the kind and the day each file was
+  captured and that it will be removed, and keeps it on screen until
+  dismissed; a file that will pass seven days within a day is warned about the
+  day before. The sweep runs every time the intake page opens in that
+  browser (and hourly while it stays open): a browser never reopened to
+  the page keeps its ciphertext until it is, so the bound is on use, not a
+  timer.
+- **Sign-out.** Signing out from the questionnaire page deletes the whole
+  buffer and its key. If unsent files exist the page asks first ("N file(s)
+  have not been sent and will be deleted") and signs out only on
+  confirmation. A sign-out from any other page, a timeout or another tab
+  leaves the buffer; the next questionnaire page opened by a **different**
+  user deletes everything that is not theirs before anything else, and the
+  same user's next visit resumes the sending.
+- **Bounds.** 25 MB and the type list are checked on the device before
+  anything is stored, so a refused file never occupies the buffer; the server
+  checks again (the browser is not a security boundary).
 
 ## ODK boundary
 
@@ -1350,9 +1462,10 @@ See [Access Control Model](access-control-model.md), "Implied roles".
 
 ## Not yet implemented
 
-- Attachments (phase 2), the validator sidecar (W1), offline mode, native
-  app. Of "Case worklist and interview states" above, the case state machine,
-  flags and the worklist API (phases 2 and 3), the worklist page (phase 4) and
+- The validator sidecar (W1), offline questionnaire capture, native app.
+  Attachments are built for the browser (see "Attachments" above); the phone
+  app's attachment capture and upload is native-app work (Path B). Of "Case
+  worklist and interview states" above, the case state machine, flags and the worklist API (phases 2 and 3), the worklist page (phase 4) and
   visits, contact attempts and pause (phase 5) and the possible-duplicate
   check (phase 6) are built; team drafts,
   supervisor powers and views, the `interview_outcome` question and its
@@ -1369,7 +1482,9 @@ See [Access Control Model](access-control-model.md), "Implied roles".
 
 Web intake is path A of
 [Field Data Collection Policy](field-data-collection.md), which fixes the rule
-this path follows and keeps: answers are never persisted in the browser.
+this path follows and keeps: answers are never persisted in the browser (an
+interviewer's captured attachments may wait there, encrypted, as decided on
+2026-10-06 under "Attachments").
 Offline capture is not a web-intake feature; it is the native app's Path B,
 which sets the conditions an offline collector must meet before it may hold
 interview data on a device.

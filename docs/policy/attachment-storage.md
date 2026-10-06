@@ -3,7 +3,7 @@ title: Attachment Storage and Delivery Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # Attachment Storage and Delivery Policy
@@ -453,6 +453,25 @@ and never retired), `quarantined`, `absent`.
 `readiness(va_sids)` in the attachment service is the bulk read of this state:
 one bounded query per batch of submissions, no filesystem, no Central or S3
 call. It is additive in Phase 2 and becomes the presence definition in Phase 4.
+
+## Web intake uploads
+
+Files a web interviewer uploads while a draft is open (digitva-ej1, [Web Intake
+Policy](web-intake.md), "Attachments") are ingested through the same
+`ingest_download()` and store as an ODK download: a bounded temp file, an
+opaque `storage_name`, the same local or S3 key layout. They wait in
+`va_web_intake_attachments` keyed by draft and client attachment id, and
+submit copies them into `va_submission_attachments` over the same object with
+`exists_on_odk = true` (for a web form, "live"), `source_state = 'available'`,
+the validated type, and for an `.amr` the MP3 derivative state `ready`. Reads
+before submit go through `deliver_legacy_media()` (store-only, no record
+cache entry), so the token's later owner is never shadowed by a pre-submit
+record. Discarding a draft deletes the files uploaded for it and their stored
+objects (`delete_draft_uploads`, through `cleanup_superseded`, which leaves an
+object any submission row still holds); a draft abandoned without a discard is
+the periodic purge's, `digitva-i9lb`. An `.amr` upload is capped at 5 MB and
+each SoX call has a 60-second timeout (`SOX_TIMEOUT_SECONDS`, which also
+bounds ODK sync's conversion): a timeout is an `AmrConversionError`.
 
 ## Non-goals of this baseline
 

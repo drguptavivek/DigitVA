@@ -31,8 +31,8 @@ policy to be amended first.
 ### Path A — online browser intake
 
 - The interviewer fills the questionnaire in a DigitVA page while connected.
-- **No questionnaire answer, attachment or identifier is persisted on the
-  device.** Drafts live server-side (`va_web_intake_drafts` and its section
+- **No questionnaire answer or identifier is persisted on the device, and
+  an attachment only in the one case below.** Drafts live server-side (`va_web_intake_drafts` and its section
   rows); the page's `draftStore` writes every save through
   `/api/v1/intake/...`. See [Web Intake Policy](web-intake.md).
 - Authentication is the ordinary Flask-Login session cookie with
@@ -40,11 +40,19 @@ policy to be amended first.
 - Losing connectivity means losing only answers typed since the last section
   save. That is the accepted trade for holding nothing at rest.
 
+Owner exception, 2026-10-06 (`digitva-ej1`): audio narration, images and
+files the interviewer captures may wait in the browser, **encrypted** (WebCrypto
+AES-GCM, a non-extractable per-user key), until the network returns and the
+server confirms the upload, for at most seven days, and are deleted at
+sign-out. The rules are in [Web Intake Policy](web-intake.md), "Attachments".
+Nothing else is buffered: no answer, no identifier.
+
 Specifically prohibited on this path:
 
 - a browser-backed `draftStore` (`localStorage`, IndexedDB), including the
   package's deliberately named `createInsecureWhoVaBrowserDefaults()` helper,
-  which exists for prototypes and must never be used here;
+  which exists for prototypes and must never be used here (its plaintext
+  attachment store included; the encrypted buffer above replaces it);
 - a service worker that caches answers, attachments or API responses carrying
   them;
 - personal data in URL paths or query strings, which are logged by proxies and

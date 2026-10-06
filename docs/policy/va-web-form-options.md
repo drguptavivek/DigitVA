@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-10-05
+last_updated: 2026-10-06
 ---
 
 # VA Web Form Options Contract
@@ -73,7 +73,7 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | `web_intake_form_type_id` | uuid | **Yes — project setting** (2026-09-19) | Which form type the project's browser questionnaire carries. Must be an active form type with a `base_instrument_code` and a confirmed PII set; NULL means `WHO_2022_VA`. |
 | `intake_screen` | note text | **Yes — project setting** (2026-09-19) | A welcome note shown before the questionnaire, `web_intake_intake_note`. NULL is the system default text (`DEFAULT_INTAKE_NOTE`), `""` is no welcome screen. In `enabled_extensions` exactly when the resolved note is non-empty; the text is served as `intake_note`. |
 | `translation_versions` | `{locale: int}` | **Yes** — served (2026-09-19) | The version of every locale this project's instrument currently serves, `en` at 0. A page caches a locale's strings and re-fetches only when its version moves. |
-| `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendering waits for attachments phase 2. |
+| `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendered with the other attachment controls (see [Web Intake Policy](web-intake.md), "Attachments"). |
 | `medical_records` | boolean | **Yes — project setting** (2026-09-20) | The medical-record fields (`md_available`, `md_count`, `md_im1`..`md_im30`), `web_intake_medical_records_enabled`, on for every project. A project may opt out. |
 | `doris_support_whova_2022` | always on | **Yes — always on** (2026-09-29) | The DORIS prefill questions and the birth-weight grams check (`digitva-hln`; list in `docs/policy/va-form-project-configuration.md`). On for every web project, like `digitva_core`, whatever the `cod_entry_mode`; no switch. The certificate prefill itself still runs only where the DORIS editor is shown. Deliberate departures from WHO V1.1 in every web form: `Id10366` rejects values under 100 g (kilogrammes keyed as grammes) and asks an acknowledgement outside 500-6000 g; `Id10308` is required (a blank could not be told from "no"); `Id10340` (hysterectomy) is asked only after a pregnancy event (`Id10312`, `Id10313`, `Id10334` or `Id10308` = yes), not of every post-menopausal woman. The server's relevance and constraint re-derivation keeps WHO's own, looser rules for these: WHO's `Id10340` relevance contains the extension's and WHO's `Id10366` range contains 100-9999 g, so nothing the form collects is stripped or rejected. |
 

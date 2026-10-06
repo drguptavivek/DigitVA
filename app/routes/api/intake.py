@@ -18,9 +18,9 @@ from contextlib import contextmanager
 from flask import Blueprint, g, jsonify, request, url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from app import db, limiter
+from app import db, limiter, talisman
 from app.decorators import role_required
 from app.models import AuthDevice, VaSubmissionPayloadVersion, VaSubmissions
 from app.routes.api.request_helpers import (
@@ -33,7 +33,9 @@ from app.routes.api.request_helpers import (
 )
 from app.services import case_transition_service as case_svc
 from app.services import device_auth_service as devices
+from app.services import attachment_service
 from app.services import interview_send_back_service as send_back_svc
+from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 
@@ -46,6 +48,8 @@ bp = Blueprint("intake_api", __name__)
 SUBMISSION_MAX_BYTES = 2 * 1024 * 1024
 REPORT_MAX_BYTES = 256 * 1024
 BODY_MAX_BYTES = 16 * 1024
+#: One attachment's raw body (``put_attachment``): the owner's 25 MB per file.
+ATTACHMENT_MAX_BYTES = attachments_svc.MAX_BYTES
 _UNCAPPED = frozenset({"save_draft", "submit_draft"})
 
 #: The register form's fields.
@@ -60,6 +64,8 @@ def _body_limit():
         limit = SUBMISSION_MAX_BYTES
     elif endpoint == "report_outstanding":
         limit = REPORT_MAX_BYTES
+    elif endpoint == "put_attachment":
+        limit = ATTACHMENT_MAX_BYTES
     else:
         limit = BODY_MAX_BYTES
     request.max_content_length = limit
@@ -71,6 +77,9 @@ def _refuse_oversized_body():
     limit = _body_limit()
     if limit is not None and request.content_length is not None and request.content_length > limit:
         return error("The request body is too large.", "payload_too_large", 413)
+    if request.endpoint and request.endpoint.endswith(".put_attachment") and request.content_length is None:
+        # A file's size must be declared: the cap is checked before a byte is read.
+        return error("Content-Length is required.", "length_required", 411)
     return None
 
 
@@ -436,7 +445,7 @@ def save_draft(draft_id):
     the last reply the page saw; a newer saved version (the phone's sync) is
     409 ``draft_stale`` and nothing is written."""
     p = parse_body()
-    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
+    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, require_open=True))
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
         return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
     written = intake_svc.save_draft_sections(
@@ -490,10 +499,91 @@ def sync_draft():
 @bp.post("/drafts/<draft_id>/discard")
 @role_required("interviewer")
 def discard_draft(draft_id):
-    draft = intake_svc.get_draft(current_user, draft_id, for_update=True)
+    draft = intake_svc.get_draft(current_user, draft_id, require_open=True)
     intake_svc.discard_draft(draft, current_user)
     db.session.commit()
     return jsonify({"draft": intake_svc.serialize_draft(draft)})
+
+
+# ---------------------------------------------------------------------------
+# Attachments (audio narration, document images, files)
+# ---------------------------------------------------------------------------
+
+
+def _attachment_body(row, created):
+    return {
+        "attachment": {
+            "id": str(row.client_attachment_id),
+            "filename": row.filename,
+            "mime_type": row.mime_type,
+            "size": row.size_bytes,
+            "created_at": row.created_at.isoformat(),
+        },
+        "created": created,
+    }
+
+
+@bp.put("/drafts/<draft_id>/attachments/<client_attachment_id>")
+@role_required("interviewer")
+@limiter.limit("120 per minute")
+def put_attachment(draft_id, client_attachment_id):
+    """Store one file for the caller's open draft: the raw body (send
+    ``Content-Type: application/octet-stream``), at most 25 MB (an AMR 5 MB),
+    ``Content-Length`` required; optional ``X-Content-SHA256`` (hex) is checked
+    against the body and, on a retried id, against the stored file. ``client_attachment_id`` is the UUID the page made for the file,
+    the idempotency key: 201 ``{attachment, created: true}`` when stored, 200
+    with the same record when already held (nothing stored again). The type is
+    decided from the file's leading bytes (docs/policy/web-intake.md,
+    "Attachments"). Errors: 404 a draft that is not the caller's, 409 a draft
+    no longer open or ``attachment_id_conflict``, 411 ``length_required``, 413
+    ``payload_too_large``, 415 ``unsupported_media_type``, 422
+    ``empty_attachment`` / ``attachment_limit`` / ``audio_conversion_failed``,
+    400 ``checksum_mismatch``, 503 ``unavailable``."""
+    try:
+        cid = uuid.UUID(client_attachment_id)
+    except ValueError:
+        return error("client_attachment_id must be a UUID.", "invalid_request", 400)
+    claimed = request.headers.get("X-Content-SHA256")
+    if claimed is not None and not _SHA256_HEX.fullmatch(claimed.strip()):
+        return error("X-Content-SHA256 must be 64 hex characters.", "invalid_request", 400)
+    draft = intake_svc.get_draft(current_user, draft_id, require_open=True)
+    row, created = attachments_svc.store_upload(
+        draft, cid, request.stream, request.content_length, claimed.strip().lower() if claimed else None
+    )
+    db.session.commit()
+    return jsonify(_attachment_body(row, created)), 201 if created else 200
+
+
+@bp.get("/drafts/<draft_id>/attachments/<client_attachment_id>")
+# The page reads this with fetch().blob(); if the URL is ever opened as a
+# document it must be inert: no scripts, no framing. Talisman sets the
+# header after the view runs, so it is declared here, not on the response.
+@talisman(content_security_policy={"sandbox": "", "default-src": "'none'"})
+@role_required("interviewer")
+@limiter.limit("300 per minute")
+def get_attachment(draft_id, client_attachment_id):
+    """The bytes of a file stored for the caller's own draft (so the form can
+    show a file the device no longer holds). The draft may be any status of the
+    caller's; the response is never cached. 404 for another interviewer's
+    draft or an unknown file."""
+    try:
+        cid = uuid.UUID(client_attachment_id)
+    except ValueError:
+        return error("Attachment not found.", "not_found", 404)
+    draft = intake_svc.get_draft(current_user, draft_id)
+    row = attachments_svc.get_upload(draft.draft_id, cid)
+    if row is None:
+        return error("Attachment not found.", "not_found", 404)
+    try:
+        response = attachment_service.deliver_legacy_media(attachments_svc.serving_record(row, draft.form_id))
+    except HTTPException as exc:
+        if exc.code == 404:
+            return error("Attachment not found.", "not_found", 404)
+        raise
+    # A PDF is downloaded, never rendered in the page's origin.
+    if row.mime_type == "application/pdf":
+        response.headers["Content-Disposition"] = f'attachment; filename="{row.filename}"'
+    return response
 
 
 def _validation_err(va_sid):
@@ -535,7 +625,7 @@ def submit_draft(draft_id):
         # which refuses anything that is not an open draft.
         reply = intake_svc.resubmit_browser_draft(current_user, draft, completion=p.get("completion") or {})
         return _correction_reply(draft, reply)
-    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, for_update=True))
+    draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, require_open=True))
     # Same stale-tab guard as autosave: a tab that missed the phone's newer
     # version must not submit its own silently.
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):

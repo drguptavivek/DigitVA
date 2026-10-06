@@ -1,5 +1,6 @@
 import React from "react";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
+import { AppState } from "react-native";
 
 jest.mock("../src/ui", () => {
   const React = require("react") as typeof import("react");
@@ -46,7 +47,7 @@ function apiFor(payload: WorkspacePayload, overrides: Partial<WorkspaceApi> = {}
   return {
     getWorkspace: jest.fn(async () => payload),
     getCategory: jest.fn(async () => category),
-    getWorkflowEvents: jest.fn(async () => ({ va_sid: "sid-1", events: [] })),
+    getWorkflowEvents: jest.fn(async () => ({ va_sid: "sid-1", events: [], limit: 50, next_cursor: null })),
     searchIcd: jest.fn(async () => []),
     getNote: jest.fn(async () => ({ va_sid: "sid-1", content: null, updated_at: null })),
     saveNote: jest.fn(async (_sid: string, _mode: "coding" | "reviewing", content: string) => ({ va_sid: "sid-1", content, updated_at: null })),
@@ -61,6 +62,13 @@ function apiFor(payload: WorkspacePayload, overrides: Partial<WorkspaceApi> = {}
 
 function byLabel(tree: ReactTestRenderer, label: string): ReactTestInstance {
   return tree.root.findByProps({ accessibilityLabel: label });
+}
+
+function pressByLabel(tree: ReactTestRenderer, label: string) {
+  const button = tree.root.findAllByProps({ accessibilityLabel: label })
+    .find((node) => typeof node.props.onPress === "function");
+  if (!button) throw new Error(`Missing button: ${label}`);
+  button.props.onPress();
 }
 
 function textContent(node: ReactTestInstance): string {
@@ -80,6 +88,16 @@ async function flush() {
   await Promise.resolve();
 }
 
+let changeNativeAppState!: (state: "active" | "background" | "inactive") => void;
+
+beforeEach(() => {
+  AppState.currentState = "active";
+  jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+    changeNativeAppState = listener as typeof changeNativeAppState;
+    return { remove: jest.fn() };
+  });
+});
+
 it("keeps mode=view read-only and loads only the served case history", async () => {
   const api = apiFor(workspace("view", "view"));
   let tree!: ReactTestRenderer;
@@ -87,7 +105,7 @@ it("keeps mode=view read-only and loads only the served case history", async () 
     tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
     await flush();
   });
-  expect(api.getWorkflowEvents).toHaveBeenCalledWith("sid-1");
+  expect(api.getWorkflowEvents).toHaveBeenCalledWith("sid-1", { limit: 50 });
   expect(api.getNote).not.toHaveBeenCalled();
   expect(api.saveNote).not.toHaveBeenCalled();
   expect(api.saveInitial).not.toHaveBeenCalled();
@@ -96,6 +114,134 @@ it("keeps mode=view read-only and loads only the served case history", async () 
   expect(api.saveSocialAutopsy).not.toHaveBeenCalled();
   expect(tree.root.findAllByProps({ accessibilityLabel: "Save private note" })).toHaveLength(0);
   expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" })).toHaveLength(0);
+  await act(async () => tree.unmount());
+});
+
+it.each([
+  ["unknown", null],
+  ["background", "background"],
+] as const)("loads one bounded history page on the first active event after %s", async (_state, initialState) => {
+  AppState.currentState = initialState as unknown as typeof AppState.currentState;
+  const api = apiFor(workspace("view", "view"));
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+      await flush();
+    });
+    expect(api.getWorkflowEvents).not.toHaveBeenCalled();
+    expect(api.getWorkspace).not.toHaveBeenCalled();
+    await act(async () => {
+      AppState.currentState = "active";
+      changeNativeAppState("active");
+      await flush();
+    });
+    expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+    expect(api.getWorkflowEvents).toHaveBeenCalledTimes(1);
+    expect(api.getWorkflowEvents).toHaveBeenCalledWith("sid-1", { limit: 50 });
+    await act(async () => {
+      changeNativeAppState("active");
+      await flush();
+    });
+    expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+    expect(api.getWorkflowEvents).toHaveBeenCalledTimes(1);
+  } finally {
+    if (tree) await act(async () => tree.unmount());
+    AppState.currentState = "active";
+  }
+});
+
+it("does not load a browser workspace until the hidden page becomes visible", async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  let visibilityState: "visible" | "hidden" = "hidden";
+  let changeVisibility!: () => void;
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      get visibilityState() { return visibilityState; },
+      addEventListener: (_type: string, listener: () => void) => { changeVisibility = listener; },
+      removeEventListener: jest.fn(),
+    },
+  });
+  const api = apiFor(workspace("coding"));
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />);
+      await flush();
+    });
+    expect(api.getWorkspace).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Case 1");
+    await act(async () => {
+      visibilityState = "visible";
+      changeVisibility();
+      await flush();
+    });
+    expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).toContain("Case 1");
+    expect(JSON.stringify(tree.toJSON())).toContain("Interview text");
+    await act(async () => {
+      changeVisibility();
+      await flush();
+    });
+    expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  } finally {
+    AppState.currentState = "active";
+    if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+it("ignores delayed workspace and category data when the native app becomes inactive", async () => {
+  let finishFirstWorkspace!: (value: WorkspacePayload) => void;
+  let finishCategory!: (value: CategoryPayload) => void;
+  const api = apiFor(workspace("coding"), {
+    getWorkspace: jest.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { finishFirstWorkspace = resolve; }))
+      .mockResolvedValue(workspace("coding")),
+    getCategory: jest.fn(() => new Promise((resolve) => { finishCategory = resolve; })),
+  });
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />);
+      await flush();
+    });
+    await act(async () => {
+      AppState.currentState = "background";
+      finishFirstWorkspace(workspace("coding"));
+      await flush();
+    });
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Case 1");
+    await act(async () => changeNativeAppState("background"));
+    await act(async () => {
+      AppState.currentState = "active";
+      changeNativeAppState("active");
+      await flush();
+    });
+    expect(api.getWorkspace).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(tree.toJSON())).toContain("Case 1");
+    await act(async () => {
+      AppState.currentState = "background";
+      finishCategory(category);
+      await flush();
+    });
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Interview text");
+    await act(async () => tree.unmount());
+  } finally {
+    AppState.currentState = "active";
+  }
+});
+
+it.each(["coding", "reviewing"] as const)("does not read workflow events in %s mode", async (mode) => {
+  const api = apiFor(workspace(mode));
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode }} api={api} onExit={jest.fn()} />);
+    await flush();
+  });
+  expect(api.getWorkflowEvents).not.toHaveBeenCalled();
   await act(async () => tree.unmount());
 });
 
@@ -136,6 +282,218 @@ it("ignores a delayed workflow-history denial after the case scope changes", asy
   });
   expect(onExit).not.toHaveBeenCalled();
   expect(JSON.stringify(tree.toJSON())).toContain("Case 1");
+  await act(async () => tree.unmount());
+});
+
+it("does not dispatch history from a retained callback after the case context changes", async () => {
+  const oldApi = apiFor(workspace("view", "view"), {
+    getWorkflowEvents: jest.fn(async () => ({ va_sid: "sid-1", events: [], limit: 50, next_cursor: "older" })),
+  });
+  const nextApi = apiFor(workspace("view", "view"));
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={oldApi} onExit={jest.fn()} />);
+    await flush();
+  });
+  const retainedOlderCallback = byLabel(tree, "Load older events").props.onPress as () => void;
+  await act(async () => {
+    tree.update(<CaseWorkspaceScreen identity={{ vaSid: "sid-2", mode: "view" }} api={nextApi} onExit={jest.fn()} />);
+    await flush();
+  });
+  await act(async () => {
+    retainedOlderCallback();
+    await flush();
+  });
+  expect(oldApi.getWorkflowEvents).toHaveBeenCalledTimes(1);
+  expect(nextApi.getWorkflowEvents).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+});
+
+function workflowEvent(id: string, state: string) {
+  return {
+    event_id: id, transition_id: `transition-${id}`, previous_state: null, current_state: state,
+    actor_kind: "system", actor_role: null, transition_reason: null, event_created_at: "2026-10-07T00:00:00Z",
+  };
+}
+
+it("loads exact newest-first pages and walks the opaque cursor to the final null cursor", async () => {
+  const firstPage = Array.from({ length: 50 }, (_, index) => workflowEvent(`new-${index}`, `Newest ${index}`));
+  let tree!: ReactTestRenderer;
+  const api = apiFor(workspace("view", "view"), {
+    getWorkflowEvents: jest.fn()
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: firstPage, limit: 50, next_cursor: "opaque / cursor+1" })
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: [workflowEvent("old", "Older")], limit: 50, next_cursor: null })
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: firstPage, limit: 50, next_cursor: "opaque / cursor+1" }),
+  });
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+    await flush();
+  });
+  expect(api.getWorkflowEvents).toHaveBeenNthCalledWith(1, "sid-1", { limit: 50 });
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Load older events" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ accessibilityRole: "header" }).map(textContent)).toContain("Workflow history");
+  expect(JSON.stringify(tree.toJSON())).toContain("Newest 0");
+  expect(JSON.stringify(tree.toJSON())).toContain("Newest 49");
+  await act(async () => {
+    pressByLabel(tree, "Load older events");
+    await flush();
+  });
+  expect(api.getWorkflowEvents).toHaveBeenNthCalledWith(2, "sid-1", { limit: 50, cursor: "opaque / cursor+1" });
+  expect(JSON.stringify(tree.toJSON())).toContain("Older");
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Load older events");
+  expect(JSON.stringify(tree.toJSON())).toContain("Latest events");
+  await act(async () => {
+    pressByLabel(tree, "Latest events");
+    await flush();
+  });
+  expect(api.getWorkflowEvents).toHaveBeenNthCalledWith(3, "sid-1", { limit: 50 });
+  expect(JSON.stringify(tree.toJSON())).toContain("Newest 0");
+  await act(async () => tree.unmount());
+});
+
+it("retains a page after an older-page error and retries its exact cursor", async () => {
+  const olderError = new Error("temporary error");
+  const api = apiFor(workspace("view", "view"), {
+    getWorkflowEvents: jest.fn()
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: [workflowEvent("new", "Newest")], limit: 50, next_cursor: "older-cursor" })
+      .mockRejectedValueOnce(olderError)
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: [workflowEvent("old", "Older")], limit: 50, next_cursor: null }),
+  });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+    await flush();
+  });
+  await act(async () => {
+    pressByLabel(tree, "Load older events");
+    await flush();
+  });
+  expect(JSON.stringify(tree.toJSON())).toContain("Newest");
+  expect(JSON.stringify(tree.toJSON())).toContain("Generic error");
+  await act(async () => {
+    pressByLabel(tree, "Retry workflow history");
+    await flush();
+  });
+  expect(api.getWorkflowEvents).toHaveBeenNthCalledWith(3, "sid-1", { limit: 50, cursor: "older-cursor" });
+  expect(JSON.stringify(tree.toJSON())).toContain("Older");
+  await act(async () => tree.unmount());
+});
+
+it("blocks duplicate older-page clicks while a cursor request is in flight", async () => {
+  let resolveOlder!: (value: { va_sid: string; events: ReturnType<typeof workflowEvent>[]; limit: number; next_cursor: null }) => void;
+  const api = apiFor(workspace("view", "view"), {
+    getWorkflowEvents: jest.fn()
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: [workflowEvent("new", "Newest")], limit: 50, next_cursor: "older-cursor" })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveOlder = resolve; })),
+  });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+    await flush();
+  });
+  await act(async () => {
+    pressByLabel(tree, "Load older events");
+    pressByLabel(tree, "Load older events");
+    await flush();
+  });
+  expect(api.getWorkflowEvents).toHaveBeenCalledTimes(2);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Load older events" }).some((node) => node.props.disabled)).toBe(true);
+  await act(async () => {
+    resolveOlder({ va_sid: "sid-1", events: [workflowEvent("old", "Older")], limit: 50, next_cursor: null });
+    await flush();
+  });
+  await act(async () => tree.unmount());
+});
+
+it("clears a hidden workspace and ignores its delayed history response", async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  let visibilityState: "visible" | "hidden" = "visible";
+  let changeVisibility!: () => void;
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      get visibilityState() { return visibilityState; },
+      addEventListener: (_type: string, listener: () => void) => { changeVisibility = listener; },
+      removeEventListener: jest.fn(),
+    },
+  });
+  let finishHiddenHistory!: (value: { va_sid: string; events: ReturnType<typeof workflowEvent>[]; limit: number; next_cursor: null }) => void;
+  const api = apiFor(workspace("view", "view"), {
+    getWorkflowEvents: jest.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { finishHiddenHistory = resolve; }))
+      .mockResolvedValueOnce({ va_sid: "sid-1", events: [workflowEvent("visible", "Visible again")], limit: 50, next_cursor: null }),
+  });
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+      await flush();
+    });
+    await act(async () => {
+      visibilityState = "hidden";
+      changeVisibility();
+    });
+    await act(async () => changeNativeAppState("active"));
+    expect(api.getWorkflowEvents).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Case 1");
+    await act(async () => {
+      finishHiddenHistory({ va_sid: "sid-1", events: [workflowEvent("hidden", "Hidden response")], limit: 50, next_cursor: null });
+      await flush();
+    });
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Hidden response");
+    await act(async () => {
+      visibilityState = "visible";
+      changeVisibility();
+      await flush();
+    });
+    expect(JSON.stringify(tree.toJSON())).toContain("Visible again");
+    expect(api.getWorkflowEvents).toHaveBeenCalledTimes(2);
+    await act(async () => tree.unmount());
+  } finally {
+    AppState.currentState = "active";
+    if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+it.each([
+  ["case", "view" as const, "view" as const, "sid-2", false, false],
+  ["account API", "view" as const, "view" as const, "sid-1", true, true],
+  ["mode", "view" as const, "coding" as const, "sid-1", false, false],
+  ["case", "view" as const, "view" as const, "sid-2", false, true],
+  ["account API", "view" as const, "view" as const, "sid-1", true, false],
+  ["mode", "view" as const, "coding" as const, "sid-1", false, true],
+])("ignores delayed workflow history completion after %s changes", async (_scope, oldMode, nextMode, nextSid, replaceApi, denied) => {
+  let finishOld!: (value: { va_sid: string; events: ReturnType<typeof workflowEvent>[]; limit: number; next_cursor: null }) => void;
+  let denyOld!: (error: ApiError) => void;
+  let oldPending = true;
+  const oldApi = apiFor(workspace(oldMode, oldMode), {
+    getWorkflowEvents: jest.fn().mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      finishOld = (value) => { oldPending = false; _resolve(value); };
+      denyOld = (error) => { oldPending = false; reject(error); };
+    })).mockImplementation(async (vaSid: string) => ({ va_sid: vaSid, events: [], limit: 50, next_cursor: null })),
+  });
+  const nextStep = nextMode === "view" ? "view" : "initial";
+  const nextApi = replaceApi ? apiFor(workspace(nextMode, nextStep)) : oldApi;
+  const onExit = jest.fn();
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: oldMode }} api={oldApi} onExit={onExit} />);
+    await flush();
+  });
+  await act(async () => {
+    tree.update(<CaseWorkspaceScreen identity={{ vaSid: nextSid, mode: nextMode }} api={nextApi} onExit={onExit} />);
+    await flush();
+  });
+  if (oldPending) {
+    await act(async () => {
+      if (denied) denyOld(new ApiError(403, "forbidden"));
+      else finishOld({ va_sid: "sid-1", events: [workflowEvent("stale", "Stale")], limit: 50, next_cursor: null });
+      await flush();
+    });
+  }
+  expect(onExit).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Stale");
   await act(async () => tree.unmount());
 });
 

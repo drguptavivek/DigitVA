@@ -55,8 +55,8 @@ export interface WorkspaceApi {
   getWorkspace(vaSid: string, mode: WorkspaceMode): Promise<WorkspacePayload>;
   getCategory(vaSid: string, code: string, mode: WorkspaceMode): Promise<CategoryPayload>;
   getCodingStats(projectId?: string): Promise<CodingStats>;
-  getCodingAvailable(): Promise<CoderQueue>;
-  getCodingHistory(): Promise<CoderHistory>;
+  getCodingAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderQueue>;
+  getCodingHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderHistory>;
   getCodingProjects(): Promise<CoderProjects>;
   getCodingAllocation(): Promise<{ va_sid: string } | null>;
   getReviewerStats(projectId?: string): Promise<ReviewerStats>;
@@ -81,7 +81,7 @@ export interface WorkspaceApi {
   getDorisCodeInfo(vaSid: string, code: string): Promise<DorisCodeInfoReply>;
   checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
   processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
-  getWorkflowEvents(vaSid: string): Promise<WorkflowEvents>;
+  getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
 }
 
 const API = "/api/v1";
@@ -150,13 +150,31 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
       return parsed(value, body => parseCategory(body, mode));
     },
     async getCodingStats(projectId) { return parsed(await get(`/coding/stats${projectQuery(projectId)}`), parseCodingStats); },
-    async getCodingAvailable() { return parsed(await get("/coding/available"), parseCoderQueue); },
-    async getCodingHistory() { return parsed(await get("/coding/history"), parseCoderHistory); },
+    async getCodingAvailable(options) {
+      const limit = options?.limit ?? 50;
+      const offset = options?.offset ?? 0;
+      const query = pagingQuery({ projectId: options?.projectId, limit, offset });
+      return parsed(await get(`/coding/available${query}`), value => parseCoderQueue(value, limit, offset));
+    },
+    async getCodingHistory(options) {
+      const limit = options?.limit ?? 50;
+      const offset = options?.offset ?? 0;
+      const query = pagingQuery({ projectId: options?.projectId, limit, offset });
+      return parsed(await get(`/coding/history${query}`), value => parseCoderHistory(value, limit, offset));
+    },
     async getCodingProjects() { return parsed(await get("/coding/projects"), parseCoderProjects); },
     async getCodingAllocation() { return parsed(await get("/coding/allocation"), parseOptionalAllocation); },
     async getReviewerStats(projectId) { return parsed(await get(`/reviewing/stats${projectQuery(projectId)}`), parseReviewerStats); },
-    async getReviewerAvailable(options) { return parsed(await get(`/reviewing/available${pagingQuery(options)}`), parseReviewerQueue); },
-    async getReviewerHistory(options) { return parsed(await get(`/reviewing/history${pagingQuery(options)}`), parseReviewerHistory); },
+    async getReviewerAvailable(options) {
+      const limit = options?.limit ?? 50;
+      const offset = options?.offset ?? 0;
+      return parsed(await get(`/reviewing/available${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerQueue(value, limit, offset));
+    },
+    async getReviewerHistory(options) {
+      const limit = options?.limit ?? 50;
+      const offset = options?.offset ?? 0;
+      return parsed(await get(`/reviewing/history${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerHistory(value, limit, offset));
+    },
     async getReviewerAllocation() { return parsed(await get("/reviewing/allocation"), parseOptionalAllocation); },
     async allocateCoding(vaSid, projectId) {
       if (vaSid !== undefined && !vaSid) throw new WorkspaceContractError("request.vaSid");
@@ -206,6 +224,14 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
       try { return parsed(await post(`/doris-clinical/process/${id(vaSid)}`, { schema_version: 1, role, client_revision: clientRevision, certificate }), parseDorisProcess); }
       catch (error) { return normalizeDorisError(error); }
     },
-    async getWorkflowEvents(vaSid) { return parsed(await get(`/workflow/events/${id(vaSid)}`), parseWorkflowEvents); },
+    async getWorkflowEvents(vaSid, options) {
+      const limit = options?.limit ?? 50;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new WorkspaceContractError("request.limit");
+      const cursor = options?.cursor;
+      if (cursor !== undefined && (typeof cursor !== "string" || cursor.length === 0)) throw new WorkspaceContractError("request.cursor");
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor !== undefined) params.set("cursor", cursor);
+      return parsed(await get(`/workflow/events/${id(vaSid)}?${params}`), value => parseWorkflowEvents(value, vaSid, limit));
+    },
   };
 }

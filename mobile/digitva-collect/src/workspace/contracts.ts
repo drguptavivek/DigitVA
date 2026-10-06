@@ -214,6 +214,9 @@ export interface CodingStats {
 export interface CoderQueue {
   forms: CoderAvailableCase[];
   count: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
 
 export interface CoderAvailableCase {
@@ -245,6 +248,9 @@ export interface CoderHistoryCase {
 export interface CoderHistory {
   history: CoderHistoryCase[];
   count: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
 
 export interface CoderProjects {
@@ -329,6 +335,8 @@ export interface WorkflowEvents {
     transition_reason: string | null;
     event_created_at: string;
   }>;
+  limit: number;
+  next_cursor: string | null;
 }
 
 function record(value: unknown, field: string): Record<string, unknown> {
@@ -587,14 +595,28 @@ export function parseCodingStats(value: unknown): CodingStats {
   return parsed;
 }
 
-export function parseCoderQueue(value: unknown): CoderQueue {
+export function parseCoderQueue(value: unknown, expectedLimit: number, expectedOffset: number): CoderQueue {
   const source = record(value, "coding.available");
-  return { forms: array(source.forms, "coding.available.forms", coderAvailableCase), count: number(source.count, "coding.available.count") };
+  if (Array.isArray(source.forms) && source.forms.length > expectedLimit) throw new WorkspaceContractError("coding.available.paging");
+  const forms = array(source.forms, "coding.available.forms", coderAvailableCase);
+  const count = number(source.count, "coding.available.count");
+  const limit = number(source.limit, "coding.available.limit");
+  const offset = number(source.offset, "coding.available.offset");
+  const has_more = boolean(source.has_more, "coding.available.has_more");
+  if (!Number.isInteger(count) || count !== forms.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("coding.available.paging");
+  return { forms, count, limit, offset, has_more };
 }
 
-export function parseCoderHistory(value: unknown): CoderHistory {
+export function parseCoderHistory(value: unknown, expectedLimit: number, expectedOffset: number): CoderHistory {
   const source = record(value, "coding.history");
-  return { history: array(source.history, "coding.history.history", coderHistoryCase), count: number(source.count, "coding.history.count") };
+  if (Array.isArray(source.history) && source.history.length > expectedLimit) throw new WorkspaceContractError("coding.history.paging");
+  const history = array(source.history, "coding.history.history", coderHistoryCase);
+  const count = number(source.count, "coding.history.count");
+  const limit = number(source.limit, "coding.history.limit");
+  const offset = number(source.offset, "coding.history.offset");
+  const has_more = boolean(source.has_more, "coding.history.has_more");
+  if (!Number.isInteger(count) || count !== history.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("coding.history.paging");
+  return { history, count, limit, offset, has_more };
 }
 
 export function parseCoderProjects(value: unknown): CoderProjects {
@@ -611,14 +633,28 @@ export function parseReviewerStats(value: unknown): ReviewerStats {
   return { in_scope: number(source.in_scope, "reviewing.stats.in_scope"), completed: number(source.completed, "reviewing.stats.completed"), available: number(source.available, "reviewing.stats.available"), allocation };
 }
 
-export function parseReviewerQueue(value: unknown): ReviewerQueue {
+export function parseReviewerQueue(value: unknown, expectedLimit: number, expectedOffset: number): ReviewerQueue {
   const source = record(value, "reviewing.available");
-  return { cases: array(source.cases, "reviewing.available.cases", queueCase), count: number(source.count, "reviewing.available.count"), limit: number(source.limit, "reviewing.available.limit"), offset: number(source.offset, "reviewing.available.offset"), has_more: boolean(source.has_more, "reviewing.available.has_more") };
+  if (Array.isArray(source.cases) && source.cases.length > expectedLimit) throw new WorkspaceContractError("reviewing.available.paging");
+  const cases = array(source.cases, "reviewing.available.cases", queueCase);
+  const count = number(source.count, "reviewing.available.count");
+  const limit = number(source.limit, "reviewing.available.limit");
+  const offset = number(source.offset, "reviewing.available.offset");
+  const has_more = boolean(source.has_more, "reviewing.available.has_more");
+  if (!Number.isInteger(count) || count !== cases.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("reviewing.available.paging");
+  return { cases, count, limit, offset, has_more };
 }
 
-export function parseReviewerHistory(value: unknown): ReviewerHistory {
+export function parseReviewerHistory(value: unknown, expectedLimit: number, expectedOffset: number): ReviewerHistory {
   const source = record(value, "reviewing.history");
-  return { history: array(source.history, "reviewing.history.history", queueCase), count: number(source.count, "reviewing.history.count"), limit: number(source.limit, "reviewing.history.limit"), offset: number(source.offset, "reviewing.history.offset"), has_more: boolean(source.has_more, "reviewing.history.has_more") };
+  if (Array.isArray(source.history) && source.history.length > expectedLimit) throw new WorkspaceContractError("reviewing.history.paging");
+  const history = array(source.history, "reviewing.history.history", queueCase);
+  const count = number(source.count, "reviewing.history.count");
+  const limit = number(source.limit, "reviewing.history.limit");
+  const offset = number(source.offset, "reviewing.history.offset");
+  const has_more = boolean(source.has_more, "reviewing.history.has_more");
+  if (!Number.isInteger(count) || count !== history.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("reviewing.history.paging");
+  return { history, count, limit, offset, has_more };
 }
 
 export function parseAllocation(value: unknown): AllocationReply {
@@ -666,12 +702,19 @@ export function parseNote(value: unknown): NotePayload {
   return { va_sid: string(source.va_sid, "note.va_sid"), content: nullableString(source.content, "note.content"), updated_at: nullableString(source.updated_at, "note.updated_at") };
 }
 
-export function parseWorkflowEvents(value: unknown): WorkflowEvents {
+export function parseWorkflowEvents(value: unknown, expectedVaSid: string, expectedLimit: number): WorkflowEvents {
   const source = record(value, "workflow.events");
-  return { va_sid: string(source.va_sid, "workflow.events.va_sid"), events: array(source.events, "workflow.events.events", (item, field) => {
+  const va_sid = string(source.va_sid, "workflow.events.va_sid");
+  const events = array(source.events, "workflow.events.events", (item, field) => {
     const event = record(item, field);
     return { event_id: string(event.event_id, `${field}.event_id`), transition_id: string(event.transition_id, `${field}.transition_id`), previous_state: nullableString(event.previous_state, `${field}.previous_state`), current_state: string(event.current_state, `${field}.current_state`), actor_kind: string(event.actor_kind, `${field}.actor_kind`), actor_role: nullableString(event.actor_role, `${field}.actor_role`), transition_reason: nullableString(event.transition_reason, `${field}.transition_reason`), event_created_at: string(event.event_created_at, `${field}.event_created_at`) };
-  }) };
+  });
+  const limit = number(source.limit, "workflow.events.limit");
+  const next_cursor = nullableString(source.next_cursor, "workflow.events.next_cursor");
+  if (va_sid !== expectedVaSid) throw new WorkspaceContractError("workflow.events.va_sid");
+  if (!Number.isInteger(limit) || limit !== expectedLimit || events.length > limit) throw new WorkspaceContractError("workflow.events.limit");
+  if (next_cursor === "") throw new WorkspaceContractError("workflow.events.next_cursor");
+  return { va_sid, events, limit, next_cursor };
 }
 
 export function parseDorisTerms(value: unknown): DorisTermsReply {

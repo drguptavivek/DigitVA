@@ -85,6 +85,104 @@ describe("workspace contracts and API", () => {
     expect(calls[2].init).toEqual({ method: "POST", json: { va_actiontype: "varesumereviewing" } });
   });
 
+  test("reviewer queues request bounded pages and reject inconsistent envelopes", async () => {
+    const calls: string[] = [];
+    const api = createWorkspaceApi(async (path) => {
+      calls.push(path);
+      return path.includes("/reviewing/available")
+        ? { cases: [], count: 0, limit: 50, offset: 0, has_more: false }
+        : { history: [], count: 0, limit: 50, offset: 0, has_more: false };
+    });
+    await api.getReviewerAvailable();
+    await api.getReviewerHistory();
+    expect(calls).toEqual([
+      "/api/v1/reviewing/available?limit=50&offset=0",
+      "/api/v1/reviewing/history?limit=50&offset=0",
+    ]);
+
+    for (const [method, key, field] of [
+      ["getReviewerAvailable", "cases", "reviewing.available"],
+      ["getReviewerHistory", "history", "reviewing.history"],
+    ] as const) {
+      const getPage = (body: Record<string, unknown>) => createWorkspaceApi(async () => body)[method]({ limit: 2, offset: 3 });
+      const valid = { [key]: [], count: 0, limit: 2, offset: 3, has_more: false };
+      await expect(getPage({ ...valid, count: 1 })).rejects.toThrow(`${field}.paging`);
+      await expect(getPage({ ...valid, limit: 1 })).rejects.toThrow(`${field}.paging`);
+      await expect(getPage({ ...valid, offset: 4 })).rejects.toThrow(`${field}.paging`);
+      await expect(getPage({ ...valid, [key]: [{ malformed: true }, { malformed: true }, { malformed: true }], count: 3 })).rejects.toThrow(`${field}.paging`);
+    }
+  });
+
+  test("coder pick and history always request bounded pages and validate page metadata", async () => {
+    const calls: string[] = [];
+    const api = createWorkspaceApi(async (path) => {
+      calls.push(path);
+      const paging = path.includes("project_id=")
+        ? { limit: 4, offset: 3 }
+        : { limit: 50, offset: 0 };
+      return path.includes("/coding/available")
+        ? { forms: [], count: 0, ...paging, has_more: false }
+        : { history: [], count: 0, ...paging, has_more: false };
+    });
+    expect(await api.getCodingAvailable()).toMatchObject({ limit: 50, offset: 0, has_more: false });
+    expect(await api.getCodingHistory({ projectId: "p & 1", limit: 4, offset: 3 })).toMatchObject({ limit: 4, offset: 3, has_more: false });
+    expect(calls).toEqual([
+      "/api/v1/coding/available?limit=50&offset=0",
+      "/api/v1/coding/history?project_id=p+%26+1&limit=4&offset=3",
+    ]);
+
+    const request = jest.fn(async () => ({ forms: [], count: 0, limit: 50, offset: 0, has_more: false }));
+    const validatingApi = createWorkspaceApi(request);
+    await expect(validatingApi.getCodingAvailable({ limit: 201 })).rejects.toThrow("request.limit");
+    await expect(validatingApi.getCodingHistory({ limit: 0 })).rejects.toThrow("request.limit");
+    await expect(validatingApi.getCodingAvailable({ offset: -1 })).rejects.toThrow("request.offset");
+    await expect(validatingApi.getCodingHistory({ offset: 1_000_001 })).rejects.toThrow("request.offset");
+    expect(request).not.toHaveBeenCalled();
+
+    const malformedApi = createWorkspaceApi(async () => ({ forms: [], count: 0 }));
+    await expect(malformedApi.getCodingAvailable()).rejects.toThrow(WorkspaceContractError);
+    await expect(malformedApi.getCodingHistory()).rejects.toThrow(WorkspaceContractError);
+    const wrongCountApi = createWorkspaceApi(async () => ({ forms: [], count: 1, limit: 50, offset: 0, has_more: false }));
+    await expect(wrongCountApi.getCodingAvailable()).rejects.toThrow("coding.available.paging");
+    const oversizedAvailableApi = createWorkspaceApi(async () => ({ forms: [{ malformed: true }, ...Array(50).fill({ malformed: true })], count: 51, limit: 50, offset: 0, has_more: false }));
+    await expect(oversizedAvailableApi.getCodingAvailable()).rejects.toThrow("coding.available.paging");
+    const oversizedHistoryApi = createWorkspaceApi(async () => ({ history: [{ malformed: true }, ...Array(50).fill({ malformed: true })], count: 51, limit: 50, offset: 0, has_more: false }));
+    await expect(oversizedHistoryApi.getCodingHistory()).rejects.toThrow("coding.history.paging");
+  });
+
+  test("workflow events send an opaque cursor and retain the server's newest-first page", async () => {
+    const calls: string[] = [];
+    const event = (event_id: string, event_created_at: string) => ({
+      event_id, transition_id: `transition-${event_id}`, previous_state: null,
+      current_state: "coding", actor_kind: "user", actor_role: null,
+      transition_reason: null, event_created_at,
+    });
+    const api = createWorkspaceApi(async (path) => {
+      calls.push(path);
+      return {
+        va_sid: "sid/1", events: [event("newer", "2026-10-07T02:00:00+00:00"), event("older", "2026-10-07T01:00:00+00:00")],
+        limit: 2, next_cursor: null,
+      };
+    });
+    const page = await api.getWorkflowEvents("sid/1", { limit: 2, cursor: "a+b/c=" });
+    expect(calls).toEqual(["/api/v1/workflow/events/sid%2F1?limit=2&cursor=a%2Bb%2Fc%3D"]);
+    expect(page.events.map(item => item.event_id)).toEqual(["newer", "older"]);
+    expect(page.next_cursor).toBeNull();
+
+    const request = jest.fn(async () => ({ va_sid: "sid/1", events: [], limit: 50, next_cursor: null }));
+    const validatingApi = createWorkspaceApi(request);
+    await expect(validatingApi.getWorkflowEvents("sid/1", { limit: 201 })).rejects.toThrow("request.limit");
+    await expect(validatingApi.getWorkflowEvents("sid/1", { cursor: "" })).rejects.toThrow("request.cursor");
+    expect(request).not.toHaveBeenCalled();
+
+    const missingMetadataApi = createWorkspaceApi(async () => ({ va_sid: "sid/1", events: [] }));
+    await expect(missingMetadataApi.getWorkflowEvents("sid/1")).rejects.toThrow(WorkspaceContractError);
+    const wrongCaseApi = createWorkspaceApi(async () => ({ va_sid: "other", events: [], limit: 50, next_cursor: null }));
+    await expect(wrongCaseApi.getWorkflowEvents("sid/1")).rejects.toThrow("workflow.events.va_sid");
+    const oversizedPageApi = createWorkspaceApi(async () => ({ va_sid: "sid/1", events: [event("1", "x"), event("2", "y")], limit: 1, next_cursor: "older" }));
+    await expect(oversizedPageApi.getWorkflowEvents("sid/1", { limit: 1 })).rejects.toThrow("workflow.events.limit");
+  });
+
   test("normalizes nested DORIS errors and leaves COD processing conflicts intact", async () => {
     const nested = new transport.ApiError(422, undefined, undefined, undefined, {
       schema_version: 1, error: { code: "INVALID_INPUT", message: "Certificate rejected." },

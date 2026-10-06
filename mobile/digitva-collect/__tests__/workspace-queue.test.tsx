@@ -23,10 +23,22 @@ const row = {
   va_narration_language: "en",
 };
 
+const coderRow = {
+  va_sid: "coder-sid",
+  va_uniqueid_masked: "CODER-MASKED-1",
+  va_form_id: "FORM-1",
+  project_id: "P1",
+  site_id: "P1-S1",
+  va_submission_date: "2026-10-01",
+  va_data_collector: null,
+  va_deceased_age: 52,
+  va_deceased_gender: "female",
+};
+
 function makeApi(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
   return {
     getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: true }),
-    getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1"], project_options: [{ project_id: "P1", project_name: "Project One" }] }),
+    getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }] }),
     getCodingAllocation: jest.fn().mockResolvedValue(null),
     getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 3, completed: 1, available: 2, allocation: null }),
     getReviewerAllocation: jest.fn().mockResolvedValue(null),
@@ -34,7 +46,9 @@ function makeApi(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
     allocateReviewer: jest.fn().mockResolvedValue({ va_sid: row.va_sid }),
     releaseCoding: jest.fn().mockResolvedValue({ va_sid: "coding-sid", workflow_state: "ready_for_coding" }),
     releaseReviewer: jest.fn().mockResolvedValue({ va_sid: row.va_sid, workflow_state: "reviewer_eligible" }),
-    getWorkspace: jest.fn(), getCategory: jest.fn(), getCodingAvailable: jest.fn(), getCodingHistory: jest.fn(),
+    getWorkspace: jest.fn(), getCategory: jest.fn(),
+    getCodingAvailable: jest.fn().mockResolvedValue({ forms: [coderRow], count: 1, limit: 50, offset: 0, has_more: false }),
+    getCodingHistory: jest.fn().mockResolvedValue({ history: [{ ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: true }], count: 1, limit: 50, offset: 0, has_more: false }),
     getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [row], count: 1, limit: 50, offset: 0, has_more: false }),
     getReviewerHistory: jest.fn().mockResolvedValue({ history: [{ ...row, va_reviewed_at: "2026-10-02T12:00:00+00:00" }], count: 1, limit: 50, offset: 0, has_more: false }),
     searchIcd: jest.fn(), codeOwnSubmission: jest.fn(), recode: jest.fn(), saveInitial: jest.fn(), saveFinal: jest.fn(), saveNotCodeable: jest.fn(),
@@ -80,8 +94,9 @@ async function unmount(renderer: ReactTestRenderer) {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 describe("QueueScreen", () => {
@@ -91,17 +106,19 @@ describe("QueueScreen", () => {
     else delete (window as Partial<Window>).confirm;
   });
 
-  test("coder resumes a held case, allocates random only when stats allow it, and never reads unbounded lists", async () => {
+  test("coder lists are bounded, resumes a held case, and allocates random only when stats allow it", async () => {
     const heldApi = makeApi({ getCodingAllocation: jest.fn().mockResolvedValue({ va_sid: "held-sid" }) });
     const held = await render("coding", heldApi);
     await press(held.renderer, "Resume case");
     expect(held.onOpen).toHaveBeenCalledWith({ vaSid: "held-sid", mode: "coding" });
-    expect(heldApi.getCodingAvailable).not.toHaveBeenCalled();
+    expect(heldApi.getCodingAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
     expect(heldApi.getCodingHistory).not.toHaveBeenCalled();
     await unmount(held.renderer);
 
     const api = makeApi();
     const screen = await render("coding", api);
+    expect(api.getCodingAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(api.getCodingHistory).not.toHaveBeenCalled();
     await press(screen.renderer, "Start a random case");
     expect(api.allocateCoding).toHaveBeenCalledWith(undefined, undefined);
     expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: "coding-sid", mode: "coding" });
@@ -110,6 +127,100 @@ describe("QueueScreen", () => {
     const unavailable = await render("coding", makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 0, has_random_mode: true }) }));
     expect(button(unavailable.renderer.root, "Start a random case")?.props.accessibilityState.disabled).toBe(true);
     await unmount(unavailable.renderer);
+  });
+
+  test("coder paging respects has_more, resets for project and tab changes, and allocates only on pick", async () => {
+    const api = makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [coderRow], count: 1, limit: 50, offset: 0, has_more: true }),
+      allocateCoding: jest.fn().mockResolvedValue({ va_sid: coderRow.va_sid }),
+    });
+    const screen = await render("coding", api);
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    await press(screen.renderer, "Next");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 50 });
+    await press(screen.renderer, "Project Two");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    await press(screen.renderer, "History");
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    await press(screen.renderer, "Available");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    await press(screen.renderer, "Pick case");
+    expect(api.allocateCoding).toHaveBeenCalledWith(coderRow.va_sid, "P2");
+    expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
+    await unmount(screen.renderer);
+
+    const noMore = await render("coding", makeApi());
+    expect(button(noMore.renderer.root, "Next")?.props.accessibilityState.disabled).toBe(true);
+    await unmount(noMore.renderer);
+  });
+
+  test("coder history opens read-only and offers recode only for recodeable rows", async () => {
+    const api = makeApi({ recode: jest.fn().mockResolvedValue({ va_sid: coderRow.va_sid }) });
+    const screen = await render("coding", api);
+    await press(screen.renderer, "History");
+    expect(api.getCodingHistory).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    await press(screen.renderer, "View case");
+    expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: coderRow.va_sid, mode: "view" });
+    expect(api.recode).not.toHaveBeenCalled();
+    await press(screen.renderer, "Recode");
+    expect(api.recode).toHaveBeenCalledWith(coderRow.va_sid);
+    expect(screen.onOpen).toHaveBeenLastCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
+    await unmount(screen.renderer);
+  });
+
+  test("late coder project and page responses are discarded after their scope changes", async () => {
+    const lateProjectPage = deferred<{ forms: typeof coderRow[]; count: number; limit: number; offset: number; has_more: boolean }>();
+    const lateNextPage = deferred<{ forms: typeof coderRow[]; count: number; limit: number; offset: number; has_more: boolean }>();
+    const p2Row = { ...coderRow, va_sid: "p2-sid", va_uniqueid_masked: "P2-MASKED", project_id: "P2" };
+    const api = makeApi({
+      getCodingAvailable: jest.fn((options?: { projectId?: string; offset?: number }) => {
+        if (options?.projectId === "P1") return lateProjectPage.promise;
+        if (options?.projectId === "P2" && options.offset === 50) return lateNextPage.promise;
+        return Promise.resolve({ forms: [p2Row], count: 1, limit: 50, offset: options?.offset ?? 0, has_more: true });
+      }),
+    });
+    const screen = await render("coding", api);
+    await press(screen.renderer, "Project One");
+    await press(screen.renderer, "Project Two");
+    await settle();
+    lateProjectPage.resolve({ forms: [{ ...coderRow, va_uniqueid_masked: "STALE-PROJECT" }], count: 1, limit: 50, offset: 0, has_more: false });
+    await settle();
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain("P2-MASKED");
+    expect(JSON.stringify(screen.renderer.toJSON())).not.toContain("STALE-PROJECT");
+
+    await press(screen.renderer, "Next");
+    await press(screen.renderer, "History");
+    await settle();
+    lateNextPage.resolve({ forms: [{ ...coderRow, va_uniqueid_masked: "STALE-PAGE" }], count: 1, limit: 50, offset: 50, has_more: false });
+    await settle();
+    expect(JSON.stringify(screen.renderer.toJSON())).not.toContain("STALE-PAGE");
+    await unmount(screen.renderer);
+  });
+
+  test("coder pick guards duplicate clicks and refreshes live availability from page zero after an allocation conflict", async () => {
+    const allocation = deferred<{ va_sid: string }>();
+    const api = makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [coderRow], count: 1, limit: 50, offset: 0, has_more: true }),
+      allocateCoding: jest.fn(() => allocation.promise),
+    });
+    const screen = await render("coding", api);
+    await press(screen.renderer, "Next");
+    await settle();
+    const pick = button(screen.renderer.root, "Pick case");
+    await act(async () => {
+      pick?.props.onPress();
+      pick?.props.onPress();
+    });
+    expect(api.allocateCoding).toHaveBeenCalledTimes(1);
+    allocation.reject(new ApiError(409, "allocation_conflict"));
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(409, "allocation_conflict")));
+    await unmount(screen.renderer);
   });
 
   test("review queue pages in bounded chunks and allocates only after the server replies", async () => {
@@ -158,6 +269,108 @@ describe("QueueScreen", () => {
     expect(api.releaseReviewer).toHaveBeenCalledTimes(1);
     await unmount(screen.renderer);
     alert.mockRestore();
+  });
+
+  test("active coder allocation remains resumable and releasable when the page fails", async () => {
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    Object.defineProperty(window, "confirm", { configurable: true, value: jest.fn().mockReturnValue(true) });
+    const api = makeApi({
+      getCodingAllocation: jest.fn().mockResolvedValueOnce({ va_sid: "held-sid" }).mockResolvedValue(null),
+      getCodingAvailable: jest.fn().mockRejectedValue(new ApiError(503, "unavailable")),
+    });
+    const screen = await render("coding", api);
+    expect(button(screen.renderer.root, "Resume case")).toBeDefined();
+    expect(button(screen.renderer.root, "Release case")).toBeDefined();
+    expect(button(screen.renderer.root, "Start a random case")?.props.accessibilityState.disabled).toBe(true);
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+
+    await press(screen.renderer, "Release case");
+    await settle();
+    expect(api.releaseCoding).toHaveBeenCalledTimes(1);
+    expect(button(screen.renderer.root, "Resume case")).toBeUndefined();
+    expect(button(screen.renderer.root, "Release case")).toBeUndefined();
+    await unmount(screen.renderer);
+  });
+
+  test("active reviewer allocation remains resumable and releasable when the page fails", async () => {
+    const api = makeApi({
+      getReviewerAllocation: jest.fn().mockResolvedValueOnce({ va_sid: row.va_sid }).mockResolvedValue(null),
+      getReviewerAvailable: jest.fn().mockRejectedValue(new ApiError(503, "unavailable")),
+    });
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    const screen = await render("reviewing", api);
+    expect(button(screen.renderer.root, "Resume case")).toBeDefined();
+    expect(button(screen.renderer.root, "Release case")).toBeDefined();
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+
+    await press(screen.renderer, "Release case");
+    const release = alert.mock.calls[0]?.[2]?.find((action) => action.text === "Release");
+    await act(async () => { release?.onPress?.(); await Promise.resolve(); await Promise.resolve(); });
+    await settle();
+    expect(api.releaseReviewer).toHaveBeenCalledTimes(1);
+    expect(button(screen.renderer.root, "Resume case")).toBeUndefined();
+    expect(button(screen.renderer.root, "Release case")).toBeUndefined();
+    await unmount(screen.renderer);
+    alert.mockRestore();
+  });
+
+  test("allocation refresh failure hides a previously active allocation", async () => {
+    const api = makeApi({
+      getCodingAllocation: jest.fn().mockResolvedValueOnce({ va_sid: "held-sid" }).mockRejectedValue(new ApiError(403, "forbidden")),
+    });
+    const screen = await render("coding", api);
+    expect(button(screen.renderer.root, "Release case")).toBeDefined();
+    await press(screen.renderer, "Refresh cases");
+    await settle();
+    expect(api.getCodingAllocation).toHaveBeenCalledTimes(2);
+    expect(button(screen.renderer.root, "Release case")).toBeUndefined();
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(403, "forbidden")));
+    await unmount(screen.renderer);
+  });
+
+  test("allocation lookup failure disables every new case acquisition", async () => {
+    const coderApi = makeApi({ getCodingAllocation: jest.fn().mockRejectedValue(new ApiError(403, "forbidden")) });
+    const coder = await render("coding", coderApi);
+    expect(button(coder.renderer.root, "Start a random case")?.props.accessibilityState.disabled).toBe(true);
+    expect(button(coder.renderer.root, "Pick case")?.props.accessibilityState.disabled).toBe(true);
+    await press(coder.renderer, "History");
+    await settle();
+    expect(button(coder.renderer.root, "Recode")?.props.accessibilityState.disabled).toBe(true);
+    await unmount(coder.renderer);
+
+    const reviewerApi = makeApi({ getReviewerAllocation: jest.fn().mockRejectedValue(new ApiError(401, "session_revoked")) });
+    const reviewer = await render("reviewing", reviewerApi);
+    expect(button(reviewer.renderer.root, "Review case")?.props.accessibilityState.disabled).toBe(true);
+    await unmount(reviewer.renderer);
+  });
+
+  test("late allocation snapshots are discarded after the API and mode change", async () => {
+    const allocation = deferred<{ va_sid: string } | null>();
+    const oldApi = makeApi({ getCodingAllocation: jest.fn(() => allocation.promise) });
+    const nextApi = makeApi();
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={oldApi} mode="coding" onOpen={jest.fn()} />); });
+    await act(async () => { renderer.update(<QueueScreen api={nextApi} mode="reviewing" onOpen={jest.fn()} />); });
+    await settle();
+    await act(async () => { allocation.resolve({ va_sid: "stale-held-sid" }); await allocation.promise; });
+    expect(button(renderer.root, "Resume case")).toBeUndefined();
+    expect(button(renderer.root, "Release case")).toBeUndefined();
+    await unmount(renderer);
+  });
+
+  test("reviewer can retry a failed page from the queue", async () => {
+    const api = makeApi({
+      getReviewerAvailable: jest.fn()
+        .mockRejectedValueOnce(new ApiError(503, "unavailable"))
+        .mockResolvedValue({ cases: [row], count: 1, limit: 50, offset: 0, has_more: false }),
+    });
+    const screen = await render("reviewing", api);
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+    await press(screen.renderer, "Refresh queue");
+    await settle();
+    expect(api.getReviewerAvailable).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(row.va_uniqueid_masked);
+    await unmount(screen.renderer);
   });
 
   test("web release asks before releasing and cancellation leaves the allocation held", async () => {

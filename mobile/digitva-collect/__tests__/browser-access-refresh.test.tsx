@@ -56,6 +56,36 @@ it("clears browser identity when access itself is refused", async () => {
   await act(async () => tree.unmount());
 });
 
+it("removes cached browser definitions when interviewer actions disappear", async () => {
+  const project = (projectId: string, interview: boolean) => ({
+    project_id: projectId,
+    grants: [{ role: "interviewer", active: true, source: "assigned" }],
+    actions: { interview: interview ? [{ site_id: "S1" }] : [] }
+  });
+  const initial = {
+    ...bootstrap,
+    access: { ...bootstrap.access, projects: [project("P1", true), project("P2", true)] }
+  };
+  const next = {
+    ...bootstrap,
+    access: {
+      ...bootstrap.access,
+      projects: [project("P1", true), { ...project("P2", false), grants: [{ role: "interviewer", active: false, source: "assigned" }] }]
+    }
+  };
+  (loadBrowserSession as jest.Mock).mockResolvedValueOnce({ authenticated: true, bootstrap: initial });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  const removeProject = jest.spyOn(state.definitionCache!, "removeProject");
+  (loadBrowserSession as jest.Mock).mockResolvedValue({ authenticated: true, bootstrap: next });
+
+  await act(async () => { handlers["digitva-access-stale"](); });
+
+  expect(removeProject).toHaveBeenCalledWith("P2");
+  expect(state.bootstrap?.access.projects.map(({ project_id }) => project_id)).toEqual(["P1", "P2"]);
+  await act(async () => tree.unmount());
+});
+
 it("signs out using the browser route with the current cookie CSRF token", async () => {
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });

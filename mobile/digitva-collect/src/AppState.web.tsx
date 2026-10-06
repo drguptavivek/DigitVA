@@ -127,7 +127,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
     const { user, access } = result.bootstrap;
     const intakeProjects = new Set(access.projects
-      .filter((project) => project.grants.some((grant) => grant.role === "interviewer"))
+      .filter((project) => project.actions.interview.length > 0)
       .map((project) => project.project_id));
     const previous = definitionSession.current;
     if (previous?.accountId !== user.user_id) {

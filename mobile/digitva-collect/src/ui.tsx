@@ -235,6 +235,7 @@ export function errorText(error: unknown): string {
     if (error.code === "forbidden" || error.code === "project_forbidden") return t("serverForbidden");
     if (error.code === "password_change_required" || error.code === "terms_required") return t("termsRequired");
     if (error.code === "no_interviewer_grant") return t("errNoGrant");
+    if (error.code === "no_collection_access") return t("noCollectionAccess");
     if (error.code === "device_revoked") return t("errDeviceRevoked");
     if (error.status === 429) return t("errRateLimited");
     if (error.status === 401) return t("errSignIn");

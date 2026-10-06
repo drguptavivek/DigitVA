@@ -11,16 +11,20 @@ const unit = (id: string, roles: string[], selectable = true, can_code = false) 
   is_active: true, roles, selectable, can_code
 });
 const access: AccessSummary = {
-  user: { user_id: "u1", name: "Worker" }, is_admin: false,
+  user: { user_id: "u1", name: "Worker" }, is_admin: false, roles: ["coder"],
   demo_coding: { available: false, project_ids: [] },
   projects: [{
     project_id: "P1", project_name: "Project", has_tree: true,
-    grants: [{ role: "interviewer", scope: "org_unit", org_unit_id: "i", unit_name: "i" },
-      { role: "coder", scope: "org_unit", org_unit_id: "c", unit_name: "c", codes: true }],
+    grants: [{ role: "interviewer", scope: "org_unit", org_unit_id: "i", unit_name: "i", active: true, source: "assigned" },
+      { role: "coder", scope: "org_unit", org_unit_id: "c", unit_name: "c", codes: true, active: true, source: "assigned" }],
+    actions: { interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "both", org_units: [
+      { org_unit_id: "i", unit_code: "i", unit_name: "i", path: "root.i" },
+    ] }] },
     sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] },
       { site_id: "S2", site_name: "Other", roles: ["coder"] }],
     levels: [{ level_code: "phc", level_name: "PHC", depth: 1 }],
-    units: [unit("ancestor", [], false), unit("i", ["interviewer"]), unit("c", ["coder"], true, true)]
+    units: [{ ...unit("ancestor", [], false), path: "root" }, unit("i", ["interviewer"]), unit("i.child", []),
+      unit("i.disabled", [], false), unit("c", ["coder"], true, true)]
   }]
 };
 
@@ -227,16 +231,28 @@ it("rejects external browser request paths before sending credentials", async ()
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it("filters intake units and sites by interviewer reach and preserves ancestor context", () => {
+it("uses authoritative interview entries and preserves only authorized subtrees with ancestors", () => {
   const context = intakeContextFromAccess(parseAccessSummary(access));
   expect(context).toHaveLength(1);
   expect(context[0].site_id).toBe("S1");
-  expect(context[0].org_units?.map((entry) => entry.org_unit_id)).toEqual(["ancestor", "i"]);
+  expect(context[0].org_units?.map((entry) => entry.org_unit_id)).toEqual(["ancestor", "i", "i.child", "i.disabled"]);
   expect(context[0].org_units?.[0].selectable).toBe(false);
-  expect(context[0].web_intake_mode).toBeUndefined();
+  expect(context[0].org_units?.[1].selectable).toBe(true);
+  expect(context[0].org_units?.[2].selectable).toBe(true);
+  expect(context[0].org_units?.[3].selectable).toBe(false);
+  expect(context[0].web_intake_mode).toBe("both");
   expect(accessCapabilities(access)).toEqual({ intake: true, coding: true, reviewing: false });
-  const withoutCode = { ...access, projects: [{ ...access.projects[0], units: access.projects[0].units?.map((entry) => ({ ...entry, can_code: false })) }] };
-  expect(accessCapabilities(withoutCode).coding).toBe(false);
+  expect(accessCapabilities({ ...access, roles: ["reviewer"] }).reviewing).toBe(true);
+  expect(accessCapabilities({ ...access, roles: [], demo_coding: { available: true, project_ids: ["D"] } }).coding).toBe(true);
+});
+
+it("treats empty interview unit roots as unrestricted tree access", () => {
+  const broad = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
+    { ...access.projects[0].actions.interview[0], org_units: [] },
+  ] } }] };
+  const units = intakeContextFromAccess(parseAccessSummary(broad))[0].org_units;
+  expect(units?.map((entry) => entry.org_unit_id)).toEqual(["ancestor", "i", "i.child", "i.disabled", "c"]);
+  expect(units?.map((entry) => entry.selectable)).toEqual([false, true, true, false, true]);
 });
 
 it.each([null, {}, { ...access, user: { user_id: 42, name: "Worker" } },
@@ -246,14 +262,12 @@ it.each([null, {}, { ...access, user: { user_id: 42, name: "Worker" } },
   expect(() => parseAccessSummary(value)).toThrow(ApiError);
 });
 
-it("gets intake reach from access and mode from project form options without old copies", async () => {
-  const fetch = jest.spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(response(access))
-    .mockResolvedValueOnce(response({ project_id: "P1", web_intake_mode: "death_register", instrument_version: "bundle" }));
+it("gets interview sites, mode, and unit roots from the access answer", async () => {
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response(access));
   const context = await getIntakeContext(csrf);
   expect(context.links?.deaths).toBe("/api/v1/intake/deaths");
-  expect(context.context[0].web_intake_mode).toBe("death_register");
-  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access", "/api/v1/organization/P1/form-options"]);
+  expect(context.context[0].web_intake_mode).toBe("both");
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access"]);
 });
 
 it("accepts the backend narration option objects and nullable non-WHO versions", async () => {
@@ -278,7 +292,7 @@ it("fetches validated access with either credential", async () => {
   await expect(getAccessSummary(undefined, "https://digitva.test", "access")).resolves.toEqual(access);
 });
 
-it("starts the browser with me/access alone and uses its CSRF header on mutations", async () => {
+it("loads browser access without probing project metadata and uses its CSRF header on mutations", async () => {
   const fetch = jest.spyOn(globalThis, "fetch")
     .mockResolvedValueOnce(response(access, 200, "application/json", "session-csrf"))
     .mockResolvedValueOnce(response({ case: { death_id: "d1" } }));
@@ -292,6 +306,69 @@ it("starts the browser with me/access alone and uses its CSRF header on mutation
   await requestClientJson("/api/v1/intake/cases/d1/visit", { method: "POST", json: {}, csrf: result.bootstrap.csrf });
   expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access", "/api/v1/intake/cases/d1/visit"]);
   expect(fetch.mock.calls[1][1]?.headers).toMatchObject({ "X-CSRFToken": "session-csrf" });
+});
+
+it("keeps collection closed when interview entries are empty despite misleading roles", async () => {
+  const noInterview = { ...access, roles: ["interviewer"], projects: [{
+    ...access.projects[0], actions: { interview: [] },
+  }] };
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response(noInterview, 200, "application/json", "session-csrf"));
+
+  const result = await fetchClientBootstrap();
+
+  expect(result).toMatchObject({ authenticated: true, bootstrap: { capabilities: { intake: false } } });
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access"]);
+});
+
+it("does not show coding for an inactive coder grant absent from top-level roles", () => {
+  const inactiveCoder = { ...access, roles: [], projects: [{
+    ...access.projects[0], has_tree: false,
+    grants: [{ role: "coder", scope: "project", codes: true, active: false, source: "assigned" }],
+    actions: { interview: [] },
+  }] };
+  expect(accessCapabilities(parseAccessSummary(inactiveCoder)).coding).toBe(false);
+});
+
+it("does not fetch intake resources for coder-only access", async () => {
+  const coderAccess: AccessSummary = { ...access, projects: [{
+    project_id: "P2", project_name: "Coding", has_tree: false,
+    grants: [{ role: "coder", scope: "project", codes: true, active: true, source: "assigned" }],
+    actions: { interview: [] }, sites: [],
+  }] };
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(response(coderAccess, 200, "application/json", "session-csrf"));
+
+  const result = await fetchClientBootstrap();
+
+  expect(result).toMatchObject({ authenticated: true, bootstrap: { capabilities: { intake: false, coding: true } } });
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me/access"]);
+});
+
+it.each(["broken", "off", null, 4])("rejects malformed or closed interview entries at the access boundary: %s", (mode) => {
+  const malformed = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
+    { ...access.projects[0].actions.interview[0], web_intake_mode: mode },
+  ] } }] };
+
+  expect(() => parseAccessSummary(malformed)).toThrow(ApiError);
+});
+
+it("rejects incomplete interview entries and unit roots at the access boundary", () => {
+  const entry = access.projects[0].actions.interview[0];
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: undefined }] } }] })).toThrow(ApiError);
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: [{ org_unit_id: "i" }] }] } }] })).toThrow(ApiError);
+});
+
+it.each([undefined, null, "yes"])("rejects an absent or malformed top-level roles field: %s", (roles) => {
+  expect(() => parseAccessSummary({ ...access, roles })).toThrow(ApiError);
+});
+
+it.each([undefined, null, "yes"])("rejects grants without an active flag: %s", (active) => {
+  const grants = [{ ...access.projects[0].grants[0], active }];
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], grants }] })).toThrow(ApiError);
+});
+
+it.each([undefined, null, "other"])("rejects grants without a known source: %s", (source) => {
+  const grants = [{ ...access.projects[0].grants[0], source }];
+  expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], grants }] })).toThrow(ApiError);
 });
 
 it("does not expose or send a CSRF header on bearer calls", async () => {
@@ -388,28 +465,16 @@ it("an explicitly empty bearer token never falls back to a cookie", async () => 
   expect((init?.headers as Record<string, string>)["X-CSRFToken"]).toBeUndefined();
 });
 
-it.each([undefined, "invalid_mode", null, false])("fails closed on absent or invalid form-options mode: %s", async (mode) => {
-  jest.spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(response(access))
-    .mockResolvedValueOnce(response({ project_id: "P1", web_intake_mode: mode }));
-  if (mode === undefined) {
-    expect((await getIntakeContext(csrf)).context[0].web_intake_mode).toBeUndefined();
-  } else {
-    await expect(getIntakeContext(csrf)).rejects.toMatchObject({ code: "malformed_response" });
-  }
-});
-
-it("loads form options once per project even with multiple interviewer sites", async () => {
-  const twoSites = { ...access, projects: [{ ...access.projects[0], sites: [
-    { site_id: "S1", site_name: "One", roles: ["interviewer"] },
-    { site_id: "S2", site_name: "Two", roles: ["interviewer"] }
-  ] }] };
+it("preserves server interview entry order and modes for multiple sites", async () => {
+  const twoSites = { ...access, projects: [{ ...access.projects[0], actions: { interview: [
+    { ...access.projects[0].actions.interview[0], site_id: "S1", site_name: "One", web_intake_mode: "both" as const },
+    { ...access.projects[0].actions.interview[0], site_id: "S2", site_name: "Two", web_intake_mode: "direct" as const },
+  ] } }] };
   const fetch = jest.spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(response(twoSites))
-    .mockResolvedValueOnce(response({ web_intake_mode: "both" }));
+    .mockResolvedValueOnce(response(twoSites));
   const context = await getIntakeContext(csrf);
-  expect(context.context.map((entry) => entry.web_intake_mode)).toEqual(["both", "both"]);
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(context.context.map((entry) => [entry.site_id, entry.web_intake_mode])).toEqual([["S1", "both"], ["S2", "direct"]]);
+  expect(fetch).toHaveBeenCalledTimes(1);
 });
 
 it("preserves cookie CSRF metadata while terms prevent access", async () => {

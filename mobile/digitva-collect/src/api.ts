@@ -41,8 +41,14 @@ export interface AccessProject {
   project_id: string;
   project_name: string;
   has_tree: boolean;
-  grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean }>;
+  grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
+  actions: { interview: Array<{
+    site_id: string;
+    site_name: string;
+    web_intake_mode: "direct" | "death_register" | "both";
+    org_units: Array<{ org_unit_id: string; unit_code: string; unit_name: string; path: string }>;
+  }> };
   units?: AccessUnit[];
   levels?: Array<{ level_code: string; level_name: string; depth: number }>;
 }
@@ -50,25 +56,36 @@ export interface AccessProject {
 export interface AccessSummary {
   user: { user_id: string; name: string };
   is_admin: boolean;
+  roles: string[];
   demo_coding: { available: boolean; project_ids: string[] };
   projects: AccessProject[];
 }
 
-/** Validate the access boundary before using server data to populate action pickers. */
+/** Validate the access boundary before using server data to gate screens or pickers. */
 export function parseAccessSummary(value: unknown): AccessSummary {
   const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
   const strings = (item: unknown): item is string[] => Array.isArray(item) && item.every((part) => typeof part === "string");
   if (!record(value) || !record(value.user) || typeof value.user.user_id !== "string" || typeof value.user.name !== "string" ||
       typeof value.is_admin !== "boolean" || !record(value.demo_coding) || typeof value.demo_coding.available !== "boolean" ||
-      !strings(value.demo_coding.project_ids) || !Array.isArray(value.projects)) throw new ApiError(200, "malformed_response");
+      !strings(value.roles) || !strings(value.demo_coding.project_ids) || !Array.isArray(value.projects)) throw new ApiError(200, "malformed_response");
   for (const project of value.projects) {
     if (!record(project) || typeof project.project_id !== "string" || typeof project.project_name !== "string" ||
-        typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites)) throw new ApiError(200, "malformed_response");
+        typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites) ||
+        !record(project.actions) || !Array.isArray(project.actions.interview)) throw new ApiError(200, "malformed_response");
     for (const grant of project.grants) {
       if (!record(grant) || typeof grant.role !== "string" || !["project", "project_site", "org_unit"].includes(String(grant.scope)) ||
+          typeof grant.active !== "boolean" || !["assigned", "self_coding"].includes(String(grant.source)) ||
           (grant.scope === "project_site" && typeof grant.site_id !== "string") ||
           (grant.scope === "org_unit" && (typeof grant.org_unit_id !== "string" || typeof grant.unit_name !== "string")) ||
           (["coder", "coding_tester", "reviewer"].includes(grant.role) && typeof grant.codes !== "boolean")) throw new ApiError(200, "malformed_response");
+    }
+    for (const entry of project.actions.interview) {
+      if (!record(entry) || typeof entry.site_id !== "string" || typeof entry.site_name !== "string" ||
+          !["direct", "death_register", "both"].includes(String(entry.web_intake_mode)) || !Array.isArray(entry.org_units) ||
+          entry.org_units.some((unit) => !record(unit) ||
+            !["org_unit_id", "unit_code", "unit_name", "path"].every((field) => typeof unit[field] === "string"))) {
+        throw new ApiError(200, "malformed_response");
+      }
     }
     for (const site of project.sites) {
       if (!record(site) || typeof site.site_id !== "string" || typeof site.site_name !== "string" || !strings(site.roles)) throw new ApiError(200, "malformed_response");
@@ -92,26 +109,29 @@ export async function getAccessSummary(csrf?: ClientCsrf, server = "", token?: s
 
 /** Navigation is advisory; each action remains authorised by the server. */
 export function accessCapabilities(access: AccessSummary): ClientBootstrap["capabilities"] {
-  const grants = access.projects.flatMap((project) => project.grants);
   return {
-    intake: grants.some((grant) => grant.role === "interviewer"),
-    coding: access.projects.some((project) => project.has_tree
-      ? project.units?.some((unit) => unit.selectable && unit.can_code)
-      : project.grants.some((grant) => ["coder", "coding_tester"].includes(grant.role) && grant.codes)) || access.demo_coding.available,
-    reviewing: grants.some((grant) => grant.role === "reviewer")
+    intake: access.projects.some((project) => project.actions.interview.length > 0),
+    coding: access.roles.some((role) => ["coder", "coding_tester"].includes(role)) || access.demo_coding.available,
+    reviewing: access.roles.includes("reviewer")
   };
 }
 
-/** Keep ancestors as tree context; only interviewer reach is selectable. */
+/** Expand server interview roots in tree order and retain their ancestor context. */
 export function intakeContextFromAccess(access: AccessSummary): IntakeContextEntry[] {
-  return access.projects.flatMap((project) => {
-    if (!project.grants.some((grant) => grant.role === "interviewer")) return [];
-    const units = project.units?.filter((unit) => !unit.selectable || unit.roles.includes("interviewer"));
-    return project.sites.filter((site) => site.roles.includes("interviewer")).map((site) => ({
-      project_id: project.project_id, project_name: project.project_name, site_id: site.site_id, site_name: site.site_name,
-      org_units: units
-    }));
-  });
+  return access.projects.flatMap((project) => project.actions.interview.map((entry) => {
+    const roots = entry.org_units;
+    const units = project.units?.filter((unit) => !roots.length || roots.some((root) =>
+      unit.path === root.path || unit.path.startsWith(`${root.path}.`) || root.path.startsWith(`${unit.path}.`),
+    )).map((unit) => roots.length ? ({
+      ...unit,
+      selectable: unit.selectable && roots.some((root) => unit.path === root.path || unit.path.startsWith(`${root.path}.`)),
+    }) : unit);
+    return {
+      project_id: project.project_id, project_name: project.project_name, site_id: entry.site_id,
+      site_name: entry.site_name, web_intake_mode: entry.web_intake_mode,
+      org_units: units ?? roots.map((unit) => ({ ...unit, selectable: true })),
+    };
+  }));
 }
 
 export interface ClientCsrf {
@@ -616,18 +636,13 @@ export async function fetchClientBootstrap(): Promise<BootstrapResult> {
   }
 }
 
-/** Combine grant-scoped interviewer pickers with project form options; missing mode stays disabled. */
+/** Read collection sites, modes, and unit scope from the authoritative access answer. */
 export async function getIntakeContext(csrf: ClientCsrf): Promise<IntakeBootstrap> {
   const access = await getAccessSummary(csrf);
   const contexts = intakeContextFromAccess(access);
-  const projectIds = [...new Set(contexts.map((entry) => entry.project_id))];
-  const options = await Promise.all(projectIds.map(async (projectId) => ({
-    projectId, options: await getProjectFormOptions(projectId, csrf)
-  })));
-  const byProject = new Map(options.map((entry) => [entry.projectId, entry.options]));
   return {
     user: access.user,
-    context: contexts.map((entry) => ({ ...entry, web_intake_mode: byProject.get(entry.project_id)?.web_intake_mode })),
+    context: contexts,
     links: { deaths: `${INTAKE_API}/deaths`, drafts: `${INTAKE_API}/drafts`, cases: `${INTAKE_API}/cases` }
   };
 }
@@ -637,10 +652,16 @@ export async function getProjectFormOptions(
   projectId: string,
   csrf: ClientCsrf,
 ): Promise<FormOptions> {
-  const options = await requestClientJson<FormOptions>(
+  const options = await requestClientJson<unknown>(
     `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`,
     { csrf },
   );
+  return parseProjectFormOptions(options);
+}
+
+/** Validate shared form-options data before using its project-owned settings. */
+export function parseProjectFormOptions(value: unknown): FormOptions {
+  const options = value as FormOptions;
   if (!options || typeof options !== "object" || Array.isArray(options) ||
       (options.web_intake_mode !== undefined && !["off", "direct", "death_register", "both"].includes(options.web_intake_mode)) ||
       (options.instrument_version !== undefined && options.instrument_version !== null && typeof options.instrument_version !== "string") ||

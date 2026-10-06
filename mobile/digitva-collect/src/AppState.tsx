@@ -168,7 +168,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setLockVersion((version) => version + 1);
         continue;
       }
-      if (!handle) continue;
+      const currentAccount = (await loadAccounts()).find(({ user_id }) => user_id === account.user_id);
+      if (!handle || currentAccount?.collection_access !== true) continue;
       try {
         await refreshReferenceData(account.user_id, handle, { force: true });
       } catch (refreshError) {

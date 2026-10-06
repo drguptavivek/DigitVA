@@ -1,6 +1,6 @@
 /** Foreground notification polling and the coalesced authoritative sync path. */
 import { ApiError } from "./api";
-import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRequest, loadAccounts, refreshAccessSummary, SessionRevokedError, SignInRequiredError } from "./auth";
 import { isUnlocked } from "./interviewerDb";
 import { drainNotificationPages } from "./notificationPoll";
 import {
@@ -86,6 +86,9 @@ export function runNativeSync(
   const canCodeNowSubscribers = new Set<(uniqueId: string) => void>();
   if (callbacks.onCanCodeNow) canCodeNowSubscribers.add(callbacks.onCanCodeNow);
   pending = (async () => {
+    await refreshAccessSummary(userId);
+    const account = (await loadAccounts()).find(({ user_id }) => user_id === userId);
+    if (account?.collection_access !== true) throw new ApiError(403, "no_collection_access");
     const before = await readNotificationState(userId);
     const sync = await syncInterviewer(
       userId,
@@ -121,7 +124,10 @@ export async function refreshNativeNotifications(
   userId: string,
   db?: Db,
 ): Promise<boolean> {
+  await refreshAccessSummary(userId);
   await pollAccountNotifications(userId);
+  const account = (await loadAccounts()).find(({ user_id }) => user_id === userId);
+  if (account?.collection_access !== true) return false;
   const state = await readNotificationState(userId);
   if (!state) {
     if (!db || !isUnlocked(userId)) return false;

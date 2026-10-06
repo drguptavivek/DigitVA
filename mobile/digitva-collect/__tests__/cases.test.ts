@@ -147,10 +147,11 @@ function mockServer(handler: (call: Call) => Response, detailFor: (deathId: stri
       return json(200, { case: detailFor(deathId) });
     }
     if (call.url.endsWith("/me/access")) return json(200, {
-      user: { user_id: USER, name: "A" }, is_admin: false,
+      user: { user_id: USER, name: "A" }, is_admin: false, roles: ["interviewer"],
       demo_coding: { available: false, project_ids: [] },
       projects: [{ project_id: PROJECT, project_name: "P", has_tree: false,
-        grants: [{ role: "interviewer", scope: "project" }],
+        grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+        actions: { interview: [{ site_id: "S1", site_name: "S1", web_intake_mode: "both", org_units: [] }] },
         sites: [{ site_id: "S1", site_name: "S1", roles: ["interviewer"] }] }],
     });
     if (call.url.includes("/organization/") && call.url.endsWith("/form-options")) return json(200, { web_intake_mode: "both", instrument_version: "server" });

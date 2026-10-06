@@ -2,6 +2,9 @@ const mockSecure = new Map<string, string>();
 const mockAuthedRequest = jest.fn();
 const mockSync = jest.fn();
 const mockRefresh = jest.fn();
+const mockRefreshAccessSummary = jest.fn();
+let mockAccountUserId = "";
+let mockCollectionAccess = true;
 let mockSecureUnavailable = false;
 
 jest.mock("expo-secure-store", () => ({
@@ -23,6 +26,8 @@ jest.mock("expo-crypto", () => ({
 }));
 jest.mock("../src/auth", () => ({
   authedRequest: (...args: unknown[]) => mockAuthedRequest(...args),
+  loadAccounts: async () => [{ user_id: mockAccountUserId || "background-account", collection_access: mockCollectionAccess }],
+  refreshAccessSummary: (...args: unknown[]) => mockRefreshAccessSummary(...args),
   SessionRevokedError: class SessionRevokedError extends Error {},
   SignInRequiredError: class SignInRequiredError extends Error {},
 }));
@@ -33,6 +38,7 @@ jest.mock("../src/sync", () => ({
 }));
 
 import { pollAccountNotifications, refreshNativeNotifications, runNativeSync } from "../src/nativeNotificationSync";
+import { runNativeNotificationTask } from "../src/notificationTask";
 import {
   clearNotificationState,
   finishNotificationSync,
@@ -63,7 +69,14 @@ beforeEach(() => {
   mockAuthedRequest.mockReset();
   mockSync.mockReset();
   mockRefresh.mockReset();
+  mockRefreshAccessSummary.mockReset();
   mockSecureUnavailable = false;
+  mockAccountUserId = "";
+  mockCollectionAccess = true;
+  mockRefreshAccessSummary.mockImplementation(async (userId: string) => {
+    mockAccountUserId = userId;
+    return {};
+  });
   mockSync.mockResolvedValue({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
   mockRefresh.mockResolvedValue({ projects: [] });
 });
@@ -214,6 +227,38 @@ it("syncs while unlocked when SecureStore metadata cannot be read", async () => 
 
   expect(await refreshNativeNotifications("unreadable-metadata", {} as never)).toBe(true);
   expect(mockSync).toHaveBeenCalledTimes(1);
+});
+
+it("polls role-only accounts without intake calls, then resumes sync when access returns", async () => {
+  const userId = "role-only-account";
+  mockCollectionAccess = false;
+  mockAuthedRequest.mockResolvedValue({ body: page([]) });
+  await recordNotificationPoll(userId, 0, false);
+
+  expect(await refreshNativeNotifications(userId, {} as never)).toBe(false);
+  expect(mockAuthedRequest).toHaveBeenCalledWith(userId, "/api/v1/me/notifications?after=0", expect.anything());
+  expect(mockSync).not.toHaveBeenCalled();
+  expect(mockRefresh).not.toHaveBeenCalled();
+  await expect(runNativeSync(userId, {} as never)).rejects.toMatchObject({ code: "no_collection_access" });
+  expect(mockSync).not.toHaveBeenCalled();
+
+  mockCollectionAccess = true;
+  expect(await refreshNativeNotifications(userId, {} as never)).toBe(true);
+  expect(mockSync).toHaveBeenCalledTimes(1);
+  expect(mockRefresh).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the background task polling access and notifications for role-only accounts", async () => {
+  mockCollectionAccess = false;
+  mockAuthedRequest.mockResolvedValue({ body: page([]) });
+  await recordNotificationPoll("background-account", 0, false);
+
+  await runNativeNotificationTask();
+
+  expect(mockRefreshAccessSummary).toHaveBeenCalledWith("background-account");
+  expect(mockAuthedRequest).toHaveBeenCalledWith("background-account", "/api/v1/me/notifications?after=0", expect.anything());
+  expect(mockSync).not.toHaveBeenCalled();
+  expect(mockRefresh).not.toHaveBeenCalled();
 });
 
 it("does not let an old sync clear metadata after the same account signs back in", async () => {

@@ -31,6 +31,7 @@ import {
   SessionRevokedError,
   signIn,
   SignInRequiredError,
+  subscribeAccountChanges,
   subscribeAccessChanges,
   subscribeTermsChanges,
 } from "../src/auth";
@@ -39,7 +40,15 @@ import { recordNotificationPoll } from "../src/notificationState";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
-const ACCESS = { user: { user_id: USER, name: "A" }, is_admin: false, demo_coding: { available: false, project_ids: [] }, projects: [] };
+const ACCESS = { user: { user_id: USER, name: "A" }, is_admin: false, roles: [], demo_coding: { available: false, project_ids: [] }, projects: [] };
+const interviewAccess = (webIntakeMode: "direct" | "death_register" | "both" = "both") => ({
+  ...ACCESS,
+  roles: ["interviewer"],
+  projects: [{ project_id: "P1", project_name: "Project", has_tree: false,
+    grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" }],
+    actions: { interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: webIntakeMode, org_units: [] }] },
+    sites: [{ site_id: "S1", site_name: "Site", roles: ["interviewer"] }] }],
+});
 
 function seed(tokens: { access: string; refresh: string }) {
   mockSecure.set("device_secret", "dev-secret");
@@ -81,7 +90,7 @@ const json = (status: number, body: unknown) =>
 
 type Call = { url: string; auth?: string; body?: string };
 let calls: Call[];
-function mockServer(handler: (call: Call) => Response) {
+function mockServer(handler: (call: Call) => Response | Promise<Response>) {
   calls = [];
   globalThis.fetch = jest.fn(
     async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -222,6 +231,140 @@ it("single-flights access refresh and publishes the authoritative summary", asyn
   unsubscribe();
 });
 
+it("rotates an expired access token while refreshing collection access", async () => {
+  seed({ access: "expired", refresh: "r1" });
+  const access = interviewAccess();
+  mockServer((call) => {
+    if (call.url.endsWith("/sessions/refresh")) return json(200, {
+      access_token: "fresh", access_expires_at: "", refresh_token: "r2",
+      refresh_expires_at: "", access,
+    });
+    if (call.url.endsWith("/me/access")) {
+      return call.auth === "Bearer fresh"
+        ? json(200, access)
+        : json(401, { code: "token_expired" });
+    }
+    return json(404, {});
+  });
+
+  await expect(refreshAccessSummary(USER)).resolves.toEqual(access);
+
+  expect(calls.map(({ url }) => url.split("/").at(-1))).toEqual([
+    "access", "refresh", "access",
+  ]);
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(true);
+  expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!).refresh_token).toBe("r2");
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+});
+
+it("wipes the local session when an access refresh reports a revoked session", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer(() => json(401, { code: "session_revoked" }));
+
+  await expect(refreshAccessSummary(USER)).rejects.toBeInstanceOf(SessionRevokedError);
+
+  expect(mockDeleteDb).toHaveBeenCalledWith(USER);
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(false);
+  expect((await loadAccounts()).some(({ user_id }) => user_id === USER)).toBe(false);
+});
+
+it("stores collection access from validated summaries without revoking retained sessions", async () => {
+  seed({ access: "a", refresh: "r1" });
+  const access = interviewAccess();
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, ACCESS)
+    : json(201, {
+        access_token: "a2", access_expires_at: "", refresh_token: "r2", refresh_expires_at: "",
+        user: { user_id: USER, name: "A" }, access,
+      }));
+
+  await signIn("a@example.org", "pw");
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(true);
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, ACCESS) : json(200, {}));
+  await refreshAccessSummary(USER);
+
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(false);
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(true);
+});
+
+it("keeps collection closed when the server returns no interview eligibility", async () => {
+  seed({ access: "a", refresh: "r1" });
+  const noInterview = { ...interviewAccess(), roles: ["interviewer"], projects: [{
+    ...interviewAccess().projects[0], actions: { interview: [] },
+  }] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, noInterview) : json(200, {}));
+
+  await refreshAccessSummary(USER);
+
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(false);
+  expect(calls.map(({ url }) => url)).toEqual([`${SERVER}/api/v1/me/access`]);
+});
+
+it("fails closed without wiping when interview eligibility is malformed", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockSecure.set("accounts", JSON.stringify([
+    { user_id: USER, name: "A", collection_access: true },
+    { user_id: "other", name: "B" },
+  ]));
+  const malformedAccess = { ...interviewAccess(), projects: [{
+    ...interviewAccess().projects[0], actions: { interview: [{
+      ...interviewAccess().projects[0].actions.interview[0], web_intake_mode: "invalid",
+    }] },
+  }] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, malformedAccess) : json(200, {}));
+
+  await expect(refreshAccessSummary(USER)).rejects.toMatchObject({ code: "malformed_response" });
+
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(false);
+  expect(calls.filter(({ url }) => url.endsWith("/me/access"))).toHaveLength(1);
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(true);
+});
+
+it("keeps previously validated collection access through access network failure without disabling listeners", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockSecure.set("accounts", JSON.stringify([
+    { user_id: USER, name: "A", collection_access: true },
+    { user_id: "other", name: "B" },
+  ]));
+  const accessChanges: boolean[] = [];
+  const unsubscribeAccount = subscribeAccountChanges(() => {
+    const accounts = JSON.parse(mockSecure.get("accounts")!);
+    accessChanges.push(accounts.find((account: { user_id: string }) => account.user_id === USER).collection_access);
+  });
+  mockServer((call) => {
+    throw new TypeError("Network request failed");
+  });
+
+  await expect(refreshAccessSummary(USER)).resolves.toBeUndefined();
+
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)?.collection_access).toBe(true);
+  expect(accessChanges).toEqual([]);
+  unsubscribeAccount();
+});
+
+it("does not recursively spend its own rotated token when access remains unauthorized", async () => {
+  seed({ access: "expired", refresh: "r1" });
+  const access = interviewAccess();
+  mockServer((call) => {
+    if (call.url.endsWith("/sessions/refresh")) return json(200, {
+      access_token: "fresh", access_expires_at: "", refresh_token: "r2",
+      refresh_expires_at: "", access,
+    });
+    if (call.url.endsWith("/me/access")) return json(401, { code: "token_expired" });
+    return json(404, {});
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    refreshAccessSummary(USER).then(() => "resolved", () => "rejected"),
+    new Promise<string>((resolve) => { timer = setTimeout(() => resolve("timeout"), 500); }),
+  ]);
+  if (timer) clearTimeout(timer);
+
+  expect(outcome).toBe("rejected");
+  expect(calls.filter((call) => call.url.endsWith("/sessions/refresh"))).toHaveLength(1);
+});
+
 it("persists global access gates and clears them after a fresh summary", async () => {
   seed({ access: "a", refresh: "r1" });
   mockServer((call) => call.url.endsWith("/me/access") ? json(403, { code: "maintenance" }) : json(200, {}));
@@ -231,6 +374,25 @@ it("persists global access gates and clears them after a fresh summary", async (
   await refreshAccessSummary(USER);
   expect((await loadAccounts())[0].access_blocked).toBeUndefined();
 });
+
+it.each(["terms_required", "factor_setup_required", "forbidden"])(
+  "does not recurse when an access refresh returns %s",
+  async (code) => {
+    seed({ access: "a", refresh: "r1" });
+    mockServer(() => json(403, { code }));
+
+    if (code === "terms_required") {
+      await expect(refreshAccessSummary(USER)).resolves.toBeUndefined();
+      expect((await loadAccounts())[0].terms_required).toBe(true);
+    } else {
+      await expect(refreshAccessSummary(USER)).rejects.toMatchObject({ code });
+    }
+
+    expect(calls.filter(({ url }) => url.endsWith("/me/access"))).toHaveLength(1);
+    expect(mockDeleteDb).not.toHaveBeenCalled();
+    expect(mockSecure.has(`tokens.${USER}`)).toBe(true);
+  },
+);
 
 it("rotates once for concurrent 401s and retries with the new access token", async () => {
   seed({ access: "old-access", refresh: "r1" });
@@ -417,6 +579,7 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
   expect((await loadAccounts()).find((a) => a.user_id === USER)).toEqual({
     user_id: USER,
     name: "A",
+    collection_access: false,
   });
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
@@ -444,7 +607,7 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A" });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A" }]);
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", collection_access: false }]);
 });
 
 it("shares one refresh between raw and JSON calls and retains raw response headers", async () => {

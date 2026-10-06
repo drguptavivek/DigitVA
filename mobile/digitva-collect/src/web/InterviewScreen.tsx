@@ -725,7 +725,7 @@ export default function InterviewScreen() {
               }}
               onDraftSaved={() => { if (store instanceof ServerDraftStore) setDirty(false); }}
               onDraftError={(error) => setMessage(revision ? revisionErrorText(error) : browserErrorText(error))}
-              onComplete={(result) => void complete(result)}
+              onComplete={complete}
               lockedQuestionNames={draftPrefill?.lockedQuestionNames}
               portalThemeStyle={webFormStyle}
             />

@@ -19,7 +19,7 @@
 import * as SecureStore from "expo-secure-store";
 
 import { APP_VERSION } from "./appVersion";
-import { ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
+import { accessCapabilities, ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import type { UnlockResult } from "./interviewerDb";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
@@ -37,6 +37,8 @@ export interface Device {
 export interface Account {
   user_id: string;
   name: string;
+  /** Last validated server answer; absent until sign-in or access refresh succeeds. */
+  collection_access?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
   terms_required?: boolean;
@@ -105,7 +107,7 @@ const loadDeviceSecret = () =>
 export const loadAccounts = async () =>
   (await readJson<Account[]>(ACCOUNTS_KEY)) ?? [];
 
-/** Refresh the grant summary without recursively refreshing the access token. */
+/** Refresh the grant summary through the authenticated token-rotation path. */
 export function refreshAccessSummary(userId: string): Promise<AccessSummary | undefined> {
   const existing = accessRefreshes.get(userId);
   if (existing) return existing;
@@ -121,9 +123,7 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
   const tokens = await readJson<Tokens>(tokensKey(userId));
   if (!device || !tokens) return undefined;
   try {
-    const { body } = await requestJson<unknown>(device.server, "/api/v1/me/access", {
-      token: tokens.access_token,
-    });
+    const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
     return await publishAccessSummary(userId, body);
   } catch (error) {
     // An access refresh is auxiliary to sign-in/refresh. Preserve the session
@@ -145,10 +145,26 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
 }
 
 async function publishAccessSummary(userId: string, value: unknown): Promise<AccessSummary> {
-  const access = parseAccessSummary(value);
+  let access: AccessSummary;
+  try {
+    access = parseAccessSummary(value);
+  } catch (error) {
+    await setCollectionAccess(userId, false);
+    throw error;
+  }
   await setAccessBlocked(userId, undefined);
+  await setCollectionAccess(userId, accessCapabilities(access).intake);
   for (const listener of accessListeners) await listener(userId, access);
   return access;
+}
+
+async function setCollectionAccess(userId: string, allowed: boolean): Promise<void> {
+  const accounts = await loadAccounts();
+  if (!accounts.some((account) => account.user_id === userId && account.collection_access !== allowed)) return;
+  await writeJson(ACCOUNTS_KEY, accounts.map((account) =>
+    account.user_id === userId ? { ...account, collection_access: allowed } : account,
+  ));
+  for (const listener of accountListeners) listener();
 }
 
 function isGlobalAccessGate(code: string | undefined): code is "factor_setup_required" | "maintenance" {
@@ -303,13 +319,15 @@ export async function unlockInterviewer(
 // One refresh in flight per interviewer. Two concurrent 401s must not both
 // spend the same refresh token: reuse of a rotated token revokes the session.
 const refreshing = new Map<string, Promise<Tokens>>();
+const refreshingAccessTokens = new Map<string, string>();
 
 function refresh(userId: string, server: string): Promise<Tokens> {
   let pending = refreshing.get(userId);
   if (!pending) {
-    pending = doRefresh(userId, server).finally(() =>
-      refreshing.delete(userId),
-    );
+    pending = doRefresh(userId, server).finally(() => {
+      refreshing.delete(userId);
+      refreshingAccessTokens.delete(userId);
+    });
     refreshing.set(userId, pending);
   }
   return pending;
@@ -335,6 +353,7 @@ async function doRefresh(userId: string, server: string): Promise<Tokens> {
       },
     );
     await saveTokens(userId, body);
+    refreshingAccessTokens.set(userId, body.access_token);
     await setTermsRequired(userId, body.terms_required === true);
     await publishAccessSummary(userId, body.access);
     return body;
@@ -361,7 +380,7 @@ export async function classifyAuthError(
     if (isGlobalAccessGate(error.code)) await setAccessBlocked(userId, error.code);
     // Grants can change while the app is open. Reconcile before returning so
     // mounted native screens cannot continue using stale scope.
-    await refreshAccessSummary(userId);
+    if (!accessRefreshes.has(userId)) await refreshAccessSummary(userId);
   }
   if (error.status === 401 && error.code === "session_revoked") {
     await wipeInterviewer(userId);
@@ -400,6 +419,7 @@ export async function authedRequest<T>(
   if (!tokens) throw new SignInRequiredError();
   const { bodyFactory, ...requestInit } = init;
   const initialBody = bodyFactory ? bodyFactory() : requestInit.body;
+  let unauthorized: ApiError | undefined;
   try {
     return await requestJson<T>(device.server, path, {
       ...requestInit,
@@ -411,12 +431,15 @@ export async function authedRequest<T>(
       throw await classifyAuthError(userId, error);
     if (error.code === "session_revoked")
       throw await classifyAuthError(userId, error);
+    unauthorized = error;
   }
   const latest = await readJson<Tokens>(tokensKey(userId));
-  const next =
-    latest && latest.access_token !== tokens.access_token
-      ? latest
-      : await refresh(userId, device.server);
+  if (tokens.access_token === refreshingAccessTokens.get(userId)) {
+    throw await classifyAuthError(userId, unauthorized);
+  }
+  const next = latest && latest.access_token !== tokens.access_token
+    ? latest
+    : await refresh(userId, device.server);
   const retryBody = bodyFactory ? bodyFactory() : requestInit.body;
   try {
     return await requestJson<T>(device.server, path, {

@@ -68,12 +68,18 @@ const referenceFixture = (projects = [project()]): Bootstrap => ({
 const access = (projects = [project()]) => ({
   user: { user_id: USER, name: "A" },
   is_admin: false,
+  roles: ["interviewer"],
   demo_coding: { available: false, project_ids: [] },
   projects: projects.map((item) => ({
     project_id: item.project_id,
     project_name: item.project_name,
     has_tree: true,
-    grants: [{ role: "interviewer", scope: "project" }],
+    grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" as const }],
+    actions: { interview: item.sites.map((site) => ({
+      site_id: site.site_id, site_name: site.site_name ?? site.site_id,
+      web_intake_mode: "both" as const,
+      org_units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", path: "U" }],
+    })) },
     sites: item.sites.map((site) => ({ site_id: site.site_id, site_name: site.site_name ?? site.site_id, roles: ["interviewer"] })),
     levels: [],
     units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", level_code: "phc", path: "U", is_active: true, selectable: true, roles: ["interviewer"], can_code: false }]
@@ -308,7 +314,10 @@ describe("project scoped reference data", () => {
     await refreshReferenceData(USER, db, { force: true });
     await db.runAsync("INSERT INTO cases (death_id, project_id, position, row) VALUES (?, ?, ?, ?)", [DEATH, "P2", 0, JSON.stringify(detail("P2"))]);
     calls = [];
-    const reconciled = await reconcileReferenceAccess(db, access([project("P1")]));
+    const refreshedAccess = access([project("P1"), project("P2")]);
+    refreshedAccess.projects[1].grants[0].active = false;
+    refreshedAccess.projects[1].actions.interview = [];
+    const reconciled = await reconcileReferenceAccess(db, refreshedAccess);
     expect(reconciled?.projects.map(({ project: item }) => item.project_id)).toEqual(["P1"]);
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", ["P2"])).toBeNull();
     expect(calls).toEqual([]);
@@ -405,14 +414,59 @@ describe("project scoped reference data", () => {
     await createDraftStore(db, { projectId: removed, siteId: SITE }).save(draft());
     await setMeta(db, "draft-config:removed", { projectId: removed });
     await setMeta(db, "units", { stale: true }, removed);
-    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture([project(PROJECT)])) : json(200, { scoped: false, levels: [], units: [] }));
+    const projects = [project(PROJECT), project(removed)];
+    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture(projects)) : json(200, { scoped: false, levels: [], units: [] }));
+    const fetch = globalThis.fetch;
+    const refreshedAccess = access(projects);
+    refreshedAccess.projects[1].grants[0].active = false;
+    refreshedAccess.projects[1].actions.interview = [];
+    globalThis.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const response = await fetch(url, init);
+      if (!String(url).endsWith("/me/access")) return response;
+      const body = await response.json() as Record<string, unknown>;
+      return json(200, { ...body, projects: refreshedAccess.projects });
+    }) as typeof fetch;
     await expect(refreshReferenceData(USER, db, { force: true })).resolves.toBeDefined();
+    expect(calls.filter(({ url }) => url.endsWith("/form-options")).map(({ url }) => url)).toEqual([
+      expect.stringContaining(`/organization/${PROJECT}/form-options`),
+    ]);
     expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).toBeNull();
     expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).toBeNull();
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", [removed])).toBeNull();
     expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).toBeNull();
     expect(await getMeta(db, "draft-config:removed")).toBeUndefined();
     expect(await getMeta(db, "units", removed)).toBeUndefined();
+  });
+
+  it("purges stale project data and fetches no content for a coder-only account", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const removed = "P2";
+    await saveRegistration(db, { project_id: removed, client_death_id: REG, site_id: SITE, fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" } });
+    await queueAction(db, { project_id: removed, client_id: "cccccccc-0000-4000-8000-000000000001", kind: "attempt", death_id: DEATH, body: { outcome: "reached" } });
+    await upsertCase(db, detail(removed));
+    await createDraftStore(db, { projectId: removed, siteId: SITE }).save(draft());
+    await setMeta(db, "draft-config:removed", { projectId: removed });
+    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture([project(removed)])) : json(200, { scoped: false, levels: [], units: [] }));
+    const fetch = globalThis.fetch;
+    const refreshedAccess = access([project(removed)]);
+    refreshedAccess.roles = ["coder"];
+    refreshedAccess.projects[0].grants[0].active = false;
+    refreshedAccess.projects[0].actions.interview = [];
+    globalThis.fetch = jest.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const response = await fetch(url, init);
+      if (!String(url).endsWith("/me/access")) return response;
+      const body = await response.json() as Record<string, unknown>;
+      return json(200, { ...body, ...refreshedAccess });
+    }) as typeof fetch;
+
+    await expect(refreshReferenceData(USER, db, { force: true })).rejects.toMatchObject({ status: 403, code: "no_collection_access" });
+    expect(calls.map(({ url }) => url)).toEqual([expect.stringMatching(/\/api\/v1\/me\/access$/)]);
+    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", [removed])).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).toBeNull();
+    expect(await getMeta(db, "draft-config:removed")).toBeUndefined();
   });
 });
 

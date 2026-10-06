@@ -1,5 +1,6 @@
 const mockSecure = new Map<string, string>();
 const mockAuthedRequest = jest.fn();
+const mockRefreshAccessSummary = jest.fn(async (_userId: string) => undefined);
 const mockAccounts = [{ user_id: "locked-account", name: "Must not be used" }];
 let mockSecureUnavailable = false;
 let mockAccountCounter = 0;
@@ -37,6 +38,7 @@ jest.mock("react-native", () => ({
 jest.mock("../src/auth", () => ({
   authedRequest: (...args: unknown[]) => mockAuthedRequest(...args),
   loadAccounts: jest.fn(async () => mockAccounts),
+  refreshAccessSummary: (userId: string) => mockRefreshAccessSummary(userId),
   SessionRevokedError: class SessionRevokedError extends Error {},
   SignInRequiredError: class SignInRequiredError extends Error {},
 }));
@@ -53,6 +55,8 @@ import { readNotificationState } from "../src/notificationState";
 beforeEach(() => {
   mockSecure.clear();
   mockAuthedRequest.mockReset();
+  mockRefreshAccessSummary.mockReset();
+  mockRefreshAccessSummary.mockResolvedValue(undefined);
   mockSecureUnavailable = false;
   mockAccountCounter += 1;
   mockAccounts[0].user_id = `locked-account-${mockAccountCounter}`;
@@ -91,6 +95,7 @@ it("exits without network access when SecureStore is unavailable", async () => {
 
   await expect(runNativeNotificationTask()).resolves.toBeUndefined();
   expect(mockAuthedRequest).not.toHaveBeenCalled();
+  expect(mockRefreshAccessSummary).toHaveBeenCalledWith(mockAccounts[0].user_id);
 });
 
 it("registers the inexact 15-minute Android worker and does not register elsewhere", async () => {

@@ -3,7 +3,7 @@ import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 
-import { authedRequest, loadAccounts, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRequest, loadAccounts, refreshAccessSummary, SessionRevokedError, SignInRequiredError } from "./auth";
 import { drainNotificationPages } from "./notificationPoll";
 import {
   notificationStateGeneration,
@@ -19,6 +19,7 @@ export async function runNativeNotificationTask(): Promise<void> {
   const accounts = await loadAccounts();
   for (const account of accounts) {
     if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+    await refreshAccessSummary(account.user_id);
     await runNotificationPoll(account.user_id, async () => {
       const expectedEpoch = notificationStateGeneration(account.user_id);
       const state = await readNotificationState(account.user_id);

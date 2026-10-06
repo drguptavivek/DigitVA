@@ -7,14 +7,18 @@
 import type { InstrumentDefinition } from "@drguptavivek/who-2022-va";
 
 export interface Translations {
-  questions?: Record<string, { label?: string; hint?: string; guidance_hint?: string }>;
+  questions?: Record<
+    string,
+    { label?: string; hint?: string; guidance_hint?: string; constraint_message?: string }
+  >;
   choices?: Record<string, { label?: string }>;
 }
 
 const QUESTION_FIELDS = [
   ["label", "label"],
   ["hint", "hint"],
-  ["guidance_hint", "guidance"]
+  ["guidance_hint", "guidance"],
+  ["constraint_message", "constraintMessage"]
 ] as const;
 
 type Localizable = Record<string, unknown>;

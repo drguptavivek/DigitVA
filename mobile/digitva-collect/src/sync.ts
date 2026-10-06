@@ -668,7 +668,7 @@ export async function reconcileReferenceAccess(
   const previous = await readReferencePack(db);
   const authorized = new Map(
     access.projects
-      .filter((project) => project.grants.some((grant) => grant.role === "interviewer"))
+      .filter((project) => project.actions.interview.length > 0)
       .map((project) => [project.project_id, project]),
   );
   const localProjectIds = new Set(await projectIds(db));
@@ -795,7 +795,7 @@ async function fetchTranslation(
 
 async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack> {
   const access = parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
-  const accessProjects = access.projects.filter((project) => project.grants.some((grant) => grant.role === "interviewer"));
+  const accessProjects = access.projects.filter((project) => project.actions.interview.length > 0);
   const authorized = new Set(accessProjects.map((project) => project.project_id));
   // Older app versions stored a different reference shape under this key.
   // Treat it as absent so a malformed cache cannot block a fresh bootstrap.
@@ -826,6 +826,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   // options/prefill failure from restoring a revoked project through a legacy
   // cache reader while the complete reference pack is rebuilt.
   await db.runAsync("DELETE FROM meta WHERE key IN ('units', 'project') OR key LIKE 'translations:%'", []);
+  if (accessProjects.length === 0) throw new ApiError(403, "no_collection_access");
   const settings = await Promise.all(accessProjects.map(async (accessProject) => {
       const formOptions = await fetchProjectFormOptions(userId, accessProject.project_id);
       const prefillPolicy = await fetchPrefillPolicy(userId, accessProject.project_id);

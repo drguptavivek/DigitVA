@@ -5,6 +5,7 @@ import { AppState } from "react-native";
 const mockAppStateListeners = new Set<(state: string) => void>();
 const mockRouter = { replace: jest.fn() };
 const mockSecure = new Map<string, string>();
+const mockAccounts = [{ user_id: "worker", name: "Worker", collection_access: true }];
 const mockSave = jest.fn(async () => undefined);
 const mockLockAll = jest.fn(async (..._args: unknown[]) => undefined);
 const mockOpenDb = jest.fn(async (..._args: unknown[]) => ({}) as never);
@@ -31,7 +32,7 @@ jest.mock("../src/i18n", () => ({ setUiLocale: () => "en" }));
 jest.mock("../src/ui", () => ({ errorText: (error: unknown) => `error:${String(error)}` }));
 jest.mock("../src/auth", () => ({
   loadDevice: jest.fn(async () => ({ device_id: "d", server: "https://example.test", project_id: "p", project_name: "P" })),
-  loadAccounts: jest.fn(async () => [{ user_id: "worker", name: "Worker" }]),
+  loadAccounts: jest.fn(async () => mockAccounts),
   subscribeAccountChanges: jest.fn(() => () => undefined),
   subscribeAccessChanges: jest.fn((listener: typeof mockAccessListener) => {
     mockAccessListener = listener ?? undefined;
@@ -77,6 +78,7 @@ async function renderProbe(): Promise<ReactTestRenderer> {
 
 beforeEach(() => {
   mockSecure.clear();
+  mockAccounts[0].collection_access = true;
   mockSave.mockReset();
   mockSave.mockResolvedValue(undefined);
   mockLockAll.mockClear();
@@ -120,6 +122,21 @@ it("flushes the registered form hook before foreground refresh and reconciles re
   });
   expect(mockSave.mock.calls.length).toBeGreaterThanOrEqual(2);
   expect(mockReconcile).toHaveBeenCalledWith(expect.anything(), { projects: [] });
+  await act(async () => tree.unmount());
+});
+
+it("does not refresh collection reference data for a role-only account", async () => {
+  mockAccounts[0].collection_access = false;
+  const tree = await renderProbe();
+
+  await act(async () => {
+    for (const listener of [...mockAppStateListeners]) listener("background");
+    for (const listener of [...mockAppStateListeners]) listener("active");
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+
+  expect(mockRefresh).not.toHaveBeenCalled();
+  expect(mockNotificationRefresh).toHaveBeenCalledWith("worker", expect.anything());
   await act(async () => tree.unmount());
 });
 

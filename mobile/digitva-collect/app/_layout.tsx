@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppStateProvider, useAppState } from "../src/AppState";
 import { useTheme } from "../src/theme";
 import NativeTermsGate from "../src/NativeTermsGate";
+import NativeCollectionGate from "../src/NativeCollectionGate";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -44,7 +45,16 @@ function ActivityRoot() {
         return false;
       }}
     >
-      <NativeTermsGate><Stack screenOptions={{ headerShown: false }} /></NativeTermsGate>
+      <NativeTermsGate>
+        <Stack
+          screenOptions={{ headerShown: false }}
+          screenLayout={({ children, route }) => (
+            <NativeCollectionGate routeName={route.name} routeParams={route.params}>
+              {children}
+            </NativeCollectionGate>
+          )}
+        />
+      </NativeTermsGate>
     </View>
   );
 }

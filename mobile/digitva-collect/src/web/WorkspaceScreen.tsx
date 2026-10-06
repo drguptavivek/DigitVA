@@ -16,6 +16,7 @@ export default function WorkspaceScreen() {
         <>
           <Text style={styles.text}>{t("loginSuccess")}: {bootstrap.user.name}</Text>
           {bootstrap.capabilities.intake ? <Button label={t("navCollection")} onPress={() => router.push("/collection")} /> : null}
+          {!bootstrap.capabilities.intake ? <Text style={styles.muted}>{t("codingReviewPending")}</Text> : null}
         </>
       ) : null}
     </WebShell>

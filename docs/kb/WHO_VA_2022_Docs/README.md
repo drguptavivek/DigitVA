@@ -3,7 +3,7 @@ title: WHO 2022 VA reference forms and deployed project workbooks
 doc_type: reference
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-20
+last_updated: 2026-10-06
 ---
 
 # WHO 2022 VA reference forms and deployed project workbooks
@@ -55,6 +55,14 @@ release -- `Id10230`'s `agegroup` narrowed to `a` in isolation from its own
 relevance and its follow-up chain -- is
 [SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95), covered in
 the same document.
+
+## `Id10365` birth-size constraint (dropped)
+
+WHO's `Id10365` constraint refuses "not small" and "not large" together, which
+is a normal-size baby on the no-health-card path. All ten deployed workbooks
+above already drop it; DigitVA drops it in web and ODK and keeps every other
+WHO check (owner, 2026-10-06). Flow tree, relevance and reasoning:
+`id10365-birth-size-flow.md`; to report to WHO as `digitva-0lf7`.
 
 ## Interviewer training lessons
 

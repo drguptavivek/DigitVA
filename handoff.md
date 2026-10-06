@@ -38,10 +38,6 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    drafts; then `digitva-zyf` (DORIS override messages; needs a vendor
    regeneration by the Expo session).
 2. **Owner decisions and checks still open**:
-   - `digitva-i9lb` retention for web intake uploads that never reach a
-     submission (discarded and abandoned drafts, answers removed): a
-     discarded draft's files are deleted now; abandoned ones are kept until
-     a period is decided, then a bounded purge task.
    - Browser check owed for web intake uploads (`c8b8edfa`, `digitva-ej1`):
      record, attach, go offline, reconnect, submit; the logout wipe; the
      7-day warning. Only server and node tests ran.
@@ -55,11 +51,11 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
      `update_string` now refuses markup the English lacks.
    - People & roles: per-row links to Access Grants are deferred (the API
      has no edit flag); PIs use `/people-roles`.
-3. **Expo session's halves** (not this session's files): `digitva-p6fs.4`
-   coding and review workspaces (server contract done: `xl43` closed),
-   `digitva-xuxk.1` Code now button, `digitva-bhpl.2`, `xpqm.2`, `bqzm.2`,
-   `p6fs.27` device re-run (server regression test added), `p6fs.32`,
-   vendor typecheck `digitva-i793`/`surw`, vendor flake `digitva-3jj`.
+3. **Expo session's halves** (not this session's files): `digitva-p6fs.4.3`
+   coder pick/history queues (server paging built `dfdfe624`), `p6fs.27`
+   device re-run (server regression test added), `p6fs.32`, vendor
+   typecheck `digitva-i793`/`surw`, vendor flake `digitva-3jj`, device
+   acceptance `p6fs.5`.
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia,
    Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
@@ -78,7 +74,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   note drafts, data only), `f2j6n9r4u1x7` (death_reporter role, grid flag,
   reporter list index), `g3k7o1s5w9a2` (grid default roles),
   `g3k7n1s5v9y2` (translation suggestions), `g4k8p2t6x1b5` (web intake
-  attachments). Dev is at `g4k8p2t6x1b5`. Earlier field-collection migrations: `d5f1b8a3c6e2`,
+  attachments), `h5m2r8v4z1d9` (index for the daily upload purge). Dev is
+  at `h5m2r8v4z1d9`. Restart the Celery worker and beat so the "Web intake
+  upload purge — daily" row is seeded (30-day rule, `b29d4c59`). Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case:
   check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.

@@ -350,29 +350,19 @@ def _site_choices(project_id: str, form_id: str) -> list[tuple[str, str]]:
 
 def _geography_block(project_id: str) -> _Block:
     """One cascading ``org_<level>_code`` select per level, filled from the
-    same rows the ODK choices CSV exports (the field names routing reads)."""
+    same rows the ODK choices CSV exports (the field names routing reads).
+
+    Every level filters on the nearest required level above it (none above:
+    no filter), never on an optional one, and its choices carry the unit's
+    nearest required ancestor as ``parent_code``: a unit under an optional
+    level or skipping it is reachable either way, and routing takes the
+    deepest code answered, so a mismatched optional answer is harmless. An
+    optional level with no active units is left out (a select with no choices
+    is a form ODK rejects); a required empty level stays, so
+    ``_require_choices`` names it.
+    """
     from app.services import organization_service as org
     from app.services.org_unit_routing_service import expected_odk_fields
-
-    levels = expected_odk_fields(project_id)
-    rows: list[dict] = [
-        {"type": "begin group", "name": "org_units", "label": "Organization unit", "appearance": "field-list", "agegroup": "ALL"}
-    ]
-    previous = None
-    for level in levels:
-        row = {
-            "type": f"select_one {level['choice_list_name']}",
-            "name": level["field_name"],
-            "label": level["level_name"],
-            "agegroup": "ALL",
-        }
-        if not level["is_optional"]:
-            row["required"] = "yes"
-        if previous:
-            row["choice_filter"] = "parent_code=${" + previous + "}"
-        rows.append(row)
-        previous = level["field_name"]
-    rows.append({"type": "end group"})
 
     # Count before loading: the cap must bound the read, not only the workbook.
     units = db.session.scalar(
@@ -384,7 +374,30 @@ def _geography_block(project_id: str) -> _Block:
         raise XlsFormError(
             f"The organization tree has {units} active units; the ODK form is limited to {MAX_ORG_CHOICES}."
         )
-    choices = org.export_odk_choices_rows(project_id)
+    choices = org.export_odk_choices_rows(project_id, parent_at_required_level=True)
+    filled = {row["list_name"] for row in choices}
+
+    rows: list[dict] = [
+        {"type": "begin group", "name": "org_units", "label": "Organization unit", "appearance": "field-list", "agegroup": "ALL"}
+    ]
+    parent_field = None
+    for level in expected_odk_fields(project_id):
+        if level["is_optional"] and level["choice_list_name"] not in filled:
+            continue
+        row = {
+            "type": f"select_one {level['choice_list_name']}",
+            "name": level["field_name"],
+            "label": level["level_name"],
+            "agegroup": "ALL",
+        }
+        if not level["is_optional"]:
+            row["required"] = "yes"
+        if parent_field:
+            row["choice_filter"] = "parent_code=${" + parent_field + "}"
+        rows.append(row)
+        if not level["is_optional"]:
+            parent_field = level["field_name"]
+    rows.append({"type": "end group"})
     return _Block("geography", "geography", ("afterGroupEnd", "Interviewer"), rows, choices, [])
 
 
@@ -603,15 +616,34 @@ def _merge_choices(base: list[dict], blocks: list[_Block], skip_lists: set[str])
 def _require_choices(survey: list[dict], choices: list[dict]) -> None:
     """Every select needs a choice list with choices: an empty one (a project
     with no sites, an organization level with no units) would make a form ODK
-    rejects, so say which list instead."""
+    rejects. Collects every empty list, in survey order, into one error so the
+    admin fixes them in one pass: organization levels by their level name,
+    other lists by field and list name."""
     have = {row["list_name"] for row in choices}
+    messages: list[str] = []
+    empty_levels: list[str] = []
     for row in survey:
         parts = str(row.get("type", "")).split()
-        if parts and parts[0] in ("select_one", "select_multiple") and len(parts) > 1 and parts[1] not in have:
-            raise XlsFormError(
+        if not (parts and parts[0] in ("select_one", "select_multiple") and len(parts) > 1 and parts[1] not in have):
+            continue
+        if not parts[1].startswith("org_"):
+            messages.append(
                 f"{row.get('name')} uses the choice list {parts[1]}, which has no choices for this project "
-                "(add its sites or organization units first)."
+                "(add its sites first)."
             )
+            continue
+        if not empty_levels:
+            messages.append("")  # the levels sentence, filled below, keeps its survey position
+            levels_at = len(messages) - 1
+        empty_levels.append(f"{row.get('label') or parts[1]} ({row.get('name')})")
+    if empty_levels:
+        messages[levels_at] = (
+            "The ODK form needs at least one active organization unit at each of these levels, which have none: "
+            f"{', '.join(empty_levels)}. Add units at those levels in the Organization panel, or mark a level "
+            "optional (an optional level with no units is left out of the form)."
+        )
+    if messages:
+        raise XlsFormError(" ".join(messages))
 
 
 def _translations(languages: list[tuple[str, str]]) -> dict[str, dict]:

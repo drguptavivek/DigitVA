@@ -387,7 +387,10 @@ def check_odk_form_fields(
 ) -> dict:
     """Compare a mapped ODK form's fields against the project's expected ones.
 
-    Returns the per-level verdict plus a summary. Raises RuntimeError with an
+    Returns the per-level verdict plus a summary. An optional level absent
+    from the form is reported ``present: False`` but is not missing: the
+    generated form leaves out an optional level with no units, and routing
+    uses the deepest code present. Raises RuntimeError with an
     operator-readable message when the form cannot be read.
     """
     expected = expected_odk_fields(project_id)
@@ -413,7 +416,7 @@ def check_odk_form_fields(
     for item in expected:
         present = item["field_name"] in form_fields
         levels.append({**item, "present": present})
-    missing = [item for item in levels if not item["present"]]
+    missing = [item for item in levels if not item["present"] and not item["is_optional"]]
     return {
         "project_id": project_id,
         "odk_project_id": odk_project_id,
@@ -421,6 +424,6 @@ def check_odk_form_fields(
         "has_tree": True,
         "levels": levels,
         "missing_count": len(missing),
-        "present_count": len(levels) - len(missing),
+        "present_count": sum(item["present"] for item in levels),
         "form_field_count": len(form_fields),
     }

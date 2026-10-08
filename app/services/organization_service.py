@@ -90,14 +90,15 @@ LEVEL_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 # Seed template ("Populate district defaults"), the district reference model:
 # docs/policy/district-reference-model.md. Codes and depths are stable (existing
 # projects and ODK field names org_<level_code>_code depend on them); only the
-# labels follow the AAM naming.
+# labels follow the AAM naming. Village is optional: villages often have no
+# code, and an optional level with no units is left out of the ODK form.
 DEFAULT_LEVEL_TEMPLATE: tuple[tuple[str, str, int, bool], ...] = (
     ("district", "District / District Hospital (DH)", 1, False),
     ("taluka", "Sub-divisional Hospital (SDH)", 2, True),
     ("chc", "Community Health Centre (CHC)", 3, False),
     ("phc", "PHC-AAM", 4, False),
     ("subcentre", "SC-AAM / Sub-centre", 5, False),
-    ("village", "Village", 6, False),
+    ("village", "Village", 6, True),
 )
 DEFAULT_CADRE_TEMPLATE: tuple[tuple[str, str], ...] = (
     ("CS", "Civil Surgeon"),
@@ -1736,25 +1737,45 @@ def export_organization_csv(project_id: str, sheet: str) -> str:
     return buffer.getvalue()
 
 
-def export_odk_choices_rows(project_id: str) -> list[dict]:
+def export_odk_choices_rows(project_id: str, *, parent_at_required_level: bool = False) -> list[dict]:
     """XLSForm ``choices`` rows: one list per level, filtered by parent code.
 
     ``list_name`` is ``org_<level_code>``; ``name`` is the unit code; ``label``
     the unit name; ``parent_code`` is the filter column for cascading selects.
     The matching survey fields are ``org_<level_code>_code``.
+
+    By default ``parent_code`` is the direct parent (the shared choices CSV:
+    forms authored outside DigitVA filter on it). ``parent_at_required_level``
+    gives instead the nearest active ancestor at a required level, or ``""``:
+    the generated XLSForm filters every level on the nearest required level
+    above it, so a unit placed under an optional level (a CHC under an SDH) or
+    skipping it (a CHC directly under the DH) stays reachable either way.
     """
     levels = {lv.org_level_id: lv for lv in list_levels(project_id)}
+    units = list_units(project_id)
+    required_codes: set[str] = set()
+    if parent_at_required_level:
+        for unit in units:
+            level = levels.get(uuid.UUID(unit["org_level_id"]))
+            if level is not None and not level.is_optional:
+                required_codes.add(unit["unit_code"])
     rows: list[dict] = []
-    for unit in list_units(project_id):
+    for unit in units:
         level = levels.get(uuid.UUID(unit["org_level_id"]))
         if level is None:
             continue
+        parent_code = unit["parent_code"] or ""
+        if parent_at_required_level:
+            # path is the ltree of unit codes, self last. An inactive ancestor
+            # is not in required_codes and is skipped: it is not selectable.
+            ancestors = unit["path"].split(".")[:-1]
+            parent_code = next((code for code in reversed(ancestors) if code in required_codes), "")
         rows.append(
             {
                 "list_name": f"org_{level.level_code}",
                 "name": unit["unit_code"],
                 "label": unit["unit_name"],
-                "parent_code": unit["parent_code"] or "",
+                "parent_code": parent_code,
             }
         )
     return rows

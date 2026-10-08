@@ -630,7 +630,9 @@ def _warn_on_missing_org_fields(va_form, mapping, *, client, log_progress=None, 
         return result
 
     missing = ", ".join(
-        item["field_name"] for item in result["levels"] if not item["present"]
+        item["field_name"]
+        for item in result["levels"]
+        if not item["present"] and not item["is_optional"]
     )
     message = (
         f"[{va_form.form_id}] ODK form {mapping.odk_form_id!r} is missing "

@@ -720,6 +720,7 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         )
         self.assertEqual(expected[0]["choice_list_name"], "org_district")
         self.assertTrue(expected[1]["is_optional"])  # taluka
+        self.assertTrue(expected[5]["is_optional"])  # village: often has no code
 
     def test_check_reports_present_and_missing_fields(self):
         self._tree()
@@ -740,8 +741,37 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         self.assertTrue(by_field["org_chc_code"])
         self.assertFalse(by_field["org_phc_code"])
         self.assertEqual(result["present_count"], 2)
-        self.assertEqual(result["missing_count"], 4)
+        # phc and subcentre; the absent optional taluka and village are not missing.
+        self.assertEqual(result["missing_count"], 2)
         self.assertEqual(result["form_field_count"], 3)
+
+    def test_an_absent_optional_level_is_reported_but_not_missing(self):
+        self._tree()
+        client = self._client(
+            [
+                {"name": "org_district_code"},
+                {"name": "org_chc_code"},
+                {"name": "org_phc_code"},
+                {"name": "org_subcentre_code"},
+            ]
+        )
+        result = routing.check_odk_form_fields(
+            self.PROJECT, 77, "ROUTING_FORM", client=client
+        )
+        by_field = {row["field_name"]: row for row in result["levels"]}
+        self.assertIn("org_village_code", by_field)
+        self.assertFalse(by_field["org_village_code"]["present"])
+        self.assertTrue(by_field["org_village_code"]["is_optional"])
+        self.assertFalse(by_field["org_taluka_code"]["present"])
+        self.assertEqual(result["missing_count"], 0)
+        self.assertEqual(result["present_count"], 4)
+
+        # A required level absent is still counted.
+        client = self._client([{"name": "org_district_code"}, {"name": "org_chc_code"}])
+        result = routing.check_odk_form_fields(
+            self.PROJECT, 77, "ROUTING_FORM", client=client
+        )
+        self.assertEqual(result["missing_count"], 2)  # phc, subcentre
 
     def test_fields_are_matched_on_the_leaf_name_of_a_group_path(self):
         self._tree()
@@ -795,7 +825,7 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         body = response.get_json()
         self.assertEqual(body["odk_form_id"], "ROUTING_FORM")
         self.assertEqual(body["site_id"], self.SITE)
-        self.assertEqual(body["missing_count"], 5)
+        self.assertEqual(body["missing_count"], 3)  # chc, phc, subcentre; not the optional levels
         self.assertEqual(client.requested_path, "projects/77/forms/ROUTING_FORM/fields")
 
     def test_endpoint_requires_a_mapping_and_a_site(self):
@@ -896,10 +926,11 @@ class SyncWarnsOnMissingOrgFieldsTests(OrgUnitRoutingFixtureMixin, BaseTestCase)
         messages = []
         result = self._warn(self._Client(["Id10019", "org_district_code"]), messages)
 
-        self.assertEqual(result["missing_count"], 5)
+        self.assertEqual(result["missing_count"], 3)
         self.assertEqual(len(messages), 1)
-        self.assertIn("missing 5 organization field(s)", messages[0])
+        self.assertIn("missing 3 organization field(s)", messages[0])
         self.assertIn("org_phc_code", messages[0])
+        self.assertNotIn("org_taluka_code", messages[0])  # optional, not missing
         self.assertIn("stay unrouted", messages[0])
 
     def test_a_complete_form_is_silent(self):

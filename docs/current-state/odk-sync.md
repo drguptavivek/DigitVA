@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-08
 ---
 
 # ODK Sync And Attachments
@@ -595,7 +595,8 @@ every created or changed submission, inside the same upsert loop:
 
 Each mapped form is also checked once per run against the project's expected
 `org_<level_code>_code` fields, reading the field list from ODK Central
-through the same client. Missing fields are logged and written to the run's
+through the same client. Missing required fields (an absent optional level
+is not missing) are logged and written to the run's
 progress log, so a form edited in Central after setup surfaces immediately
 rather than as a growing unrouted queue. The check is advisory: it never
 blocks a sync, and a Central failure on the field list is ignored.

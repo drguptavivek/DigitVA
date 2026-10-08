@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-08
 ---
 
 # Admin And Setup Model
@@ -275,7 +275,9 @@ ODK form fields, and Export / Import.
   must not be renamed.
 - The same tab checks a mapped ODK form: pick a project-site and DigitVA reads
   that form's field list from ODK Central and reports each expected
-  `org_<level_code>_code` field as present or missing. The ODK project and form
+  `org_<level_code>_code` field as present or missing (an optional level absent
+  from the form shows "optional, not in form" and is not counted as missing;
+  the banner counts required fields only). The ODK project and form
   come from the mapping, not from the request. A missing field does not fail a
   sync — submissions fall back or stay unrouted — so this is a preflight to run
   before data collection.
@@ -736,7 +738,13 @@ units. Admins and the project's PI only (`role_required("admin",
 the project's mapped ODK form (several mapped forms: 409 listing them; none:
 `<PROJECT_ID>_WHOVA2022`); `version` is a new UTC stamp per download. An
 enabled extension with no row spec, or a non-WHO instrument, is refused (422 /
-409). Service `app/services/xlsform_service.py`, route
+409). Each organization level's `choice_filter` references the nearest
+required level above it, never an optional one, and its choices'
+`parent_code` is the unit's nearest active ancestor at a required level (the
+`odk-choices.csv` export keeps the direct parent). An optional level with no
+active units is left out of the form; a required level with no units, or an
+empty `site` list, is refused with one 422 naming every empty level (by level
+name and field, in survey order) and list. Service `app/services/xlsform_service.py`, route
 `app/routes/admin_xlsform.py`, CLI `flask xlsform diff`
 (`docs/current-state/cli-reference.md`). Source of truth and rules:
 `docs/policy/va-form-project-configuration.md` ("The ODK form is a project

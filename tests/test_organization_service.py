@@ -104,6 +104,12 @@ class OrganizationServiceTests(BaseTestCase):
             {"levels": 6, "cadres": 0, "level_cadres": 0},
         )
         self.assertEqual(org.list_level_cadres(self.PROJECT), [])
+        # SDH and village are optional: villages often have no code.
+        self.assertEqual(
+            {lv.level_code: lv.is_optional for lv in org.list_levels(self.PROJECT)},
+            {"district": False, "taluka": True, "chc": False, "phc": False,
+             "subcentre": False, "village": True},
+        )
 
     def test_district_reference_model_matches_the_template(self):
         model = org.district_reference_model()

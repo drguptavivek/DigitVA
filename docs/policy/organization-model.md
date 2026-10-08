@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-08
 ---
 
 # Organization Model Policy
@@ -256,7 +256,7 @@ project ever has to carry two coding systems at once, that is when to add one.
 - A level cannot be deactivated, nor its depth changed, while units exist at
   that level.
 - Seeding the template (*Populate district defaults*; levels `district`,
-  `taluka` optional, `chc`, `phc`, `subcentre`, `village`, the eleven default
+  `taluka` optional, `chc`, `phc`, `subcentre`, `village` optional, the eleven default
   cadres and their level x cadre grid, see
   [District Reference Model](district-reference-model.md)) is additive: it
   only creates what is missing and never changes an existing level, cadre or
@@ -559,6 +559,29 @@ levels API, the exports, the panel and routing all read from it:
   cascading level filters on `parent_code=${<parent level's field>}`; where the
   levels above it are optional, the filter coalesces down to the nearest level
   that must be answered. An optional level is `required = no`.
+- **The generated XLSForm never filters on an optional level.** Every level
+  it emits, required or optional, filters on
+  `parent_code=${org_<nearest required level above>_code}` (no required level
+  above: no filter), and in its `choices` rows each unit's `parent_code` is
+  its nearest active ancestor at a required level. So a CHC under an optional
+  SDH and a CHC placed directly under the DH both appear once the district is
+  answered. Routing is unchanged (the deepest code present wins), so an
+  optional answer that does not match the deeper one is harmless. The
+  panel's copy rows and `odk-choices.csv` keep the direct parent and the
+  coalescing filter above, for forms authored outside DigitVA.
+- **The generated XLSForm leaves out an optional level with no active units**
+  (a select with no choices is a form ODK rejects). A required level with no
+  active units blocks the download; the error names every such level, by
+  level name and field, in survey order, in one message.
+- Village is optional in the default template: villages often have no code.
+  Where a project records villages, ASHAs sit at their village (with the
+  `death_reporter` role, so their scope is their own village) and report from
+  it; a project without village units leaves the level empty and it drops out
+  of the generated form. A submission without a village code routes to its
+  sub-centre (routing takes the deepest code present).
+- The field check and the sync check report an optional level absent from the
+  form as "optional, not in form", not as missing; only required levels count
+  toward the missing total.
 - `GET /admin/api/organization/<project_id>/levels` returns the applicable
   levels for a project, each with its `odk_field_name` and
   `odk_choice_list_name`; `odk-choices.csv` exports the choices rows.

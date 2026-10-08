@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import sqlalchemy as sa
 from openpyxl import load_workbook
 from pyxform.xls2xform import convert
 
@@ -33,6 +34,7 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.models.mas_languages import MasLanguages
+from app.models.mas_organization import MasOrgUnit
 from app.services import organization_service as org
 from app.services import served_form_service
 from app.services import xlsform_service as xf
@@ -486,6 +488,155 @@ class XlsFormRefusalTests(XlsFormBase):
         block = xf._Block("x", "x", None, [], [{"list_name": "YES_NO", "name": "maybe"}], [])
         with self.assertRaises(xf.XlsFormError):
             xf._merge_choices([{"list_name": "YES_NO", "name": "yes"}], [block], set())
+
+
+class XlsFormOrgLevelTests(XlsFormBase):
+    """Empty organization levels (digitva-8695): an optional one is left out of
+    the form, required ones are all named in one error. Levels filter on the
+    nearest required level above them (digitva-ch1u)."""
+
+    def _org_project(self, project_id, levels, units, *, with_site=True):
+        """A lean organization-mode project; ``levels`` are
+        ``(code, name, depth, optional)``, ``units`` ``(code, level_code,
+        parent_code)``, parents first."""
+        project = self._project(
+            project_id, project_structure_mode="organization", social_autopsy_enabled=False,
+            web_intake_death_summary_enabled=False, web_intake_medical_records_enabled=False,
+            web_intake_intake_note="",
+        )
+        if with_site:
+            now = datetime.now(UTC)
+            db.session.add(
+                VaProjectSites(project_id=project_id, site_id="XS01", project_site_status=VaStatuses.active,
+                               project_site_registered_at=now, project_site_updated_at=now)
+            )
+        made = {
+            code: org.create_level(project_id, level_code=code, level_name=name, depth=depth, is_optional=optional)
+            for code, name, depth, optional in levels
+        }
+        ids = {}
+        for code, level_code, parent in units:
+            ids[code] = org.create_unit(
+                project_id, org_level_id=made[level_code].org_level_id, unit_code=code,
+                unit_name=f"Unit {code}", parent_org_unit_id=ids[parent] if parent else None,
+            ).org_unit_id
+        db.session.flush()
+        return project
+
+    def _converts(self, data):
+        warnings = []
+        result = convert(io.BytesIO(data), file_type=".xlsx", warnings=warnings)
+        self.assertIn("<h:html", result.xform)
+
+    def test_every_required_empty_level_is_named_in_one_error_in_order(self):
+        project = self._org_project(
+            "XLSF04",
+            [
+                ("district", "District", 1, False),
+                ("chc", "Community Health Centre", 2, False),
+                ("phc", "PHC / UPHC / AAM-PHC", 3, False),
+                ("subcentre", "Sub-centre / AAM-SHC", 4, False),
+            ],
+            [("D01", "district", None)],
+            with_site=False,
+        )
+        with self.assertRaises(xf.XlsFormError) as caught:
+            xf.build_project_xlsform(project)
+        message = str(caught.exception)
+        self.assertEqual(caught.exception.status_code, 422)
+        self.assertIn(
+            "which have none: Community Health Centre (org_chc_code), PHC / UPHC / AAM-PHC (org_phc_code), "
+            "Sub-centre / AAM-SHC (org_subcentre_code). Add units at those levels",
+            message,
+        )
+        self.assertIn("org_chc_code", message)
+        self.assertNotIn("org_district_code", message)  # it has a unit
+        # A non-organization list is named in its own sentence, in the same error.
+        self.assertIn("uses the choice list site, which has no choices for this project (add its sites first).", message)
+
+    def test_levels_filter_on_the_nearest_required_level_and_choices_on_that_ancestor(self):
+        """digitva-ch1u: a CHC under the optional SDH and a CHC directly under
+        the DH are both reachable from the district answer."""
+        project = self._org_project(
+            "XLSF08",
+            [("district", "District", 1, False), ("taluka", "SDH", 2, True), ("chc", "CHC", 3, False)],
+            [("D01", "district", None), ("T01", "taluka", "D01"), ("C01", "chc", "T01"), ("C02", "chc", "D01")],
+        )
+        _form, data = xf.build_project_xlsform(project)
+        survey = {r["name"]: r for r in _sheet(data, "survey") if "name" in r}
+        self.assertIn("org_taluka_code", survey)
+        self.assertEqual(survey["org_taluka_code"]["choice_filter"], "parent_code=${org_district_code}")
+        self.assertEqual(survey["org_chc_code"]["choice_filter"], "parent_code=${org_district_code}")
+        self.assertNotIn("choice_filter", survey["org_district_code"])
+        parents = {
+            r["name"]: r.get("parent_code", "") for r in _sheet(data, "choices")
+            if r.get("list_name") in ("org_district", "org_taluka", "org_chc")
+        }
+        self.assertEqual(parents, {"D01": "", "T01": "D01", "C01": "D01", "C02": "D01"})
+        # The shared choices CSV keeps the direct parent for forms authored elsewhere.
+        direct = {r["name"]: r["parent_code"] for r in org.export_odk_choices_rows("XLSF08")}
+        self.assertEqual(direct["C01"], "T01")
+        self.assertEqual(direct["C02"], "D01")
+        self._converts(data)
+
+    def test_a_unit_under_an_inactive_optional_parent_attaches_to_its_required_ancestor(self):
+        project = self._org_project(
+            "XLSF09",
+            [("district", "District", 1, False), ("taluka", "SDH", 2, True), ("chc", "CHC", 3, False)],
+            [("D01", "district", None), ("T01", "taluka", "D01"), ("T02", "taluka", "D01"), ("C01", "chc", "T01")],
+        )
+        db.session.scalar(sa.select(MasOrgUnit).where(MasOrgUnit.unit_code == "T01")).is_active = False
+        db.session.flush()
+        _form, data = xf.build_project_xlsform(project)
+        parents = {
+            r["name"]: r.get("parent_code", "") for r in _sheet(data, "choices")
+            if r.get("list_name") in ("org_district", "org_taluka", "org_chc")
+        }
+        self.assertEqual(parents["C01"], "D01")
+        self.assertIn("T02", parents)
+        self.assertNotIn("T01", parents)
+        self._converts(data)
+
+    def test_an_optional_empty_middle_level_is_left_out(self):
+        project = self._org_project(
+            "XLSF05",
+            [("district", "District", 1, False), ("taluka", "Taluka", 2, True), ("chc", "CHC", 3, False)],
+            [("D01", "district", None), ("C01", "chc", "D01")],
+        )
+        _form, data = xf.build_project_xlsform(project)
+        survey = {r["name"]: r for r in _sheet(data, "survey") if "name" in r}
+        self.assertIn("org_chc_code", survey)
+        self.assertIn("org_district_code", survey)
+        self.assertNotIn("org_taluka_code", survey)
+        self.assertEqual(survey["org_chc_code"]["choice_filter"], "parent_code=${org_district_code}")
+        self._converts(data)
+
+    def test_an_optional_empty_village_is_left_out_and_the_form_builds(self):
+        project = self._org_project(
+            "XLSF06",
+            [("district", "District", 1, False), ("subcentre", "Sub-centre", 2, False), ("village", "Village", 3, True)],
+            [("D01", "district", None), ("S01", "subcentre", "D01")],
+        )
+        _form, data = xf.build_project_xlsform(project)
+        names = self._survey_names(data)
+        self.assertIn("org_subcentre_code", names)
+        self.assertNotIn("org_village_code", names)
+        self._converts(data)
+
+    def test_an_optional_level_with_units_stays_in_the_form(self):
+        project = self._org_project(
+            "XLSF07",
+            [("district", "District", 1, False), ("subcentre", "Sub-centre", 2, False), ("village", "Village", 3, True)],
+            [("D01", "district", None), ("S01", "subcentre", "D01"), ("V01", "village", "S01")],
+        )
+        _form, data = xf.build_project_xlsform(project)
+        survey = {r["name"]: r for r in _sheet(data, "survey") if "name" in r}
+        self.assertIn("org_village_code", survey)
+        self.assertNotIn("required", survey["org_village_code"])
+        self.assertEqual(survey["org_village_code"]["choice_filter"], "parent_code=${org_subcentre_code}")
+        village = [r for r in _sheet(data, "choices") if r.get("list_name") == "org_village"]
+        self.assertEqual([(r["name"], r["parent_code"]) for r in village], [("V01", "S01")])
+        self._converts(data)
 
 
 class XlsFormRouteTests(XlsFormBase):

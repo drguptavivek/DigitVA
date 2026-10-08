@@ -1597,12 +1597,16 @@
           + '<td>' + (l.is_optional ? '<span class="badge text-bg-secondary">optional</span>' : '') + '</td>'
           + '<td>' + (l.present
               ? '<span class="text-success"><i class="fa-solid fa-check me-1"></i>present</span>'
-              : '<span class="text-danger"><i class="fa-solid fa-xmark me-1"></i>missing</span>') + '</td></tr>';
+              : l.is_optional
+                ? '<span class="text-muted">optional, not in form</span>'
+                : '<span class="text-danger"><i class="fa-solid fa-xmark me-1"></i>missing</span>') + '</td></tr>';
       }).join('');
+      // An optional level absent from the form is not missing: the generated
+      // form leaves out an optional level with no units.
       var banner = d.missing_count === 0
-        ? '<div class="alert alert-success small py-2">All ' + d.present_count + ' expected field(s) are present in <code>' + esc(d.odk_form_id) + '</code>.</div>'
-        : '<div class="alert alert-warning small py-2">' + d.missing_count + ' of ' + d.levels.length
-          + ' expected field(s) are missing from <code>' + esc(d.odk_form_id) + '</code>. '
+        ? '<div class="alert alert-success small py-2">All required field(s) are present in <code>' + esc(d.odk_form_id) + '</code>.</div>'
+        : '<div class="alert alert-warning small py-2">' + d.missing_count
+          + ' required field(s) are missing from <code>' + esc(d.odk_form_id) + '</code>. '
           + 'Submissions will fall back to the mapping\'s unit, or stay unrouted.</div>';
       out.innerHTML = banner
         + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:.82rem;">'

@@ -276,7 +276,8 @@ TEST_PROJECT_PASSWORD = "Aiims@123"
 
 #: Levels, cadres and grid come from the district reference model
 #: (organization_service.seed_default_organization). TST001 has no villages,
-#: so its mandatory village level is deactivated to keep the project ready.
+#: so its village level is deactivated (it was mandatory in older templates
+#: and stays deactivated on reseed).
 _TST_UNUSED_LEVEL = "village"
 
 #: (unit_code, unit_name, level_code, parent_unit_code), parents first.

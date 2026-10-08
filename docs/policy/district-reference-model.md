@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-08
 ---
 
 # District Reference Model
@@ -52,7 +52,7 @@ Project
 │   └── CHC  Community Health Centre      (chc, depth 3)
 │       └── PHC-AAM                       (phc, depth 4)
 │           └── SC-AAM                    (subcentre, depth 5)
-│               └── Village               (village, depth 6)
+│               └── Village               (village, depth 6, optional)
 
 Mentoring institute (e.g. a medical college): not in this tree at all; a
 standalone entity attached to districts, see "Mentoring institutes" below.
@@ -61,7 +61,21 @@ standalone entity attached to districts, see "Mentoring institutes" below.
 Level codes are the default template's (`district`, `taluka`, `chc`, `phc`,
 `subcentre`, `village`), so existing projects keep working; only the labels
 reflect the AAM naming. A level may be skipped only when it is optional
-(SDH).
+(SDH, Village). Village is optional because villages often have no code.
+Where a project records villages, ASHAs sit at their village with the
+`death_reporter` role, so they report from, and are scoped to, their own
+village; a project without village units leaves the level empty, and an
+optional level with no active units is left out of the project's generated
+ODK form. Existing projects keep the village flag they were seeded with (the
+template never changes an existing level); an administrator can mark it
+optional.
+
+In the generated ODK form no level filters on an optional one: each level's
+choices filter on the nearest required level above it, and each unit's
+`parent_code` there is its nearest required ancestor. A CHC under an SDH and a
+CHC directly under the DH both appear once the district is chosen. A required
+level with no units blocks the form download with one error naming every such
+level. See [Organization Model Policy](organization-model.md).
 
 The worked example district: DH01 > CHC01 > PHC01 (SC01-SC03) and PHC02
 (SC04-SC06).
@@ -83,7 +97,7 @@ under *District reference model*.
 | `chc` | Community Health Centre (CHC) | 3 |
 | `phc` | PHC-AAM | 4 |
 | `subcentre` | SC-AAM / Sub-centre | 5 |
-| `village` | Village | 6 |
+| `village` | Village | 6, optional |
 
 | Level code | Cadre | Fill VA | Code VA | Supervise interviews | Report deaths |
 |---|---|---|---|---|---|

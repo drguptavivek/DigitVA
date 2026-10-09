@@ -61,7 +61,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey;
    Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
+5. **Owner decisions of 2026-10-09** (below): `0wm9`, `8xbo`, `1zdi`,
+   `dhmc`, `bed0`, `96a7`, `rrev`; Expo `gqtp`.
+6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe`
    semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes
@@ -115,18 +117,20 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   set to coder by mistake); remove or fix.
 - Review 10 behaviour changes: see closed bead `digitva-4lv4`.
 
-## Open owner decisions
+## Owner decisions taken 2026-10-09 (in docs/policy, not built)
 
-- Fold form-options and prefill-policy into `me/access` (recommended: no).
-- Picking "refused" while consent is yes is refused (422).
-- Prefill name split: first word given name, rest surname.
-- Area dashboard: collaborators get no DM links; project cards follow final
-  COD authority and can differ from table buckets.
-- Daily KPI grid shows the Not analysable total only.
-- The visit note (refusal with no identity) is stored in the submission
-  payload only; no supervisor or DM page shows it yet.
-- Duplicate hint: `previous_interviewer_name` is who started the interview
-  only (the registrant may be a data manager).
+- Form-options and prefill-policy stay out of `me/access` (no code).
+- Outcome "refused" with consent yes: specific 422 naming both questions,
+  shown beside them: server `digitva-0wm9`, Expo `digitva-gqtp`. Today a
+  valid form there is silently stored `completed`.
+- Name split: last word is the surname `digitva-8xbo`.
+- Area dashboard: collaborators get DM links `digitva-1zdi`; two labelled
+  cards plus a Final COD column `digitva-dhmc`; visit-note count column.
+- DM daily grid: Not analysable total plus optional reason columns
+  `digitva-bed0`.
+- Visit note shown on the area table, the DM record list and the case view,
+  address redacted for non-PII viewers `digitva-96a7`.
+- Duplicate hint also names who reported the death `digitva-rrev`.
 
 ## Caveats still true
 

@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-09
 ---
 
 # Area Dashboard Policy
@@ -62,7 +62,7 @@ when the user holds that role on the project and that screen admits them
 
 No link otherwise. Links carry project, site and workflow codes only, never
 subject or staff data. Collaborators also reach the data manager dashboard
-but get no link yet (open owner decision). The link test is the role on the
+and get the data manager's links (owner, 2026-10-09; not built yet). The link test is the role on the
 project, not that role's reach: a data manager on one site of a project the
 user sees whole through another role gets a link whose landing page shows
 only their site. The target screen enforces its own scope, so this can
@@ -108,7 +108,23 @@ reviewer; coded and not codeable also as a share of submitted. The card is
 live. Its definitions are the Site PI's, so its coded and not codeable
 differ from the table's coding buckets (the table counts coder-finalized as
 coded and consent refused as not codeable; the card uses authority rows and
-the two not-codeable states). No staff or subject identity. No coding
+the two not-codeable states). No staff or subject identity.
+
+**Two definitions, both named** (owner, 2026-10-09; not built yet). The page
+must say which "coded" a number means instead of leaving the card and table
+to disagree silently. The card becomes two labelled cards: *Coding progress*
+(coder finalized, consent refused counted as not codeable: the table's
+definitions) and *Final cause of death* (a final COD holds authority; the two
+not-codeable states: the Site PI's definitions). The table keeps its coder-
+finalized "Coded" column and adds a "Final COD" column on the authority
+definition. Every such heading carries a one-line definition (visible text or
+tooltip), and the two never share a label.
+
+**Visit notes column** (owner, 2026-10-09; not built yet). Each table row
+counts the nameless refusals that carry a visit note
+([Web Intake Policy](web-intake.md), "Visit note") and, for a viewer with the
+data manager's link, links to the record list filtered to them, where each
+record shows its note. The count carries no subject data. No coding
 turnaround yet: the data holds no cheap submission-to-final-COD pair on this
 path. Unit-scoped users see no card.
 

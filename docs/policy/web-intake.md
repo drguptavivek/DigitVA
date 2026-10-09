@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-09
 ---
 
 # Web Intake Policy
@@ -184,6 +184,14 @@ submission's organization unit, falling back to the form-level setting
   closed state the identity constraint allows without an identity. A register
   case already has its identity and goes to `refused` as before. An invalid form with neither refusal nor an
   incomplete outcome is refused (422).
+- **Outcome that contradicts consent** (owner, 2026-10-09; not built yet):
+  `interview_outcome` = `refused` while `Id10013` (consent) = yes is refused
+  with 422 and its own code, naming both questions, so the interviewer can
+  correct one of them. Today a valid form in that state is silently stored as
+  `completed` and the pick is dropped. Every intake 422 the interviewer can
+  fix carries a specific `code`, a message written for the interviewer and
+  the question names involved (`fields`), and the client shows that message
+  beside those questions, not a generic "check the highlighted fields".
 - **Visit note** (owner, 2026-10-01, `digitva-4tb`): the identity-less refusal
   above leaves no record of which household it was, so the form asks a short
   visit note, in that case only: **address** (free text), **visit date** (not
@@ -196,8 +204,12 @@ submission's organization unit, falling back to the form-level setting
   visit date on that path (422 otherwise, address at most 500 and remarks at
   most 2000 characters), stores them in the submission payload and as
   `visitNote` in the draft meta, and the nameless case still closes
-  `cancelled`. Every other interview is unchanged. No page shows the note to
-  supervisors or data managers yet; it is in the stored payload. Server-side re-validation with
+  `cancelled`. Every other interview is unchanged. The note is shown (owner,
+  2026-10-09; not built yet): the area dashboard table counts visit notes per
+  row and links to the data manager's record list filtered to them, and each
+  such record shows its address, visit date and remarks in that list and in
+  its case view. `visit_address` is a PII location field: a viewer
+  `should_redact_pii` redacts sees the visit date only. Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no
@@ -1028,10 +1040,11 @@ Rules as built:
   case's (see "Correcting a registered death").
   Unlocked answers keep their saved-answer semantics (an unchanged answer
   stays, a cleared one is cleared).
-- **Name split**: the first word of the case name is the given name
-  (`Id10017`), the rest the surname (`Id10018`); a one-word name has no
-  surname. Owner decision open: last word as surname suits Indian names
-  better ("Ram Kumar Sharma" gives "Ram" / "Kumar Sharma" today).
+- **Name split** (owner, 2026-10-09): the last word of the case name is the
+  surname (`Id10018`), the words before it the given name (`Id10017`):
+  "Ram Kumar Sharma" gives "Ram Kumar" / "Sharma". A one-word name is the
+  given name with no surname. (Until this lands the first word is the given
+  name and the rest the surname.)
 - **Case address**: house or street, village or ward, landmark, then the
   free-text address, comma-joined.
 - **`Id10058`**: the register's place of death is free text (the form offers
@@ -1330,7 +1343,10 @@ its name and date of death.
   redacted. `previous_interviewer_name` is new here: the worklist and case
   detail deliberately never name another interviewer, and it is shown only
   because the owner's 2026-10-01 rule names it, for in-scope candidates only.
-  No phone or address. The worklist's per-row `possible_duplicates`
+  Beside it, `reported_by_name` names the user who registered the death
+  (`registered_by`; owner, 2026-10-09, not built yet), who may be a data
+  manager or death reporter rather than an interviewer; the form page shows
+  both, labelled. No phone or address. The worklist's per-row `possible_duplicates`
   stays `death_id` and `unique_id` only.
 - **Form page:** checked on open, after a save that touched the identity
   answers (`Id10017`, `Id10018`, `Id10019`, `Id10023`, `Id10023_a`,

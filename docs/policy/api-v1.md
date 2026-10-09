@@ -3,7 +3,7 @@ title: One Client API (/api/v1)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-09
 ---
 
 # One Client API (`/api/v1`)
@@ -98,6 +98,11 @@ sign-in and refresh replies), and the unit picker, form options, prefill
 policy and translations are the shared routes. Route reference:
 `docs/current-state/api-v1.md`. The one `user` object is `{user_id, name}`
 (`email` is added only in the sign-in reply's own `user`).
+
+Form options and prefill policy stay separate routes, not part of
+`me/access` (owner, 2026-10-09): `me/access` is read on every browser
+reload and answers who the user is and what they may reach; per-project form
+configuration is read only by a client that works in that project.
 
 No legacy mobile app exists (owner, 2026-10-04): device-only routes are
 removed as their replacements land, not kept alongside them. The Jinja pages

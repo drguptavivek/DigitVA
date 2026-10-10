@@ -4,6 +4,41 @@
  */
 import React from "react";
 import {
+  ar,
+  ca,
+  cs,
+  da,
+  DatePickerModal,
+  de,
+  el,
+  en,
+  enGB,
+  es,
+  fi,
+  fr,
+  he,
+  hi,
+  id,
+  it,
+  ja,
+  ko,
+  nl,
+  noNO,
+  pl,
+  pt,
+  registerTranslation,
+  ro,
+  ru,
+  sv,
+  th,
+  tr,
+  ukUA,
+  zh,
+  zhTW
+} from "react-native-paper-dates";
+import { MD3LightTheme, PaperProvider } from "react-native-paper";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
   Image as WebImage,
   Modal as WebModal,
   Pressable as WebPressable,
@@ -33,6 +68,7 @@ import {
 import { startWebAudioRecording } from "./web-audio.js";
 import { prefersReducedMotion } from "./ui/form-presentation.js";
 import { applyWebTheme } from "./ui/web-theme.js";
+import { isValidIsoDate } from "./date.js";
 
 function themedPrimitive(Component: React.ElementType, displayName: string): React.ElementType {
   const ThemedPrimitive = React.forwardRef<unknown, Record<string, unknown>>(
@@ -134,48 +170,246 @@ export {
 } from "./instrument-loader.js";
 export type { WhoVaFormProps, WhoVaPlatformServices } from "./ui/create-who-va-form.js";
 
+interface WebDateInputHandle {
+  showPicker: () => void;
+}
+
 interface WebDateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "style"> {
   accessibilityLabel?: string;
+  locale?: string;
   onChangeText: (value: string) => void;
   style?: unknown;
   testID?: string;
 }
 
-const WebDateInput = React.forwardRef<HTMLInputElement, WebDateInputProps>(function WebDateInput(
-  { accessibilityLabel, onChangeText, style, testID, ...props },
+const datePickerTranslations: Record<string, typeof en> = {
+  ar,
+  ca,
+  cs,
+  da,
+  de,
+  el,
+  en,
+  "en-GB": enGB,
+  es,
+  fi,
+  fr,
+  he,
+  hi,
+  id,
+  it,
+  ja,
+  ko,
+  nl,
+  "no-NO": noNO,
+  no: noNO,
+  pl,
+  pt,
+  ro,
+  ru,
+  sv,
+  th,
+  tr,
+  uk: ukUA,
+  "uk-UA": ukUA,
+  zh,
+  "zh-TW": zhTW
+};
+
+/** Draw the date picker's known Paper icons locally so web never needs an icon font. */
+function webDatePickerIcon({
+  name,
+  color,
+  size,
+  testID
+}: {
+  name: string;
+  color?: string;
+  size: number;
+  direction?: "ltr" | "rtl" | "auto";
+  testID?: string;
+}) {
+  const path = name.includes("left")
+    ? "M15 18l-6-6 6-6"
+    : name.includes("right")
+      ? "M9 18l6-6-6-6"
+      : name.includes("close")
+        ? "M18 6L6 18M6 6l12 12"
+        : name.includes("calendar")
+          ? "M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 011 1v14H4V6a1 1 0 011-1zm2 8h2m3 0h2m3 0h1m-11 4h2m3 0h2"
+          : name.includes("pencil") || name.includes("edit")
+            ? "M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5zM13.5 7l3.5 3.5"
+            : "M7 12l5 5 5-5";
+  return (
+    <svg
+      aria-hidden="true"
+      data-testid={testID}
+      focusable="false"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path
+        d={path}
+        fill="none"
+        stroke={color ?? "currentColor"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+/** Copy host date-field colors and font into the modal portal, outside the form's CSS scope. */
+function webDatePickerTheme(input: HTMLInputElement | null) {
+  const computed = input && typeof window !== "undefined" ? window.getComputedStyle(input) : undefined;
+  const token = (name: string, fallback: string) => computed?.getPropertyValue(name).trim() || fallback;
+  const surface = token("--who-2022-web-color-surface", "#ffffff");
+  const ink = token("--who-2022-web-color-ink", "#1f2937");
+  const brand = token("--who-2022-web-color-brand", "#1b4f9c");
+  const brandDeep = token("--who-2022-web-color-brand-deep", "#004687");
+  const brandSoft = token("--who-2022-web-color-brand-soft", "#eaf1fa");
+  const border = token("--who-2022-web-color-border", "#e2e8f0");
+  const muted = token("--who-2022-web-color-muted", "#667085");
+  const fontFamily = computed?.fontFamily || "system-ui, sans-serif";
+  const fonts = Object.fromEntries(
+    Object.entries(MD3LightTheme.fonts).map(([name, style]) => [name, { ...style, fontFamily }])
+  ) as typeof MD3LightTheme.fonts;
+  return {
+    ...MD3LightTheme,
+    fonts,
+    colors: {
+      ...MD3LightTheme.colors,
+      primary: brand,
+      onPrimary: surface,
+      primaryContainer: brandSoft,
+      onPrimaryContainer: brandDeep,
+      secondary: brand,
+      onSecondary: surface,
+      surface,
+      surfaceVariant: surface,
+      onSurface: ink,
+      onSurfaceVariant: muted,
+      outline: border,
+      outlineVariant: border,
+      backdrop: "rgba(31, 41, 55, 0.45)",
+      elevation: {
+        ...MD3LightTheme.colors.elevation,
+        level0: surface,
+        level1: surface,
+        level2: surface,
+        level3: surface,
+        level4: surface,
+        level5: surface
+      }
+    }
+  };
+}
+
+/** Convert a canonical ISO date to a local-noon date for the browser picker; invalid values return undefined. */
+function webDateFromIso(value: string | undefined): Date | undefined {
+  if (!value || !isValidIsoDate(value)) return undefined;
+  return new Date(`${value}T12:00:00`);
+}
+
+/** Serialize a browser-picked local date without shifting it across time zones. */
+function webDateToIso(value: Date): string {
+  const year = String(value.getFullYear()).padStart(4, "0");
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const WebDateInput = React.forwardRef<WebDateInputHandle, WebDateInputProps>(function WebDateInput(
+  {
+    accessibilityLabel,
+    disabled,
+    locale = "en",
+    max,
+    min,
+    onChangeText,
+    readOnly,
+    style,
+    testID,
+    value,
+    ...props
+  },
   ref
 ) {
-  // A plain <input type="date"> keeps the native picker. Its style is the
-  // shared input style run through the theme (so the host's CSS variables
-  // reach it), plus what the browser's own input defaults would otherwise
-  // override: a solid border, inherited font, box sizing and padding.
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const selectedDate = webDateFromIso(typeof value === "string" ? value : undefined);
+  const minDate = typeof min === "string" ? webDateFromIso(min) : undefined;
+  const maxDate = typeof max === "string" ? webDateFromIso(max) : undefined;
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      showPicker() {
+        if (disabled || readOnly) return;
+        const language = locale.split(/[-_]/, 1)[0] ?? "en";
+        registerTranslation(locale, datePickerTranslations[locale] ?? datePickerTranslations[language] ?? en);
+        setCalendarOpen(true);
+      }
+    }),
+    [disabled, locale, readOnly]
+  );
   const themed = applyWebTheme(style);
   const flattenedStyle = (Array.isArray(themed) ? themed.flat(Infinity) : [themed])
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
     .reduce<Record<string, unknown>>((result, entry) => Object.assign(result, entry), {});
   const { paddingHorizontal, paddingVertical, ...rest } = flattenedStyle;
   return (
-    <input
-      {...props}
-      type="date"
-      aria-label={accessibilityLabel}
-      data-testid={testID}
-      style={
-        {
-          borderStyle: "solid",
-          boxSizing: "border-box",
-          font: "inherit",
-          fontSize: 16,
-          lineHeight: "24px",
-          margin: 0,
-          paddingBlock: paddingVertical,
-          paddingInline: paddingHorizontal,
-          ...rest
-        } as React.CSSProperties
-      }
-      onChange={(event) => onChangeText(event.currentTarget.value)}
-      ref={ref}
-    />
+    <>
+      <input
+        {...props}
+        ref={inputRef}
+        disabled={disabled}
+        max={max}
+        min={min}
+        readOnly={readOnly}
+        type="date"
+        aria-label={accessibilityLabel}
+        data-testid={testID}
+        style={
+          {
+            borderStyle: "solid",
+            boxSizing: "border-box",
+            font: "inherit",
+            fontSize: 16,
+            lineHeight: "24px",
+            margin: 0,
+            paddingBlock: paddingVertical,
+            paddingInline: paddingHorizontal,
+            ...rest
+          } as React.CSSProperties
+        }
+        onChange={(event) => onChangeText(event.currentTarget.value)}
+        value={value}
+      />
+      {calendarOpen ? (
+        <SafeAreaProvider>
+          <PaperProvider theme={webDatePickerTheme(inputRef.current)} settings={{ icon: webDatePickerIcon }}>
+            <DatePickerModal
+              {...(selectedDate ? { date: selectedDate } : {})}
+              label={accessibilityLabel ?? ""}
+              locale={locale}
+              mode="single"
+              validRange={{
+                ...(minDate ? { startDate: minDate } : {}),
+                ...(maxDate ? { endDate: maxDate } : {})
+              }}
+              onConfirm={({ date: selectedDate }) => {
+                setCalendarOpen(false);
+                if (selectedDate) onChangeText(webDateToIso(selectedDate));
+              }}
+              onDismiss={() => setCalendarOpen(false)}
+              visible
+            />
+          </PaperProvider>
+        </SafeAreaProvider>
+      ) : null}
+    </>
   );
 });
 

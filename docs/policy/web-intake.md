@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-09
+last_updated: 2026-10-10
 ---
 
 # Web Intake Policy
@@ -18,6 +18,12 @@ submission enters the workflow. Plan:
 `docs/planning/who-va-2022-web-intake-plan.md`.
 
 ## Baseline
+
+- **Browser date selection**: exact-date controls open a localized calendar
+  modal sized up to 400px on desktop. Clicking outside or pressing Escape
+  dismisses it without changing the answer. Calendar selection honors the
+  question's minimum and maximum dates and stores the selected date as ISO
+  `YYYY-MM-DD`.
 
 - **Project setting** `va_project_master.web_intake_mode`: `off` (default,
   ODK only), `direct` (questionnaire only), `death_register` (a death must be

@@ -3,7 +3,7 @@ title: Web VA questionnaire visual pass (before/after)
 doc_type: design
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-10
 ---
 
 # Web VA questionnaire visual pass
@@ -421,7 +421,7 @@ The DigitVA bundle is built by `tooling/who-va-2022/build.mjs` from
 `vendor/who-va-2022/src` and committed under `app/static/vendor/who-va-2022/`:
 
 ```sh
-cd tooling/who-va-2022 && npm install && node build.mjs && node check.mjs
+cd tooling/who-va-2022 && npm ci --legacy-peer-deps && node build.mjs && node check.mjs
 ```
 
 - Output: `app/static/vendor/who-va-2022/who-va-2022.web-component.js`

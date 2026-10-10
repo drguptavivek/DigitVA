@@ -1,7 +1,7 @@
 // Bundle the vendored WHO VA 2022 questionnaire (plus DigitVA's extension)
 // into one ESM file served from app/static/vendor/who-va-2022/.
 //
-//   cd tooling/who-va-2022 && npm ci && npm run build
+//   cd tooling/who-va-2022 && npm ci --legacy-peer-deps && npm run build
 //
 // The output is committed so deployments need no Node toolchain.
 import { build } from "esbuild";
@@ -27,9 +27,16 @@ await build({
   sourcemap: false,
   target: ["es2020"],
   outfile,
-  define: { "process.env.NODE_ENV": '"production"', __DEV__: "false" },
+  loader: { ".png": "dataurl" },
+  define: { "process.env.NODE_ENV": '"production"', __DEV__: "false", global: "globalThis" },
   nodePaths: [path.join(here, "node_modules")],
-  alias: { "@digitva/who-va-2022": path.join(vendorDir, "src") },
+  alias: {
+    "@digitva/who-va-2022": path.join(vendorDir, "src"),
+    "react-native": "react-native-web",
+    react: path.join(here, "node_modules", "react"),
+    "react-dom": path.join(here, "node_modules", "react-dom")
+  },
+  resolveExtensions: [".web.tsx", ".web.ts", ".web.jsx", ".web.js", ".tsx", ".ts", ".jsx", ".js", ".json"],
   logLevel: "warning"
 });
 

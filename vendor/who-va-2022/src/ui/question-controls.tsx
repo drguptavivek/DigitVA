@@ -1204,8 +1204,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
   /**
    * A date as DD-MMM-YYYY: day and year boxes with a month select between
-   * them, styled as one field, and a calendar button that opens the native
-   * picker (a hidden <input type="date">). The stored value stays ISO; a
+   * them, styled as one field, and a calendar button that opens the platform
+   * picker. The stored value stays ISO; a
    * partial entry stores nothing, an impossible date (31-Feb) shows an error
    * and stores nothing. Without a Select primitive the month is a numeric box.
    */
@@ -1392,6 +1392,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               <DateInput
                 ref={pickerRef}
                 accessibilityLabel={label}
+                locale={locale}
+                readOnly={readOnly || undefined}
                 aria-hidden="true"
                 tabIndex={-1}
                 testID={`question-${question.name}`}

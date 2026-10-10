@@ -94,6 +94,9 @@ export interface WorkspaceCategoryNav {
   label: string;
   nav_label: string;
   render_mode: string;
+  icon_name?: string | null;
+  count?: number;
+  attachment_count?: number;
 }
 
 export interface WorkspaceAssessment {
@@ -146,6 +149,11 @@ export interface WorkspacePayload {
     va_sid: string;
     instance_name: string;
     form_type_code: string;
+    project_code?: string | null;
+    site_code?: string | null;
+    age?: string | number | null;
+    gender?: string | null;
+    is_demo_project?: boolean;
     project_mode: ProjectMode;
     icd_classification: "icd10" | "icd11";
     workflow_state: string;
@@ -353,6 +361,12 @@ function nullableString(value: unknown, field: string): string | null {
   return value === null ? null : string(value, field);
 }
 
+function nullableStringNumber(value: unknown, field: string): string | number | null {
+  if (value === null) return null;
+  if (typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) return value;
+  throw new WorkspaceContractError(field);
+}
+
 function boolean(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") throw new WorkspaceContractError(field);
   return value;
@@ -361,6 +375,20 @@ function boolean(value: unknown, field: string): boolean {
 function number(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) throw new WorkspaceContractError(field);
   return value;
+}
+
+function nonNegativeInteger(value: unknown, field: string): number {
+  const parsed = number(value, field);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new WorkspaceContractError(field);
+  return parsed;
+}
+
+function optionalIcon(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const parsed = string(value, field);
+  if (!/^fa-[a-z0-9-]+$/.test(parsed)) throw new WorkspaceContractError(field);
+  return parsed;
 }
 
 function array<T>(value: unknown, field: string, parse: (item: unknown, field: string) => T): T[] {
@@ -485,6 +513,11 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       va_sid: string(caseSource.va_sid, "workspace.case.va_sid"),
       instance_name: string(caseSource.instance_name, "workspace.case.instance_name"),
       form_type_code: string(caseSource.form_type_code, "workspace.case.form_type_code"),
+      ...(caseSource.project_code !== undefined ? { project_code: nullableString(caseSource.project_code, "workspace.case.project_code") } : {}),
+      ...(caseSource.site_code !== undefined ? { site_code: nullableString(caseSource.site_code, "workspace.case.site_code") } : {}),
+      ...(caseSource.age !== undefined ? { age: nullableStringNumber(caseSource.age, "workspace.case.age") } : {}),
+      ...(caseSource.gender !== undefined ? { gender: nullableString(caseSource.gender, "workspace.case.gender") } : {}),
+      ...(caseSource.is_demo_project !== undefined ? { is_demo_project: boolean(caseSource.is_demo_project, "workspace.case.is_demo_project") } : {}),
       project_mode: projectMode as ProjectMode,
       icd_classification: classification,
       workflow_state: string(caseSource.workflow_state, "workspace.case.workflow_state"),
@@ -493,7 +526,19 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
     },
     categories: array(source.categories, "workspace.categories", (item, field) => {
       const category = record(item, field);
-      return { code: string(category.code, `${field}.code`), label: string(category.label, `${field}.label`), nav_label: string(category.nav_label, `${field}.nav_label`), render_mode: string(category.render_mode, `${field}.render_mode`) };
+      const icon = optionalIcon(category.icon_name, `${field}.icon_name`);
+      const count = category.count === undefined ? undefined : nonNegativeInteger(category.count, `${field}.count`);
+      return {
+        code: string(category.code, `${field}.code`),
+        label: string(category.label, `${field}.label`),
+        nav_label: string(category.nav_label, `${field}.nav_label`),
+        render_mode: string(category.render_mode, `${field}.render_mode`),
+        ...(icon !== undefined ? { icon_name: icon } : {}),
+        ...(count !== undefined ? { count } : {}),
+        ...(category.attachment_count !== undefined
+          ? { attachment_count: nonNegativeInteger(category.attachment_count, `${field}.attachment_count`) }
+          : {}),
+      };
     }),
     default_category: string(source.default_category, "workspace.default_category"),
     step: step as CodingStep,

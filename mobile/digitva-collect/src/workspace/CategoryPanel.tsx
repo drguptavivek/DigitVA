@@ -13,6 +13,7 @@ export function CategoryPanel({
 }: {
   category: CategoryPayload;
   renderMedia?: (attachmentPath: string) => ReactNode;
+  iconName?: string | null;
 }) {
   return (
     <View accessibilityLabel={category.label}>

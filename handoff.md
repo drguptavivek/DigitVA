@@ -56,6 +56,9 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    device re-run (server regression test added), `p6fs.32`, vendor
    typecheck `digitva-i793`/`surw`, vendor flake `digitva-3jj`, device
    acceptance `p6fs.5`.
+   The HTMX-style browser coder layout (`digitva-1nkv`) has browser QA;
+   physical-device acceptance remains under `p6fs.5`. Its SmartVA shell
+   displays availability only; execution controls stay in the existing workflow.
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia,
    Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;

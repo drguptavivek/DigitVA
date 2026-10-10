@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState as NativeAppState, Pressable, ScrollView, Text, View } from "react-native";
+import { AppState as NativeAppState, Platform, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { Button, Screen, errorText, styles } from "../ui";
@@ -11,6 +11,7 @@ import { SimpleCodPanel } from "./SimpleCodPanel";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
 import type { CategoryPayload, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
+import { WorkspaceLayout } from "./WorkspaceLayout";
 
 /** Own the secured, allocation-scoped workspace lifecycle and render its ordered categories. */
 export function CaseWorkspaceScreen({
@@ -266,19 +267,23 @@ export function CaseWorkspaceScreen({
     </Screen>;
   }
 
+  const privateNotes = identity.mode !== "view" ? (
+    <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} />
+  ) : null;
+
   return (
-    <Screen title={workspace.case.instance_name} headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={(
-      <ScrollView accessibilityLabel="Case categories" style={styles.card}>
-        {workspace.categories.map((item) => (
-          <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ selected: selectedCode === item.code }} onPress={() => void loadCategory(item.code, generation.current)}>
-            <Text style={selectedCode === item.code ? styles.headline : styles.text}>{item.nav_label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-    )}>
+    <WorkspaceLayout
+      identity={identity}
+      workspace={workspace}
+      categories={workspace.categories}
+      selectedCode={selectedCode}
+      categoryLoading={categoryLoading}
+      onSelectCategory={(code) => void loadCategory(code, generation.current)}
+      onExit={onExit}
+      notes={Platform.OS === "web" ? privateNotes : undefined}
+    >
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {categoryLoading ? <Text style={styles.muted}>Loading category…</Text> : null}
-      {category ? <CategoryPanel category={category} renderMedia={renderMedia} /> : null}
+      {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} /> : null}
       {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
         <View key={identityKey}>
           {workspace.case.project_mode.endsWith("_doris") ? (
@@ -293,7 +298,7 @@ export function CaseWorkspaceScreen({
             onSaveSocialAutopsy={(body) => saveQuality(() => api.saveSocialAutopsy(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
           />
           {qualityError ? <Text accessibilityRole="alert" style={styles.error}>{qualityError}</Text> : null}
-          <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} />
+          {Platform.OS === "web" ? null : privateNotes}
         </View>
       ) : null}
       {identity.mode === "view" ? (
@@ -312,7 +317,7 @@ export function CaseWorkspaceScreen({
           />
         </>
       ) : null}
-    </Screen>
+    </WorkspaceLayout>
   );
 }
 

@@ -23,7 +23,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
-from app.models import VaFinalAssessments, VaStatuses, VaSubmissions
+from app.models import VaFinalAssessments, VaForms, VaProjectMaster, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
@@ -51,7 +51,8 @@ from app.services.coder_cod_service import (
     require_coding_session,
 )
 from app.services.coder_workflow_service import get_active_coding_allocation
-from app.services.coding_service import get_project_for_submission
+from app.services.coding_service import _count_attachments_per_category
+from app.services.demo_project_service import is_demo_training_project
 from app.services.doris_context_service import workspace_doris
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import get_active_recode_episode
@@ -103,6 +104,9 @@ class _Case:
     va_action: str
     submission: VaSubmissions
     project: object
+    project_code: str | None
+    site_code: str | None
+    is_demo_project: bool
     project_mode: str
     form_type_code: str
     active_version: object
@@ -183,13 +187,20 @@ def _authorize(va_sid: str):
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
         return api_error("Submission not found.", "not_found", 404)
-    project = get_project_for_submission(va_sid)
+    form = db.session.get(VaForms, submission.va_form_id) if submission.va_form_id else None
+    project = db.session.get(VaProjectMaster, form.project_id) if form else None
     active_version = get_active_payload_version(va_sid)
     return _Case(
         mode=mode,
         va_action=_ACTION_BY_MODE[mode],
         submission=submission,
         project=project,
+        project_code=(
+            (project.project_code if project and project.project_code else None)
+            or (form.project_id if form else None)
+        ),
+        site_code=form.site_id if form else None,
+        is_demo_project=is_demo_training_project(project),
         project_mode=get_project_mode(project),
         form_type_code=va_get_form_type_code_for_form(submission.va_form_id),
         active_version=active_version,
@@ -328,6 +339,18 @@ def _social_autopsy_json(case: _Case, va_sid: str, user_id) -> dict | None:
     return {"questions": SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS, "saved": saved}
 
 
+def _category_counts(catcount, nav) -> dict[str, int]:
+    """Return the non-negative notification counts used by the web nav."""
+    if not isinstance(catcount, dict):
+        return {item.category_code: 0 for item in nav}
+    counts = {}
+    for item in nav:
+        entry = catcount.get(item.category_code)
+        count = entry.get("count") if isinstance(entry, dict) else 0
+        counts[item.category_code] = count if type(count) is int and count >= 0 else 0
+    return counts
+
+
 @bp.get("/<va_sid>/workspace")
 @role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
 def workspace(va_sid):
@@ -362,6 +385,12 @@ def workspace(va_sid):
     category_service = get_category_rendering_service()
     nav = category_service.get_category_nav(
         case.form_type_code, case.va_action, case.visible_category_codes
+    )
+    category_counts = _category_counts(case.submission.va_catcount, nav)
+    attachment_counts = _count_attachments_per_category(
+        case.form_type_code,
+        case.active_version.payload_data if case.active_version else {},
+        va_sid,
     )
     artifacts = get_case_artifacts(
         va_sid=va_sid,
@@ -457,6 +486,11 @@ def workspace(va_sid):
             "va_sid": va_sid,
             "instance_name": case.submission.va_uniqueid_masked,
             "form_type_code": case.form_type_code,
+            "project_code": case.project_code,
+            "site_code": case.site_code,
+            "age": case.submission.va_deceased_age,
+            "gender": case.submission.va_deceased_gender,
+            "is_demo_project": case.is_demo_project,
             "project_mode": case.project_mode,
             # get_icd_classification_for_submission's answer from the project
             # already loaded (same submission -> form -> project path).
@@ -474,6 +508,9 @@ def workspace(va_sid):
                 "code": item.category_code,
                 "label": item.display_label,
                 "nav_label": item.nav_label,
+                "icon_name": item.icon_name,
+                "count": category_counts[item.category_code],
+                "attachment_count": attachment_counts.get(item.category_code, 0),
                 "render_mode": item.render_mode,
             }
             for item in nav

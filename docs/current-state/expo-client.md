@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-10
 ---
 
 # Expo Client Hosting And Access
@@ -37,6 +37,15 @@ Signed-in browser routes use `WebShell`, which supplies the shared left
 sidebar or phone rail and the screen header. It forwards optional header actions
 and a footer slot to `Screen`; page content does not construct its own main
 navigation. Empty footer slots consume no screen space.
+
+An open coding/review case uses its own HTMX-style browser workspace:
+Hints and VA Form Details above category navigation and Query/Response
+sections. The shared `CaseWorkspaceScreen` retains allocation-safe loading,
+masking and save handling; platform-specific presentation supplies the
+browser layout while native screens retain their existing presentation.
+Notes are available across categories in coding/review mode and remain
+private to the current author and case. See
+[Coder Browser Presentation](../policy/coder-browser-presentation.md).
 
 On browser reload, routes wait for `GET /api/v1/me/access` before rendering. Ordinary
 sign-in recovery retains the current `/app/` route and query. Pending terms (403 `terms_required`) go to the terms screen and required factor

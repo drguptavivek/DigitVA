@@ -856,6 +856,53 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(body["render_mode"], "table_sections")
         self.assertEqual(body["subcategories"][0]["code"], "sub1")
 
+    def test_workspace_includes_web_header_metadata_and_category_badges(self):
+        sid = self._coding_case()
+        submission = db.session.get(VaSubmissions, sid)
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        cat1 = db.session.scalar(sa.select(MasCategoryDisplayConfig).where(
+            MasCategoryDisplayConfig.form_type_id == self.form_type_id,
+            MasCategoryDisplayConfig.category_code == "cat1",
+        ))
+        old_icon = cat1.icon_name
+        submission.va_deceased_age = 42
+        submission.va_deceased_gender = "Female"
+        submission.va_catcount = {"cat1": {"count": 3}, "catc": {"count": -1}}
+        cat1.icon_name = "fa-user"
+        db.session.commit()
+        get_category_rendering_service().clear_cache()
+
+        def restore():
+            current_cat1 = db.session.scalar(sa.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == self.form_type_id,
+                MasCategoryDisplayConfig.category_code == "cat1",
+            ))
+            if current_cat1 is not None:
+                current_cat1.icon_name = old_icon
+            db.session.commit()
+            get_category_rendering_service().clear_cache()
+
+        self.addCleanup(restore)
+        with (
+            patch("app.routes.api.va_case.is_demo_training_project", return_value=True),
+            patch("app.routes.api.va_case._count_attachments_per_category", return_value={"cat1": 2}),
+        ):
+            body = self._workspace(sid)
+
+        self.assertEqual(body["case"]["project_code"], project.project_code)
+        self.assertEqual(body["case"]["site_code"], self.BASE_SITE_ID)
+        self.assertEqual(body["case"]["age"], 42)
+        self.assertEqual(body["case"]["gender"], "Female")
+        self.assertTrue(body["case"]["is_demo_project"])
+        categories = {item["code"]: item for item in body["categories"]}
+        self.assertEqual(categories["cat1"]["icon_name"], "fa-user")
+        self.assertEqual(categories["cat1"]["count"], 3)
+        self.assertEqual(categories["cat1"]["attachment_count"], 2)
+        self.assertIsNone(categories["catc"]["icon_name"])
+        self.assertEqual(categories["catc"]["count"], 0)
+        self.assertEqual(categories["catc"]["attachment_count"], 0)
+        self.assertEqual(categories["social_autopsy"]["count"], 0)
+
     def test_a_category_the_role_does_not_see_is_404(self):
         coding = self._coding_case()
         reviewing = self._reviewing_case()

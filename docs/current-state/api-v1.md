@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-10
 ---
 
 # API v1 Reference
@@ -453,6 +453,15 @@ for a redacted viewer the staff free text (`remark`, `not_codeable.other`) is
 `/api/v1/workflow/events/<sid>` already authorize by VIEW.
 
 `GET /<va_sid>/workspace?mode=` answers `Cache-Control: private, no-store`:
+
+Browser presentation also receives additive case fields: `project_code` and
+`site_code` (nullable strings), `age` (nullable string or number), `gender`
+(nullable string), and `is_demo_project` (boolean). Ordered category entries
+include `icon_name` (nullable configured Font Awesome class) and `count`
+(nonnegative integer, zero when missing). `attachment_count` is the
+nonnegative count from the shared HTMX attachment-count helper. These carry the same display
+meaning as the HTMX workspace. Clients tolerate their absence; allocation,
+view authorization, masking and workflow semantics remain unchanged.
 
 | Key | Content |
 | --- | --- |
